@@ -1,17 +1,16 @@
-export const ALL_ROLES: Record<string, string[]> = {
-    admin: [
+// userType: 1 = admin, 2 = staff
+export const ALL_ROLES: Record<number, string[]> = {
+    1: [ // admin
         "/users", "/accounts"
     ],
-    dataOfficer: [
+    2: [ // staff
         "/transect-results", "/welcome"
     ],
 } as const
 
-type RoleKey = keyof typeof ALL_ROLES
-
-
-export const roles = Object.fromEntries(
-    Object.keys(ALL_ROLES).map((key) => [key, key])
-) as Record<RoleKey, RoleKey>;
+export const userTypes = {
+    admin: 1,
+    staff: 2
+} as const;
 
 export const roleRights = new Map(Object.entries(ALL_ROLES));
