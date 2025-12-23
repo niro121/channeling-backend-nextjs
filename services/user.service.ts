@@ -12,17 +12,18 @@ export const getUsers = async ({
     page,
     limit,
     keyword,
-    role,
+    userType,
 }: GetUsersQuery) => {
     //calculate skip
-    const skip = page * limit
+    const validLimit = limit > 0 ? limit : 10
+    const skip = page * validLimit
 
     // console.log("keyword", keyword);
 
     try {
         const records = await prisma.user.findMany({
             skip: skip,
-            take: limit,
+            take: validLimit,
             where: {
                 OR: [
                     {

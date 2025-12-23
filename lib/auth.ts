@@ -3,6 +3,18 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from "./prisma";
 import * as argon2 from "argon2";
 
+// Ensure NEXTAUTH_SECRET is set
+const getSecret = () => {
+  if (process.env.NEXTAUTH_SECRET) {
+    return process.env.NEXTAUTH_SECRET;
+  }
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('⚠️  NEXTAUTH_SECRET is not set. Using development secret. Please set NEXTAUTH_SECRET in production!');
+    return 'development-secret-key-change-in-production';
+  }
+  throw new Error('NEXTAUTH_SECRET environment variable is required in production');
+};
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -63,20 +75,24 @@ export const authOptions: NextAuthOptions = {
 
             return {
               id: user.id,
-              role: user.role,
+              userType: user.userType,
               name: user.name
             };
           }
 
-        } catch (error) {
+        } catch (error: any) {
           console.log('auth error', error);
+          // Re-throw database connection errors to help with debugging
+          if (error?.message?.includes('database name') || error?.message?.includes('AtlasError')) {
+            throw new Error("Database configuration error: Please check your MONGODB_URI includes a database name");
+          }
         }
         return null
 
       }
     })
   ],
-  secret: process.env.NEXTAUTH_SECRET || 'default_secret',
+  secret: getSecret(),
   pages: {
     signIn: '/login'
   },
@@ -84,7 +100,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user && token) {
         token.id = user.id
-        token.role = user.role
+        token.userType = user.userType
       }
       // console.log('TOKEN ====>',token);
 
@@ -94,7 +110,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.id
-        session.user.role = token.role
+        session.user.userType = token.userType
       }
       // console.log('SESSION ====>',session);
       return session
