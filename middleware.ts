@@ -1,6 +1,19 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { roles, roleRights } from "@/lib/roles";
+import { userTypes, roleRights } from "@/lib/roles";
+
+// Ensure NEXTAUTH_SECRET is set for middleware
+const getSecret = () => {
+  if (process.env.NEXTAUTH_SECRET) {
+    return process.env.NEXTAUTH_SECRET;
+  }
+  // Only require secret in production, allow fallback for development and build time
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('NEXTAUTH_SECRET environment variable is required in production');
+  }
+  console.warn('⚠️  NEXTAUTH_SECRET is not set. Using development secret. Please set NEXTAUTH_SECRET in production!');
+  return 'development-secret-key-change-in-production';
+};
 
 export default withAuth(
   function middleware(request) {
@@ -9,20 +22,22 @@ export default withAuth(
 
     if (process.env.NODE_ENV === 'development') {
       console.log('auth-pathname:', currentPath);
-      console.log('auth-token role:', token?.role);
+      console.log('auth-token userType:', token?.userType);
     }
 
     if (!token) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    const role = token.role;
+    const userType = token.userType;
 
-    if (role === roles.admin || role === roles.user) {
+    // Admin (userType 1) has access to all routes
+    if (userType === userTypes.admin) {
       return NextResponse.next();
     }
 
-    const allowedRoutes = roleRights.get(role);
+    // Check allowed routes for the user type
+    const allowedRoutes = roleRights.get(userType.toString());
 
     if (allowedRoutes && allowedRoutes.some(route => currentPath.startsWith(route))) {
       return NextResponse.next();
@@ -31,7 +46,7 @@ export default withAuth(
     return NextResponse.rewrite(new URL("/unauthorized", request.url));
   },
   {
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: getSecret(),
     pages: {
       signIn: "/login",
     },

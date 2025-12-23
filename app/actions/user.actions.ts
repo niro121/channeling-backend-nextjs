@@ -1,7 +1,6 @@
 'use server'
 
 import { GetUsersParams, GetUsersQuery, User } from "@/types/user"
-import { roles } from "@/lib/roles"
 import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
@@ -10,15 +9,11 @@ export const getAllUsers = async (filter: GetUsersParams) => {
 
     try {
 
-        if (!filter.role || filter.role === '') {
-            throw new Error("Role is needed to proceed")
-        }
-
         let newFilter: GetUsersQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
-            limit: filter.limit ? parseInt(filter.limit) : parseInt(process.env.DEFAULT_PER_PAGE ?? "0"),
+            limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
             keyword: filter.keyword ?? "",
-            role: filter.role ?? ""
+            userType: filter.userType
         }
 
         return await getUsers(newFilter)

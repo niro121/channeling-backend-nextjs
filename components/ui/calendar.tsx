@@ -25,7 +25,7 @@ function Calendar({ selected, currentYear, onSelect, onYearChange }: CalendarPro
       <div className="flex justify-between items-center mb-4">
         <button
           className={cn(
-            buttonVariants({ variant: "outline-solid" }),
+            buttonVariants({ variant: "outline" }),
             "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
           )}
           onClick={() => onYearChange(currentYear - 1)}
@@ -35,7 +35,7 @@ function Calendar({ selected, currentYear, onSelect, onYearChange }: CalendarPro
         <span className="text-sm font-medium">{currentYear}</span>
         <button
           className={cn(
-            buttonVariants({ variant: "outline-solid" }),
+            buttonVariants({ variant: "outline" }),
             "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
           )}
           onClick={() => onYearChange(currentYear + 1)}
