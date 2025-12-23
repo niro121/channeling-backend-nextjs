@@ -14,13 +14,14 @@ import { Separator } from "@/components/ui/separator"
 import { createNewUser, updateUser } from "@/app/actions/user.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import { Label } from "@/components/ui/label"
+import CustomSelectField from "@/components/common/custom-select-field"
 
 type UserFormProps = {
     user: User | null
-    sessionRole: string | undefined
+    sessionUserType: number | undefined
 }
 
-const UserForm = ({ user, sessionRole }: UserFormProps) => {
+const UserForm = ({ user, sessionUserType }: UserFormProps) => {
 
     const [tab, setTab] = useState("main")
     const [initialValues, setInitialValues] = useState<User>({
@@ -29,7 +30,7 @@ const UserForm = ({ user, sessionRole }: UserFormProps) => {
         email: user?.email ? user.email : "",
         password: "",
         confirmPassword: "",
-        role: user?.role ? user.role : "",
+        userType: user?.userType ? user.userType : 2, // Default to staff (2)
         status: user?.status ? user.status : 1,
         createdAt: user?.createdAt ? user.createdAt : new Date(),
     })
@@ -74,6 +75,10 @@ const UserForm = ({ user, sessionRole }: UserFormProps) => {
                         .oneOf([Yup.ref("password")], "Passwords must match")
                         .required("This field is mandatory")
         }),
+
+        userType: Yup.number()
+            .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
+            .required("This field is mandatory"),
     })
 
     const handleSubmit = async (
@@ -180,6 +185,19 @@ const UserForm = ({ user, sessionRole }: UserFormProps) => {
                                         styleClasses={styleClasses}
                                     />
 
+                                    <CustomSelectField
+                                        id="userType"
+                                        placeholder="User Type"
+                                        value={formik.values.userType?.toString()}
+                                        onChange={(value) => formik.setFieldValue("userType", parseInt(value))}
+                                        required
+                                        options={[
+                                            { id: "1", name: "Admin" },
+                                            { id: "2", name: "Staff" }
+                                        ]}
+                                        styleClasses={styleClasses}
+                                    />
+
                                     {user && (
                                         <>
                                             <Separator />
@@ -224,7 +242,7 @@ const UserForm = ({ user, sessionRole }: UserFormProps) => {
                                             </span>
                                         </Button>
                                         <Button
-                                            disabled={!sessionRole || loading}
+                                            disabled={!sessionUserType || loading}
                                             size={"sm"}
                                             type="submit"
                                             className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"

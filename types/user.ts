@@ -5,7 +5,7 @@ export type User = {
     email: string
     password: string
     confirmPassword?: string
-    role: string
+    userType: number // 1 = admin, 2 = staff
     status: number //0 -> inactive, 1 ->  active
     createdAt?: Date
     updatedAt?: Date
@@ -15,14 +15,14 @@ export type GetUsersParams = {
     page?: string
     limit?: string
     keyword?: string
-    role: string
+    userType?: string
 }
 
 export type GetUsersQuery = {
     page: number
     limit: number
     keyword: string
-    role: string
+    userType?: string
 }
 
 export type GetUsersReturn = {

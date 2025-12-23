@@ -58,7 +58,7 @@ const LoginForm = () => {
             }
 
             resetForm()
-            router.replace('/users')
+            router.replace('/welcome')
 
         } catch (error: any) {
             // Handle error
