@@ -7,11 +7,12 @@ const getSecret = () => {
   if (process.env.NEXTAUTH_SECRET) {
     return process.env.NEXTAUTH_SECRET;
   }
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('⚠️  NEXTAUTH_SECRET is not set. Using development secret. Please set NEXTAUTH_SECRET in production!');
-    return 'development-secret-key-change-in-production';
+  // Only require secret in production, allow fallback for development and build time
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('NEXTAUTH_SECRET environment variable is required in production');
   }
-  throw new Error('NEXTAUTH_SECRET environment variable is required in production');
+  console.warn('⚠️  NEXTAUTH_SECRET is not set. Using development secret. Please set NEXTAUTH_SECRET in production!');
+  return 'development-secret-key-change-in-production';
 };
 
 export default withAuth(
@@ -36,7 +37,7 @@ export default withAuth(
     }
 
     // Check allowed routes for the user type
-    const allowedRoutes = roleRights.get(userType);
+    const allowedRoutes = roleRights.get(userType.toString());
 
     if (allowedRoutes && allowedRoutes.some(route => currentPath.startsWith(route))) {
       return NextResponse.next();

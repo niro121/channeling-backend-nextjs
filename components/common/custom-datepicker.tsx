@@ -24,7 +24,7 @@ const CustomDatePicker = ({ id, value, onChange}: CustomDatePickerProps) => {
         <Popover >
             <PopoverTrigger asChild className='w-full'>
                 <Button
-                    variant={"outline-solid"}
+                    variant={"outline"}
                     className={cn(
                         "justify-start text-left font-normal gap-2",
                         !value && "text-muted-foreground"
