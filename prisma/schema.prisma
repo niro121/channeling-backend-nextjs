@@ -22,6 +22,10 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now())
   status            Int
+
+  // ==== RELATIONS ==== //
+  createdSpecialities    Speciality[]         @relation("UserCreatedSpecialities")  
+  updatedSpecialities    Speciality[]         @relation("UserUpdatedSpecialities")
 }
 
 model Department {
@@ -32,3 +36,47 @@ model Department {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now())
 }
+
+model Speciality {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  code              String             @unique()
+  description       String
+  status            Int                // == 0: unpublish, 1: publish == //
+  createdBy         String?            @db.ObjectId
+  updatedBy         String?            @db.ObjectId
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now())
+
+  // ==== RELATIONS ==== //
+  doctors          Doctor[]            @relation("SpecialityToDoctor")  
+  createdUser      User?               @relation("UserCreatedSpecialities", fields: [createdBy], references: [id], onDelete: SetNull) 
+  updatedUser      User?               @relation("UserUpdatedSpecialities", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+model Doctor {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  title                String
+  name                 String
+  code                 String
+  order                Int
+  phone                String
+  mobile               String
+  fax                  String
+  addressLine1         String
+  addressLine2         String
+  city                 String
+  registrationNumber   String
+  qualification        String
+  referralCharge       Float
+  sessionNoPrefix      String
+  status               Int
+  createdBy            String   @db.ObjectId
+  updatedBy            String   @db.ObjectId
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // ==== RELATIONS ==== //
+  specialityId     String             @db.ObjectId
+  speciality       Speciality         @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+}
+
