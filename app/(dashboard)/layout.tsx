@@ -7,6 +7,7 @@ import {
   PanelLeft,
   Stethoscope,
   Building2,
+  StarIcon,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -62,6 +63,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
           label="Department"
           icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== SPECIALITY =========================== */}
+        <NavLink
+          href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+          label="Speciality"
+          icon={<StarIcon className="h-5 w-5" />}
         />
 
       </nav>
@@ -125,6 +133,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
             label="Department"
             icon={<Building2 className="h-5 w-5" />}
+          />
+
+          {/* // =========================== SPECIALITY =========================== */}
+          <NavLink
+            href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+            label="Speciality"
+            icon={<StarIcon className="h-5 w-5" />}
           />
 
         </nav>
