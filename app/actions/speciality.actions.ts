@@ -1,15 +1,14 @@
 'use server';
 
 import { authOptions } from '@/lib/auth';
-import { generateCode } from '@/lib/utils';
 import {
-  checkUniqueSpecialityCode,
   createSpecialityService,
   getAllSpecialitiesService,
   updateOneSpecialityService,
   getSpecialityByIdService,
   deleteSpecialityByIdService,
-  bulkDeleteSpecialitiesByIdsService
+  bulkDeleteSpecialitiesByIdsService,
+  lastSpecialityCode
 } from '@/services/speciality.service';
 import {
   getSpecialityParams,
@@ -23,6 +22,12 @@ type CreateSpecialityPayload = Pick<
   Speciality,
   'id' | 'name' | 'description' | 'status'
 >;
+
+const PREFIX = 'RHC';
+const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
+
+const padCode = (num: number, length: number) =>
+  num.toString().padStart(length, '0');
 
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialities = async (sort: getSpecialityParams) => {
@@ -75,27 +80,36 @@ export const getSpecialityById = async (id: string) => {
 };
 
 // ==== CREATE A SPECIALITY ==== //
+export const getNextSpecialityCode = async (): Promise<string> => {
+  const lastSpeciality = await lastSpecialityCode();
+
+  let nextNumber = 1;
+
+  if (lastSpeciality?.code) {
+    const match = lastSpeciality.code.match(/\d+$/);
+    if (match) {
+      nextNumber = parseInt(match[0]) + 1;
+    }
+  }
+
+  if (nextNumber > MAX_CODE) {
+    throw new Error('Maximum speciality code limit reached');
+  }
+
+  return `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
+};
+
 export const createSpeciality = async (payload: CreateSpecialityPayload) => {
-  // console.log('createSpeciality payload', payload);
   try {
     const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
+    const userId = session?.user?.email || session?.user?.id;
 
     if (!userId) {
       throw new Error('Unauthorized');
     }
 
-    const getUniqueSpecialityCode = async (): Promise<string> => {
-      while (true) {
-        const genCode = generateCode();
-        const isUnique = await checkUniqueSpecialityCode(genCode);
-
-        if (isUnique) return genCode;
-      }
-    };
-
     delete payload.id;
-    const specialityCode = await getUniqueSpecialityCode();
+    const specialityCode = await getNextSpecialityCode();
 
     const result = await createSpecialityService({
       ...payload,
@@ -187,7 +201,7 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
     const result = await bulkDeleteSpecialitiesByIdsService(ids);
 
     revalidatePath('/specialities');
-    return true
+    return true;
   } catch (error: any) {
     console.error('bulkDeleteSpecialities error', error);
     return false;

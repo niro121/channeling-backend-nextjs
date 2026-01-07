@@ -73,25 +73,20 @@ export const getAllSpecialitiesService = async ({
   }
 };
 
-export const checkUniqueSpecialityCode = async (code: string) => {
+// ==== CREATE A SPECIALITY ==== //
+export const lastSpecialityCode = async () => {
   try {
-    const isUnique = await prisma.speciality.findUnique({
-      where: {
-        code: code
-      }
+    const lastSpeciality = await prisma.speciality.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { code: true }
     });
 
-    if (!isUnique) {
-      return true;
-    }
-
-    return false;
+    return lastSpeciality;
   } catch (error: any) {
-    throw new Error(error.message ?? 'checkUniqueSpecialityCode Error');
+    throw new Error(error.message ?? 'lastSpecialityCode Error');
   }
 };
 
-// ==== CREATE A SPECIALITY ==== //
 export const createSpecialityService = async (payload: Speciality) => {
   try {
     const result = prisma.speciality.create({
