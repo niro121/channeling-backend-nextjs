@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js" 
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -14,21 +14,81 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  email             String             @unique()
-  userType          Int                // 1 = admin, 2 = staff
-  password          String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
-  status            Int
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String   @unique()
+  userType  Int // 1 = admin, 2 = staff
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  status    Int
 }
 
 model Department {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  description       String?
-  visibility        Int                // 0 = unpublish, 1 = publish
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  visibility  Int // 0 = unpublish, 1 = publish
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+}
+
+model Roster {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                  String
+  departmentId          String   @db.ObjectId
+  shiftsPerPersonPerDay Int
+  status                Int // 0 = unpublish, 1 = publish
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
+}
+
+model Patient {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  name         String
+  code         String?
+  email        String?
+  addressLine1 String?
+  addressLine2 String?
+  dateOfBirth  Int?
+  age          Int?
+  phone        String
+  sex          String
+  status       Int
+
+  area   Tag?    @relation("PatientArea", fields: [areaId], references: [id])
+  areaId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Tag {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  name   String?
+  type   Int?
+  status Int?
+
+  patients Patient[] @relation("PatientArea")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Zone {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  locationId  String?  @db.ObjectId
+  visibility  Int // 0 = unpublish, 1 = publish
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }
