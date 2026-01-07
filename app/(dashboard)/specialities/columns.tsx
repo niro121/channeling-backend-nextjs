@@ -32,7 +32,7 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
     enableSorting: false,
     enableHiding: false
   },
-  {
+  /* {
     accessorKey: 'id',
     header: 'Speciality ID',
     cell: ({ row }) => {
@@ -44,7 +44,7 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
         </div>
       );
     }
-  },
+  }, */
   {
     accessorKey: 'code',
     header: 'Speciality Code',
