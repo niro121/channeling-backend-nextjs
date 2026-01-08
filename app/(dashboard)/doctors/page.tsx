@@ -6,8 +6,11 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { DoctorColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
-import { bulkDeleteDoctors, getAllDoctors } from '@/app/actions/doctor.actions';
-import { getAllSpecialities } from '@/app/actions/speciality.actions';
+import {
+  bulkDeleteDoctors,
+  getAllDoctors,
+  getAllSpecialityOptions
+} from '@/app/actions/doctor.actions';
 import { SelectorFilter } from '@/components/common/selector-filter';
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
@@ -32,11 +35,7 @@ export default async function Page({ searchParams }: SearchParams) {
   });
 
   // ==== GET SPECIALITY LIST ==== //
-  const specialityRes = await getAllSpecialities({
-    page: params?.page,
-    limit: params?.limit,
-    keyword: ''
-  });
+  const specialityRes = await getAllSpecialityOptions();
 
   const specialityOptions =
     specialityRes?.data?.map((s) => ({ id: s.id as string, name: s.name })) ??
