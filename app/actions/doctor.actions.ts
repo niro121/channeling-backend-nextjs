@@ -127,9 +127,9 @@ export const createDoctor = async (
       name: payload.name,
       code: doctorCode,
       order: payload.order,
-      phone: payload.phone,
+      phone: payload.phone || null,
       mobile: payload.mobile,
-      fax: payload.fax,
+      fax: payload.fax?.trim() ? payload.fax : null,
       addressLine1: payload.addressLine1,
       addressLine2: payload.addressLine2,
       city: payload.city,
@@ -178,9 +178,9 @@ export const updateOneDoctor = async (
     if (payload.title !== undefined) data.title = payload.title;
     if (payload.name !== undefined) data.name = payload.name;
     if (payload.order !== undefined) data.order = payload.order;
-    if (payload.phone !== undefined) data.phone = payload.phone;
+    if (payload.phone !== undefined) data.phone = payload.phone || null;
     if (payload.mobile !== undefined) data.mobile = payload.mobile;
-    if (payload.fax !== undefined) data.fax = payload.fax;
+    if (payload.fax !== undefined) data.fax = payload.fax?.trim() ? payload.fax : null;
     if (payload.addressLine1 !== undefined)
       data.addressLine1 = payload.addressLine1;
     if (payload.addressLine2 !== undefined)

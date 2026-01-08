@@ -7,9 +7,9 @@ export type Doctor = {
   name: string;
   code: string;
   order: number;
-  phone: string;
+  phone: string | null;
   mobile: string;
-  fax: string;
+  fax: string | null;
   addressLine1: string;
   addressLine2: string;
   city: string;

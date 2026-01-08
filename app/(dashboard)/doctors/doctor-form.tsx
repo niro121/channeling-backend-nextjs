@@ -67,7 +67,7 @@ export default function DoctorForm({
     mobile: Yup.string()
       .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx')
       .nullable()
-      .optional(),
+      .required('This field is mandatory'),
     registrationNumber: Yup.string()
       .trim()
       .required('Registration number is required'),
@@ -231,7 +231,7 @@ export default function DoctorForm({
                 value={formik.values.mobile}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 
