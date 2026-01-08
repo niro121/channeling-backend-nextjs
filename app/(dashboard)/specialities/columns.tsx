@@ -40,7 +40,7 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
 
       return (
         <div className="max-w-28 truncate" title={code}>
-          {code}
+          {code || "-"}
         </div>
       );
     }
