@@ -1,6 +1,5 @@
 'use server';
 
-import { authOptions } from '@/lib/auth';
 import {
   bulkDeleteDoctorsByIdsService,
   lastDoctorCode,
@@ -21,7 +20,6 @@ import {
   DoctorFormValues,
   UpdateDoctorPayload
 } from '@/types/doctor';
-import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';

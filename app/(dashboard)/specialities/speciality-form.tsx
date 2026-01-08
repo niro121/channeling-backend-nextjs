@@ -9,7 +9,7 @@ import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { useRouter } from 'next/navigation';
-import { Speciality } from '@/types/speciality';
+import { Speciality, SpecialityFormValues } from '@/types/speciality';
 import {
   createSpeciality,
   updateOneSpeciality
@@ -18,15 +18,18 @@ import {
 type SpecialityFormProps = {
   speciality: Speciality | null;
   isEditPage?: boolean;
+  user?: {
+    id?: string
+    name?: string
+  }
 };
 
-export default function SpecialityForm({ speciality }: SpecialityFormProps) {
+export default function SpecialityForm({ speciality, user }: SpecialityFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
-  const initialValues: Speciality = {
-    id: speciality?.id ? speciality.id : '',
+  const initialValues: SpecialityFormValues = {
     name: speciality?.name ? speciality.name : '',
     code: speciality?.code ? speciality.code : '',
     description: speciality?.description ? speciality.description : '',
@@ -44,8 +47,8 @@ export default function SpecialityForm({ speciality }: SpecialityFormProps) {
   });
 
   const handleSubmit = async (
-    values: Speciality,
-    { resetForm }: FormikHelpers<Speciality>
+    values: SpecialityFormValues,
+    { resetForm }: FormikHelpers<SpecialityFormValues>
   ) => {
     try {
       let respond: any;
@@ -75,7 +78,7 @@ export default function SpecialityForm({ speciality }: SpecialityFormProps) {
 
         router.push('/specialities');
       } else {
-        respond = await createSpeciality(values);
+        respond = await createSpeciality(values, user);
 
         setLoading(false);
 

@@ -32,19 +32,6 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
     enableSorting: false,
     enableHiding: false
   },
-  /* {
-    accessorKey: 'id',
-    header: 'Speciality ID',
-    cell: ({ row }) => {
-      const code = row.getValue<string>('id');
-
-      return (
-        <div className="max-w-28 truncate" title={code}>
-          {code}
-        </div>
-      );
-    }
-  }, */
   {
     accessorKey: 'code',
     header: 'Speciality Code',
@@ -63,43 +50,25 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
     header: 'Speciality Name'
   },
   {
-    accessorKey: 'createdBy',
-    header: 'Created By',
-    cell: ({ row }) => {
-      const createdBy = row.getValue<string>('createdBy');
-
-      return (
-        <div className="max-w-28 truncate" title={createdBy}>
-          {createdBy}
-        </div>
-      );
-    }
-  },
-  {
-    accessorKey: 'createdAt',
-    header: 'Created Date',
-    cell: ({ row }) => {
-      return moment(row.getValue('createdAt')).format('DD/MM/YYYY');
-    }
-  },
-  {
-    accessorKey: 'updatedBy',
-    header: 'Updated By',
-    cell: ({ row }) => {
-      const updatedBy = row.getValue<string>('updatedBy');
-
-      return (
-        <div className="max-w-28 truncate" title={updatedBy}>
-          {updatedBy}
-        </div>
-      );
-    }
+    accessorKey: 'updatedUser.name',
+    header: 'Updated By'
   },
   {
     accessorKey: 'updatedAt',
     header: 'Updated Date',
     cell: ({ row }) => {
       return moment(row.getValue('updatedAt')).format('DD/MM/YYYY');
+    }
+  },
+  {
+    accessorKey: 'createdUser.name',
+    header: 'Created By'
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Created Date',
+    cell: ({ row }) => {
+      return moment(row.getValue('createdAt')).format('DD/MM/YYYY');
     }
   },
   {

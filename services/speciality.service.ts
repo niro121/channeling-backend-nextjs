@@ -6,6 +6,7 @@ import {
   GetSpecialityResponse,
   Speciality
 } from '@/types/speciality';
+import { Prisma } from '@prisma/client';
 
 export type CreateSpecialityPayload = Pick<
   Speciality,
@@ -41,6 +42,10 @@ export const getAllSpecialitiesService = async ({
       },
       orderBy: {
         createdAt: 'desc'
+      },
+      include: {
+        createdUser: true,
+        updatedUser: true
       }
     });
 
@@ -87,7 +92,7 @@ export const lastSpecialityCode = async () => {
   }
 };
 
-export const createSpecialityService = async (payload: Speciality) => {
+export const createSpecialityService = async (payload: Prisma.SpecialityCreateInput) => {
   try {
     const result = prisma.speciality.create({
       data: payload
@@ -103,7 +108,7 @@ export const createSpecialityService = async (payload: Speciality) => {
 // ==== UPDATE A SPECIALITY ==== //
 export const updateOneSpecialityService = async (
   id: string,
-  payload: Partial<Speciality>
+  payload: Prisma.SpecialityUpdateInput
 ): Promise<Speciality | null> => {
   try {
     const result = await prisma.speciality.update({

@@ -1,6 +1,5 @@
 'use server';
 
-import { authOptions } from '@/lib/auth';
 import {
   createSpecialityService,
   getAllSpecialitiesService,
@@ -13,11 +12,12 @@ import {
 import {
   getSpecialityParams,
   getSpecialityQuery,
-  Speciality
+  Speciality,
+  UpdateSpecialityPayload
 } from '@/types/speciality';
-import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
+import { Prisma } from '@prisma/client';
 
 type CreateSpecialityPayload = Pick<
   Speciality,
@@ -97,23 +97,22 @@ export const getNextSpecialityCode = async (): Promise<string> => {
   return `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
 };
 
-export const createSpeciality = async (payload: CreateSpecialityPayload) => {
+export const createSpeciality = async (
+  payload: CreateSpecialityPayload,
+  user?: { id?: string; name?: string }
+) => {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.name || session?.user?.id;
-
-    if (!userId) {
-      throw new Error('Unauthorized');
-    }
-
-    delete payload.id;
     const specialityCode = await getNextSpecialityCode();
 
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
     const result = await createSpecialityService({
-      ...payload,
+      name: payload.name,
+      description: payload.description,
+      status: payload.status,
       code: specialityCode,
-      createdBy: userId,
-      updatedBy: userId
+      createdUser: userRelation,
+      updatedUser: userRelation
     });
 
     revalidatePath('/specialities');
@@ -138,23 +137,20 @@ export const createSpeciality = async (payload: CreateSpecialityPayload) => {
 // ==== UPDATE A SPECIALITY ==== //
 export const updateOneSpeciality = async (
   id: string,
-  payload: Partial<CreateSpecialityPayload>
+  payload: UpdateSpecialityPayload,
+  user?: { id?: string; name?: string }
 ) => {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
+    const data: Prisma.SpecialityUpdateInput = {
+      updatedAt: new Date(),
+      ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {})
+    };
 
-    if (!userId) {
-      throw new Error('Unauthorized');
-    }
+    if (payload.name !== undefined) data.name = payload.name;
+    if (payload.name !== undefined) data.description = payload.description;
+    if (payload.name !== undefined) data.status = payload.status;
 
-    delete payload.id;
-
-    const result = await updateOneSpecialityService(id, {
-      ...payload,
-      updatedBy: userId,
-      updatedAt: new Date()
-    });
+    const result = await updateOneSpecialityService(id, data);
 
     revalidatePath('/specialities');
     revalidatePath('/doctors');
