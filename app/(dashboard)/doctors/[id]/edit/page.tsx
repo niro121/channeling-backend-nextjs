@@ -2,7 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import DoctorForm from '../../doctor-form';
 import { getDoctorById } from '@/app/actions/doctor.actions';
-import { getAllSpecialities } from '@/app/actions/speciality.actions';
+import { getAllSpecialityOptions } from '@/app/actions/doctor.actions';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -16,7 +16,7 @@ export default async function EditDoctorPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
   const session = await getServerSession(authOptions);
-  const userId = session?.user?.name || session?.user?.id;
+  const user = session?.user;
 
   const { data, success } = await getDoctorById(id);
 
@@ -24,16 +24,11 @@ export default async function EditDoctorPage({ params }: PageProps) {
     notFound();
   }
 
-  const specialityRes = await getAllSpecialities({
-    page: '0',
-    limit: '1000',
-    keyword: ''
-  });
+  const specialityRes = await getAllSpecialityOptions();
 
   const specialityOptions =
     specialityRes?.data?.map((s) => ({ id: s.id as string, name: s.name })) ??
     [];
-
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
@@ -42,7 +37,10 @@ export default async function EditDoctorPage({ params }: PageProps) {
           doctor={data}
           specialities={specialityOptions}
           isEditPage={true}
-          userId={userId}
+          user={{
+            id: user?.id,
+            name: user?.name || ''
+          }}
         />
       </div>
     </div>

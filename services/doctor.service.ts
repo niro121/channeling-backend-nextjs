@@ -166,6 +166,27 @@ export const bulkDeleteDoctorsByIdsService = async (ids: string[]) => {
   }
 };
 
+// ==== GET ALL SPECIALITY LIST ==== //
+export const getAllSpecialityOptionsService = async () => {
+  try {
+    const records = await prisma.speciality.findMany({
+      where: {status: 1}
+    })
+
+    const totalRecords = await prisma.speciality.count({
+      where: {status: 1}
+    })
+
+    return {
+      data: records,
+      totalRecords
+    } 
+  } catch (error: any) {
+    console.log("getAllSpecialityOptionsService error", error)
+    throw new Error(error.message ?? 'Specialities getting error');
+  }
+}
+
 // ==== DOCTOR LIST DOWLOAD ==== //
 export const getAllDoctorsDownloadService = async ({
   keyword,

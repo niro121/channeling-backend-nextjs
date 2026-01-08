@@ -9,7 +9,8 @@ import {
   getAllDoctorsService,
   getDoctorByIdService,
   updateOneDoctorService,
-  getAllDoctorsDownloadService
+  getAllDoctorsDownloadService,
+  getAllSpecialityOptionsService
 } from '@/services/doctor.service';
 import {
   Doctor,
@@ -24,6 +25,7 @@ import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
+import { Speciality } from '@/types/speciality';
 
 type CreateDoctorPayload = DoctorFormValues & {
   createdBy?: string;
@@ -251,6 +253,27 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
   } catch (error: any) {
     console.error('bulkDeleteDoctors error', error);
     return false;
+  }
+};
+
+// ==== GET ALL SPECIALITY OPTIONS ==== //
+export const getAllSpecialityOptions = async () => {
+  try {
+    const response = await getAllSpecialityOptionsService();
+
+    return {
+      success: true,
+      data: response.data as Speciality[],
+      totalRecords: response.totalRecords
+    };
+  } catch (error: any) {
+    console.error('getAllSpecialityOptions error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get specialities'
+      }
+    };
   }
 };
 

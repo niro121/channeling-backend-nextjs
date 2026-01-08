@@ -1,18 +1,14 @@
 import React from 'react';
 import DoctorForm from '../doctor-form';
-import { getAllSpecialities } from '@/app/actions/speciality.actions';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getAllSpecialityOptions } from '@/app/actions/doctor.actions';
 
 export default async function AddDoctorPage() {
   const session = await getServerSession(authOptions);
   const user = session?.user
 
-  const specialityRes = await getAllSpecialities({
-    page: '0',
-    limit: '1000',
-    keyword: ''
-  });
+  const specialityRes = await getAllSpecialityOptions()
 
   const specialityOptions =
     specialityRes?.data?.map((s) => ({ id: s.id as string, name: s.name })) ??
