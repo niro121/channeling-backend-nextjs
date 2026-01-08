@@ -13,16 +13,17 @@ import {
   getSpecialityParams,
   getSpecialityQuery,
   Speciality,
+  SpecialityFormValues,
   UpdateSpecialityPayload
 } from '@/types/speciality';
 import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 
-type CreateSpecialityPayload = Pick<
-  Speciality,
-  'id' | 'name' | 'description' | 'status'
->;
+type CreateSpecialityPayload = SpecialityFormValues & {
+  createdBy?: string;
+  updatedBy?: string;
+}
 
 const PREFIX = 'RHC';
 const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
