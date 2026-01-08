@@ -17,6 +17,7 @@ import {
 } from '@/types/speciality';
 import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
+import { padCode } from '@/lib/utils';
 
 type CreateSpecialityPayload = Pick<
   Speciality,
@@ -25,9 +26,6 @@ type CreateSpecialityPayload = Pick<
 
 const PREFIX = 'RHC';
 const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
-
-const padCode = (num: number, length: number) =>
-  num.toString().padStart(length, '0');
 
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialities = async (sort: getSpecialityParams) => {
@@ -102,7 +100,7 @@ export const getNextSpecialityCode = async (): Promise<string> => {
 export const createSpeciality = async (payload: CreateSpecialityPayload) => {
   try {
     const session = await getServerSession(authOptions);
-    const userId = session?.user?.email || session?.user?.id;
+    const userId = session?.user?.name || session?.user?.id;
 
     if (!userId) {
       throw new Error('Unauthorized');
@@ -119,6 +117,7 @@ export const createSpeciality = async (payload: CreateSpecialityPayload) => {
     });
 
     revalidatePath('/specialities');
+    revalidatePath('/doctors');
 
     return {
       success: true,
@@ -157,6 +156,9 @@ export const updateOneSpeciality = async (
       updatedAt: new Date()
     });
 
+    revalidatePath('/specialities');
+    revalidatePath('/doctors');
+
     return {
       success: true,
       data: result
@@ -179,6 +181,7 @@ export const deleteSpeciality = async (id: string) => {
     const result = await deleteSpecialityByIdService(id);
 
     revalidatePath('/specialities');
+    revalidatePath('/doctors');
 
     return {
       success: true,
@@ -201,6 +204,8 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
     const result = await bulkDeleteSpecialitiesByIdsService(ids);
 
     revalidatePath('/specialities');
+    revalidatePath('/doctors');
+
     return true;
   } catch (error: any) {
     console.error('bulkDeleteSpecialities error', error);
