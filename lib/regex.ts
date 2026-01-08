@@ -1,0 +1,1 @@
+export const sriLankaPhoneRegex = /^(?:\+?94|0)(\d{9})$/;
