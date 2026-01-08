@@ -8,6 +8,7 @@ import {
   Stethoscope,
   Building2,
   StarIcon,
+  LocateFixedIcon,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -70,6 +71,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
           label="Speciality"
           icon={<StarIcon className="h-5 w-5" />}
+        />
+
+        {/* // =========================== LOCATION =========================== */}
+        <NavLink
+          href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+          label="Location"
+          icon={<LocateFixedIcon className="h-5 w-5" />}
         />
 
       </nav>
@@ -140,6 +148,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
             label="Speciality"
             icon={<StarIcon className="h-5 w-5" />}
+          />
+
+          {/* // =========================== LOCATION =========================== */}
+          <NavLink
+            href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+            label="Location"
+            icon={<LocateFixedIcon className="h-5 w-5" />}
           />
 
         </nav>
