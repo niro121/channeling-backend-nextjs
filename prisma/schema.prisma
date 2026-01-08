@@ -26,6 +26,8 @@ model User {
   // ==== RELATIONS ==== //
   createdSpecialities    Speciality[]         @relation("UserCreatedSpecialities")  
   updatedSpecialities    Speciality[]         @relation("UserUpdatedSpecialities")
+  createdDoctors         Doctor[]             @relation("UserCreatedDoctors")  
+  updatedDoctors         Doctor[]             @relation("UserUpdatedDoctors")
 }
 
 model Department {
@@ -69,14 +71,16 @@ model Doctor {
   qualification        String
   referralCharge       Float
   sessionNoPrefix      String
-  status               Int
-  createdBy            String   @db.ObjectId
-  updatedBy            String   @db.ObjectId
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  status               Int       // == 0: unpublish, 1: publish == //
+  createdBy            String?   @db.ObjectId
+  updatedBy            String?   @db.ObjectId
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now())
 
   // ==== RELATIONS ==== //
   specialityId     String             @db.ObjectId
   speciality       Speciality         @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  createdUser      User?               @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull) 
+  updatedUser      User?               @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
