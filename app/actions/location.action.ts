@@ -97,6 +97,7 @@ export const createLocation = async (
     });
 
     revalidatePath('/locations');
+    revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return {
@@ -137,6 +138,7 @@ export const updateOneLocation = async (
     const result = await updateOneLocationService(id, data)
 
     revalidatePath('/locations');
+    revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return {
@@ -161,6 +163,7 @@ export const deleteLocation = async (id: string) => {
     const result = await deleteLocationByIdService(id);
 
     revalidatePath('/locations');
+    revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return {
@@ -184,6 +187,7 @@ export const bulkDeleteLocations = async (ids: string[]) => {
     const result = await bulkDeleteLocationsByIdsService(ids);
 
     revalidatePath('/locations');
+    revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return true;
