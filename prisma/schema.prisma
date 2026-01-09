@@ -104,6 +104,7 @@ model Location {
 
   // ==== RELATIONS ==== //
   rooms                Room[]          @relation("LocationToRoom")
+  zones                Zone[]          @relation("LocationToZone")
   createdUser          User?           @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?           @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -119,6 +120,8 @@ model Room {
   updatedAt            DateTime        @default(now())
 
   // ==== RELATIONS ==== //
+  zoneId               String          @db.ObjectId
+  zone                 Zone            @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
   locationId           String          @db.ObjectId
   location             Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
   createdUser          User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -176,11 +179,15 @@ model Zone {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
-  locationId  String?  @db.ObjectId
   visibility  Int // 0 = unpublish, 1 = publish
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?
   updatedBy String?
+
+  // ==== RELATIONS ==== //
+  rooms   Room[]    @relation("ZoneToRoom")
+  locationId  String  @db.ObjectId
+  location   Location   @relation("LocationToZone", fields: [locationId], references: [id], onDelete: Cascade)
 }
