@@ -1,13 +1,16 @@
 import { Location } from "./location"
 import { User } from "./user"
+import { Zone } from "./zone"
 
 export type Room = {
   id?: string
-  number: number
+  number: string
   description: string
   status: number // == 0: unpublish, 1: publish == //
   locationId: string
-  location: Location | null
+  location?: Location | null
+  zoneId: string
+  zone?: Zone | null
   createdUser?: User | null;
   updatedUser?: User | null;
   createdAt?: Date | undefined;
@@ -15,17 +18,19 @@ export type Room = {
 } 
 
 export type RoomFormValues = {
-  number: number
+  number: string
   description: string
   status: number // == 0: unpublish, 1: publish == //
   locationId: string
+  zoneId: string
 }
 
 export type UpdateRoomPayload = Partial<{
-  number: number
+  number: string
   description: string
   status: number // == 0: unpublish, 1: publish == //
   locationId: string
+  zoneId: string
 }>;
 
 export type getRoomParam = {
