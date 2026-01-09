@@ -77,30 +77,29 @@ export const getAllRoomsService = async ({
   }
 };
 
-/* =========================
-   CHECK ROOM NUMBER (OPTIONAL)
-========================= */
-
-export const checkRoomNumber = async (number: string, locationId: string) => {
+// ==== CHECK ROOM NUMBER ==== //
+export const checkRoomNumber = async (
+  number: string,
+  locationId: string,
+  zoneId: string
+) => {
   try {
     const existing = await prisma.room.findFirst({
       where: {
         number,
-        locationId
+        locationId,
+        zoneId
       }
     });
 
-    return !existing;
+    return !existing; // == true: unique, false: duplicate == //
   } catch (error: any) {
     console.log('checkRoomNumber error', error);
     throw error;
   }
 };
 
-/* =========================
-   CREATE ROOM
-========================= */
-
+// ==== CREATE ROOM ==== //
 export const createRoomService = async (payload: Prisma.RoomCreateInput) => {
   try {
     const result = await prisma.room.create({
@@ -114,10 +113,7 @@ export const createRoomService = async (payload: Prisma.RoomCreateInput) => {
   }
 };
 
-/* =========================
-   UPDATE ROOM
-========================= */
-
+// ==== UPDATE ROOM ==== //
 export const updateOneRoomService = async (
   id: string,
   payload: Prisma.RoomUpdateInput
@@ -135,10 +131,7 @@ export const updateOneRoomService = async (
   }
 };
 
-/* =========================
-   GET ONE ROOM
-========================= */
-
+// ==== GET ONE ROOM ==== //
 export const getRoomByIdService = async (id: string) => {
   try {
     const result = await prisma.room.findUnique({
@@ -157,10 +150,7 @@ export const getRoomByIdService = async (id: string) => {
   }
 };
 
-/* =========================
-   DELETE ROOM
-========================= */
-
+// ==== DELETE ROOM ==== //
 export const deleteRoomByIdService = async (id: string) => {
   try {
     const result = await prisma.room.delete({
@@ -174,10 +164,7 @@ export const deleteRoomByIdService = async (id: string) => {
   }
 };
 
-/* =========================
-   BULK DELETE ROOMS
-========================= */
-
+// ==== BULK DELETE ROOMS ==== //
 export const bulkDeleteRoomsByIdsService = async (ids: string[]) => {
   try {
     const result = await prisma.room.deleteMany({
@@ -191,6 +178,36 @@ export const bulkDeleteRoomsByIdsService = async (ids: string[]) => {
     return result;
   } catch (error: any) {
     console.log('bulkDeleteRoomsByIdsService error', error);
+    throw error;
+  }
+};
+
+// ==== GET LOCATIONS ==== //
+export const getAllLocationsService = async () => {
+  try {
+    const records = await prisma.location.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' }
+    });
+
+    return records
+  } catch (error: any) {
+    console.log('getAllLocationsService error', error);
+    throw error;
+  }
+};
+
+// ==== GET ALL ZONES BY LOCATION ID ==== //
+export const getAllZonesByLocaionIDService = async (locationId: string) => {
+  try {
+    const records = await prisma.zone.findMany({
+      where: { visibility: 1, locationId },
+      orderBy: { name: 'asc' }
+    });
+
+    return records;
+  } catch (error: any) {
+    console.log('getAllZonesByLocaionID error', error);
     throw error;
   }
 };
