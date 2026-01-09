@@ -64,6 +64,34 @@ async function DesktopNav({ session }: { session: Session | null }) {
           icon={<Building2 className="h-5 w-5" />}
         />
 
+        {/* // =========================== ROSTERS =========================== */}
+        <NavLink
+          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
+          label="Rosters"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== PATIENTS =========================== */}
+        <NavLink
+          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
+          label="Patients"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== TAGS =========================== */}
+        <NavLink
+          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
+          label="Tags"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== ZONES =========================== */}
+        <NavLink
+          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
+          label="Zones"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
         <p className="text-white text-sm">
@@ -126,6 +154,34 @@ async function MobileNav({ session }: { session: Session | null }) {
             label="Department"
             icon={<Building2 className="h-5 w-5" />}
           />
+
+          {/* // =========================== ROSTERS =========================== */}
+        <NavLink
+          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
+          label="Rosters"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== PATIENTS =========================== */}
+        <NavLink
+          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
+          label="Patients"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== TAGS =========================== */}
+        <NavLink
+          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
+          label="Tags"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== ZONES =========================== */}
+        <NavLink
+          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
+          label="Zones"
+          icon={<Building2 className="h-5 w-5" />}
+        />
 
         </nav>
       </SheetContent>
