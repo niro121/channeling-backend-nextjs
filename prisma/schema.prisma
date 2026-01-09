@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js" 
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -22,6 +22,16 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now())
   status            Int
+
+  // ==== RELATIONS ==== //
+  createdSpecialities    Speciality[]         @relation("UserCreatedSpecialities")  
+  updatedSpecialities    Speciality[]         @relation("UserUpdatedSpecialities")
+  createdDoctors         Doctor[]             @relation("UserCreatedDoctors")  
+  updatedDoctors         Doctor[]             @relation("UserUpdatedDoctors")
+  createdLocations       Location[]           @relation("UserCreatedLocations")
+  updatedLocations       Location[]           @relation("UserUpdatedLocations")
+  createdRooms           Room[]               @relation("UserCreatedRooms")
+  updatedRooms           Room[]               @relation("UserUpdatedRooms")
 }
 
 model Department {
@@ -31,4 +41,146 @@ model Department {
   visibility        Int                // 0 = unpublish, 1 = publish
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now())
+}
+
+model Speciality {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  code              String             @unique()
+  description       String
+  status            Int                // == 0: unpublish, 1: publish == //
+  createdBy         String?            @db.ObjectId
+  updatedBy         String?            @db.ObjectId
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now())
+
+  // ==== RELATIONS ==== //
+  doctors          Doctor[]            @relation("SpecialityToDoctor")  
+  createdUser      User?               @relation("UserCreatedSpecialities", fields: [createdBy], references: [id], onDelete: SetNull) 
+  updatedUser      User?               @relation("UserUpdatedSpecialities", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+model Doctor {
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  title                String
+  name                 String
+  code                 String          @unique()
+  order                Int
+  phone                String?          
+  mobile               String          @unique()
+  fax                  String?
+  addressLine1         String
+  addressLine2         String
+  city                 String
+  registrationNumber   String          @unique()
+  qualification        String
+  referralCharge       Float
+  sessionNoPrefix      String
+  status               Int             // == 0: unpublish, 1: publish == //
+  createdBy            String?         @db.ObjectId
+  updatedBy            String?         @db.ObjectId
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @default(now())
+
+  // ==== RELATIONS ==== //
+  specialityId         String          @db.ObjectId
+  speciality           Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  createdUser          User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull) 
+  updatedUser          User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model Location {
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  addressLine1         String
+  addressLine2         String
+  city                 String
+  branchType           Int
+  status               Int             // == 0: unpublish, 1: publish == //
+  code                 String          @unique()
+  createdBy            String?         @db.ObjectId
+  updatedBy            String?         @db.ObjectId
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @default(now())
+
+  // ==== RELATIONS ==== //
+  rooms                Room[]          @relation("LocationToRoom")
+  createdUser          User?           @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser          User?           @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model Room {
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  number               String
+  description          String
+  status               Int             // == 0: unpublish, 1: publish == //
+  createdBy            String?         @db.ObjectId
+  updatedBy            String?         @db.ObjectId
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @default(now())
+
+  // ==== RELATIONS ==== //
+  locationId           String          @db.ObjectId
+  location             Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
+  createdUser          User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser          User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model Roster {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                  String
+  departmentId          String   @db.ObjectId
+  shiftsPerPersonPerDay Int
+  status                Int // 0 = unpublish, 1 = publish
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
+}
+
+model Patient {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  name         String
+  code         String?
+  email        String?
+  addressLine1 String?
+  addressLine2 String?
+  dateOfBirth  Int?
+  age          Int?
+  phone        String
+  sex          String
+  status       Int
+
+  area   Tag?    @relation("PatientArea", fields: [areaId], references: [id])
+  areaId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Tag {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  name   String?
+  type   Int?
+  status Int?
+
+  patients Patient[] @relation("PatientArea")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Zone {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  locationId  String?  @db.ObjectId
+  visibility  Int // 0 = unpublish, 1 = publish
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }

@@ -7,6 +7,8 @@ import {
   PanelLeft,
   Stethoscope,
   Building2,
+  StarIcon,
+  LocateFixedIcon,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -62,6 +64,48 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
           label="Department"
           icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== ROSTERS =========================== */}
+        <NavLink
+          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
+          label="Rosters"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== PATIENTS =========================== */}
+        <NavLink
+          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
+          label="Patients"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== TAGS =========================== */}
+        <NavLink
+          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
+          label="Tags"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== ZONES =========================== */}
+        <NavLink
+          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
+          label="Zones"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+        
+        {/* // =========================== SPECIALITY =========================== */}
+        <NavLink
+          href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+          label="Speciality"
+          icon={<StarIcon className="h-5 w-5" />}
+        />
+
+        {/* // =========================== LOCATION =========================== */}
+        <NavLink
+          href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+          label="Location"
+          icon={<LocateFixedIcon className="h-5 w-5" />}
         />
 
       </nav>
@@ -125,6 +169,47 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
             label="Department"
             icon={<Building2 className="h-5 w-5" />}
+          />
+
+          {/* // =========================== ROSTERS =========================== */}
+        <NavLink
+          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
+          label="Rosters"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== PATIENTS =========================== */}
+        <NavLink
+          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
+          label="Patients"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== TAGS =========================== */}
+        <NavLink
+          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
+          label="Tags"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+
+        {/* // =========================== ZONES =========================== */}
+        <NavLink
+          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
+          label="Zones"
+          icon={<Building2 className="h-5 w-5" />}
+        />
+          {/* // =========================== SPECIALITY =========================== */}
+          <NavLink
+            href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+            label="Speciality"
+            icon={<StarIcon className="h-5 w-5" />}
+          />
+
+          {/* // =========================== LOCATION =========================== */}
+          <NavLink
+            href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+            label="Location"
+            icon={<LocateFixedIcon className="h-5 w-5" />}
           />
 
         </nav>

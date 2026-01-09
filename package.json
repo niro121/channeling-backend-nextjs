@@ -24,7 +24,9 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/postcss": "^4.1.13",
     "@tanstack/react-table": "^8.21.3",
+    "@types/cryptr": "^4.0.3",
     "@types/node": "24.5.2",
+    "@types/pdfkit": "^0.17.4",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vercel/analytics": "^1.5.0",
@@ -32,11 +34,18 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cryptr": "^6.4.0",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "formik": "^2.4.6",
+    "jspdf": "^4.0.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.544.0",
+    "moment": "^2.30.1",
     "next": "^15.5.4",
     "next-auth": "^4.24.11",
+    "pdfkit": "^0.17.2",
     "postcss": "^8.4.49",
     "prettier": "^3.6.2",
     "prop-types": "^15.8.1",
@@ -60,6 +69,7 @@
     "trailingComma": "none"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "prisma": "^6.19.0"
   }
 }

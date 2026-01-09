@@ -27,7 +27,8 @@ interface CustomSelectFieldProps {
     inputClassName: string
   }
   loading?: boolean,
-  emptyString?: string
+  emptyString?: string,
+
 }
 
 const CustomSelectField = ({
