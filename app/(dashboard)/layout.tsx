@@ -1,33 +1,33 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Profile } from "./profile"
-import Providers from "./providers"
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Profile } from './profile';
+import Providers from './providers';
 import {
   PanelLeft,
   Stethoscope,
   Building2,
   StarIcon,
   LocateFixedIcon,
-} from "lucide-react"
-import { Session } from "next-auth";
-import { UserGroup } from "@/components/icons"
-import DashboardBreadcrumb from "./breadcrumbs"
-import { fetchServerSession } from "@/lib/session"
-import { NavLink } from "@/components/common/nav-link"
+  LucideHome
+} from 'lucide-react';
+import { Session } from 'next-auth';
+import { UserGroup } from '@/components/icons';
+import DashboardBreadcrumb from './breadcrumbs';
+import { fetchServerSession } from '@/lib/session';
+import { NavLink } from '@/components/common/nav-link';
 
 async function DesktopNav({ session }: { session: Session | null }) {
-
-  const userType = session?.user?.userType
+  const userType = session?.user?.userType;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
     if (userType === 1) {
-      return true
+      return true;
     }
 
-    return false
-  }
+    return false;
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-56 flex flex-col border-r bg-[#01012A] sm:flex overflow-hidden">
@@ -47,88 +47,96 @@ async function DesktopNav({ session }: { session: Session | null }) {
 
         {/* // =========================== USERS =========================== */}
         <NavLink
-          href={hasAccess("/users") ? "/users" : "unauthorized-access"}
+          href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
           label="Users"
           icon={<UserGroup className="h-5 w-5" />}
         />
 
         {/* // =========================== DOCTOR =========================== */}
         <NavLink
-          href={hasAccess("/doctors") ? "/doctors" : "unauthorized-access"}
+          href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'}
           label="Doctor"
           icon={<Stethoscope className="h-5 w-5" />}
         />
 
         {/* // =========================== DEPARTMENT =========================== */}
         <NavLink
-          href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
+          href={
+            hasAccess('/departments') ? '/departments' : 'unauthorized-access'
+          }
           label="Department"
           icon={<Building2 className="h-5 w-5" />}
         />
 
         {/* // =========================== ROSTERS =========================== */}
         <NavLink
-          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
+          href={hasAccess('/rosters') ? '/rosters' : 'unauthorized-access'}
           label="Rosters"
           icon={<Building2 className="h-5 w-5" />}
         />
 
         {/* // =========================== PATIENTS =========================== */}
         <NavLink
-          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
+          href={hasAccess('/patients') ? '/patients' : 'unauthorized-access'}
           label="Patients"
           icon={<Building2 className="h-5 w-5" />}
         />
 
         {/* // =========================== TAGS =========================== */}
         <NavLink
-          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
+          href={hasAccess('/tags') ? '/tags' : 'unauthorized-access'}
           label="Tags"
           icon={<Building2 className="h-5 w-5" />}
         />
 
         {/* // =========================== ZONES =========================== */}
         <NavLink
-          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
+          href={hasAccess('/zones') ? '/zones' : 'unauthorized-access'}
           label="Zones"
           icon={<Building2 className="h-5 w-5" />}
         />
-        
+
+        {/* // =========================== ROOMS =========================== */}
+        <NavLink
+          href={hasAccess('/rooms') ? '/rooms' : 'unauthorized-access'}
+          label="Rooms"
+          icon={<LucideHome className="h-5 w-5" />}
+        />
+
         {/* // =========================== SPECIALITY =========================== */}
         <NavLink
-          href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+          href={
+            hasAccess('/specialities') ? '/specialities' : 'unauthorized-access'
+          }
           label="Speciality"
           icon={<StarIcon className="h-5 w-5" />}
         />
 
         {/* // =========================== LOCATION =========================== */}
         <NavLink
-          href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+          href={hasAccess('/locations') ? '/locations' : 'unauthorized-access'}
           label="Location"
           icon={<LocateFixedIcon className="h-5 w-5" />}
         />
-
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
-        <p className="text-white text-sm">
-          {process.env.APP_VERSION}
-        </p>
+        <p className="text-white text-sm">{process.env.APP_VERSION}</p>
       </nav>
     </aside>
-  )
+  );
 }
 
 async function MobileNav({ session }: { session: Session | null }) {
-  const userType = session?.user?.userType
+  const userType = session?.user?.userType;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
     if (userType === 1) {
-      return true
+      return true;
     }
 
-    return false
-  }
+    return false;
+  };
 
   return (
     <Sheet>
@@ -140,7 +148,6 @@ async function MobileNav({ session }: { session: Session | null }) {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="sm:max-w-xs bg-[#01012A]">
-
         {/* // =========================== LOGO =========================== */}
         <nav className="grid gap-6 text-lg font-medium">
           <Link
@@ -152,78 +159,84 @@ async function MobileNav({ session }: { session: Session | null }) {
 
           {/* // =========================== USERS =========================== */}
           <NavLink
-            href={hasAccess("/users") ? "/users" : "unauthorized-access"}
+            href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
             label="Users"
             icon={<UserGroup className="h-5 w-5" />}
           />
 
           {/* // =========================== DOCTOR =========================== */}
           <NavLink
-            href={hasAccess("/doctors") ? "/doctors" : "unauthorized-access"}
+            href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'}
             label="Doctor"
             icon={<Stethoscope className="h-5 w-5" />}
           />
 
           {/* // =========================== DEPARTMENT =========================== */}
           <NavLink
-            href={hasAccess("/departments") ? "/departments" : "unauthorized-access"}
+            href={
+              hasAccess('/departments') ? '/departments' : 'unauthorized-access'
+            }
             label="Department"
             icon={<Building2 className="h-5 w-5" />}
           />
 
           {/* // =========================== ROSTERS =========================== */}
-        <NavLink
-          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
-          label="Rosters"
-          icon={<Building2 className="h-5 w-5" />}
-        />
+          <NavLink
+            href={hasAccess('/rosters') ? '/rosters' : 'unauthorized-access'}
+            label="Rosters"
+            icon={<Building2 className="h-5 w-5" />}
+          />
 
-        {/* // =========================== PATIENTS =========================== */}
-        <NavLink
-          href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
-          label="Patients"
-          icon={<Building2 className="h-5 w-5" />}
-        />
+          {/* // =========================== PATIENTS =========================== */}
+          <NavLink
+            href={hasAccess('/patients') ? '/patients' : 'unauthorized-access'}
+            label="Patients"
+            icon={<Building2 className="h-5 w-5" />}
+          />
 
-        {/* // =========================== TAGS =========================== */}
-        <NavLink
-          href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
-          label="Tags"
-          icon={<Building2 className="h-5 w-5" />}
-        />
+          {/* // =========================== TAGS =========================== */}
+          <NavLink
+            href={hasAccess('/tags') ? '/tags' : 'unauthorized-access'}
+            label="Tags"
+            icon={<Building2 className="h-5 w-5" />}
+          />
 
-        {/* // =========================== ZONES =========================== */}
-        <NavLink
-          href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
-          label="Zones"
-          icon={<Building2 className="h-5 w-5" />}
-        />
+          {/* // =========================== ZONES =========================== */}
+          <NavLink
+            href={hasAccess('/zones') ? '/zones' : 'unauthorized-access'}
+            label="Zones"
+            icon={<Building2 className="h-5 w-5" />}
+          />
           {/* // =========================== SPECIALITY =========================== */}
           <NavLink
-            href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
+            href={
+              hasAccess('/specialities')
+                ? '/specialities'
+                : 'unauthorized-access'
+            }
             label="Speciality"
             icon={<StarIcon className="h-5 w-5" />}
           />
 
           {/* // =========================== LOCATION =========================== */}
           <NavLink
-            href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
+            href={
+              hasAccess('/locations') ? '/locations' : 'unauthorized-access'
+            }
             label="Location"
             icon={<LocateFixedIcon className="h-5 w-5" />}
           />
-
         </nav>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
 
 export default async function DashboardLayout({
-  children,
+  children
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-
   const session = await fetchServerSession();
 
   // If no session, redirect to login (this should be handled by middleware, but adding as safety)
@@ -259,5 +272,5 @@ export default async function DashboardLayout({
         </div>
       </main>
     </Providers>
-  )
+  );
 }
