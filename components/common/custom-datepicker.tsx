@@ -14,7 +14,7 @@ import { Calendar } from '../ui/base-calendar';
 
 interface CustomDatePickerProps {
     id: string
-    value: Date
+    value: Date | undefined
     onChange: (date: Date | undefined) => void
 }
 

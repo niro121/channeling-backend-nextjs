@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js" 
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -123,4 +123,64 @@ model Room {
   location             Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
   createdUser          User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model Roster {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                  String
+  departmentId          String   @db.ObjectId
+  shiftsPerPersonPerDay Int
+  status                Int // 0 = unpublish, 1 = publish
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
+}
+
+model Patient {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  name         String
+  code         String?
+  email        String?
+  addressLine1 String?
+  addressLine2 String?
+  dateOfBirth  Int?
+  age          Int?
+  phone        String
+  sex          String
+  status       Int
+
+  area   Tag?    @relation("PatientArea", fields: [areaId], references: [id])
+  areaId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Tag {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  name   String?
+  type   Int?
+  status Int?
+
+  patients Patient[] @relation("PatientArea")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Zone {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  locationId  String?  @db.ObjectId
+  visibility  Int // 0 = unpublish, 1 = publish
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }
