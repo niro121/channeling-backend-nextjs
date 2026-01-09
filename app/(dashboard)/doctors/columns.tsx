@@ -56,7 +56,7 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
       const reg = row.getValue<string>('registrationNumber');
       return (
         <div className="max-w-28 truncate" title={reg}>
-          {reg}
+          {reg || "-"}
         </div>
       );
     }

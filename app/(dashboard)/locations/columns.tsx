@@ -2,12 +2,12 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Speciality } from '@/types/speciality';
+import { Location, LOCATION_OPTIONS } from '@/types/location';
 import { CircleCorrect, CircleX } from '@/components/icons';
 import moment from 'moment';
-import { SpecialityRecordActions } from './record-actions';
+import { LocationRecordActions } from './record-actions';
 
-export const SpecialityColumns: ColumnDef<Speciality>[] = [
+export const LocationColumns: ColumnDef<Location>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -34,7 +34,7 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
   },
   {
     accessorKey: 'code',
-    header: 'Speciality Code',
+    header: 'Location Code',
     cell: ({ row }) => {
       const code = row.getValue<string>('code');
 
@@ -47,7 +47,35 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
   },
   {
     accessorKey: 'name',
-    header: 'Speciality Name'
+    header: 'Location Name'
+  },
+  {
+    accessorKey: 'type',
+    header: 'Location Type',
+    cell: ({ row }) => {
+      const { branchType } = row.original;
+
+      const type = LOCATION_OPTIONS.find(
+        (location) => String(branchType) === location.id
+      );
+
+      return <div title={type?.name}>{type?.name}</div>;
+    }
+  },
+  {
+    header: 'Address',
+    cell: ({ row }) => {
+      const { addressLine1, addressLine2, city } = row.original;
+
+      const addressArr = [addressLine1, addressLine2, city];
+      const address = addressArr.filter(Boolean).join(', ');
+
+      return (
+        <div className="max-w-72" title={address}>
+          {address || "-"}
+        </div>
+      );
+    }
   },
   {
     accessorKey: 'updatedUser.name',
@@ -86,6 +114,6 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
   {
     id: 'actions',
     header: 'Actions',
-    cell: ({ row }) => <SpecialityRecordActions row={row} />
+    cell: ({ row }) => <LocationRecordActions row={row} />
   }
 ];

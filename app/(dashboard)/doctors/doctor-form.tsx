@@ -11,19 +11,23 @@ import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
 import { DisabledIcon, SaveIcon } from '@/components/icons';
-import { sriLankaPhoneRegex } from '@/lib/regex';
+import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 
 type DoctorFormProps = {
   doctor: Doctor | null;
   specialities: { id: string; name: string }[];
   isEditPage?: boolean;
   user?: {
-    id?: string
-    name?: string
-  }
+    id?: string;
+    name?: string;
+  };
 };
 
-export default function DoctorForm({ doctor, specialities, user }: DoctorFormProps) {
+export default function DoctorForm({
+  doctor,
+  specialities,
+  user
+}: DoctorFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -44,7 +48,7 @@ export default function DoctorForm({ doctor, specialities, user }: DoctorFormPro
     referralCharge: doctor?.referralCharge ?? 0,
     sessionNoPrefix: doctor?.sessionNoPrefix ?? '',
     status: doctor?.status ?? 0,
-    specialityId: doctor?.specialityId ?? '',
+    specialityId: doctor?.specialityId ?? ''
   };
 
   const validationSchema = Yup.object({
@@ -61,9 +65,12 @@ export default function DoctorForm({ doctor, specialities, user }: DoctorFormPro
       .nullable()
       .optional(),
     mobile: Yup.string()
-      .matches(sriLankaPhoneRegex, 'Mobile Number Ex: 07x xxxxxxx')
+      .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx')
       .nullable()
-      .optional(),
+      .required('This field is mandatory'),
+    registrationNumber: Yup.string()
+      .trim()
+      .required('Registration number is required'),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').required(),
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
@@ -178,6 +185,7 @@ export default function DoctorForm({ doctor, specialities, user }: DoctorFormPro
                   formik.setFieldValue('specialityId', value)
                 }
                 required
+                disabled={specialities.length === 0}
                 options={specialities}
                 styleClasses={styleClasses}
               />
@@ -223,7 +231,7 @@ export default function DoctorForm({ doctor, specialities, user }: DoctorFormPro
                 value={formik.values.mobile}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 
@@ -278,7 +286,7 @@ export default function DoctorForm({ doctor, specialities, user }: DoctorFormPro
                 value={formik.values.registrationNumber}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 

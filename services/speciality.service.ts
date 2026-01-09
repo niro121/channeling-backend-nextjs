@@ -8,11 +8,6 @@ import {
 } from '@/types/speciality';
 import { Prisma } from '@prisma/client';
 
-export type CreateSpecialityPayload = Pick<
-  Speciality,
-  'name' | 'description' | 'status' | 'code'
->;
-
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialitiesService = async ({
   page,

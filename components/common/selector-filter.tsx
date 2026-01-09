@@ -16,7 +16,7 @@ type Option = {
   name: string;
 };
 
-type SpecialityFilterProps = {
+type SelectorFilterProps = {
   label: string
   options: Option[];
   defaultValue: string
@@ -30,7 +30,7 @@ export function SelectorFilter({
   initialId,
   keyword,
   defaultValue = '__all__'
-}: SpecialityFilterProps) {
+}: SelectorFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
