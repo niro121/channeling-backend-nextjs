@@ -23,7 +23,22 @@ export const getAllRoomsService = async ({
             },
             {
               location: {
-
+                is: {
+                  name: {
+                    contains: keyword,
+                    mode: Prisma.QueryMode.insensitive
+                  }
+                }
+              }
+            },
+            {
+              location: {
+                is: {
+                  city: {
+                    contains: keyword,
+                    mode: Prisma.QueryMode.insensitive
+                  }
+                }
               }
             }
           ],
@@ -66,10 +81,7 @@ export const getAllRoomsService = async ({
    CHECK ROOM NUMBER (OPTIONAL)
 ========================= */
 
-export const checkRoomNumber = async (
-  number: string,
-  locationId: string
-) => {
+export const checkRoomNumber = async (number: string, locationId: string) => {
   try {
     const existing = await prisma.room.findFirst({
       where: {
@@ -89,9 +101,7 @@ export const checkRoomNumber = async (
    CREATE ROOM
 ========================= */
 
-export const createRoomService = async (
-  payload: Prisma.RoomCreateInput
-) => {
+export const createRoomService = async (payload: Prisma.RoomCreateInput) => {
   try {
     const result = await prisma.room.create({
       data: payload
