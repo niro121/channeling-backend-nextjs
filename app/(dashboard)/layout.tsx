@@ -92,7 +92,8 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
           label="Zones"
           icon={<Building2 className="h-5 w-5" />}
-
+        />
+        
         {/* // =========================== SPECIALITY =========================== */}
         <NavLink
           href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"}
