@@ -235,10 +235,10 @@ model VoucherCode {
   updatedBy String?
 
   // ==== RELATIONS ==== //
-  discountId  String?   @db.ObjectId
-  discount    Discount? @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
-  createdUser User?     @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?     @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
+  discountId  String   @db.ObjectId
+  discount    Discount @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
+  createdUser User?    @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 enum DiscountMethod {
