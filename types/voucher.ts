@@ -7,7 +7,7 @@ export type Voucher = {
   limit: number;
   status: number; // 0 = unpublish, 1 = publish
   discountId: string;
-  discount: Discount;
+  discount?: Discount;
   createdUser?: User | null;
   updatedUser?: User | null;
   createdAt?: Date | undefined;
@@ -21,3 +21,9 @@ export type VoucherFormValues = {
   discountId: string;
   discount: Discount;
 };
+
+export type UpdatedVoucherPayload = Partial<{
+  code: string;
+  limit: number;
+  status: number; // 0 = unpublish, 1 = publish
+}>;

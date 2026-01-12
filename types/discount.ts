@@ -16,7 +16,7 @@ export type Discount = {
   autoApply: boolean;
   status: number; // == 0: unpublish, 1: publish == //
   applyTo: number; // 1 = hospital-fee, 2 = professional-fee
-  vouchers: Voucher[];
+  vouchers?: Voucher[];
   createdUser?: User | null;
   updatedUser?: User | null;
   createdAt?: Date | undefined;
@@ -59,14 +59,14 @@ export type getDiscountParams = {
   page?: string;
   limit?: string;
   keyword?: string;
-  voucherCode?: string;
+  applyType?: string;
 }
 
 export type getDiscountQuery= {
-  page?: number;
-  limit?: number;
-  keyword?: string;
-  voucherCode?: string;
+  page: number;
+  limit: number;
+  keyword: string;
+  applyType?: number;
 }
 
 export type GetDiscountResponse = {
