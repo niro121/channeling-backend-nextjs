@@ -9,7 +9,8 @@ import {
   Building2,
   StarIcon,
   LocateFixedIcon,
-  LucideHome
+  LucideHome,
+  TicketIcon
 } from 'lucide-react';
 import { Session } from 'next-auth';
 import { UserGroup } from '@/components/icons';
@@ -118,6 +119,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           label="Location"
           icon={<LocateFixedIcon className="h-5 w-5" />}
         />
+
+        {/* // =========================== DISCOUNT =========================== */}
+        <NavLink
+          href={hasAccess('/discounts') ? '/discounts' : 'unauthorized-access'}
+          label="Discount"
+          icon={<TicketIcon className="h-5 w-5" />}
+        />
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
         <p className="text-white text-sm">{process.env.APP_VERSION}</p>
@@ -225,6 +233,15 @@ async function MobileNav({ session }: { session: Session | null }) {
             }
             label="Location"
             icon={<LocateFixedIcon className="h-5 w-5" />}
+          />
+
+          {/* // =========================== DISCOUNT =========================== */}
+          <NavLink
+            href={
+              hasAccess('/discounts') ? '/discounts' : 'unauthorized-access'
+            }
+            label="Discount"
+            icon={<TicketIcon className="h-5 w-5" />}
           />
         </nav>
       </SheetContent>
