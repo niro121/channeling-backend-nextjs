@@ -17,13 +17,5 @@ export type Voucher = {
 export type VoucherFormValues = {
   code: string;
   limit: number;
-  status: number; // 0 = unpublish, 1 = publish
-  discountId: string;
-  discount: Discount;
 };
 
-export type UpdatedVoucherPayload = Partial<{
-  code: string;
-  limit: number;
-  status: number; // 0 = unpublish, 1 = publish
-}>;

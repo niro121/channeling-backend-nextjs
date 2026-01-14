@@ -5,7 +5,7 @@ import { Voucher, VoucherFormValues } from './voucher';
 export type Discount = {
   id?: string;
   name: string;
-  discountType: number; // 1 = percentage, 2 = fixed
+  discountType: number; // 0 = percentage, 1 = fixed
   discountMethod: DiscountMethod[];
   paymentType: PaymentType[];
   discountValue: number;
@@ -15,7 +15,7 @@ export type Discount = {
   isVoucher: number; // 0 = no, 1 = yes
   autoApply: boolean;
   status: number; // == 0: unpublish, 1: publish == //
-  applyTo: number; // 1 = hospital-fee, 2 = professional-fee
+  applyTo: number; // 0 = hospital-fee, 1 = professional-fee
   vouchers?: Voucher[];
   createdUser?: User | null;
   updatedUser?: User | null;
@@ -25,7 +25,7 @@ export type Discount = {
 
 export type DiscountFormValues = {
   name: string;
-  discountType: number; // 1 = percentage, 2 = fixed
+  discountType: number; // 0 = percentage, 1 = fixed
   discountMethod: DiscountMethod[];
   paymentType: PaymentType[];
   discountValue: number;
@@ -35,13 +35,13 @@ export type DiscountFormValues = {
   isVoucher: number; // 0 = no, 1 = yes
   autoApply: boolean;
   status: number; // == 0: unpublish, 1: publish == //
-  applyTo: number; // 1 = hospital-fee, 2 = professional-fee
-  vouchers: VoucherFormValues[]
+  applyTo: number; // 0 = hospital-fee, 1 = professional-fee
+  vouchers?: VoucherFormValues[]
 };
 
 export type UpdatedDiscountPayload = Partial<{
   name: string;
-  discountType: number; // 1 = percentage, 2 = fixed
+  discountType: number; // 0 = percentage, 1 = fixed
   discountMethod: DiscountMethod[];
   paymentType: PaymentType[];
   discountValue: number;
@@ -51,7 +51,7 @@ export type UpdatedDiscountPayload = Partial<{
   isVoucher: number; // 0 = no, 1 = yes
   autoApply: boolean;
   status: number; // == 0: unpublish, 1: publish == //
-  applyTo: number; // 1 = hospital-fee, 2 = professional-fee
+  applyTo: number; // 0 = hospital-fee, 1 = professional-fee
   vouchers: VoucherFormValues[]
 }>;
 
@@ -59,14 +59,14 @@ export type getDiscountParams = {
   page?: string;
   limit?: string;
   keyword?: string;
-  applyType?: string;
+  discountType?: string;
 }
 
 export type getDiscountQuery= {
   page: number;
   limit: number;
   keyword: string;
-  applyType?: number;
+  discountType?: number;
 }
 
 export type GetDiscountResponse = {
@@ -74,7 +74,7 @@ export type GetDiscountResponse = {
   totalRecords: number;
 }
 
-type DiscountMethodOption = {
+export type DiscountMethodOption = {
   id: string;
   type: DiscountMethod;
   name: string;
@@ -88,7 +88,7 @@ export const DISCOUNT_METHOD_OPTIONS: DiscountMethodOption[] = [
   { id: '5', type: DiscountMethod.STAFF, name: 'Staff' }
 ];
 
-type PaymentTypeOption = {
+export type PaymentTypeOption = {
   id: string;
   type: PaymentType;
   name: string;
@@ -101,12 +101,22 @@ export const PAYMENT_METHOD_OPTIONS: PaymentTypeOption[] = [
   { id: '4', type: PaymentType.SLIP, name: 'Slip' }
 ];
 
-type ApplyToOption = {
+type Option = {
   id: string,
   name: string
 }
 
-export const APPLY_TO_OPTIONS: ApplyToOption[] = [
-  {id: "1", name: "Hospital Fee Only"},
-  {id: "2", name: "Professional Fee Only"},
+export const APPLY_TO_OPTIONS: Option[] = [
+  {id: "0", name: "Hospital Fee Only"},
+  {id: "1", name: "Professional Fee Only"},
+]
+
+export const DISCOUNT_TYPE_OPTIONS: Option[] = [
+  {id: "0", name: "Percentage"},
+  {id: "1", name: "Fixed Value"},
+]
+
+export const IS_VOUCHER_OPTIONS: Option[] = [
+  {id: "0", name: "No"},
+  {id: "1", name: "Yes"},
 ]
