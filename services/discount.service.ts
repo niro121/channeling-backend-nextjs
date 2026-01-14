@@ -9,7 +9,7 @@ export const getAllDiscountsService = async ({
   page,
   limit,
   keyword,
-  applyType
+  discountType
 }: getDiscountQuery) => {
   const whereClause: Prisma.DiscountWhereInput | undefined =
     keyword && keyword.trim() !== ''
@@ -32,10 +32,10 @@ export const getAllDiscountsService = async ({
               }
             }
           ],
-          ...(applyType ? { applyTo: applyType } : {})
+          ...(discountType !== undefined ? { discountType } : {})
         }
-      : applyType
-        ? { applyTo: applyType }
+      : discountType !== undefined
+        ? { discountType }
         : undefined;
 
   try {
@@ -101,6 +101,20 @@ export const createDiscountService = async (
 };
 
 // ==== UPDATE A DISCOUNT ==== //
+export const checkVouchers = async (id: string) => {
+  try {
+    const existingVouchers = await prisma.discount.findUnique({
+      where: { id },
+      select: { vouchers: true }
+    });
+
+    return existingVouchers;
+  } catch (error: any) {
+    console.log('checkVouchers error', error);
+    throw error;
+  }
+};
+
 export const updateOneDiscountService = async (
   id: string,
   payload: Prisma.DiscountUpdateInput
@@ -118,21 +132,41 @@ export const updateOneDiscountService = async (
   }
 };
 
-// ==== UPDATE A VOUCHER ==== //
-export const updateOneVoucherService = async (
-  id: string,
+// ==== CREATE A VOUCHER ==== //
+export const checkDiscountId = async (discountId: string) => {
+  try {
+    const discount = await prisma.discount.findUnique({
+      where: { id: discountId }
+    });
+
+    if (!discount) {
+      return false;
+    }
+
+    return true;
+  } catch (error: any) {
+    console.error('checkDiscountId error', error);
+    throw error;
+  }
+};
+
+export const createOneVoucherService = async (
   discountId: string,
-  payload: Prisma.VoucherCodeUpdateInput
+  payload: Prisma.VoucherCodeCreateInput
 ) => {
   try {
-    const result = await prisma.voucherCode.update({
-      where: { id, discountId },
-      data: payload
+    const result = await prisma.voucherCode.create({
+      data: {
+        ...payload,
+        discount: {
+          connect: { id: discountId }
+        }
+      }
     });
 
     return result;
   } catch (error: any) {
-    console.log('updateOneVoucherService error', error);
+    console.error('createOneVoucherService error', error);
     throw error;
   }
 };
@@ -140,14 +174,57 @@ export const updateOneVoucherService = async (
 // ==== DELETE A VOUCHER ==== //
 export const deleteOneVoucherService = async (id: string) => {
   try {
-    const result = await prisma.voucherCode.delete({
-      where: { id }
-    });
+    return await prisma.$transaction(async (tx) => {
+      const voucher = await tx.voucherCode.findUnique({
+        where: { id },
+        include: {
+          discount: {
+            select: {
+              id: true,
+              isVoucher: true
+            }
+          }
+        }
+      });
 
-    return result;
+      if (!voucher) {
+        return {
+          success: false,
+          message: 'Voucher not found'
+        };
+      }
+
+      if (voucher.discount?.isVoucher === 1) {
+        const voucherCount = await tx.voucherCode.count({
+          where: {
+            discountId: voucher.discountId
+          }
+        });
+
+        if (voucherCount <= 1) {
+          return {
+            success: false,
+            message: 'At least one voucher code is required for this discount'
+          };
+        }
+      }
+
+      const deletedVoucher = await tx.voucherCode.delete({
+        where: { id }
+      });
+
+      return {
+        success: true,
+        message: 'Voucher code deleted successfully',
+        data: deletedVoucher
+      };
+    });
   } catch (error: any) {
-    console.log('updateOneVoucherService error', error);
-    throw error;
+    console.log('deleteOneVoucherService error', error);
+    return {
+      success: false,
+      message: 'Something went wrong'
+    };
   }
 };
 
@@ -155,7 +232,10 @@ export const deleteOneVoucherService = async (id: string) => {
 export const getDiscountByIdService = async (id: string) => {
   try {
     const result = prisma.discount.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        vouchers: true
+      }
     });
 
     return result;
