@@ -200,7 +200,7 @@ model Zone {
 model Discount {
   id                   String           @id @default(auto()) @map("_id") @db.ObjectId
   name                 String
-  discountType         Int // 1 = percentage, 2 = fixed
+  discountType         Int // 0 = percentage, 1 = fixed
   discountMethod       DiscountMethod[] // 1 = POS, 2 = on-call, 3 - agent, 4 - staff, 5 - API
   paymentType          PaymentType[] // 1 = cash, 2 = credit-card, 3 = slip, 4 = cheque
   discountValue        Int
@@ -210,7 +210,7 @@ model Discount {
   isVoucher            Int // 0 = no, 1 = yes
   autoApply            Boolean          @default(false)
   status               Int // 0 = unpublish, 1 = publish
-  applyTo              Int              @default(1) // 1 = hospital-fee, 2 = professional-fee 
+  applyTo              Int              @default(0) // 0 = hospital-fee, 1 = professional-fee 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -236,9 +236,30 @@ model VoucherCode {
 
   // ==== RELATIONS ==== //
   discountId  String   @db.ObjectId
-  discount    Discount @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
+  discount    Discount? @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
   createdUser User?    @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?    @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model AgencyBook {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // ==== BASIC FIELDS ==== //
+  bookNumber   String   @unique
+  startNumber  String
+  endNumber    String
+  status       Int?
+
+  // ==== RELATIONS ==== //
+  agencyId     String?  @db.ObjectId
+  agencyName   String?  // Temporary field to store agency name until Agencies component is implemented
+  
+
+  // ==== AUDIT FIELDS ==== //
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?
+  updatedBy    String?
 }
 
 enum DiscountMethod {
