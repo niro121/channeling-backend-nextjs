@@ -14,115 +14,124 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  email             String             @unique()
-  userType          Int                // 1 = admin, 2 = staff
-  password          String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
-  status            Int
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String   @unique()
+  userType  Int // 1 = admin, 2 = staff
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  status    Int
 
   // ==== RELATIONS ==== //
-  createdSpecialities    Speciality[]         @relation("UserCreatedSpecialities")  
-  updatedSpecialities    Speciality[]         @relation("UserUpdatedSpecialities")
-  createdDoctors         Doctor[]             @relation("UserCreatedDoctors")  
-  updatedDoctors         Doctor[]             @relation("UserUpdatedDoctors")
-  createdLocations       Location[]           @relation("UserCreatedLocations")
-  updatedLocations       Location[]           @relation("UserUpdatedLocations")
-  createdRooms           Room[]               @relation("UserCreatedRooms")
-  updatedRooms           Room[]               @relation("UserUpdatedRooms")
+  createdSpecialities Speciality[]  @relation("UserCreatedSpecialities")
+  updatedSpecialities Speciality[]  @relation("UserUpdatedSpecialities")
+  createdDoctors      Doctor[]      @relation("UserCreatedDoctors")
+  updatedDoctors      Doctor[]      @relation("UserUpdatedDoctors")
+  createdLocations    Location[]    @relation("UserCreatedLocations")
+  updatedLocations    Location[]    @relation("UserUpdatedLocations")
+  createdRooms        Room[]        @relation("UserCreatedRooms")
+  updatedRooms        Room[]        @relation("UserUpdatedRooms")
+  createdDiscounts    Discount[]    @relation("UserCreatedDiscounts")
+  updatedDiscounts    Discount[]    @relation("UserUpdatedDiscounts")
+  createdVoucherCodes VoucherCode[] @relation("UserCreatedVouchers")
+  updatedVoucherCodes VoucherCode[] @relation("UserUpdatedVouchers")
+  agencies            Agency[]      @relation("AgencyUser")
 }
 
 model Department {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  description       String?
-  visibility        Int                // 0 = unpublish, 1 = publish
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  visibility  Int // 0 = unpublish, 1 = publish
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 }
 
 model Speciality {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  code              String             @unique()
-  description       String
-  status            Int                // == 0: unpublish, 1: publish == //
-  createdBy         String?            @db.ObjectId
-  updatedBy         String?            @db.ObjectId
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  code        String   @unique()
+  description String
+  status      Int // == 0: unpublish, 1: publish == //
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  doctors          Doctor[]            @relation("SpecialityToDoctor")  
-  createdUser      User?               @relation("UserCreatedSpecialities", fields: [createdBy], references: [id], onDelete: SetNull) 
-  updatedUser      User?               @relation("UserUpdatedSpecialities", fields: [updatedBy], references: [id], onDelete: SetNull)
+  doctors     Doctor[] @relation("SpecialityToDoctor")
+  createdUser User?    @relation("UserCreatedSpecialities", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedSpecialities", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
+
 model Doctor {
-  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
-  title                String
-  name                 String
-  code                 String          @unique()
-  order                Int
-  phone                String?          
-  mobile               String          @unique()
-  fax                  String?
-  addressLine1         String
-  addressLine2         String
-  city                 String
-  registrationNumber   String          @unique()
-  qualification        String
-  referralCharge       Float
-  sessionNoPrefix      String
-  status               Int             // == 0: unpublish, 1: publish == //
-  createdBy            String?         @db.ObjectId
-  updatedBy            String?         @db.ObjectId
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @default(now())
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  title              String
+  name               String
+  code               String   @unique()
+  order              Int
+  phone              String?
+  mobile             String   @unique()
+  fax                String?
+  addressLine1       String
+  addressLine2       String
+  city               String
+  registrationNumber String   @unique()
+  qualification      String
+  referralCharge     Float
+  sessionNoPrefix    String
+  status             Int // == 0: unpublish, 1: publish == //
+  createdBy          String?  @db.ObjectId
+  updatedBy          String?  @db.ObjectId
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  specialityId         String          @db.ObjectId
-  speciality           Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
-  createdUser          User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull) 
-  updatedUser          User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+  specialityId String     @db.ObjectId
+  speciality   Speciality @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  createdUser  User?      @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser  User?      @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Location {
-  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
-  name                 String
-  addressLine1         String
-  addressLine2         String
-  city                 String
-  branchType           Int
-  status               Int             // == 0: unpublish, 1: publish == //
-  code                 String          @unique()
-  createdBy            String?         @db.ObjectId
-  updatedBy            String?         @db.ObjectId
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @default(now())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  addressLine1 String
+  addressLine2 String
+  city         String
+  branchType   Int
+  status       Int // == 0: unpublish, 1: publish == //
+  code         String   @unique()
+  createdBy    String?  @db.ObjectId
+  updatedBy    String?  @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  rooms                Room[]          @relation("LocationToRoom")
-  createdUser          User?           @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser          User?           @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+  rooms       Room[] @relation("LocationToRoom")
+  zones       Zone[] @relation("LocationToZone")
+  createdUser User?  @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?  @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Room {
-  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
-  number               String
-  description          String
-  status               Int             // == 0: unpublish, 1: publish == //
-  createdBy            String?         @db.ObjectId
-  updatedBy            String?         @db.ObjectId
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @default(now())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  number      String
+  description String
+  status      Int // == 0: unpublish, 1: publish == //
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  locationId           String          @db.ObjectId
-  location             Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
-  createdUser          User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser          User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
+  zoneId      String   @db.ObjectId
+  zone        Zone     @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
+  locationId  String   @db.ObjectId
+  location    Location @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
+  createdUser User?    @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Roster {
@@ -176,11 +185,146 @@ model Zone {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
-  locationId  String?  @db.ObjectId
   visibility  Int // 0 = unpublish, 1 = publish
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?
   updatedBy String?
+
+  // ==== RELATIONS ==== //
+  rooms      Room[]   @relation("ZoneToRoom")
+  locationId String   @db.ObjectId
+  location   Location @relation("LocationToZone", fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model Discount {
+  id                   String           @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  discountType         Int // 0 = percentage, 1 = fixed
+  discountMethod       DiscountMethod[] // 1 = POS, 2 = on-call, 3 - agent, 4 - staff, 5 - API
+  paymentType          PaymentType[] // 1 = cash, 2 = credit-card, 3 = slip, 4 = cheque
+  discountValue        Int
+  discountValueForeign Int
+  fromDate             DateTime
+  toDate               DateTime
+  isVoucher            Int // 0 = no, 1 = yes
+  autoApply            Boolean          @default(false)
+  status               Int // 0 = unpublish, 1 = publish
+  applyTo              Int              @default(0) // 0 = hospital-fee, 1 = professional-fee 
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  // ==== RELATIONS ==== //
+  vouchers    VoucherCode[] @relation("DiscountVouchers")
+  createdUser User?         @relation("UserCreatedDiscounts", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?         @relation("UserUpdatedDiscounts", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model VoucherCode {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  code   String @unique
+  limit  Int
+  status Int // 0 = unpublish, 1 = publish
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  // ==== RELATIONS ==== //
+  discountId  String    @db.ObjectId
+  discount    Discount? @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
+  createdUser User?     @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?     @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model AgencyBook {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // ==== BASIC FIELDS ==== //
+  bookNumber  String @unique
+  startNumber String
+  endNumber   String
+  status      Int?
+
+  // ==== RELATIONS ==== //
+  agencyId String? @db.ObjectId
+  agency   Agency? @relation("AgencyToAgencyBook", fields: [agencyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  // ==== AUDIT FIELDS ==== //
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Agency {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // ==== BASIC FIELDS ==== //
+  name               String
+  code               String? @unique
+  chequePrintingName String
+  parentAgencyId     String? @db.ObjectId
+
+  // ==== CREDIT FIELDS ==== //
+  creditLimit        Float @default(0)
+  allowedCreditLimit Float @default(0)
+  maxCreditLimit     Float @default(0)
+  balance            Float @default(0)
+
+  // ==== CONTACT FIELDS ==== //
+  phone   String?
+  mobile  String?
+  fax     String?
+  email   String?
+  website String?
+  memo    String?
+
+  // ==== ADDRESS FIELDS ==== //
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+
+  // ==== CONTACT PERSON FIELDS ==== //
+  contactPersonName   String
+  contactPersonPhone  String?
+  contactPersonMobile String?
+  contactPersonEmail  String?
+
+  // ==== SETTINGS ==== //
+  sendSms Int? @default(0) // 0 = No, 1 = Yes
+  status  Int? @default(1) // 0 = Unpublish, 1 = Publish
+
+  // ==== RELATIONS ==== //
+  parentAgency  Agency?      @relation("AgencyParent", fields: [parentAgencyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childAgencies Agency[]     @relation("AgencyParent")
+  userId        String?      @db.ObjectId
+  user          User?        @relation("AgencyUser", fields: [userId], references: [id], onDelete: SetNull)
+  agencyBooks   AgencyBook[] @relation("AgencyToAgencyBook")
+
+  // ==== AUDIT FIELDS ==== //
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+enum DiscountMethod {
+  POS
+  ON_CALL
+  AGENT
+  STAFF
+  API
+}
+
+enum PaymentType {
+  CASH
+  CREDIT_CARD
+  SLIP
+  CHEQUE
 }
