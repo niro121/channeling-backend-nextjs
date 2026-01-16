@@ -37,6 +37,18 @@ export const zoneColumns: ColumnDef<Zone>[] = [
         header: "Zone Name",
     },
     {
+        accessorKey: "location.name",
+        header: "Location",
+        cell: ({ row }) => {
+            const locationName = row.original.location?.name
+            return locationName ? (
+                <span>{locationName}</span>
+            ) : (
+                <span className="text-muted-foreground">-</span>
+            )
+        }
+    },
+    {
         accessorKey: "description",
         header: "Description",
         cell: ({ row }) => {

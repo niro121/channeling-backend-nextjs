@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Zone } from "@/types/zone"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
@@ -11,13 +11,15 @@ import { createNewZone, updateZone } from "@/app/actions/zone.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { useRouter } from "next/navigation"
+import { Location } from "@/types/location"
 
 type ZoneFormProps = {
     zone: Zone | null
     isEditPage?: boolean
+    locations: Location[]
 }
 
-const ZoneForm = ({ zone, isEditPage = false }: ZoneFormProps) => {
+const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
 
     const initialValues: Zone = {
         id: zone?.id ? zone.id : "",
@@ -32,11 +34,13 @@ const ZoneForm = ({ zone, isEditPage = false }: ZoneFormProps) => {
     const { toast } = useToast()
     const router = useRouter()
 
+
     const validationSchema = Yup.object({
         name: Yup.string()
             .max(100, "Must be less than 100 characters")
             .required("This field is mandatory"),
-        locationId: Yup.string(),
+        locationId: Yup.string()
+            .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
         visibility: Yup.number()
@@ -131,15 +135,13 @@ const ZoneForm = ({ zone, isEditPage = false }: ZoneFormProps) => {
                                 styleClasses={styleClasses}
                             />
 
-                            <CustomSelectField
+                             <CustomSelectField
                                 id="locationId"
                                 placeholder="Location"
                                 value={formik.values.locationId || ""}
                                 onChange={(value) => formik.setFieldValue("locationId", value)}
-                                required={false}
-                                options={[
-                                    { id: "000000000000000000000000", name: "Default Location (Mock)" }
-                                ]}
+                                required
+                                options={locations}
                                 styleClasses={styleClasses}
                             />
 
