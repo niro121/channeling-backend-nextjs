@@ -112,7 +112,7 @@ export function VoucherModal({
                 </Button>
               </div>
 
-              {localVouchers.length !== 0 && <hr className="bg-slate-300" />}
+              {localVouchers.length !== 0 && <hr className="bg-slate-300 my-4" />}
             </div>
           );
         })}
