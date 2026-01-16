@@ -52,11 +52,6 @@ export const createNewZone = async (payload: Zone) => {
             payload.visibility = 0
         }
 
-        // Sanitize locationId for Prisma (expecting ObjectId or null)
-        if (!payload.locationId || payload.locationId.trim() === "") {
-            payload.locationId = null
-        }
-
         const result = await saveZone(payload)
 
         revalidatePath('/zones')
@@ -86,11 +81,6 @@ export const updateZone = async (id: string, payload: Zone) => {
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
-
-        // Sanitize locationId for Prisma (expecting ObjectId or null)
-        if (!payload.locationId || payload.locationId.trim() === "") {
-            payload.locationId = null
-        }
 
         await updateOneZone(id, payload)
 

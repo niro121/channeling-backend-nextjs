@@ -18,20 +18,48 @@ export const getZones = async ({
     const skip = page * validLimit
 
     try {
-        const whereClause = keyword && keyword.trim() !== ""
-            ?
-            {
-                name: {
-                    contains: keyword,
-                    mode: "insensitive" as const,
-                },
+        // First, get all valid location IDs to filter zones
+        const allLocations = await prisma.location.findMany({
+            select: {
+                id: true
             }
-            : {}
+        })
+        const validLocationIds = Array.from(new Set(allLocations.map(loc => loc.id)))
 
+        // If no valid locations exist, return empty result
+        if (validLocationIds.length === 0) {
+            return {
+                data: [],
+                totalRecords: 0
+            }
+        }
+
+        const whereClause: any = {
+            locationId: {
+                in: validLocationIds
+            }
+        }
+
+        if (keyword && keyword.trim() !== "") {
+            whereClause.name = {
+                contains: keyword,
+                mode: "insensitive" as const,
+            }
+        }
+
+        // Now query zones with valid locations
         const records = await prisma.zone.findMany({
             skip: skip,
             take: validLimit,
             where: whereClause,
+            include: {
+                location: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+            },
             orderBy: {
                 createdAt: "desc",
             },
@@ -122,8 +150,23 @@ export const updateOneZone = async (id: string, payload: Zone) => {
 
 export const getZoneById = async (id: string) => {
     try {
+        // First check if zone exists and has a locationId
+        const zone = await prisma.zone.findUnique({
+            where: { id: id },
+            select: { id: true, locationId: true }
+        })
+
+        // If zone doesn't exist or doesn't have a locationId, return null
+        if (!zone || !zone.locationId) {
+            return null
+        }
+
+        // Now fetch with location relation
         const result = await prisma.zone.findUnique({
             where: { id: id },
+            include: {
+                location: true,
+            },
         })
 
         return result as unknown as Zone

@@ -9,6 +9,12 @@ import {
   Building2,
   StarIcon,
   LocateFixedIcon,
+  NotebookTabs,
+  UserPlus,
+  Tags,
+  MapPinned,
+  Landmark,
+  BookOpen,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -70,28 +76,28 @@ async function DesktopNav({ session }: { session: Session | null }) {
         <NavLink
           href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
           label="Rosters"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<NotebookTabs className="h-5 w-5" />}
         />
 
         {/* // =========================== PATIENTS =========================== */}
         <NavLink
           href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
           label="Patients"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<UserPlus className="h-5 w-5" />}
         />
 
         {/* // =========================== TAGS =========================== */}
         <NavLink
           href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
           label="Tags"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<Tags className="h-5 w-5" />}
         />
 
         {/* // =========================== ZONES =========================== */}
         <NavLink
           href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
           label="Zones"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<MapPinned className="h-5 w-5" />}
         />
         
         {/* // =========================== SPECIALITY =========================== */}
@@ -106,6 +112,20 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess("/locations") ? "/locations" : "unauthorized-access"}
           label="Location"
           icon={<LocateFixedIcon className="h-5 w-5" />}
+        />
+
+        {/* // =========================== AGENCY BOOKS =========================== */}
+        <NavLink
+          href={hasAccess("/agency-books") ? "/agency-books" : "unauthorized-access"}
+          label="Agency Books"
+          icon={<BookOpen className="h-5 w-5" />}
+        />
+
+        {/* // =========================== AGENCY =========================== */}
+        <NavLink
+          href={hasAccess("/agencies") ? "/agencies" : "unauthorized-access"}
+          label="Agency"
+          icon={<Landmark className="h-5 w-5" />}
         />
 
       </nav>
@@ -175,28 +195,28 @@ async function MobileNav({ session }: { session: Session | null }) {
         <NavLink
           href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
           label="Rosters"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<NotebookTabs className="h-5 w-5" />}
         />
 
         {/* // =========================== PATIENTS =========================== */}
         <NavLink
           href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
           label="Patients"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<UserPlus className="h-5 w-5" />}
         />
 
         {/* // =========================== TAGS =========================== */}
         <NavLink
           href={hasAccess("/tags") ? "/tags" : "unauthorized-access"}
           label="Tags"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<Tags className="h-5 w-5" />}
         />
 
         {/* // =========================== ZONES =========================== */}
         <NavLink
           href={hasAccess("/zones") ? "/zones" : "unauthorized-access"}
           label="Zones"
-          icon={<Building2 className="h-5 w-5" />}
+          icon={<MapPinned className="h-5 w-5" />}
         />
           {/* // =========================== SPECIALITY =========================== */}
           <NavLink
@@ -211,6 +231,20 @@ async function MobileNav({ session }: { session: Session | null }) {
             label="Location"
             icon={<LocateFixedIcon className="h-5 w-5" />}
           />
+
+          {/* // =========================== AGENCY BOOKS =========================== */}
+        <NavLink
+          href={hasAccess("/agency-books") ? "/agency-books" : "unauthorized-access"}
+          label="Agency Books"
+          icon={<BookOpen className="h-5 w-5" />}
+        />
+
+        {/* // =========================== AGENCY =========================== */}
+        <NavLink
+          href={hasAccess("/agencies") ? "/agencies" : "unauthorized-access"}
+          label="Agency"
+          icon={<Landmark className="h-5 w-5" />}
+        />
 
         </nav>
       </SheetContent>

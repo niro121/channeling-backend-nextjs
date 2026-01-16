@@ -1,6 +1,7 @@
 import React from "react"
 import ZoneForm from "../../zone-form"
 import { fetchZoneById } from "@/app/actions/zone.actions"
+import { getAllLocations } from "@/app/actions/location.action"
 
 type EditPageProps = {
     params: Promise<{ id: string }>
@@ -8,7 +9,15 @@ type EditPageProps = {
 
 const Page = async ({ params }: EditPageProps) => {
     const { id } = await params
-    const zone = await fetchZoneById(id)
+    
+    // Fetch zone and locations in parallel
+    const [zone, locationsResponse] = await Promise.all([
+        fetchZoneById(id),
+        getAllLocations({
+            page: "0",
+            limit: "1000",
+        })
+    ])
 
     return (
         <div className="flex flex-col gap-6">
@@ -18,7 +27,11 @@ const Page = async ({ params }: EditPageProps) => {
                     Update the zone details below.
                 </p>
             </div>
-            <ZoneForm zone={zone} isEditPage={true} />
+            <ZoneForm 
+                zone={zone} 
+                isEditPage={true} 
+                locations={locationsResponse.data || []} 
+            />
         </div>
     )
 }

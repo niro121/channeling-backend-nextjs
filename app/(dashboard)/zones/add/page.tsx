@@ -1,7 +1,13 @@
 import React from "react"
 import ZoneForm from "../zone-form"
+import { getAllLocations } from "@/app/actions/location.action"
 
-const Page = () => {
+const Page = async () => {
+    const locationsResponse = await getAllLocations({
+        page: "0",
+        limit: "1000",
+    })
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
@@ -10,7 +16,7 @@ const Page = () => {
                     Create a new zone by filling out the form below.
                 </p>
             </div>
-            <ZoneForm zone={null} />
+            <ZoneForm zone={null} locations={locationsResponse.data || []} />
         </div>
     )
 }

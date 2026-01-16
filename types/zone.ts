@@ -7,6 +7,10 @@ export type Zone = {
     visibility: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
+    location?: {
+        id: string
+        name: string
+    }
 }
 
 export type GetZonesParams = {
