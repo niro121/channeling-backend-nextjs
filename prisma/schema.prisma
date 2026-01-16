@@ -36,6 +36,7 @@ model User {
   updatedDiscounts    Discount[]    @relation("UserUpdatedDiscounts")
   createdVoucherCodes VoucherCode[] @relation("UserCreatedVouchers")
   updatedVoucherCodes VoucherCode[] @relation("UserUpdatedVouchers")
+  agencies            Agency[]      @relation("AgencyUser")
 }
 
 model Department {
@@ -235,31 +236,82 @@ model VoucherCode {
   updatedBy String?
 
   // ==== RELATIONS ==== //
-  discountId  String   @db.ObjectId
+  discountId  String    @db.ObjectId
   discount    Discount? @relation("DiscountVouchers", fields: [discountId], references: [id], onDelete: Cascade)
-  createdUser User?    @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?    @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdUser User?     @relation("UserCreatedVouchers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?     @relation("UserUpdatedVouchers", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model AgencyBook {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // ==== BASIC FIELDS ==== //
-  bookNumber   String   @unique
-  startNumber  String
-  endNumber    String
-  status       Int?
+  bookNumber  String @unique
+  startNumber String
+  endNumber   String
+  status      Int?
 
   // ==== RELATIONS ==== //
-  agencyId     String?  @db.ObjectId
-  agencyName   String?  // Temporary field to store agency name until Agencies component is implemented
-  
+  agencyId String? @db.ObjectId
+  agency   Agency? @relation("AgencyToAgencyBook", fields: [agencyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   // ==== AUDIT FIELDS ==== //
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    String?
-  updatedBy    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Agency {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // ==== BASIC FIELDS ==== //
+  name               String
+  code               String? @unique
+  chequePrintingName String
+  parentAgencyId     String? @db.ObjectId
+
+  // ==== CREDIT FIELDS ==== //
+  creditLimit        Float @default(0)
+  allowedCreditLimit Float @default(0)
+  maxCreditLimit     Float @default(0)
+  balance            Float @default(0)
+
+  // ==== CONTACT FIELDS ==== //
+  phone   String?
+  mobile  String?
+  fax     String?
+  email   String?
+  website String?
+  memo    String?
+
+  // ==== ADDRESS FIELDS ==== //
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+
+  // ==== CONTACT PERSON FIELDS ==== //
+  contactPersonName   String
+  contactPersonPhone  String?
+  contactPersonMobile String?
+  contactPersonEmail  String?
+
+  // ==== SETTINGS ==== //
+  sendSms Int? @default(0) // 0 = No, 1 = Yes
+  status  Int? @default(1) // 0 = Unpublish, 1 = Publish
+
+  // ==== RELATIONS ==== //
+  parentAgency  Agency?      @relation("AgencyParent", fields: [parentAgencyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childAgencies Agency[]     @relation("AgencyParent")
+  userId        String?      @db.ObjectId
+  user          User?        @relation("AgencyUser", fields: [userId], references: [id], onDelete: SetNull)
+  agencyBooks   AgencyBook[] @relation("AgencyToAgencyBook")
+
+  // ==== AUDIT FIELDS ==== //
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
 }
 
 enum DiscountMethod {
