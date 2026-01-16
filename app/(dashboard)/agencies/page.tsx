@@ -34,7 +34,7 @@ export default async function Page({ searchParams }: SearchParams) {
     parentAgencyId: params?.parentAgencyId
   });
 
-  // ==== GET PARENT AGENCIES FOR FILTER ==== //
+  // ==== GET PARENT AGENCIES FOR FILTER === //
   const agenciesRes = await getAllAgenciesOptions();
   const agencyOptions =
     agenciesRes?.data?.map((a) => ({ id: a.id as string, name: a.name })) ??
