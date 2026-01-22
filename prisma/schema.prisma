@@ -89,13 +89,13 @@ model Doctor {
   phone              String?
   mobile             String   @unique()
   fax                String?
-  addressLine1       String
-  addressLine2       String
-  city               String
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
   registrationNumber String   @unique()
   qualification      String
   referralCharge     Float
-  sessionNoPrefix    String
+  sessionNoPrefix    String?
   status             Int // == 0: unpublish, 1: publish == //
   createdBy          String?  @db.ObjectId
   updatedBy          String?  @db.ObjectId
@@ -230,8 +230,8 @@ model Discount {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
 
   // ==== RELATIONS ==== //
   vouchers    VoucherCode[] @relation("DiscountVouchers")
@@ -247,8 +247,8 @@ model VoucherCode {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
 
   // ==== RELATIONS ==== //
   discountId  String    @db.ObjectId
