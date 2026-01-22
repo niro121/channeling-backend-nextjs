@@ -37,6 +37,21 @@ model User {
   createdVoucherCodes VoucherCode[] @relation("UserCreatedVouchers")
   updatedVoucherCodes VoucherCode[] @relation("UserUpdatedVouchers")
   agencies            Agency[]      @relation("AgencyUser")
+  userGroupId         String?       @db.ObjectId
+  userGroup           UserGroup?    @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
+}
+
+model UserGroup {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  status      Int // 0 = inactive, 1 = active
+  permissions Json     // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  // ==== RELATIONS ==== //
+  users User[] @relation("UserToUserGroup")
 }
 
 model Department {

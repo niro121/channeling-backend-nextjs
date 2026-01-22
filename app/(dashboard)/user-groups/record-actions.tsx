@@ -1,66 +1,49 @@
-import React, { useState, useEffect } from "react"
-import { User } from "@/types/user"
+import React, { useState } from "react"
+import { UserGroup } from "@/types/user-group"
 import { Row } from "@tanstack/react-table"
 import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import CustomAlertDialog from "@/components/common/custom-alert-dialog"
-import { CustomDialog } from "@/components/common/custom-dialog"
-import UserForm from "./user-form"
-import { deleteUser } from "@/app/actions/user.actions"
-import { useSession } from "next-auth/react"
-import { getAllUserGroupsOptions } from "@/app/actions/user-group.actions"
+import { deleteUserGroup } from "@/app/actions/user-group.actions"
+import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
-interface UserActionsProps<TData extends User> {
+interface UserGroupActionsProps<TData extends UserGroup> {
     row: Row<TData>
 }
 
-const UserRecordActions = <TData extends User>({
+const UserGroupRecordActions = <TData extends UserGroup>({
     row,
-}: UserActionsProps<TData>) => {
+}: UserGroupActionsProps<TData>) => {
     const [showDeleteConfirmation, setShowDelConfirmation] = useState(false)
-    const [showEditDialog, setShowEditDialog] = useState(false)
     const [loading, setLoading] = useState(false)
-    const [userGroupOptions, setUserGroupOptions] = useState<{ id: string; name: string }[]>([])
     const { toast } = useToast()
-    const { data: session } = useSession()
+    const router = useRouter()
     const { has } = usePermissions()
 
-    const user = row.original
-
-    useEffect(() => {
-        const fetchUserGroups = async () => {
-            try {
-                const { data } = await getAllUserGroupsOptions()
-                setUserGroupOptions(data.map(ug => ({ id: ug.id, name: ug.name })))
-            } catch (error) {
-                console.error("Error fetching user groups:", error)
-            }
-        }
-        fetchUserGroups()
-    }, [])
+    const userGroup = row.original
 
     const showHideDeleteModal = (value: boolean) => {
         setShowDelConfirmation(value)
     }
 
     const onDeleteConfirmation = async () => {
-        if (user.id) {
+        if (userGroup.id) {
             try {
                 setLoading(true)
-                await deleteUser(user.id)
+                await deleteUserGroup(userGroup.id)
 
                 toast({
                     variant: "success",
                     title: "Success",
-                    description: "User was deleted successfully",
+                    description: "User group was deleted successfully",
                 })
             } catch (error: any) {
                 toast({
                     variant: "destructive",
                     title: "Error",
-                    description: error.message ?? "User deletion unsuccessful",
+                    description: error.message ?? "User group deletion unsuccessful",
                 })
             } finally {
                 setLoading(false)
@@ -70,7 +53,7 @@ const UserRecordActions = <TData extends User>({
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "User id not found.",
+                description: "User group id not found.",
             })
         }
     }
@@ -79,7 +62,7 @@ const UserRecordActions = <TData extends User>({
         <>
             <DataTableRowActions>
                 {has("users", "edit") && (
-                    <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                    <DropdownMenuItem onClick={() => router.push(`/user-groups/${userGroup.id}/edit`)}>
                         Edit
                     </DropdownMenuItem>
                 )}
@@ -96,24 +79,11 @@ const UserRecordActions = <TData extends User>({
                 loading={loading}
                 title="Are you absolutely sure?"
                 description="This action cannot be undone. This will permanently delete this
-                            user and remove the data from our servers."
+                            user group and remove the data from our servers."
                 handleContinue={onDeleteConfirmation}
             />
-
-            <CustomDialog
-                open={showEditDialog}
-                setOpen={setShowEditDialog}
-                title="Edit User"
-                width="800px"
-            >
-                <UserForm 
-                    user={user} 
-                    sessionUserType={session?.user?.userType}
-                    userGroupOptions={userGroupOptions}
-                />
-            </CustomDialog>
         </>
     )
 }
 
-export default UserRecordActions
+export default UserGroupRecordActions
