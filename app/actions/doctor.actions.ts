@@ -2,7 +2,6 @@
 
 import {
   bulkDeleteDoctorsByIdsService,
-  lastDoctorCode,
   createDoctorService,
   deleteDoctorByIdService,
   getAllDoctorsService,
@@ -17,21 +16,149 @@ import {
   getDoctorQuery,
   ExportDoctorParams,
   ExportDoctorsPdfResponse,
-  DoctorFormValues,
+  CreateDoctorPayload,
   UpdateDoctorPayload
 } from '@/types/doctor';
 import { revalidatePath } from 'next/cache';
-import { padCode } from '@/lib/utils';
-import { Prisma } from '@prisma/client';
 import { Speciality } from '@/types/speciality';
 
-type CreateDoctorPayload = DoctorFormValues & {
-  createdBy?: string;
-  updatedBy?: string;
+// ==== CREATE DOCTOR ==== //
+export const createDoctor = async (
+  payload: CreateDoctorPayload,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const result = await createDoctorService(payload, user);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Doctor creation failed'
+        }
+      };
+    }
+
+    revalidatePath('/doctors');
+
+    return {
+      success: true,
+      data: result.data,
+      message: result.message || 'Doctor created successfully'
+    };
+  } catch (error: any) {
+    console.error('createDoctor action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
 };
 
-const PREFIX = 'DR';
-const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
+// ==== UPDATE DOCTOR ==== //
+export const updateOneDoctor = async (
+  id: string,
+  payload: UpdateDoctorPayload,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const result = await updateOneDoctorService(id, payload, user);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Doctor update failed'
+        }
+      };
+    }
+
+    revalidatePath('/doctors');
+
+    return {
+      success: true,
+      data: result.data,
+      message: result.message || 'Doctor updated successfully'
+    };
+  } catch (error: any) {
+    console.error('updateOneDoctor action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+// ==== DELETE DOCTOR ==== //
+export const deleteDoctor = async (id: string) => {
+  try {
+    const result = await deleteDoctorByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+
+    revalidatePath('/doctors');
+
+    return {
+      success: true,
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('deleteDoctor action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+// ==== DELETE BULK DOCTORS ==== //
+export const bulkDeleteDoctors = async (ids: string[]) => {
+  try {
+    const result = await bulkDeleteDoctorsByIdsService(ids);
+
+    if (!result.success) {
+      return false;
+    }
+
+    revalidatePath('/doctors');
+
+    return true;
+  } catch (error: any) {
+    console.error('bulkDeleteDoctors action error:', error);
+
+    return false;
+  }
+};
 
 // ==== GET ALL DOCTORS ==== //
 export const getAllDoctors = async (sort: getDoctorParams) => {
@@ -54,16 +181,27 @@ export const getAllDoctors = async (sort: getDoctorParams) => {
 
     const response = await getAllDoctorsService(newFilter);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch doctors',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data as Doctor[],
-      totalRecords: response.totalRecords
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
     };
   } catch (error: any) {
-    console.log('getAllDoctors error ==>', error);
+    console.error('getAllDoctors action error:', error);
+
     return {
       success: false,
-      message: error.message || 'Error getting data. Please try again later',
+      message: error.message || 'Error getting doctors. Please try again later',
       data: [],
       totalRecords: 0
     };
@@ -71,186 +209,40 @@ export const getAllDoctors = async (sort: getDoctorParams) => {
 };
 
 // ==== GET ONE DOCTOR ==== //
-export const getDoctorById = async (id: string) => {
+export const getDoctorById = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const response = await getDoctorByIdService(id);
+    const result = await getDoctorByIdService(id);
 
-    return {
-      success: true,
-      data: response
-    };
-  } catch (error: any) {
-    console.log('getDoctorById error ==>', error);
-    return {
-      success: false,
-      message: error.message || 'Error getting data. Please try again later',
-      data: null
-    };
-  }
-};
-
-// ==== CREATE A DOCTOR ==== //
-export const getNextDoctorCode = async (): Promise<string> => {
-  const lastSpeciality = await lastDoctorCode();
-
-  let nextNumber = 1;
-
-  if (lastSpeciality?.code) {
-    const match = lastSpeciality.code.match(/\d+$/);
-    if (match) {
-      nextNumber = parseInt(match[0]) + 1;
-    }
-  }
-
-  if (nextNumber > MAX_CODE) {
-    throw new Error('Maximum Doctor code limit reached');
-  }
-
-  return `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: DR0001 == //
-};
-
-export const createDoctor = async (
-  payload: CreateDoctorPayload,
-  user?: { id?: string; name?: string }
-) => {
-  try {
-    const doctorCode = await getNextDoctorCode();
-
-    if (!payload.specialityId) {
-      throw new Error('Speciality is required');
-    }
-
-    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
-
-    const result = await createDoctorService({
-      title: payload.title,
-      name: payload.name,
-      code: doctorCode,
-      order: payload.order,
-      phone: payload.phone || null,
-      mobile: payload.mobile,
-      fax: payload.fax?.trim() ? payload.fax : null,
-      addressLine1: payload.addressLine1,
-      addressLine2: payload.addressLine2,
-      city: payload.city,
-      registrationNumber: payload.registrationNumber,
-      qualification: payload.qualification,
-      referralCharge: payload.referralCharge,
-      sessionNoPrefix: payload.sessionNoPrefix,
-      status: payload.status,
-      speciality: {
-        connect: { id: payload.specialityId }
-      },
-      createdUser: userRelation,
-      updatedUser: userRelation
-    });
-
-    revalidatePath('/doctors');
-
-    return {
-      success: true,
-      data: result
-    };
-  } catch (error: any) {
-    console.error('createDoctor error', error);
-
-    return {
-      success: false,
-      error: {
-        message: error.message || 'Failed to create doctor'
-      }
-    };
-  }
-};
-
-// ==== UPDATE A DOCTOR ==== //
-export const updateOneDoctor = async (
-  id: string,
-  payload: UpdateDoctorPayload,
-  user?: { id?: string; name?: string }
-) => {
-  try {
-    const data: Prisma.DoctorUpdateInput = {
-      updatedAt: new Date(),
-      ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {})
-    };
-
-    if (payload.title !== undefined) data.title = payload.title;
-    if (payload.name !== undefined) data.name = payload.name;
-    if (payload.order !== undefined) data.order = payload.order;
-    if (payload.phone !== undefined) data.phone = payload.phone || null;
-    if (payload.mobile !== undefined) data.mobile = payload.mobile;
-    if (payload.fax !== undefined) data.fax = payload.fax?.trim() ? payload.fax : null;
-    if (payload.addressLine1 !== undefined)
-      data.addressLine1 = payload.addressLine1;
-    if (payload.addressLine2 !== undefined)
-      data.addressLine2 = payload.addressLine2;
-    if (payload.city !== undefined) data.city = payload.city;
-    if (payload.registrationNumber !== undefined)
-      data.registrationNumber = payload.registrationNumber;
-    if (payload.qualification !== undefined)
-      data.qualification = payload.qualification;
-    if (payload.referralCharge !== undefined)
-      data.referralCharge = payload.referralCharge;
-    if (payload.sessionNoPrefix !== undefined)
-      data.sessionNoPrefix = payload.sessionNoPrefix;
-    if (payload.status !== undefined) data.status = payload.status;
-
-    if (payload.specialityId) {
-      data.speciality = {
-        connect: { id: payload.specialityId }
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch doctor'
+        }
       };
     }
 
-    const result = await updateOneDoctorService(id, data);
-
-    revalidatePath('/doctors');
-
-    return { success: true, data: result };
-  } catch (error: any) {
-    console.error('updateDoctor error', error);
-
-    return {
-      success: false,
-      error: {
-        message: error.message || 'Failed to update doctor'
-      }
-    };
-  }
-};
-
-// ==== DELETE A DOCTOR ==== //
-export const deleteDoctor = async (id: string) => {
-  try {
-    const result = await deleteDoctorByIdService(id);
-
-    revalidatePath('/doctors');
-
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message
     };
   } catch (error: any) {
-    console.error('deleteDoctor error', error);
+    console.error('getDoctorById action error:', error);
+
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to delete doctor'
+        message: error.message || 'Unexpected error occurred'
       }
     };
-  }
-};
-
-// ==== DELETE BULK DOCTORS ==== //
-export const bulkDeleteDoctors = async (ids: string[]) => {
-  try {
-    const result = await bulkDeleteDoctorsByIdsService(ids);
-
-    revalidatePath('/doctors');
-    return true;
-  } catch (error: any) {
-    console.error('bulkDeleteDoctors error', error);
-    return false;
   }
 };
 
