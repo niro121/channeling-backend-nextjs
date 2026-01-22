@@ -11,9 +11,9 @@ import {
   getAllDoctors,
   getAllSpecialityOptions
 } from '@/app/actions/doctor.actions';
-import { SelectorFilter } from '@/components/common/selector-filter';
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
+import FilterSection from './filter-section';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -104,12 +104,9 @@ export default async function Page({ searchParams }: SearchParams) {
             className={'rounded-lg bg-background pl-8 w-full'}
           />
         </div>
-        <SelectorFilter
-          label="All Specialities"
-          options={specialityOptions}
-          defaultValue="__all__"
-          keyword="specialityId"
-          initialId={params?.specialityId}
+        <FilterSection
+          specialityOptions={specialityOptions}
+          specialityId={params?.specialityId}
         />
         <div className="flex items-center gap-2 ml-auto">
           <ExportWrapper
