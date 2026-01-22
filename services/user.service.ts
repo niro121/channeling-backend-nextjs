@@ -111,8 +111,12 @@ export const deleteOneUser = async (id: string) => {
 
 export const saveUser = async (user: User) => {
     try {
+        const { userGroupId, ...userData } = user;
         const result = await prisma.user.create({
-            data: user,
+            data: {
+                ...userData,
+                userGroupId: userGroupId || null,
+            },
         })
 
         return result
@@ -131,8 +135,12 @@ export const saveUser = async (user: User) => {
 
 export const updateOneUser = async (id: string, payload: User) => {
     try {
+        const { userGroupId, ...userData } = payload;
         await prisma.user.update({
-            data: payload,
+            data: {
+                ...userData,
+                userGroupId: userGroupId || null,
+            },
             where: {
                 id: id,
             },

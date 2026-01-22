@@ -71,6 +71,7 @@ export default function DoctorForm({
     registrationNumber: Yup.string()
       .trim()
       .required('Registration number is required'),
+    qualification: Yup.string().trim().required("Qualification is required"),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').required(),
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
@@ -93,7 +94,7 @@ export default function DoctorForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Doctor update unsuccessful.'
+            description: respond.error.message || 'Doctor update unsuccessful.'
           });
           return;
         }
@@ -112,7 +113,7 @@ export default function DoctorForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Doctor save unsuccessful.'
+            description: respond.error.message || 'Doctor save unsuccessful.'
           });
           return;
         }
@@ -297,7 +298,7 @@ export default function DoctorForm({
                 value={formik.values.qualification}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 

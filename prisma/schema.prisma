@@ -37,6 +37,21 @@ model User {
   createdVoucherCodes VoucherCode[] @relation("UserCreatedVouchers")
   updatedVoucherCodes VoucherCode[] @relation("UserUpdatedVouchers")
   agencies            Agency[]      @relation("AgencyUser")
+  userGroupId         String?       @db.ObjectId
+  userGroup           UserGroup?    @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
+}
+
+model UserGroup {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  status      Int // 0 = inactive, 1 = active
+  permissions Json     // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  // ==== RELATIONS ==== //
+  users User[] @relation("UserToUserGroup")
 }
 
 model Department {
@@ -74,13 +89,13 @@ model Doctor {
   phone              String?
   mobile             String   @unique()
   fax                String?
-  addressLine1       String
-  addressLine2       String
-  city               String
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
   registrationNumber String   @unique()
   qualification      String
   referralCharge     Float
-  sessionNoPrefix    String
+  sessionNoPrefix    String?
   status             Int // == 0: unpublish, 1: publish == //
   createdBy          String?  @db.ObjectId
   updatedBy          String?  @db.ObjectId
@@ -215,8 +230,8 @@ model Discount {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
 
   // ==== RELATIONS ==== //
   vouchers    VoucherCode[] @relation("DiscountVouchers")
@@ -232,8 +247,8 @@ model VoucherCode {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
 
   // ==== RELATIONS ==== //
   discountId  String    @db.ObjectId

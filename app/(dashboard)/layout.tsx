@@ -15,6 +15,7 @@ import {
   MapPinned,
   Landmark,
   BookOpen,
+  Users,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -25,13 +26,22 @@ import {LucideHome,
   TicketIcon
 } from 'lucide-react';
 
+import { canAccessRoute } from "@/lib/permissions";
+import { userTypes } from "@/lib/roles";
+
 async function DesktopNav({ session }: { session: Session | null }) {
   const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
-    if (userType === 1) {
+    if (userType === userTypes.admin) {
       return true;
+    }
+
+    // Check permissions if user has a user group
+    if (permissions) {
+      return canAccessRoute(permissions, path);
     }
 
     return false;
@@ -58,6 +68,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
           label="Users"
           icon={<UserGroup className="h-5 w-5" />}
+        />
+
+        {/* // =========================== USER GROUPS =========================== */}
+        <NavLink
+          href={hasAccess('/user-groups') ? '/user-groups' : 'unauthorized-access'}
+          label="User Groups"
+          icon={<Users className="h-5 w-5" />}
         />
 
         {/* // =========================== DOCTOR =========================== */}
@@ -163,11 +180,17 @@ async function DesktopNav({ session }: { session: Session | null }) {
 
 async function MobileNav({ session }: { session: Session | null }) {
   const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
-    if (userType === 1) {
+    if (userType === userTypes.admin) {
       return true;
+    }
+
+    // Check permissions if user has a user group
+    if (permissions) {
+      return canAccessRoute(permissions, path);
     }
 
     return false;
@@ -197,6 +220,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
             label="Users"
             icon={<UserGroup className="h-5 w-5" />}
+          />
+
+          {/* // =========================== USER GROUPS =========================== */}
+          <NavLink
+            href={hasAccess('/user-groups') ? '/user-groups' : 'unauthorized-access'}
+            label="User Groups"
+            icon={<Users className="h-5 w-5" />}
           />
 
           {/* // =========================== DOCTOR =========================== */}

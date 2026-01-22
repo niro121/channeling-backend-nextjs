@@ -1,6 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { userTypes, roleRights } from "@/lib/roles";
+import { canAccessRoute, getResourceFromRoute } from "@/lib/permissions";
 
 // Ensure NEXTAUTH_SECRET is set for middleware
 const getSecret = () => {
@@ -30,20 +31,36 @@ export default withAuth(
     }
 
     const userType = token.userType;
+    const permissions = token.permissions;
 
     // Admin (userType 1) has access to all routes
     if (userType === userTypes.admin) {
       return NextResponse.next();
     }
 
-    // Check allowed routes for the user type
-    const allowedRoutes = roleRights.get(userType.toString());
-
-    if (allowedRoutes && allowedRoutes.some(route => currentPath.startsWith(route))) {
-      return NextResponse.next();
+    // Check permissions if user has a user group
+    if (permissions) {
+      const resource = getResourceFromRoute(currentPath);
+      
+      // If route is mapped to a resource, check view permission
+      if (resource) {
+        const hasAccess = canAccessRoute(permissions, currentPath);
+        if (hasAccess) {
+          return NextResponse.next();
+        }
+      } else {
+        // Route not mapped (like /welcome, /profile), allow access
+        return NextResponse.next();
+      }
+    } else {
+      // Fallback to old role-based system if no permissions
+      const allowedRoutes = roleRights.get(userType.toString());
+      if (allowedRoutes && allowedRoutes.some(route => currentPath.startsWith(route))) {
+        return NextResponse.next();
+      }
     }
 
-    return NextResponse.rewrite(new URL("/unauthorized", request.url));
+    return NextResponse.rewrite(new URL("/unauthorized-access", request.url));
   },
   {
     secret: getSecret(),
@@ -56,5 +73,5 @@ export default withAuth(
 
 // Don't invoke Middleware on some paths
 export const config = {
-  matcher: '/((?!login|forgot-password|check-email|register|api/*).*)'
+  matcher: ['/((?!login|forgot-password|check-email|register|api/*).*)', "/api/doctors/:path*"]
 }
