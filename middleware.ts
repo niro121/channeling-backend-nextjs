@@ -56,5 +56,5 @@ export default withAuth(
 
 // Don't invoke Middleware on some paths
 export const config = {
-  matcher: '/((?!login|forgot-password|check-email|register|api/*).*)'
+  matcher: ['/((?!login|forgot-password|check-email|register|api/*).*)', "/api/doctors/:path*"]
 }
