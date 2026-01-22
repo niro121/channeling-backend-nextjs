@@ -126,6 +126,9 @@ export const createAgency = async (
       status: payload.status ?? 1,
       ...(payload.parentAgencyId
         ? { parentAgency: { connect: { id: payload.parentAgencyId } } }
+        : {}),
+      ...(payload.locationId
+        ? { location: { connect: { id: payload.locationId } } }
         : {})
     };
 
@@ -250,6 +253,13 @@ export const updateAgency = async (
         data.parentAgency = { disconnect: true };
       }
     }
+    if (payload.locationId !== undefined) {
+      if (payload.locationId) {
+        data.location = { connect: { id: payload.locationId } };
+      } else {
+        data.location = { disconnect: true };
+      }
+    }
 
     const result = await updateAgencyService(id, data);
 
@@ -303,13 +313,19 @@ export const createAgencyLogin = async (
 
     // 2. Link Agency to User if agencyId is provided
     if (agencyId) {
-      await updateAgencyService(agencyId, {
+      const updateData: Prisma.AgencyUpdateInput = {
         user: {
           connect: {
             email: payload.loginEmail
           }
         }
-      });
+      };
+
+      if (payload.locationId) {
+        updateData.location = { connect: { id: payload.locationId } };
+      }
+
+      await updateAgencyService(agencyId, updateData);
     }
 
     revalidatePath('/agencies');

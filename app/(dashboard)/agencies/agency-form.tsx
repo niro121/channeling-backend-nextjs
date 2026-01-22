@@ -241,9 +241,13 @@ const AgencyForm = ({
               value={tab}
               onValueChange={setTab}
             >
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="agencyDetails">Agency Details</TabsTrigger>
-                <TabsTrigger value="createLogin">Create Login</TabsTrigger>
+              <TabsList>
+                <TabsTrigger value="agencyDetails" className="cursor-pointer">
+                  Agency Details
+                </TabsTrigger>
+                <TabsTrigger value="createLogin" className="cursor-pointer">
+                  Create Login
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="agencyDetails">

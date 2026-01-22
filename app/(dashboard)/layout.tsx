@@ -164,6 +164,12 @@ async function DesktopNav({ session }: { session: Session | null }) {
           label="Discount"
           icon={<TicketIcon className="h-5 w-5" />}
         />
+        {/* // =========================== SMS PLAYGROUND =========================== */}
+        <NavLink
+          href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
+          label="SMS Playground"
+          icon={<TicketIcon className="h-5 w-5" />}
+        />
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
         <p className="text-white text-sm">{process.env.APP_VERSION}</p>
@@ -333,6 +339,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             label="Discount"
             icon={<TicketIcon className="h-5 w-5" />}
           />
+
+          {/* // =========================== SMS PLAYGROUND =========================== */}
+        <NavLink
+          href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
+          label="SMS Playground"
+          icon={<TicketIcon className="h-5 w-5" />}
+        />
         </nav>
       </SheetContent>
     </Sheet>

@@ -21,7 +21,7 @@ export default async function Page({ params }: PageProps) {
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Edit Patient</h2>
             </div>
-            <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
+            <div className="h-full flex-1 flex-col space-y-8">
                 <PatientForm patient={patientData.data} areas={areas.data || []} />
             </div>
         </div>
