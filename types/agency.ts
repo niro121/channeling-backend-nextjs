@@ -33,6 +33,8 @@ export type Agency = {
   // Relations
   parentAgency?: Agency | null;
   user?: any | null;
+  locationId?: string | null;
+  location?: { id: string; name: string } | null;
 };
 
 export type AgencyFormValues = {
@@ -89,6 +91,7 @@ export type UpdateAgencyPayload = Partial<{
   contactPersonEmail?: string;
   sendSms: number;
   status: number;
+  locationId?: string;
 }>;
 
 export type GetAgenciesParams = {
