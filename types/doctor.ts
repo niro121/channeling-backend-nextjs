@@ -10,13 +10,13 @@ export type Doctor = {
   phone: string | null;
   mobile: string;
   fax: string | null;
-  addressLine1: string;
-  addressLine2: string;
-  city: string;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
   registrationNumber: string;
   qualification: string;
   referralCharge: number;
-  sessionNoPrefix: string;
+  sessionNoPrefix: string | null;
   status: number; // == 0: unpublish, 1: publish == //
   specialityId: string;
   speciality?: Speciality
@@ -43,6 +43,11 @@ export type DoctorFormValues = {
   sessionNoPrefix: string;
   status: number; // == 0: unpublish, 1: publish == //
   specialityId: string;
+};
+
+export type CreateDoctorPayload = DoctorFormValues & {
+  createdBy?: string;
+  updatedBy?: string;
 };
 
 export type UpdateDoctorPayload = Partial<{
