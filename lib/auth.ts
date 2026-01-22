@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from "./prisma";
 import * as argon2 from "argon2";
+import { Permissions } from "@/types/user-group";
 
 // Ensure NEXTAUTH_SECRET is set
 const getSecret = () => {
@@ -59,8 +60,10 @@ export const authOptions: NextAuthOptions = {
                     status: 1
                   }
                 ]
+              },
+              include: {
+                userGroup: true
               }
-
             })
 
             if (!user || !user?.password) {
@@ -73,10 +76,17 @@ export const authOptions: NextAuthOptions = {
               throw new Error("Invalid credentials");
             }
 
+            // Load permissions from user group
+            let permissions = null;
+            if (user.userGroup && user.userGroup.permissions) {
+              permissions = user.userGroup.permissions as Permissions;
+            }
+
             return {
               id: user.id,
               userType: user.userType,
-              name: user.name
+              name: user.name,
+              permissions: permissions
             };
           }
 
@@ -101,6 +111,7 @@ export const authOptions: NextAuthOptions = {
       if (user && token) {
         token.id = user.id
         token.userType = user.userType
+        token.permissions = user.permissions || null
       }
       // console.log('TOKEN ====>',token);
 
@@ -111,6 +122,7 @@ export const authOptions: NextAuthOptions = {
       if (session?.user) {
         session.user.id = token.id
         session.user.userType = token.userType
+        session.user.permissions = token.permissions || null
       }
       // console.log('SESSION ====>',session);
       return session
