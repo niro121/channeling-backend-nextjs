@@ -11,7 +11,6 @@ import {
   getAllSpecialityOptionsService
 } from '@/services/doctor.service';
 import {
-  Doctor,
   getDoctorParams,
   getDoctorQuery,
   ExportDoctorParams,
@@ -160,7 +159,7 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
   }
 };
 
-// ==== GET ALL DOCTORS ==== //
+// ==== GET DOCTORS ==== //
 export const getAllDoctors = async (sort: getDoctorParams) => {
   try {
     const validSpecialityId =
@@ -246,7 +245,7 @@ export const getDoctorById = async (
   }
 };
 
-// ==== GET ALL SPECIALITY OPTIONS ==== //
+// ==== GET SPECIALITY OPTIONS ==== //
 export const getAllSpecialityOptions = async () => {
   try {
     const response = await getAllSpecialityOptionsService();
