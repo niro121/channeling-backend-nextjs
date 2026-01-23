@@ -48,6 +48,7 @@ export function Combobox({
         <Button
           variant="outline"
           role="combobox"
+          disabled={options.length === 0}
           className="w-60 justify-between"
         >
           {selectedOption?.name || label}

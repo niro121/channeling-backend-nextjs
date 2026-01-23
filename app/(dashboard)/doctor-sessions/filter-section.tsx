@@ -3,29 +3,43 @@
 import { FilterWrapper } from '../filter-wrapper';
 import { Selector } from '@/components/common/selector';
 
-interface DoctorFiltersProps {
-  specialityOptions: { id: string; name: string }[];
-  specialityId?: string;
+type Option = { id: string; name: string };
+interface DoctorSessionFiltersProps {
+  locationOptions: Option[];
+  locationId?: string;
+  doctorOptions: Option[];
+  doctorId?: string;
 }
 
 export default function FilterSection({
-  specialityOptions,
-  specialityId
-}: DoctorFiltersProps) {
+  locationOptions,
+  locationId,
+  doctorOptions,
+  doctorId
+}: DoctorSessionFiltersProps) {
   return (
     <FilterWrapper
       initialValues={{
-        specialityId
+        locationId,
+        doctorId
       }}
     >
       {({ values, setValue }) => (
         <>
           <Selector
-            label="All Specialities"
-            options={specialityOptions}
-            value={values.specialityId}
-            onChange={(v) => setValue('specialityId', v)}
+            label="All Locations"
+            options={locationOptions}
+            value={values.locationId}
+            onChange={(v) => setValue('locationId', v)}
           />
+          <>
+            <Selector
+              label="All Doctors"
+              options={doctorOptions}
+              value={values.doctorId}
+              onChange={(v) => setValue('doctorId', v)}
+            />
+          </>
         </>
       )}
     </FilterWrapper>

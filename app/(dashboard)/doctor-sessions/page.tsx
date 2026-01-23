@@ -14,6 +14,10 @@ import {
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
+import {
+  getDoctorOptions,
+  getLocationOptions
+} from '@/app/actions/doctor.sessions.action';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -28,12 +32,19 @@ type SearchParams = {
 export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
 
-  const { data, totalRecords } = await getAllDoctors({
+  /* const { data, totalRecords } = await getAllDoctors({
     page: params?.page,
     limit: params?.limit,
     keyword: params?.keyword,
-    location
-  });
+    locationId: params?.locationId,
+
+  }); */
+
+  // ==== LOCATION OPTIONS ==== //
+  const locationOptions = await getLocationOptions();
+
+  // ==== DOCTOR OPTIONS ==== //
+  const doctorOptions = await getDoctorOptions();
 
   return (
     <>
@@ -57,24 +68,17 @@ export default async function Page({ searchParams }: SearchParams) {
           />
         </div>
         <FilterSection
-          specialityOptions={specialityOptions}
-          specialityId={params?.specialityId}
+          locationId={params?.locationId}
+          locationOptions={locationOptions.data || []}
+          doctorId={params?.doctorId}
+          doctorOptions={doctorOptions.data || []}
         />
-        <div className="flex items-center gap-2 ml-auto">
-          <ExportWrapper
-            serverData={handleExport}
-            columns={['Name', 'Code', 'Registration Number', 'Speciality']}
-            keys={['name', 'code', 'registrationNumber', 'speciality']}
-            title="Doctors List"
-            fileName="doctors"
-          />
-        </div>
       </div>
       <div className="overflow-hidden">
         <Suspense fallback={<Loading />}>
           <CustomDataTable
-            heading="Doctors"
-            subHeading="Manage your doctors here."
+            heading="Doctor Sessions"
+            subHeading="Manage your doctor sessions here."
             columns={DoctorColumns}
             data={data}
             rowCount={totalRecords}
