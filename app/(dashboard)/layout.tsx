@@ -16,6 +16,8 @@ import {
   Landmark,
   BookOpen,
   Users,
+  FileText,
+  MessageSquareText,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -168,7 +170,14 @@ async function DesktopNav({ session }: { session: Session | null }) {
         <NavLink
           href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
           label="SMS Playground"
-          icon={<TicketIcon className="h-5 w-5" />}
+          icon={<MessageSquareText className="h-5 w-5" />}
+        />
+
+        {/* // =========================== REPORTS =========================== */}
+        <NavLink
+          href={hasAccess('/reports') ? '/reports' : 'unauthorized-access'}
+          label="Reports"
+          icon={<FileText className="h-5 w-5" />}
         />
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
@@ -344,7 +353,14 @@ async function MobileNav({ session }: { session: Session | null }) {
         <NavLink
           href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
           label="SMS Playground"
-          icon={<TicketIcon className="h-5 w-5" />}
+          icon={<MessageSquareText className="h-5 w-5" />}
+        />
+
+        {/* // =========================== REPORTS =========================== */}
+        <NavLink
+          href={hasAccess('/reports') ? '/reports' : 'unauthorized-access'}
+          label="Reports"
+          icon={<FileText className="h-5 w-5" />}
         />
         </nav>
       </SheetContent>
