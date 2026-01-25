@@ -427,3 +427,44 @@ export const getTagById = async (
         };
     }
 };
+
+// ==== TAG LIST DOWNLOAD ==== //
+export const getAllTagsDownloadService = async ({
+    keyword,
+    type
+}: {
+    keyword?: string;
+    type?: number;
+}) => {
+    try {
+        const whereClause: Prisma.TagWhereInput = {
+            ...(keyword && keyword.trim() !== "" ? {
+                name: {
+                    contains: keyword,
+                    mode: Prisma.QueryMode.insensitive,
+                }
+            } : {}),
+            ...(type !== undefined ? { type } : {})
+        };
+
+        const [tags, totalRecords] = await Promise.all([
+            prisma.tag.findMany({
+                where: whereClause,
+                orderBy: {
+                    createdAt: "desc",
+                },
+            }),
+            prisma.tag.count({
+                where: whereClause,
+            })
+        ]);
+
+        return {
+            tags,
+            totalRecords
+        };
+    } catch (error: any) {
+        console.error("getAllTagsDownloadService error:", error);
+        throw new Error(error.message ?? "Error getting tags");
+    }
+};
