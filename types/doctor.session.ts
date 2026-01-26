@@ -53,7 +53,7 @@ export type DoctorSessionFormValues = {
   amountLocal?: number;
   amountForeign?: number;
   applyTo: Date;
-  dayType: number;
+  dayType: number; // == 0: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
   status: number; // 0 = unpublish, 1 = publish
   doctorId?: string;
   doctor?: Doctor;

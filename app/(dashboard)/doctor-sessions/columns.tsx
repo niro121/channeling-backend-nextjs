@@ -2,12 +2,12 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Doctor } from '@/types/doctor';
+import { DoctorSession } from '@/types/doctor.session';
 import { CircleCorrect, CircleX } from '@/components/icons';
 import moment from 'moment';
-import { DoctorRecordActions } from './record-actions';
+import { DoctorSessionRecordActions } from './record-actions';
 
-export const DoctorColumns: ColumnDef<Doctor>[] = [
+export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -33,8 +33,8 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
     enableHiding: false
   },
   {
-    accessorKey: 'code',
-    header: 'Doctor Code',
+    accessorKey: 'code', // doctor-seesion field
+    header: 'Doctor Session',
     cell: ({ row }) => {
       const code = row.getValue<string>('code');
 
@@ -46,20 +46,28 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
     }
   },
   {
-    accessorKey: 'name',
-    header: 'Doctor Name'
+    accessorKey: 'startTime',
+    header: 'Start Time'
   },
   {
-    accessorKey: 'registrationNumber',
-    header: 'Reg. Number',
-    cell: ({ row }) => {
-      const reg = row.getValue<string>('registrationNumber');
-      return (
-        <div className="max-w-28 truncate" title={reg}>
-          {reg || "-"}
-        </div>
-      );
-    }
+    accessorKey: 'endTime',
+    header: 'End Time'
+  },
+  {
+    accessorKey: 'amountLocal',
+    header: 'Session Value(Local)'
+  },
+  {
+    accessorKey: 'amountForeign',
+    header: 'Session Value(Foreign)'
+  },
+  {
+    accessorKey: 'amountForeign', // customise
+    header: 'Patient Number'
+  },
+  {
+    accessorKey: 'amountForeign', // customise
+    header: 'Location / Department / Institution'
   },
   {
     accessorKey: 'updatedUser.name',
@@ -98,6 +106,6 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
   {
     id: 'actions',
     header: 'Actions',
-    cell: ({ row }) => <DoctorRecordActions row={row} />
+    cell: ({ row }) => <DoctorSessionRecordActions row={row} />
   }
 ];

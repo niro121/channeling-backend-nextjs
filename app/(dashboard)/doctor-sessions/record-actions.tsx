@@ -11,41 +11,42 @@ import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { BinIcon } from '@/components/icons';
+import { DoctorSession } from '@/types/doctor.session';
 
-type DoctorActionsProps<TData extends Doctor> = {
+type DoctorSessionActionsProps<TData extends DoctorSession> = {
   row: Row<TData>;
 };
 
-export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
+export function DoctorSessionRecordActions({ row }: DoctorSessionActionsProps<DoctorSession>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
-  // ==== DOCTOR DATA ROW ==== //
-  const doctor = row.original;
+  // ==== DOCTOR SESSION DATA ROW ==== //
+  const doctorSession = row.original;
 
   const showHideDeleteModal = (value: boolean) => {
     setShowDelConfirmation(value);
   };
 
   const onDeleteConfirmation = async () => {
-    if (doctor.id) {
+    if (doctorSession.id) {
       try {
         setLoading(true);
-        await deleteDoctor(doctor.id);
+        await deleteDoctor(doctorSession.id);
 
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Doctor was deleted successfully.'
+          description: 'Doctor session was deleted successfully.'
         });
       } catch (error: any) {
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: error.message ?? 'Doctor deletion unsuccessful.'
+          description: error.message ?? 'Doctor session deletion unsuccessful.'
         });
       } finally {
         setLoading(false);
@@ -55,7 +56,7 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Doctor id not found.'
+        description: 'Doctor session id not found.'
       });
     }
   };
@@ -66,10 +67,10 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
         <Button
           variant={'link'}
           className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => router.push(`/doctors/${doctor.id}/edit`)}
+          onClick={() => router.push(`/doctors/${doctorSession.id}/add`)}
         >
           <Edit className="w-5 h-5" />
-          <span className="sr-only">Edit</span>
+          <span className="sr-only">Add</span>
         </Button>
         <Button
           variant={'link'}

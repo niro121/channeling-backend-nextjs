@@ -1,18 +1,7 @@
 import React, { Suspense } from 'react';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
-import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
-import { DoctorColumns } from './columns';
+import { DoctorSessionColumns } from './columns';
 import Loading from '../loading';
-import Link from 'next/link';
-import {
-  bulkDeleteDoctors,
-  getAllDoctors,
-  getAllSpecialityOptions
-} from '@/app/actions/doctor.actions';
-import { getDoctorsExport } from '@/app/actions/doctor.actions';
-import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
 import {
   getDoctorOptions,
@@ -60,10 +49,10 @@ export default async function Page({ searchParams }: SearchParams) {
           <CustomDataTable
             heading="Doctor Sessions"
             subHeading="Manage your doctor sessions here."
-            columns={DoctorColumns}
+            columns={DoctorSessionColumns}
             data={data}
             rowCount={totalRecords}
-            deleteServerAction={bulkDeleteDoctors}
+            deleteServerAction={}
             page={params?.page}
           />
         </Suspense>
