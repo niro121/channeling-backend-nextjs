@@ -23,7 +23,6 @@ type SearchParams = {
   searchParams?: Promise<{
     page?: string;
     limit?: string;
-    keyword?: string;
     locationId?: string;
     doctorId?: string;
   }>;
@@ -48,25 +47,7 @@ export default async function Page({ searchParams }: SearchParams) {
 
   return (
     <>
-      <div className="flex items-center ">
-        <div className="ml-auto flex items-center gap-4">
-          <div className="lg:block hidden relative flex-1 md:grow-0">
-            <SearchInput
-              name="keyword"
-              placeholder={'Search by doctor name'}
-              className={'rounded-lg bg-background pl-8 w-full sm:w-auto'}
-            />
-          </div>
-        </div>
-      </div>
       <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-        <div className="lg:hidden relative flex-1 md:grow-0">
-          <SearchInput
-            name="keyword"
-            placeholder={'Search by doctor name'}
-            className={'rounded-lg bg-background pl-8 w-full'}
-          />
-        </div>
         <FilterSection
           locationId={params?.locationId}
           locationOptions={locationOptions.data || []}

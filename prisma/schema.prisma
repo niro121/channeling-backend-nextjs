@@ -24,23 +24,23 @@ model User {
   status    Int
 
   // ==== RELATIONS ==== //
-  createdSpecialities Speciality[]  @relation("UserCreatedSpecialities")
-  updatedSpecialities Speciality[]  @relation("UserUpdatedSpecialities")
-  createdDoctors      Doctor[]      @relation("UserCreatedDoctors")
-  updatedDoctors      Doctor[]      @relation("UserUpdatedDoctors")
-  createdDoctorSessions      DoctorSession[]      @relation("UserCreatedDoctorSessions")
-  updatedDoctorSessions      DoctorSession[]      @relation("UserUpdatedDoctorSessions")
-  createdLocations    Location[]    @relation("UserCreatedLocations")
-  updatedLocations    Location[]    @relation("UserUpdatedLocations")
-  createdRooms        Room[]        @relation("UserCreatedRooms")
-  updatedRooms        Room[]        @relation("UserUpdatedRooms")
-  createdDiscounts    Discount[]    @relation("UserCreatedDiscounts")
-  updatedDiscounts    Discount[]    @relation("UserUpdatedDiscounts")
-  createdVoucherCodes VoucherCode[] @relation("UserCreatedVouchers")
-  updatedVoucherCodes VoucherCode[] @relation("UserUpdatedVouchers")
-  agencies            Agency[]      @relation("AgencyUser")
-  userGroupId         String?       @db.ObjectId
-  userGroup           UserGroup?    @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
+  createdSpecialities   Speciality[]    @relation("UserCreatedSpecialities")
+  updatedSpecialities   Speciality[]    @relation("UserUpdatedSpecialities")
+  createdDoctors        Doctor[]        @relation("UserCreatedDoctors")
+  updatedDoctors        Doctor[]        @relation("UserUpdatedDoctors")
+  createdDoctorSessions DoctorSession[] @relation("UserCreatedDoctorSessions")
+  updatedDoctorSessions DoctorSession[] @relation("UserUpdatedDoctorSessions")
+  createdLocations      Location[]      @relation("UserCreatedLocations")
+  updatedLocations      Location[]      @relation("UserUpdatedLocations")
+  createdRooms          Room[]          @relation("UserCreatedRooms")
+  updatedRooms          Room[]          @relation("UserUpdatedRooms")
+  createdDiscounts      Discount[]      @relation("UserCreatedDiscounts")
+  updatedDiscounts      Discount[]      @relation("UserUpdatedDiscounts")
+  createdVoucherCodes   VoucherCode[]   @relation("UserCreatedVouchers")
+  updatedVoucherCodes   VoucherCode[]   @relation("UserUpdatedVouchers")
+  agencies              Agency[]        @relation("AgencyUser")
+  userGroupId           String?         @db.ObjectId
+  userGroup             UserGroup?      @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
 }
 
 model UserGroup {
@@ -48,7 +48,7 @@ model UserGroup {
   name        String
   description String?
   status      Int // 0 = inactive, 1 = active
-  permissions Json     // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
+  permissions Json // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
 
@@ -108,51 +108,52 @@ model Doctor {
   updatedAt          DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  specialityId String     @db.ObjectId
-  speciality   Speciality @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  specialityId   String          @db.ObjectId
+  speciality     Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
-  createdUser  User?      @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser  User?      @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model DoctorSession {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  institution Int
-  startTime Int   // stored as moment timestamp
-  endTime   Int
-  scheduleId Int?
-  durationMinutes Int?
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                  String
+  institution           Int
+  startTime             DateTime
+  endTime               DateTime
+  durationMinutes       Int?
+  scheduleId            Int?
   startingPatientNumber Int
   maxPatientNumber      Int
-  refundable Int
-  advancedBookingDays Int
-  fees Json
-  amountLocal   Int?
-  amountForeign Int?
-  applyTo Int?   // apply date
-  dayType Int
-  status             Int // == 0: unpublish, 1: publish == //.createdBy          String?  @db.ObjectId
-  createdBy    String?  @db.ObjectId
-  updatedBy    String?  @db.ObjectId
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  refundable            Int // == 0: No, 1: Yes == // 
+  advancedBookingDays   Int
+  fees                  Json
+  amountLocal           Int?
+  amountForeign         Int?
+  applyTo               DateTime
+  dayType               Int // == 0: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
+  status                Int // == 0: unpublish, 1: publish == //
+  createdBy             String?  @db.ObjectId
+  updatedBy             String?  @db.ObjectId
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  doctorId String? @db.ObjectId
-  doctor   Doctor? @relation("SessionToDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
-  departmentId String? @db.ObjectId
-  department   Department? @relation("SessionToDepartment", fields: [departmentId], references: [id], onDelete: Cascade)
-  locationId String? @db.ObjectId
-  location   Location? @relation("SessionToLocation", fields: [locationId], references: [id], onDelete: Cascade)
-  roomId String? @db.ObjectId
-  room   Room? @relation("SessionToRoom", fields: [roomId], references: [id], onDelete: Cascade)
-  previousSessionId String? @db.ObjectId
-  previousSession  DoctorSession? @relation("PreviousSession", fields: [previousSessionId], references: [id], onDelete: Cascade)
-  nextSessions DoctorSession[] @relation("PreviousSession")
-  createdUser  User?      @relation("UserCreatedDoctorSessions", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser  User?      @relation("UserUpdatedDoctorSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+  doctorId          String?         @db.ObjectId
+  doctor            Doctor?         @relation("SessionToDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  departmentId      String?         @db.ObjectId
+  department        Department?     @relation("SessionToDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  locationId        String?         @db.ObjectId
+  location          Location?       @relation("SessionToLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  roomId            String?         @db.ObjectId
+  room              Room?           @relation("SessionToRoom", fields: [roomId], references: [id], onDelete: SetNull)
+  previousSessionId String?         @db.ObjectId
+  previousSession   DoctorSession?  @relation("PreviousSession", fields: [previousSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nextSessions      DoctorSession[] @relation("PreviousSession")
+  createdUser       User?           @relation("UserCreatedDoctorSessions", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser       User?           @relation("UserUpdatedDoctorSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
+
 model Location {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   name         String
@@ -168,12 +169,12 @@ model Location {
   updatedAt    DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  rooms       Room[] @relation("LocationToRoom")
-  zones       Zone[] @relation("LocationToZone")
-  agencies    Agency[] @relation("LocationToAgency")
+  rooms          Room[]          @relation("LocationToRoom")
+  zones          Zone[]          @relation("LocationToZone")
+  agencies       Agency[]        @relation("LocationToAgency")
   doctorSessions DoctorSession[] @relation("SessionToLocation")
-  createdUser User?  @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?  @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdUser    User?           @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser    User?           @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Room {
@@ -187,13 +188,13 @@ model Room {
   updatedAt   DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  zoneId      String   @db.ObjectId
-  zone        Zone     @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
-  locationId  String   @db.ObjectId
-  location    Location @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
+  zoneId         String          @db.ObjectId
+  zone           Zone            @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
+  locationId     String          @db.ObjectId
+  location       Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
   doctorSessions DoctorSession[] @relation("SessionToRoom")
-  createdUser User?    @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?    @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser    User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Roster {

@@ -32,14 +32,12 @@ export default function FilterSection({
             value={values.locationId}
             onChange={(v) => setValue('locationId', v)}
           />
-          <>
-            <Selector
-              label="All Doctors"
-              options={doctorOptions}
-              value={values.doctorId}
-              onChange={(v) => setValue('doctorId', v)}
-            />
-          </>
+          <Selector
+            label="All Doctors"
+            options={doctorOptions}
+            value={values.doctorId}
+            onChange={(v) => setValue('doctorId', v)}
+          />
         </>
       )}
     </FilterWrapper>
