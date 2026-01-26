@@ -11,7 +11,6 @@ export const getAllUsers = async (filter: GetUsersParams) => {
     await requirePermission("users", "view")
 
     try {
-
         let newFilter: GetUsersQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
             limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
@@ -19,12 +18,21 @@ export const getAllUsers = async (filter: GetUsersParams) => {
             userType: filter.userType
         }
 
-        return await getUsers(newFilter)
+        const response = await getUsers(newFilter);
 
-
+        return {
+            success: true,
+            data: response.data ?? [],
+            totalRecords: response.totalRecords ?? 0
+        };
     } catch (error: any) {
         console.log('getAllUsers error', error);
-        throw new Error(error.message ?? "Error getting data. please try again later")
+        return {
+            success: false,
+            message: error.message || "Error getting data. please try again later",
+            data: [],
+            totalRecords: 0
+        };
     }
 }
 
@@ -67,23 +75,34 @@ export const createNewUser = async (payload: User) => {
         // hash the password
         const hashedPassword: string = await hashData(payload.password)
 
-        delete payload.id
-        delete payload.confirmPassword
-        delete payload.createdAt
+        const result = await saveUser({
+            name: payload.name,
+            email: payload.email,
+            password: hashedPassword,
+            userType: payload.userType,
+            status: payload.status,
+            userGroupId: payload.userGroupId
+        })
 
-        payload.password = hashedPassword
-
-        const result = await saveUser(payload)
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            };
+        }
 
         revalidatePath('/users')
         return {
             isError: false,
             errors: {},
             data: {
-                saved: true
+                saved: true,
+                id: result.data?.id
             }
         }
-
 
     } catch (error: any) {
         console.log('createNewUser error ==>', error);
@@ -102,18 +121,39 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
     await requirePermission("users", "edit")
     
     try {
+        let hashedPassword: string | undefined = undefined;
 
         if (payload.password && payload.password !== "") {
-            payload.password = await hashData(payload.password)
-        }
-        else {
-            payload.password = userPWD
+            hashedPassword = await hashData(payload.password)
         }
 
-        delete payload.id
-        delete payload.confirmPassword
+        const updatePayload: {
+            name?: string;
+            email?: string;
+            password?: string;
+            userType?: number;
+            status?: number;
+            userGroupId?: string | null;
+        } = {};
 
-        let result = await updateOneUser(id, payload)
+        if (payload.name !== undefined) updatePayload.name = payload.name;
+        if (payload.email !== undefined) updatePayload.email = payload.email;
+        if (hashedPassword !== undefined) updatePayload.password = hashedPassword;
+        if (payload.userType !== undefined) updatePayload.userType = payload.userType;
+        if (payload.status !== undefined) updatePayload.status = payload.status;
+        if (payload.userGroupId !== undefined) updatePayload.userGroupId = payload.userGroupId;
+
+        const result = await updateOneUser(id, updatePayload)
+
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            };
+        }
 
         revalidatePath('/users')
         return {

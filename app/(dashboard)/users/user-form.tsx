@@ -109,7 +109,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
 
     const handleSettingsSubmit = async (
         values: typeof settingsInitialValues,
-        { resetForm }: FormikHelpers<typeof settingsInitialValues>
+        { setErrors, setTouched, resetForm }: FormikHelpers<typeof settingsInitialValues>
     ) => {
         try {
             setLoading(true)
@@ -129,7 +129,30 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             setLoading(false)
 
             if (respond.isError) {
-                throw new Error(respond.errors.message)
+                // Map server-side validation errors to form fields
+                if (respond.errors && typeof respond.errors === 'object' && !respond.errors.message) {
+                    const fieldErrors: Record<string, string> = {};
+                    Object.keys(respond.errors).forEach((key) => {
+                        const errorMessages = (respond.errors as any)[key];
+                        if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+                            fieldErrors[key] = errorMessages[0];
+                        }
+                    });
+                    setErrors(fieldErrors);
+                    setTouched(
+                        Object.keys(fieldErrors).reduce((acc, key) => {
+                            acc[key] = true;
+                            return acc;
+                        }, {} as Record<string, boolean>)
+                    );
+                }
+
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: (respond.errors as any)?.message || "User settings save unsuccessful.",
+                })
+                return;
             }
 
             toast({
@@ -181,7 +204,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
 
     const handleNewUserSubmit = async (
         values: User,
-        { resetForm }: FormikHelpers<User>
+        { setErrors, setTouched, resetForm }: FormikHelpers<User>
     ) => {
         try {
             setLoading(true)
@@ -191,7 +214,30 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             setLoading(false)
 
             if (respond.isError) {
-                throw new Error(respond.errors.message)
+                // Map server-side validation errors to form fields
+                if (respond.errors && typeof respond.errors === 'object' && !respond.errors.message) {
+                    const fieldErrors: Record<string, string> = {};
+                    Object.keys(respond.errors).forEach((key) => {
+                        const errorMessages = (respond.errors as any)[key];
+                        if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+                            fieldErrors[key] = errorMessages[0];
+                        }
+                    });
+                    setErrors(fieldErrors);
+                    setTouched(
+                        Object.keys(fieldErrors).reduce((acc, key) => {
+                            acc[key] = true;
+                            return acc;
+                        }, {} as Record<string, boolean>)
+                    );
+                }
+
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: (respond.errors as any)?.message || "User creation unsuccessful.",
+                })
+                return;
             }
 
             toast({
@@ -277,7 +323,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 id="userType"
                                 placeholder="User Type"
                                 value={formik.values.userType?.toString()}
-                                onChange={(value) => formik.setFieldValue("userType", parseInt(value))}
+                                onChange={(value) => {
+                                    formik.setFieldValue("userType", parseInt(value));
+                                    formik.setFieldTouched("userType", true);
+                                }}
                                 required
                                 options={[
                                     { id: "1", name: "Admin" },
@@ -381,7 +430,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     id="userType"
                                     placeholder="User Type"
                                     value={formik.values.userType?.toString()}
-                                    onChange={(value) => formik.setFieldValue("userType", parseInt(value))}
+                                    onChange={(value) => {
+                                        formik.setFieldValue("userType", parseInt(value));
+                                        formik.setFieldTouched("userType", true);
+                                    }}
                                     required
                                     options={[
                                         { id: "1", name: "Admin" },
