@@ -24,7 +24,7 @@ export const VoucherColumns: ColumnDef<Voucher>[] = [
   },
   {
     id: 'actions',
-    header: 'Actions',
+    header: () => <div className="text-center">Actions</div>,
     cell: ({ row }) => <VoucherRecordActions row={row} />
   }
 ];
