@@ -110,12 +110,16 @@ export default function YourComponentRecordActions({ row }: any) {
   return (
     <DataTableRowActions>
       {has("your-resource", "edit") && (
-        <DropdownMenuItem onClick={() => {/* Edit */}}>
+        <DropdownMenuItem onClick={() => {
+          // Edit logic here
+        }}>
           Edit
         </DropdownMenuItem>
       )}
       {has("your-resource", "delete") && (
-        <DropdownMenuItem onClick={() => {/* Delete */}}>
+        <DropdownMenuItem onClick={() => {
+          // Delete logic here
+        }}>
           Delete
         </DropdownMenuItem>
       )}

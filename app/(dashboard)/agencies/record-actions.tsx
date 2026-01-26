@@ -37,7 +37,7 @@ const AgencyRecordActions = <TData extends Agency>({
         const result = await deleteAgency(agency.id);
 
         if (result.isError) {
-          throw new Error(result.errors.message);
+          throw new Error(result.errors?.message || 'Failed to delete agency');
         }
 
         toast({

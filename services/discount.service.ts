@@ -2,7 +2,9 @@
 
 import prisma from '@/lib/prisma';
 import { Discount, getDiscountQuery } from '@/types/discount';
-import { Prisma } from '@prisma/client';
+import { Prisma, DiscountMethod, PaymentType } from '@prisma/client';
+import { z } from 'zod';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 // ==== GET ALL DISCOUNTS ==== //
 export const getAllDiscountsService = async ({
@@ -67,6 +69,73 @@ export const getAllDiscountsService = async ({
   }
 };
 
+// ==== DISCOUNT: VALIDATION SCHEMA ==== //
+const discountSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(150, 'Must be less than 150 characters'),
+  discountMethod: z
+    .array(z.nativeEnum(DiscountMethod))
+    .min(1, 'Select at least one booking method'),
+  paymentType: z
+    .array(z.nativeEnum(PaymentType))
+    .min(1, 'Select at least one payment type'),
+  discountType: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Discount type must be Percentage (0) or Fixed Value (1)'
+    }),
+  discountValue: z
+    .number()
+    .min(0, 'Discount value must be 0 or greater')
+    .refine((val) => val !== undefined && val !== null, {
+      message: 'This field is mandatory'
+    }),
+  discountValueForeign: z
+    .number()
+    .min(0, 'Discount foreign value must be 0 or greater')
+    .refine((val) => val !== undefined && val !== null, {
+      message: 'This field is mandatory'
+    }),
+  fromDate: z.date(),
+  toDate: z.date(),
+  isVoucher: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Is Voucher must be No (0) or Yes (1)'
+    }),
+  autoApply: z.boolean(),
+  status: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Visibility must be Unpublish (0) or Publish (1)'
+    }),
+  applyTo: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Apply To must be Hospital Fee Only (0) or Professional Fee Only (1)'
+    }),
+  vouchers: z
+    .array(
+      z.object({
+        code: z.string(),
+        limit: z.number()
+      })
+    )
+    .optional()
+});
+
+const discountUpdateSchema = discountSchema.partial().extend({
+  id: z.string().min(1, 'Discount ID is required')
+});
+
+type discountInput = z.infer<typeof discountSchema>;
+
 // ==== CREATE A DISCOUNT ==== //
 export const checkUniqueVoucherCodes = async (codes: string[]) => {
   try {
@@ -86,17 +155,115 @@ export const checkUniqueVoucherCodes = async (codes: string[]) => {
 };
 
 export const createDiscountService = async (
-  payload: Prisma.DiscountCreateInput
-) => {
+  payload: {
+    name: string;
+    discountType: number;
+    discountMethod: DiscountMethod[];
+    paymentType: PaymentType[];
+    discountValue: number;
+    discountValueForeign: number;
+    fromDate: Date;
+    toDate: Date;
+    isVoucher: number;
+    autoApply: boolean;
+    status: number;
+    applyTo: number;
+    vouchers?: { code: string; limit: number }[];
+    createdBy?: string;
+    updatedBy?: string;
+  },
+  user?: { id?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = prisma.discount.create({
-      data: payload
+    const parsed = discountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const discount = await prisma.discount.create({
+      data: {
+        name: data.name,
+        discountType: data.discountType,
+        discountMethod: data.discountMethod,
+        paymentType: data.paymentType,
+        discountValue: data.discountValue,
+        discountValueForeign: data.discountValueForeign,
+        fromDate: data.fromDate,
+        toDate: data.toDate,
+        isVoucher: data.isVoucher,
+        autoApply: data.autoApply,
+        status: data.status,
+        applyTo: data.applyTo,
+        vouchers:
+          data.isVoucher === 1 && data.vouchers && data.vouchers.length > 0
+            ? {
+                create: data.vouchers.map((voucher) => ({
+                  code: voucher.code,
+                  limit: voucher.limit,
+                  status: 1,
+                  createdUser: userRelation,
+                  updatedUser: userRelation
+                }))
+              }
+            : undefined,
+        createdUser: userRelation,
+        updatedUser: userRelation
+      }
     });
 
-    return result;
+    return {
+      success: true,
+      data: discount,
+      message: 'Discount created successfully'
+    };
   } catch (error: any) {
-    console.log('createDiscountService error', error);
-    throw error;
+    console.error('createDiscountService error:', error);
+
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return {
+          success: false,
+          error: {
+            message: 'Duplicate record detected',
+            issues: error.meta?.target
+          }
+        };
+      }
+      if (error.code === 'P2025') {
+        return {
+          success: false,
+          error: {
+            message: 'Record not found'
+          }
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to create discount'
+      }
+    };
   }
 };
 
@@ -117,18 +284,109 @@ export const checkVouchers = async (id: string) => {
 
 export const updateOneDiscountService = async (
   id: string,
-  payload: Prisma.DiscountUpdateInput
-): Promise<Discount | null> => {
+  payload: {
+    name?: string;
+    discountType?: number;
+    discountMethod?: DiscountMethod[];
+    paymentType?: PaymentType[];
+    discountValue?: number;
+    discountValueForeign?: number;
+    fromDate?: Date;
+    toDate?: Date;
+    isVoucher?: number;
+    autoApply?: boolean;
+    status?: number;
+    applyTo?: number;
+    vouchers?: { code: string; limit: number }[];
+  },
+  user?: { id?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = await prisma.discount.update({
-      where: { id },
-      data: payload
+    const parsed = discountUpdateSchema.safeParse({
+      ...payload,
+      id
     });
 
-    return result;
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const updateData: Prisma.DiscountUpdateInput = {
+      updatedAt: new Date(),
+      ...(userRelation && { updatedUser: userRelation })
+    };
+
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.discountType !== undefined) updateData.discountType = data.discountType;
+    if (data.discountMethod !== undefined) updateData.discountMethod = data.discountMethod;
+    if (data.paymentType !== undefined) updateData.paymentType = data.paymentType;
+    if (data.discountValue !== undefined) updateData.discountValue = data.discountValue;
+    if (data.discountValueForeign !== undefined)
+      updateData.discountValueForeign = data.discountValueForeign;
+    if (data.fromDate !== undefined) updateData.fromDate = data.fromDate;
+    if (data.toDate !== undefined) updateData.toDate = data.toDate;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.applyTo !== undefined) updateData.applyTo = data.applyTo;
+    if (data.autoApply !== undefined) updateData.autoApply = data.autoApply;
+    if (data.isVoucher !== undefined) updateData.isVoucher = data.isVoucher;
+
+    const discount = await prisma.discount.update({
+      where: { id },
+      data: updateData
+    });
+
+    return {
+      success: true,
+      data: discount,
+      message: 'Discount updated successfully'
+    };
   } catch (error: any) {
-    console.log('updateOneDiscountService error', error);
-    throw error;
+    console.error('updateOneDiscountService error:', error);
+
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return {
+          success: false,
+          error: {
+            message: 'Duplicate record detected',
+            issues: error.meta?.target
+          }
+        };
+      }
+      if (error.code === 'P2025') {
+        return {
+          success: false,
+          error: {
+            message: 'Record not found'
+          }
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to update discount'
+      }
+    };
   }
 };
 

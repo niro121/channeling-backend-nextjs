@@ -6,7 +6,8 @@ import {
     Zone,
 } from "@/types/zone"
 import prisma from "@/lib/prisma"
-import { PrismaClientKnownRequestError, Prisma } from "@prisma/client/runtime/library"
+import { Prisma } from "@prisma/client"
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
 
 // ==== ZONE: VALIDATION SCHEMA ==== //

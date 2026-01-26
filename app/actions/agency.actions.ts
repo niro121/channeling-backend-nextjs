@@ -351,7 +351,9 @@ export const deleteAgency = async (id: string) => {
       return {
         success: false,
         isError: true,
-        errors: result.error
+        errors: result.error || {
+          message: result.message || 'Failed to delete agency'
+        }
       };
     }
 
