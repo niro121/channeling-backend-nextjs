@@ -61,7 +61,7 @@ export const AgencyBookColumns: ColumnDef<AgencyBook>[] = [
     cell: ({ row }) => {
       const status = row.getValue('status');
       return status === 1 ? (
-        <CircleCorrect className="text-primary w-7 h-7" />
+        <CircleCorrect className="text-green-500 w-7 h-7" />
       ) : (
         <CircleX className="text-red-500 w-7 h-7" />
       );
@@ -69,6 +69,7 @@ export const AgencyBookColumns: ColumnDef<AgencyBook>[] = [
   },
   {
     id: 'actions',
+    header: () => <div className="text-center">Actions</div>,
     cell: ({ row }) => <AgencyBookRecordActions row={row} />
   }
 ];

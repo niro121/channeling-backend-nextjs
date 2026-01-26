@@ -6,12 +6,12 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AgencyBookColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
-import { SelectorFilter } from '@/components/common/selector-filter';
 import {
   bulkDeleteAgencyBooks,
   getAllAgencyBooks
 } from '@/app/actions/agencybook.actions';
 import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
+import FilterSection from './filter-section';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -70,12 +70,9 @@ export default async function Page({ searchParams }: SearchParams) {
             className={'rounded-lg bg-background pl-8 w-full'}
           />
         </div>
-        <SelectorFilter
-          label="All Agencies"
-          options={agencyOptions}
-          defaultValue="__all__"
-          keyword="agencyId"
-          initialId={params?.agencyId}
+        <FilterSection
+          agencyOptions={agencyOptions}
+          agencyId={params?.agencyId}
         />
       </div>
       <div className="overflow-hidden">
