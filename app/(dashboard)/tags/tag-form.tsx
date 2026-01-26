@@ -22,7 +22,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
     const initialValues: Tag = {
         id: tag?.id ? tag.id : "",
         name: tag?.name ? tag.name : "",
-        type: tag?.type ? tag.type : 1, // Default to Area (1)
+        type: tag?.type ? tag.type : undefined, // No default - let validation catch it
         status: tag?.status !== undefined ? tag.status : 1, // Default Active (1)
         createdAt: tag?.createdAt ? tag.createdAt : new Date(),
         updatedAt: tag?.updatedAt ? tag.updatedAt : new Date(),
@@ -33,10 +33,13 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
 
     const validationSchema = Yup.object({
         name: Yup.string()
+            .min(1, "This field is mandatory")
             .max(100, "Must be less than 100 characters")
             .required("This field is mandatory"),
         type: Yup.number()
-            .required("This field is mandatory"),
+            .typeError("Type is required")
+            .required("This field is mandatory")
+            .min(1, "Type is required"),
         status: Yup.number()
             .oneOf([0, 1], "Status must be Inactive (0) or Active (1)")
             .required("This field is mandatory"),
@@ -44,20 +47,43 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
 
     const handleSubmit = async (
         values: Tag,
-        { resetForm }: FormikHelpers<Tag>
+        { resetForm, setErrors, setTouched }: FormikHelpers<Tag>
     ) => {
         try {
+            setLoading(true);
             let respond: any;
 
-            setLoading(true)
-
             if (tag && tag.id) {
-                respond = await updateTag(tag.id, values)
-                
-                setLoading(false)
+                respond = await updateTag(tag.id, values);
+                setLoading(false);
 
-                if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                if (!respond?.success) {
+                    // Handle server-side validation errors
+                    if (respond?.error?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.error.issues).forEach((key) => {
+                            const errorArray = respond.error.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.error.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.error?.message || 'Tag update unsuccessful.'
+                        });
+                    }
+                    return;
                 }
 
                 toast({
@@ -68,12 +94,36 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                 // Redirect back to list page after successful update
                 router.push('/tags')
             } else {
-                respond = await createNewTag(values)
-                
-                setLoading(false)
+                respond = await createNewTag(values);
+                setLoading(false);
 
-                if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                if (!respond?.success) {
+                    // Handle server-side validation errors
+                    if (respond?.error?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.error.issues).forEach((key) => {
+                            const errorArray = respond.error.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.error.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.error?.message || 'Tag save unsuccessful.'
+                        });
+                    }
+                    return;
                 }
 
                 toast({
@@ -86,12 +136,31 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                  router.push('/tags')
             }
         } catch (error: any) {
-            setLoading(false)
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: error.message ?? "Tag save unsuccessful.",
-            })
+            setLoading(false);
+            // Handle client-side validation errors
+            if (error.name === 'ValidationError') {
+                const fieldErrors: any = {};
+                const touchedFields: any = {};
+                error.inner.forEach((err: any) => {
+                    if (err.path) {
+                        fieldErrors[err.path] = err.message;
+                        touchedFields[err.path] = true;
+                    }
+                });
+                setErrors(fieldErrors);
+                setTouched(touchedFields);
+                toast({
+                    variant: 'destructive',
+                    title: 'Validation Error',
+                    description: 'Please check the form for errors.'
+                });
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error.message ?? "Tag save unsuccessful.",
+                })
+            }
         }
     }
 
@@ -127,8 +196,11 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                             <CustomSelectField
                                 id="type"
                                 placeholder="Type"
-                                value={formik.values.type?.toString()}
-                                onChange={(value) => formik.setFieldValue("type", parseInt(value))}
+                                value={formik.values.type?.toString() || ""}
+                                onChange={(value) => {
+                                    formik.setFieldValue("type", parseInt(value));
+                                    formik.setFieldTouched("type", true);
+                                }}
                                 required
                                 options={[
                                     { id: "1", name: "Area" },
@@ -145,7 +217,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                 placeholder="Status"
                                 value={formik.values.status?.toString()}
                                 onChange={(value) => formik.setFieldValue("status", parseInt(value))}
-                                required
+                                required={false}
                                 options={[
                                     { id: "0", name: "Inactive" },
                                     { id: "1", name: "Active" }
