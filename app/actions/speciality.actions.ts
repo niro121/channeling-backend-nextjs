@@ -43,16 +43,27 @@ export const getAllSpecialities = async (sort: getSpecialityParams) => {
 
     const response = await getAllSpecialitiesService(newFilter);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch specialities',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data as Speciality[],
-      totalRecords: response.totalRecords
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
     };
   } catch (error: any) {
-    console.log('getAllSpecialities error ==>', error);
+    console.error('getAllSpecialities action error:', error);
+
     return {
       success: false,
-      message: error.message || 'Error getting data. please try again later',
+      message: error.message || 'Error getting specialities. Please try again later',
       data: [],
       totalRecords: 0
     };
@@ -60,20 +71,39 @@ export const getAllSpecialities = async (sort: getSpecialityParams) => {
 };
 
 // ==== GET ONE SPECIALITY ==== //
-export const getSpecialityById = async (id: string) => {
+export const getSpecialityById = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const response = await getSpecialityByIdService(id);
+    const result = await getSpecialityByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch speciality'
+        }
+      };
+    }
 
     return {
       success: true,
-      data: response
+      data: result.data,
+      message: result.message
     };
   } catch (error: any) {
-    console.log('getSpecialityById error ==>', error);
+    console.error('getSpecialityById action error:', error);
+
     return {
       success: false,
-      message: error.message || 'Error getting data. please try again later',
-      data: null
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
     };
   }
 };
@@ -101,35 +131,52 @@ export const getNextSpecialityCode = async (): Promise<string> => {
 export const createSpeciality = async (
   payload: CreateSpecialityPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
     const specialityCode = await getNextSpecialityCode();
 
-    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+    const result = await createSpecialityService(
+      {
+        name: payload.name,
+        description: payload.description,
+        status: payload.status,
+        code: specialityCode
+      },
+      user
+    );
 
-    const result = await createSpecialityService({
-      name: payload.name,
-      description: payload.description,
-      status: payload.status,
-      code: specialityCode,
-      createdUser: userRelation,
-      updatedUser: userRelation
-    });
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Speciality creation failed'
+        }
+      };
+    }
 
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Speciality created successfully'
     };
   } catch (error: any) {
-    console.error('createSpeciality error', error);
+    console.error('createSpeciality action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to create speciality'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -140,33 +187,42 @@ export const updateOneSpeciality = async (
   id: string,
   payload: UpdateSpecialityPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const data: Prisma.SpecialityUpdateInput = {
-      updatedAt: new Date(),
-      ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {})
-    };
+    const result = await updateOneSpecialityService(id, payload, user);
 
-    if (payload.name !== undefined) data.name = payload.name;
-    if (payload.name !== undefined) data.description = payload.description;
-    if (payload.name !== undefined) data.status = payload.status;
-
-    const result = await updateOneSpecialityService(id, data);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Speciality update failed'
+        }
+      };
+    }
 
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Speciality updated successfully'
     };
   } catch (error: any) {
-    console.error('updateSpeciality error', error);
+    console.error('updateOneSpeciality action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to update speciality'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -177,19 +233,27 @@ export const deleteSpeciality = async (id: string) => {
   try {
     const result = await deleteSpecialityByIdService(id);
 
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
     return {
       success: true,
-      data: result
+      message: result.message
     };
   } catch (error: any) {
-    console.error('deleteSpeciality error', error);
+    console.error('deleteSpeciality action error:', error);
+
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to delete speciality'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -200,12 +264,17 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
   try {
     const result = await bulkDeleteSpecialitiesByIdsService(ids);
 
+    if (!result.success) {
+      return false;
+    }
+
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
     return true;
   } catch (error: any) {
-    console.error('bulkDeleteSpecialities error', error);
+    console.error('bulkDeleteSpecialities action error:', error);
+
     return false;
   }
 };
