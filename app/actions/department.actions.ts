@@ -5,32 +5,52 @@ import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment,
 import { revalidatePath } from "next/cache"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
-
     try {
-
         let newFilter: GetDepartmentsQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
             limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
             keyword: filter.keyword ?? "",
         }
 
-        return await getDepartments(newFilter)
+        const response = await getDepartments(newFilter)
 
+        if (!response.success) {
+            return {
+                success: false,
+                message: response.error?.message || 'Failed to fetch departments',
+                data: [],
+                totalRecords: 0
+            }
+        }
 
+        return {
+            success: true,
+            data: response.data?.records ?? [],
+            totalRecords: response.data?.totalRecords ?? 0,
+            message: response.message
+        }
     } catch (error: any) {
-        console.log('getAllDepartments error', error);
-        throw new Error(error.message ?? "Error getting data. please try again later")
+        console.error('getAllDepartments action error:', error)
+
+        return {
+            success: false,
+            message: error.message || 'Error getting departments. Please try again later',
+            data: [],
+            totalRecords: 0
+        }
     }
 }
 
 export const bulkDeleteDepartments = async (ids: string[]) => {
-
     try {
+        const result = await deleteDepartments(ids)
 
-        await deleteDepartments(ids)
+        if (!result.success) {
+            throw new Error(result.error?.message ?? "Error deleting records. please try again later")
+        }
+
         revalidatePath('/departments')
         return true
-
     } catch (error: any) {
         console.log('bulkDeleteDepartments error ==>', error);
         throw new Error(error.message ?? "Error deleting records. please try again later")
@@ -39,10 +59,14 @@ export const bulkDeleteDepartments = async (ids: string[]) => {
 
 export const deleteDepartment = async (id: string) => {
     try {
-        const response = await deleteOneDepartment(id)
+        const result = await deleteOneDepartment(id)
+
+        if (!result.success) {
+            throw new Error(result.error?.message ?? "Error deleting data. please try again later")
+        }
+
         revalidatePath('/departments')
         return true
-
     } catch (error: any) {
         console.log('deleteDepartment error ==>', error);
         throw new Error(error.message ?? "Error deleting data. please try again later")
@@ -50,7 +74,6 @@ export const deleteDepartment = async (id: string) => {
 }
 
 export const createNewDepartment = async (payload: Department) => {
-
     try {
         delete payload.id
         delete payload.createdAt
@@ -63,6 +86,16 @@ export const createNewDepartment = async (payload: Department) => {
 
         const result = await saveDepartment(payload)
 
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            }
+        }
+
         revalidatePath('/departments')
 
         return {
@@ -70,10 +103,9 @@ export const createNewDepartment = async (payload: Department) => {
             errors: {},
             data: {
                 saved: true,
-                id: result && result.id
+                id: result.data?.id
             }
         }
-
     } catch (error: any) {
         console.log('createNewDepartment error ==>', error);
         return {
@@ -92,7 +124,17 @@ export const updateDepartment = async (id: string, payload: Department) => {
         delete payload.createdAt
         delete payload.updatedAt
 
-        let result = await updateOneDepartment(id, payload)
+        const result = await updateOneDepartment(id, payload)
+
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            }
+        }
 
         revalidatePath('/departments')
         revalidatePath(`/departments/${id}/edit`)
@@ -103,7 +145,6 @@ export const updateDepartment = async (id: string, payload: Department) => {
                 saved: true
             }
         }
-
     } catch (error: any) {
         console.log('updateDepartment error ==>', error);
         return {
@@ -122,11 +163,13 @@ export const fetchDepartmentById = async (id: string) => {
             throw new Error("Department not found");
         }
 
-        const department = await getDepartmentById(id);
-        if (!department) {
-            throw new Error("Department not found");
+        const result = await getDepartmentById(id);
+
+        if (!result.success || !result.data) {
+            throw new Error(result.error?.message || "Department not found");
         }
-        return department;
+
+        return result.data;
     } catch (error: any) {
         console.error("Error in fetchDepartmentById:", error.message);
         throw new Error(error.message || "Unable to fetch department.");
