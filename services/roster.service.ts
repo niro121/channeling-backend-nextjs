@@ -7,6 +7,32 @@ import {
 } from "@/types/roster"
 import prisma from "@/lib/prisma"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
+import { z } from "zod"
+
+// ==== ROSTER: VALIDATION SCHEMA ==== //
+const rosterSchema = z.object({
+    name: z
+        .string()
+        .min(1, "This field is mandatory")
+        .max(150, "Must be less than 150 characters"),
+    departmentId: z.string().min(1, "This field is mandatory"),
+    shiftsPerPersonPerDay: z
+        .number()
+        .int()
+        .min(1, "Must be at least 1"),
+    status: z
+        .number()
+        .int()
+        .refine((val) => val === 0 || val === 1, {
+            message: "Status must be Unpublish (0) or Publish (1)",
+        }),
+});
+
+const rosterUpdateSchema = rosterSchema.partial().extend({
+    id: z.string().min(1, "Roster ID is required"),
+});
+
+type rosterInput = z.infer<typeof rosterSchema>;
 
 export const getRosters = async ({
     page,
@@ -42,8 +68,33 @@ export const getRosters = async ({
             where: whereClause,
         })
 
+        // Fetch all departments to map department names
+        const departmentIds = Array.from(new Set(records.map(r => r.departmentId).filter(Boolean)))
+        const departments = departmentIds.length > 0
+            ? await prisma.department.findMany({
+                where: {
+                    id: { in: departmentIds }
+                },
+                select: {
+                    id: true,
+                    name: true
+                }
+            })
+            : []
+
+        // Create a map for quick lookup
+        const departmentMap = new Map(departments.map(d => [d.id, d.name]))
+
+        // Map department names to rosters
+        const recordsWithDepartment = records.map(roster => ({
+            ...roster,
+            department: roster.departmentId ? {
+                name: departmentMap.get(roster.departmentId) || null
+            } : null
+        }))
+
         let response: GetRostersReturn = {
-            data: records,
+            data: recordsWithDepartment as any,
             totalRecords: totalRecords,
         }
 
@@ -85,36 +136,146 @@ export const deleteOneRoster = async (id: string) => {
     }
 }
 
-export const saveRoster = async (roster: Roster) => {
+export const saveRoster = async (
+    payload: Roster
+): Promise<{
+    success: boolean;
+    data?: any;
+    message?: string;
+    error?: {
+        message?: string;
+        issues?: any;
+    };
+}> => {
     try {
-        const result = await prisma.roster.create({
-            data: roster,
-        })
+        const parsed = rosterSchema.safeParse(payload);
 
-        return result
-    } catch (error: any) {
-        if (error instanceof PrismaClientKnownRequestError) {
-            // Check for unique constraint violations if name is unique, though it's not unique in schema
-             throw new Error(error.message ?? "Save roster Error")
-        } else {
-            throw new Error(error.message ?? "Save roster Error")
+        if (!parsed.success) {
+            return {
+                success: false,
+                error: {
+                    message: "Validation failed",
+                    issues: parsed.error.flatten().fieldErrors
+                }
+            };
         }
+
+        const data = parsed.data;
+
+        const roster = await prisma.roster.create({
+            data: {
+                name: data.name,
+                departmentId: data.departmentId,
+                shiftsPerPersonPerDay: data.shiftsPerPersonPerDay,
+                status: data.status,
+            }
+        });
+
+        return {
+            success: true,
+            data: roster,
+            message: "Roster created successfully"
+        };
+    } catch (error: any) {
+        console.error("saveRoster error:", error);
+
+        if (error instanceof PrismaClientKnownRequestError) {
+            if (error.code === "P2002") {
+                return {
+                    success: false,
+                    error: {
+                        message: "Roster might exist with this name. please verify and try again",
+                        issues: error.meta?.target
+                    }
+                };
+            }
+        }
+
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to create roster"
+            }
+        };
     }
 }
 
-export const updateOneRoster = async (id: string, payload: Roster) => {
+export const updateOneRoster = async (
+    id: string,
+    payload: Partial<Roster>
+): Promise<{
+    success: boolean;
+    data?: any;
+    message?: string;
+    error?: {
+        message?: string;
+        issues?: any;
+    };
+}> => {
     try {
-        await prisma.roster.update({
-            data: payload,
-            where: {
-                id: id,
-            },
-        })
+        const parsed = rosterUpdateSchema.safeParse({
+            ...payload,
+            id
+        });
 
-        return true
+        if (!parsed.success) {
+            return {
+                success: false,
+                error: {
+                    message: "Validation failed",
+                    issues: parsed.error.flatten().fieldErrors
+                }
+            };
+        }
+
+        const data = parsed.data;
+
+        const updateData: any = {};
+        if (data.name !== undefined) updateData.name = data.name;
+        if (data.departmentId !== undefined) updateData.departmentId = data.departmentId;
+        if (data.shiftsPerPersonPerDay !== undefined) updateData.shiftsPerPersonPerDay = data.shiftsPerPersonPerDay;
+        if (data.status !== undefined) updateData.status = data.status;
+
+        const roster = await prisma.roster.update({
+            where: { id },
+            data: updateData
+        });
+
+        return {
+            success: true,
+            data: roster,
+            message: "Roster updated successfully"
+        };
     } catch (error: any) {
-        console.log("updateOneRoster error ==> ", error)
-        throw new Error(error.message ?? "Update roster Error")
+        console.error("updateOneRoster error:", error);
+
+        if (error instanceof PrismaClientKnownRequestError) {
+            if (error.code === "P2025") {
+                return {
+                    success: false,
+                    error: {
+                        message: "Roster not found"
+                    }
+                };
+            }
+
+            if (error.code === "P2002") {
+                return {
+                    success: false,
+                    error: {
+                        message: "Duplicate record detected",
+                        issues: error.meta?.target
+                    }
+                };
+            }
+        }
+
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to update roster"
+            }
+        };
     }
 }
 
