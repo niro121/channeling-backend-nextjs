@@ -11,13 +11,26 @@ const Page = async ({ params }: EditPageProps) => {
     const { id } = await params
     
     // Fetch zone and locations in parallel
-    const [zone, locationsResponse] = await Promise.all([
+    const [zoneResult, locationsResponse] = await Promise.all([
         fetchZoneById(id),
         getAllLocations({
             page: "0",
             limit: "1000",
         })
     ])
+
+    if (!zoneResult.success || !zoneResult.data) {
+        return (
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-2xl font-bold tracking-tight">Zone Not Found</h1>
+                    <p className="text-muted-foreground">
+                        The zone you are looking for does not exist.
+                    </p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-6">
@@ -28,7 +41,7 @@ const Page = async ({ params }: EditPageProps) => {
                 </p>
             </div>
             <ZoneForm 
-                zone={zone} 
+                zone={zoneResult.data} 
                 isEditPage={true} 
                 locations={locationsResponse.data || []} 
             />

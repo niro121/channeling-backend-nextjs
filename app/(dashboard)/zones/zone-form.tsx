@@ -53,17 +53,20 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
         { resetForm }: FormikHelpers<Zone>
     ) => {
         try {
+            setLoading(true);
             let respond: any;
 
-            setLoading(true)
-
             if (zone && zone.id) {
-                respond = await updateZone(zone.id, values)
-                
-                setLoading(false)
+                respond = await updateZone(zone.id, values);
+                setLoading(false);
 
-                if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                if (!respond?.success) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: respond.error?.message || 'Zone update unsuccessful.'
+                    });
+                    return;
                 }
 
                 toast({
@@ -74,12 +77,16 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                 // Redirect back to list page after successful update
                 router.push('/zones')
             } else {
-                respond = await createNewZone(values)
-                
-                setLoading(false)
+                respond = await createNewZone(values);
+                setLoading(false);
 
-                if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                if (!respond?.success) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: respond.error?.message || 'Zone save unsuccessful.'
+                    });
+                    return;
                 }
 
                 toast({
@@ -97,7 +104,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                 }
             }
         } catch (error: any) {
-            setLoading(false)
+            setLoading(false);
             toast({
                 variant: "destructive",
                 title: "Error",
