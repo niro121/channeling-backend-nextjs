@@ -23,6 +23,7 @@ import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
+import prisma from '@/lib/prisma';
 
 // ==== GET ALL AGENCIES ==== //
 export const getAllAgencies = async (params: GetAgenciesParams) => {
@@ -38,16 +39,26 @@ export const getAllAgencies = async (params: GetAgenciesParams) => {
 
     const response = await getAllAgenciesService(query);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch agencies',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data,
-      totalRecords: response.totalRecords
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
     };
   } catch (error: any) {
-    console.log('getAllAgencies error', error);
+    console.error('getAllAgencies action error:', error);
     return {
       success: false,
-      message: error.message || 'Error getting agencies',
+      message: error.message || 'Error getting agencies. Please try again later',
       data: [],
       totalRecords: 0
     };
@@ -74,20 +85,39 @@ export const getAllAgenciesOptions = async () => {
 };
 
 // ==== GET ONE AGENCY ==== //
-export const getAgencyById = async (id: string) => {
+export const getAgencyById = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const response = await getAgencyByIdService(id);
+    const result = await getAgencyByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch agency'
+        }
+      };
+    }
 
     return {
       success: true,
-      data: response
+      data: result.data,
+      message: result.message
     };
   } catch (error: any) {
-    console.log('getAgencyById error', error);
+    console.error('getAgencyById action error:', error);
+
     return {
       success: false,
-      message: error.message || 'Error getting agency',
-      data: null
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
     };
   }
 };
@@ -96,43 +126,28 @@ export const getAgencyById = async (id: string) => {
 export const createAgency = async (
   payload: AgencyFormValues,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  isError?: boolean;
+  errors?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    // Get next agency code
-    const nextCode = await getNextAgencyCode();
-    const agencyCode = String(nextCode);
+    const result = await createAgencyService(payload, user);
 
-    const data: Prisma.AgencyCreateInput = {
-      name: payload.name,
-      code: agencyCode,
-      chequePrintingName: payload.chequePrintingName,
-      creditLimit: payload.creditLimit || 0,
-      allowedCreditLimit: payload.allowedCreditLimit || 0,
-      maxCreditLimit: payload.maxCreditLimit || 0,
-      phone: payload.phone || null,
-      mobile: payload.mobile || null,
-      fax: payload.fax || null,
-      email: payload.email || null,
-      website: payload.website || null,
-      memo: payload.memo || null,
-      addressLine1: payload.addressLine1 || null,
-      addressLine2: payload.addressLine2 || null,
-      city: payload.city || null,
-      contactPersonName: payload.contactPersonName,
-      contactPersonPhone: payload.contactPersonPhone || null,
-      contactPersonMobile: payload.contactPersonMobile || null,
-      contactPersonEmail: payload.contactPersonEmail || null,
-      sendSms: payload.sendSms ?? 0,
-      status: payload.status ?? 1,
-      ...(payload.parentAgencyId
-        ? { parentAgency: { connect: { id: payload.parentAgencyId } } }
-        : {}),
-      ...(payload.locationId
-        ? { location: { connect: { id: payload.locationId } } }
-        : {})
-    };
-
-    const result = await createAgencyService(data);
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error || {
+          message: result.message || 'Agency creation failed'
+        }
+      };
+    }
 
     // Handle User creation/linking if login fields are present
     if (payload.loginEmail) {
@@ -155,10 +170,14 @@ export const createAgency = async (
         }
 
         // Always attempt to link the agency to the user by email
-        await updateAgencyService(result.id!, {
-          user: {
-            connect: {
-              email: payload.loginEmail
+        // Use Prisma directly for user linking since it's a separate operation
+        await prisma.agency.update({
+          where: { id: result.data?.id! },
+          data: {
+            user: {
+              connect: {
+                email: payload.loginEmail
+              }
             }
           }
         });
@@ -166,8 +185,6 @@ export const createAgency = async (
         console.error('Error associating user with agency:', userError);
       }
     }
-
-
 
     // ==== SEND SMS IF ENABLED ==== //
     if (payload.sendSms === 1) {
@@ -188,19 +205,20 @@ export const createAgency = async (
 
     return {
       success: true,
-      data: result,
+      data: result.data,
+      message: result.message || 'Agency created successfully',
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('createAgency error', error);
+    console.error('createAgency action error:', error);
 
     return {
       success: false,
       isError: true,
       data: null,
       errors: {
-        message: error.message || 'Failed to create agency'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -211,75 +229,47 @@ export const updateAgency = async (
   id: string,
   payload: UpdateAgencyPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  isError?: boolean;
+  errors?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const data: Prisma.AgencyUpdateInput = {
-      updatedAt: new Date()
-    };
+    const result = await updateAgencyService(id, payload, user);
 
-    if (payload.name !== undefined) data.name = payload.name;
-    if (payload.chequePrintingName !== undefined)
-      data.chequePrintingName = payload.chequePrintingName;
-    if (payload.creditLimit !== undefined) data.creditLimit = payload.creditLimit;
-    if (payload.allowedCreditLimit !== undefined)
-      data.allowedCreditLimit = payload.allowedCreditLimit;
-    if (payload.maxCreditLimit !== undefined)
-      data.maxCreditLimit = payload.maxCreditLimit;
-    if (payload.phone !== undefined) data.phone = payload.phone || null;
-    if (payload.mobile !== undefined) data.mobile = payload.mobile || null;
-    if (payload.fax !== undefined) data.fax = payload.fax || null;
-    if (payload.email !== undefined) data.email = payload.email || null;
-    if (payload.website !== undefined) data.website = payload.website || null;
-    if (payload.memo !== undefined) data.memo = payload.memo || null;
-    if (payload.addressLine1 !== undefined)
-      data.addressLine1 = payload.addressLine1 || null;
-    if (payload.addressLine2 !== undefined)
-      data.addressLine2 = payload.addressLine2 || null;
-    if (payload.city !== undefined) data.city = payload.city || null;
-    if (payload.contactPersonName !== undefined)
-      data.contactPersonName = payload.contactPersonName;
-    if (payload.contactPersonPhone !== undefined)
-      data.contactPersonPhone = payload.contactPersonPhone || null;
-    if (payload.contactPersonMobile !== undefined)
-      data.contactPersonMobile = payload.contactPersonMobile || null;
-    if (payload.contactPersonEmail !== undefined)
-      data.contactPersonEmail = payload.contactPersonEmail || null;
-    if (payload.sendSms !== undefined) data.sendSms = payload.sendSms;
-    if (payload.status !== undefined) data.status = payload.status;
-    if (payload.parentAgencyId !== undefined) {
-      if (payload.parentAgencyId) {
-        data.parentAgency = { connect: { id: payload.parentAgencyId } };
-      } else {
-        data.parentAgency = { disconnect: true };
-      }
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error || {
+          message: result.message || 'Agency update failed'
+        }
+      };
     }
-    if (payload.locationId !== undefined) {
-      if (payload.locationId) {
-        data.location = { connect: { id: payload.locationId } };
-      } else {
-        data.location = { disconnect: true };
-      }
-    }
-
-    const result = await updateAgencyService(id, data);
 
     revalidatePath('/agencies');
 
     return {
       success: true,
-      data: result,
+      data: result.data,
+      message: result.message || 'Agency updated successfully',
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('updateAgency error', error);
+    console.error('updateAgency action error:', error);
 
     return {
       success: false,
       isError: true,
       data: null,
       errors: {
-        message: error.message || 'Failed to update agency'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -313,6 +303,7 @@ export const createAgencyLogin = async (
 
     // 2. Link Agency to User if agencyId is provided
     if (agencyId) {
+      // Use Prisma directly for user/location linking since it's a separate operation
       const updateData: Prisma.AgencyUpdateInput = {
         user: {
           connect: {
@@ -325,7 +316,10 @@ export const createAgencyLogin = async (
         updateData.location = { connect: { id: payload.locationId } };
       }
 
-      await updateAgencyService(agencyId, updateData);
+      await prisma.agency.update({
+        where: { id: agencyId },
+        data: updateData
+      });
     }
 
     revalidatePath('/agencies');
@@ -351,22 +345,32 @@ export const createAgencyLogin = async (
 // ==== DELETE AGENCY ==== //
 export const deleteAgency = async (id: string) => {
   try {
-    await deleteAgencyByIdService(id);
+    const result = await deleteAgencyByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error
+      };
+    }
 
     revalidatePath('/agencies');
 
     return {
       success: true,
+      message: result.message,
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('deleteAgency error', error);
+    console.error('deleteAgency action error:', error);
+
     return {
       success: false,
       isError: true,
       errors: {
-        message: error.message || 'Failed to delete agency'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -375,14 +379,18 @@ export const deleteAgency = async (id: string) => {
 // ==== BULK DELETE AGENCIES ==== //
 export const bulkDeleteAgencies = async (ids: string[]) => {
   try {
-    await bulkDeleteAgenciesService(ids);
+    const result = await bulkDeleteAgenciesService(ids);
+
+    if (!result.success) {
+      throw new Error(result.error?.message || 'Failed to delete agencies');
+    }
 
     revalidatePath('/agencies');
 
     return true;
   } catch (error: any) {
-    console.error('bulkDeleteAgencies error', error);
-    return false;
+    console.error('bulkDeleteAgencies action error:', error);
+    throw error;
   }
 };
 
