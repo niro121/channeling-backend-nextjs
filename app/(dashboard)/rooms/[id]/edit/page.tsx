@@ -2,7 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import RoomForm from '../room-form';
+import RoomForm from '../../room-form';
 import { getRoomById, getAllLocations } from '@/app/actions/room.actions';
 
 type PageProps = {

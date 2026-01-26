@@ -17,7 +17,6 @@ import {
   RoomFormValues,
   UpdateRoomPayload
 } from '@/types/room';
-import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 type CreateRoomPayload = RoomFormValues & {
@@ -41,13 +40,22 @@ export const getAllRooms = async (sort: getRoomParam) => {
 
     const response = await getAllRoomsService(newFilter);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch rooms',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data as Room[],
-      totalRecords: response.totalRecords
+      data: response.data ?? [],
+      totalRecords: response.totalRecords ?? 0
     };
   } catch (error: any) {
-    console.log('getAllRoos error ==>', error);
+    console.error('getAllRooms error:', error);
     return {
       success: false,
       message: error.message || 'Error getting data. please try again later',
@@ -62,12 +70,20 @@ export const getRoomById = async (id: string) => {
   try {
     const response = await getRoomByIdService(id);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch room',
+        data: null
+      };
+    }
+
     return {
       success: true,
-      data: response
+      data: response.data ?? null
     };
   } catch (error: any) {
-    console.log('getRoomById error ==>', error);
+    console.error('getRoomById error:', error);
     return {
       success: false,
       message: error.message || 'Error getting data. please try again later',
@@ -76,39 +92,45 @@ export const getRoomById = async (id: string) => {
   }
 };
 
-// ==== CREATE A LOCATION ==== //
+// ==== CREATE A ROOM ==== //
 export const createRoom = async (
   payload: CreateRoomPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const roomRelation = user?.id ? { connect: { id: user.id } } : undefined;
+    const result = await createRoomService(payload, user);
 
-    const result = await createRoomService({
-      number: payload.number,
-      description: payload.description,
-      status: payload.status,
-      location: {
-        connect: { id: payload.locationId }
-      },
-      zone: {
-        connect: { id: payload.zoneId }
-      },
-      createdUser: roomRelation,
-      updatedUser: roomRelation
-    });
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Room creation failed'
+        }
+      };
+    }
+
+    revalidatePath('/rooms');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Room created successfully'
     };
   } catch (error: any) {
-    console.error('createRoom error', error);
+    console.error('createRoom action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to create room'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -119,43 +141,41 @@ export const updateOneRoom = async (
   id: string,
   payload: UpdateRoomPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const data: Prisma.RoomUpdateInput = {
-      updatedAt: new Date(),
-      ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : '')
-    };
+    const result = await updateOneRoomService(id, payload, user);
 
-    if (payload.number !== undefined) data.number = payload.number;
-    if (payload.description !== undefined)
-      data.description = payload.description;
-    if (payload.status !== undefined) data.status = payload.status;
-
-    if (payload.locationId !== undefined) {
-      data.location = {
-        connect: { id: payload.locationId }
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Room update failed'
+        }
       };
     }
 
-    if (payload.zoneId !== undefined) {
-      data.zone = {
-        connect: { id: payload.zoneId }
-      };
-    }
-
-    const result = await updateOneRoomService(id, data);
+    revalidatePath('/rooms');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Room updated successfully'
     };
   } catch (error: any) {
-    console.error('updateOneRoom error', error);
+    console.error('updateOneRoom action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to update room'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -166,14 +186,24 @@ export const deleteRoom = async (id: string) => {
   try {
     const result = await deleteRoomByIdService(id);
 
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Room deletion failed'
+        }
+      };
+    }
+
     revalidatePath('/rooms');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Room deleted successfully'
     };
   } catch (error: any) {
-    console.error('deleteRoom error', error);
+    console.error('deleteRoom error:', error);
     return {
       success: false,
       error: {
@@ -188,11 +218,15 @@ export const bulkDeleteRooms = async (ids: string[]) => {
   try {
     const result = await bulkDeleteRoomsByIdsService(ids);
 
+    if (!result.success) {
+      throw new Error(result.error?.message || 'Failed to delete rooms');
+    }
+
     revalidatePath('/rooms');
     return true;
   } catch (error: any) {
-    console.error('bulkDeleteRooms error', error);
-    return false;
+    console.error('bulkDeleteRooms error:', error);
+    throw error;
   }
 };
 
