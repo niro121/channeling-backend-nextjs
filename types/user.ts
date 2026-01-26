@@ -7,6 +7,7 @@ export type User = {
     confirmPassword?: string
     userType: number // 1 = admin, 2 = staff
     status: number //0 -> inactive, 1 ->  active
+    userGroupId?: string | null
     createdAt?: Date
     updatedAt?: Date
 }

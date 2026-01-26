@@ -89,15 +89,15 @@ export const DisCountColumns: ColumnDef<Discount>[] = [
     cell: ({ row }) => {
       const show = row.getValue('status');
       return show === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7 justify-self-center" />
+        <CircleCorrect className="text-green-500 w-7 h-7" />
       ) : (
-        <CircleX className="text-red-500 w-7 h-7 justify-self-center" />
+        <CircleX className="text-red-500 w-7 h-7" />
       );
     }
   },
   {
     id: 'actions',
-    header: 'Actions',
+    header: () => <div className="text-center">Actions</div>,
     cell: ({ row }) => <DiscountRecordActions row={row} />
   }
 ];

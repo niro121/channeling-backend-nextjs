@@ -31,6 +31,11 @@ export const useDialog = () => {
   return context;
 };
 
+// Safe version that returns undefined if context is not available
+export const useDialogSafe = () => {
+  return useContext(DialogContext);
+};
+
 export function CustomDialog({
   open,
   setOpen,

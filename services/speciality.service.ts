@@ -4,37 +4,77 @@ import prisma from '@/lib/prisma';
 import {
   getSpecialityQuery,
   GetSpecialityResponse,
-  Speciality
+  Speciality,
+  SpecialityFormValues,
+  UpdateSpecialityPayload
 } from '@/types/speciality';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+// ==== SPECIALITY: VALIDATION SCHEMA ==== //
+const specialitySchema = z.object({
+  name: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(150, 'Must be less than 150 characters'),
+  code: z.string().min(1, 'This field is mandatory'),
+  description: z.string().min(1, 'This field is mandatory'),
+  status: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Status must be Unpublish (0) or Publish (1)'
+    })
+});
+
+const specialityUpdateSchema = specialitySchema.partial().extend({
+  id: z.string().min(1, 'Speciality ID is required')
+});
+
+type specialityInput = z.infer<typeof specialitySchema>;
 
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialitiesService = async ({
   page,
   limit,
   keyword
-}: getSpecialityQuery) => {
+}: getSpecialityQuery): Promise<{
+  success: boolean;
+  data?: {
+    records: any[];
+    totalRecords: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   const skip = page * limit;
   try {
+    const whereClause: Prisma.SpecialityWhereInput | undefined =
+      keyword && keyword.trim() !== ''
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: keyword,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              },
+              {
+                code: {
+                  contains: keyword,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              }
+            ]
+          }
+        : undefined;
+
     const records = await prisma.speciality.findMany({
       skip: skip,
       take: limit,
-      where: {
-        OR: [
-          {
-            name: {
-              contains: keyword,
-              mode: 'insensitive'
-            }
-          },
-          {
-            code: {
-              contains: keyword,
-              mode: 'insensitive'
-            }
-          }
-        ]
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc'
       },
@@ -45,31 +85,25 @@ export const getAllSpecialitiesService = async ({
     });
 
     const totalRecords = await prisma.speciality.count({
-      where: {
-        OR: [
-          {
-            name: {
-              contains: keyword
-            }
-          },
-          {
-            code: {
-              contains: keyword
-            }
-          }
-        ]
-      }
+      where: whereClause
     });
 
-    let response: GetSpecialityResponse = {
-      data: records,
-      totalRecords: totalRecords
+    return {
+      success: true,
+      data: {
+        records,
+        totalRecords
+      },
+      message: 'Specialities fetched successfully'
     };
-
-    return response;
   } catch (error: any) {
     console.log('getAllSpecialitiesService error', error);
-    throw error;
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch specialities'
+      }
+    };
   }
 };
 
@@ -87,69 +121,275 @@ export const lastSpecialityCode = async () => {
   }
 };
 
-export const createSpecialityService = async (payload: Prisma.SpecialityCreateInput) => {
+export const createSpecialityService = async (
+  payload: SpecialityFormValues,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = prisma.speciality.create({
-      data: payload
+    const parsed = specialitySchema.safeParse(payload);
+
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const speciality = await prisma.speciality.create({
+      data: {
+        name: data.name,
+        code: data.code,
+        description: data.description,
+        status: data.status,
+        createdUser: userRelation,
+        updatedUser: userRelation
+      }
     });
 
-    return result;
+    return {
+      success: true,
+      data: speciality,
+      message: 'Speciality created successfully'
+    };
   } catch (error: any) {
-    console.error('createSpecialityService error', error);
-    throw error;
+    console.error('createSpecialityService error:', error);
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'Duplicate record detected',
+          issues: error.meta?.target
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to create speciality'
+      }
+    };
   }
 };
 
 // ==== UPDATE A SPECIALITY ==== //
 export const updateOneSpecialityService = async (
   id: string,
-  payload: Prisma.SpecialityUpdateInput
-): Promise<Speciality | null> => {
+  payload: UpdateSpecialityPayload,
+  user?: { id?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = await prisma.speciality.update({
-      where: { id },
-      data: payload
+    const parsed = specialityUpdateSchema.safeParse({
+      ...payload,
+      id
     });
 
-    return result;
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const speciality = await prisma.speciality.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.code !== undefined && { code: data.code }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.status !== undefined && { status: data.status }),
+        updatedUser: userRelation,
+        updatedAt: new Date()
+      }
+    });
+
+    return {
+      success: true,
+      data: speciality,
+      message: 'Speciality updated successfully'
+    };
   } catch (error: any) {
-    console.error('updateOneSpecialityService error', error);
-    throw error;
+    console.error('updateOneSpecialityService error:', error);
+
+    if (error.code === 'P2025') {
+      return {
+        success: false,
+        error: {
+          message: 'Speciality not found'
+        }
+      };
+    }
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'Duplicate record detected',
+          issues: error.meta?.target
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to update speciality'
+      }
+    };
   }
 };
 
 // ==== GET ONE SPECIALITY ==== //
-export const getSpecialityByIdService = async (id: string) => {
+export const getSpecialityByIdService = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const result = await prisma.speciality.findUnique({
-      where: { id: id }
+    if (!id) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid speciality ID'
+        }
+      };
+    }
+
+    const speciality = await prisma.speciality.findUnique({
+      where: { id: id },
+      include: {
+        createdUser: true,
+        updatedUser: true
+      }
     });
 
-    return result;
+    if (!speciality) {
+      return {
+        success: false,
+        error: {
+          message: 'Speciality not found'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: speciality,
+      message: 'Speciality fetched successfully'
+    };
   } catch (error: any) {
-    console.error('getSpecialityByIdService error', error);
-    throw error;
+    console.error('getSpecialityByIdService error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get speciality'
+      }
+    };
   }
 };
 
 // ==== DELETE A SPECIALITY ==== //
-export const deleteSpecialityByIdService = async (id: string) => {
+export const deleteSpecialityByIdService = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   try {
-    const result = await prisma.speciality.delete({
+    const speciality = await prisma.speciality.delete({
       where: {
         id: id
       }
     });
-    return result;
+
+    return {
+      success: true,
+      data: speciality,
+      message: 'Speciality deleted successfully'
+    };
   } catch (error: any) {
-    console.error('deleteOneSpecialityService error', error);
-    throw error;
+    console.error('deleteSpecialityByIdService error:', error);
+
+    if (error.code === 'P2025') {
+      return {
+        success: false,
+        error: {
+          message: 'Speciality not found'
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete speciality'
+      }
+    };
   }
 };
 
 // ==== DELETE BULK SPECIALITIES ==== //
-export const bulkDeleteSpecialitiesByIdsService = async (ids: string[]) => {
+export const bulkDeleteSpecialitiesByIdsService = async (
+  ids: string[]
+): Promise<{
+  success: boolean;
+  data?: {
+    count: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   try {
+    if (!ids || ids.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No speciality IDs provided'
+        }
+      };
+    }
+
     const result = await prisma.speciality.deleteMany({
       where: {
         id: {
@@ -158,9 +398,30 @@ export const bulkDeleteSpecialitiesByIdsService = async (ids: string[]) => {
       }
     });
 
-    return result;
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No specialities found to delete'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        count: result.count
+      },
+      message: `${result.count} speciality(s) deleted successfully`
+    };
   } catch (error: any) {
     console.error('bulkDeleteSpecialitiesByIdsService error', error);
-    throw error;
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete specialities'
+      }
+    };
   }
 };

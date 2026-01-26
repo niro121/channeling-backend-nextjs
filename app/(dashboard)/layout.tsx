@@ -15,6 +15,9 @@ import {
   MapPinned,
   Landmark,
   BookOpen,
+  Users,
+  FileText,
+  MessageSquareText,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -25,13 +28,22 @@ import {LucideHome,
   TicketIcon
 } from 'lucide-react';
 
+import { canAccessRoute } from "@/lib/permissions";
+import { userTypes } from "@/lib/roles";
+
 async function DesktopNav({ session }: { session: Session | null }) {
   const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
-    if (userType === 1) {
+    if (userType === userTypes.admin) {
       return true;
+    }
+
+    // Check permissions if user has a user group
+    if (permissions) {
+      return canAccessRoute(permissions, path);
     }
 
     return false;
@@ -58,6 +70,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
           label="Users"
           icon={<UserGroup className="h-5 w-5" />}
+        />
+
+        {/* // =========================== USER GROUPS =========================== */}
+        <NavLink
+          href={hasAccess('/user-groups') ? '/user-groups' : 'unauthorized-access'}
+          label="User Groups"
+          icon={<Users className="h-5 w-5" />}
         />
 
         {/* // =========================== DOCTOR =========================== */}
@@ -147,6 +166,19 @@ async function DesktopNav({ session }: { session: Session | null }) {
           label="Discount"
           icon={<TicketIcon className="h-5 w-5" />}
         />
+        {/* // =========================== SMS PLAYGROUND =========================== */}
+        <NavLink
+          href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
+          label="SMS Playground"
+          icon={<MessageSquareText className="h-5 w-5" />}
+        />
+
+        {/* // =========================== REPORTS =========================== */}
+        <NavLink
+          href={hasAccess('/reports') ? '/reports' : 'unauthorized-access'}
+          label="Reports"
+          icon={<FileText className="h-5 w-5" />}
+        />
       </nav>
       <nav className="shrink-0 flex flex-col items-center gap-4 px-2 sm:py-5 border-t border-white/10">
         <p className="text-white text-sm">{process.env.APP_VERSION}</p>
@@ -157,11 +189,17 @@ async function DesktopNav({ session }: { session: Session | null }) {
 
 async function MobileNav({ session }: { session: Session | null }) {
   const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
 
   // userType 1 = admin (backend-user), has access to all routes
   const hasAccess = (path: string) => {
-    if (userType === 1) {
+    if (userType === userTypes.admin) {
       return true;
+    }
+
+    // Check permissions if user has a user group
+    if (permissions) {
+      return canAccessRoute(permissions, path);
     }
 
     return false;
@@ -191,6 +229,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess('/users') ? '/users' : 'unauthorized-access'}
             label="Users"
             icon={<UserGroup className="h-5 w-5" />}
+          />
+
+          {/* // =========================== USER GROUPS =========================== */}
+          <NavLink
+            href={hasAccess('/user-groups') ? '/user-groups' : 'unauthorized-access'}
+            label="User Groups"
+            icon={<Users className="h-5 w-5" />}
           />
 
           {/* // =========================== DOCTOR =========================== */}
@@ -303,6 +348,20 @@ async function MobileNav({ session }: { session: Session | null }) {
             label="Discount"
             icon={<TicketIcon className="h-5 w-5" />}
           />
+
+          {/* // =========================== SMS PLAYGROUND =========================== */}
+        <NavLink
+          href={hasAccess('/sms-playground') ? '/sms-playground' : 'unauthorized-access'}
+          label="SMS Playground"
+          icon={<MessageSquareText className="h-5 w-5" />}
+        />
+
+        {/* // =========================== REPORTS =========================== */}
+        <NavLink
+          href={hasAccess('/reports') ? '/reports' : 'unauthorized-access'}
+          label="Reports"
+          icon={<FileText className="h-5 w-5" />}
+        />
         </nav>
       </SheetContent>
     </Sheet>

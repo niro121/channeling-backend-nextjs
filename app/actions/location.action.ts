@@ -15,7 +15,6 @@ import {
   Location,
   UpdateLocationPayload
 } from '@/types/location';
-import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 type CreateLocationPayload = LocationFormValues & {
@@ -39,13 +38,22 @@ export const getAllLocations = async (sort: getLocationParam) => {
 
     const response = await getAllLocationsService(newFilter);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch locations',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data as Location[],
-      totalRecords: response.totalRecords
+      data: response.data ?? [],
+      totalRecords: response.totalRecords ?? 0
     };
   } catch (error: any) {
-    console.log('getAllLocations error ==>', error);
+    console.error('getAllLocations error:', error);
     return {
       success: false,
       message: error.message || 'Error getting data. please try again later',
@@ -60,12 +68,20 @@ export const getLocationById = async (id: string) => {
   try {
     const response = await getLocationByIdService(id);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch location',
+        data: null
+      };
+    }
+
     return {
       success: true,
-      data: response
+      data: response.data ?? null
     };
   } catch (error: any) {
-    console.log('getLocationById error ==>', error);
+    console.error('getLocationById error:', error);
     return {
       success: false,
       message: error.message || 'Error getting data. please try again later',
@@ -78,23 +94,26 @@ export const getLocationById = async (id: string) => {
 export const createLocation = async (
   payload: CreateLocationPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const locationRelation = user?.id
-      ? { connect: { id: user.id } }
-      : undefined;
+    const result = await createLocationService(payload, user);
 
-    const result = await createLocationService({
-      name: payload.name,
-      addressLine1: payload.addressLine1,
-      addressLine2: payload.addressLine2,
-      city: payload.city,
-      branchType: Number(payload.branchType),
-      status: payload.status,
-      code: payload.code,
-      createdUser: locationRelation,
-      updatedUser: locationRelation
-    });
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Location creation failed'
+        }
+      };
+    }
 
     revalidatePath('/locations');
     revalidatePath('/zones');
@@ -102,15 +121,16 @@ export const createLocation = async (
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Location created successfully'
     };
   } catch (error: any) {
-    console.error('createLocation error', error);
+    console.error('createLocation action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to create location'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -121,21 +141,26 @@ export const updateOneLocation = async (
   id: string,
   payload: UpdateLocationPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const data: Prisma.LocationUpdateInput = {
-      updatedAt: new Date(),
-      ...user?.id ? {updatedUser: {connect: {id: user.id}}} : ''
+    const result = await updateOneLocationService(id, payload, user);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Location update failed'
+        }
+      };
     }
-
-    if(payload.name !== undefined) data.name = payload.name
-    if(payload.addressLine1 !== undefined) data.addressLine1 = payload.addressLine1
-    if(payload.addressLine2 !== undefined) data.addressLine2 = payload.addressLine2
-    if(payload.city !== undefined) data.city = payload.city
-    if(payload.branchType !== undefined) data.branchType = Number(payload.branchType)
-    if(payload.status !== undefined) data.status = payload.status
-
-    const result = await updateOneLocationService(id, data)
 
     revalidatePath('/locations');
     revalidatePath('/zones');
@@ -143,15 +168,16 @@ export const updateOneLocation = async (
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Location updated successfully'
     };
   } catch (error: any) {
-    console.error('updateLocation error', error);
+    console.error('updateOneLocation action error:', error);
 
     return {
       success: false,
       error: {
-        message: error.message || 'Failed to update location'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -162,16 +188,26 @@ export const deleteLocation = async (id: string) => {
   try {
     const result = await deleteLocationByIdService(id);
 
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Location deletion failed'
+        }
+      };
+    }
+
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return {
       success: true,
-      data: result
+      data: result.data,
+      message: result.message || 'Location deleted successfully'
     };
   } catch (error: any) {
-    console.error('deleteLocation error', error);
+    console.error('deleteLocation error:', error);
     return {
       success: false,
       error: {
@@ -186,13 +222,17 @@ export const bulkDeleteLocations = async (ids: string[]) => {
   try {
     const result = await bulkDeleteLocationsByIdsService(ids);
 
+    if (!result.success) {
+      throw new Error(result.error?.message || 'Failed to delete locations');
+    }
+
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
 
     return true;
   } catch (error: any) {
-    console.error('bulkDeleteLocations error', error);
-    return false;
+    console.error('bulkDeleteLocations error:', error);
+    throw error;
   }
 };

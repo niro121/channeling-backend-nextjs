@@ -7,6 +7,58 @@ import {
 } from "@/types/user"
 import prisma from "@/lib/prisma"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
+import { z } from "zod"
+
+// ==== USER: VALIDATION SCHEMA ==== //
+const userSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(100, 'Must be less than 100 characters'),
+  email: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .email('Invalid email address'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .regex(
+      /^(?=.*[^\w\s])(?=.*[a-z])(?=.*[A-Z])(?=.*\d)\S+$/,
+      'Password must only contain a mix of uppercase and lowercase letters, numbers, and special characters'
+    ),
+  userType: z
+    .number()
+    .int()
+    .refine((val) => val === 1 || val === 2, {
+      message: 'User type must be Admin (1) or Staff (2)'
+    }),
+  status: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Status must be Inactive (0) or Active (1)'
+    })
+    .optional(),
+  userGroupId: z.string().nullable().optional()
+});
+
+const userUpdateSchema = userSchema.partial().extend({
+  id: z.string().min(1, 'User ID is required')
+}).refine(
+  (data) => {
+    // For updates, password is optional (can be empty to keep existing)
+    if (data.password !== undefined && data.password !== '') {
+      return data.password.length >= 8 && /^(?=.*[^\w\s])(?=.*[a-z])(?=.*[A-Z])(?=.*\d)\S+$/.test(data.password);
+    }
+    return true;
+  },
+  {
+    message: 'Password must be at least 8 characters long and contain a mix of uppercase, lowercase, numbers, and special characters',
+    path: ['password']
+  }
+);
+
+type userInput = z.infer<typeof userSchema>;
 
 export const getUsers = async ({
     page,
@@ -109,41 +161,175 @@ export const deleteOneUser = async (id: string) => {
     }
 }
 
-export const saveUser = async (user: User) => {
-    try {
-        const result = await prisma.user.create({
-            data: user,
-        })
+export const saveUser = async (
+  payload: {
+    name: string;
+    email: string;
+    password: string;
+    userType: number;
+    status?: number;
+    userGroupId?: string | null;
+  }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const parsed = userSchema.safeParse(payload);
 
-        return result
-    } catch (error: any) {
-        if (error instanceof PrismaClientKnownRequestError) {
-            if (error.code === "P2002") {
-                throw new Error(
-                    "user might exist from this phone or email address. please verify and try again"
-                )
-            }
-        } else {
-            throw new Error(error.message ?? "Save user Error")
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
         }
+      };
     }
-}
 
-export const updateOneUser = async (id: string, payload: User) => {
-    try {
-        await prisma.user.update({
-            data: payload,
-            where: {
-                id: id,
-            },
-        })
+    const data = parsed.data;
 
-        return true
-    } catch (error: any) {
-        console.log("updateOneUser error ==> ", error)
-        throw new Error(error.message ?? "Update user Error")
+    const result = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        userType: data.userType,
+        status: data.status ?? 1,
+        userGroupId: data.userGroupId || null,
+      }
+    });
+
+    return {
+      success: true,
+      data: result,
+      message: 'User created successfully'
+    };
+  } catch (error: any) {
+    console.error('saveUser error:', error);
+
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return {
+          success: false,
+          error: {
+            message: 'User might exist from this email address. Please verify and try again',
+            issues: error.meta?.target
+          }
+        };
+      }
+      if (error.code === 'P2025') {
+        return {
+          success: false,
+          error: {
+            message: 'Record not found'
+          }
+        };
+      }
     }
-}
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to create user'
+      }
+    };
+  }
+};
+
+export const updateOneUser = async (
+  id: string,
+  payload: {
+    name?: string;
+    email?: string;
+    password?: string;
+    userType?: number;
+    status?: number;
+    userGroupId?: string | null;
+  }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const parsed = userUpdateSchema.safeParse({
+      ...payload,
+      id
+    });
+
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.password !== undefined && data.password !== '') updateData.password = data.password;
+    if (data.userType !== undefined) updateData.userType = data.userType;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.userGroupId !== undefined) updateData.userGroupId = data.userGroupId || null;
+
+    const result = await prisma.user.update({
+      data: updateData,
+      where: {
+        id
+      }
+    });
+
+    return {
+      success: true,
+      data: result,
+      message: 'User updated successfully'
+    };
+  } catch (error: any) {
+    console.error('updateOneUser error:', error);
+
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return {
+          success: false,
+          error: {
+            message: 'Duplicate record detected',
+            issues: error.meta?.target
+          }
+        };
+      }
+      if (error.code === 'P2025') {
+        return {
+          success: false,
+          error: {
+            message: 'Record not found'
+          }
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to update user'
+      }
+    };
+  }
+};
 
 export const getUserById = async (id: string) => {
     try {

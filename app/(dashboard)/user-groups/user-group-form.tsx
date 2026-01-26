@@ -1,0 +1,366 @@
+"use client"
+
+import React, { useState, useEffect } from "react"
+import { UserGroup, RESOURCES, PERMISSION_ACTIONS, ResourcePermissions, Permissions } from "@/types/user-group"
+import { Form, Formik, FormikHelpers } from "formik"
+import CustomFormField from "@/components/common/form-field"
+import { Button } from "@/components/ui/button"
+import { DisabledIcon, SaveIcon } from "@/components/icons"
+import { Checkbox } from "@/components/ui/checkbox"
+import * as Yup from "yup"
+import { Separator } from "@/components/ui/separator"
+import { createNewUserGroup, updateUserGroup } from "@/app/actions/user-group.actions"
+import { useToast } from "@/components/hooks/use-toast"
+import { Label } from "@/components/ui/label"
+import CustomSelectField from "@/components/common/custom-select-field"
+import { Textarea } from "@/components/ui/textarea"
+import { RefreshCw } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useDialogSafe } from "@/components/common/custom-dialog"
+
+type UserGroupFormProps = {
+    userGroup: UserGroup | null
+    sessionUserType: number | undefined
+    isEditPage?: boolean
+}
+
+const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserGroupFormProps) => {
+    const [initialValues, setInitialValues] = useState<UserGroup>({
+        id: userGroup?.id ? userGroup.id : "",
+        name: userGroup?.name ? userGroup.name : "",
+        description: userGroup?.description ? userGroup.description : "",
+        status: userGroup?.status !== undefined ? userGroup.status : 1,
+        permissions: userGroup?.permissions || initializePermissions(),
+        createdAt: userGroup?.createdAt ? userGroup.createdAt : new Date(),
+    })
+    const [loading, setLoading] = useState<boolean>(false)
+    const dialogContext = useDialogSafe()
+    const { toast } = useToast()
+    const router = useRouter()
+    
+    // Use dialog context if available, otherwise use no-op function
+    const setDialogOpen = dialogContext?.setDialogOpen || (() => {})
+
+    function initializePermissions(): Permissions {
+        const perms: Permissions = {}
+        RESOURCES.forEach(resource => {
+            perms[resource.id] = {
+                view: false,
+                add: false,
+                edit: false,
+                delete: false,
+            }
+        })
+        return perms
+    }
+
+    const validationSchema = Yup.object({
+        name: Yup.string()
+            .max(100, "Must be less than 100 characters")
+            .required("This field is mandatory"),
+        status: Yup.number()
+            .oneOf([0, 1], "Status must be Active (1) or Inactive (0)")
+            .required("This field is mandatory"),
+    })
+
+    const handleSubmit = async (
+        values: UserGroup,
+        { resetForm }: FormikHelpers<UserGroup>
+    ) => {
+        try {
+            let respond: any;
+
+            setLoading(true)
+
+            if (userGroup && userGroup.id) {
+                respond = await updateUserGroup(userGroup.id, values)
+            } else {
+                respond = await createNewUserGroup(values)
+            }
+
+            setLoading(false)
+
+            if (respond.isError) {
+                throw new Error(respond.errors.message)
+            }
+
+            toast({
+                variant: "success",
+                title: "Success",
+                description: "User group was saved successfully",
+            })
+            
+            if (isEditPage) {
+                router.push("/user-groups")
+            } else {
+                resetForm(initialValues)
+                setDialogOpen(false)
+            }
+        } catch (error: any) {
+            setLoading(false)
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error.message ?? "User group save unsuccessful.",
+            })
+        }
+    }
+
+    const handleSyncPermissions = (formik: any) => {
+        // Sync all permissions - set all to true for all resources
+        const syncedPermissions: Permissions = {}
+        RESOURCES.forEach(resource => {
+            syncedPermissions[resource.id] = {
+                view: true,
+                add: true,
+                edit: true,
+                delete: true,
+            }
+        })
+        formik.setFieldValue("permissions", syncedPermissions)
+    }
+
+    const handleSelectAll = (formik: any, resourceId: string) => {
+        const currentPermissions = { ...formik.values.permissions }
+        currentPermissions[resourceId] = {
+            view: true,
+            add: true,
+            edit: true,
+            delete: true,
+        }
+        formik.setFieldValue("permissions", currentPermissions)
+    }
+
+    const handleDeselectAll = (formik: any, resourceId: string) => {
+        const currentPermissions = { ...formik.values.permissions }
+        currentPermissions[resourceId] = {
+            view: false,
+            add: false,
+            edit: false,
+            delete: false,
+        }
+        formik.setFieldValue("permissions", currentPermissions)
+    }
+
+    const handlePermissionChange = (
+        formik: any,
+        resourceId: string,
+        action: "view" | "add" | "edit" | "delete",
+        value: boolean
+    ) => {
+        const currentPermissions = { ...formik.values.permissions }
+        if (!currentPermissions[resourceId]) {
+            currentPermissions[resourceId] = {
+                view: false,
+                add: false,
+                edit: false,
+                delete: false,
+            }
+        }
+        currentPermissions[resourceId] = {
+            ...currentPermissions[resourceId],
+            [action]: value,
+        }
+        formik.setFieldValue("permissions", currentPermissions)
+    }
+
+    return (
+        <Formik
+            initialValues={initialValues}
+            onSubmit={handleSubmit}
+            validationSchema={validationSchema}
+            enableReinitialize
+        >
+            {(formik) => {
+                const styleClasses = {
+                    parentDiv: "grid grid-cols-1 items-center gap-4 sm:grid-cols-4",
+                    labelClassName: "text-sm text-black font-semibold capitalize",
+                    inputClassName: "col-span-full sm:col-span-3",
+                }
+
+                return (
+                    <Form className="w-full">
+                        <div className="grid gap-4 py-4">
+                            {/* Basic Information Section */}
+                            <div className="space-y-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-1">Basic Information</h3>
+                                    <p className="text-sm text-muted-foreground mb-4">
+                                        Enter the basic details for this user group.
+                                    </p>
+                                </div>
+
+                                <CustomFormField
+                                    type="text"
+                                    id="name"
+                                    placeholder="Group Name"
+                                    value={formik.values.name}
+                                    onChange={formik.handleChange}
+                                    onBlur={formik.handleBlur}
+                                    required
+                                    styleClasses={styleClasses}
+                                />
+
+                                <div className={styleClasses.parentDiv}>
+                                    <Label className={styleClasses.labelClassName}>
+                                        Description
+                                    </Label>
+                                    <Textarea
+                                        id="description"
+                                        placeholder="Description"
+                                        value={formik.values.description || ""}
+                                        onChange={formik.handleChange}
+                                        onBlur={formik.handleBlur}
+                                        className={styleClasses.inputClassName}
+                                        rows={3}
+                                    />
+                                </div>
+
+                                <CustomSelectField
+                                    id="status"
+                                    placeholder="Status"
+                                    value={formik.values.status?.toString()}
+                                    onChange={(value) => formik.setFieldValue("status", parseInt(value))}
+                                    required
+                                    options={[
+                                        { id: "1", name: "Active" },
+                                        { id: "0", name: "Inactive" }
+                                    ]}
+                                    styleClasses={styleClasses}
+                                />
+                            </div>
+
+                            <Separator />
+
+                            {/* Permissions Section */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-lg font-semibold mb-1">Permissions</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Select the permissions for this user group. Permissions are organized by resource.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleSyncPermissions(formik)}
+                                        className="gap-2"
+                                    >
+                                        <RefreshCw className="h-4 w-4" />
+                                        Sync Permissions
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    {RESOURCES.map((resource) => {
+                                        const resourcePermissions = formik.values.permissions[resource.id] || {
+                                            view: false,
+                                            add: false,
+                                            edit: false,
+                                            delete: false,
+                                        }
+
+                                        return (
+                                            <div key={resource.id} className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-base font-semibold">
+                                                        {resource.name}
+                                                    </Label>
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSelectAll(formik, resource.id)}
+                                                            className="text-sm text-muted-foreground hover:text-foreground underline"
+                                                        >
+                                                            Select All
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeselectAll(formik, resource.id)}
+                                                            className="text-sm text-muted-foreground hover:text-foreground underline"
+                                                        >
+                                                            Deselect All
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                    {PERMISSION_ACTIONS.map((action) => (
+                                                        <div
+                                                            key={action.id}
+                                                            className="flex items-center space-x-2 p-3 border rounded-md"
+                                                        >
+                                                            <Checkbox
+                                                                id={`${resource.id}-${action.id}`}
+                                                                checked={resourcePermissions[action.id] || false}
+                                                                onCheckedChange={(checked) =>
+                                                                    handlePermissionChange(
+                                                                        formik,
+                                                                        resource.id,
+                                                                        action.id,
+                                                                        checked as boolean
+                                                                    )
+                                                                }
+                                                            />
+                                                            <div className="flex-1">
+                                                                <Label
+                                                                    htmlFor={`${resource.id}-${action.id}`}
+                                                                    className="text-sm font-medium cursor-pointer"
+                                                                >
+                                                                    {action.name}
+                                                                </Label>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {action.description}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            <div className="flex flex-col sm:flex-row justify-end gap-3">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                                    type="button"
+                                    onClick={() => {
+                                        if (isEditPage) {
+                                            router.push("/user-groups")
+                                        } else {
+                                            setDialogOpen(false)
+                                            formik.resetForm(initialValues)
+                                        }
+                                    }}
+                                    disabled={loading}
+                                >
+                                    <DisabledIcon />
+                                    <span>Cancel</span>
+                                </Button>
+                                <Button
+                                    disabled={!sessionUserType || loading}
+                                    size={"sm"}
+                                    type="submit"
+                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                >
+                                    <SaveIcon />
+                                    <span>Save</span>
+                                </Button>
+                            </div>
+                        </div>
+                    </Form>
+                )
+            }}
+        </Formik>
+    )
+}
+
+export default UserGroupForm

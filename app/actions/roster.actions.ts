@@ -5,21 +5,28 @@ import { deleteOneRoster, deleteRosters, getRosters, saveRoster, updateOneRoster
 import { revalidatePath } from "next/cache"
 
 export const getAllRosters = async (filter: GetRostersParams) => {
-
     try {
-
         let newFilter: GetRostersQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
             limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
             keyword: filter.keyword ?? "",
         }
 
-        return await getRosters(newFilter)
+        const response = await getRosters(newFilter);
 
-
+        return {
+            success: true,
+            data: response.data ?? [],
+            totalRecords: response.totalRecords ?? 0
+        };
     } catch (error: any) {
         console.log('getAllRosters error', error);
-        throw new Error(error.message ?? "Error getting data. please try again later")
+        return {
+            success: false,
+            message: error.message || "Error getting data. please try again later",
+            data: [],
+            totalRecords: 0
+        };
     }
 }
 
@@ -50,30 +57,41 @@ export const deleteRoster = async (id: string) => {
 }
 
 export const createNewRoster = async (payload: Roster) => {
-
     try {
-        delete payload.id
-        delete payload.createdAt
-        delete payload.updatedAt
+        // Clean up payload
+        const cleanPayload = { ...payload };
+        delete cleanPayload.id;
+        delete cleanPayload.createdAt;
+        delete cleanPayload.updatedAt;
+        delete cleanPayload.department;
 
         // Set default status if not provided
-        if (payload.status === undefined) {
-            payload.status = 0
+        if (cleanPayload.status === undefined) {
+            cleanPayload.status = 0;
         }
 
-        const result = await saveRoster(payload)
+        const result = await saveRoster(cleanPayload);
 
-        revalidatePath('/rosters')
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            };
+        }
+
+        revalidatePath('/rosters');
 
         return {
             isError: false,
             errors: {},
             data: {
                 saved: true,
-                id: result && result.id
+                id: result.data?.id
             }
-        }
-
+        };
     } catch (error: any) {
         console.log('createNewRoster error ==>', error);
         return {
@@ -82,28 +100,41 @@ export const createNewRoster = async (payload: Roster) => {
                 message: error.message ?? "Something went wrong. please try again later"
             },
             data: {}
-        }
+        };
     }
 }
 
 export const updateRoster = async (id: string, payload: Roster) => {
     try {
-        delete payload.id
-        delete payload.createdAt
-        delete payload.updatedAt
+        // Clean up payload
+        const cleanPayload = { ...payload };
+        delete cleanPayload.id;
+        delete cleanPayload.createdAt;
+        delete cleanPayload.updatedAt;
+        delete cleanPayload.department;
 
-        let result = await updateOneRoster(id, payload)
+        const result = await updateOneRoster(id, cleanPayload);
 
-        revalidatePath('/rosters')
-        revalidatePath(`/rosters/${id}/edit`)
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            };
+        }
+
+        revalidatePath('/rosters');
+        revalidatePath(`/rosters/${id}/edit`);
+
         return {
             isError: false,
             errors: {},
             data: {
                 saved: true
             }
-        }
-
+        };
     } catch (error: any) {
         console.log('updateRoster error ==>', error);
         return {
@@ -112,7 +143,7 @@ export const updateRoster = async (id: string, payload: Roster) => {
                 message: error.message ?? "Something went wrong. please try again later"
             },
             data: {}
-        }
+        };
     }
 }
 

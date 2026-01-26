@@ -13,14 +13,9 @@ export default async function EditTagPage({ params }: PageProps) {
     const resolvedParams = await params
     const { id } = resolvedParams
 
-    let tag
-    try {
-        tag = await fetchTagById(id)
-    } catch (error: any) {
-        notFound()
-    }
+    const tagResult = await fetchTagById(id)
 
-    if (!tag) {
+    if (!tagResult.success || !tagResult.data) {
         notFound()
     }
 
@@ -28,7 +23,7 @@ export default async function EditTagPage({ params }: PageProps) {
         <div className="container mx-auto py-6">
             <div className="w-full">
                 <h1 className="text-2xl font-bold mb-6">Edit Tag</h1>
-                <TagForm tag={tag} isEditPage={true} />
+                <TagForm tag={tagResult.data} isEditPage={true} />
             </div>
         </div>
     )

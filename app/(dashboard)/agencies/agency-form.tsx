@@ -113,10 +113,7 @@ const AgencyForm = ({
   return (
     <Formik
       initialValues={initialValues}
-      validationSchema={Yup.lazy((values) => {
-        // We handle validation manually in the submit handlers to allow separate tab saving
-        return Yup.object();
-      })}
+      validationSchema={agencyDetailsSchema}
       onSubmit={() => {}}
       enableReinitialize
     >
@@ -136,8 +133,35 @@ const AgencyForm = ({
             }
 
             setLoading(false);
+            
             if (respond.isError) {
-              throw new Error(respond.errors.message);
+              // Handle server-side validation errors
+              if (respond.errors?.issues) {
+                // Set field-level errors from server validation
+                const fieldErrors: any = {};
+                const touchedFields: any = {};
+                Object.keys(respond.errors.issues).forEach((key) => {
+                  const errorArray = respond.errors.issues[key];
+                  if (Array.isArray(errorArray) && errorArray.length > 0) {
+                    fieldErrors[key] = errorArray[0];
+                    touchedFields[key] = true;
+                  }
+                });
+                formik.setErrors(fieldErrors);
+                formik.setTouched(touchedFields);
+                toast({
+                  variant: 'destructive',
+                  title: 'Validation Error',
+                  description: respond.errors.message || 'Please check the form for errors.'
+                });
+              } else {
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description: respond.errors?.message || 'Agency save unsuccessful.'
+                });
+              }
+              return;
             }
 
             toast({
@@ -155,13 +179,17 @@ const AgencyForm = ({
           } catch (error: any) {
             setLoading(false);
             if (error.name === 'ValidationError') {
-              // Highlight errors
-              formik.setErrors(
-                error.inner.reduce((acc: any, err: any) => {
-                  acc[err.path] = err.message;
-                  return acc;
-                }, {})
-              );
+              // Highlight client-side validation errors
+              const errors = error.inner.reduce((acc: any, err: any) => {
+                acc[err.path] = err.message;
+                return acc;
+              }, {});
+              const touched = error.inner.reduce((acc: any, err: any) => {
+                acc[err.path] = true;
+                return acc;
+              }, {});
+              formik.setErrors(errors);
+              formik.setTouched(touched);
               toast({
                 variant: 'destructive',
                 title: 'Validation Error',
@@ -241,9 +269,13 @@ const AgencyForm = ({
               value={tab}
               onValueChange={setTab}
             >
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="agencyDetails">Agency Details</TabsTrigger>
-                <TabsTrigger value="createLogin">Create Login</TabsTrigger>
+              <TabsList>
+                <TabsTrigger value="agencyDetails" className="cursor-pointer">
+                  Agency Details
+                </TabsTrigger>
+                <TabsTrigger value="createLogin" className="cursor-pointer">
+                  Create Login
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="agencyDetails">

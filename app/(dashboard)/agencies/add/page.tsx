@@ -25,7 +25,7 @@ export default async function Page() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Add Agency</h2>
       </div>
-      <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
+      <div className="h-full flex-1 flex-col space-y-8">
         <AgencyForm parentAgencies={parentAgencies} locations={locations} />
       </div>
     </div>

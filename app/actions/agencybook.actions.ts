@@ -16,7 +16,6 @@ import {
   AgencyBook
 } from '@/types/agencybook';
 import { revalidatePath } from 'next/cache';
-import { Prisma } from '@prisma/client';
 
 // ==== GET ALL AGENCY BOOKS ==== //
 export const getAllAgencyBooks = async (params: GetAgencyBooksParams) => {
@@ -32,16 +31,26 @@ export const getAllAgencyBooks = async (params: GetAgencyBooksParams) => {
 
     const response = await getAllAgencyBooksService(query);
 
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch agency books',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     return {
       success: true,
-      data: response.data,
-      totalRecords: response.totalRecords
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
     };
   } catch (error: any) {
-    console.log('getAllAgencyBooks error', error);
+    console.error('getAllAgencyBooks action error:', error);
     return {
       success: false,
-      message: error.message || 'Error getting agency books',
+      message: error.message || 'Error getting agency books. Please try again later',
       data: [],
       totalRecords: 0
     };
@@ -49,20 +58,39 @@ export const getAllAgencyBooks = async (params: GetAgencyBooksParams) => {
 };
 
 // ==== GET ONE AGENCY BOOK ==== //
-export const getAgencyBookById = async (id: string) => {
+export const getAgencyBookById = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const response = await getAgencyBookByIdService(id);
+    const result = await getAgencyBookByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch agency book'
+        }
+      };
+    }
 
     return {
       success: true,
-      data: response
+      data: result.data,
+      message: result.message
     };
   } catch (error: any) {
-    console.log('getAgencyBookById error', error);
+    console.error('getAgencyBookById action error:', error);
+
     return {
       success: false,
-      message: error.message || 'Error getting agency book',
-      data: null
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
     };
   }
 };
@@ -71,47 +99,47 @@ export const getAgencyBookById = async (id: string) => {
 export const createAgencyBook = async (
   payload: AgencyBookFormValues,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  isError?: boolean;
+  errors?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    // Filter out temporary agency IDs (starting with "temp-") and empty strings
-    // Only include agencyId if it's a valid ObjectID format
-    const isValidObjectId = (id: string | undefined): boolean => {
-      if (!id || id === '' || id.startsWith('temp-')) {
-        return false;
-      }
-      // MongoDB ObjectID is 24 hex characters
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
+    const result = await createAgencyBookService(payload, user);
 
-    const data: Prisma.AgencyBookCreateInput = {
-      bookNumber: payload.bookNumber,
-      startNumber: payload.startNumber,
-      endNumber: payload.endNumber,
-      status: payload.status,
-      ...(isValidObjectId(payload.agencyId)
-        ? { agency: { connect: { id: payload.agencyId } } }
-        : {})
-    };
-
-    const result = await createAgencyBookService(data);
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error || {
+          message: result.message || 'Agency book creation failed'
+        }
+      };
+    }
 
     revalidatePath('/agency-books');
 
     return {
       success: true,
-      data: result,
+      data: result.data,
+      message: result.message || 'Agency book created successfully',
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('createAgencyBook error', error);
+    console.error('createAgencyBook action error:', error);
 
     return {
       success: false,
       isError: true,
       data: null,
       errors: {
-        message: error.message || 'Failed to create agency book'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -122,53 +150,47 @@ export const updateAgencyBook = async (
   id: string,
   payload: UpdateAgencyBookPayload,
   user?: { id?: string; name?: string }
-) => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  isError?: boolean;
+  errors?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    // Filter out temporary agency IDs (starting with "temp-") and empty strings
-    const isValidObjectId = (id: string | undefined): boolean => {
-      if (!id || id === '' || id.startsWith('temp-')) {
-        return false;
-      }
-      // MongoDB ObjectID is 24 hex characters
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
+    const result = await updateAgencyBookService(id, payload, user);
 
-    const data: Prisma.AgencyBookUpdateInput = {
-      updatedAt: new Date()
-    };
-
-    if (payload.bookNumber !== undefined) data.bookNumber = payload.bookNumber;
-    if (payload.startNumber !== undefined)
-      data.startNumber = payload.startNumber;
-    if (payload.endNumber !== undefined) data.endNumber = payload.endNumber;
-    if (payload.status !== undefined) data.status = payload.status;
-    if (payload.agencyId !== undefined) {
-      if (isValidObjectId(payload.agencyId)) {
-        data.agency = { connect: { id: payload.agencyId } };
-      } else {
-        data.agency = { disconnect: true };
-      }
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error || {
+          message: result.message || 'Agency book update failed'
+        }
+      };
     }
-
-    const result = await updateAgencyBookService(id, data);
 
     revalidatePath('/agency-books');
 
     return {
       success: true,
-      data: result,
+      data: result.data,
+      message: result.message || 'Agency book updated successfully',
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('updateAgencyBook error', error);
+    console.error('updateAgencyBook action error:', error);
 
     return {
       success: false,
       isError: true,
       data: null,
       errors: {
-        message: error.message || 'Failed to update agency book'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -177,22 +199,32 @@ export const updateAgencyBook = async (
 // ==== DELETE AGENCY BOOK ==== //
 export const deleteAgencyBook = async (id: string) => {
   try {
-    await deleteAgencyBookByIdService(id);
+    const result = await deleteAgencyBookByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error
+      };
+    }
 
     revalidatePath('/agency-books');
 
     return {
       success: true,
+      message: result.message,
       isError: false,
       errors: {}
     };
   } catch (error: any) {
-    console.error('deleteAgencyBook error', error);
+    console.error('deleteAgencyBook action error:', error);
+
     return {
       success: false,
       isError: true,
       errors: {
-        message: error.message || 'Failed to delete agency book'
+        message: error.message || 'Unexpected error occurred'
       }
     };
   }
@@ -201,14 +233,18 @@ export const deleteAgencyBook = async (id: string) => {
 // ==== BULK DELETE AGENCY BOOKS ==== //
 export const bulkDeleteAgencyBooks = async (ids: string[]) => {
   try {
-    await bulkDeleteAgencyBooksService(ids);
+    const result = await bulkDeleteAgencyBooksService(ids);
+
+    if (!result.success) {
+      throw new Error(result.error?.message || 'Failed to delete agency books');
+    }
 
     revalidatePath('/agency-books');
 
     return true;
   } catch (error: any) {
-    console.error('bulkDeleteAgencyBooks error', error);
-    return false;
+    console.error('bulkDeleteAgencyBooks action error:', error);
+    throw error;
   }
 };
 

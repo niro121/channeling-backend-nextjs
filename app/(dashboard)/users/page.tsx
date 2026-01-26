@@ -7,6 +7,9 @@ import { userColumns } from "./columns"
 import { bulkDeleteUsers, getAllUsers } from "@/app/actions/user.actions"
 import { fetchServerSession } from "@/lib/session"
 import Loading from "../loading"
+import { getAllUserGroupsOptions } from "@/app/actions/user-group.actions"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { redirect } from "next/navigation"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -17,6 +20,11 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+    // Check if user can view users
+    const canView = await checkRouteAccess("/users")
+    if (!canView) {
+        redirect("/unauthorized-access")
+    }
 
     const resolvedSearchParams = await searchParams;
     const session = await fetchServerSession()
@@ -27,6 +35,8 @@ export default async function Page({ searchParams }: SearchParams) {
         keyword: resolvedSearchParams?.keyword,
         userType: session?.user?.userType?.toString()
     })
+
+    const { data: userGroupOptions } = await getAllUserGroupsOptions()
 
 
     return (
@@ -43,7 +53,11 @@ export default async function Page({ searchParams }: SearchParams) {
                     <AddBtn
                         dialogTitle="New User"
                     >
-                        <UserForm user={null} sessionUserType={session?.user?.userType} />
+                        <UserForm 
+                            user={null} 
+                            sessionUserType={session?.user?.userType}
+                            userGroupOptions={userGroupOptions.map(ug => ({ id: ug.id, name: ug.name }))}
+                        />
                     </AddBtn>
                 </div>
             </div>
