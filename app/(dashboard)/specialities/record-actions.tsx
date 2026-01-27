@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Edit } from "lucide-react"
 import { BinIcon } from "@/components/icons"
 import { useRouter } from "next/navigation"
+import { usePermissions } from "@/components/hooks/use-permissions"
 
 type SpecialityActionsProps<TData extends Speciality> = {
   row: Row<TData>
@@ -24,6 +25,7 @@ export function SpecialityRecordActions({
   const [loading, setLoading] = React.useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const { has } = usePermissions()
 
   // ==== SPECIALITY DATA ROW ==== //
   const speciality = row.original
@@ -65,23 +67,27 @@ export function SpecialityRecordActions({
   return (
     <>
       <DataTableRowActions>
-        <Button
-          variant="link"
-          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => router.push(`/specialities/${speciality.id}/edit`)}
-        >
-          <Edit className="w-5 h-5" />
-          <span className="sr-only">Edit</span>
-        </Button>
+        {has("specialities", "edit") && (
+          <Button
+            variant="link"
+            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            onClick={() => router.push(`/specialities/${speciality.id}/edit`)}
+          >
+            <Edit className="w-5 h-5" />
+            <span className="sr-only">Edit</span>
+          </Button>
+        )}
 
-        <Button
-          variant="link"
-          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => showHideDeleteModal(true)}
-        >
-          <BinIcon className="w-5 h-5 text-red-600" />
-          <span className="sr-only">Delete</span>
-        </Button>
+        {has("specialities", "delete") && (
+          <Button
+            variant="link"
+            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            onClick={() => showHideDeleteModal(true)}
+          >
+            <BinIcon className="w-5 h-5 text-red-600" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        )}
       </DataTableRowActions>
 
       <CustomAlertDialog
