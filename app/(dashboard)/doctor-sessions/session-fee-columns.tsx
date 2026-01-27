@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Fee } from '@/types/doctor.session';
 import React from 'react';
-import { Input } from '@/components/ui/input';
+import { NumericInputCell } from './numeric-input-field';
 
 export const DoctorSessionFeeColumns = (formik: any): ColumnDef<Fee>[] => [
   {
@@ -19,16 +19,10 @@ export const DoctorSessionFeeColumns = (formik: any): ColumnDef<Fee>[] => [
       const index = row.index;
 
       return (
-        <Input
-          type="number"
-          min={0}
-          className="p-2 text-right"
+        <NumericInputCell
           value={formik.values.fees[index].localFee}
-          onChange={(e) =>
-            formik.setFieldValue(
-              `fees.${index}.localFee`,
-              Number(e.target.value)
-            )
+          onChange={(val) =>
+            formik.setFieldValue(`fees.${index}.localFee`, val)
           }
         />
       );
@@ -41,16 +35,10 @@ export const DoctorSessionFeeColumns = (formik: any): ColumnDef<Fee>[] => [
       const index = row.index;
 
       return (
-        <Input
-          type="number"
-          min={0}
-          className="p-2 text-right"
+        <NumericInputCell
           value={formik.values.fees[index].foreignFee}
-          onChange={(e) =>
-            formik.setFieldValue(
-              `fees.${index}.foreignFee`,
-              Number(e.target.value)
-            )
+          onChange={(val) =>
+            formik.setFieldValue(`fees.${index}.foreignFee`, val)
           }
         />
       );
