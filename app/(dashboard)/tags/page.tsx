@@ -9,6 +9,8 @@ import Loading from "../loading"
 import Link from "next/link"
 import FilterSection from "./filter-section"
 import { ExportWrapper } from "../export-wrapper"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { redirect } from "next/navigation"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -20,6 +22,11 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+    // Check if user can view tags
+    const canView = await checkRouteAccess("/tags")
+    if (!canView) {
+        redirect("/unauthorized-access")
+    }
 
     const resolvedSearchParams = await searchParams;
 
