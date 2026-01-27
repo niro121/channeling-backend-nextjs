@@ -116,7 +116,7 @@ model Doctor {
 }
 
 model DoctorSession {
-  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
   name                  String
   institution           Int
   startTime             DateTime
@@ -128,15 +128,15 @@ model DoctorSession {
   refundable            Int // == 0: No, 1: Yes == // 
   advancedBookingDays   Int
   fees                  Json
-  amountLocal           Int?
-  amountForeign         Int?
-  applyTo               DateTime
-  dayType               Int // == 0: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
+  amountLocal           Float?
+  amountForeign         Float?
+  applyTo               DateTime?
+  dayType               Int // == 1: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
   status                Int // == 0: unpublish, 1: publish == //
-  createdBy             String?  @db.ObjectId
-  updatedBy             String?  @db.ObjectId
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @default(now())
+  createdBy             String?   @db.ObjectId
+  updatedBy             String?   @db.ObjectId
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now())
 
   // ==== RELATIONS ==== //
   doctorId          String?         @db.ObjectId
@@ -149,7 +149,7 @@ model DoctorSession {
   room              Room?           @relation("SessionToRoom", fields: [roomId], references: [id], onDelete: SetNull)
   previousSessionId String?         @db.ObjectId
   previousSession   DoctorSession?  @relation("PreviousSession", fields: [previousSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  nextSessions      DoctorSession[] @relation("PreviousSession")
+  previousSessions  DoctorSession[] @relation("PreviousSession")
   createdUser       User?           @relation("UserCreatedDoctorSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser       User?           @relation("UserUpdatedDoctorSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
