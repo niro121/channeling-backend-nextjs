@@ -4,9 +4,41 @@ import prisma from '@/lib/prisma';
 import {
   GetAgencyBooksQuery,
   GetAgencyBooksReturn,
-  AgencyBook
+  AgencyBook,
+  AgencyBookFormValues,
+  UpdateAgencyBookPayload
 } from '@/types/agencybook';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+// ==== AGENCY BOOK: VALIDATION SCHEMA ==== //
+const agencyBookSchema = z.object({
+  bookNumber: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(100, 'Must be less than 100 characters'),
+  startNumber: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(100, 'Must be less than 100 characters'),
+  endNumber: z
+    .string()
+    .min(1, 'This field is mandatory')
+    .max(100, 'Must be less than 100 characters'),
+  status: z
+    .number()
+    .int()
+    .refine((val) => val === 0 || val === 1, {
+      message: 'Status must be Inactive (0) or Active (1)'
+    }),
+  agencyId: z.string().optional().nullable()
+});
+
+const agencyBookUpdateSchema = agencyBookSchema.partial().extend({
+  id: z.string().min(1, 'Agency Book ID is required')
+});
+
+type agencyBookInput = z.infer<typeof agencyBookSchema>;
 
 // ==== GET ALL AGENCY BOOKS ==== //
 export const getAllAgencyBooksService = async ({
@@ -14,7 +46,17 @@ export const getAllAgencyBooksService = async ({
   limit,
   keyword,
   agencyId
-}: GetAgencyBooksQuery): Promise<GetAgencyBooksReturn> => {
+}: GetAgencyBooksQuery): Promise<{
+  success: boolean;
+  data?: {
+    records: any[];
+    totalRecords: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   const validLimit = limit > 0 ? limit : 10;
   const skip = page * validLimit;
 
@@ -72,21 +114,44 @@ export const getAllAgencyBooksService = async ({
     });
 
     return {
-      data: records,
-      totalRecords: totalRecords
+      success: true,
+      data: {
+        records,
+        totalRecords
+      },
+      message: 'Agency books fetched successfully'
     };
   } catch (error: any) {
     console.log('getAllAgencyBooksService error', error);
-    throw new Error(error.message ?? 'Error getting agency books');
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch agency books'
+      }
+    };
   }
 };
 
 // ==== GET ONE AGENCY BOOK ==== //
 export const getAgencyBookByIdService = async (
   id: string
-): Promise<AgencyBook | null> => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
   try {
-    const result = await prisma.agencyBook.findUnique({
+    if (!id) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid agency book ID'
+        }
+      };
+    }
+
+    const agencyBook = await prisma.agencyBook.findUnique({
       where: { id: id },
       include: {
         agency: {
@@ -98,71 +163,290 @@ export const getAgencyBookByIdService = async (
       }
     });
 
-    return result;
+    if (!agencyBook) {
+      return {
+        success: false,
+        error: {
+          message: 'Agency book not found'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: agencyBook,
+      message: 'Agency book fetched successfully'
+    };
   } catch (error: any) {
     console.log('getAgencyBookByIdService error', error);
-    throw new Error(error.message ?? 'Error getting agency book');
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get agency book'
+      }
+    };
   }
 };
 
 // ==== CREATE AGENCY BOOK ==== //
 export const createAgencyBookService = async (
-  payload: Prisma.AgencyBookCreateInput
-): Promise<AgencyBook> => {
+  payload: AgencyBookFormValues,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = await prisma.agencyBook.create({
-      data: payload
+    const parsed = agencyBookSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    // Validate agencyId if provided
+    const isValidObjectId = (id: string | undefined): boolean => {
+      if (!id || id === '' || id.startsWith('temp-')) {
+        return false;
+      }
+      return /^[0-9a-fA-F]{24}$/.test(id);
+    };
+
+    const agencyRelation = data.agencyId && isValidObjectId(data.agencyId)
+      ? { connect: { id: data.agencyId } }
+      : undefined;
+
+    const agencyBook = await prisma.agencyBook.create({
+      data: {
+        bookNumber: data.bookNumber,
+        startNumber: data.startNumber,
+        endNumber: data.endNumber,
+        status: data.status,
+        agency: agencyRelation,
+        createdBy: user?.id || null,
+        updatedBy: user?.id || null
+      },
+      include: {
+        agency: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
     });
 
-    return result;
+    return {
+      success: true,
+      data: agencyBook,
+      message: 'Agency book created successfully'
+    };
   } catch (error: any) {
-    console.log('createAgencyBookService error', error);
-    throw new Error(error.message ?? 'Error creating agency book');
+    console.error('createAgencyBookService error:', error);
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'Duplicate record detected',
+          issues: error.meta?.target
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to create agency book'
+      }
+    };
   }
 };
 
 // ==== UPDATE AGENCY BOOK ==== //
 export const updateAgencyBookService = async (
   id: string,
-  payload: Prisma.AgencyBookUpdateInput
-): Promise<AgencyBook> => {
+  payload: UpdateAgencyBookPayload,
+  user?: { id?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
   try {
-    const result = await prisma.agencyBook.update({
-      where: { id },
-      data: payload
+    const parsed = agencyBookUpdateSchema.safeParse({
+      ...payload,
+      id
     });
 
-    return result;
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    // Validate agencyId if provided
+    const isValidObjectId = (id: string | undefined): boolean => {
+      if (!id || id === '' || id.startsWith('temp-')) {
+        return false;
+      }
+      return /^[0-9a-fA-F]{24}$/.test(id);
+    };
+
+    const agencyRelation =
+      data.agencyId !== undefined
+        ? data.agencyId && isValidObjectId(data.agencyId)
+          ? { connect: { id: data.agencyId } }
+          : { disconnect: true }
+        : undefined;
+
+    const agencyBook = await prisma.agencyBook.update({
+      where: { id },
+      data: {
+        ...(data.bookNumber !== undefined && { bookNumber: data.bookNumber }),
+        ...(data.startNumber !== undefined && { startNumber: data.startNumber }),
+        ...(data.endNumber !== undefined && { endNumber: data.endNumber }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(agencyRelation && { agency: agencyRelation }),
+        updatedBy: user?.id || null,
+        updatedAt: new Date()
+      },
+      include: {
+        agency: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: agencyBook,
+      message: 'Agency book updated successfully'
+    };
   } catch (error: any) {
-    console.log('updateAgencyBookService error', error);
-    throw new Error(error.message ?? 'Error updating agency book');
+    console.error('updateAgencyBookService error:', error);
+
+    if (error.code === 'P2025') {
+      return {
+        success: false,
+        error: {
+          message: 'Agency book not found'
+        }
+      };
+    }
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'Duplicate record detected',
+          issues: error.meta?.target
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to update agency book'
+      }
+    };
   }
 };
 
 // ==== DELETE ONE AGENCY BOOK ==== //
 export const deleteAgencyBookByIdService = async (
   id: string
-): Promise<boolean> => {
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   try {
-    await prisma.agencyBook.delete({
+    const agencyBook = await prisma.agencyBook.delete({
       where: {
         id: id
       }
     });
 
-    return true;
+    return {
+      success: true,
+      data: agencyBook,
+      message: 'Agency book deleted successfully'
+    };
   } catch (error: any) {
     console.log('deleteAgencyBookByIdService error', error);
-    throw new Error(error.message ?? 'Error deleting agency book');
+
+    if (error.code === 'P2025') {
+      return {
+        success: false,
+        error: {
+          message: 'Agency book not found'
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete agency book'
+      }
+    };
   }
 };
 
 // ==== DELETE BULK AGENCY BOOKS ==== //
 export const bulkDeleteAgencyBooksService = async (
   ids: string[]
-): Promise<boolean> => {
+): Promise<{
+  success: boolean;
+  data?: {
+    count: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
   try {
-    await prisma.agencyBook.deleteMany({
+    if (!ids || ids.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No agency book IDs provided'
+        }
+      };
+    }
+
+    const result = await prisma.agencyBook.deleteMany({
       where: {
         id: {
           in: ids
@@ -170,10 +454,31 @@ export const bulkDeleteAgencyBooksService = async (
       }
     });
 
-    return true;
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No agency books found to delete'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        count: result.count
+      },
+      message: `${result.count} agency book(s) deleted successfully`
+    };
   } catch (error: any) {
     console.log('bulkDeleteAgencyBooksService error', error);
-    throw new Error(error.message ?? 'Error deleting agency books');
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete agency books'
+      }
+    };
   }
 };
 

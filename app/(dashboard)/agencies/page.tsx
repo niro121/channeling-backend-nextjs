@@ -6,11 +6,9 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AgencyColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
-import { SelectorFilter } from '@/components/common/selector-filter';
 import {
   bulkDeleteAgencies,
   getAllAgencies,
-  getAllAgenciesOptions,
   getAgenciesExport
 } from '@/app/actions/agency.actions';
 import { ExportWrapper } from '../export-wrapper';
@@ -20,7 +18,6 @@ type SearchParams = {
     page?: string;
     limit?: string;
     keyword?: string;
-    parentAgencyId?: string;
   }>;
 };
 
@@ -30,23 +27,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const { data, totalRecords } = await getAllAgencies({
     page: params?.page,
     limit: params?.limit,
-    keyword: params?.keyword,
-    parentAgencyId: params?.parentAgencyId
+    keyword: params?.keyword
   });
-
-  // ==== GET PARENT AGENCIES FOR FILTER === //
-  const agenciesRes = await getAllAgenciesOptions();
-  const agencyOptions =
-    agenciesRes?.data?.map((a) => ({ id: a.id as string, name: a.name })) ??
-    [];
 
   // ==== EXPORT: GET AGENCY LIST ==== //
   const handleExport = async () => {
     'use server';
 
     const agencyListResponse = await getAgenciesExport({
-      keyword: params?.keyword,
-      parentAgencyId: params?.parentAgencyId
+      keyword: params?.keyword
     });
 
     if (!agencyListResponse.success || !agencyListResponse.data?.length) {
@@ -106,13 +95,6 @@ export default async function Page({ searchParams }: SearchParams) {
             className={'rounded-lg bg-background pl-8 w-full'}
           />
         </div>
-        <SelectorFilter
-          label="All Agencies"
-          options={agencyOptions}
-          defaultValue="__all__"
-          keyword="parentAgencyId"
-          initialId={params?.parentAgencyId}
-        />
         <div className="flex items-center gap-2 ml-auto">
           <ExportWrapper
             serverData={handleExport}

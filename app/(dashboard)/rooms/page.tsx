@@ -5,13 +5,13 @@ import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import Loading from '../loading';
 import Link from 'next/link';
-import { SelectorFilter } from '@/components/common/selector-filter';
 import {
   bulkDeleteRooms,
   getAllLocations,
   getAllRooms
 } from '@/app/actions/room.actions';
 import { RoomColumns } from './columns';
+import FilterSection from './filter-section';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -70,12 +70,9 @@ export default async function Page({ searchParams }: SearchParams) {
             className={'rounded-lg bg-background pl-8 w-full'}
           />
         </div>
-        <SelectorFilter
-          label="All Locations"
-          options={locationOptions}
-          defaultValue="__all__"
-          keyword="locationId"
-          initialId={params?.locationId}
+        <FilterSection
+          locationOptions={locationOptions}
+          locationId={params?.locationId}
         />
       </div>
       <div className="overflow-hidden">

@@ -3,7 +3,6 @@ import { User } from "@/types/user"
 import { Row } from "@tanstack/react-table"
 import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import CustomAlertDialog from "@/components/common/custom-alert-dialog"
 import { CustomDialog } from "@/components/common/custom-dialog"
 import UserForm from "./user-form"
@@ -11,6 +10,9 @@ import { deleteUser } from "@/app/actions/user.actions"
 import { useSession } from "next-auth/react"
 import { getAllUserGroupsOptions } from "@/app/actions/user-group.actions"
 import { usePermissions } from "@/components/hooks/use-permissions"
+import { Button } from "@/components/ui/button"
+import { Edit } from "lucide-react"
+import { BinIcon } from "@/components/icons"
 
 interface UserActionsProps<TData extends User> {
     row: Row<TData>
@@ -79,14 +81,24 @@ const UserRecordActions = <TData extends User>({
         <>
             <DataTableRowActions>
                 {has("users", "edit") && (
-                    <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
-                        Edit
-                    </DropdownMenuItem>
+                    <Button
+                        variant={'link'}
+                        className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+                        onClick={() => setShowEditDialog(true)}
+                    >
+                        <Edit className="w-5 h-5" />
+                        <span className="sr-only">Edit</span>
+                    </Button>
                 )}
                 {has("users", "delete") && (
-                    <DropdownMenuItem onClick={() => showHideDeleteModal(true)}>
-                        Delete
-                    </DropdownMenuItem>
+                    <Button
+                        variant={'link'}
+                        className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+                        onClick={() => showHideDeleteModal(true)}
+                    >
+                        <BinIcon className="w-5 h-5 text-red-600" />
+                        <span className="sr-only">Delete</span>
+                    </Button>
                 )}
             </DataTableRowActions>
 

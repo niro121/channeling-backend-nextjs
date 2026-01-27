@@ -48,6 +48,9 @@ interface CustomDatePickerFieldProps {
     /** Year dropdown bounds (if using dropdowns) */
     fromYear?: number;
     toYear?: number;
+    
+    /** Whether to use Formik's ErrorMessage component. Set to false when using outside Formik forms. */
+    useFormikError?: boolean;
 }
 
 const normalizeToYMD = (d: Date | string) => {
@@ -78,6 +81,7 @@ export default function CustomDatePickerField({
     captionLayout = "dropdown-buttons",
     fromYear,
     toYear,
+    useFormikError = true,
 }: CustomDatePickerFieldProps) {
     const [open, setOpen] = React.useState(false);
 
@@ -164,12 +168,21 @@ export default function CustomDatePickerField({
                     </PopoverContent>
                 </Popover>
 
-                <ErrorMessage
-                    name={id}
-                    component="div"
-                    id={`${id}-error`}
-                    className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0 mt-2"
-                />
+                {error && touched ? (
+                    <div
+                        id={`${id}-error`}
+                        className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0 mt-2"
+                    >
+                        {error}
+                    </div>
+                ) : useFormikError ? (
+                    <ErrorMessage
+                        name={id}
+                        component="div"
+                        id={`${id}-error`}
+                        className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0 mt-2"
+                    />
+                ) : null}
             </div>
         </div>
     );

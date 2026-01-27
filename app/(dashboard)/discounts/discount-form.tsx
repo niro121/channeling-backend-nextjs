@@ -65,21 +65,24 @@ export default function DiscountForm({
     discount?.isVoucher
   );
 
-  const initialValues: DiscountFormValues = {
-    name: discount?.name ?? '',
-    discountType: discount?.discountType ?? 0,
-    discountMethod: discount?.discountMethod ?? [],
-    paymentType: discount?.paymentType ?? [],
-    discountValue: discount?.discountValue ?? 0,
-    discountValueForeign: discount?.discountValueForeign ?? 0,
-    fromDate: discount?.fromDate ?? new Date(),
-    toDate: discount?.toDate ?? new Date(),
-    isVoucher: discount?.isVoucher ?? 0,
-    autoApply: discount?.autoApply ?? false,
-    status: discount?.status ?? 0,
-    applyTo: discount?.applyTo ?? 0,
-    vouchers: discount?.vouchers ?? []
-  };
+  const initialValues: DiscountFormValues = React.useMemo(
+    () => ({
+      name: discount?.name ?? '',
+      discountType: discount?.discountType ?? 0,
+      discountMethod: discount?.discountMethod ?? [],
+      paymentType: discount?.paymentType ?? [],
+      discountValue: discount?.discountValue ?? 0,
+      discountValueForeign: discount?.discountValueForeign ?? 0,
+      fromDate: discount?.fromDate ?? new Date(),
+      toDate: discount?.toDate ?? new Date(),
+      isVoucher: discount?.isVoucher ?? 0,
+      autoApply: discount?.autoApply ?? false,
+      status: discount?.status ?? 0,
+      applyTo: discount?.applyTo ?? 0,
+      vouchers: discount?.vouchers ?? []
+    }),
+    [discount]
+  );
 
   const validationSchema = Yup.object({
     name: Yup.string()
@@ -114,22 +117,40 @@ export default function DiscountForm({
 
   const handleSubmit = async (
     values: DiscountFormValues,
-    { resetForm }: FormikHelpers<DiscountFormValues>
+    { setErrors, setTouched, resetForm }: FormikHelpers<DiscountFormValues>
   ) => {
     try {
       setLoading(true);
       let respond: any;
 
       if (discount && discount.id) {
-        respond = await updateOneDiscount(discount.id, values);
+        respond = await updateOneDiscount(discount.id, values, user);
         setLoading(false);
 
         if (!respond?.success) {
+          // Map server-side validation errors to form fields
+          if (respond.error?.issues) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errorMessages = respond.error.issues[key];
+              if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+                fieldErrors[key] = errorMessages[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as Record<string, boolean>)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
             description:
-              respond.error.message || 'Discount update unsuccessful.'
+              respond.error?.message || 'Discount update unsuccessful.'
           });
           return;
         }
@@ -145,10 +166,28 @@ export default function DiscountForm({
         setLoading(false);
 
         if (!respond?.success) {
+          // Map server-side validation errors to form fields
+          if (respond.error?.issues) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errorMessages = respond.error.issues[key];
+              if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+                fieldErrors[key] = errorMessages[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as Record<string, boolean>)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: respond.error.message || 'Discount save unsuccessful.'
+            description: respond.error?.message || 'Discount save unsuccessful.'
           });
           return;
         }
@@ -320,6 +359,7 @@ export default function DiscountForm({
                           .filter((type): type is DiscountMethod => !!type);
 
                         formik.setFieldValue('discountMethod', selectedTypes);
+                        formik.setFieldTouched('discountMethod', true);
                       }}
                       required
                       disabled={discountMethodOptions.length === 0}
@@ -346,6 +386,7 @@ export default function DiscountForm({
                           .filter((type): type is PaymentType => !!type);
 
                         formik.setFieldValue('paymentType', selectedTypes);
+                        formik.setFieldTouched('paymentType', true);
                       }}
                       required
                       disabled={paymentTypeOptions.length === 0}
@@ -357,9 +398,10 @@ export default function DiscountForm({
                       id="discountType"
                       placeholder="Discount Type"
                       value={formik.values.discountType.toString()}
-                      onChange={(value) =>
-                        formik.setFieldValue('discountType', Number(value))
-                      }
+                      onChange={(value) => {
+                        formik.setFieldValue('discountType', Number(value));
+                        formik.setFieldTouched('discountType', true);
+                      }}
                       required
                       disabled={discountTypeOptions.length === 0}
                       options={discountTypeOptions}

@@ -64,7 +64,7 @@ const RosterForm = ({ roster, isEditPage = false }: RosterFormProps) => {
 
     const handleSubmit = async (
         values: Roster,
-        { resetForm }: FormikHelpers<Roster>
+        { resetForm, setErrors, setTouched }: FormikHelpers<Roster>
     ) => {
         try {
             let respond: any;
@@ -77,7 +77,31 @@ const RosterForm = ({ roster, isEditPage = false }: RosterFormProps) => {
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    if (respond.errors?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.errors.issues).forEach((key) => {
+                            const errorArray = respond.errors.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.errors.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.errors?.message || 'Roster save unsuccessful.'
+                        });
+                    }
+                    return;
                 }
 
                 toast({
@@ -93,7 +117,31 @@ const RosterForm = ({ roster, isEditPage = false }: RosterFormProps) => {
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    if (respond.errors?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.errors.issues).forEach((key) => {
+                            const errorArray = respond.errors.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.errors.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.errors?.message || 'Roster save unsuccessful.'
+                        });
+                    }
+                    return;
                 }
 
                 toast({
@@ -152,7 +200,10 @@ const RosterForm = ({ roster, isEditPage = false }: RosterFormProps) => {
                                 id="departmentId"
                                 placeholder="Department"
                                 value={formik.values.departmentId}
-                                onChange={(value) => formik.setFieldValue("departmentId", value)}
+                                onChange={(value) => {
+                                    formik.setFieldValue("departmentId", value);
+                                    formik.setFieldTouched("departmentId", true);
+                                }}
                                 required
                                 options={departments}
                                 styleClasses={styleClasses}

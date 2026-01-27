@@ -6,6 +6,7 @@ import { Roster } from "@/types/roster"
 import { CheckedState } from "@radix-ui/react-checkbox"
 import { format } from "date-fns"
 import RosterRecordActions from "./record-actions"
+import { CircleCorrect, CircleX } from "@/components/icons"
 
 export const rosterColumns: ColumnDef<Roster>[] = [
     {
@@ -43,24 +44,25 @@ export const rosterColumns: ColumnDef<Roster>[] = [
         cell: ({ row }) => <div className="capitalize">{row.getValue("shiftsPerPersonPerDay")}</div>,
     },
     {
-        accessorKey: "status",
-        header: "Status",
+        accessorKey: 'status',
+        header: 'Published',
         cell: ({ row }) => {
-            const status = row.getValue("status") as number
-            return (
-                <div
-                    className={`font-medium ${status === 1 ? "text-green-600" : "text-gray-500"
-                        }`}
-                >
-                    {status === 1 ? "Published" : "Unpublished"}
-                </div>
-            )
-        },
-    },
+          const show = row.getValue('status');
+          return show === 1 ? (
+            <CircleCorrect className="text-green-500 w-7 h-7" />
+          ) : (
+            <CircleX className="text-red-500 w-7 h-7" />
+          );
+        }
+      },
     {
         accessorKey: "departmentId",
         header: "Department",
-        cell: ({ row }) => <div className="capitalize">{row.getValue("departmentId")}</div>,
+        cell: ({ row }) => {
+            const roster = row.original as Roster;
+            const departmentName = roster.department?.name || "-";
+            return <div className="capitalize">{departmentName}</div>;
+        },
     },
     // {
     //     accessorKey: "createdAt",
@@ -73,6 +75,7 @@ export const rosterColumns: ColumnDef<Roster>[] = [
     {
         id: "actions",
         enableHiding: false,
+        header: () => <div className="text-center">Actions</div>,
         cell: ({ row }) => <RosterRecordActions row={row} />,
     },
 ]
