@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import {
   CreateDoctorSessionPayload,
+  UpdateDoctorSessionPayload,
   DoctorSession
 } from '@/types/doctor.session';
 import { Prisma } from '@prisma/client';
@@ -44,8 +45,11 @@ const doctorSessionSchema = z
     advancedBookingDays: z.number().min(0).max(100),
 
     fees: z.array(feeSchema),
-    amountLocal: z.number().optional(),
-    amountForeign: z.number().optional(),
+    amountLocal: z.coerce.number().min(0, 'Amount must be positive').optional(),
+    amountForeign: z.coerce
+      .number()
+      .min(0, 'Amount must be positive')
+      .optional(),
 
     dayType: z.number().min(1).max(8),
     applyTo: z.coerce.date().optional().nullable(),
@@ -99,8 +103,6 @@ export const createDoctorSessionService = async (
   };
 }> => {
   try {
-    console.log('DOCTOR', doctorId, 'PAYLOAD', payload);
-
     const isDoctor = await getDoctorByIdService(doctorId);
 
     if (!isDoctor) {
@@ -116,7 +118,7 @@ export const createDoctorSessionService = async (
     });
 
     if (!parsed.success) {
-      console.log("Validation unsuccessfull")
+      console.log('Validation unsuccessfull');
       return {
         success: false,
         error: {
@@ -127,8 +129,6 @@ export const createDoctorSessionService = async (
     }
 
     const data = parsed.data;
-
-    // console.log('DOCTOR', doctorId, 'PAYLOAD', data);
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 
@@ -168,6 +168,8 @@ export const createDoctorSessionService = async (
       });
     }
 
+    console.log('Session', doctorSession);
+
     return {
       success: true,
       data: doctorSession,
@@ -190,6 +192,123 @@ export const createDoctorSessionService = async (
       success: false,
       error: {
         message: error.message || 'Failed to create doctor session'
+      }
+    };
+  }
+};
+
+// ==== UPDATE DOCTOR SESSION ==== //
+export const updateDoctorSessionService = async (
+  doctorId: string,
+  sessionId: string,
+  payload: UpdateDoctorSessionPayload,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const isDoctor = await getDoctorByIdService(doctorId);
+
+    if (!isDoctor) {
+      return {
+        success: false,
+        message: 'Doctor not found'
+      };
+    }
+
+    const existingSession = await prisma.doctorSession.findUnique({
+      where: { id: sessionId }
+    });
+
+    if (!existingSession) {
+      return {
+        success: false,
+        message: 'Doctor session not found'
+      };
+    }
+
+    const parsed = doctorSessionSchema.safeParse({
+      ...payload,
+      doctorId: existingSession.doctorId
+    });
+
+    if (!parsed.success) {
+      console.log('Validation unsuccessful');
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors
+        }
+      };
+    }
+
+    const data = parsed.data;
+
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const updatedSession = await prisma.doctorSession.update({
+      where: { id: sessionId },
+      data: {
+        name: data.name,
+        institution: data.institution,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        durationMinutes: data.durationMinutes,
+        startingPatientNumber: data.startingPatientNumber,
+        maxPatientNumber: data.maxPatientNumber,
+        refundable: data.refundable,
+        advancedBookingDays: data.advancedBookingDays,
+        fees: data.fees,
+        amountLocal: data.amountLocal,
+        amountForeign: data.amountForeign,
+        dayType: data.dayType,
+        status: data.status,
+
+        ...(data.applyTo !== undefined ? { applyTo: data.applyTo } : {}),
+
+        department: { connect: { id: data.departmentId } },
+        location: { connect: { id: data.locationId } },
+        room: { connect: { id: data.roomId } },
+
+        ...(data.previousSessionId
+          ? { previousSession: { connect: { id: data.previousSessionId } } }
+          : {}),
+
+        updatedUser: userRelation
+      }
+    });
+
+    console.log('Updated session:', updatedSession);
+
+    return {
+      success: true,
+      data: updatedSession,
+      message: 'Doctor session updated successfully'
+    };
+  } catch (error: any) {
+    console.error('updateDoctorSessionService error:', error);
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'Duplicate record detected',
+          issues: error.meta?.target
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to update doctor session'
       }
     };
   }

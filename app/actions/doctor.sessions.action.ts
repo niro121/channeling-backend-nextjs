@@ -6,10 +6,11 @@ import {
   getDoctorByIdService,
   getDepartmentOptionsService,
   getAllRoomsByLocaionIDService,
-  createDoctorSessionService
+  createDoctorSessionService,
+  updateDoctorSessionService
 } from '@/services/doctor.sessions.service';
 import { Doctor } from '@/types/doctor';
-import { CreateDoctorSessionPayload } from '@/types/doctor.session';
+import { CreateDoctorSessionPayload, UpdateDoctorSessionPayload } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
 
 // ==== CREATE DOCTOR SESSION ==== //
@@ -27,8 +28,6 @@ export const createDoctorSession = async (
   };
 }> => {
   try {
-    // console.log('DOCTOR', doctorId, 'PAYLOAD', payload);
-
     const result = await createDoctorSessionService(doctorId, payload, user);
 
     if (!result.success) {
@@ -49,6 +48,52 @@ export const createDoctorSession = async (
     };
   } catch (error: any) {
     console.error('createDoctorSession action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+// ==== UPDATE DOCTOR ==== //
+export const updateOneDoctorSession = async (
+  doctorId: string,
+  id: string,
+  payload: UpdateDoctorSessionPayload,
+  user?: { id?: string; name?: string }
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: any;
+  };
+}> => {
+  try {
+    const result = await updateDoctorSessionService(doctorId, id, payload, user);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Doctor Session update failed'
+        }
+      };
+    }
+
+    revalidatePath('/doctor-sessions');
+
+    return {
+      success: true,
+      data: result.data,
+      message: result.message || 'Doctor Session updated successfully'
+    };
+  } catch (error: any) {
+    console.error('updateOneDoctorSession action error:', error);
 
     return {
       success: false,
