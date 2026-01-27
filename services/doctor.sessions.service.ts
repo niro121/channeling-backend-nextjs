@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 import {
   CreateDoctorSessionPayload,
   UpdateDoctorSessionPayload,
-  DoctorSession
+  DoctorSession,
+  getDoctorSessionQuery
 } from '@/types/doctor.session';
 import { Prisma } from '@prisma/client';
 import z from 'zod';
@@ -309,6 +310,235 @@ export const updateDoctorSessionService = async (
       success: false,
       error: {
         message: error.message || 'Failed to update doctor session'
+      }
+    };
+  }
+};
+
+// ==== GET DOCTOR SESSIONS ==== //
+export const getAllDoctorSessionsService = async ({
+  page,
+  limit,
+  doctorId,
+  locationId
+}: getDoctorSessionQuery): Promise<{
+  success: boolean;
+  data?: {
+    records: any[];
+    totalRecords: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  const skip = page * limit;
+
+  const whereClause: Prisma.DoctorSessionWhereInput | undefined =
+    doctorId || locationId
+      ? {
+          ...(doctorId ? { doctorId } : {}),
+          ...(locationId ? { locationId } : {})
+        }
+      : undefined;
+
+  try {
+    const records = await prisma.doctorSession.findMany({
+      skip,
+      take: limit,
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        doctor: true,
+        location: true,
+        department: true,
+        room: true,
+        createdUser: true,
+        updatedUser: true
+      }
+    });
+
+    const totalRecords = await prisma.doctorSession.count({
+      where: whereClause
+    });
+
+    return {
+      success: true,
+      data: {
+        records,
+        totalRecords
+      },
+      message: 'Doctor sessions fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getAllDoctorSessionsService error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch doctor sessions'
+      }
+    };
+  }
+};
+
+// ==== GET ONE DOCTOR SESSION ==== //
+export const getDoctorSessionByIdService = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!id) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid doctor session ID'
+        }
+      };
+    }
+
+    const session = await prisma.doctorSession.findUnique({
+      where: { id },
+      include: {
+        doctor: true,
+        location: true,
+        department: true,
+        room: true,
+        previousSession: true,
+        previousSessions: true,
+        createdUser: true,
+        updatedUser: true
+      }
+    });
+
+    if (!session) {
+      return {
+        success: false,
+        error: {
+          message: 'Doctor session not found'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: session,
+      message: 'Doctor session fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getDoctorSessionByIdService error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get doctor session'
+      }
+    };
+  }
+};
+
+// ==== DELETE DOCTOR SESSION ==== //
+export const deleteDoctorSessionByIdService = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  try {
+    const session = await prisma.doctorSession.delete({
+      where: { id }
+    });
+
+    return {
+      success: true,
+      data: session,
+      message: 'Doctor session deleted successfully'
+    };
+  } catch (error: any) {
+    console.error('deleteDoctorSessionByIdService error:', error);
+
+    if (error.code === 'P2025') {
+      return {
+        success: false,
+        error: {
+          message: 'Doctor session not found'
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete doctor session'
+      }
+    };
+  }
+};
+
+// ==== DELETE BULK DOCTOR SESSIONS ==== //
+export const bulkDeleteDoctorSessionsByIdsService = async (
+  ids: string[]
+): Promise<{
+  success: boolean;
+  data?: {
+    count: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  try {
+    if (!ids || ids.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No doctor session IDs provided'
+        }
+      };
+    }
+
+    const result = await prisma.doctorSession.deleteMany({
+      where: {
+        id: {
+          in: ids
+        }
+      }
+    });
+
+    if (result.count === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'No doctor sessions found to delete'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        count: result.count
+      },
+      message: `${result.count} doctor session(s) deleted successfully`
+    };
+  } catch (error: any) {
+    console.error('bulkDeleteDoctorSessionsByIdsService error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete doctor sessions'
       }
     };
   }

@@ -7,10 +7,19 @@ import {
   getDepartmentOptionsService,
   getAllRoomsByLocaionIDService,
   createDoctorSessionService,
-  updateDoctorSessionService
+  updateDoctorSessionService,
+  getAllDoctorSessionsService,
+  getDoctorSessionByIdService,
+  deleteDoctorSessionByIdService,
+  bulkDeleteDoctorSessionsByIdsService
 } from '@/services/doctor.sessions.service';
 import { Doctor } from '@/types/doctor';
-import { CreateDoctorSessionPayload, UpdateDoctorSessionPayload } from '@/types/doctor.session';
+import {
+  CreateDoctorSessionPayload,
+  getDoctorSessionParams,
+  getDoctorSessionQuery,
+  UpdateDoctorSessionPayload
+} from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
 
 // ==== CREATE DOCTOR SESSION ==== //
@@ -74,7 +83,12 @@ export const updateOneDoctorSession = async (
   };
 }> => {
   try {
-    const result = await updateDoctorSessionService(doctorId, id, payload, user);
+    const result = await updateDoctorSessionService(
+      doctorId,
+      id,
+      payload,
+      user
+    );
 
     if (!result.success) {
       return {
@@ -101,6 +115,151 @@ export const updateOneDoctorSession = async (
         message: error.message || 'Unexpected error occurred'
       }
     };
+  }
+};
+
+// ==== GET DOCTOR SESSIONS ==== //
+export const getAllDoctorSessions = async (sort: getDoctorSessionParams) => {
+  try {
+    const newFilter: getDoctorSessionQuery = {
+      page: sort.page
+        ? parseInt(sort.page)
+        : parseInt(process.env.DEFAULT_PAGE ?? '0'),
+      limit: sort.limit
+        ? parseInt(sort.limit)
+        : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
+      locationId: sort.locationId ?? undefined,
+      doctorId: sort.doctorId ?? undefined
+    };
+
+    const response = await getAllDoctorSessionsService(newFilter);
+
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch doctor sessions',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getAllDoctorSessions action error:', error);
+
+    return {
+      success: false,
+      message:
+        error.message ||
+        'Error getting doctor sessions. Please try again later',
+      data: [],
+      totalRecords: 0
+    };
+  }
+};
+
+// ==== GET ONE DOCTOR SESSION ==== //
+export const getDoctorSessionById = async (
+  id: string
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await getDoctorSessionByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch doctor session'
+        }
+      };
+    }
+
+    const session = result.data;
+
+    const normalizedSession = {
+      ...session,
+      fees: Array.isArray(session?.fees) ? session.fees : []
+    };
+
+    return {
+      success: true,
+      data: normalizedSession,
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('getDoctorSessionById action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+// ==== DELETE DOCTOR SESSION ==== //
+export const deleteDoctorSession = async (id: string) => {
+  try {
+    const result = await deleteDoctorSessionByIdService(id);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+
+    revalidatePath('/doctor-sessions');
+    revalidatePath('/doctors');
+    revalidatePath('/locations');
+    revalidatePath('/departments');
+
+    return {
+      success: true,
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('deleteDoctorSession action error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+// ==== DELETE BULK DOCTOR SESSIONS ==== //
+export const bulkDeleteDoctorSessions = async (ids: string[]) => {
+  try {
+    const result = await bulkDeleteDoctorSessionsByIdsService(ids);
+
+    if (!result.success) {
+      return false;
+    }
+
+    revalidatePath('/doctor-sessions');
+    revalidatePath('/doctors');
+    revalidatePath('/locations');
+    revalidatePath('/departments');
+
+    return true;
+  } catch (error: any) {
+    console.error('bulkDeleteDoctorSessions action error:', error);
+
+    return false;
   }
 };
 
