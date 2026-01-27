@@ -3,8 +3,12 @@
 import { GetRostersParams, GetRostersQuery, Roster } from "@/types/roster"
 import { deleteOneRoster, deleteRosters, getRosters, saveRoster, updateOneRoster, getRosterById } from "@/services/roster.service"
 import { revalidatePath } from "next/cache"
+import { requirePermission } from "@/lib/server-permissions"
 
 export const getAllRosters = async (filter: GetRostersParams) => {
+    // Check view permission
+    await requirePermission("rosters", "view")
+    
     try {
         let newFilter: GetRostersQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
@@ -31,6 +35,8 @@ export const getAllRosters = async (filter: GetRostersParams) => {
 }
 
 export const bulkDeleteRosters = async (ids: string[]) => {
+    // Check delete permission
+    await requirePermission("rosters", "delete")
 
     try {
 
@@ -45,6 +51,9 @@ export const bulkDeleteRosters = async (ids: string[]) => {
 }
 
 export const deleteRoster = async (id: string) => {
+    // Check delete permission
+    await requirePermission("rosters", "delete")
+    
     try {
         const response = await deleteOneRoster(id)
         revalidatePath('/rosters')
@@ -57,6 +66,9 @@ export const deleteRoster = async (id: string) => {
 }
 
 export const createNewRoster = async (payload: Roster) => {
+    // Check add permission
+    await requirePermission("rosters", "add")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
@@ -105,6 +117,9 @@ export const createNewRoster = async (payload: Roster) => {
 }
 
 export const updateRoster = async (id: string, payload: Roster) => {
+    // Check edit permission
+    await requirePermission("rosters", "edit")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
