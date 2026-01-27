@@ -14,6 +14,8 @@ import {
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -25,6 +27,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view doctors
+  const canView = await checkRouteAccess('/doctors');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllDoctors({

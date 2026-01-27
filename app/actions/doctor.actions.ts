@@ -20,6 +20,7 @@ import {
 } from '@/types/doctor';
 import { revalidatePath } from 'next/cache';
 import { Speciality } from '@/types/speciality';
+import { requirePermission } from '@/lib/server-permissions';
 
 // ==== CREATE DOCTOR ==== //
 export const createDoctor = async (
@@ -34,6 +35,9 @@ export const createDoctor = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('doctors', 'add');
+
   try {
     const result = await createDoctorService(payload, user);
 
@@ -79,6 +83,9 @@ export const updateOneDoctor = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('doctors', 'edit');
+
   try {
     const result = await updateOneDoctorService(id, payload, user);
 
@@ -112,6 +119,9 @@ export const updateOneDoctor = async (
 
 // ==== DELETE DOCTOR ==== //
 export const deleteDoctor = async (id: string) => {
+  // Check delete permission
+  await requirePermission('doctors', 'delete');
+
   try {
     const result = await deleteDoctorByIdService(id);
 
@@ -142,6 +152,9 @@ export const deleteDoctor = async (id: string) => {
 
 // ==== DELETE BULK DOCTORS ==== //
 export const bulkDeleteDoctors = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('doctors', 'delete');
+
   try {
     const result = await bulkDeleteDoctorsByIdsService(ids);
 
@@ -161,6 +174,9 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
 
 // ==== GET DOCTORS ==== //
 export const getAllDoctors = async (sort: getDoctorParams) => {
+  // Check view permission
+  await requirePermission('doctors', 'view');
+
   try {
     const validSpecialityId =
       sort.specialityId && /^[a-fA-F0-9]{24}$/.test(sort.specialityId)

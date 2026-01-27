@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { BinIcon } from '@/components/icons';
+import { usePermissions } from '@/components/hooks/use-permissions';
 
 type DoctorActionsProps<TData extends Doctor> = {
   row: Row<TData>;
@@ -22,6 +23,7 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
   const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const { has } = usePermissions();
 
   // ==== DOCTOR DATA ROW ==== //
   const doctor = row.original;
@@ -63,22 +65,26 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
   return (
     <>
       <DataTableRowActions>
-        <Button
-          variant={'link'}
-          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => router.push(`/doctors/${doctor.id}/edit`)}
-        >
-          <Edit className="w-5 h-5" />
-          <span className="sr-only">Edit</span>
-        </Button>
-        <Button
-          variant={'link'}
-          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => showHideDeleteModal(true)}
-        >
-          <BinIcon className="w-5 h-5 text-red-600" />
-          <span className="sr-only">Delete</span>
-        </Button>
+        {has('doctors', 'edit') && (
+          <Button
+            variant={'link'}
+            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            onClick={() => router.push(`/doctors/${doctor.id}/edit`)}
+          >
+            <Edit className="w-5 h-5" />
+            <span className="sr-only">Edit</span>
+          </Button>
+        )}
+        {has('doctors', 'delete') && (
+          <Button
+            variant={'link'}
+            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            onClick={() => showHideDeleteModal(true)}
+          >
+            <BinIcon className="w-5 h-5 text-red-600" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        )}
       </DataTableRowActions>
 
       <CustomAlertDialog
