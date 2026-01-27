@@ -16,6 +16,7 @@ import {
   UpdateLocationPayload
 } from '@/types/location';
 import { revalidatePath } from 'next/cache';
+import { requirePermission } from '@/lib/server-permissions';
 
 type CreateLocationPayload = LocationFormValues & {
   createdBy?: string;
@@ -24,6 +25,9 @@ type CreateLocationPayload = LocationFormValues & {
 
 // ==== GET ALL LOCATIONS ==== //
 export const getAllLocations = async (sort: getLocationParam) => {
+  // Check view permission
+  await requirePermission('locations', 'view');
+
   try {
     let newFilter: getLocationQuery = {
       page: sort.page
@@ -103,6 +107,9 @@ export const createLocation = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('locations', 'add');
+
   try {
     const result = await createLocationService(payload, user);
 
@@ -150,6 +157,9 @@ export const updateOneLocation = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('locations', 'edit');
+
   try {
     const result = await updateOneLocationService(id, payload, user);
 
@@ -185,6 +195,9 @@ export const updateOneLocation = async (
 
 // ==== DELETE A LOCATION ==== //
 export const deleteLocation = async (id: string) => {
+  // Check delete permission
+  await requirePermission('locations', 'delete');
+
   try {
     const result = await deleteLocationByIdService(id);
 
@@ -219,6 +232,9 @@ export const deleteLocation = async (id: string) => {
 
 // ==== DELETE BULK LOCATIONS ==== //
 export const bulkDeleteLocations = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('locations', 'delete');
+
   try {
     const result = await bulkDeleteLocationsByIdsService(ids);
 

@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { bulkDeleteLocations, getAllLocations } from '@/app/actions/location.action';
 import { LOCATION_OPTIONS } from '@/types/location';
 import FilterSection from './filter-section';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -20,6 +22,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view locations
+  const canView = await checkRouteAccess('/locations');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllLocations({
