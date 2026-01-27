@@ -1,7 +1,16 @@
 import { Department } from './department';
 import { Doctor } from './doctor';
+import { Location } from './location';
 import { Room } from './room';
 import { User } from './user';
+
+export type Fee = {
+  id: string;
+  name: string;
+  feeType: string;
+  localFee: number;
+  foreignFee: number;
+};
 
 export interface DoctorSession {
   id?: string;
@@ -15,11 +24,11 @@ export interface DoctorSession {
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
   advancedBookingDays: number;
-  fees: Record<string, any>;
+  fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
-  applyTo: Date;
-  dayType: number;
+  applyTo: Date | undefined;
+  dayType: number; // == 1: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
   status: number; // 0 = unpublish, 1 = publish
   doctorId?: string;
   doctor?: Doctor;
@@ -31,7 +40,7 @@ export interface DoctorSession {
   room?: Room;
   previousSessionId?: string;
   previousSession?: DoctorSession;
-  nextSessions?: DoctorSession[];
+  previousSessions?: DoctorSession[];
   createdUser?: User | null;
   updatedUser?: User | null;
   createdAt?: Date | undefined;
@@ -49,11 +58,11 @@ export type DoctorSessionFormValues = {
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
   advancedBookingDays: number;
-  fees: Record<string, any>;
+  fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
-  applyTo: Date;
-  dayType: number; // == 0: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
+  applyTo: Date | undefined;
+  dayType: number; // == 1: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
   status: number; // 0 = unpublish, 1 = publish
   doctorId?: string;
   doctor?: Doctor;
@@ -65,7 +74,6 @@ export type DoctorSessionFormValues = {
   room?: Room;
   previousSessionId?: string;
   previousSession?: DoctorSession;
-  nextSessions?: DoctorSession[];
 };
 
 export type CreateDoctorSessionPayload = DoctorSessionFormValues & {
@@ -75,14 +83,14 @@ export type CreateDoctorSessionPayload = DoctorSessionFormValues & {
 
 export type UpdateDoctorSessionPayload = Partial<DoctorSessionFormValues>;
 
-export type getDosctorSessionParams = {
+export type getDoctorSessionParams = {
   page?: string;
   limit?: string;
   locationId?: string;
   doctorId?: string;
 };
 
-export type getDosctorSessionQuery = {
+export type getDoctorSessionQuery = {
   page: number;
   limit: number;
   locationId?: string;
@@ -101,3 +109,58 @@ export const INSTITUTION_OPTIONS: Option[] = [
   { id: '4', name: 'Hospital C' },
   { id: '5', name: 'Hospital D' }
 ];
+
+export const REFUNDABLE_OPTIONS: Option[] = [
+  { id: '0', name: 'No' },
+  { id: '1', name: 'Yes' }
+];
+
+export const FEE_TYPES: Fee[] = [
+  {
+    id: '0',
+    name: 'Option A',
+    feeType: 'Option A Type',
+    localFee: 0,
+    foreignFee: 0
+  },
+  {
+    id: '1',
+    name: 'Option B',
+    feeType: 'Option B Type',
+    localFee: 0,
+    foreignFee: 0
+  },
+  {
+    id: '2',
+    name: 'Option C',
+    feeType: 'Option C Type',
+    localFee: 0,
+    foreignFee: 0
+  },
+  {
+    id: '3',
+    name: 'Option D',
+    feeType: 'Option D Type',
+    localFee: 0,
+    foreignFee: 0
+  }
+];
+
+export const DAY_TYPES: Option[] = [
+  { id: '1', name: 'Sunday' },
+  { id: '2', name: 'Monday' },
+  { id: '3', name: 'Tuesday' },
+  { id: '4', name: 'Wednesday' },
+  { id: '5', name: 'Thursday' },
+  { id: '6', name: 'Friday' },
+  { id: '7', name: 'Saturday' },
+  { id: '8', name: 'Specific Date Only' }
+];
+
+export const ADVANCED_BOOKING_OPTIONS = Array.from(
+  { length: 101 },
+  (_, i) => ({
+    id: String(i),
+    name: String(i)
+  })
+);
