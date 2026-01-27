@@ -3,8 +3,12 @@
 import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/department"
 import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
+import { requirePermission } from "@/lib/server-permissions"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
+    // Check view permission
+    await requirePermission("departments", "view")
+    
     try {
         let newFilter: GetDepartmentsQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
@@ -42,6 +46,9 @@ export const getAllDepartments = async (filter: GetDepartmentsParams) => {
 }
 
 export const bulkDeleteDepartments = async (ids: string[]) => {
+    // Check delete permission
+    await requirePermission("departments", "delete")
+    
     try {
         const result = await deleteDepartments(ids)
 
@@ -58,6 +65,9 @@ export const bulkDeleteDepartments = async (ids: string[]) => {
 }
 
 export const deleteDepartment = async (id: string) => {
+    // Check delete permission
+    await requirePermission("departments", "delete")
+    
     try {
         const result = await deleteOneDepartment(id)
 
@@ -74,6 +84,9 @@ export const deleteDepartment = async (id: string) => {
 }
 
 export const createNewDepartment = async (payload: Department) => {
+    // Check add permission
+    await requirePermission("departments", "add")
+    
     try {
         delete payload.id
         delete payload.createdAt
@@ -119,6 +132,9 @@ export const createNewDepartment = async (payload: Department) => {
 }
 
 export const updateDepartment = async (id: string, payload: Department) => {
+    // Check edit permission
+    await requirePermission("departments", "edit")
+    
     try {
         delete payload.id
         delete payload.createdAt
