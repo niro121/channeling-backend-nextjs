@@ -12,6 +12,8 @@ import {
 } from '@/app/actions/agencybook.actions';
 import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
 import FilterSection from './filter-section';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -23,6 +25,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view agency-books
+  const canView = await checkRouteAccess('/agency-books');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllAgencyBooks({
