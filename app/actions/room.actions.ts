@@ -18,6 +18,7 @@ import {
   UpdateRoomPayload
 } from '@/types/room';
 import { revalidatePath } from 'next/cache';
+import { requirePermission } from '@/lib/server-permissions';
 
 type CreateRoomPayload = RoomFormValues & {
   createdBy?: string;
@@ -26,6 +27,9 @@ type CreateRoomPayload = RoomFormValues & {
 
 // ==== GET ALL ROOMS ==== //
 export const getAllRooms = async (sort: getRoomParam) => {
+  // Check view permission
+  await requirePermission('rooms', 'view');
+
   try {
     let newFilter: getRoomQuery = {
       page: sort.page
@@ -105,6 +109,9 @@ export const createRoom = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('rooms', 'add');
+
   try {
     const result = await createRoomService(payload, user);
 
@@ -150,6 +157,9 @@ export const updateOneRoom = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('rooms', 'edit');
+
   try {
     const result = await updateOneRoomService(id, payload, user);
 
@@ -183,6 +193,9 @@ export const updateOneRoom = async (
 
 // ==== DELETE A ROOM ==== //
 export const deleteRoom = async (id: string) => {
+  // Check delete permission
+  await requirePermission('rooms', 'delete');
+
   try {
     const result = await deleteRoomByIdService(id);
 
@@ -215,6 +228,9 @@ export const deleteRoom = async (id: string) => {
 
 // ==== DELETE BULK ROOMS ==== //
 export const bulkDeleteRooms = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('rooms', 'delete');
+
   try {
     const result = await bulkDeleteRoomsByIdsService(ids);
 

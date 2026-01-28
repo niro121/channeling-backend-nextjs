@@ -1,10 +1,14 @@
 'use server'
 
 import { GetTagsParams, GetTagsQuery, Tag } from "@/types/tag"
-import { deleteOneTag, deleteTags, getTags, saveTag, updateOneTag, getTagById } from "@/services/tag.service"
+import { deleteOneTag, deleteTags, getTags, saveTag, updateOneTag, getTagById, getAllTagsDownloadService } from "@/services/tag.service"
 import { revalidatePath } from "next/cache"
+import { requirePermission } from "@/lib/server-permissions"
 
 export const getAllTags = async (filter: GetTagsParams) => {
+    // Check view permission
+    await requirePermission("tags", "view")
+    
     try {
         let newFilter: GetTagsQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
@@ -41,6 +45,9 @@ export const getAllTags = async (filter: GetTagsParams) => {
 }
 
 export const bulkDeleteTags = async (ids: string[]) => {
+    // Check delete permission
+    await requirePermission("tags", "delete")
+    
     try {
         const result = await deleteTags(ids);
 
@@ -57,6 +64,9 @@ export const bulkDeleteTags = async (ids: string[]) => {
 }
 
 export const deleteTag = async (id: string) => {
+    // Check delete permission
+    await requirePermission("tags", "delete")
+    
     try {
         const result = await deleteOneTag(id);
 
@@ -99,6 +109,9 @@ export const createNewTag = async (
         issues?: any;
     };
 }> => {
+    // Check add permission
+    await requirePermission("tags", "add")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
@@ -156,6 +169,9 @@ export const updateTag = async (
         issues?: any;
     };
 }> => {
+    // Check edit permission
+    await requirePermission("tags", "edit")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
@@ -243,6 +259,43 @@ export const fetchTagById = async (id: string) => {
                 message: error.message || "Unable to fetch tag"
             },
             data: null
+        };
+    }
+};
+
+// ==== TAG LIST DOWNLOAD ==== //
+export const getTagsExport = async (filters: {
+    keyword?: string;
+    type?: string;
+}): Promise<{
+    success: boolean;
+    data?: Tag[];
+    totalRecords?: number;
+    message?: string;
+}> => {
+    try {
+        const response = await getAllTagsDownloadService({
+            keyword: filters.keyword ?? "",
+            type: filters.type ? parseInt(filters.type) : undefined
+        });
+
+        if (!response.tags?.length) {
+            return {
+                success: false,
+                message: "No available tags in the database"
+            };
+        }
+
+        return {
+            success: true,
+            data: response.tags,
+            totalRecords: response.totalRecords
+        };
+    } catch (error: any) {
+        console.error("getTagsExport error:", error);
+        return {
+            success: false,
+            message: "Error getting data"
         };
     }
 };

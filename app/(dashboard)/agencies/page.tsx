@@ -12,6 +12,8 @@ import {
   getAgenciesExport
 } from '@/app/actions/agency.actions';
 import { ExportWrapper } from '../export-wrapper';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -22,6 +24,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view agencies
+  const canView = await checkRouteAccess('/agencies');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllAgencies({

@@ -4,8 +4,12 @@ import { getPatientById, getPatients, createPatient, updatePatient, deletePatien
 import { GetPatientsParams, Patient } from "@/types/patient"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
+import { requirePermission } from "@/lib/server-permissions"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
+    // Check view permission
+    await requirePermission("patients", "view")
+    
     try {
         const result = await getPatients(params)
 
@@ -88,6 +92,9 @@ export const getPatientByIdAction = async (id: string) => {
 }
 
 export const createPatientAction = async (data: Patient) => {
+    // Check add permission
+    await requirePermission("patients", "add")
+    
     try {
         // Sanitize data
         const payload = { ...data }
@@ -137,6 +144,9 @@ export const createPatientAction = async (data: Patient) => {
 }
 
 export const updatePatientAction = async (id: string, data: Partial<Patient>) => {
+    // Check edit permission
+    await requirePermission("patients", "edit")
+    
     try {
         // Sanitize data
         const payload = { ...data }
@@ -186,6 +196,9 @@ export const updatePatientAction = async (id: string, data: Partial<Patient>) =>
 
 
 export const deletePatientAction = async (id: string) => {
+    // Check delete permission
+    await requirePermission("patients", "delete")
+    
     try {
         const result = await deletePatient(id)
 
@@ -210,6 +223,9 @@ export const deletePatientAction = async (id: string) => {
 }
 
 export const bulkDeletePatientsAction = async (ids: string[]) => {
+    // Check delete permission
+    await requirePermission("patients", "delete")
+    
     try {
         const result = await deletePatients(ids)
 

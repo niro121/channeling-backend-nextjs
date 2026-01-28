@@ -24,9 +24,13 @@ import * as argon2 from 'argon2';
 import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
 import prisma from '@/lib/prisma';
+import { requirePermission } from '@/lib/server-permissions';
 
 // ==== GET ALL AGENCIES ==== //
 export const getAllAgencies = async (params: GetAgenciesParams) => {
+  // Check view permission
+  await requirePermission('agencies', 'view');
+
   try {
     const query: GetAgenciesQuery = {
       page: params.page ? parseInt(params.page) : 0,
@@ -136,6 +140,9 @@ export const createAgency = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('agencies', 'add');
+
   try {
     const result = await createAgencyService(payload, user);
 
@@ -239,6 +246,9 @@ export const updateAgency = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('agencies', 'edit');
+
   try {
     const result = await updateAgencyService(id, payload, user);
 
@@ -344,6 +354,9 @@ export const createAgencyLogin = async (
 
 // ==== DELETE AGENCY ==== //
 export const deleteAgency = async (id: string) => {
+  // Check delete permission
+  await requirePermission('agencies', 'delete');
+
   try {
     const result = await deleteAgencyByIdService(id);
 
@@ -380,6 +393,9 @@ export const deleteAgency = async (id: string) => {
 
 // ==== BULK DELETE AGENCIES ==== //
 export const bulkDeleteAgencies = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('agencies', 'delete');
+
   try {
     const result = await bulkDeleteAgenciesService(ids);
 

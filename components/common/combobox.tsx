@@ -48,6 +48,7 @@ export function Combobox({
         <Button
           variant="outline"
           role="combobox"
+          disabled={options.length === 0}
           className="w-60 justify-between"
         >
           {selectedOption?.name || label}
@@ -65,9 +66,9 @@ export function Combobox({
               {options.map((option) => (
                 <CommandItem
                   key={option.id}
-                  value={option.id}
-                  onSelect={(val) => {
-                    onChange(val === value ? defaultValue : val);
+                  value={option.name}
+                  onSelect={() => {
+                    onChange(option.id);
                     setOpen(false);
                   }}
                 >

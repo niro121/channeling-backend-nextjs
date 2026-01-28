@@ -4,10 +4,13 @@ import { PlusCircle } from "@/components/icons"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
 import { tagColumns } from "./columns"
-import { bulkDeleteTags, getAllTags } from "@/app/actions/tag.actions"
+import { bulkDeleteTags, getAllTags, getTagsExport } from "@/app/actions/tag.actions"
 import Loading from "../loading"
 import Link from "next/link"
 import FilterSection from "./filter-section"
+import { ExportWrapper } from "../export-wrapper"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { redirect } from "next/navigation"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -19,6 +22,11 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+    // Check if user can view tags
+    const canView = await checkRouteAccess("/tags")
+    if (!canView) {
+        redirect("/unauthorized-access")
+    }
 
     const resolvedSearchParams = await searchParams;
 
@@ -37,6 +45,44 @@ export default async function Page({ searchParams }: SearchParams) {
         { id: "4", name: "Staff Designation" },
         { id: "5", name: "Staff Grade" },
     ];
+
+    // ==== EXPORT: GET TAG LIST ==== //
+    const handleExport = async () => {
+        'use server';
+
+        const tagListResponse = await getTagsExport({
+            keyword: resolvedSearchParams?.keyword,
+            type: resolvedSearchParams?.type
+        });
+
+        if (!tagListResponse.success || !tagListResponse.data?.length) {
+            return {
+                success: false,
+                message: tagListResponse.success
+                    ? 'No tags found'
+                    : tagListResponse.message
+            };
+        }
+
+        const TAG_TYPES: Record<number, string> = {
+            1: 'Area',
+            2: 'Bank',
+            3: 'Staff Category',
+            4: 'Staff Designation',
+            5: 'Staff Grade'
+        };
+
+        const mappedTags = tagListResponse.data.map((t) => ({
+            name: t.name || '-',
+            type: t.type ? TAG_TYPES[t.type] || 'Unknown' : '-',
+            status: t.status === 1 ? 'Active' : 'Inactive'
+        }));
+
+        return {
+            success: true,
+            data: mappedTags
+        };
+    };
 
     return (
         <>
@@ -74,6 +120,15 @@ export default async function Page({ searchParams }: SearchParams) {
                     tagTypeOptions={tagTypeOptions}
                     typeId={resolvedSearchParams?.type}
                 />
+                <div className="flex items-center gap-2 ml-auto">
+                    <ExportWrapper
+                        serverData={handleExport}
+                        columns={['Name', 'Type', 'Status']}
+                        keys={['name', 'type', 'status']}
+                        title="Tags List"
+                        fileName="tags"
+                    />
+                </div>
             </div>
             <div className="overflow-hidden">
                 <Suspense fallback={<Loading />}>

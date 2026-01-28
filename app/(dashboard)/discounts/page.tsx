@@ -12,6 +12,8 @@ import {
 import { SelectorFilter } from '@/components/common/selector-filter';
 import { DISCOUNT_TYPE_OPTIONS } from '@/types/discount';
 import { DisCountColumns } from './columns';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -23,6 +25,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view discounts
+  const canView = await checkRouteAccess('/discounts');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllDiscounts({

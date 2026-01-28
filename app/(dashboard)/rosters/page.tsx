@@ -7,6 +7,8 @@ import { rosterColumns } from "./columns"
 import { bulkDeleteRosters, getAllRosters } from "@/app/actions/roster.actions"
 import Loading from "../loading"
 import Link from "next/link"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { redirect } from "next/navigation"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -17,6 +19,11 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+    // Check if user can view rosters
+    const canView = await checkRouteAccess("/rosters")
+    if (!canView) {
+        redirect("/unauthorized-access")
+    }
 
     const resolvedSearchParams = await searchParams;
 
