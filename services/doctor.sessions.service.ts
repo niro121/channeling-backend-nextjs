@@ -169,7 +169,7 @@ export const createDoctorSessionService = async (
       });
     }
 
-    console.log('Session', doctorSession);
+    // console.log('Session', doctorSession);
 
     return {
       success: true,
@@ -286,7 +286,7 @@ export const updateDoctorSessionService = async (
       }
     });
 
-    console.log('Updated session:', updatedSession);
+    // console.log('Updated session:', updatedSession);
 
     return {
       success: true,
