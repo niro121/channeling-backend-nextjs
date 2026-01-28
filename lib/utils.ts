@@ -118,3 +118,59 @@ export const downloadExcelUtil = async <T>({
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), fileName);
 };
+
+// ==== TIME CONVERTERS ==== //
+export const extractTime = (date: Date): {
+  time: string
+  meridiem: "AM" | "PM"
+} => {
+  let hours = date.getHours()
+  const minutes = date.getMinutes().toString().padStart(2, "0")
+  const meridiem: "AM" | "PM" = hours >= 12 ? "PM" : "AM"
+
+  hours = hours % 12 || 12
+
+  return {
+    time: `${hours.toString().padStart(2, "0")}:${minutes}`,
+    meridiem,
+  }
+}
+
+export const buildDateFromTime = (
+  time: string,
+  meridiem: 'AM' | 'PM',
+  baseDate: Date
+) => {
+  const [hh, mm] = time.split(':').map(Number);
+  let hours = hh;
+
+  if (meridiem === 'PM' && hours !== 12) hours += 12;
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+
+  const date = new Date(baseDate);
+  date.setHours(hours, mm, 0, 0);
+
+  return date;
+};
+
+export const calculateDurationMinutes = (
+  startTimeValue: string,
+  startMeridiem: 'AM' | 'PM',
+  endTimeValue: string,
+  endMeridiem: 'AM' | 'PM'
+) => {
+  const parseTime = (time: string, meridiem: 'AM' | 'PM') => {
+    const [hoursStr, minutesStr] = time.split(':');
+    let hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
+    if (meridiem === 'PM' && hours !== 12) hours += 12;
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+  const startMinutes = parseTime(startTimeValue, startMeridiem);
+  const endMinutes = parseTime(endTimeValue, endMeridiem);
+
+  const duration = endMinutes - startMinutes;
+  return duration >= 0 ? duration : 0; 
+};
