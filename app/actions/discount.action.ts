@@ -23,6 +23,7 @@ import {
 import { VoucherFormValues } from '@/types/voucher';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { requirePermission } from '@/lib/server-permissions';
 
 type createDiscountPayload = DiscountFormValues & {
   createdBy?: string;
@@ -36,6 +37,9 @@ type createVoucherPayload = VoucherFormValues & {
 
 // ==== GET ALL DISCOUNTS ==== //
 export const getAllDiscounts = async (sort: getDiscountParams) => {
+  // Check view permission
+  await requirePermission('discounts', 'view');
+  
   try {
     let newFilter: getDiscountQuery = {
       page: sort.page
@@ -93,6 +97,9 @@ export const createDiscount = async (
   payload: createDiscountPayload,
   user?: { id?: string; name?: string }
 ) => {
+  // Check add permission
+  await requirePermission('discounts', 'add');
+  
   // console.log('CREATING DATA', payload);
   try {
     const voucherAccepted = payload.isVoucher === 1;
@@ -192,6 +199,9 @@ export const updateOneDiscount = async (
   payload: UpdatedDiscountPayload,
   user?: { id?: string; name?: string }
 ) => {
+  // Check edit permission
+  await requirePermission('discounts', 'edit');
+  
   try {
     let hasSkippedVouchers = false;
 
@@ -385,6 +395,9 @@ export const deleteOneVoucher = async (id: string) => {
 
 // ==== DELETE A DISCOUNT ==== //
 export const deleteDiscount = async (id: string) => {
+  // Check delete permission
+  await requirePermission('discounts', 'delete');
+  
   try {
     const result = await deleteDiscountByIdService(id);
 
@@ -407,6 +420,9 @@ export const deleteDiscount = async (id: string) => {
 
 // ==== DELETE BULK DISCOUNTS ==== //
 export const bulkDeleteDiscounts = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('discounts', 'delete');
+  
   try {
     const result = await bulkDeleteDiscountsByIdsService(ids);
 
