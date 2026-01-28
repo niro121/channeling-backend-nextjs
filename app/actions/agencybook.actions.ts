@@ -16,9 +16,13 @@ import {
   AgencyBook
 } from '@/types/agencybook';
 import { revalidatePath } from 'next/cache';
+import { requirePermission } from '@/lib/server-permissions';
 
 // ==== GET ALL AGENCY BOOKS ==== //
 export const getAllAgencyBooks = async (params: GetAgencyBooksParams) => {
+  // Check view permission
+  await requirePermission('agency-books', 'view');
+
   try {
     const query: GetAgencyBooksQuery = {
       page: params.page ? parseInt(params.page) : 0,
@@ -109,6 +113,9 @@ export const createAgencyBook = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('agency-books', 'add');
+
   try {
     const result = await createAgencyBookService(payload, user);
 
@@ -160,6 +167,9 @@ export const updateAgencyBook = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('agency-books', 'edit');
+
   try {
     const result = await updateAgencyBookService(id, payload, user);
 
@@ -198,6 +208,9 @@ export const updateAgencyBook = async (
 
 // ==== DELETE AGENCY BOOK ==== //
 export const deleteAgencyBook = async (id: string) => {
+  // Check delete permission
+  await requirePermission('agency-books', 'delete');
+
   try {
     const result = await deleteAgencyBookByIdService(id);
 
@@ -232,6 +245,9 @@ export const deleteAgencyBook = async (id: string) => {
 
 // ==== BULK DELETE AGENCY BOOKS ==== //
 export const bulkDeleteAgencyBooks = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('agency-books', 'delete');
+
   try {
     const result = await bulkDeleteAgencyBooksService(ids);
 
