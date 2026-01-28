@@ -1,23 +1,24 @@
 'use client';
 
 import React from 'react';
-import { Doctor } from '@/types/doctor';
 import { Row } from '@tanstack/react-table';
 import { useToast } from '@/components/hooks/use-toast';
 import { DataTableRowActions } from '@/components/common/custom-table-row-actions';
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
-import { deleteDoctor } from '@/app/actions/doctor.actions';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { BinIcon } from '@/components/icons';
 import { DoctorSession } from '@/types/doctor.session';
+import { deleteDoctorSession } from '@/app/actions/doctor.sessions.action';
 
 type DoctorSessionActionsProps<TData extends DoctorSession> = {
   row: Row<TData>;
 };
 
-export function DoctorSessionRecordActions({ row }: DoctorSessionActionsProps<DoctorSession>) {
+export function DoctorSessionRecordActions({
+  row
+}: DoctorSessionActionsProps<DoctorSession>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -35,7 +36,7 @@ export function DoctorSessionRecordActions({ row }: DoctorSessionActionsProps<Do
     if (doctorSession.id) {
       try {
         setLoading(true);
-        await deleteDoctor(doctorSession.id);
+        await deleteDoctorSession(doctorSession.id);
 
         toast({
           variant: 'success',
@@ -67,10 +68,12 @@ export function DoctorSessionRecordActions({ row }: DoctorSessionActionsProps<Do
         <Button
           variant={'link'}
           className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-          onClick={() => router.push(`/doctors/${doctorSession.id}/add`)}
+          onClick={() =>
+            router.push(`/doctor-sessions/${doctorSession.id}/edit`)
+          }
         >
           <Edit className="w-5 h-5" />
-          <span className="sr-only">Add</span>
+          <span className="sr-only">Edit</span>
         </Button>
         <Button
           variant={'link'}
