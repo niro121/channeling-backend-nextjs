@@ -5,7 +5,7 @@ import React from 'react';
 export const FeeTotals = ({ formik }: { formik: any }) => {
   const totals = React.useMemo(() => {
     return formik.values.fees.reduce(
-      (acc, fee) => {
+      (acc: any, fee: any) => {
         acc.local += Number(fee.localFee || 0);
         acc.foreign += Number(fee.foreignFee || 0);
         return acc;
