@@ -18,6 +18,7 @@ import {
   Users,
   FileText,
   MessageSquareText,
+  Clock10,
 } from "lucide-react"
 import { Session } from "next-auth";
 import { UserGroup } from "@/components/icons"
@@ -84,6 +85,13 @@ async function DesktopNav({ session }: { session: Session | null }) {
           href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'}
           label="Doctor"
           icon={<Stethoscope className="h-5 w-5" />}
+        />
+
+        {/* // =========================== DOCTOR SESSIONS =========================== */}
+        <NavLink
+          href={hasAccess('/doctor-sessions') ? '/doctor-sessions' : 'unauthorized-access'}
+          label="Doctor Session"
+          icon={<Clock10 className="h-5 w-5" />}
         />
 
         {/* // =========================== DEPARTMENT =========================== */}
@@ -243,6 +251,13 @@ async function MobileNav({ session }: { session: Session | null }) {
             href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'}
             label="Doctor"
             icon={<Stethoscope className="h-5 w-5" />}
+          />
+
+          {/* // =========================== DOCTOR SESSIONS =========================== */}
+          <NavLink
+            href={hasAccess('/doctor-sessions') ? '/doctor-sessions' : 'unauthorized-access'}
+            label="Doctor Session"
+            icon={<Clock10 className="h-5 w-5" />}
           />
 
           {/* // =========================== DEPARTMENT =========================== */}
