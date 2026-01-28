@@ -2,10 +2,15 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DoctorSession } from '@/types/doctor.session';
+import {
+  DAY_TYPES,
+  DoctorSession,
+  INSTITUTION_OPTIONS
+} from '@/types/doctor.session';
 import { CircleCorrect, CircleX } from '@/components/icons';
 import moment from 'moment';
 import { DoctorSessionRecordActions } from './record-actions';
+import Link from 'next/link';
 
 export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
@@ -18,7 +23,6 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
-        className="translate-y-0.5"
       />
     ),
     cell: ({ row }) => (
@@ -26,83 +30,114 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        className="translate-y-0.5"
       />
     ),
     enableSorting: false,
     enableHiding: false
   },
+
   {
-    accessorKey: 'code', // doctor-seesion field
+    id: 'doctorSession',
     header: 'Doctor Session',
     cell: ({ row }) => {
-      const code = row.getValue<string>('code');
+      const { name, startTime, dayType, id } = row.original;
+
+      const time = moment(startTime).format('hh.mm A');
+      const day = DAY_TYPES[dayType] ?? '';
 
       return (
-        <div className="max-w-28 truncate" title={code}>
-          {code}
+        <div className="max-w-48 truncate">
+          <Link
+            href={`/doctor-sessions/${id}/edit`}
+            className="cursor-pointer hover:text-blue-700 transition duration-75"
+          >
+            {name} {time} ({day.name})
+          </Link>
         </div>
       );
     }
   },
+
   {
     accessorKey: 'startTime',
-    header: 'Start Time'
+    header: 'Start Time',
+    cell: ({ row }) => moment(row.original.startTime).format('hh.mm A')
   },
+
   {
     accessorKey: 'endTime',
-    header: 'End Time'
+    header: 'End Time',
+    cell: ({ row }) => moment(row.original.endTime).format('hh.mm A')
   },
+
   {
     accessorKey: 'amountLocal',
-    header: 'Session Value(Local)'
+    header: 'Session Value (Local)'
   },
+
   {
     accessorKey: 'amountForeign',
-    header: 'Session Value(Foreign)'
+    header: 'Session Value (Foreign)'
   },
+
   {
-    accessorKey: 'amountForeign', // customise
-    header: 'Patient Number'
+    id: 'patientNumber',
+    header: 'Patient Number',
+    cell: ({ row }) => {
+      const { startingPatientNumber, maxPatientNumber } = row.original;
+      return `${startingPatientNumber} - ${maxPatientNumber}`;
+    }
   },
+
   {
-    accessorKey: 'amountForeign', // customise
-    header: 'Location / Department / Institution'
+    id: 'locationDepartmentInstitution',
+    header: 'Location / Department / Institution',
+    cell: ({ row }) => {
+      const { location, department, institution } = row.original;
+      const institutionName = INSTITUTION_OPTIONS[institution] ?? '';
+
+      return (
+        <div className="max-w-64 truncate">
+          {location?.name ?? '-'} / {department?.name ?? '-'} /{' '}
+          {institutionName.name ?? '-'}
+        </div>
+      );
+    }
   },
+
   {
     accessorKey: 'updatedUser.name',
     header: 'Updated By'
   },
+
   {
     accessorKey: 'updatedAt',
     header: 'Updated Date',
-    cell: ({ row }) => {
-      return moment(row.getValue('updatedAt')).format('DD/MM/YYYY');
-    }
+    cell: ({ row }) => moment(row.getValue('updatedAt')).format('DD/MM/YYYY')
   },
+
   {
     accessorKey: 'createdUser.name',
     header: 'Created By'
   },
+
   {
     accessorKey: 'createdAt',
     header: 'Created Date',
-    cell: ({ row }) => {
-      return moment(row.getValue('createdAt')).format('DD/MM/YYYY');
-    }
+    cell: ({ row }) => moment(row.getValue('createdAt')).format('DD/MM/YYYY')
   },
+
   {
     accessorKey: 'status',
     header: 'Published',
-    cell: ({ row }) => {
-      const show = row.getValue('status');
-      return show === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7 justify-self-center" />
+    cell: ({ row }) =>
+      row.getValue('status') === 1 ? (
+        <CircleCorrect className="text-green-500 w-7 h-7" />
       ) : (
-        <CircleX className="text-red-500 w-7 h-7 justify-self-center" />
-      );
-    }
+        <CircleX className="text-red-500 w-7 h-7" />
+      )
   },
+
   {
     id: 'actions',
     header: 'Actions',
