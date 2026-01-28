@@ -60,7 +60,8 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.9.2",
     "yup": "^1.7.1",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "zustand": "^5.0.10"
   },
   "prettier": {
     "arrowParens": "always",

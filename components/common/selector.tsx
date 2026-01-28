@@ -29,7 +29,7 @@ export function Selector({
 }: SelectorProps) {
   return (
     <Select value={value ?? defaultValue} onValueChange={onChange}>
-      <SelectTrigger className="w-60">
+      <SelectTrigger className="w-60" disabled={options.length === 0}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
