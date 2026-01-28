@@ -4,9 +4,12 @@ import { DoctorSessionColumns } from './columns';
 import Loading from '../loading';
 import FilterSection from './filter-section';
 import {
+  getAllDoctorSessions,
   getDoctorOptions,
-  getLocationOptions
+  getLocationOptions,
+  bulkDeleteDoctorSessions
 } from '@/app/actions/doctor.sessions.action';
+import AddBtnSection from './add-btn-section';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -20,13 +23,12 @@ type SearchParams = {
 export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
 
-  /* const { data, totalRecords } = await getAllDoctors({
+  const { data, totalRecords } = await getAllDoctorSessions({
     page: params?.page,
     limit: params?.limit,
-    keyword: params?.keyword,
     locationId: params?.locationId,
-
-  }); */
+    doctorId: params?.doctorId
+  });
 
   // ==== LOCATION OPTIONS ==== //
   const locationOptions = await getLocationOptions();
@@ -43,6 +45,9 @@ export default async function Page({ searchParams }: SearchParams) {
           doctorId={params?.doctorId}
           doctorOptions={doctorOptions.data || []}
         />
+        <div className="ml-auto flex items-center gap-4">
+          <AddBtnSection />
+        </div>
       </div>
       <div className="overflow-hidden">
         <Suspense fallback={<Loading />}>
@@ -52,7 +57,7 @@ export default async function Page({ searchParams }: SearchParams) {
             columns={DoctorSessionColumns}
             data={data}
             rowCount={totalRecords}
-            deleteServerAction={}
+            deleteServerAction={bulkDeleteDoctorSessions}
             page={params?.page}
           />
         </Suspense>

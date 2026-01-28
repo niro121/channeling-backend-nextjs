@@ -6,6 +6,7 @@ import DoctorSessionForm from '../../doctor-session-form';
 import {
   getDepartmentOptions,
   getDoctorById,
+  getDoctorSessionById,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
 import {
@@ -21,13 +22,13 @@ type PageProps = {
   }>;
 };
 
-export default async function AddDoctorSessionPage({ params }: PageProps) {
+export default async function EditDoctorSessionPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  const { data, success } = await getDoctorById(id);
+  const { data, success } = await getDoctorSessionById(id);
 
   if (!success || !data) {
     notFound();
@@ -40,11 +41,11 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
     <div className="container mx-auto py-6">
       <div className="w-full">
         <h1 className="text-2xl font-bold mb-6">
-          Add New Doctor Session to {`DR.${data.name}`}
+          Edit {`Session - ${data.name}`} of {`DR.${data.doctor.name}`}
         </h1>
         <DoctorSessionForm
           doctorId={data.id}
-          doctorSession={null}
+          doctorSession={data}
           institutionOptions={INSTITUTION_OPTIONS}
           departmentOptions={departmentOptions.data}
           locationOptions={locationOptions.data}
