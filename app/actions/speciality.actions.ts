@@ -19,6 +19,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
+import { requirePermission } from '@/lib/server-permissions';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
   createdBy?: string;
@@ -30,6 +31,9 @@ const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
 
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialities = async (sort: getSpecialityParams) => {
+  // Check view permission
+  await requirePermission('specialities', 'view');
+
   try {
     let newFilter: getSpecialityQuery = {
       page: sort.page
@@ -140,6 +144,9 @@ export const createSpeciality = async (
     issues?: any;
   };
 }> => {
+  // Check add permission
+  await requirePermission('specialities', 'add');
+
   try {
     const specialityCode = await getNextSpecialityCode();
 
@@ -196,6 +203,9 @@ export const updateOneSpeciality = async (
     issues?: any;
   };
 }> => {
+  // Check edit permission
+  await requirePermission('specialities', 'edit');
+
   try {
     const result = await updateOneSpecialityService(id, payload, user);
 
@@ -230,6 +240,9 @@ export const updateOneSpeciality = async (
 
 // ==== DELETE A SPECIALITY ==== //
 export const deleteSpeciality = async (id: string) => {
+  // Check delete permission
+  await requirePermission('specialities', 'delete');
+
   try {
     const result = await deleteSpecialityByIdService(id);
 
@@ -261,6 +274,9 @@ export const deleteSpeciality = async (id: string) => {
 
 // ==== DELETE BULK SPECIALITIES ==== //
 export const bulkDeleteSpecialities = async (ids: string[]) => {
+  // Check delete permission
+  await requirePermission('specialities', 'delete');
+
   try {
     const result = await bulkDeleteSpecialitiesByIdsService(ids);
 

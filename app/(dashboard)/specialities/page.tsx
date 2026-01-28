@@ -7,6 +7,8 @@ import { SpecialityColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
 import { bulkDeleteSpecialities, getAllSpecialities } from '@/app/actions/speciality.actions';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -17,6 +19,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view specialities
+  const canView = await checkRouteAccess('/specialities');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const {data, totalRecords, success, message} = await getAllSpecialities({
