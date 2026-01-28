@@ -7,6 +7,8 @@ import { zoneColumns } from "./columns"
 import { bulkDeleteZones, getAllZones } from "@/app/actions/zone.actions"
 import Loading from "../loading"
 import Link from "next/link"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { redirect } from "next/navigation"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -17,6 +19,11 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+    // Check if user can view zones
+    const canView = await checkRouteAccess("/zones")
+    if (!canView) {
+        redirect("/unauthorized-access")
+    }
 
     const resolvedSearchParams = await searchParams;
 

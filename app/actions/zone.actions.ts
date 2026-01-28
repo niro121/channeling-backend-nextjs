@@ -3,8 +3,12 @@
 import { GetZonesParams, GetZonesQuery, Zone } from "@/types/zone"
 import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById } from "@/services/zone.service"
 import { revalidatePath } from "next/cache"
+import { requirePermission } from "@/lib/server-permissions"
 
 export const getAllZones = async (filter: GetZonesParams) => {
+    // Check view permission
+    await requirePermission("zones", "view")
+    
     try {
         let newFilter: GetZonesQuery = {
             page: filter.page ? parseInt(filter.page) : 0,
@@ -40,6 +44,9 @@ export const getAllZones = async (filter: GetZonesParams) => {
 }
 
 export const bulkDeleteZones = async (ids: string[]) => {
+    // Check delete permission
+    await requirePermission("zones", "delete")
+    
     try {
         const result = await deleteZones(ids);
 
@@ -56,6 +63,9 @@ export const bulkDeleteZones = async (ids: string[]) => {
 }
 
 export const deleteZone = async (id: string) => {
+    // Check delete permission
+    await requirePermission("zones", "delete")
+    
     try {
         const result = await deleteOneZone(id);
 
@@ -98,6 +108,9 @@ export const createNewZone = async (
         issues?: any;
     };
 }> => {
+    // Check add permission
+    await requirePermission("zones", "add")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
@@ -154,6 +167,9 @@ export const updateZone = async (
         issues?: any;
     };
 }> => {
+    // Check edit permission
+    await requirePermission("zones", "edit")
+    
     try {
         // Clean up payload
         const cleanPayload = { ...payload };
