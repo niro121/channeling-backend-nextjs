@@ -12,112 +12,234 @@ export const getAllZones = async (filter: GetZonesParams) => {
             keyword: filter.keyword ?? "",
         }
 
-        return await getZones(newFilter)
+        const response = await getZones(newFilter);
+
+        if (!response.success) {
+            return {
+                success: false,
+                message: response.error?.message || "Failed to fetch zones",
+                data: [],
+                totalRecords: 0
+            };
+        }
+
+        return {
+            success: true,
+            data: response.data ?? [],
+            totalRecords: response.totalRecords ?? 0
+        };
     } catch (error: any) {
-        console.log('getAllZones error', error);
-        throw new Error(error.message ?? "Error getting data. please try again later")
+        console.error('getAllZones error:', error);
+        return {
+            success: false,
+            message: error.message || "Error getting data. please try again later",
+            data: [],
+            totalRecords: 0
+        };
     }
 }
 
 export const bulkDeleteZones = async (ids: string[]) => {
     try {
-        await deleteZones(ids)
-        revalidatePath('/zones')
-        return true
+        const result = await deleteZones(ids);
+
+        if (!result.success) {
+            throw new Error(result.error?.message || "Failed to delete zones");
+        }
+
+        revalidatePath('/zones');
+        return true;
     } catch (error: any) {
-        console.log('bulkDeleteZones error ==>', error);
-        throw new Error(error.message ?? "Error deleting records. please try again later")
+        console.error('bulkDeleteZones error:', error);
+        throw error;
     }
 }
 
 export const deleteZone = async (id: string) => {
     try {
-        await deleteOneZone(id)
-        revalidatePath('/zones')
-        return true
+        const result = await deleteOneZone(id);
+
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error || {
+                    message: result.message || "Zone deletion failed"
+                }
+            };
+        }
+
+        revalidatePath('/zones');
+
+        return {
+            success: true,
+            data: result.data,
+            message: result.message || "Zone deleted successfully"
+        };
     } catch (error: any) {
-        console.log('deleteZone error ==>', error);
-        throw new Error(error.message ?? "Error deleting data. please try again later")
+        console.error('deleteZone error:', error);
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to delete zone"
+            }
+        };
     }
 }
 
-export const createNewZone = async (payload: Zone) => {
+export const createNewZone = async (
+    payload: Zone,
+    user?: { id?: string; name?: string }
+): Promise<{
+    success: boolean;
+    data?: any;
+    message?: string;
+    error?: {
+        message?: string;
+        issues?: any;
+    };
+}> => {
     try {
-        delete payload.id
-        delete payload.createdAt
-        delete payload.updatedAt
+        // Clean up payload
+        const cleanPayload = { ...payload };
+        delete cleanPayload.id;
+        delete cleanPayload.createdAt;
+        delete cleanPayload.updatedAt;
+        delete cleanPayload.location;
 
         // Set default visibility if not provided
-        if (payload.visibility === undefined) {
-            payload.visibility = 0
+        if (cleanPayload.visibility === undefined) {
+            cleanPayload.visibility = 0;
         }
 
-        const result = await saveZone(payload)
+        const result = await saveZone(cleanPayload, user);
 
-        revalidatePath('/zones')
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error || {
+                    message: result.message || "Zone creation failed"
+                }
+            };
+        }
+
+        revalidatePath('/zones');
 
         return {
-            isError: false,
-            errors: {},
-            data: {
-                saved: true,
-                id: result && result.id
-            }
-        }
+            success: true,
+            data: result.data,
+            message: result.message || "Zone created successfully"
+        };
     } catch (error: any) {
-        console.log('createNewZone error ==>', error);
+        console.error('createNewZone action error:', error);
+
         return {
-            isError: true,
-            errors: {
-                message: error.message ?? "Something went wrong. please try again later"
-            },
-            data: {}
-        }
+            success: false,
+            error: {
+                message: error.message || "Unexpected error occurred"
+            }
+        };
     }
 }
 
-export const updateZone = async (id: string, payload: Zone) => {
+export const updateZone = async (
+    id: string,
+    payload: Zone,
+    user?: { id?: string; name?: string }
+): Promise<{
+    success: boolean;
+    data?: any;
+    message?: string;
+    error?: {
+        message?: string;
+        issues?: any;
+    };
+}> => {
     try {
-        delete payload.id
-        delete payload.createdAt
-        delete payload.updatedAt
+        // Clean up payload
+        const cleanPayload = { ...payload };
+        delete cleanPayload.id;
+        delete cleanPayload.createdAt;
+        delete cleanPayload.updatedAt;
+        delete cleanPayload.location;
 
-        await updateOneZone(id, payload)
+        const result = await updateOneZone(id, cleanPayload, user);
 
-        revalidatePath('/zones')
-        revalidatePath(`/zones/${id}/edit`)
-        return {
-            isError: false,
-            errors: {},
-            data: {
-                saved: true
-            }
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error || {
+                    message: result.message || "Zone update failed"
+                }
+            };
         }
+
+        revalidatePath('/zones');
+        revalidatePath(`/zones/${id}/edit`);
+
+        return {
+            success: true,
+            data: result.data,
+            message: result.message || "Zone updated successfully"
+        };
     } catch (error: any) {
-        console.log('updateZone error ==>', error);
+        console.error('updateZone action error:', error);
+
         return {
-            isError: true,
-            errors: {
-                message: error.message ?? "Something went wrong. please try again later"
-            },
-            data: {}
-        }
+            success: false,
+            error: {
+                message: error.message || "Unexpected error occurred"
+            }
+        };
     }
 }
 
 export const fetchZoneById = async (id: string) => {
     try {
         if (!id) {
-            throw new Error("Zone not found");
+            return {
+                success: false,
+                error: {
+                    message: "Zone ID is required"
+                },
+                data: null
+            };
         }
 
-        const zone = await getZoneById(id);
-        if (!zone) {
-            throw new Error("Zone not found");
+        const result = await getZoneById(id);
+
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error || {
+                    message: "Failed to fetch zone"
+                },
+                data: null
+            };
         }
-        return zone;
+
+        if (!result.data) {
+            return {
+                success: false,
+                error: {
+                    message: "Zone not found"
+                },
+                data: null
+            };
+        }
+
+        return {
+            success: true,
+            data: result.data
+        };
     } catch (error: any) {
-        console.error("Error in fetchZoneById:", error.message);
-        throw new Error(error.message || "Unable to fetch zone.");
+        console.error("Error in fetchZoneById:", error);
+
+        return {
+            success: false,
+            error: {
+                message: error.message || "Unable to fetch zone"
+            },
+            data: null
+        };
     }
 };

@@ -46,14 +46,15 @@ export const userColumns: ColumnDef<User>[] = [
         cell: ({ row }) => {
             const show = row.getValue('status')
             return show === 1 ? (
-                <CircleCorrect className="text-primary w-7 h-7" />
-            ) : (
-                <CircleX className="text-red-500 w-7 h-7" />
-            )
+        <CircleCorrect className="text-green-500 w-7 h-7" />
+      ) : (
+        <CircleX className="text-red-500 w-7 h-7" />
+      );
         },
     },
     {
         id: "actions",
+        header: () => <div className="text-center">Actions</div>,
         cell: ({ row }) => <UserRecordActions row={row} />,
     },
 ]

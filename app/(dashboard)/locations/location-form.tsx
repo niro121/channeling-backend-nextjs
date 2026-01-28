@@ -61,7 +61,7 @@ export default function DoctorForm({
 
   const handleSubmit = async (
     values: LocationFormValues,
-    { resetForm }: FormikHelpers<LocationFormValues>
+    { resetForm, setErrors, setTouched }: FormikHelpers<LocationFormValues>
   ) => {
     try {
       setLoading(true);
@@ -72,10 +72,28 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
+          // Handle server-side validation errors
+          if (respond?.error?.issues) {
+            const fieldErrors: any = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errors = respond.error.issues[key];
+              if (Array.isArray(errors) && errors.length > 0) {
+                fieldErrors[key] = errors[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as any)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Location update unsuccessful.'
+            description: respond.error?.message || 'Location update unsuccessful.'
           });
           return;
         }
@@ -91,10 +109,28 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
+          // Handle server-side validation errors
+          if (respond?.error?.issues) {
+            const fieldErrors: any = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errors = respond.error.issues[key];
+              if (Array.isArray(errors) && errors.length > 0) {
+                fieldErrors[key] = errors[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as any)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Location save unsuccessful.'
+            description: respond.error?.message || 'Location save unsuccessful.'
           });
           return;
         }
@@ -116,7 +152,7 @@ export default function DoctorForm({
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.message ?? 'location save unsuccessful.'
+        description: error.message ?? 'Location save unsuccessful.'
       });
     }
   };

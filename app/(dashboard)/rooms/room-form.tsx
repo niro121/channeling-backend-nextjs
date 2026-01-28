@@ -63,7 +63,7 @@ export default function RoomForm({
 
   const handleSubmit = async (
     values: RoomFormValues,
-    { resetForm }: FormikHelpers<RoomFormValues>
+    { resetForm, setErrors, setTouched }: FormikHelpers<RoomFormValues>
   ) => {
     try {
       let respond: any;
@@ -76,12 +76,29 @@ export default function RoomForm({
         setLoading(false);
 
         if (!respond?.success) {
+          // Handle server-side validation errors
+          if (respond?.error?.issues) {
+            const fieldErrors: any = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errors = respond.error.issues[key];
+              if (Array.isArray(errors) && errors.length > 0) {
+                fieldErrors[key] = errors[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as any)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Room update unsuccessful.'
+            description: respond.error?.message || 'Room update unsuccessful.'
           });
-          setLoading(false);
           return;
         }
 
@@ -98,12 +115,29 @@ export default function RoomForm({
         setLoading(false);
 
         if (!respond?.success) {
+          // Handle server-side validation errors
+          if (respond?.error?.issues) {
+            const fieldErrors: any = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const errors = respond.error.issues[key];
+              if (Array.isArray(errors) && errors.length > 0) {
+                fieldErrors[key] = errors[0];
+              }
+            });
+            setErrors(fieldErrors);
+            setTouched(
+              Object.keys(fieldErrors).reduce((acc, key) => {
+                acc[key] = true;
+                return acc;
+              }, {} as any)
+            );
+          }
+
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Room save unsuccessful.'
+            description: respond.error?.message || 'Room save unsuccessful.'
           });
-          setLoading(false);
           return;
         }
 
@@ -208,13 +242,11 @@ export default function RoomForm({
                       placeholder="Zone"
                       disabled={zoneloading || zoneOptions.length === 0}
                       value={formik.values.zoneId}
-                      onChange={(value) =>
-                        formik.setFieldValue('ZoneId', parseInt(value))
-                      }
+                      onChange={(value: string) => formik.setFieldValue('zoneId', value)}
                       required
                       options={zoneOptions}
                       styleClasses={styleClasses}
-                    />
+                   />
                   </>
                 </div>
               }
@@ -251,7 +283,7 @@ export default function RoomForm({
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
                   onClick={() => {
-                    router.push('/specialities');
+                    router.push('/rooms');
                   }}
                   disabled={loading}
                 >

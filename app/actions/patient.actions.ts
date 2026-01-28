@@ -7,34 +7,82 @@ import { prisma } from "@/lib/prisma"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
     try {
-        const response = await getPatients(params)
+        const result = await getPatients(params)
+
+        if (!result.success) {
+            throw new Error(result.error?.message ?? "Error getting data. please try again later")
+        }
+
+        // Return format expected by the page component
         return {
             isError: false,
-            data: response,
+            data: {
+                data: result.data?.records || [],
+                totalRecords: result.data?.totalRecords || 0
+            },
             errors: {}
         }
     } catch (error: any) {
+        console.log('getPatientsAction error', error);
         return {
             isError: true,
             data: null,
-            errors: { message: error.message }
+            errors: { message: error.message ?? "Error getting data. please try again later" }
+        }
+    }
+}
+
+// ==== GET ALL PATIENTS (for API) ==== //
+export const getAllPatients = async (params: GetPatientsParams) => {
+    try {
+        const result = await getPatients(params)
+
+        if (!result.success) {
+            return {
+                success: false,
+                message: result.error?.message || 'Failed to fetch patients',
+                data: [],
+                totalRecords: 0
+            }
+        }
+
+        return {
+            success: true,
+            data: result.data?.records ?? [],
+            totalRecords: result.data?.totalRecords ?? 0,
+            message: result.message
+        }
+    } catch (error: any) {
+        console.error('getAllPatients action error:', error)
+
+        return {
+            success: false,
+            message: error.message || 'Error getting patients. Please try again later',
+            data: [],
+            totalRecords: 0
         }
     }
 }
 
 export const getPatientByIdAction = async (id: string) => {
     try {
-        const response = await getPatientById(id)
+        const result = await getPatientById(id)
+
+        if (!result.success || !result.data) {
+            throw new Error(result.error?.message || "Patient not found")
+        }
+
         return {
             isError: false,
-            data: response,
+            data: result.data,
             errors: {}
         }
     } catch (error: any) {
+        console.error("Error in getPatientByIdAction:", error.message);
         return {
             isError: true,
             data: null,
-            errors: { message: error.message }
+            errors: { message: error.message || "Unable to fetch patient." }
         }
     }
 }
@@ -57,18 +105,33 @@ export const createPatientAction = async (data: Patient) => {
         if (payload.addressLine2 === "") payload.addressLine2 = null
         if (!payload.dateOfBirth) payload.dateOfBirth = null
 
-        const response = await createPatient(payload)
+        const result = await createPatient(payload)
+
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            }
+        }
+
         revalidatePath("/patients")
         return {
             isError: false,
-            data: response,
+            data: {
+                saved: true,
+                id: result.data?.id
+            },
             errors: {}
         }
     } catch (error: any) {
+        console.log('createPatientAction error ==>', error);
         return {
             isError: true,
             data: null,
-            errors: { message: error.message }
+            errors: { message: error.message ?? "Something went wrong. please try again later" }
         }
     }
 }
@@ -90,19 +153,33 @@ export const updatePatientAction = async (id: string, data: Partial<Patient>) =>
         if (payload.addressLine1 === "") payload.addressLine1 = null
         if (payload.addressLine2 === "") payload.addressLine2 = null
         if (!payload.dateOfBirth) payload.dateOfBirth = null
-        
-        const response = await updatePatient(id, payload)
+
+        const result = await updatePatient(id, payload)
+
+        if (!result.success) {
+            return {
+                isError: true,
+                errors: result.error?.issues || {
+                    message: result.error?.message ?? "Something went wrong. please try again later"
+                },
+                data: {}
+            }
+        }
+
         revalidatePath("/patients")
         return {
             isError: false,
-            data: response,
+            data: {
+                saved: true
+            },
             errors: {}
         }
     } catch (error: any) {
+        console.log('updatePatientAction error ==>', error);
         return {
             isError: true,
             data: null,
-            errors: { message: error.message }
+            errors: { message: error.message ?? "Something went wrong. please try again later" }
         }
     }
 }
@@ -110,7 +187,12 @@ export const updatePatientAction = async (id: string, data: Partial<Patient>) =>
 
 export const deletePatientAction = async (id: string) => {
     try {
-        await deletePatient(id)
+        const result = await deletePatient(id)
+
+        if (!result.success) {
+            throw new Error(result.error?.message ?? "Error deleting data. please try again later")
+        }
+
         revalidatePath("/patients")
         return {
             isError: false,
@@ -118,20 +200,27 @@ export const deletePatientAction = async (id: string) => {
             errors: {}
         }
     } catch (error: any) {
+        console.log('deletePatientAction error ==>', error);
         return {
             isError: true,
             data: null,
-            errors: { message: error.message }
+            errors: { message: error.message ?? "Error deleting data. please try again later" }
         }
     }
 }
 
 export const bulkDeletePatientsAction = async (ids: string[]) => {
     try {
-        await deletePatients(ids)
+        const result = await deletePatients(ids)
+
+        if (!result.success) {
+            throw new Error(result.error?.message ?? "Error deleting records. please try again later")
+        }
+
         revalidatePath("/patients")
         return true
     } catch (error: any) {
+        console.log('bulkDeletePatientsAction error ==>', error);
         throw new Error(error.message ?? "Error deleting records. please try again later")
     }
 }

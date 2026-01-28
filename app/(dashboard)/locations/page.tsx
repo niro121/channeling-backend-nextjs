@@ -6,9 +6,9 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { LocationColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
-import { SelectorFilter } from '@/components/common/selector-filter';
 import { bulkDeleteLocations, getAllLocations } from '@/app/actions/location.action';
 import { LOCATION_OPTIONS } from '@/types/location';
+import FilterSection from './filter-section';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -61,12 +61,9 @@ export default async function Page({ searchParams }: SearchParams) {
             className={'rounded-lg bg-background pl-8 w-full'}
           />
         </div>
-        <SelectorFilter
-          label="All Location Types"
-          options={LOCATION_OPTIONS}
-          defaultValue="__all__"
-          keyword="locationId"
-          initialId={params?.locationId}
+        <FilterSection
+          locationTypeOptions={LOCATION_OPTIONS}
+          locationId={params?.locationId}
         />
       </div>
       <div className="overflow-hidden">

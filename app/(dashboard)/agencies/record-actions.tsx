@@ -5,10 +5,12 @@ import { Agency } from '@/types/agency';
 import { Row } from '@tanstack/react-table';
 import { useToast } from '@/components/hooks/use-toast';
 import { DataTableRowActions } from '@/components/common/custom-table-row-actions';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
 import { deleteAgency } from '@/app/actions/agency.actions';
-import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Edit } from 'lucide-react';
+import { BinIcon } from '@/components/icons';
+import { useRouter } from 'next/navigation';
 
 interface AgencyActionsProps<TData extends Agency> {
   row: Row<TData>;
@@ -20,6 +22,7 @@ const AgencyRecordActions = <TData extends Agency>({
   const [showDeleteConfirmation, setShowDelConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const agency = row.original;
 
@@ -34,7 +37,7 @@ const AgencyRecordActions = <TData extends Agency>({
         const result = await deleteAgency(agency.id);
 
         if (result.isError) {
-          throw new Error(result.errors.message);
+          throw new Error(result.errors?.message || 'Failed to delete agency');
         }
 
         toast({
@@ -64,12 +67,22 @@ const AgencyRecordActions = <TData extends Agency>({
   return (
     <>
       <DataTableRowActions>
-        <DropdownMenuItem asChild>
-          <Link href={`/agencies/${agency.id}/edit`}>Edit</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => showHideDeleteModal(true)}>
-          Delete
-        </DropdownMenuItem>
+        <Button
+          variant={'link'}
+          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+          onClick={() => router.push(`/agencies/${agency.id}/edit`)}
+        >
+          <Edit className="w-5 h-5" />
+          <span className="sr-only">Edit</span>
+        </Button>
+        <Button
+          variant={'link'}
+          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+          onClick={() => showHideDeleteModal(true)}
+        >
+          <BinIcon className="w-5 h-5 text-red-600" />
+          <span className="sr-only">Delete</span>
+        </Button>
       </DataTableRowActions>
 
       <CustomAlertDialog

@@ -66,14 +66,15 @@ export const zoneColumns: ColumnDef<Zone>[] = [
         cell: ({ row }) => {
             const visibility = row.getValue('visibility')
             return visibility === 1 ? (
-                <CircleCorrect className="text-primary w-7 h-7" />
-            ) : (
-                <CircleX className="text-red-500 w-7 h-7" />
-            )
+        <CircleCorrect className="text-green-500 w-7 h-7" />
+      ) : (
+        <CircleX className="text-red-500 w-7 h-7" />
+      );
         },
     },
     {
         id: "actions",
+        header: () => <div className="text-center">Actions</div>,
         cell: ({ row }) => <ZoneRecordActions row={row} />,
     },
 ]

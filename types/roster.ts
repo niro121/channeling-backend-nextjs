@@ -6,6 +6,9 @@ export interface Roster {
     status: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
+    department?: {
+        name: string | null
+    } | null
 }
 
 export interface GetRostersQuery {

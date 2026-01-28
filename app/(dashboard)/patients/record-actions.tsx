@@ -5,82 +5,93 @@ import { Patient } from "@/types/patient"
 import { Row } from "@tanstack/react-table"
 import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import CustomAlertDialog from "@/components/common/custom-alert-dialog"
 import { deletePatientAction } from "@/app/actions/patient.actions"
-import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Edit } from "lucide-react"
+import { BinIcon } from "@/components/icons"
+import { useRouter } from "next/navigation"
 
 interface PatientActionsProps<TData extends Patient> {
-    row: Row<TData>
+  row: Row<TData>
 }
 
 const PatientRecordActions = <TData extends Patient>({
-    row,
+  row,
 }: PatientActionsProps<TData>) => {
-    const [showDeleteConfirmation, setShowDelConfirmation] = useState(false)
-    const [loading, setLoading] = useState(false)
-    const { toast } = useToast()
+  const [showDeleteConfirmation, setShowDelConfirmation] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
+  const router = useRouter()
 
-    const patient = row.original
+  const patient = row.original
 
-    const showHideDeleteModal = (value: boolean) => {
-        setShowDelConfirmation(value)
+  const showHideDeleteModal = (value: boolean) => {
+    setShowDelConfirmation(value)
+  }
+
+  const onDeleteConfirmation = async () => {
+    if (patient.id) {
+      try {
+        setLoading(true)
+        await deletePatientAction(patient.id)
+
+        toast({
+          variant: "success",
+          title: "Success",
+          description: "Patient was deleted successfully.",
+        })
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message ?? "Patient deletion unsuccessful.",
+        })
+      } finally {
+        setLoading(false)
+        showHideDeleteModal(false)
+      }
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Patient id not found.",
+      })
     }
+  }
 
-    const onDeleteConfirmation = async () => {
-        if (patient.id) {
-            try {
-                setLoading(true)
-                await deletePatientAction(patient.id)
+  return (
+    <>
+      <DataTableRowActions>
+        <Button
+          variant="link"
+          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+          onClick={() => router.push(`/patients/${patient.id}/edit`)}
+        >
+          <Edit className="w-5 h-5" />
+          <span className="sr-only">Edit</span>
+        </Button>
 
-                toast({
-                    variant: "success",
-                    title: "Success",
-                    description: "Patient was deleted successfully",
-                })
-            } catch (error: any) {
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: error.message ?? "Patient deletion unsuccessful",
-                })
-            } finally {
-                setLoading(false)
-                showHideDeleteModal(false)
-            }
-        } else {
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Patient id not found.",
-            })
-        }
-    }
+        <Button
+          variant="link"
+          className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+          onClick={() => showHideDeleteModal(true)}
+        >
+          <BinIcon className="w-5 h-5 text-red-600" />
+          <span className="sr-only">Delete</span>
+        </Button>
+      </DataTableRowActions>
 
-    return (
-        <>
-            <DataTableRowActions>
-                <DropdownMenuItem asChild>
-                    <Link href={`/patients/${patient.id}/edit`}>
-                        Edit
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => showHideDeleteModal(true)}>
-                    Delete
-                </DropdownMenuItem>
-            </DataTableRowActions>
-
-            <CustomAlertDialog
-                open={showDeleteConfirmation}
-                handleVisibilityChange={showHideDeleteModal}
-                loading={loading}
-                title="Are you absolutely sure?"
-                description="This action cannot be undone. This will permanently delete this
-                            patient and remove the data from our servers."
-                handleContinue={onDeleteConfirmation}
-            />
-        </>
-    )
+      <CustomAlertDialog
+        open={showDeleteConfirmation}
+        handleVisibilityChange={showHideDeleteModal}
+        loading={loading}
+        title="Are you absolutely sure?"
+        description="This action cannot be undone. This will permanently delete this patient and remove the data from our servers."
+        handleContinue={onDeleteConfirmation}
+      />
+    </>
+  )
 }
 
 export default PatientRecordActions

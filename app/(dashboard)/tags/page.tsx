@@ -7,12 +7,14 @@ import { tagColumns } from "./columns"
 import { bulkDeleteTags, getAllTags } from "@/app/actions/tag.actions"
 import Loading from "../loading"
 import Link from "next/link"
+import FilterSection from "./filter-section"
 
 type SearchParams = {
     searchParams?: Promise<{
         page?: string;
         limit?: string;
         keyword?: string;
+        type?: string;
     }>
 }
 
@@ -24,8 +26,17 @@ export default async function Page({ searchParams }: SearchParams) {
         page: resolvedSearchParams?.page,
         limit: resolvedSearchParams?.limit,
         keyword: resolvedSearchParams?.keyword,
+        type: resolvedSearchParams?.type,
     })
 
+    // ==== TAG TYPE OPTIONS ==== //
+    const tagTypeOptions = [
+        { id: "1", name: "Area" },
+        { id: "2", name: "Bank" },
+        { id: "3", name: "Staff Category" },
+        { id: "4", name: "Staff Designation" },
+        { id: "5", name: "Staff Grade" },
+    ];
 
     return (
         <>
@@ -51,11 +62,17 @@ export default async function Page({ searchParams }: SearchParams) {
                     </Link>
                 </div>
             </div>
-            <div className="lg:hidden mt-2 relative flex-1 md:grow-0">
-                <SearchInput
-                    name="keyword"
-                    placeholder={"Search by name"}
-                    className={"rounded-lg bg-background pl-8 w-full"}
+            <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
+                <div className="lg:hidden relative flex-1 md:grow-0">
+                    <SearchInput
+                        name="keyword"
+                        placeholder={"Search by name"}
+                        className={"rounded-lg bg-background pl-8 w-full"}
+                    />
+                </div>
+                <FilterSection
+                    tagTypeOptions={tagTypeOptions}
+                    typeId={resolvedSearchParams?.type}
                 />
             </div>
             <div className="overflow-hidden">
