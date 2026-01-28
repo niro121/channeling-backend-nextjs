@@ -12,6 +12,8 @@ import {
 } from '@/app/actions/room.actions';
 import { RoomColumns } from './columns';
 import FilterSection from './filter-section';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -23,6 +25,12 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
+  // Check if user can view rooms
+  const canView = await checkRouteAccess('/rooms');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const { data, totalRecords } = await getAllRooms({
