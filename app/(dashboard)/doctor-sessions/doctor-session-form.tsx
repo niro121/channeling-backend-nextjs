@@ -19,7 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
 import {
   createDoctorSession,
-  getAllRoomsByLocaionID
+  getAllRoomsByLocaionID,
+  updateOneDoctorSession
 } from '@/app/actions/doctor.sessions.action';
 import {
   extractTime,
@@ -28,6 +29,9 @@ import {
 } from '@/lib/utils';
 import { CustomTimeField } from '@/components/common/custom-time-field';
 import { Loader } from 'lucide-react';
+import { DoctorSessionFeeColumns } from './session-fee-columns';
+import CustomTable from '@/components/common/custom-table';
+import { FeeTotals } from './fee-total';
 
 type DoctorSessionFormProps = {
   doctorId: string;
@@ -47,9 +51,9 @@ type DoctorSessionFormProps = {
 
 type FormSubmissionValues = DoctorSessionFormValues & {
   startTimeValue: string;
-  startMeridiem: 'AM' | 'PM';
+  startMeridiem: any;
   endTimeValue: string;
-  endMeridiem: 'AM' | 'PM';
+  endMeridiem: any;
 };
 
 export default function DoctorSessionForm({
@@ -70,6 +74,9 @@ export default function DoctorSessionForm({
     { id: string; name: string }[]
   >([]);
   const [roomloading, setRoomLoading] = React.useState<boolean>(false);
+  const [newLocationId, setNewLocationId] = React.useState(
+    doctorSession?.locationId
+  );
 
   const previousSessions = React.useMemo(
     () =>
@@ -112,7 +119,9 @@ export default function DoctorSessionForm({
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
     status: doctorSession?.status ?? 0,
-    fees: doctorSession?.fees ?? feeTypeOptions
+    fees: doctorSession?.fees ?? feeTypeOptions,
+    amountLocal: doctorSession?.amountLocal ?? 0,
+    amountForeign: doctorSession?.amountForeign ?? 0
   };
 
   const validationSchema = Yup.object({
@@ -209,13 +218,16 @@ export default function DoctorSessionForm({
       payload.startTime = startTime;
       payload.endTime = endTime;
 
-      // console.log('PAYLOAD', payload);
-
       setLoading(true);
       let respond: any;
 
       if (doctorSession && doctorSession.id) {
-        /* respond = await updateOneLocation(location.id, values);
+        respond = await updateOneDoctorSession(
+          doctorId,
+          doctorSession.id,
+          payload,
+          user
+        );
         setLoading(false);
 
         if (!respond?.success) {
@@ -232,7 +244,7 @@ export default function DoctorSessionForm({
           title: 'Success',
           description: 'Doctor Session was updated successfully'
         });
-        router.push('/doctor-sessions'); */
+        router.push('/doctor-sessions');
       } else {
         respond = await createDoctorSession(doctorId, payload, user);
         setLoading(false);
@@ -268,6 +280,42 @@ export default function DoctorSessionForm({
     }
   };
 
+  const fetchRooms = async (value: string) => {
+    setRoomLoading(true);
+
+    try {
+      const result = await getAllRoomsByLocaionID(value);
+
+      if (result.success) {
+        const mappedRooms = result.data?.map((r) => ({
+          id: r.id,
+          name: r.number
+        }));
+
+        setRoomOptions(mappedRooms || []);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Getting rooms unsuccessful.'
+        });
+        setRoomLoading(false);
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Getting rooms unsuccessful.'
+      });
+    } finally {
+      setRoomLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (newLocationId) fetchRooms(newLocationId);
+  }, [newLocationId]);
+
   return (
     <Formik
       initialValues={initialValues}
@@ -282,41 +330,11 @@ export default function DoctorSessionForm({
           inputClassName: 'col-span-full sm:col-span-3'
         };
 
-        const setLocationHandler = async (value: string) => {
+        const setLocationHandler = (value: string) => {
           formik.setFieldValue('locationId', value);
-
-          setRoomLoading(true);
-
-          try {
-            const result = await getAllRoomsByLocaionID(value);
-
-            if (result.success) {
-              const mappedRooms = result.data?.map((r) => ({
-                id: r.id,
-                name: r.number
-              }));
-
-              setRoomOptions(mappedRooms || []);
-            } else {
-              toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Getting rooms unsuccessful.'
-              });
-              setRoomLoading(false);
-            }
-          } catch (error: any) {
-            toast({
-              variant: 'destructive',
-              title: 'Error',
-              description: 'Getting rooms unsuccessful.'
-            });
-          } finally {
-            setRoomLoading(false);
-          }
+          setNewLocationId(value);
         };
 
-        console.log(formik.values.locationId)
         return (
           <Form className="w-full">
             <div className="border rounded-lg p-6">
@@ -529,7 +547,10 @@ export default function DoctorSessionForm({
                       value={formik.values.previousSessionId}
                       onChange={formik.handleChange}
                       required={false}
-                      disabled={previousSessions?.length === 0}
+                      disabled={
+                        previousSessions?.length === 0 ||
+                        previousSessions === undefined
+                      }
                       options={previousSessions || []}
                       styleClasses={styleClasses}
                     />
@@ -574,7 +595,15 @@ export default function DoctorSessionForm({
                     />
                   </div>
                 </TabsContent>
-                <TabsContent value="fees"></TabsContent>
+                <TabsContent value="fees">
+                  <CustomTable
+                    columns={DoctorSessionFeeColumns(formik)}
+                    data={formik.values.fees}
+                    rowCount={formik.values.fees.length}
+                  />
+
+                  <FeeTotals formik={formik} />
+                </TabsContent>
               </Tabs>
               <div className="mt-5 flex flex-col sm:flex-row justify-end gap-3">
                 <Button
