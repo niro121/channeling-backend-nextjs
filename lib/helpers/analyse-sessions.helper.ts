@@ -4,9 +4,10 @@ import prisma from '@/lib/prisma';
 import moment from 'moment';
 import orderBy from 'lodash.orderby';
 import { resolveUsersHelper } from './resolve-users.helper';
+import { DoctorSession, DoctorSessionFormValues } from '@/types/doctor.session';
 
 interface AnalyseSessionsInputs {
-  from_date: string;
+  fromDate: string;
   toDate: string;
   doctorId: string;
   update?: boolean;
@@ -18,15 +19,23 @@ interface AnalyseSessionsResult {
   data: any[];
 }
 
-type SessionStatus = "ACTIVE" | "LEAVE"
+type SessionStatus = 'ACTIVE' | 'LEAVE';
+
+type Fee = {
+  id: string;
+  name: string;
+  feeType: string;
+  localFee: number;
+  foreignFee: number;
+};
 
 interface SessionInputData {
+  institution: number;
   date: string;
   doctorSessionId: string;
   previousDoctorSession: string | null;
-  institution: number;
-  startTime: number; // Unix timestamp
-  endTime: number; // Unix timestamp
+  startTime: Date;
+  endTime: Date;
   durationMinutes: number | null;
   startingPatientNumber: number;
   maxPatientNumber: number;
@@ -34,13 +43,13 @@ interface SessionInputData {
   fees: any;
   amountLocal: number | null;
   amountForeign: number | null;
-  status: SessionStatus;
+  status: number // == 1: active, 0: leave == //;
   remarks: string;
-  doctor: string;
-  department: string | null;
-  location: string | null;
-  room: string | null;
   isScan: boolean;
+  doctorId: string;
+  departmentId: string | null;
+  locationId: string | null;
+  roomId: string | null;
 }
 
 export async function analyseSessionsHelper(
@@ -56,16 +65,17 @@ export async function analyseSessionsHelper(
   const inputData: SessionInputData[] = [];
 
   try {
-    // Get all locations (branches)
+    // ==== GET ALL LOCATIONS(BRANCHES) ==== //
     const branchList = await prisma.location.findMany({
       where: {
-        status: 1 // Only active locations
+        status: 1
       }
     });
 
-    // Get Doctor Sessions (schedules)
+    // ==== GET ALL DOCTOR SESSIONS(SCHEDULES) ==== //
     const schedule = await prisma.doctorSession.findMany({
       where: {
+        status: 1,
         doctorId: inputs.doctorId
       },
       orderBy: {
@@ -75,57 +85,56 @@ export async function analyseSessionsHelper(
 
     if (schedule && schedule.length > 0) {
       for (const item of schedule) {
-        const timeString = moment(item.startTime).format('HH:mm');
-        const endtimeString = moment(item.endTime).format('HH:mm');
+        const timeString = moment(item.startTime).format('HH:mm'); // == SCHEDULE START TIME == //
+        const endtimeString = moment(item.endTime).format('HH:mm'); // == SCHEDULE END TIME == //
 
-        let isScan = false;
+        let isScan = false; // == SCAN FEE STATUS == //
 
-        // Check if scan fee exists (fee with id: 3)
+        // == CHECK IF SCAN FEE EXITS (FEE WITH id: 3) == //
         if (item.fees && Array.isArray(item.fees)) {
-          const scanfee = (item.fees as any[]).find(
-            (fee: any) => fee.id === '3' || fee.id === 3
-          ); // {id: '3', name: 'Scan Fee', feeType: 'Service',}
 
-          if (
-            scanfee &&
-            (scanfee.local_value > 0 || scanfee.foreign_value > 0)
-          ) {
+          const scanfee = (item.fees as Fee[]).find(
+            (fee: Fee) => fee.id === '3' || Number(fee.id) === 3
+          ); // == {id: '3', name: 'Scan Fee', feeType: 'Service',} == //
+
+          if (scanfee && (scanfee.localFee > 0 || scanfee.foreignFee > 0)) {
+
             isScan = true;
           }
         }
 
-        // Calculate end date based on advanced booking days
+        // == CALCULATE END DATE BASED ON ADVANCED BOOKING DAY COUNT == //
         const end = moment();
         end.add(item.advancedBookingDays, 'days');
 
-        // Iterate through date range
+        // == ITERATE THRU DATE RANGE == //
         for (
-          let m = moment(inputs.from_date);
+          let m = moment(inputs.fromDate);
           m.diff(inputs.toDate, 'days') <= 0;
           m.add(1, 'days')
         ) {
           if (item.applyTo) {
-            // CHECK SPECIFIC DATE
-            const apply_to_date = moment(item.applyTo).format('YYYY-MM-DD');
-            const compare_to_date = m.format('YYYY-MM-DD');
+            // == CHECK SPECIFIC DATE: 8 = Specific day == //
+            const applyToDate = moment(item.applyTo).format('YYYY-MM-DD');
+            const compareToDate = m.format('YYYY-MM-DD');
 
-            if (apply_to_date === compare_to_date && m.isSameOrBefore(end)) {
-              const newstarttime = moment(
+            if (applyToDate === compareToDate && m.isSameOrBefore(end)) {
+              const newStartTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + timeString,
                 'YYYY-MM-DD HH:mm'
-              ).unix();
-              const newendtime = moment(
+              );
+              const newEndTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + endtimeString,
                 'YYYY-MM-DD HH:mm'
-              ).unix();
+              );
 
               inputData.push({
                 date: m.format('YYYY-MM-DD'),
                 doctorSessionId: item.id,
                 previousDoctorSession: item.previousSessionId || null,
                 institution: item.institution,
-                startTime: newstarttime,
-                endTime: newendtime,
+                startTime: newStartTime,
+                endTime: newEndTime,
                 durationMinutes: item.durationMinutes,
                 startingPatientNumber: item.startingPatientNumber,
                 maxPatientNumber: item.maxPatientNumber,
@@ -137,28 +146,28 @@ export async function analyseSessionsHelper(
                 amountForeign: item.amountForeign
                   ? Math.round(item.amountForeign)
                   : null,
-                status: item.status === 1 ? "ACTIVE" : item.status === 0 ? "LEAVE" : "LEAVE",
+                status: item.status ,
                 remarks: '',
-                doctor: item.doctorId || '',
-                department: item.departmentId || null,
-                location: item.locationId || null,
-                room: item.roomId || null,
+                doctorId: item.doctorId || '',
+                departmentId: item.departmentId || null,
+                locationId: item.locationId || null,
+                roomId: item.roomId || null,
                 isScan: isScan
               });
             }
           } else {
-            // FILTER BY DAY : CHECK DAY
-            // moment.js: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-            // dayType: 1 = Sunday, 2 = Monday, ..., 7 = Saturday, 8 = Specific day
-            const dayOfWeek = m.day(); // 0-6
-            const expectedDayType = dayOfWeek === 0 ? 1 : dayOfWeek + 1; // Convert to 1-7
+            // ==== FILTER BY DAY : CHECK DAY ==== //
+            // == MOMENT.JS: 0 = SUNDAY, 1 = MONDAY, ..., 6 = SATURDAY == //
+            // == dayType(doctorSession Model): 1 = Sunday, 2 = Monday, ..., 7 = Saturday, 8 = Specific day
+            const dayOfWeek = m.day(); // == 0-6 == //
+            const expectedDayType = dayOfWeek === 0 ? 1 : dayOfWeek + 1; // == CONVERT TO 1-7 == //
 
             if (item.dayType === expectedDayType && m.isSameOrBefore(end)) {
-              const newstarttime = moment(
+              const newStartTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + timeString,
                 'YYYY-MM-DD HH:mm'
               ).unix();
-              const newendtime = moment(
+              const newEndTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + endtimeString,
                 'YYYY-MM-DD HH:mm'
               ).unix();
@@ -168,8 +177,8 @@ export async function analyseSessionsHelper(
                 doctorSessionId: item.id,
                 previousDoctorSession: item.previousSessionId || null,
                 institution: item.institution,
-                startTime: newstarttime,
-                endTime: newendtime,
+                startTime: newStartTime,
+                endTime: newEndTime,
                 durationMinutes: item.durationMinutes,
                 startingPatientNumber: item.startingPatientNumber,
                 maxPatientNumber: item.maxPatientNumber,
@@ -181,26 +190,26 @@ export async function analyseSessionsHelper(
                 amountForeign: item.amountForeign
                   ? Math.round(item.amountForeign)
                   : null,
-                status: item.status === 1 ? "ACTIVE" : item.status === 0 ? "LEAVE" : "LEAVE",
+                status: item.status ,
                 remarks: '',
-                doctor: item.doctorId || '',
-                department: item.departmentId || null,
-                location: item.locationId || null,
-                room: item.roomId || null,
+                doctorId: item.doctorId || '',
+                departmentId: item.departmentId || null,
+                locationId: item.locationId || null,
+                roomId: item.roomId || null,
                 isScan: isScan
               });
             }
           }
-        } // DATE BY DATE
+        } // == DATE BY DATE == //
       }
 
-      // IF EMPTY INPUTS
+      // ==== IF EMPTY INPUTS ==== //
       if (inputData.length === 0) {
-        const getStartTime = moment(inputs.from_date).unix();
-        const endEndTime = moment(inputs.toDate).endOf('day').unix();
+        const getStartTime = moment(inputs.fromDate);
+        const endEndTime = moment(inputs.toDate).endOf('day');
 
         const sessiondata = await prisma.session.findMany({
-          where: {
+          where: {,
             doctorId: inputs.doctorId,
             startTime: {
               gte: new Date(getStartTime * 1000),
@@ -225,7 +234,7 @@ export async function analyseSessionsHelper(
             end: item.endTime,
             startTime: moment(item.startTime).format('LT'),
             endTime: moment(item.endTime).format('LT'),
-            original_name: originalSession
+            originalName: originalSession
               ? originalSession.name
               : '*** ORIGINAL SESSION DELETED ***',
             branch: item.location?.name || 'N/A'
@@ -238,7 +247,7 @@ export async function analyseSessionsHelper(
           ['asc']
         );
 
-        // Resolve users
+        // == RESOLVE USERS == //
         const resolvedData = await resolveUsersHelper(sortedData);
 
         return {
@@ -248,18 +257,18 @@ export async function analyseSessionsHelper(
         };
       }
 
-      // SORT THE DATA
+      // ==== SORT THE DATA ==== //
       const sortedInputData = orderBy(inputData, ['startTime'], ['asc']);
 
-      // START OF SESSION CREATE
+      // ==== START OF SESSION CREATION ==== //
       if (inputs.update === false || !inputs.update) {
-        // Create or find existing sessions
+        // == CREATE OR FIND EXISTING SESSIONS == //
         for (const value of sortedInputData) {
           const sessionDate = moment(value.date).toDate();
           const startTimeDate = moment.unix(value.startTime).toDate();
           const endTimeDate = moment.unix(value.endTime).toDate();
 
-          // Check if session already exists
+          // == CHECK IF SESSION IS ALREADY EXISTS == //
           const existingSession = await prisma.session.findFirst({
             where: {
               date: sessionDate,
@@ -268,7 +277,7 @@ export async function analyseSessionsHelper(
           });
 
           if (existingSession) {
-            // Session exists, format it
+            // == SESSION EXISTS FORMAT IT == //
             const formattedSession = {
               ...existingSession,
               new: false,
@@ -279,7 +288,7 @@ export async function analyseSessionsHelper(
             };
             data.push(formattedSession);
           } else {
-            // Create new session
+            // == CREATE NEW SESSION == //
             const newSession = await prisma.session.create({
               data: {
                 institution: value.institution,
@@ -295,13 +304,13 @@ export async function analyseSessionsHelper(
                 fees: value.fees,
                 amountLocal: value.amountLocal,
                 amountForeign: value.amountForeign,
-                status: 'ACTIVE',
+                status: value.status ?? 1,
                 remarks: value.remarks,
                 isScan: value.isScan,
-                doctorId: value.doctor,
-                departmentId: value.department,
-                locationId: value.location,
-                roomId: value.room
+                doctorId: value.doctorId,
+                departmentId: value.departmentId,
+                locationId: value.locationId,
+                roomId: value.roomId
               },
               include: {
                 location: true,
@@ -321,7 +330,7 @@ export async function analyseSessionsHelper(
           }
         }
       } else {
-        // UPDATE MODE
+        // ==== UPDATE MODE ==== /
         for (const value of sortedInputData) {
           const sessionDate = moment(value.date).toDate();
           const startTimeDate = moment.unix(value.startTime).toDate();
@@ -346,10 +355,10 @@ export async function analyseSessionsHelper(
               amountForeign: value.amountForeign,
               remarks: value.remarks,
               isScan: value.isScan,
-              doctorId: value.doctor,
-              departmentId: value.department,
-              locationId: value.location,
-              roomId: value.room
+              doctorId: value.doctorId,
+              departmentId: value.departmentId,
+              locationId: value.locationId,
+              roomId: value.roomId
             }
           });
 
@@ -380,8 +389,8 @@ export async function analyseSessionsHelper(
         }
       }
 
-      // After creating/updating, fetch all sessions in the date range
-      const getStartTime = moment(inputs.from_date).unix();
+      // ==== AFTER CREATING AND UPDATING: FETCH ALL THE SESSIONS IN DATE RANGE ==== //
+      const getStartTime = moment(inputs.fromDate).unix();
       const endEndTime = moment(inputs.toDate).endOf('day').unix();
 
       const sessiondata = await prisma.session.findMany({
@@ -409,20 +418,16 @@ export async function analyseSessionsHelper(
           end: item.endTime,
           startTime: moment(item.startTime).format('LT'),
           endTime: moment(item.endTime).format('LT'),
-          original_name: originalSession
+          originalName: originalSession
             ? originalSession.name
             : '*** ORIGINAL SESSION DELETED ***',
           branch: item.location?.name || 'N/A'
         };
       });
 
-      const sortedData = orderBy(
-        formattedData,
-        ['date', 'startTime'],
-        ['asc']
-      );
+      const sortedData = orderBy(formattedData, ['date', 'startTime'], ['asc']);
 
-      // Resolve users
+      // == RESOLVE USERS == //
       const resolvedData = await resolveUsersHelper(sortedData);
 
       return {
@@ -431,8 +436,8 @@ export async function analyseSessionsHelper(
         data: resolvedData
       };
     } else {
-      // No schedule found, return existing sessions
-      const getStartTime = moment(inputs.from_date).unix();
+      // ==== NO SCHEDULED FOUND: RETURN EXISTING SESSIONS ==== //
+      const getStartTime = moment(inputs.fromDate).unix();
       const endEndTime = moment(inputs.toDate).endOf('day').unix();
 
       const sessiondata = await prisma.session.findMany({
@@ -456,18 +461,14 @@ export async function analyseSessionsHelper(
           end: item.endTime,
           startTime: moment(item.startTime).format('LT'),
           endTime: moment(item.endTime).format('LT'),
-          original_name: '*** ORIGINAL SESSION DELETED ***',
+          originalName: '*** ORIGINAL SESSION DELETED ***',
           branch: item.location?.name || 'N/A'
         };
       });
 
-      const sortedData = orderBy(
-        formattedData,
-        ['date', 'startTime'],
-        ['asc']
-      );
+      const sortedData = orderBy(formattedData, ['date', 'startTime'], ['asc']);
 
-      // Resolve users
+      // == RESOLVE USERS == //
       const resolvedData = await resolveUsersHelper(sortedData);
 
       return {
@@ -482,4 +483,3 @@ export async function analyseSessionsHelper(
     return result;
   }
 }
-

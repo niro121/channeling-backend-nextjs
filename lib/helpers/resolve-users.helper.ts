@@ -2,13 +2,13 @@
 
 import prisma from '@/lib/prisma';
 
-// Helper function to resolve users in session data
+// ==== HELPER: TO RESOLVE USERS IN SESSION DATA ==== //
 export async function resolveUsersHelper(data: any[]): Promise<any[]> {
   if (data.length === 0) {
     return data;
   }
 
-  // Get all unique user IDs from createdBy and updatedBy fields
+  // == GET ALL UNIQUE IDs FROM CREATEDBY AND UPDATEDBY FIELDS == //
   const userIds = new Set<string>();
   data.forEach((item) => {
     if (item.createdBy) userIds.add(item.createdBy);
@@ -19,7 +19,6 @@ export async function resolveUsersHelper(data: any[]): Promise<any[]> {
     return data;
   }
 
-  // Fetch all users
   const users = await prisma.user.findMany({
     where: {
       id: {
@@ -28,10 +27,10 @@ export async function resolveUsersHelper(data: any[]): Promise<any[]> {
     }
   });
 
-  // Create a map for quick lookup
+  // ==== LOOKUP MAP ==== //
   const userMap = new Map(users.map((u) => [u.id, u]));
 
-  // Resolve user names
+  // == RESOLVE USER NAMES == //
   return data.map((item) => {
     const createdUser = item.createdBy ? userMap.get(item.createdBy) : null;
     const updatedUser = item.updatedBy ? userMap.get(item.updatedBy) : null;

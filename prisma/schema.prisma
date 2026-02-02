@@ -180,7 +180,7 @@ model Session {
   doctorLeaveRemark     String?
   doctorLeaveCreator    String?
   doctorLeaveCreatedAt  Int?
-  status                SessionStatus // ACTIVE. LEAVE
+  status                Int // == 1: ACTIVE. 0: LEAVE (DoctorSession status)== //
   remarks               String?
   appointmentNo         Int           @default(0)
   isScan                Boolean       @default(false)
@@ -473,9 +473,4 @@ enum PaymentType {
 enum LogStatus {
   INFO
   ERROR
-}
-
-enum SessionStatus {
-  ACTIVE
-  LEAVE
 }
