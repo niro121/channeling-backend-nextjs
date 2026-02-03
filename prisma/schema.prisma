@@ -66,6 +66,10 @@ model Department {
 
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
+
+  // Indexes for list query: orderBy createdAt, filter by name (keyword search)
+  @@index([createdAt(sort: Desc)])
+  @@index([name])
 }
 
 model Speciality {
