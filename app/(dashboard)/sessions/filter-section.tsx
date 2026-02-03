@@ -1,6 +1,6 @@
 'use client';
 
-import { DatePicker } from '@/components/common/datepicker';
+import { DateRangePicker } from '@/components/common/date-range-picker';
 import { FilterWrapper } from '../filter-wrapper';
 import { Combobox } from '@/components/common/combobox';
 import { useSessionStore } from '@/store/store-session';
@@ -41,23 +41,13 @@ export default function FilterSection({
                 setValue('doctorId', v));
             }}
           />
-          <DatePicker
-            value={values.fromDate ? new Date(values.fromDate) : undefined}
-            onChange={(date) =>
-              setValue(
-                'fromDate',
-                date ? date.toISOString().split('T')[0] : undefined
-              )
-            }
-          />
-          <DatePicker
-            value={values.toDate ? new Date(values.toDate) : undefined}
-            onChange={(date) =>
-              setValue(
-                'toDate',
-                date ? date.toISOString().split('T')[0] : undefined
-              )
-            }
+          <DateRangePicker
+            from={values.fromDate}
+            to={values.toDate}
+            onChange={({ from, to }) => {
+              setValue('fromDate', from);
+              setValue('toDate', to);
+            }}
           />
         </>
       )}
