@@ -1,10 +1,10 @@
-'use server';
+"use server"
 
 import prisma from '@/lib/prisma';
 import moment from 'moment';
 import orderBy from 'lodash.orderby';
-import { resolveUsersHelper } from './resolve-users.helper';
-import { DoctorSession, DoctorSessionFormValues } from '@/types/doctor.session';
+import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
+import {Fee, SessionInputData} from '@/types/sessions'
 
 interface AnalyseSessionsInputs {
   fromDate: string;
@@ -17,39 +17,6 @@ interface AnalyseSessionsResult {
   status: boolean;
   error: string;
   data: any[];
-}
-
-type SessionStatus = 'ACTIVE' | 'LEAVE';
-
-type Fee = {
-  id: string;
-  name: string;
-  feeType: string;
-  localFee: number;
-  foreignFee: number;
-};
-
-interface SessionInputData {
-  institution: number;
-  date: string;
-  doctorSessionId: string;
-  previousDoctorSession: string | null;
-  startTime: Date;
-  endTime: Date;
-  durationMinutes: number | null;
-  startingPatientNumber: number;
-  maxPatientNumber: number;
-  refundable: number;
-  fees: any;
-  amountLocal: number | null;
-  amountForeign: number | null;
-  status: number // == 1: active, 0: leave == //;
-  remarks: string;
-  isScan: boolean;
-  doctorId: string;
-  departmentId: string | null;
-  locationId: string | null;
-  roomId: string | null;
 }
 
 export async function analyseSessionsHelper(
@@ -122,11 +89,11 @@ export async function analyseSessionsHelper(
               const newStartTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + timeString,
                 'YYYY-MM-DD HH:mm'
-              );
+              ).unix();
               const newEndTime = moment(
                 m.format('YYYY-MM-DD') + ' ' + endtimeString,
                 'YYYY-MM-DD HH:mm'
-              );
+              ).unix();
 
               inputData.push({
                 date: m.format('YYYY-MM-DD'),
@@ -205,15 +172,15 @@ export async function analyseSessionsHelper(
 
       // ==== IF EMPTY INPUTS ==== //
       if (inputData.length === 0) {
-        const getStartTime = moment(inputs.fromDate);
-        const endEndTime = moment(inputs.toDate).endOf('day');
+        const getStartTime = moment(inputs.fromDate).unix();
+        const endEndTime = moment(inputs.toDate).endOf('day').unix();
 
         const sessiondata = await prisma.session.findMany({
-          where: {,
+          where: {
             doctorId: inputs.doctorId,
             startTime: {
-              gte: new Date(getStartTime * 1000),
-              lte: new Date(endEndTime * 1000)
+              gte: getStartTime,
+              lte: endEndTime
             }
           },
           include: {
@@ -222,24 +189,23 @@ export async function analyseSessionsHelper(
           }
         });
 
-        const formattedData = sessiondata.map((item) => {
-          const sessionDate = moment(item.startTime);
-          const originalSession = schedule.find(
-            (s) => s.id === item.doctorSessionId
-          );
+      const formattedData = sessiondata.map((item) => {
+        const originalSession = schedule.find(
+          (s) => s.id === item.doctorSessionId
+        );
 
-          return {
-            ...item,
-            start: item.startTime,
-            end: item.endTime,
-            startTime: moment(item.startTime).format('LT'),
-            endTime: moment(item.endTime).format('LT'),
-            originalName: originalSession
-              ? originalSession.name
-              : '*** ORIGINAL SESSION DELETED ***',
-            branch: item.location?.name || 'N/A'
-          };
-        });
+        return {
+          ...item,
+          start: moment.unix(item.startTime).toDate(),
+          end: moment.unix(item.endTime).toDate(),
+          startTime: moment.unix(item.startTime).format('LT'),
+          endTime: moment.unix(item.endTime).format('LT'),
+          originalName: originalSession
+            ? originalSession.name
+            : '*** ORIGINAL SESSION DELETED ***',
+          branch: item.location?.name || 'N/A'
+        };
+      });
 
         const sortedData = orderBy(
           formattedData,
@@ -265,8 +231,6 @@ export async function analyseSessionsHelper(
         // == CREATE OR FIND EXISTING SESSIONS == //
         for (const value of sortedInputData) {
           const sessionDate = moment(value.date).toDate();
-          const startTimeDate = moment.unix(value.startTime).toDate();
-          const endTimeDate = moment.unix(value.endTime).toDate();
 
           // == CHECK IF SESSION IS ALREADY EXISTS == //
           const existingSession = await prisma.session.findFirst({
@@ -281,10 +245,10 @@ export async function analyseSessionsHelper(
             const formattedSession = {
               ...existingSession,
               new: false,
-              start: existingSession.startTime,
-              end: existingSession.endTime,
-              startTime: moment(existingSession.startTime).format('LT'),
-              endTime: moment(existingSession.endTime).format('LT')
+              start: moment.unix(existingSession.startTime).toDate(),
+              end: moment.unix(existingSession.endTime).toDate(),
+              startTime: moment.unix(existingSession.startTime).format('LT'),
+              endTime: moment.unix(existingSession.endTime).format('LT')
             };
             data.push(formattedSession);
           } else {
@@ -295,8 +259,8 @@ export async function analyseSessionsHelper(
                 date: sessionDate,
                 doctorSessionId: value.doctorSessionId,
                 previousDoctorSession: value.previousDoctorSession,
-                startTime: startTimeDate,
-                endTime: endTimeDate,
+                startTime: value.startTime,
+                endTime: value.endTime,
                 durationMinutes: value.durationMinutes,
                 startingPatientNumber: value.startingPatientNumber,
                 maxPatientNumber: value.maxPatientNumber,
@@ -321,10 +285,10 @@ export async function analyseSessionsHelper(
             const formattedSession = {
               ...newSession,
               new: true,
-              start: newSession.startTime,
-              end: newSession.endTime,
-              startTime: moment(newSession.startTime).format('LT'),
-              endTime: moment(newSession.endTime).format('LT')
+              start: moment.unix(newSession.startTime).toDate(),
+              end: moment.unix(newSession.endTime).toDate(),
+              startTime: moment.unix(newSession.startTime).format('LT'),
+              endTime: moment.unix(newSession.endTime).format('LT')
             };
             data.push(formattedSession);
           }
@@ -333,8 +297,6 @@ export async function analyseSessionsHelper(
         // ==== UPDATE MODE ==== /
         for (const value of sortedInputData) {
           const sessionDate = moment(value.date).toDate();
-          const startTimeDate = moment.unix(value.startTime).toDate();
-          const endTimeDate = moment.unix(value.endTime).toDate();
 
           const updatedSession = await prisma.session.updateMany({
             where: {
@@ -344,8 +306,8 @@ export async function analyseSessionsHelper(
             data: {
               institution: value.institution,
               previousDoctorSession: value.previousDoctorSession,
-              startTime: startTimeDate,
-              endTime: endTimeDate,
+              startTime: value.startTime,
+              endTime: value.endTime,
               durationMinutes: value.durationMinutes,
               startingPatientNumber: value.startingPatientNumber,
               maxPatientNumber: value.maxPatientNumber,
@@ -378,10 +340,10 @@ export async function analyseSessionsHelper(
               const formattedSession = {
                 ...session,
                 new: false,
-                start: session.startTime,
-                end: session.endTime,
-                startTime: moment(session.startTime).format('LT'),
-                endTime: moment(session.endTime).format('LT')
+                start: moment.unix(session.startTime).toDate(),
+                end: moment.unix(session.endTime).toDate(),
+                startTime: moment.unix(session.startTime).format('LT'),
+                endTime: moment.unix(session.endTime).format('LT')
               };
               data.push(formattedSession);
             }
@@ -397,8 +359,8 @@ export async function analyseSessionsHelper(
         where: {
           doctorId: inputs.doctorId,
           startTime: {
-            gte: new Date(getStartTime * 1000),
-            lte: new Date(endEndTime * 1000)
+            gte: getStartTime,
+            lte: endEndTime
           }
         },
         include: {
@@ -414,10 +376,10 @@ export async function analyseSessionsHelper(
 
         return {
           ...item,
-          start: item.startTime,
-          end: item.endTime,
-          startTime: moment(item.startTime).format('LT'),
-          endTime: moment(item.endTime).format('LT'),
+          start: moment.unix(item.startTime).toDate(),
+          end: moment.unix(item.endTime).toDate(),
+          startTime: moment.unix(item.startTime).format('LT'),
+          endTime: moment.unix(item.endTime).format('LT'),
           originalName: originalSession
             ? originalSession.name
             : '*** ORIGINAL SESSION DELETED ***',
@@ -444,8 +406,8 @@ export async function analyseSessionsHelper(
         where: {
           doctorId: inputs.doctorId,
           startTime: {
-            gte: new Date(getStartTime * 1000),
-            lte: new Date(endEndTime * 1000)
+            gte: getStartTime,
+            lte: endEndTime
           }
         },
         include: {
@@ -457,10 +419,10 @@ export async function analyseSessionsHelper(
       const formattedData = sessiondata.map((item) => {
         return {
           ...item,
-          start: item.startTime,
-          end: item.endTime,
-          startTime: moment(item.startTime).format('LT'),
-          endTime: moment(item.endTime).format('LT'),
+          start: moment.unix(item.startTime).toDate(),
+          end: moment.unix(item.endTime).toDate(),
+          startTime: moment.unix(item.startTime).format('LT'),
+          endTime: moment.unix(item.endTime).format('LT'),
           originalName: '*** ORIGINAL SESSION DELETED ***',
           branch: item.location?.name || 'N/A'
         };
@@ -483,3 +445,29 @@ export async function analyseSessionsHelper(
     return result;
   }
 }
+
+// ==== GET DOCTOR OPTIONS ==== //
+export const getDoctorOptionsService = async () => {
+  try {
+    const records = await prisma.doctor.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true
+      }
+    });
+
+    const totalRecords = await prisma.doctor.count({
+      where: { status: 1 }
+    });
+
+    return {
+      data: records,
+      totalRecords
+    };
+  } catch (error: any) {
+    console.log('getDoctorOptionsService error', error);
+    throw error;
+  }
+};

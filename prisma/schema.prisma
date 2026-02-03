@@ -166,8 +166,8 @@ model Session {
   date                  DateTime
   doctorSessionId       String
   previousDoctorSession String?
-  startTime             DateTime
-  endTime               DateTime
+  startTime             Int
+  endTime               Int
   durationMinutes       Int?
   startingPatientNumber Int
   maxPatientNumber      Int
