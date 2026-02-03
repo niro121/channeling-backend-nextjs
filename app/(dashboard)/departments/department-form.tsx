@@ -44,7 +44,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
 
     const handleSubmit = async (
         values: Department,
-        { resetForm }: FormikHelpers<Department>
+        { setErrors, setTouched }: FormikHelpers<Department>
     ) => {
         try {
             let respond: any;
@@ -57,7 +57,36 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    // Map server-side validation errors to form fields
+                    if (respond.errors && typeof respond.errors === "object") {
+                        const fieldErrors: Record<string, string> = {}
+                        Object.keys(respond.errors).forEach((key) => {
+                            const err = respond.errors[key]
+                            if (Array.isArray(err) && err.length > 0) {
+                                fieldErrors[key] = err[0]
+                            }
+                        })
+                        if (Object.keys(fieldErrors).length > 0) {
+                            setErrors(fieldErrors)
+                            setTouched(
+                                Object.keys(fieldErrors).reduce(
+                                    (acc, key) => {
+                                        acc[key as keyof Department] = true
+                                        return acc
+                                    },
+                                    {} as Record<string, boolean>
+                                )
+                            )
+                        }
+                    }
+                    toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description:
+                            (respond.errors?.message as string) ??
+                            "Department update unsuccessful.",
+                    })
+                    return
                 }
 
                 toast({
@@ -73,22 +102,49 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    // Map server-side validation errors to form fields
+                    if (respond.errors && typeof respond.errors === "object") {
+                        const fieldErrors: Record<string, string> = {}
+                        Object.keys(respond.errors).forEach((key) => {
+                            const err = respond.errors[key]
+                            if (Array.isArray(err) && err.length > 0) {
+                                fieldErrors[key] = err[0]
+                            }
+                        })
+                        if (Object.keys(fieldErrors).length > 0) {
+                            setErrors(fieldErrors)
+                            setTouched(
+                                Object.keys(fieldErrors).reduce(
+                                    (acc, key) => {
+                                        acc[key as keyof Department] = true
+                                        return acc
+                                    },
+                                    {} as Record<string, boolean>
+                                )
+                            )
+                        }
+                    }
+                    toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description:
+                            (respond.errors?.message as string) ??
+                            "Department creation unsuccessful.",
+                    })
+                    return
                 }
 
+                // Redirect first so the form doesn't clear before navigation (revalidatePath can re-render add page)
+                if (respond.data?.id) {
+                    router.push(`/departments/${respond.data.id}/edit`)
+                } else {
+                    router.push('/departments')
+                }
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Department was created successfully",
                 })
-                
-                // Redirect to edit page with the new department id
-                if (respond.data?.id) {
-                    router.push(`/departments/${respond.data.id}/edit`)
-                } else {
-                    // Fallback: redirect to list if redirect fails
-                    router.push('/departments')
-                }
             }
         } catch (error: any) {
             setLoading(false)
@@ -105,7 +161,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 
