@@ -1,10 +1,8 @@
-'use server';
-
 import { getDoctorOptionsService } from '@/services/sessions.service';
-import { analyseSessionsHelper } from '@/services/sessions.service';
+import { analyseSessionsHelper } from '@/lib/helpers/doctor-sessions-generate.helper';
 import moment from 'moment';
 
-export const createSessions = async (): Promise<{
+const createSessions = async (): Promise<{
   success: boolean;
   message?: string;
   data?: {
@@ -89,3 +87,27 @@ export const createSessions = async (): Promise<{
     };
   }
 };
+
+// ==== SCRIPT EXECUTION ==== //
+(async () => {
+  try {
+    console.log('Starting session generation...');
+    const result = await createSessions();
+    
+    if (result.success) {
+      console.log('\n✅ Success:', result.message);
+      if (result.data) {
+        console.log(`Total Doctors: ${result.data.totalDoctors}`);
+        console.log(`Successful: ${result.data.successful}`);
+        console.log(`Failed: ${result.data.failed}`);
+      }
+      process.exit(0);
+    } else {
+      console.error('\n❌ Error:', result.error?.message || 'Unknown error');
+      process.exit(1);
+    }
+  } catch (error: any) {
+    console.error('\n❌ Fatal error:', error.message || error);
+    process.exit(1);
+  }
+})();
