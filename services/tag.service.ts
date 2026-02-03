@@ -63,18 +63,17 @@ export const getTags = async ({
             ...(type !== undefined ? { type } : {})
         };
 
-        const records = await prisma.tag.findMany({
-            skip: skip,
-            take: validLimit,
-            where: whereClause,
-            orderBy: {
-                createdAt: "desc",
-            },
-        });
-
-        const totalRecords = await prisma.tag.count({
-            where: whereClause,
-        });
+        const [records, totalRecords] = await Promise.all([
+            prisma.tag.findMany({
+                skip: skip,
+                take: validLimit,
+                where: whereClause,
+                orderBy: {
+                    createdAt: "desc",
+                },
+            }),
+            prisma.tag.count({ where: whereClause }),
+        ]);
 
         return {
             success: true,
@@ -223,7 +222,7 @@ export const saveTag = async (
                 success: false,
                 error: {
                     message: "Validation failed",
-                    issues: parsed.error.flatten().fieldErrors
+                    issues: parsed.error != null ? z.flattenError(parsed.error).fieldErrors : undefined
                 }
             };
         }
@@ -311,7 +310,7 @@ export const updateOneTag = async (
                 success: false,
                 error: {
                     message: "Validation failed",
-                    issues: parsed.error.flatten().fieldErrors
+                    issues: parsed.error != null ? z.flattenError(parsed.error).fieldErrors : undefined
                 }
             };
         }

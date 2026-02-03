@@ -140,6 +140,7 @@ export default async function Page({ searchParams }: SearchParams) {
                         rowCount={totalRecords}
                         deleteServerAction={bulkDeleteTags}
                         page={resolvedSearchParams?.page}
+                        limit={resolvedSearchParams?.limit}
                     />
                 </Suspense>
             </div>

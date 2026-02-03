@@ -10,8 +10,9 @@ export const getAllTags = async (filter: GetTagsParams) => {
     await requirePermission("tags", "view")
     
     try {
+        // URL page is 1-based; service expects 0-based
         let newFilter: GetTagsQuery = {
-            page: filter.page ? parseInt(filter.page) : 0,
+            page: filter.page ? Math.max(0, parseInt(filter.page) - 1) : 0,
             limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
             keyword: filter.keyword ?? "",
             type: filter.type ? parseInt(filter.type) : undefined,

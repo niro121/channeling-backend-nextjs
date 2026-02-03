@@ -7,9 +7,6 @@ import { prisma } from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
-    // Check view permission
-    await requirePermission("patients", "view")
-    
     try {
         const result = await getPatients(params)
 

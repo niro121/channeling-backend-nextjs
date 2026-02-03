@@ -86,13 +86,12 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
+                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was saved successfully",
                 })
-                // Redirect back to list page after successful update
-                router.push('/tags')
             } else {
                 respond = await createNewTag(values);
                 setLoading(false);
@@ -126,14 +125,12 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
+                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was created successfully",
                 })
-                
-                // Redirect to edit page with the new tag id, or list
-                 router.push('/tags')
             }
         } catch (error: any) {
             setLoading(false);
@@ -169,7 +166,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 

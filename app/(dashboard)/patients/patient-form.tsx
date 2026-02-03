@@ -94,7 +94,7 @@ const PatientForm = ({
 
   const handleSubmit = async (
     values: Patient,
-    { resetForm }: FormikHelpers<Patient>
+    { setErrors, setTouched }: FormikHelpers<Patient>
   ) => {
     try {
       let respond: any;
@@ -106,30 +106,74 @@ const PatientForm = ({
         setLoading(false);
 
         if (respond.isError) {
-          throw new Error(respond.errors.message);
+          if (respond.errors && typeof respond.errors === 'object' && !Array.isArray(respond.errors)) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.errors).forEach((key) => {
+              if (key === 'message') return;
+              const err = respond.errors[key];
+              const msg = Array.isArray(err) && err.length > 0 ? err[0] : typeof err === 'string' ? err : undefined;
+              if (msg) fieldErrors[key] = msg;
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce((acc, k) => ({ ...acc, [k]: true }), {} as Record<string, boolean>)
+              );
+            }
+          }
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: respond.errors?.message ?? 'Patient update unsuccessful.'
+          });
+          return;
         }
 
+        router.push('/patients');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was updated successfully'
         });
-        router.push('/patients');
       } else {
         respond = await createPatientAction(values);
         setLoading(false);
 
         if (respond.isError) {
-          throw new Error(respond.errors.message);
+          if (respond.errors && typeof respond.errors === 'object' && !Array.isArray(respond.errors)) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.errors).forEach((key) => {
+              if (key === 'message') return;
+              const err = respond.errors[key];
+              const msg = Array.isArray(err) && err.length > 0 ? err[0] : typeof err === 'string' ? err : undefined;
+              if (msg) fieldErrors[key] = msg;
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce((acc, k) => ({ ...acc, [k]: true }), {} as Record<string, boolean>)
+              );
+            }
+          }
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: respond.errors?.message ?? 'Patient create unsuccessful.'
+          });
+          return;
         }
 
+        const newId = respond.data?.id;
+        if (newId) {
+          router.push(`/patients/${newId}/edit`);
+        } else {
+          router.push('/patients');
+        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was created successfully'
         });
-
-        router.push('/patients');
       }
     } catch (error: any) {
       setLoading(false);
@@ -152,7 +196,7 @@ const PatientForm = ({
       initialValues={initialValues}
       onSubmit={handleSubmit}
       validationSchema={validationSchema}
-      enableReinitialize
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         return (

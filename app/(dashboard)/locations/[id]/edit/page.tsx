@@ -31,7 +31,7 @@ export default async function EditLocationPage({ params }: PageProps) {
         <LocationForm
           location={data}
           locationOptions={LOCATION_OPTIONS}
-          isEditPage={false}
+          isEditPage={true}
           user={{
             id: user?.id,
             name: user?.name || ''

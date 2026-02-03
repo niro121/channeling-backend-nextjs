@@ -45,7 +45,6 @@ export const RESOURCES = [
   { id: "users", name: "Users" },
   { id: "doctors", name: "Doctors" },
   { id: "departments", name: "Departments" },
-  { id: "rosters", name: "Rosters" },
   { id: "patients", name: "Patients" },
   { id: "tags", name: "Tags" },
   { id: "zones", name: "Zones" },

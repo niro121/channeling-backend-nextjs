@@ -25,9 +25,10 @@ type LocationFormProps = {
   };
 };
 
-export default function DoctorForm({
+export default function LocationForm({
   location,
   locationOptions,
+  isEditPage = false,
   user
 }: LocationFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -98,12 +99,12 @@ export default function DoctorForm({
           return;
         }
 
+        router.push('/locations');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Location was updated successfully'
         });
-        router.push('/locations');
       } else {
         respond = await createLocation(values, user);
         setLoading(false);
@@ -135,17 +136,16 @@ export default function DoctorForm({
           return;
         }
 
-        toast({
-          variant: 'success',
-          title: 'Success',
-          description: 'Location was created successfully'
-        });
-
         if (respond.data?.id) {
           router.push(`/locations/${respond.data.id}/edit`);
         } else {
           router.push('/locations');
         }
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: 'Location was created successfully'
+        });
       }
     } catch (error: any) {
       setLoading(false);
@@ -162,7 +162,7 @@ export default function DoctorForm({
       initialValues={initialValues}
       onSubmit={handleSubmit}
       validationSchema={validationSchema}
-      enableReinitialize
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         const styleClasses = {

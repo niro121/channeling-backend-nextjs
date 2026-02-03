@@ -31,8 +31,7 @@ const MAX_CODE = Number(process.env.MAX_CODE) || 1000;
 
 // ==== GET ALL SPECIALIIES ==== //
 export const getAllSpecialities = async (sort: getSpecialityParams) => {
-  // Check view permission
-  await requirePermission('specialities', 'view');
+  // View permission already checked by checkRouteAccess('/specialities') on the page; skip duplicate session fetch
 
   try {
     let newFilter: getSpecialityQuery = {

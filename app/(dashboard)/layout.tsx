@@ -9,7 +9,6 @@ import {
   Building2,
   StarIcon,
   LocateFixedIcon,
-  NotebookTabs,
   UserPlus,
   Tags,
   MapPinned,
@@ -101,13 +100,6 @@ async function DesktopNav({ session }: { session: Session | null }) {
           }
           label="Department"
           icon={<Building2 className="h-5 w-5" />}
-        />
-
-        {/* // =========================== ROSTERS =========================== */}
-        <NavLink
-          href={hasAccess('/rosters') ? '/rosters' : 'unauthorized-access'}
-          label="Rosters"
-          icon={<NotebookTabs className="h-5 w-5" />}
         />
 
         {/* // =========================== PATIENTS =========================== */}
@@ -269,13 +261,6 @@ async function MobileNav({ session }: { session: Session | null }) {
             icon={<Building2 className="h-5 w-5" />}
           />
 
-          {/* // =========================== ROSTERS =========================== */}
-        <NavLink
-          href={hasAccess("/rosters") ? "/rosters" : "unauthorized-access"}
-          label="Rosters"
-          icon={<NotebookTabs className="h-5 w-5" />}
-        />
-
         {/* // =========================== PATIENTS =========================== */}
         <NavLink
           href={hasAccess("/patients") ? "/patients" : "unauthorized-access"}
@@ -296,11 +281,6 @@ async function MobileNav({ session }: { session: Session | null }) {
           label="Zones"
           icon={<MapPinned className="h-5 w-5" />}
         />
-          <NavLink
-            href={hasAccess('/rosters') ? '/rosters' : 'unauthorized-access'}
-            label="Rosters"
-            icon={<Building2 className="h-5 w-5" />}
-          />
 
           {/* // =========================== PATIENTS =========================== */}
           <NavLink

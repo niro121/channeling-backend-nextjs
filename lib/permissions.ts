@@ -6,7 +6,6 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/user-groups": "users", // User groups are part of users management
   "/doctors": "doctors",
   "/departments": "departments",
-  "/rosters": "rosters",
   "/patients": "patients",
   "/tags": "tags",
   "/zones": "zones",
