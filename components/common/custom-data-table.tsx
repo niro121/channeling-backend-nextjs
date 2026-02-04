@@ -28,8 +28,8 @@ import {
 import { Button } from "../ui/button"
 import CustomAlertDialog from "./custom-alert-dialog"
 import { DataTablePagination } from "./custom-data-table-pagination"
-import { BinIcon } from "../icons"
 import { useToast } from "../hooks/use-toast"
+import { Trash2 } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -37,11 +37,17 @@ interface DataTableProps<TData, TValue> {
   rowCount: number
   heading: string
   subHeading: string
-  limit?: string,
-  page?: string,
+  limit?: string
+  page?: string
   haveBulkDelete?: boolean
   haveDataDownload?: boolean
   deleteServerAction?: (ids: string[]) => Promise<boolean>
+  /** Renders inside the card above the table (e.g. search + Add button), like shadcn tasks example */
+  toolbar?: React.ReactNode
+  /** Left side of toolbar (e.g. search). When used with toolbarRight, Add stays right and Bulk delete appears to its left when selected */
+  toolbarLeft?: React.ReactNode
+  /** Right side of toolbar (e.g. Add button). Rendered to the right of Bulk delete when rows selected */
+  toolbarRight?: React.ReactNode
 }
 
 export function CustomDataTable<TData, TValue>({
@@ -54,7 +60,10 @@ export function CustomDataTable<TData, TValue>({
   page,
   haveBulkDelete = true,
   haveDataDownload = false,
-  deleteServerAction
+  deleteServerAction,
+  toolbar,
+  toolbarLeft,
+  toolbarRight,
 }: DataTableProps<TData, TValue>) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -171,61 +180,70 @@ export function CustomDataTable<TData, TValue>({
 
   return (
     <>
-      <Card className="rounded-sm">
-        <CardHeader className="flex flex-col sm:flex-row items-center sm:justify-between gap-y-4">
-          <div className="w-full text-start">
-            <CardTitle className="text-xl">{heading}</CardTitle>
-            <CardDescription>{subHeading}</CardDescription>
+      <Card className="rounded-lg border border-border shadow-sm overflow-hidden">
+        <CardHeader>
+          <div>
+            <CardTitle className="text-lg font-semibold">{heading}</CardTitle>
+            <CardDescription className="text-muted-foreground">{subHeading}</CardDescription>
           </div>
-          <div className="flex gap-3">
-            {
-              haveBulkDelete &&
-              <div className="w-full order-first sm:order-last text-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 border-red-500 text-red-500 px-8 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white h-[40px]"
-                  disabled={Object.keys(rowSelection).length === 0}
-                  onClick={() => setShowDelConfirmation(true)}
-                >
-                  <BinIcon />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Bulk Delete
-                  </span>
-                </Button>
-              </div>
-            }
-            {/* {
-              haveDataDownload &&
-              <div className="w-full order-first sm:order-last text-end">
-                <DownloadResults
-                  disabled={Object.keys(rowSelection).length === 0 || loading}
-                  data={data}
-                  rowSelection={rowSelection}
-                  table={table}
-                />
-              </div>
-            } */}
-          </div>
-
         </CardHeader>
-        <CardContent>
-          <Table className="border">
+        {(toolbar != null || toolbarLeft != null || toolbarRight != null || haveBulkDelete) ? (
+          <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-center ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
+            {toolbarLeft != null || toolbarRight != null ? (
+              <>
+                {toolbarLeft ?? null}
+                <div className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
+                  {haveBulkDelete ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
+                      disabled={Object.keys(rowSelection).length === 0}
+                      onClick={() => setShowDelConfirmation(true)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Bulk delete</span>
+                    </Button>
+                  ) : null}
+                  {toolbarRight ?? null}
+                </div>
+              </>
+            ) : (
+              <>
+                {toolbar ?? null}
+                {haveBulkDelete ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
+                    disabled={Object.keys(rowSelection).length === 0}
+                    onClick={() => setShowDelConfirmation(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Bulk delete</span>
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
+        <CardContent className="px-0 pb-0">
+          <div className="px-4 pb-4">
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead key={header.id} className="py-5">
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                      </TableHead>
-                    )
-                  })}
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                    </TableHead>
+                  ))}
                 </TableRow>
               ))}
             </TableHeader>
@@ -237,7 +255,7 @@ export function CustomDataTable<TData, TValue>({
                     data-state={row.getIsSelected() && "selected"}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="font-semibold py-5">
+                      <TableCell key={cell.id}>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()
@@ -248,16 +266,18 @@ export function CustomDataTable<TData, TValue>({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center">
-                    No Results Found !
+                  <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                    No results found.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          </div>
+          </div>
         </CardContent>
         <CardFooter>
-          <div className="w-full justify-between">
+          <div className="w-full">
             <DataTablePagination
               table={table}
               onLimitChange={onLimitChange}

@@ -2,9 +2,10 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Agency } from '@/types/agency';
 import AgencyRecordActions from './record-actions';
-import { CircleCorrect, CircleX } from '@/components/icons';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 export const AgencyColumns: ColumnDef<Agency>[] = [
   {
@@ -87,17 +88,26 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = row.getValue('status');
-      return status === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7 justify-self-center" />
-      ) : (
-        <CircleX className="text-red-500 w-7 h-7 justify-self-center" />
+      const status = row.getValue('status') as number;
+      const isActive = status === 1;
+      return (
+        <Badge
+          variant={isActive ? 'default' : 'secondary'}
+          className={
+            isActive
+              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+          }
+        >
+          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isActive ? 'Active' : 'Inactive'}
+        </Badge>
       );
     }
   },
   {
     id: 'actions',
-    header: 'Actions',
+    header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => <AgencyRecordActions row={row} />
   }
 ];

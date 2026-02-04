@@ -6,7 +6,7 @@ import { Form, Formik, FormikHelpers } from "formik"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import CustomFormField from "@/components/common/form-field"
 import { Button } from "@/components/ui/button"
-import { DisabledIcon, SaveIcon } from "@/components/icons"
+import { Ban, Save } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import * as Yup from "yup"
 import { useDialog } from "@/components/common/custom-dialog"
@@ -374,7 +374,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     type="submit"
                                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                 >
-                                    <SaveIcon />
+                                    <Save className="h-4 w-4" />
                                     <span>Save</span>
                                 </Button>
                             </div>
@@ -503,7 +503,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         type="submit"
                                         className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                     >
-                                        <SaveIcon />
+                                        <Save className="h-4 w-4" />
                                         <span>Save Settings</span>
                                     </Button>
                                 </div>
@@ -566,7 +566,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         type="submit"
                                         className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                     >
-                                        <SaveIcon />
+                                        <Save className="h-4 w-4" />
                                         <span>Change Password</span>
                                     </Button>
                                 </div>

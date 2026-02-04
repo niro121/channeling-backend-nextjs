@@ -229,7 +229,7 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -238,7 +238,7 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>
