@@ -23,66 +23,77 @@ This document lists all components and their permission check status.
    - ⚠️ Server Actions: NO permission checks (needs to be added)
    - ⚠️ Record Actions: NO permission checks (needs to be added)
 
+3. **Channel Booking** (`/channel-booking`) – page and shift
+   - ✅ Page: Has `checkRouteAccess("/channel-booking")` check; redirects to unauthorized if no view
+   - ✅ Shift (Channel Booking): Separate resource **"shift"** – when **view** is ticked, all shift actions are allowed (no add/edit split)
+     - `getActiveShiftAction` – requirePermission("shift", "view")
+     - `getCurrentShiftAction` – requirePermission("shift", "view")
+     - `startShiftAction` – requirePermission("shift", "view")
+     - `pauseShiftAction` – requirePermission("shift", "view")
+     - `resumeShiftAction` – requirePermission("shift", "view")
+     - `endShiftAction` – requirePermission("shift", "view")
+   - ✅ UI: Shift bar and start/skip dialog only on channel-booking route; sidebar link gated by `hasAccess('/channel-booking')`. Grant **Shift (Channel Booking)** view to allow shift creation and controls.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
 
-3. **Agencies** (`/agencies`)
+4. **Agencies** (`/agencies`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-4. **Agency Books** (`/agency-books`)
+5. **Agency Books** (`/agency-books`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-5. **Departments** (`/departments`)
+6. **Departments** (`/departments`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-6. **Doctors** (`/doctors`)
+7. **Doctors** (`/doctors`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-7. **Patients** (`/patients`)
+8. **Patients** (`/patients`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-8. **Specialities** (`/specialities`)
+9. **Specialities** (`/specialities`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-9. **Locations** (`/locations`)
-   - ❌ Page: NO permission check
-   - ❌ Server Actions: NO permission checks
-   - ❌ Record Actions: NO permission checks
-
-10. **Rooms** (`/rooms`)
+10. **Locations** (`/locations`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-11. **Zones** (`/zones`)
+11. **Rooms** (`/rooms`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-12. **Tags** (`/tags`)
+12. **Zones** (`/zones`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-13. **Rosters** (`/rosters`)
+13. **Tags** (`/tags`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-14. **Discounts** (`/discounts`)
+14. **Rosters** (`/rosters`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+15. **Discounts** (`/discounts`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
@@ -91,9 +102,9 @@ This document lists all components and their permission check status.
 
 ## Summary
 
-- **Total Components:** 14
-- **With Permission Checks:** 1 (Users) - 7%
-- **Without Permission Checks:** 13 (93%)
+- **Total Components:** 15
+- **With Permission Checks:** 2 (Users, Channel Booking) – 13%
+- **Without Permission Checks:** 13 (87%)
 
 ## Action Required
 
@@ -108,6 +119,8 @@ All components except Users need permission checks added. The middleware provide
 
 All these resources are already in `types/user-group.ts`:
 - ✅ users
+- ✅ channel-booking
+- ✅ shift (Shift (Channel Booking) – use view to allow all shift actions)
 - ✅ doctors
 - ✅ departments
 - ✅ rosters
