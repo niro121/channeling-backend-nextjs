@@ -1,6 +1,6 @@
 import React, { Suspense } from "react"
 import { Button } from "@/components/ui/button"
-import { PlusCircle } from "@/components/icons"
+import { Plus } from "lucide-react"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
 import { tagColumns } from "./columns"
@@ -22,7 +22,6 @@ type SearchParams = {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
-    // Check if user can view tags
     const canView = await checkRouteAccess("/tags")
     if (!canView) {
         redirect("/unauthorized-access")
@@ -37,7 +36,6 @@ export default async function Page({ searchParams }: SearchParams) {
         type: resolvedSearchParams?.type,
     })
 
-    // ==== TAG TYPE OPTIONS ==== //
     const tagTypeOptions = [
         { id: "1", name: "Area" },
         { id: "2", name: "Bank" },
@@ -46,7 +44,6 @@ export default async function Page({ searchParams }: SearchParams) {
         { id: "5", name: "Staff Grade" },
     ];
 
-    // ==== EXPORT: GET TAG LIST ==== //
     const handleExport = async () => {
         'use server';
 
@@ -85,65 +82,53 @@ export default async function Page({ searchParams }: SearchParams) {
     };
 
     return (
-        <>
-            <div className="flex items-center ">
-                <div className="ml-auto flex items-center gap-4">
-                    <div className="lg:block hidden relative flex-1 md:grow-0">
-                        <SearchInput
-                            name="keyword"
-                            placeholder={"Search by name"}
-                            className={"rounded-lg bg-background pl-8 w-full sm:w-auto"}
-                        />
-                    </div>
-                    <Link href="/tags/add">
-                        <Button
-                            size="sm"
-                            className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
-                        >
-                            <PlusCircle />
-                            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                                Add New
-                            </span>
-                        </Button>
-                    </Link>
-                </div>
-            </div>
-            <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-                <div className="lg:hidden relative flex-1 md:grow-0">
-                    <SearchInput
-                        name="keyword"
-                        placeholder={"Search by name"}
-                        className={"rounded-lg bg-background pl-8 w-full"}
-                    />
-                </div>
-                <FilterSection
-                    tagTypeOptions={tagTypeOptions}
-                    typeId={resolvedSearchParams?.type}
+        <div className="overflow-hidden">
+            <Suspense fallback={<Loading />}>
+                <CustomDataTable
+                    heading="Tags"
+                    subHeading="Manage your tags here."
+                    columns={tagColumns}
+                    data={data}
+                    rowCount={totalRecords}
+                    deleteServerAction={bulkDeleteTags}
+                    page={resolvedSearchParams?.page}
+                    limit={resolvedSearchParams?.limit}
+                    toolbarLeft={
+                        <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
+                            <div className="relative w-full sm:max-w-sm">
+                                <SearchInput
+                                    name="keyword"
+                                    placeholder="Search by name"
+                                    className="pl-8 w-full h-9"
+                                />
+                            </div>
+                            <FilterSection
+                                tagTypeOptions={tagTypeOptions}
+                                typeId={resolvedSearchParams?.type}
+                            />
+                        </div>
+                    }
+                    toolbarRight={
+                        <div className="flex items-center gap-2 shrink-0">
+                            <ExportWrapper
+                                serverData={handleExport}
+                                columns={['Name', 'Type', 'Status']}
+                                keys={['name', 'type', 'status']}
+                                title="Tags List"
+                                fileName="tags"
+                            />
+                            <Link href="/tags/add">
+                                <Button size="sm" className="gap-1.5 h-9">
+                                    <Plus className="h-4 w-4" />
+                                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                                        Add New
+                                    </span>
+                                </Button>
+                            </Link>
+                        </div>
+                    }
                 />
-                <div className="flex items-center gap-2 ml-auto">
-                    <ExportWrapper
-                        serverData={handleExport}
-                        columns={['Name', 'Type', 'Status']}
-                        keys={['name', 'type', 'status']}
-                        title="Tags List"
-                        fileName="tags"
-                    />
-                </div>
-            </div>
-            <div className="overflow-hidden">
-                <Suspense fallback={<Loading />}>
-                    <CustomDataTable
-                        heading="Tags"
-                        subHeading="Manage your tags here."
-                        columns={tagColumns}
-                        data={data}
-                        rowCount={totalRecords}
-                        deleteServerAction={bulkDeleteTags}
-                        page={resolvedSearchParams?.page}
-                        limit={resolvedSearchParams?.limit}
-                    />
-                </Suspense>
-            </div>
-        </>
+            </Suspense>
+        </div>
     )
 }

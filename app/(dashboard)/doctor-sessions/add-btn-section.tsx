@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
+import { Plus } from 'lucide-react';
 import { useDoctorSessionStore } from '@/store/store-doctor-session';
 import { useRouter } from 'next/navigation';
 
@@ -20,9 +20,9 @@ export default function AddBtnSection() {
       <Button
         size="sm"
         onClick={() => handleClick(doctor.id)}
-        className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
+        className="gap-1.5 h-9"
       >
-        <PlusCircle />
+        <Plus className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
           Add New
         </span>

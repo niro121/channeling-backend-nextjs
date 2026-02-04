@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CircleCorrect, CircleX } from '@/components/icons';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { Voucher } from '@/types/voucher';
 import { VoucherRecordActions } from './voucher-record-actions';
 

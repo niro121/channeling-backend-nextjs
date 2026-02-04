@@ -7,7 +7,8 @@ import {
   DoctorSession,
   INSTITUTION_OPTIONS
 } from '@/types/doctor.session';
-import { CircleCorrect, CircleX } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
 import { DoctorSessionRecordActions } from './record-actions';
 import Link from 'next/link';
@@ -130,17 +131,27 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
     accessorKey: 'status',
     header: 'Published',
-    cell: ({ row }) =>
-      row.getValue('status') === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7" />
-      ) : (
-        <CircleX className="text-red-500 w-7 h-7" />
-      )
+    cell: ({ row }) => {
+      const status = row.getValue('status') as number;
+      const isActive = status === 1;
+      return (
+        <Badge
+          variant={isActive ? 'default' : 'secondary'}
+          className={
+            isActive
+              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+          }
+        >
+          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isActive ? 'Published' : 'Unpublished'}
+        </Badge>
+      );
+    }
   },
-
   {
     id: 'actions',
-    header: 'Actions',
+    header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => <DoctorSessionRecordActions row={row} />
   }
 ];

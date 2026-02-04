@@ -17,14 +17,17 @@ import {
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
-  onLimitChange: (value: number) => void,
-  onPageChange: (value: number) => void,
+  onLimitChange: (value: number) => void
+  onPageChange: (value: number) => void
+  /** Rendered next to selection count (e.g. Bulk delete when rows selected) */
+  leftActions?: React.ReactNode
 }
 
 export function DataTablePagination<TData>({
   table,
   onLimitChange,
   onPageChange,
+  leftActions,
 }: DataTablePaginationProps<TData>) {
   const setFirstPage = () => {
     table.setPageIndex(0)
@@ -50,12 +53,15 @@ export function DataTablePagination<TData>({
     onPageChange(table.getState().pagination.pageIndex - 1)
   }
   return (
-    <div className="flex items-center flex-col lg:flex-row w-full gap-y-4">
-      <div className="inline-block text-sm text-muted-foreground font-medium whitespace-nowrap">
-        {table.getFilteredSelectedRowModel().rows.length} of{" "}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between w-full py-2">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
+        </span>
+        {leftActions}
       </div>
-      <div className="w-full flex flex-col sm:flex-row items-center justify-between lg:justify-end gap-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex items-center gap-x-4">
           <p className="text-sm font-medium whitespace-nowrap">Rows per page</p>
           <Select

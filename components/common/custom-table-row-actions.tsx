@@ -18,7 +18,7 @@ export function DataTableRowActions({
 }: DataTableRowActionsProps) {
   return (
     <div
-      className={`flex flex-nowrap gap-2 justify-center items center ${className || ''}`}
+      className={`flex flex-nowrap gap-1 justify-end items-center ${className || ''}`}
     >
       {children}
     </div>

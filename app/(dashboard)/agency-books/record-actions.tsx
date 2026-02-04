@@ -8,8 +8,7 @@ import { DataTableRowActions } from "@/components/common/custom-table-row-action
 import CustomAlertDialog from "@/components/common/custom-alert-dialog"
 import { deleteAgencyBook } from "@/app/actions/agencybook.actions"
 import { Button } from "@/components/ui/button"
-import { Edit } from "lucide-react"
-import { BinIcon } from "@/components/icons"
+import { Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
@@ -72,24 +71,24 @@ const AgencyBookRecordActions = <TData extends AgencyBook>({
       <DataTableRowActions>
         {has("agency-books", "edit") && (
           <Button
-            variant="link"
-            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
-            onClick={() =>
-              router.push(`/agency-books/${agencyBook.id}/edit`)
-            }
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => router.push(`/agency-books/${agencyBook.id}/edit`)}
           >
-            <Edit className="w-5 h-5" />
+            <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
           </Button>
         )}
 
         {has("agency-books", "delete") && (
           <Button
-            variant="link"
-            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             onClick={() => showHideDeleteModal(true)}
           >
-            <BinIcon className="w-5 h-5 text-red-600" />
+            <Trash2 className="h-4 w-4" />
             <span className="sr-only">Delete</span>
           </Button>
         )}

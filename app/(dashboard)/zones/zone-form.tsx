@@ -5,7 +5,7 @@ import { Zone } from "@/types/zone"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
 import { Button } from "@/components/ui/button"
-import { DisabledIcon, SaveIcon } from "@/components/icons"
+import { Ban, Save } from "lucide-react"
 import * as Yup from "yup"
 import { createNewZone, updateZone } from "@/app/actions/zone.actions"
 import { useToast } from "@/components/hooks/use-toast"
@@ -187,7 +187,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                                     }}
                                     disabled={loading}
                                 >
-                                    <DisabledIcon />
+                                    <Ban className="h-4 w-4" />
                                     <span>
                                         Cancel
                                     </span>
@@ -198,7 +198,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                                     type="submit"
                                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                 >
-                                    <SaveIcon />
+                                    <Save className="h-4 w-4" />
                                     <span>Save</span>
                                 </Button>
                             </div>
