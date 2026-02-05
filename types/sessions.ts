@@ -30,7 +30,7 @@ export interface SessionInputData {
 }
 
 export interface SessionFormValues {
-  doctorId: string
+  doctorId: string | null
   fromDate: Date
   toDate: Date
 }
