@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import moment from 'moment';
-import orderBy from 'lodash.orderby';
+import orderBy from 'lodash/orderBy';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
 import {Fee, SessionInputData} from '@/types/sessions'
 

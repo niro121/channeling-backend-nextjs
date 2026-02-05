@@ -4,7 +4,7 @@ import React from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { Ban, Save } from 'lucide-react';
 import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
