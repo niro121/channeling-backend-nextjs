@@ -1,8 +1,15 @@
 import React from "react"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { checkRouteAccess } from "@/lib/server-permissions"
 
-export default function ChannelBookingPage() {
+export default async function ChannelBookingPage() {
+  const canView = await checkRouteAccess("/channel-booking")
+  if (!canView) {
+    redirect("/unauthorized-access")
+  }
+
   return (
     <div className="space-y-4 p-4 md:p-6">
       <div>

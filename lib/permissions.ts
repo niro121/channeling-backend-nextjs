@@ -4,6 +4,7 @@ import { Permissions } from "@/types/user-group"
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/users": "users",
   "/user-groups": "users", // User groups are part of users management
+  "/channel-booking": "channel-booking",
   "/doctors": "doctors",
   "/departments": "departments",
   "/patients": "patients",

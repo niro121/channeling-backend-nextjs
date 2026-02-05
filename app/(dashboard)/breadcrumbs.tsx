@@ -1,5 +1,6 @@
 'use client'
 
+import React from "react"
 import Link from "next/link"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { usePathname } from "next/navigation"
@@ -28,6 +29,7 @@ const PATH_NAMES: Path[] = [
     { path: "discounts", name: "Discounts" },
     { path: "sms-playground", name: "SMS Playground" },
     { path: "reports", name: "Reports" },
+    { path: "channel-booking", name: "Channel Booking" },
     { path: "customers", name: "Customers" },
     { path: "accounts", name: "Accounts" },
     { path: "unauthorized-access", name: "Unauthorized" },
@@ -63,14 +65,14 @@ function DashboardBreadcrumb() {
                 <BreadcrumbSeparator />
                 {
                     pathNames.map((link, index) => (
-                        <BreadcrumbItem key={link} className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
-                            <BreadcrumbPage className={index === pathNames.length - 1 ? 'font-semibold text-foreground truncate' : 'truncate'}>
-                                {formatSegment(link)}
-                            </BreadcrumbPage>
-                            {
-                                index !== (pathNames.length - 1) && <BreadcrumbSeparator />
-                            }
-                        </BreadcrumbItem>
+                        <React.Fragment key={link}>
+                            <BreadcrumbItem className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
+                                <BreadcrumbPage className={index === pathNames.length - 1 ? 'font-semibold text-foreground truncate' : 'truncate'}>
+                                    {formatSegment(link)}
+                                </BreadcrumbPage>
+                            </BreadcrumbItem>
+                            {index !== pathNames.length - 1 && <BreadcrumbSeparator />}
+                        </React.Fragment>
                     ))
                 }
             </BreadcrumbList>
