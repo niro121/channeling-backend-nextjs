@@ -2,46 +2,34 @@
 
 import React from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
-import CustomFormField from '@/components/common/form-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { DisabledIcon, SaveIcon, PlusCircle } from '@/components/icons';
 import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
-import { useRouter } from 'next/navigation';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
-import { PlusCircle } from '@/components/icons';
 import { SessionFormValues } from '@/types/sessions';
-import { createSessions, updateSessions } from '@/app/actions/sessions.action';
+// import { createSessions, updateSessions } from '@/app/actions/sessions.action';
 
 type SessionsFormProps = {
+  type: 'ONE_DOCTOR' | 'ALL_DOCTOR';
   doctorId?: string;
   doctorOptions: { id: string; name: string }[];
-  isEditPage?: boolean;
-  user?: {
-    id?: string;
-    name?: string;
-  };
-  onClose: () => void
+  onClose: () => void;
+  user?: {id?: string, name?: string}
 };
 
-type SubmitAction = 'create' | 'update';
-
 export default function SessionsForm({
+  type,
   doctorId,
   doctorOptions,
-  user,
   onClose
 }: SessionsFormProps) {
-  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
-  const router = useRouter();
-  const [submitAction, setSubmitAction] = React.useState<SubmitAction | null>(
-    null
-  );
 
   const initialValues: SessionFormValues = {
-    doctorId: doctorId ?? '',
+    doctorId: doctorId ?? null,
     fromDate: new Date(),
     toDate: new Date()
   };
@@ -52,12 +40,12 @@ export default function SessionsForm({
 
   const handleCreateSession = async (
     values: SessionFormValues,
-    { resetForm }: FormikHelpers<SessionFormValues>
+    helpers: FormikHelpers<SessionFormValues>
   ) => {
-    try {
+    /* try {
       setLoading(true);
 
-      const respond = await createSessions();
+      const respond = await createSessions(values);
 
       if (!respond?.success) {
         toast({
@@ -65,7 +53,6 @@ export default function SessionsForm({
           title: 'Error',
           description: 'Session generation unsuccessful.'
         });
-        setLoading(false);
         return;
       }
 
@@ -74,24 +61,25 @@ export default function SessionsForm({
         title: 'Success',
         description: 'Session was generated successfully'
       });
+
+      helpers.resetForm();
+      onClose();
     } catch (error: any) {
-      setLoading(false);
       toast({
         variant: 'destructive',
         title: 'Error',
         description: error.message ?? 'Session generation unsuccessful.'
       });
-    }
+    } finally {
+      setLoading(false);
+    } */
   };
 
-  const handleUpdateSession = async (
-    values: SessionFormValues,
-    { resetForm }: FormikHelpers<SessionFormValues>
-  ) => {
-    try {
+  const handleUpdateSession = async (values: SessionFormValues) => {
+    /* try {
       setLoading(true);
 
-      const respond = await updateSessions();
+      const respond = await updateSessions(values);
 
       if (!respond?.success) {
         toast({
@@ -99,7 +87,6 @@ export default function SessionsForm({
           title: 'Error',
           description: 'Session update unsuccessful.'
         });
-        setLoading(false);
         return;
       }
 
@@ -108,34 +95,25 @@ export default function SessionsForm({
         title: 'Success',
         description: 'Session was updated successfully'
       });
+
+      onClose();
     } catch (error: any) {
-      setLoading(false);
       toast({
         variant: 'destructive',
         title: 'Error',
         description: error.message ?? 'Session update unsuccessful.'
       });
-    }
+    } finally {
+      setLoading(false);
+    } */
   };
 
   return (
     <Formik
       initialValues={initialValues}
       validationSchema={validationSchema}
-      onSubmit={async (values, helpers) => {
-        if (!submitAction) return;
-
-        try {
-          if (submitAction === 'create') {
-            await handleCreateSession(values, helpers);
-          }
-
-          if (submitAction === 'update') {
-            await handleUpdateSession(values, helpers);
-          }
-        } finally {
-          setSubmitAction(null);
-        }
+      onSubmit={() => {
+        // submission is controlled manually by buttons
       }}
     >
       {(formik) => {
@@ -154,7 +132,7 @@ export default function SessionsForm({
                 value={formik.values.doctorId}
                 onChange={(value) => formik.setFieldValue('doctorId', value)}
                 required
-                disabled={doctorOptions.length === 0}
+                disabled={type === 'ALL_DOCTOR' || doctorOptions.length === 0}
                 options={doctorOptions}
                 styleClasses={styleClasses}
               />
@@ -181,36 +159,44 @@ export default function SessionsForm({
 
               <div className="flex flex-col sm:flex-row justify-end gap-3">
                 <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
+                  variant="outline"
                   onClick={onClose}
                   disabled={loading}
+                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
                 >
                   <DisabledIcon />
-                  <span>Cancel</span>
-                </Button>
-                <Button
-                  size="sm"
-                  type="submit"
-                  onClick={() => setSubmitAction('create')}
-                  className="gap-1 px-8 text-white hover:text-black"
-                >
-                  <PlusCircle />
-                  <span className="sr-only sm:not-sr-only">
-                    Analyse & Create
-                  </span>
+                  Cancel
                 </Button>
 
                 <Button
-                  size="sm"
-                  type="submit"
-                  onClick={() => setSubmitAction('update')}
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    const errors = await formik.validateForm();
+                    if (Object.keys(errors).length === 0) {
+                      await handleCreateSession(formik.values, formik);
+                    }
+                  }}
+                  className="gap-1 px-8 text-white hover:text-black"
+                >
+                  <PlusCircle />
+                  Analyse & Create
+                </Button>
+
+                <Button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    const errors = await formik.validateForm();
+                    if (Object.keys(errors).length === 0) {
+                      await handleUpdateSession(formik.values);
+                    }
+                  }}
                   className="gap-1 px-8 text-white hover:text-black"
                 >
                   <SaveIcon />
-                  <span className="sr-only sm:not-sr-only">Update Only</span>
+                  Update Only
                 </Button>
               </div>
             </div>
