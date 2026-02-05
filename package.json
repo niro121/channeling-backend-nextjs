@@ -4,6 +4,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "sessions:generate": "tsx scripts/doctor-sessions-generate.ts",
+    "sessions:update": "tsx scripts/doctor-sessions-update.ts",
     "load-doctor-sessions": "npx tsx scripts/load-doctor-sessions.ts"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
     "formik": "^2.4.6",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
+    "lodash.orderby": "^4.6.0",
     "lucide-react": "^0.544.0",
     "moment": "^2.30.1",
     "next": "^15.5.11",
@@ -72,6 +75,8 @@
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
-    "prisma": "^6.19.0"
+    "@types/lodash.orderby": "^4.6.9",
+    "prisma": "^6.19.0",
+    "tsx": "^4.19.2"
   }
 }
