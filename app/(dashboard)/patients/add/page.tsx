@@ -11,7 +11,7 @@ export default async function Page() {
                 <h2 className="text-3xl font-bold tracking-tight">Add Patient</h2>
             </div>
             <div className="h-full flex-1 flex-col space-y-8">
-                <PatientForm areas={areas.data || []} />
+                <PatientForm areas={areas.data || []} isEditPage={false} />
             </div>
         </div>
     )

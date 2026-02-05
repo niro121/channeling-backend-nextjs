@@ -24,7 +24,7 @@ type SpecialityFormProps = {
   }
 };
 
-export default function SpecialityForm({ speciality, user }: SpecialityFormProps) {
+export default function SpecialityForm({ speciality, isEditPage = false, user }: SpecialityFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -48,7 +48,7 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
 
   const handleSubmit = async (
     values: SpecialityFormValues,
-    { resetForm }: FormikHelpers<SpecialityFormValues>
+    { setErrors, setTouched }: FormikHelpers<SpecialityFormValues>
   ) => {
     try {
       let respond: any;
@@ -61,12 +61,32 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
         setLoading(false);
 
         if (!respond?.success) {
+          if (respond?.error?.issues && typeof respond.error.issues === 'object') {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const err = respond.error.issues[key];
+              if (Array.isArray(err) && err.length > 0) {
+                fieldErrors[key] = err[0];
+              }
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce(
+                  (acc, key) => {
+                    acc[key] = true;
+                    return acc;
+                  },
+                  {} as Record<string, boolean>
+                )
+              );
+            }
+          }
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Speciality update unsuccessful.'
+            description: respond?.error?.message ?? 'Speciality update unsuccessful.'
           });
-          setLoading(false);
           return;
         }
 
@@ -75,7 +95,6 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
           title: 'Success',
           description: 'Speciality was updated successfully'
         });
-
         router.push('/specialities');
       } else {
         respond = await createSpeciality(values, user);
@@ -83,26 +102,45 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
         setLoading(false);
 
         if (!respond?.success) {
+          if (respond?.error?.issues && typeof respond.error.issues === 'object') {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.error.issues).forEach((key) => {
+              const err = respond.error.issues[key];
+              if (Array.isArray(err) && err.length > 0) {
+                fieldErrors[key] = err[0];
+              }
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce(
+                  (acc, key) => {
+                    acc[key] = true;
+                    return acc;
+                  },
+                  {} as Record<string, boolean>
+                )
+              );
+            }
+          }
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Speciality save unsuccessful.'
+            description: respond?.error?.message ?? 'Speciality save unsuccessful.'
           });
-          setLoading(false);
           return;
         }
-
-        toast({
-          variant: 'success',
-          title: 'Success',
-          description: 'Speciality was created successfully'
-        });
 
         if (respond.data?.id) {
           router.push(`/specialities/${respond.data.id}/edit`);
         } else {
           router.push('/specialities');
         }
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: 'Speciality was created successfully'
+        });
       }
     } catch (error: any) {
       setLoading(false);
@@ -119,7 +157,7 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
       initialValues={initialValues}
       onSubmit={handleSubmit}
       validationSchema={validationSchema}
-      enableReinitialize
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         const styleClasses = {
@@ -191,7 +229,7 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -200,7 +238,7 @@ export default function SpecialityForm({ speciality, user }: SpecialityFormProps
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>

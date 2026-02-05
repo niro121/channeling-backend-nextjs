@@ -5,7 +5,7 @@ import { Tag } from "@/types/tag"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
 import { Button } from "@/components/ui/button"
-import { DisabledIcon, SaveIcon } from "@/components/icons"
+import { Ban, Save } from "lucide-react"
 import * as Yup from "yup"
 import { createNewTag, updateTag } from "@/app/actions/tag.actions"
 import { useToast } from "@/components/hooks/use-toast"
@@ -86,13 +86,12 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
+                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was saved successfully",
                 })
-                // Redirect back to list page after successful update
-                router.push('/tags')
             } else {
                 respond = await createNewTag(values);
                 setLoading(false);
@@ -126,14 +125,12 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
+                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was created successfully",
                 })
-                
-                // Redirect to edit page with the new tag id, or list
-                 router.push('/tags')
             }
         } catch (error: any) {
             setLoading(false);
@@ -169,7 +166,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 
@@ -236,7 +233,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                     }}
                                     disabled={loading}
                                 >
-                                    <DisabledIcon />
+                                    <Ban className="h-4 w-4" />
                                     <span>
                                         Cancel
                                     </span>
@@ -247,7 +244,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                     type="submit"
                                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                 >
-                                    <SaveIcon />
+                                    <Save className="h-4 w-4" />
                                     <span>Save</span>
                                 </Button>
                             </div>

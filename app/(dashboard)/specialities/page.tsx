@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
+import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { SpecialityColumns } from './columns';
@@ -27,56 +27,44 @@ export default async function Page({ searchParams }: SearchParams) {
 
   const params = await searchParams;
 
-  const {data, totalRecords, success, message} = await getAllSpecialities({
+  const { data, totalRecords } = await getAllSpecialities({
     page: params?.page,
     limit: params?.limit,
     keyword: params?.keyword,
-  })
+  });
 
   return (
-    <>
-      <div className="flex items-center ">
-        <div className="ml-auto flex items-center gap-4">
-          <div className="lg:block hidden relative flex-1 md:grow-0">
-            <SearchInput
-              name="keyword"
-              placeholder={'Search by name, code'}
-              className={'rounded-lg bg-background pl-8 w-full sm:w-auto'}
-            />
-          </div>
-          <Link href="/specialities/add">
-            <Button
-              size="sm"
-              className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
-            >
-              <PlusCircle />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Add New
-              </span>
-            </Button>
-          </Link>
-        </div>
-      </div>
-      <div className="lg:hidden mt-2 relative flex-1 md:grow-0">
-        <SearchInput
-          name="keyword"
-          placeholder={'Search by name, description'}
-          className={'rounded-lg bg-background pl-8 w-full'}
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable
+          heading="Specialities"
+          subHeading="Manage your specialities here."
+          columns={SpecialityColumns}
+          data={data}
+          rowCount={totalRecords}
+          deleteServerAction={bulkDeleteSpecialities}
+          page={params?.page}
+          toolbarLeft={
+            <div className="relative w-full sm:max-w-sm">
+              <SearchInput
+                name="keyword"
+                placeholder="Search by name, code"
+                className="pl-8 w-full h-9"
+              />
+            </div>
+          }
+          toolbarRight={
+            <Link href="/specialities/add">
+              <Button size="sm" className="gap-1.5 h-9">
+                <Plus className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Add New
+                </span>
+              </Button>
+            </Link>
+          }
         />
-      </div>
-      <div className="overflow-hidden">
-        <Suspense fallback={<Loading />}>
-          <CustomDataTable
-            heading="Specialities"
-            subHeading="Manage your specialities here."
-            columns={SpecialityColumns}
-            data={data}
-            rowCount={totalRecords}
-            deleteServerAction={bulkDeleteSpecialities}
-            page={params?.page}
-          />
-        </Suspense>
-      </div>
-    </>
+      </Suspense>
+    </div>
   );
 }

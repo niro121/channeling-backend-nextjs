@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
+import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AgencyColumns } from './columns';
@@ -24,7 +24,6 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
-  // Check if user can view agencies
   const canView = await checkRouteAccess('/agencies');
   if (!canView) {
     redirect('/unauthorized-access');
@@ -38,7 +37,6 @@ export default async function Page({ searchParams }: SearchParams) {
     keyword: params?.keyword
   });
 
-  // ==== EXPORT: GET AGENCY LIST ==== //
   const handleExport = async () => {
     'use server';
 
@@ -72,76 +70,62 @@ export default async function Page({ searchParams }: SearchParams) {
   };
 
   return (
-    <>
-      <div className="flex items-center ">
-        <div className="ml-auto flex items-center gap-4">
-          <div className="lg:block hidden relative flex-1 md:grow-0">
-            <SearchInput
-              name="keyword"
-              placeholder={'Search by name, code, email, phone'}
-              className={'rounded-lg bg-background pl-8 w-full sm:w-auto'}
-            />
-          </div>
-          <Link href="/agencies/add">
-            <Button
-              size="sm"
-              className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
-            >
-              <PlusCircle />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Add New
-              </span>
-            </Button>
-          </Link>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-        <div className="lg:hidden relative flex-1 md:grow-0">
-          <SearchInput
-            name="keyword"
-            placeholder={'Search by name, code, email, phone'}
-            className={'rounded-lg bg-background pl-8 w-full'}
-          />
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <ExportWrapper
-            serverData={handleExport}
-            columns={[
-              'Code',
-              'Name',
-              'Cheque Printing Name',
-              'Parent Agency',
-              'Email',
-              'Phone',
-              'Balance'
-            ]}
-            keys={[
-              'code',
-              'name',
-              'chequePrintingName',
-              'parentAgency',
-              'email',
-              'phone',
-              'balance'
-            ]}
-            title="Agencies List"
-            fileName="agencies"
-          />
-        </div>
-      </div>
-      <div className="overflow-hidden">
-        <Suspense fallback={<Loading />}>
-          <CustomDataTable
-            heading="Agencies"
-            subHeading="Manage your agencies here."
-            columns={AgencyColumns}
-            data={data}
-            rowCount={totalRecords}
-            deleteServerAction={bulkDeleteAgencies}
-            page={params?.page}
-          />
-        </Suspense>
-      </div>
-    </>
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable
+          heading="Agencies"
+          subHeading="Manage your agencies here."
+          columns={AgencyColumns}
+          data={data}
+          rowCount={totalRecords}
+          deleteServerAction={bulkDeleteAgencies}
+          page={params?.page}
+          toolbarLeft={
+            <div className="relative w-full sm:max-w-sm">
+              <SearchInput
+                name="keyword"
+                placeholder="Search by name, code, email, phone"
+                className="pl-8 w-full h-9"
+              />
+            </div>
+          }
+          toolbarRight={
+            <div className="flex items-center gap-2 shrink-0">
+              <ExportWrapper
+                serverData={handleExport}
+                columns={[
+                  'Code',
+                  'Name',
+                  'Cheque Printing Name',
+                  'Parent Agency',
+                  'Email',
+                  'Phone',
+                  'Balance'
+                ]}
+                keys={[
+                  'code',
+                  'name',
+                  'chequePrintingName',
+                  'parentAgency',
+                  'email',
+                  'phone',
+                  'balance'
+                ]}
+                title="Agencies List"
+                fileName="agencies"
+              />
+              <Link href="/agencies/add">
+                <Button size="sm" className="gap-1.5 h-9">
+                  <Plus className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Add New
+                  </span>
+                </Button>
+              </Link>
+            </div>
+          }
+        />
+      </Suspense>
+    </div>
   );
 }

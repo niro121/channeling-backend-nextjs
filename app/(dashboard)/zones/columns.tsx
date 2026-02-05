@@ -2,9 +2,10 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { Zone } from "@/types/zone"
 import ZoneRecordActions from "./record-actions"
-import { CircleCorrect, CircleX } from "@/components/icons"
+import { CheckCircle2, XCircle } from "lucide-react"
 
 // DEFINE THE COLUMNS OF THE ZONE TABLE
 export const zoneColumns: ColumnDef<Zone>[] = [
@@ -64,17 +65,26 @@ export const zoneColumns: ColumnDef<Zone>[] = [
         accessorKey: "visibility",
         header: "Visibility",
         cell: ({ row }) => {
-            const visibility = row.getValue('visibility')
-            return visibility === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7" />
-      ) : (
-        <CircleX className="text-red-500 w-7 h-7" />
-      );
+            const value = row.getValue("visibility") as number
+            const isActive = value === 1
+            return (
+                <Badge
+                    variant={isActive ? "default" : "secondary"}
+                    className={
+                        isActive
+                            ? "gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0"
+                            : "gap-1 bg-muted text-muted-foreground hover:bg-muted"
+                    }
+                >
+                    {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {isActive ? "Visible" : "Hidden"}
+                </Badge>
+            )
         },
     },
     {
         id: "actions",
-        header: () => <div className="text-center">Actions</div>,
+        header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => <ZoneRecordActions row={row} />,
     },
 ]

@@ -1,21 +1,11 @@
-'use client';
+"use client"
 
-import { signOut } from 'next-auth/react';
+import { dispatchSignOutRequested } from "@/app/(dashboard)/signout-shift-reminder"
 
-const SignOutButton = () => {
-    const handleSignOut = async () => {
-        await signOut({
-            redirect: false, // Prevent automatic redirection
-        });
-        // Optionally handle additional logic here
-        window.location.href = '/login'; // Redirect to home page
-    };
-
-    return (
-        <button type="button" onClick={handleSignOut}>
-            Sign Out
-        </button>
-    );
-};
-
-export default SignOutButton;
+export default function SignOutButton() {
+  return (
+    <button type="button" onClick={dispatchSignOutRequested}>
+      Sign Out
+    </button>
+  )
+}
