@@ -1,8 +1,6 @@
 "use server"
 
 import { getDoctorOptionsService } from "@/services/sessions.service";
-import { analyseSessionsHelper } from "@/services/sessions.service";
-import moment from "moment";
 
 // ==== GET DOCTOR OPTIONS ==== //
 export const getDoctorOptions = async () => {
