@@ -107,6 +107,7 @@ export function ChannelBookingShiftBar() {
   const elapsed = formatElapsed(shift.startedAt, asOf)
 
   async function handlePause() {
+    if (!shift) return
     setActionLoading("pause")
     try {
       await pauseShiftAction(shift.id)
@@ -120,6 +121,7 @@ export function ChannelBookingShiftBar() {
   }
 
   async function handleResume() {
+    if (!shift) return
     setActionLoading("resume")
     try {
       await resumeShiftAction(shift.id)
@@ -133,6 +135,7 @@ export function ChannelBookingShiftBar() {
   }
 
   async function handleEnd() {
+    if (!shift) return
     setActionLoading("end")
     try {
       await endShiftAction(shift.id)

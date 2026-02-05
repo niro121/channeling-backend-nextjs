@@ -365,7 +365,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     }}
                                     disabled={loading}
                                 >
-                                    <DisabledIcon />
+                                    <Ban className="h-4 w-4" />
                                     <span>Cancel</span>
                                 </Button>
                                 <Button
@@ -494,7 +494,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         }}
                                         disabled={loading}
                                     >
-                                        <DisabledIcon />
+                                        <Ban className="h-4 w-4" />
                                         <span>Cancel</span>
                                     </Button>
                                     <Button
@@ -557,7 +557,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         }}
                                         disabled={passwordLoading}
                                     >
-                                        <DisabledIcon />
+                                        <Ban className="h-4 w-4" />
                                         <span>Cancel</span>
                                     </Button>
                                     <Button

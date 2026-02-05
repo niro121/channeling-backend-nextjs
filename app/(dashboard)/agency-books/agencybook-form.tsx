@@ -226,7 +226,7 @@ const AgencyBookForm = ({
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban />
                   <span>Cancel</span>
                 </Button>
                 <Button
