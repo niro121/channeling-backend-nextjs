@@ -47,6 +47,12 @@ const createSessions = async (): Promise<{
         console.log(
           `${index + 1}. SESSIONS CREATED : ${doctor.name} : ${result.data.length}`
         );
+        if (result.data.length === 0 && result.emptyReason) {
+          console.log(`    → ${result.emptyReason}`);
+          if (result.schedulesFound !== undefined) {
+            console.log(`    → Schedules (DoctorSession) found: ${result.schedulesFound}`);
+          }
+        }
         return {
           doctorName: doctor.name,
           status: true,

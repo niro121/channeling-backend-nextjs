@@ -17,6 +17,10 @@ interface AnalyseSessionsResult {
   status: boolean;
   error: string;
   data: any[];
+  /** Number of DoctorSession (schedule) records found for this doctor */
+  schedulesFound?: number;
+  /** When data is empty, reason for scripts/diagnostics */
+  emptyReason?: string;
 }
 
 export async function analyseSessionsHelper(
@@ -219,7 +223,12 @@ export async function analyseSessionsHelper(
         return {
           status: true,
           error: result.error,
-          data: resolvedData
+          data: resolvedData,
+          schedulesFound: schedule.length,
+          emptyReason:
+            resolvedData.length === 0
+              ? 'Schedules found but no dates in range matched (check dayType and advancedBookingDays).'
+              : undefined
         };
       }
 
@@ -395,7 +404,8 @@ export async function analyseSessionsHelper(
       return {
         status: true,
         error: result.error,
-        data: resolvedData
+        data: resolvedData,
+        schedulesFound: schedule.length
       };
     } else {
       // ==== NO SCHEDULED FOUND: RETURN EXISTING SESSIONS ==== //
@@ -436,7 +446,12 @@ export async function analyseSessionsHelper(
       return {
         status: true,
         error: result.error,
-        data: resolvedData
+        data: resolvedData,
+        schedulesFound: 0,
+        emptyReason:
+          resolvedData.length === 0
+            ? 'No doctor schedules (DoctorSession) found. Add schedules for this doctor first.'
+            : undefined
       };
     }
   } catch (error: any) {
