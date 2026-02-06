@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react"
 import type { Doctor } from "@/types/doctor"
-import type { Session } from "@/types/session"
+import type { Session } from "@/types/sessions"
 
 /** Placeholder until booking API/types exist. Replace with your real Booking type. */
 export type ChannelBookingRecord = {
