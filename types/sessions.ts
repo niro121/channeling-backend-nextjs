@@ -87,3 +87,17 @@ export type GetSessionsForChannelBookingResult = {
   message?: string;
   error?: { message?: string };
 };
+
+export type getSessionParams = {
+  page?: string;
+  limit?: string;
+  date?: string;
+  doctorId?: string;
+};
+
+export type getSessionQuery = {
+  page: number;
+  limit: number;
+  date?: Date;
+  doctorId?: string;
+};

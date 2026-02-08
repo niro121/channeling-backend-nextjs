@@ -201,6 +201,107 @@ export const getSessionsForChannelBookingService = async (
   }
 };
 
+// ==== GET SESSIONS ==== //
+export const getAllSessionsService = async ({
+  page,
+  limit,
+  date,
+  doctorId
+}: {
+  page: number;
+  limit: number;
+  date?: Date;
+  doctorId?: string;
+}): Promise<{
+  success: boolean;
+  data?: {
+    records: any[];
+    totalRecords: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  const skip = page * limit;
+
+  try {
+    // Build where clause based on filters
+    // Logic:
+    // - If only date: filter by date
+    // - If both date and doctor: filter by both
+    // - If only doctor: filter by doctor but only show today's sessions
+    const whereClause: Prisma.SessionWhereInput = {};
+
+    if (date && doctorId) {
+      // Both filters: filter by both date and doctor
+      const dateMoment = moment(date);
+      const dateStart = dateMoment.startOf('day').toDate();
+      const dateEnd = dateMoment.endOf('day').toDate();
+      whereClause.date = {
+        gte: dateStart,
+        lte: dateEnd
+      };
+      whereClause.doctorId = doctorId;
+    } else if (date) {
+      // Only date filter: filter by date only
+      const dateMoment = moment(date);
+      const dateStart = dateMoment.startOf('day').toDate();
+      const dateEnd = dateMoment.endOf('day').toDate();
+      whereClause.date = {
+        gte: dateStart,
+        lte: dateEnd
+      };
+    } else if (doctorId) {
+      // Only doctor filter: filter by doctor but only show today's sessions
+      const todayStart = moment().startOf('day').toDate();
+      const todayEnd = moment().endOf('day').toDate();
+      whereClause.doctorId = doctorId;
+      whereClause.date = {
+        gte: todayStart,
+        lte: todayEnd
+      };
+    }
+
+    const records = await prisma.session.findMany({
+      skip,
+      take: limit,
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        doctor: true,
+        department: true,
+        location: true,
+        room: true,
+        createdUser: true,
+        updatedUser: true
+      }
+    });
+
+    const totalRecords = await prisma.session.count({
+      where: whereClause
+    });
+
+    return {
+      success: true,
+      data: {
+        records,
+        totalRecords
+      },
+      message: 'Sessions fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getAllSessionsService error:', error);
+
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch sessions'
+      }
+    };
+  }
+};
+
 // ==== GET DOCTOR OPTIONS ==== //
 export const getDoctorOptionsService = async () => {
   try {
