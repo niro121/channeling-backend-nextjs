@@ -1,22 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useChannelBooking } from "../context/channel-booking-context"
+import { getAllSpecialityOptions } from "@/app/actions/doctor.actions"
+import { getAllDoctors } from "@/app/actions/doctor.actions"
 import { cn } from "@/lib/utils"
-
-type SpecialityOption = {
-  id: string
-  name: string
-}
-
-type DoctorOption = {
-  id: string
-  name: string
-  title?: string | null
-  code?: string | null
-}
+import type { Speciality } from "@/types/speciality"
+import type { Doctor } from "@/types/doctor"
 
 export function DoctorSelection() {
   const {
@@ -26,84 +18,75 @@ export function DoctorSelection() {
     onDoctorSelect,
   } = useChannelBooking()
 
-  const [allSpecialities, setAllSpecialities] = useState<SpecialityOption[]>([])
-  const [allDoctors, setAllDoctors] = useState<DoctorOption[]>([])
+  const [allSpecialities, setAllSpecialities] = useState<Speciality[]>([])
+  const [allDoctors, setAllDoctors] = useState<Doctor[]>([])
   const [specialitySearch, setSpecialitySearch] = useState("")
   const [consultantSearch, setConsultantSearch] = useState("")
-  const [loadingSpecialities, setLoadingSpecialities] = useState(false)
-  const [loadingDoctors, setLoadingDoctors] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Fetch all specialities
+  // Fetch both specialities and doctors in parallel using a single useEffect
   useEffect(() => {
-    setLoadingSpecialities(true)
-    fetch("/api/speciality?page=0&limit=1000")
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && result.data) {
-          setAllSpecialities(
-            result.data.map((item: any) => ({
-              id: item.id,
-              name: item.name,
-            }))
-          )
+    let cancelled = false
+
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        // Fetch both in parallel
+        const [specialitiesResult, doctorsResult] = await Promise.all([
+          getAllSpecialityOptions(),
+          getAllDoctors({ page: "0", limit: "1000" }),
+        ])
+
+        if (cancelled) return
+
+        if (specialitiesResult.success && specialitiesResult.data) {
+          setAllSpecialities(specialitiesResult.data)
         }
-      })
-      .catch((error) => {
-        console.error("Failed to fetch specialities:", error)
-      })
-      .finally(() => {
-        setLoadingSpecialities(false)
-      })
+
+        if (doctorsResult.success && doctorsResult.data) {
+          setAllDoctors(doctorsResult.data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch data:", error)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchData()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  // Fetch all doctors (independent of speciality)
-  useEffect(() => {
-    setLoadingDoctors(true)
-    fetch("/api/doctor?page=0&limit=1000")
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && result.data) {
-          setAllDoctors(
-            result.data.map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              title: item.title,
-              code: item.code,
-            }))
-          )
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to fetch doctors:", error)
-      })
-      .finally(() => {
-        setLoadingDoctors(false)
-      })
-  }, [])
-
-  // Filter specialities based on search
-  const filteredSpecialities = allSpecialities.filter((speciality) =>
-    speciality.name.toLowerCase().includes(specialitySearch.toLowerCase())
+  // Memoize filtered specialities to avoid recalculating on every render
+  const filteredSpecialities = useMemo(
+    () =>
+      allSpecialities.filter((speciality) =>
+        speciality.name.toLowerCase().includes(specialitySearch.toLowerCase())
+      ),
+    [allSpecialities, specialitySearch]
   )
 
-  // Filter doctors based on search
-  const filteredDoctors = allDoctors.filter((doctor) => {
-    const doctorName = [doctor.title, doctor.name].filter(Boolean).join(" ")
-    return doctorName.toLowerCase().includes(consultantSearch.toLowerCase())
-  })
+  // Memoize filtered doctors to avoid recalculating on every render
+  const filteredDoctors = useMemo(
+    () =>
+      allDoctors.filter((doctor) => {
+        const doctorName = [doctor.title, doctor.name].filter(Boolean).join(" ")
+        return doctorName.toLowerCase().includes(consultantSearch.toLowerCase())
+      }),
+    [allDoctors, consultantSearch]
+  )
 
   const handleSpecialityClick = (specialityId: string) => {
     setSelectedSpecialityId(specialityId === selectedSpecialityId ? null : specialityId)
   }
 
-  const handleDoctorClick = (doctor: DoctorOption) => {
-    const fullDoctor = {
-      id: doctor.id,
-      name: doctor.name,
-      title: doctor.title,
-      code: doctor.code,
-    } as any
-    onDoctorSelect(doctor.id === selectedDoctor?.id ? null : fullDoctor)
+  const handleDoctorClick = (doctor: Doctor) => {
+    onDoctorSelect(doctor.id === selectedDoctor?.id ? null : doctor)
   }
 
   return (
@@ -123,7 +106,7 @@ export function DoctorSelection() {
             />
           </div>
           <div className="flex-1 rounded-md border border-border bg-muted/20 min-h-[200px] overflow-auto">
-            {loadingSpecialities ? (
+            {loading ? (
               <div className="p-2 text-sm text-muted-foreground">Loading...</div>
             ) : filteredSpecialities.length === 0 ? (
               <div className="p-2 text-sm text-muted-foreground">
@@ -131,19 +114,22 @@ export function DoctorSelection() {
               </div>
             ) : (
               <div className="p-1">
-                {filteredSpecialities.map((speciality) => (
-                  <div
-                    key={speciality.id}
-                    onClick={() => handleSpecialityClick(speciality.id)}
-                    className={cn(
-                      "p-2 text-sm cursor-pointer rounded-md hover:bg-muted/50 transition-colors",
-                      selectedSpecialityId === speciality.id &&
-                        "bg-primary/10 text-primary font-medium"
-                    )}
-                  >
-                    {speciality.name}
-                  </div>
-                ))}
+                {filteredSpecialities.map((speciality) => {
+                  if (!speciality.id) return null
+                  return (
+                    <div
+                      key={speciality.id}
+                      onClick={() => handleSpecialityClick(speciality.id!)}
+                      className={cn(
+                        "p-2 text-sm cursor-pointer rounded-md hover:bg-muted/50 transition-colors",
+                        selectedSpecialityId === speciality.id &&
+                          "bg-primary/10 text-primary font-medium"
+                      )}
+                    >
+                      {speciality.name}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -165,7 +151,7 @@ export function DoctorSelection() {
             />
           </div>
           <div className="flex-1 rounded-md border border-border bg-muted/20 min-h-[200px] overflow-auto">
-            {loadingDoctors ? (
+            {loading ? (
               <div className="p-2 text-sm text-muted-foreground">Loading...</div>
             ) : filteredDoctors.length === 0 ? (
               <div className="p-2 text-sm text-muted-foreground">
@@ -174,6 +160,7 @@ export function DoctorSelection() {
             ) : (
               <div className="p-1">
                 {filteredDoctors.map((doctor) => {
+                  if (!doctor.id) return null
                   const doctorName = [doctor.title, doctor.name]
                     .filter(Boolean)
                     .join(" ")
