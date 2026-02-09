@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { getSessionsForChannelBooking } from "@/app/actions/sessions.action"
+import { getSessionsForChannelBooking } from "@/app/actions/booking.dashboard.action"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useChannelBooking } from "../context/channel-booking-context"
 import { buildDummySessionsForDate, DUMMY_DOCTOR } from "./sessions-selection/dummy-doctor"
