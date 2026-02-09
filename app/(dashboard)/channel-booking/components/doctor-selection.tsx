@@ -72,21 +72,43 @@ export function DoctorSelection() {
   )
 
   // Memoize filtered doctors to avoid recalculating on every render
+  // Filter by both search term and selected speciality
   const filteredDoctors = useMemo(
     () =>
       allDoctors.filter((doctor) => {
+        // Filter by speciality if one is selected
+        if (selectedSpecialityId && doctor.specialityId !== selectedSpecialityId) {
+          return false
+        }
+        // Filter by search term
         const doctorName = [doctor.title, doctor.name].filter(Boolean).join(" ")
         return doctorName.toLowerCase().includes(consultantSearch.toLowerCase())
       }),
-    [allDoctors, consultantSearch]
+    [allDoctors, consultantSearch, selectedSpecialityId]
   )
 
   const handleSpecialityClick = (specialityId: string) => {
-    setSelectedSpecialityId(specialityId === selectedSpecialityId ? null : specialityId)
+    const newSpecialityId = specialityId === selectedSpecialityId ? null : specialityId
+    setSelectedSpecialityId(newSpecialityId)
+    
+    // If deselecting speciality or selecting a different one, clear doctor if it doesn't match
+    if (selectedDoctor && selectedDoctor.specialityId !== newSpecialityId) {
+      onDoctorSelect(null)
+    }
   }
 
   const handleDoctorClick = (doctor: Doctor) => {
-    onDoctorSelect(doctor.id === selectedDoctor?.id ? null : doctor)
+    const isDeselecting = doctor.id === selectedDoctor?.id
+    
+    if (isDeselecting) {
+      onDoctorSelect(null)
+    } else {
+      // Select the doctor and auto-select their speciality
+      onDoctorSelect(doctor)
+      if (doctor.specialityId && doctor.specialityId !== selectedSpecialityId) {
+        setSelectedSpecialityId(doctor.specialityId)
+      }
+    }
   }
 
   return (
