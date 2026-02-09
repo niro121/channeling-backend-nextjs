@@ -4,7 +4,13 @@ import prisma from '@/lib/prisma';
 import moment from 'moment';
 import orderBy from 'lodash/orderBy';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
-import {Fee, SessionInputData} from '@/types/sessions'
+import { Fee, SessionInputData } from '@/types/sessions';
+
+/** Parse "YYYY-MM-DD HH:mm" as Sri Lanka time and return unix seconds. */
+function parseSriLankaToUnix(dateStr: string, timeStr: string): number {
+  const iso = `${dateStr}T${timeStr}:00+05:30`;
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
 
 interface AnalyseSessionsInputs {
   fromDate: string;
@@ -56,8 +62,9 @@ export async function analyseSessionsHelper(
 
     if (schedule && schedule.length > 0) {
       for (const item of schedule) {
-        const timeString = moment(item.startTime).format('HH:mm'); // == SCHEDULE START TIME == //
-        const endtimeString = moment(item.endTime).format('HH:mm'); // == SCHEDULE END TIME == //
+        // Template times are stored as UTC; interpret as Sri Lanka clock time for generation
+        const timeString = moment(item.startTime).utcOffset(330).format('HH:mm');
+        const endtimeString = moment(item.endTime).utcOffset(330).format('HH:mm');
 
         let isScan = false; // == SCAN FEE STATUS == //
 
@@ -90,14 +97,8 @@ export async function analyseSessionsHelper(
 
             if (applyToDate === compareToDate && m.isSameOrBefore(rangeEnd)) {
               const dateStr = m.format('YYYY-MM-DD');
-              const newStartTime = moment.utc(
-                dateStr + ' ' + timeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
-              const newEndTime = moment.utc(
-                dateStr + ' ' + endtimeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
+              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
+              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
 
               inputData.push({
                 date: dateStr,
@@ -135,14 +136,8 @@ export async function analyseSessionsHelper(
 
             if (item.dayType === expectedDayType && m.isSameOrBefore(rangeEnd)) {
               const dateStr = m.format('YYYY-MM-DD');
-              const newStartTime = moment.utc(
-                dateStr + ' ' + timeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
-              const newEndTime = moment.utc(
-                dateStr + ' ' + endtimeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
+              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
+              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
 
               inputData.push({
                 date: dateStr,
