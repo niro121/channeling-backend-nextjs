@@ -6,7 +6,7 @@ import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { Ban, Save } from 'lucide-react';
 import * as Yup from 'yup';
 import {
   createAgencyBook,
@@ -226,7 +226,7 @@ const AgencyBookForm = ({
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -235,7 +235,7 @@ const AgencyBookForm = ({
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>

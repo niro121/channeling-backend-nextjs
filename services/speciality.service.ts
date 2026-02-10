@@ -71,22 +71,19 @@ export const getAllSpecialitiesService = async ({
           }
         : undefined;
 
-    const records = await prisma.speciality.findMany({
-      skip: skip,
-      take: limit,
-      where: whereClause,
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        createdUser: true,
-        updatedUser: true
-      }
-    });
-
-    const totalRecords = await prisma.speciality.count({
-      where: whereClause
-    });
+    const [records, totalRecords] = await Promise.all([
+      prisma.speciality.findMany({
+        skip,
+        take: limit,
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          createdUser: true,
+          updatedUser: true
+        }
+      }),
+      prisma.speciality.count({ where: whereClause })
+    ]);
 
     return {
       success: true,
@@ -137,11 +134,13 @@ export const createSpecialityService = async (
     const parsed = specialitySchema.safeParse(payload);
 
     if (!parsed.success) {
+      const err = parsed.error;
+      const issues = err != null ? z.flattenError(err).fieldErrors : undefined;
       return {
         success: false,
         error: {
           message: 'Validation failed',
-          issues: parsed.error.flatten().fieldErrors
+          ...(issues && { issues })
         }
       };
     }
@@ -209,11 +208,13 @@ export const updateOneSpecialityService = async (
     });
 
     if (!parsed.success) {
+      const err = parsed.error;
+      const issues = err != null ? z.flattenError(err).fieldErrors : undefined;
       return {
         success: false,
         error: {
           message: 'Validation failed',
-          issues: parsed.error.flatten().fieldErrors
+          ...(issues && { issues })
         }
       };
     }

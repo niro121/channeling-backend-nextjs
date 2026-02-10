@@ -22,7 +22,7 @@ export default async function Page({ params }: PageProps) {
                 <h2 className="text-3xl font-bold tracking-tight">Edit Patient</h2>
             </div>
             <div className="h-full flex-1 flex-col space-y-8">
-                <PatientForm patient={patientData.data} areas={areas.data || []} />
+                <PatientForm patient={patientData.data} areas={areas.data || []} isEditPage={true} />
             </div>
         </div>
     )

@@ -30,38 +30,31 @@ export default async function Page({ searchParams }: SearchParams) {
     doctorId: params?.doctorId
   });
 
-  // ==== LOCATION OPTIONS ==== //
   const locationOptions = await getLocationOptions();
-
-  // ==== DOCTOR OPTIONS ==== //
   const doctorOptions = await getDoctorOptions();
 
   return (
-    <>
-      <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-        <FilterSection
-          locationId={params?.locationId}
-          locationOptions={locationOptions.data || []}
-          doctorId={params?.doctorId}
-          doctorOptions={doctorOptions.data || []}
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable
+          heading="Doctor Sessions"
+          subHeading="Manage your doctor sessions here."
+          columns={DoctorSessionColumns}
+          data={data}
+          rowCount={totalRecords}
+          deleteServerAction={bulkDeleteDoctorSessions}
+          page={params?.page}
+          toolbarLeft={
+            <FilterSection
+              locationId={params?.locationId}
+              locationOptions={locationOptions.data || []}
+              doctorId={params?.doctorId}
+              doctorOptions={doctorOptions.data || []}
+            />
+          }
+          toolbarRight={<AddBtnSection />}
         />
-        <div className="ml-auto flex items-center gap-4">
-          <AddBtnSection />
-        </div>
-      </div>
-      <div className="overflow-hidden">
-        <Suspense fallback={<Loading />}>
-          <CustomDataTable
-            heading="Doctor Sessions"
-            subHeading="Manage your doctor sessions here."
-            columns={DoctorSessionColumns}
-            data={data}
-            rowCount={totalRecords}
-            deleteServerAction={bulkDeleteDoctorSessions}
-            page={params?.page}
-          />
-        </Suspense>
-      </div>
-    </>
+      </Suspense>
+    </div>
   );
 }

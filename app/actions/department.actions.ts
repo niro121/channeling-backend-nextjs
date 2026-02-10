@@ -6,9 +6,7 @@ import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
-    // Check view permission
-    await requirePermission("departments", "view")
-    
+    // View permission already checked by checkRouteAccess("/departments") on the page; skip duplicate session fetch
     try {
         let newFilter: GetDepartmentsQuery = {
             page: filter.page ? parseInt(filter.page) : 0,

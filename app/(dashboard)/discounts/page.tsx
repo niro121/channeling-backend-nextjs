@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
+import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import Loading from '../loading';
@@ -25,7 +25,6 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
-  // Check if user can view discounts
   const canView = await checkRouteAccess('/discounts');
   if (!canView) {
     redirect('/unauthorized-access');
@@ -41,58 +40,46 @@ export default async function Page({ searchParams }: SearchParams) {
   });
 
   return (
-    <>
-      <div className="flex items-center ">
-        <div className="ml-auto flex items-center gap-4">
-          <div className="lg:block hidden relative flex-1 md:grow-0">
-            <SearchInput
-              name="keyword"
-              placeholder={'Search by name, voucher code'}
-              className={'rounded-lg bg-background pl-8 w-full sm:w-auto'}
-            />
-          </div>
-          <Link href="/discounts/add">
-            <Button
-              size="sm"
-              className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
-            >
-              <PlusCircle />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Add New
-              </span>
-            </Button>
-          </Link>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-        <div className="lg:hidden relative flex-1 md:grow-0">
-          <SearchInput
-            name="keyword"
-            placeholder={'Search by name, voucher code'}
-            className={'rounded-lg bg-background pl-8 w-full'}
-          />
-        </div>
-        <SelectorFilter
-          label="All Discount Types"
-          options={DISCOUNT_TYPE_OPTIONS}
-          defaultValue="__all__"
-          keyword="discountType"
-          initialId={params?.discountType}
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable
+          heading="Discounts"
+          subHeading="Manage your discounts here."
+          columns={DisCountColumns}
+          data={data}
+          rowCount={totalRecords}
+          deleteServerAction={bulkDeleteDiscounts}
+          page={params?.page}
+          toolbarLeft={
+            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
+              <div className="relative w-full sm:max-w-sm">
+                <SearchInput
+                  name="keyword"
+                  placeholder="Search by name, voucher code"
+                  className="pl-8 w-full h-9"
+                />
+              </div>
+              <SelectorFilter
+                label="All Discount Types"
+                options={DISCOUNT_TYPE_OPTIONS}
+                defaultValue="__all__"
+                keyword="discountType"
+                initialId={params?.discountType}
+              />
+            </div>
+          }
+          toolbarRight={
+            <Link href="/discounts/add">
+              <Button size="sm" className="gap-1.5 h-9">
+                <Plus className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Add New
+                </span>
+              </Button>
+            </Link>
+          }
         />
-      </div>
-      <div className="overflow-hidden">
-        <Suspense fallback={<Loading />}>
-          <CustomDataTable
-            heading="Discounts"
-            subHeading="Manage your discounts here."
-            columns={DisCountColumns}
-            data={data}
-            rowCount={totalRecords}
-            deleteServerAction={bulkDeleteDiscounts}
-            page={params?.page}
-          />
-        </Suspense>
-      </div>
-    </>
+      </Suspense>
+    </div>
   );
 }

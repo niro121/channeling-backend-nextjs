@@ -4,7 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tag } from '@/types/tag';
 import TagRecordActions from './record-actions';
-import { CircleCorrect, CircleX } from '@/components/icons';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const TAG_TYPES: Record<number, string> = {
@@ -58,17 +58,26 @@ export const tagColumns: ColumnDef<Tag>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = row.getValue('status');
-      return status === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7" />
-      ) : (
-        <CircleX className="text-red-500 w-7 h-7" />
+      const status = row.getValue('status') as number;
+      const isActive = status === 1;
+      return (
+        <Badge
+          variant={isActive ? 'default' : 'secondary'}
+          className={
+            isActive
+              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+          }
+        >
+          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isActive ? 'Active' : 'Inactive'}
+        </Badge>
       );
     }
   },
   {
     id: 'actions',
-    header: () => <div className="text-center">Actions</div>,
+    header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => <TagRecordActions row={row} />
   }
 ];

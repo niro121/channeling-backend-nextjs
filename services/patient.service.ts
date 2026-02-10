@@ -66,7 +66,7 @@ export const createPatient = async (
                 success: false,
                 error: {
                     message: "Validation failed",
-                    issues: parsed.error.flatten().fieldErrors,
+                    issues: parsed.error != null ? z.flattenError(parsed.error).fieldErrors : undefined,
                 },
             }
         }
@@ -140,7 +140,7 @@ export const updatePatient = async (
                 success: false,
                 error: {
                     message: "Validation failed",
-                    issues: parsed.error.flatten().fieldErrors,
+                    issues: parsed.error != null ? z.flattenError(parsed.error).fieldErrors : undefined,
                 },
             }
         }

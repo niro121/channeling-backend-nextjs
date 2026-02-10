@@ -2,7 +2,7 @@
 
 import React from "react"
 import { Button } from "@/components/ui/button"
-import { PlusCircle } from "@/components/icons"
+import { Plus } from "lucide-react"
 import { CustomDialog } from "@/components/common/custom-dialog"
 
 type AddBtnProps = {
@@ -21,9 +21,9 @@ export function AddBtn({
       <Button
         onClick={() => setDialogOpen(true)}
         size="sm"
-        className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
+        className="gap-1.5 h-9"
       >
-        <PlusCircle />
+        <Plus className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
           Add New
         </span>

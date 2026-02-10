@@ -54,7 +54,7 @@ export const getAllLocationsService = async ({
   };
 }> => {
   try {
-    const whereClouse: Prisma.LocationWhereInput | undefined =
+    const whereClause: Prisma.LocationWhereInput | undefined =
       keyword && keyword?.trim() !== ''
         ? {
             OR: [
@@ -85,19 +85,19 @@ export const getAllLocationsService = async ({
 
     const skip = page * limit;
 
-    const records = await prisma.location.findMany({
-      skip: skip,
-      orderBy: { createdAt: 'desc' },
-      where: whereClouse,
-      include: {
-        createdUser: true,
-        updatedUser: true
-      }
-    });
-
-    const totalRecords = await prisma.location.count({
-      where: whereClouse
-    });
+    const [records, totalRecords] = await Promise.all([
+      prisma.location.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        where: whereClause,
+        include: {
+          createdUser: true,
+          updatedUser: true
+        }
+      }),
+      prisma.location.count({ where: whereClause })
+    ]);
 
     return {
       success: true,
@@ -133,11 +133,13 @@ export const createLocationService = async (
     const parsed = locationSchema.safeParse(payload);
 
     if (!parsed.success) {
+      const err = parsed.error;
+      const issues = err != null ? z.flattenError(err).fieldErrors : undefined;
       return {
         success: false,
         error: {
           message: 'Validation failed',
-          issues: parsed.error.flatten().fieldErrors
+          ...(issues && { issues })
         }
       };
     }
@@ -223,11 +225,13 @@ export const updateOneLocationService = async (
     });
 
     if (!parsed.success) {
+      const err = parsed.error;
+      const issues = err != null ? z.flattenError(err).fieldErrors : undefined;
       return {
         success: false,
         error: {
           message: 'Validation failed',
-          issues: parsed.error.flatten().fieldErrors
+          ...(issues && { issues })
         }
       };
     }

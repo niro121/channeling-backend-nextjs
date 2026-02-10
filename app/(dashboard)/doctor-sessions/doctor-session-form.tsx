@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { Ban, Save } from 'lucide-react';
 import {
   ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
@@ -25,7 +25,8 @@ import {
 import {
   extractTime,
   buildDateFromTime,
-  calculateDurationMinutes
+  calculateDurationMinutes,
+  SRI_LANKA_TZ
 } from '@/lib/utils';
 import { CustomTimeField } from '@/components/common/custom-time-field';
 import { Loader } from 'lucide-react';
@@ -88,11 +89,11 @@ export default function DoctorSessionForm({
   );
 
   const startExtracted = doctorSession?.startTime
-    ? extractTime(new Date(doctorSession.startTime))
+    ? extractTime(new Date(doctorSession.startTime), SRI_LANKA_TZ)
     : { time: '', meridiem: 'AM' };
 
   const endExtracted = doctorSession?.endTime
-    ? extractTime(new Date(doctorSession.endTime))
+    ? extractTime(new Date(doctorSession.endTime), SRI_LANKA_TZ)
     : { time: '', meridiem: 'AM' };
 
   const initialValues: FormSubmissionValues = {
@@ -616,7 +617,7 @@ export default function DoctorSessionForm({
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -625,7 +626,7 @@ export default function DoctorSessionForm({
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>

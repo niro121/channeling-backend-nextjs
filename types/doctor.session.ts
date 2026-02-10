@@ -118,29 +118,43 @@ export const REFUNDABLE_OPTIONS: Option[] = [
 export const FEE_TYPES: Fee[] = [
   {
     id: '0',
-    name: 'Option A',
-    feeType: 'Option A Type',
+    name: 'Doctor Fee',
+    feeType: 'Staff',
     localFee: 0,
     foreignFee: 0
   },
   {
     id: '1',
-    name: 'Option B',
-    feeType: 'Option B Type',
+    name: 'Hospital Fee',
+    feeType: 'Own Institution',
     localFee: 0,
     foreignFee: 0
   },
   {
     id: '2',
-    name: 'Option C',
-    feeType: 'Option C Type',
+    name: 'Agency Fee',
+    feeType: 'Other Institution',
     localFee: 0,
     foreignFee: 0
   },
   {
     id: '3',
-    name: 'Option D',
-    feeType: 'Option D Type',
+    name: 'Scan Fee',
+    feeType: 'Service',
+    localFee: 0,
+    foreignFee: 0
+  },
+  {
+    id: '4',
+    name: 'On-Call Fee',
+    feeType: 'Own Institution',
+    localFee: 0,
+    foreignFee: 0
+  },
+  {
+    id: '5',
+    name: 'Credit Card Commission',
+    feeType: 'Own Institution',
     localFee: 0,
     foreignFee: 0
   }
@@ -157,10 +171,7 @@ export const DAY_TYPES: Option[] = [
   { id: '8', name: 'Specific Date Only' }
 ];
 
-export const ADVANCED_BOOKING_OPTIONS = Array.from(
-  { length: 101 },
-  (_, i) => ({
-    id: String(i),
-    name: String(i)
-  })
-);
+export const ADVANCED_BOOKING_OPTIONS = Array.from({ length: 101 }, (_, i) => ({
+  id: String(i),
+  name: String(i)
+}));

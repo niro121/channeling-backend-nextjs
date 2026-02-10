@@ -61,18 +61,15 @@ export const getDepartments = async ({
                   }
                 : undefined
 
-        const records = await prisma.department.findMany({
-            skip: skip,
-            take: validLimit,
-            where: whereClause,
-            orderBy: {
-                createdAt: "desc",
-            },
-        })
-
-        const totalRecords = await prisma.department.count({
-            where: whereClause,
-        })
+        const [records, totalRecords] = await Promise.all([
+            prisma.department.findMany({
+                skip: skip,
+                take: validLimit,
+                where: whereClause,
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.department.count({ where: whereClause }),
+        ])
 
         return {
             success: true,
@@ -212,7 +209,7 @@ export const saveDepartment = async (
                 success: false,
                 error: {
                     message: "Validation failed",
-                    issues: parsed.error.flatten().fieldErrors,
+                    issues: parsed.error?.flatten().fieldErrors || {},
                 },
             }
         }

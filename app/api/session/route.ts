@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getAllRosters } from "@/app/actions/roster.actions";
+import { getAllSessions } from "@/app/actions/sessions.action";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,19 +18,21 @@ export async function GET(req: NextRequest) {
 
     const page = searchParams.get("page") || undefined;
     const limit = searchParams.get("limit") || undefined;
-    const keyword = searchParams.get("keyword") || "";
+    const date = searchParams.get("date") || undefined;
+    const doctorId = searchParams.get("doctorId") || undefined;
 
-    const result = await getAllRosters({
+    const result = await getAllSessions({
       page,
       limit,
-      keyword,
+      date,
+      doctorId,
     });
 
     return NextResponse.json(result, {
       status: result.success ? 200 : 400,
     });
   } catch (error: any) {
-    console.error("GET /api/roster error:", error);
+    console.error("GET /api/session error:", error);
 
     return NextResponse.json(
       {

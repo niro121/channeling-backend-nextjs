@@ -43,9 +43,10 @@ export type GetUserGroupsReturn = {
 // Available resources in the system
 export const RESOURCES = [
   { id: "users", name: "Users" },
+  { id: "channel-booking", name: "Channel Booking" },
+  { id: "shift", name: "Shift (Channel Booking)" },
   { id: "doctors", name: "Doctors" },
   { id: "departments", name: "Departments" },
-  { id: "rosters", name: "Rosters" },
   { id: "patients", name: "Patients" },
   { id: "tags", name: "Tags" },
   { id: "zones", name: "Zones" },

@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from '@/components/icons';
+import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { LocationColumns } from './columns';
@@ -22,7 +22,6 @@ type SearchParams = {
 };
 
 export default async function Page({ searchParams }: SearchParams) {
-  // Check if user can view locations
   const canView = await checkRouteAccess('/locations');
   if (!canView) {
     redirect('/unauthorized-access');
@@ -38,55 +37,43 @@ export default async function Page({ searchParams }: SearchParams) {
   });
 
   return (
-    <>
-      <div className="flex items-center ">
-        <div className="ml-auto flex items-center gap-4">
-          <div className="lg:block hidden relative flex-1 md:grow-0">
-            <SearchInput
-              name="keyword"
-              placeholder={'Search by name,city or code'}
-              className={'rounded-lg bg-background pl-8 w-full sm:w-auto'}
-            />
-          </div>
-          <Link href="/locations/add">
-            <Button
-              size="sm"
-              className="gap-1 px-8 text-white transition-colors ease-in-out duration-100 hover:text-black"
-            >
-              <PlusCircle />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Add New
-              </span>
-            </Button>
-          </Link>
-        </div>
-      </div>
-      <div className="mt-2 flex flex-col lg:flex-row gap-3 items-start">
-        <div className="lg:hidden relative flex-1 md:grow-0">
-          <SearchInput
-            name="keyword"
-            placeholder={'Search by name'}
-            className={'rounded-lg bg-background pl-8 w-full'}
-          />
-        </div>
-        <FilterSection
-          locationTypeOptions={LOCATION_OPTIONS}
-          locationId={params?.locationId}
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable
+          heading="Locations"
+          subHeading="Manage your locations here."
+          columns={LocationColumns}
+          data={data}
+          rowCount={totalRecords}
+          deleteServerAction={bulkDeleteLocations}
+          page={params?.page}
+          toolbarLeft={
+            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
+              <div className="relative w-full sm:max-w-sm">
+                <SearchInput
+                  name="keyword"
+                  placeholder="Search by name, city or code"
+                  className="pl-8 w-full h-9"
+                />
+              </div>
+              <FilterSection
+                locationTypeOptions={LOCATION_OPTIONS}
+                locationId={params?.locationId}
+              />
+            </div>
+          }
+          toolbarRight={
+            <Link href="/locations/add">
+              <Button size="sm" className="gap-1.5 h-9">
+                <Plus className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Add New
+                </span>
+              </Button>
+            </Link>
+          }
         />
-      </div>
-      <div className="overflow-hidden">
-        <Suspense fallback={<Loading />}>
-          <CustomDataTable
-            heading="Locations"
-            subHeading="Manage your locations here."
-            columns={LocationColumns}
-            data={data}
-            rowCount={totalRecords}
-            deleteServerAction={bulkDeleteLocations}
-            page={params?.page}
-          />
-        </Suspense>
-      </div>
-    </>
+      </Suspense>
+    </div>
   );
 }

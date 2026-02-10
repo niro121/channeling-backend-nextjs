@@ -9,7 +9,7 @@ import { Location, LocationFormValues } from '@/types/location';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { Ban, Save } from 'lucide-react';
 import {
   createLocation,
   updateOneLocation
@@ -25,9 +25,10 @@ type LocationFormProps = {
   };
 };
 
-export default function DoctorForm({
+export default function LocationForm({
   location,
   locationOptions,
+  isEditPage = false,
   user
 }: LocationFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -98,12 +99,12 @@ export default function DoctorForm({
           return;
         }
 
+        router.push('/locations');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Location was updated successfully'
         });
-        router.push('/locations');
       } else {
         respond = await createLocation(values, user);
         setLoading(false);
@@ -135,17 +136,16 @@ export default function DoctorForm({
           return;
         }
 
-        toast({
-          variant: 'success',
-          title: 'Success',
-          description: 'Location was created successfully'
-        });
-
         if (respond.data?.id) {
           router.push(`/locations/${respond.data.id}/edit`);
         } else {
           router.push('/locations');
         }
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: 'Location was created successfully'
+        });
       }
     } catch (error: any) {
       setLoading(false);
@@ -162,7 +162,7 @@ export default function DoctorForm({
       initialValues={initialValues}
       onSubmit={handleSubmit}
       validationSchema={validationSchema}
-      enableReinitialize
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         const styleClasses = {
@@ -265,7 +265,7 @@ export default function DoctorForm({
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -274,7 +274,7 @@ export default function DoctorForm({
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>

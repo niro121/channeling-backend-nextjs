@@ -22,6 +22,13 @@ export const authOptions: NextAuthOptions = {
     maxAge: 1 * 60 * 60,
 
   },
+  logger: {
+    error(code, metadata) {
+      // Don't log JWT decryption errors from stale/invalid cookies (e.g. after NEXTAUTH_SECRET change).
+      if (code === "JWT_SESSION_ERROR" && metadata?.message === "decryption operation failed") return;
+      console.error("[next-auth][error]", code, metadata);
+    },
+  },
   providers: [
     CredentialsProvider({
       name: "credentials",

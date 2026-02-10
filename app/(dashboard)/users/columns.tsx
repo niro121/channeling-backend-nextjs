@@ -2,11 +2,11 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { User } from "@/types/user"
 import UserRecordActions from "./record-actions"
-import { CircleCorrect, CircleX } from "@/components/icons"
+import { CheckCircle2, XCircle } from "lucide-react"
 
-// DEFINE THE COLUMNS OF THE USER TABLE
 export const userColumns: ColumnDef<User>[] = [
     {
         id: "select",
@@ -42,19 +42,32 @@ export const userColumns: ColumnDef<User>[] = [
     },
     {
         accessorKey: "status",
-        header: "User Status",
+        header: "Status",
         cell: ({ row }) => {
-            const show = row.getValue('status')
-            return show === 1 ? (
-        <CircleCorrect className="text-green-500 w-7 h-7" />
-      ) : (
-        <CircleX className="text-red-500 w-7 h-7" />
-      );
+            const status = row.getValue("status") as number
+            const isActive = status === 1
+            return (
+                <Badge
+                    variant={isActive ? "default" : "secondary"}
+                    className={
+                        isActive
+                            ? "gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0"
+                            : "gap-1 bg-muted text-muted-foreground hover:bg-muted"
+                    }
+                >
+                    {isActive ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                        <XCircle className="h-4 w-4" />
+                    )}
+                    {isActive ? "Active" : "Inactive"}
+                </Badge>
+            )
         },
     },
     {
         id: "actions",
-        header: () => <div className="text-center">Actions</div>,
+        header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => <UserRecordActions row={row} />,
     },
 ]

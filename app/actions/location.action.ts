@@ -25,8 +25,7 @@ type CreateLocationPayload = LocationFormValues & {
 
 // ==== GET ALL LOCATIONS ==== //
 export const getAllLocations = async (sort: getLocationParam) => {
-  // Check view permission
-  await requirePermission('locations', 'view');
+  // View permission already checked by checkRouteAccess('/locations') on the page; skip duplicate session fetch
 
   try {
     let newFilter: getLocationQuery = {

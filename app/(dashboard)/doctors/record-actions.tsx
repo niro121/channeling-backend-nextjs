@@ -8,9 +8,8 @@ import { DataTableRowActions } from '@/components/common/custom-table-row-action
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
 import { deleteDoctor } from '@/app/actions/doctor.actions';
 import { Button } from '@/components/ui/button';
-import { Edit } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { BinIcon } from '@/components/icons';
 import { usePermissions } from '@/components/hooks/use-permissions';
 
 type DoctorActionsProps<TData extends Doctor> = {
@@ -67,21 +66,23 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
       <DataTableRowActions>
         {has('doctors', 'edit') && (
           <Button
-            variant={'link'}
-            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={() => router.push(`/doctors/${doctor.id}/edit`)}
           >
-            <Edit className="w-5 h-5" />
+            <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
           </Button>
         )}
         {has('doctors', 'delete') && (
           <Button
-            variant={'link'}
-            className="w-fit h-fit p-1 active:scale-95 transition duration-75 cursor-pointer"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             onClick={() => showHideDeleteModal(true)}
           >
-            <BinIcon className="w-5 h-5 text-red-600" />
+            <Trash2 className="h-4 w-4" />
             <span className="sr-only">Delete</span>
           </Button>
         )}

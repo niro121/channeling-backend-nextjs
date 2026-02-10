@@ -6,7 +6,7 @@ import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { DisabledIcon, SaveIcon } from '@/components/icons';
+import { Ban, Save } from 'lucide-react';
 import * as Yup from 'yup';
 import {
   createPatientAction,
@@ -94,7 +94,7 @@ const PatientForm = ({
 
   const handleSubmit = async (
     values: Patient,
-    { resetForm }: FormikHelpers<Patient>
+    { setErrors, setTouched }: FormikHelpers<Patient>
   ) => {
     try {
       let respond: any;
@@ -106,30 +106,74 @@ const PatientForm = ({
         setLoading(false);
 
         if (respond.isError) {
-          throw new Error(respond.errors.message);
+          if (respond.errors && typeof respond.errors === 'object' && !Array.isArray(respond.errors)) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.errors).forEach((key) => {
+              if (key === 'message') return;
+              const err = respond.errors[key];
+              const msg = Array.isArray(err) && err.length > 0 ? err[0] : typeof err === 'string' ? err : undefined;
+              if (msg) fieldErrors[key] = msg;
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce((acc, k) => ({ ...acc, [k]: true }), {} as Record<string, boolean>)
+              );
+            }
+          }
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: respond.errors?.message ?? 'Patient update unsuccessful.'
+          });
+          return;
         }
 
+        router.push('/patients');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was updated successfully'
         });
-        router.push('/patients');
       } else {
         respond = await createPatientAction(values);
         setLoading(false);
 
         if (respond.isError) {
-          throw new Error(respond.errors.message);
+          if (respond.errors && typeof respond.errors === 'object' && !Array.isArray(respond.errors)) {
+            const fieldErrors: Record<string, string> = {};
+            Object.keys(respond.errors).forEach((key) => {
+              if (key === 'message') return;
+              const err = respond.errors[key];
+              const msg = Array.isArray(err) && err.length > 0 ? err[0] : typeof err === 'string' ? err : undefined;
+              if (msg) fieldErrors[key] = msg;
+            });
+            if (Object.keys(fieldErrors).length > 0) {
+              setErrors(fieldErrors);
+              setTouched(
+                Object.keys(fieldErrors).reduce((acc, k) => ({ ...acc, [k]: true }), {} as Record<string, boolean>)
+              );
+            }
+          }
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: respond.errors?.message ?? 'Patient create unsuccessful.'
+          });
+          return;
         }
 
+        const newId = respond.data?.id;
+        if (newId) {
+          router.push(`/patients/${newId}/edit`);
+        } else {
+          router.push('/patients');
+        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was created successfully'
         });
-
-        router.push('/patients');
       }
     } catch (error: any) {
       setLoading(false);
@@ -152,7 +196,7 @@ const PatientForm = ({
       initialValues={initialValues}
       onSubmit={handleSubmit}
       validationSchema={validationSchema}
-      enableReinitialize
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         return (
@@ -381,7 +425,7 @@ const PatientForm = ({
                   }}
                   disabled={loading}
                 >
-                  <DisabledIcon />
+                  <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
                 <Button
@@ -390,7 +434,7 @@ const PatientForm = ({
                   type="submit"
                   className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                 >
-                  <SaveIcon />
+                  <Save className="h-4 w-4" />
                   <span>Save</span>
                 </Button>
               </div>

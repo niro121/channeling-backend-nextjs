@@ -5,7 +5,7 @@ import { Department } from "@/types/department"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
 import { Button } from "@/components/ui/button"
-import { DisabledIcon, SaveIcon } from "@/components/icons"
+import { Ban, Save } from "lucide-react"
 import * as Yup from "yup"
 import { createNewDepartment, updateDepartment } from "@/app/actions/department.actions"
 import { useToast } from "@/components/hooks/use-toast"
@@ -44,7 +44,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
 
     const handleSubmit = async (
         values: Department,
-        { resetForm }: FormikHelpers<Department>
+        { setErrors, setTouched }: FormikHelpers<Department>
     ) => {
         try {
             let respond: any;
@@ -57,7 +57,36 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    // Map server-side validation errors to form fields
+                    if (respond.errors && typeof respond.errors === "object") {
+                        const fieldErrors: Record<string, string> = {}
+                        Object.keys(respond.errors).forEach((key) => {
+                            const err = respond.errors[key]
+                            if (Array.isArray(err) && err.length > 0) {
+                                fieldErrors[key] = err[0]
+                            }
+                        })
+                        if (Object.keys(fieldErrors).length > 0) {
+                            setErrors(fieldErrors)
+                            setTouched(
+                                Object.keys(fieldErrors).reduce(
+                                    (acc, key) => {
+                                        acc[key as keyof Department] = true
+                                        return acc
+                                    },
+                                    {} as Record<string, boolean>
+                                )
+                            )
+                        }
+                    }
+                    toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description:
+                            (respond.errors?.message as string) ??
+                            "Department update unsuccessful.",
+                    })
+                    return
                 }
 
                 toast({
@@ -73,22 +102,49 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                 setLoading(false)
 
                 if (respond.isError) {
-                    throw new Error(respond.errors.message)
+                    // Map server-side validation errors to form fields
+                    if (respond.errors && typeof respond.errors === "object") {
+                        const fieldErrors: Record<string, string> = {}
+                        Object.keys(respond.errors).forEach((key) => {
+                            const err = respond.errors[key]
+                            if (Array.isArray(err) && err.length > 0) {
+                                fieldErrors[key] = err[0]
+                            }
+                        })
+                        if (Object.keys(fieldErrors).length > 0) {
+                            setErrors(fieldErrors)
+                            setTouched(
+                                Object.keys(fieldErrors).reduce(
+                                    (acc, key) => {
+                                        acc[key as keyof Department] = true
+                                        return acc
+                                    },
+                                    {} as Record<string, boolean>
+                                )
+                            )
+                        }
+                    }
+                    toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description:
+                            (respond.errors?.message as string) ??
+                            "Department creation unsuccessful.",
+                    })
+                    return
                 }
 
+                // Redirect first so the form doesn't clear before navigation (revalidatePath can re-render add page)
+                if (respond.data?.id) {
+                    router.push(`/departments/${respond.data.id}/edit`)
+                } else {
+                    router.push('/departments')
+                }
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Department was created successfully",
                 })
-                
-                // Redirect to edit page with the new department id
-                if (respond.data?.id) {
-                    router.push(`/departments/${respond.data.id}/edit`)
-                } else {
-                    // Fallback: redirect to list if redirect fails
-                    router.push('/departments')
-                }
             }
         } catch (error: any) {
             setLoading(false)
@@ -105,7 +161,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 
@@ -164,7 +220,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                                     }}
                                     disabled={loading}
                                 >
-                                    <DisabledIcon />
+                                    <Ban className="h-4 w-4" />
                                     <span>
                                         Cancel
                                     </span>
@@ -175,7 +231,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                                     type="submit"
                                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                                 >
-                                    <SaveIcon />
+                                    <Save className="h-4 w-4" />
                                     <span>Save</span>
                                 </Button>
                             </div>
