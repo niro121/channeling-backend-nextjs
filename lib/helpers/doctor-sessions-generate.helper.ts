@@ -4,7 +4,13 @@ import prisma from '@/lib/prisma';
 import moment from 'moment';
 import orderBy from 'lodash/orderBy';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
-import {Fee, SessionInputData} from '@/types/sessions'
+import { Fee, SessionInputData } from '@/types/sessions';
+
+/** Parse "YYYY-MM-DD HH:mm" as Sri Lanka time and return unix seconds. */
+function parseSriLankaToUnix(dateStr: string, timeStr: string): number {
+  const iso = `${dateStr}T${timeStr}:00+05:30`;
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
 
 interface AnalyseSessionsInputs {
   fromDate: string;
@@ -56,8 +62,9 @@ export async function analyseSessionsHelper(
 
     if (schedule && schedule.length > 0) {
       for (const item of schedule) {
-        const timeString = moment(item.startTime).format('HH:mm'); // == SCHEDULE START TIME == //
-        const endtimeString = moment(item.endTime).format('HH:mm'); // == SCHEDULE END TIME == //
+        // Template times are stored as UTC; interpret as Sri Lanka clock time for generation
+        const timeString = moment(item.startTime).utcOffset(330).format('HH:mm');
+        const endtimeString = moment(item.endTime).utcOffset(330).format('HH:mm');
 
         let isScan = false; // == SCAN FEE STATUS == //
 
@@ -74,14 +81,13 @@ export async function analyseSessionsHelper(
           }
         }
 
-        // == CALCULATE END DATE BASED ON ADVANCED BOOKING DAY COUNT == //
-        const end = moment();
-        end.add(item.advancedBookingDays, 'days');
+        // == USE FULL DATE RANGE FOR GENERATION (toDate), NOT JUST advancedBookingDays == //
+        const rangeEnd = moment(inputs.toDate).endOf('day');
 
-        // == ITERATE THRU DATE RANGE == //
+        // == ITERATE THRU DATE RANGE (use UTC so dayType matches stored calendar date) == //
         for (
-          let m = moment(inputs.fromDate);
-          m.diff(inputs.toDate, 'days') <= 0;
+          let m = moment.utc(inputs.fromDate).startOf('day');
+          m.isSameOrBefore(inputs.toDate, 'day');
           m.add(1, 'days')
         ) {
           if (item.applyTo) {
@@ -89,18 +95,13 @@ export async function analyseSessionsHelper(
             const applyToDate = moment(item.applyTo).format('YYYY-MM-DD');
             const compareToDate = m.format('YYYY-MM-DD');
 
-            if (applyToDate === compareToDate && m.isSameOrBefore(end)) {
-              const newStartTime = moment(
-                m.format('YYYY-MM-DD') + ' ' + timeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
-              const newEndTime = moment(
-                m.format('YYYY-MM-DD') + ' ' + endtimeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
+            if (applyToDate === compareToDate && m.isSameOrBefore(rangeEnd)) {
+              const dateStr = m.format('YYYY-MM-DD');
+              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
+              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
 
               inputData.push({
-                date: m.format('YYYY-MM-DD'),
+                date: dateStr,
                 doctorSessionId: item.id,
                 previousDoctorSession: item.previousSessionId || null,
                 institution: item.institution,
@@ -127,24 +128,19 @@ export async function analyseSessionsHelper(
               });
             }
           } else {
-            // ==== FILTER BY DAY : CHECK DAY ==== //
+            // ==== FILTER BY DAY : CHECK DAY (m is UTC so day matches stored date) ==== //
             // == MOMENT.JS: 0 = SUNDAY, 1 = MONDAY, ..., 6 = SATURDAY == //
             // == dayType(doctorSession Model): 1 = Sunday, 2 = Monday, ..., 7 = Saturday, 8 = Specific day
-            const dayOfWeek = m.day(); // == 0-6 == //
+            const dayOfWeek = m.utc().day(); // == 0-6 in UTC == //
             const expectedDayType = dayOfWeek === 0 ? 1 : dayOfWeek + 1; // == CONVERT TO 1-7 == //
 
-            if (item.dayType === expectedDayType && m.isSameOrBefore(end)) {
-              const newStartTime = moment(
-                m.format('YYYY-MM-DD') + ' ' + timeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
-              const newEndTime = moment(
-                m.format('YYYY-MM-DD') + ' ' + endtimeString,
-                'YYYY-MM-DD HH:mm'
-              ).unix();
+            if (item.dayType === expectedDayType && m.isSameOrBefore(rangeEnd)) {
+              const dateStr = m.format('YYYY-MM-DD');
+              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
+              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
 
               inputData.push({
-                date: m.format('YYYY-MM-DD'),
+                date: dateStr,
                 doctorSessionId: item.id,
                 previousDoctorSession: item.previousSessionId || null,
                 institution: item.institution,
@@ -239,13 +235,15 @@ export async function analyseSessionsHelper(
       if (inputs.update === false || !inputs.update) {
         // == CREATE OR FIND EXISTING SESSIONS == //
         for (const value of sortedInputData) {
-          const sessionDate = moment(value.date).toDate();
+          // == USE UTC MIDNIGHT SO STORED DATE MATCHES CALENDAR DAY (e.g. MONDAY = 2026-02-09T00:00:00.000Z) == //
+          const sessionDate = moment.utc(value.date, 'YYYY-MM-DD').startOf('day').toDate();
 
-          // == CHECK IF SESSION IS ALREADY EXISTS == //
+          // == CHECK IF ACTIVE SESSION ALREADY EXISTS (status: 1) SO RE-RUN AFTER DELETE CREATES NEW ONES == //
           const existingSession = await prisma.session.findFirst({
             where: {
               date: sessionDate,
-              doctorSessionId: value.doctorSessionId
+              doctorSessionId: value.doctorSessionId,
+              status: 1
             }
           });
 
@@ -305,7 +303,7 @@ export async function analyseSessionsHelper(
       } else {
         // ==== UPDATE MODE ==== /
         for (const value of sortedInputData) {
-          const sessionDate = moment(value.date).toDate();
+          const sessionDate = moment.utc(value.date, 'YYYY-MM-DD').startOf('day').toDate();
 
           const updatedSession = await prisma.session.updateMany({
             where: {

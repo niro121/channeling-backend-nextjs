@@ -120,20 +120,69 @@ export const downloadExcelUtil = async <T>({
 };
 
 // ==== TIME CONVERTERS ==== //
-export const extractTime = (date: Date): {
-  time: string
-  meridiem: "AM" | "PM"
-} => {
-  let hours = date.getHours()
-  const minutes = date.getMinutes().toString().padStart(2, "0")
-  const meridiem: "AM" | "PM" = hours >= 12 ? "PM" : "AM"
+/** Sri Lanka timezone (UTC+5:30). Use when storing/displaying session times. */
+export const SRI_LANKA_TZ = 'Asia/Colombo'
 
-  hours = hours % 12 || 12
-
-  return {
-    time: `${hours.toString().padStart(2, "0")}:${minutes}`,
-    meridiem,
+/**
+ * Extract time and meridiem from a Date using optional timezone.
+ * When timeZone is provided (e.g. SRI_LANKA_TZ), hours/minutes are in that zone so
+ * doctor session times stored in UTC display correctly as Sri Lanka time.
+ */
+export const extractTime = (
+  date: Date,
+  timeZone?: string
+): { time: string; meridiem: 'AM' | 'PM' } => {
+  let hours: number
+  let minutes: number
+  if (timeZone) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: false
+    })
+      .formatToParts(date)
+      .reduce(
+        (acc, p) => {
+          if (p.type === 'hour') acc.hour = parseInt(p.value, 10)
+          if (p.type === 'minute') acc.minute = parseInt(p.value, 10)
+          return acc
+        },
+        { hour: 0, minute: 0 }
+      )
+    hours = parts.hour
+    minutes = parts.minute
+  } else {
+    hours = date.getHours()
+    minutes = date.getMinutes()
   }
+  const meridiem: 'AM' | 'PM' = hours >= 12 ? 'PM' : 'AM'
+  hours = hours % 12 || 12
+  return {
+    time: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+    meridiem
+  }
+}
+
+/**
+ * Format a time in Sri Lanka (Asia/Colombo) for display, e.g. "5.00AM", "12.30PM".
+ * Accepts Date or unix timestamp in seconds (as stored in Session.startTime/endTime).
+ */
+export const formatTimeSriLanka = (value: Date | number): string => {
+  const date =
+    typeof value === 'number'
+      ? new Date(value >= 1e12 ? value : value * 1000)
+      : value
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SRI_LANKA_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).formatToParts(date)
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? '0'
+  const minute = parts.find((p) => p.type === 'minute')?.value ?? '00'
+  const dayPeriod = parts.find((p) => p.type === 'dayPeriod')?.value ?? 'AM'
+  return `${hour}.${minute}${dayPeriod}`
 }
 
 export const buildDateFromTime = (
