@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   LucideHome,
   TicketIcon,
+  UserLock
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -94,6 +95,7 @@ export function DesktopSidebar({
           <NavLink href={hasAccess("/doctors") ? "/doctors" : "unauthorized-access"} label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />
           <NavLink href={hasAccess("/doctor-sessions") ? "/doctor-sessions" : "unauthorized-access"} label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />
           <NavLink href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"} label="Speciality" icon={<StarIcon className="h-5 w-5" />} />
+          <NavLink href={hasAccess('/doctor-leaves') ? '/doctor-leaves' : 'unauthorized-access'} label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />
         </SidebarGroup>
 
         <SidebarGroup label="Organization">

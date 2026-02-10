@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Profile } from './profile';
 import Providers from './providers';
-import { PanelLeft, Hospital } from "lucide-react";
+import { PanelLeft, Hospital, UserLock } from "lucide-react";
 import { Session } from "next-auth";
 import DashboardBreadcrumb from "./breadcrumbs";
 import { fetchServerSession } from "@/lib/session";
@@ -90,6 +90,7 @@ async function MobileNav({ session }: { session: Session | null }) {
               <NavLink href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'} label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />
               <NavLink href={hasAccess('/doctor-sessions') ? '/doctor-sessions' : 'unauthorized-access'} label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />
               <NavLink href={hasAccess('/specialities') ? '/specialities' : 'unauthorized-access'} label="Speciality" icon={<StarIcon className="h-5 w-5" />} />
+              <NavLink href={hasAccess('/doctor-leaves') ? '/doctor-leaves' : 'unauthorized-access'} label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />
             </div>
           </div>
           <div className="space-y-1">
