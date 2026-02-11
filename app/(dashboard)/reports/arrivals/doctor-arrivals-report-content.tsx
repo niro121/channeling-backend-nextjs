@@ -203,7 +203,7 @@ export default function DoctorArrivalsReportContent({
                 styleClasses={{
                   parentDiv: '',
                   labelClassName: 'text-sm text-black font-semibold mb-2 block',
-                  inputClassName: ''
+                  inputClassName: '[&>button]:hover:bg-background [&>button]:hover:text-foreground [&>button]:hover:border-gray-300'
                 }}
               />
             </div>
@@ -220,7 +220,7 @@ export default function DoctorArrivalsReportContent({
                 styleClasses={{
                   parentDiv: '',
                   labelClassName: 'text-sm text-black font-semibold mb-2 block',
-                  inputClassName: ''
+                  inputClassName: '[&>button]:hover:bg-background [&>button]:hover:text-foreground [&>button]:hover:border-gray-300'
                 }}
               />
             </div>

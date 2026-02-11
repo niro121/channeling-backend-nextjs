@@ -23,16 +23,13 @@ export default async function DoctorArrivalsReportPage() {
       ]
     : [{ id: '__all__', name: 'All Doctors' }];
 
-  // Format location options
+  // Format location options (without "All Branches" - Selector component adds it automatically)
   const locationOptions: Array<{ id: string; name: string }> = locationsResult.success && locationsResult.data
-    ? [
-        { id: '__all__', name: 'All Branches' },
-        ...locationsResult.data.map((loc: any) => ({
-          id: loc.id || '',
-          name: loc.name || ''
-        }))
-      ]
-    : [{ id: '__all__', name: 'All Branches' }];
+    ? locationsResult.data.map((loc: any) => ({
+        id: loc.id || '',
+        name: loc.name || ''
+      }))
+    : [];
 
   return (
     <DoctorArrivalsReportContent
