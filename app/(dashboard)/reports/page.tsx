@@ -22,6 +22,12 @@ const reportsData = [
     masterData: 'All Doctors List',
     description: 'Comprehensive list of all doctors with their details',
     route: '/reports/doctors'
+  },
+  {
+    id: '2',
+    masterData: 'Doctor Arrivals Report',
+    description: 'View doctor arrival information based on sessions',
+    route: '/reports/arrivals'
   }
 ];
 
