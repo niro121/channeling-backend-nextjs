@@ -8,6 +8,7 @@ type FilterValues = Record<string, string | undefined>;
 
 interface FilterWrapperProps {
   initialValues?: FilterValues;
+  buttonLabel?: string;
   children: (props: {
     values: FilterValues;
     setValue: (key: string, value?: string) => void;
@@ -16,6 +17,7 @@ interface FilterWrapperProps {
 
 export function FilterWrapper({
   initialValues = {},
+  buttonLabel = 'Apply',
   children
 }: FilterWrapperProps) {
   const router = useRouter();
@@ -49,11 +51,11 @@ export function FilterWrapper({
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       {children({ values, setValue })}
 
-      <Button size="sm" variant="outline" onClick={applyFilters}>
-        Apply
+      <Button size="sm" variant="outline" onClick={applyFilters} className="h-10 shrink-0">
+        {buttonLabel}
       </Button>
     </div>
   );

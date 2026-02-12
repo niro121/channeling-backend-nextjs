@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useMemo, useState } from "react"
 import { Zone } from "@/types/zone"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
@@ -20,12 +20,16 @@ type ZoneFormProps = {
 }
 
 const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
+    const locationOptions = useMemo(
+        () => locations.map((l) => ({ id: String(l.id ?? ""), name: l.name })),
+        [locations]
+    )
 
     const initialValues: Zone = {
         id: zone?.id ? zone.id : "",
         name: zone?.name ? zone.name : "",
         description: zone?.description ? zone.description : undefined,
-        locationId: zone?.locationId ? zone.locationId : "",
+        locationId: zone?.locationId ? String(zone.locationId) : "",
         visibility: zone?.visibility !== undefined ? zone.visibility : 0,
         createdAt: zone?.createdAt ? zone.createdAt : new Date(),
         updatedAt: zone?.updatedAt ? zone.updatedAt : new Date(),
@@ -142,13 +146,18 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                                 styleClasses={styleClasses}
                             />
 
-                             <CustomSelectField
+                            <CustomSelectField
                                 id="locationId"
                                 placeholder="Location"
-                                value={formik.values.locationId || ""}
+                                value={
+                                    formik.values.locationId &&
+                                    locationOptions.some((o) => o.id === formik.values.locationId)
+                                        ? formik.values.locationId
+                                        : undefined
+                                }
                                 onChange={(value) => formik.setFieldValue("locationId", value)}
                                 required
-                                options={locations}
+                                options={locationOptions}
                                 styleClasses={styleClasses}
                             />
 

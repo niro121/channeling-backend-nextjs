@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useEffect } from 'react';
 import { useDoctorSessionStore } from '@/store/store-doctor-session';
 import { FilterWrapper } from '../filter-wrapper';
 import { Selector } from '@/components/common/selector';
@@ -7,45 +8,56 @@ import { Combobox } from '@/components/common/combobox';
 
 type Option = { id: string; name: string };
 interface DoctorSessionFiltersProps {
-  locationOptions: Option[];
-  locationId?: string;
+  institutionOptions: Option[];
+  institutionId?: string;
   doctorOptions: Option[];
   doctorId?: string;
 }
 
 export default function FilterSection({
-  locationOptions,
-  locationId,
+  institutionOptions,
+  institutionId,
   doctorOptions,
   doctorId
 }: DoctorSessionFiltersProps) {
-  const { setDoctor, setLocation } = useDoctorSessionStore();
+  const { setDoctor, setInstitution } = useDoctorSessionStore();
+
+  useEffect(() => {
+    const effectiveInstitutionId = institutionId ?? '0';
+    const inst = institutionOptions.find((o) => o.id === effectiveInstitutionId);
+    if (inst) setInstitution(inst);
+    if (doctorId && doctorId !== '__all__') {
+      const doc = doctorOptions.find((o) => o.id === doctorId);
+      if (doc) setDoctor(doc);
+    }
+  }, [institutionId, doctorId, institutionOptions, doctorOptions, setInstitution, setDoctor]);
 
   return (
     <FilterWrapper
       initialValues={{
-        locationId,
+        institutionId,
         doctorId
       }}
+      buttonLabel="Search sessions"
     >
       {({ values, setValue }) => (
         <>
           <Selector
-            label="All Locations"
-            options={locationOptions}
-            value={values.locationId}
+            label="Institution"
+            options={institutionOptions}
+            value={values.institutionId ?? '0'}
             onChange={(v) => {
-              setLocation(locationOptions.find((o) => o.id === v)!);
-              setValue('locationId', v);
+              setInstitution(institutionOptions.find((o) => o.id === v)!);
+              setValue('institutionId', v);
             }}
           />
           <Combobox
-            label="All Doctors"
+            label="Doctor"
             options={doctorOptions}
             value={values.doctorId || '__all__'}
             onChange={(v) => {
-              (setDoctor(doctorOptions.find((o) => o.id === v)!),
-                setValue('doctorId', v));
+              setDoctor(doctorOptions.find((o) => o.id === v)!);
+              setValue('doctorId', v);
             }}
           />
         </>
