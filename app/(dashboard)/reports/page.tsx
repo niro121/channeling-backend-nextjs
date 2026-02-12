@@ -22,6 +22,12 @@ const reportsData = [
     masterData: 'All Doctors List',
     description: 'Comprehensive list of all doctors with their details',
     route: '/reports/doctors'
+  },
+  {
+    id: '2',
+    masterData: 'Channel Agent Reference Book',
+    description: 'View channel agent reference book information with filters',
+    route: '/reports/channel-agent-reference-book'
   }
 ];
 
