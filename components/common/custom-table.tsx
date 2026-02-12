@@ -30,6 +30,12 @@ type CustomTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   rowCount: number
+  /** Tighter padding and row height for dense tables (e.g. Session Fees) */
+  compact?: boolean
+  /** Show the "Showing x to y" footer. Default true. Set false for inline tables. */
+  showFooter?: boolean
+  /** When true with compact, render table only (no Card wrapper). Use for embedding in a custom container. */
+  noCard?: boolean
 }
 
 export default function CustomTable<TData, TValue>({
@@ -38,6 +44,9 @@ export default function CustomTable<TData, TValue>({
   columns,
   data,
   rowCount,
+  compact = false,
+  showFooter = true,
+  noCard = false,
 }: CustomTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -45,62 +54,74 @@ export default function CustomTable<TData, TValue>({
     rowCount,
     getCoreRowModel: getCoreRowModel(),
   })
-  return (
-    <Card className="rounded-sm">
-      <CardHeader>
-        {heading &&  <CardTitle>{heading}</CardTitle>}
-        {subheading &&  <CardDescription>{subheading}</CardDescription>}
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="py-5 px-0">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
+  const headerCellClass = compact ? 'py-2 px-2 text-xs font-medium' : 'py-5 px-0'
+  const bodyCellClass = compact ? 'py-1.5 px-2 text-sm' : 'font-semibold py-5 px-0'
+  const tableEl = (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map((header) => (
+              <TableHead key={header.id} className={headerCellClass}>
+                {header.isPlaceholder
+                  ? null
+                  : flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
+              </TableHead>
             ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className="font-semibold py-5 px-0"
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-center">
-                  No Results Found !
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows?.length ? (
+          table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getVisibleCells().map((cell) => (
+                <TableCell
+                  key={cell.id}
+                  className={bodyCellClass}
+                >
+                  {flexRender(
+                    cell.column.columnDef.cell,
+                    cell.getContext()
+                  )}
                 </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={columns.length} className="text-center">
+              No Results Found !
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
+  )
+  if (noCard && compact) {
+    return <div className="px-4 py-2">{tableEl}</div>
+  }
+  return (
+    <Card className={compact ? 'rounded-md border-border' : 'rounded-sm'}>
+      {(heading || subheading) && (
+        <CardHeader className={compact ? 'py-3 px-4' : undefined}>
+          {heading && <CardTitle className={compact ? 'text-sm' : undefined}>{heading}</CardTitle>}
+          {subheading && <CardDescription>{subheading}</CardDescription>}
+        </CardHeader>
+      )}
+      <CardContent className={compact ? 'py-2 px-4' : undefined}>
+        {tableEl}
       </CardContent>
-      <CardFooter>
-        <p className="inline-block text-sm text-muted-foreground font-medium whitespace-nowrap">
-          Showing 1 to 2 of 2 entries
-        </p>
-      </CardFooter>
+      {showFooter && (
+        <CardFooter className={compact ? 'py-2 px-4' : undefined}>
+          <p className="inline-block text-sm text-muted-foreground font-medium whitespace-nowrap">
+            Showing 1 to 2 of 2 entries
+          </p>
+        </CardFooter>
+      )}
     </Card>
   )
 }

@@ -41,6 +41,26 @@ export default function RoomForm({
   >([]);
   const [zoneloading, setZoneLoading] = React.useState<boolean>(false);
 
+  // Load zone options for initial location when editing (so Zone dropdown shows selected zone)
+  React.useEffect(() => {
+    const locationId = room?.locationId ?? '';
+    if (!locationId) return;
+    let cancelled = false;
+    setZoneLoading(true);
+    getAllZonesByLocaionID(locationId).then((result) => {
+      if (cancelled) return;
+      if (result.success && result.data) {
+        setZoneOptions(
+          result.data.map((z) => ({ id: z.id, name: z.name }))
+        );
+      }
+      setZoneLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [room?.locationId]);
+
   const initialValues: RoomFormValues = {
     number: room?.number ?? '',
     locationId: room?.locationId ?? '',
@@ -241,12 +261,16 @@ export default function RoomForm({
                       id="zoneId"
                       placeholder="Zone"
                       disabled={zoneloading || zoneOptions.length === 0}
-                      value={formik.values.zoneId}
+                      value={
+                        formik.values.zoneId && zoneOptions.some((o) => o.id === formik.values.zoneId)
+                          ? formik.values.zoneId
+                          : undefined
+                      }
                       onChange={(value: string) => formik.setFieldValue('zoneId', value)}
                       required
                       options={zoneOptions}
                       styleClasses={styleClasses}
-                   />
+                    />
                   </>
                 </div>
               }

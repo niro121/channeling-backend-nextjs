@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -38,17 +39,35 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
     header: 'Doctor Code',
     cell: ({ row }) => {
       const code = row.getValue<string>('code');
-
+      const id = row.original.id;
+      const content = code ?? '—';
+      if (id) {
+        return (
+          <Link
+            href={`/doctors/${id}/edit`}
+            className="max-w-28 truncate block text-primary hover:underline underline-offset-2 cursor-pointer"
+            title={`Edit ${code ?? 'doctor'}`}
+          >
+            {content}
+          </Link>
+        );
+      }
       return (
         <div className="max-w-28 truncate" title={code}>
-          {code}
+          {content}
         </div>
       );
     }
   },
   {
-    accessorKey: 'name',
-    header: 'Doctor Name'
+    id: 'name',
+    header: 'Doctor Name',
+    cell: ({ row }) => {
+      const title = row.original.title?.trim() ?? '';
+      const name = row.original.name ?? '';
+      const display = title ? `${title} ${name}`.trim() : name || '—';
+      return <span className="truncate block max-w-48" title={display}>{display}</span>;
+    }
   },
   {
     accessorKey: 'registrationNumber',
@@ -56,32 +75,42 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
     cell: ({ row }) => {
       const reg = row.getValue<string>('registrationNumber');
       return (
-        <div className="max-w-28 truncate" title={reg}>
-          {reg || "-"}
+        <div className="max-w-28 truncate" title={reg ?? undefined}>
+          {reg || '-'}
         </div>
       );
     }
   },
   {
-    accessorKey: 'updatedUser.name',
-    header: 'Updated By'
-  },
-  {
-    accessorKey: 'updatedAt',
-    header: 'Updated Date',
+    id: 'updated',
+    header: 'Updated',
     cell: ({ row }) => {
-      return moment(row.getValue('updatedAt')).format('DD/MM/YYYY');
+      const name = row.original.updatedUser?.name ?? '—';
+      const date = row.original.updatedAt
+        ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{date}</span>
+        </div>
+      );
     }
   },
   {
-    accessorKey: 'createdUser.name',
-    header: 'Created By'
-  },
-  {
-    accessorKey: 'createdAt',
-    header: 'Created Date',
+    id: 'created',
+    header: 'Created',
     cell: ({ row }) => {
-      return moment(row.getValue('createdAt')).format('DD/MM/YYYY');
+      const name = row.original.createdUser?.name ?? '—';
+      const date = row.original.createdAt
+        ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{date}</span>
+        </div>
+      );
     }
   },
   {

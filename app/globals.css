@@ -33,6 +33,7 @@
 
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-placeholder: hsl(var(--placeholder));
 
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
@@ -103,6 +104,8 @@
     /* Off-white with subtle green for panels */
     --muted: 168 20% 98%;
     --muted-foreground: 152 15% 40%;
+    /* Lighter than muted-foreground for input placeholders */
+    --placeholder: 152 10% 75%;
     /* Lighter green for links, accents, taglines */
     --accent: 102 42% 56%;
     --accent-foreground: 0 0% 100%;
@@ -132,6 +135,7 @@
     --secondary-foreground: 60 9.1% 97.8%;
     --muted: 152 25% 15%;
     --muted-foreground: 152 15% 65%;
+    --placeholder: 152 12% 58%;
     --accent: 152 50% 35%;
     --accent-foreground: 60 9.1% 97.8%;
     --destructive: 0 62.8% 30.6%;
@@ -210,8 +214,8 @@ input[type='search']::-ms-clear {
 }
 
 .select-span {
-  span{
-    color : #78716c
+  span {
+    color: hsl(var(--foreground));
   }
 }
 
