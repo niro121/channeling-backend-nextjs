@@ -26,7 +26,7 @@ const doctorSessionSchema = z
       .nonempty('This field is mandatory')
       .max(150, 'Must be less than 150 characters'),
 
-    institution: z.number().gt(0, 'This field is mandatory'),
+    institution: z.number().min(0, 'This field is mandatory'),
 
     startTime: z.coerce.date().refine((d) => !isNaN(d.getTime()), {
       message: 'Start time is required'
@@ -320,7 +320,8 @@ export const getAllDoctorSessionsService = async ({
   page,
   limit,
   doctorId,
-  locationId
+  locationId,
+  institutionId
 }: getDoctorSessionQuery): Promise<{
   success: boolean;
   data?: {
@@ -332,24 +333,24 @@ export const getAllDoctorSessionsService = async ({
     message?: string;
   };
 }> => {
-  const skip = page * limit;
+  const whereClause: Prisma.DoctorSessionWhereInput = {};
+  if (doctorId) whereClause.doctorId = doctorId;
+  if (locationId) whereClause.locationId = locationId;
+  if (institutionId) {
+    const instNum = parseInt(institutionId, 10);
+    if (!isNaN(instNum)) whereClause.institution = instNum;
+  }
 
-  const whereClause: Prisma.DoctorSessionWhereInput | undefined =
-    doctorId || locationId
-      ? {
-          ...(doctorId ? { doctorId } : {}),
-          ...(locationId ? { locationId } : {})
-        }
-      : undefined;
+  const usePagination = !doctorId;
+  const skip = usePagination ? page * limit : 0;
+  const take = usePagination ? limit : 10000;
 
   try {
     const records = await prisma.doctorSession.findMany({
       skip,
-      take: limit,
-      where: whereClause,
-      orderBy: {
-        createdAt: 'desc'
-      },
+      take,
+      where: Object.keys(whereClause).length ? whereClause : undefined,
+      orderBy: [{ dayType: 'asc' }, { startTime: 'asc' }, { createdAt: 'desc' }],
       include: {
         doctor: true,
         location: true,
@@ -361,7 +362,7 @@ export const getAllDoctorSessionsService = async ({
     });
 
     const totalRecords = await prisma.doctorSession.count({
-      where: whereClause
+      where: Object.keys(whereClause).length ? whereClause : undefined
     });
 
     return {
@@ -507,6 +508,15 @@ export const bulkDeleteDoctorSessionsByIdsService = async (
         }
       };
     }
+
+    // Clear previousSessionId on any DoctorSession that points to one we're deleting
+    // to avoid violating the PreviousSession relation on delete
+    await prisma.doctorSession.updateMany({
+      where: {
+        previousSessionId: { in: ids }
+      },
+      data: { previousSessionId: null }
+    });
 
     const result = await prisma.doctorSession.deleteMany({
       where: {

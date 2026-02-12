@@ -8,33 +8,33 @@ type Option = {
 
 const doctorState: Option = {
   id: '__all__',
-  name: 'Select a doctor'
+  name: 'Select doctor'
 };
 
-const locationState: Option = {
-  id: '__all__',
-  name: 'Select a location'
+const institutionState: Option = {
+  id: '0',
+  name: 'Ruhunu Hospital (Pvt) Ltd  (RH)'
 };
 
 export const useDoctorSessionStore = create(
   combine(
     {
       doctor: doctorState,
-      location: locationState
+      institution: institutionState
     },
     (set) => ({
       setDoctor: (doctor: Option) => set({ doctor }),
 
-      setLocation: (location: Option) => set({ location }),
+      setInstitution: (institution: Option) => set({ institution }),
 
       resetDoctor: () => set({ doctor: doctorState }),
 
-      resetLocation: () => set({ location: locationState }),
+      resetInstitution: () => set({ institution: institutionState }),
 
       resetAll: () =>
         set({
           doctor: doctorState,
-          location: locationState
+          institution: institutionState
         })
     })
   )

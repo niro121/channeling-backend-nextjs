@@ -94,6 +94,7 @@ export const getAllRoomsService = async ({
       where: whereClause,
       include: {
         location: true,
+        zone: true,
         createdUser: true,
         updatedUser: true
       }

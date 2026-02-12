@@ -1,3 +1,5 @@
+import { User } from './user'
+
 // EXPORT ALL TYPES RELATED TO ZONES FROM HERE
 export type Zone = {
     id?: string
@@ -7,6 +9,8 @@ export type Zone = {
     visibility: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
+    createdUser?: User | null
+    updatedUser?: User | null
     location?: {
         id: string
         name: string

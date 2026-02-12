@@ -138,14 +138,25 @@ export function CustomDataTable<TData, TValue>({
 
     try {
       setLoading(true)
-      await deleteServerAction(idsToDelete)
+      const success = await deleteServerAction(idsToDelete)
+      setShowDelConfirmation(false)
+
+      if (!success) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Records could not be deleted. Please try again.",
+        })
+        return
+      }
+
       toast({
         variant: "success",
         title: "Success",
         description: "Records were deleted successfully",
       })
-
-      setShowDelConfirmation(false)
+      setRowSelection({})
+      router.refresh()
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -191,10 +202,11 @@ export function CustomDataTable<TData, TValue>({
           <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-center ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
             {toolbarLeft != null || toolbarRight != null ? (
               <>
-                {toolbarLeft ?? null}
-                <div className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
+                <React.Fragment key="toolbar-left">{toolbarLeft ?? null}</React.Fragment>
+                <div key="toolbar-right" className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
                   {haveBulkDelete ? (
                     <Button
+                      key="bulk-delete-btn"
                       variant="ghost"
                       size="sm"
                       className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
@@ -205,7 +217,9 @@ export function CustomDataTable<TData, TValue>({
                       <span>Bulk delete</span>
                     </Button>
                   ) : null}
-                  {toolbarRight ?? null}
+                  {toolbarRight != null ? (
+                    <React.Fragment key="toolbar-right-slot">{toolbarRight}</React.Fragment>
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -213,6 +227,7 @@ export function CustomDataTable<TData, TValue>({
                 {toolbar ?? null}
                 {haveBulkDelete ? (
                   <Button
+                    key="bulk-delete"
                     variant="ghost"
                     size="sm"
                     className="h-9 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"

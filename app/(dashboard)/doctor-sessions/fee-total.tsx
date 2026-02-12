@@ -26,9 +26,9 @@ export const FeeTotals = ({ formik }: { formik: any }) => {
   }, [totals.local, totals.foreign]);
 
   return (
-    <div className="mt-4 border-t pt-3 flex justify-end gap-10 font-semibold">
-      <div>Total Local Fee: {totals.local.toFixed(2)}</div>
-      <div>Total Foreign Fee: {totals.foreign.toFixed(2)}</div>
+    <div className="border-t bg-muted/30 px-4 py-2.5 flex justify-end gap-8 text-sm font-semibold tabular-nums">
+      <span>Total Local: {totals.local.toFixed(2)}</span>
+      <span>Total Foreign: {totals.foreign.toFixed(2)}</span>
     </div>
   );
 };
