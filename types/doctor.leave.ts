@@ -1,18 +1,35 @@
-/** Doctor leave record as stored (fromDate/toDate as YYYYMMDD number) */
-export type DoctorLeave = {
+export type Session = {
   id: string;
-  fromDate: number;
-  toDate: number;
+  date: Date;
+  location: string;
+  startTime: string;
+  endTime: string;
+};
+
+/** Doctor leave record as stored (fromDate/toDate as YYYYMMDD) */
+export type DoctorLeave = {
+  id?: string;
+  fromDate: Date;
+  toDate: Date;
   remarks: string | null;
-  cancelRemarks: string | null;
-  sessions?: unknown;
-  sendSms: number | null;
+  sessions?: Session[];
+  sendSms: boolean;
   status: number; // 0 = CANCEL, 1 = ACTIVE
   doctorId: string;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type DoctorLeaveFormProps = {
+  fromDate: Date;
+  toDate: Date;
+  remarks: string | null;
+  sesssions: Session[];
+  sendSms: boolean;
+  status: number; // 0 = CANCEL, 1 = ACTIVE
+  doctorId: string;
 };
 
 /** Doctor summary included in list responses */
@@ -33,7 +50,7 @@ export type GetDoctorLeavesParams = {
   limit?: string;
   doctorId: string;
   fromDate?: string; // YYYY-MM-DD
-  toDate?: string;   // YYYY-MM-DD
+  toDate?: string; // YYYY-MM-DD
 };
 
 export type GetDoctorLeavesQuery = {
@@ -41,7 +58,7 @@ export type GetDoctorLeavesQuery = {
   limit: number;
   doctorId: string;
   fromDate?: string; // YYYY-MM-DD
-  toDate?: string;   // YYYY-MM-DD
+  toDate?: string; // YYYY-MM-DD
 };
 
 /** Filter option for combos (e.g. doctor select) */
@@ -51,7 +68,7 @@ export type DoctorLeaveFilterOption = {
 };
 
 export type GetActiveSession = {
-  doctorId: string
-  fromDate: string
-  toDate: string
-}
+  doctorId: string;
+  fromDate: string;
+  toDate: string;
+};
