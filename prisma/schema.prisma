@@ -50,6 +50,8 @@ model User {
   shiftsPausedBy        Shift[]         @relation("ShiftPausedBy")
   shiftsEndedBy         Shift[]         @relation("ShiftEndedBy")
   activityLogs          ActivityLog[]   @relation("UserActivityLogs")
+  createdDoctorLeaves   DoctorLeave[]   @relation("UserCreatedLeaves")
+  updatedDoctorLeaves   DoctorLeave[]   @relation("UserUpdatedLeaves")
 }
 
 model UserGroup {
@@ -126,6 +128,7 @@ model Doctor {
   speciality     Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
   sessions       Session[]       @relation("DoctorToSession")
+  doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -170,7 +173,7 @@ model DoctorSession {
 }
 
 model Session {
-  id                    String        @id @default(auto()) @map("_id") @db.ObjectId
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
   institution           Int
   date                  DateTime
   doctorSessionId       String
@@ -189,10 +192,10 @@ model Session {
   doctorLeaveRemark     String?
   doctorLeaveCreator    String?
   doctorLeaveCreatedAt  Int?
-  status                Int // == 1: ACTIVE. 0: LEAVE (DoctorSession status)== //
+  status                Int // == 1: ACTIVE. 0: Session available | LEAVE: Doctor leave (DoctorSession status) == //
   remarks               String?
-  appointmentNo         Int           @default(0)
-  isScan                Boolean       @default(false)
+  appointmentNo         Int      @default(0)
+  isScan                Boolean  @default(false)
 
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
@@ -212,6 +215,28 @@ model Session {
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+model DoctorLeave {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  fromDate      Int
+  toDate        Int
+  remarks       String?
+  cancelRemarks String?
+  sessions      Json?
+  sendSms       Int?
+  status        Int // == 0 = CANCEL, 1 = ACTIVE == //
+
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // ==== RELATIONS ==== //
+  doctorId    String @db.ObjectId
+  doctor      Doctor @relation("DoctorToLeaves", fields: [doctorId], references: [id], onDelete: Cascade)
+  createdUser User?  @relation("UserCreatedLeaves", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?  @relation("UserUpdatedLeaves", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Location {
@@ -271,22 +296,22 @@ model Roster {
 
 // Channel booking shift: 0 = paused, 1 = active, 3 = ended
 model Shift {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String    @db.ObjectId
-  user      User      @relation("UserShifts", fields: [userId], references: [id], onDelete: Cascade)
-  startedAt DateTime  @default(now())
-  endsAt    DateTime  // startedAt + SHIFT_MAX_DURATION_HOURS
-  status    Int       // 0 = paused, 1 = active, 3 = ended
-  createdAt DateTime  @default(now())
-  createdBy String?   @db.ObjectId
-  createdByUser User?  @relation("ShiftCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
-  pausedAt  DateTime?
-  pausedBy  String?   @db.ObjectId
-  pausedByUser User?  @relation("ShiftPausedBy", fields: [pausedBy], references: [id], onDelete: SetNull)
-  endedAt   DateTime?
-  endedBy   String?   @db.ObjectId
-  endedByUser User?   @relation("ShiftEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
-  updatedAt DateTime  @updatedAt
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @db.ObjectId
+  user          User      @relation("UserShifts", fields: [userId], references: [id], onDelete: Cascade)
+  startedAt     DateTime  @default(now())
+  endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS
+  status        Int // 0 = paused, 1 = active, 3 = ended
+  createdAt     DateTime  @default(now())
+  createdBy     String?   @db.ObjectId
+  createdByUser User?     @relation("ShiftCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  pausedAt      DateTime?
+  pausedBy      String?   @db.ObjectId
+  pausedByUser  User?     @relation("ShiftPausedBy", fields: [pausedBy], references: [id], onDelete: SetNull)
+  endedAt       DateTime?
+  endedBy       String?   @db.ObjectId
+  endedByUser   User?     @relation("ShiftEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
+  updatedAt     DateTime  @updatedAt
 
   @@index([userId, status])
 }
@@ -295,10 +320,10 @@ model ActivityLog {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   userId     String   @db.ObjectId
   user       User     @relation("UserActivityLogs", fields: [userId], references: [id], onDelete: Cascade)
-  action     String   // e.g. "shift.started", "shift.paused", "shift.ended"
-  entityType String   // e.g. "Shift", "Patient"
+  action     String // e.g. "shift.started", "shift.paused", "shift.ended"
+  entityType String // e.g. "Shift", "Patient"
   entityId   String?  @db.ObjectId
-  metadata   Json?    // optional extra details
+  metadata   Json? // optional extra details
   createdAt  DateTime @default(now())
 
   @@index([userId])
