@@ -33,9 +33,11 @@ export function Selector({
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={defaultValue}>{label}</SelectItem>
+        <SelectItem value={defaultValue} className="[&>span:first-child]:hidden">
+          {label}
+        </SelectItem>
         {options.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
+          <SelectItem key={s.id} value={s.id} className="[&>span:first-child]:hidden">
             {s.name}
           </SelectItem>
         ))}
