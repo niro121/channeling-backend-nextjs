@@ -3,7 +3,6 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
-import type { Session } from '@/types/sessions';
 
 // ==== CREATE DOCTOR SESSIONS FOR ALL/SPECIFIC DOCTOR(S) ==== //
 const getDatesBetween = (start: Date, end: Date) => {
@@ -127,76 +126,103 @@ export const createDoctorSessionService = async (
   }
 };
 
-// ==== GET SESSIONS FOR CHANNEL BOOKING ==== //
-/** Fetches Session records (bookable sessions) for a doctor on a given date, optionally by location. */
-export const getSessionsForChannelBookingService = async (
-  doctorId: string,
-  date: Date | string,
-  locationId?: string | null
-): Promise<{ success: boolean; data?: Session[]; message?: string; error?: { message?: string } }> => {
-  try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    const dayStart = moment(dateObj).startOf('day').toDate();
-    const dayEnd = moment(dateObj).endOf('day').toDate();
+// ==== GET SESSIONS ==== //
+export const getAllSessionsService = async ({
+  page,
+  limit,
+  date,
+  doctorId
+}: {
+  page: number;
+  limit: number;
+  date?: Date;
+  doctorId?: string;
+}): Promise<{
+  success: boolean;
+  data?: {
+    records: any[];
+    totalRecords: number;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  const skip = page * limit;
 
-    const where: Prisma.SessionWhereInput = {
-      doctorId,
-      date: { gte: dayStart, lte: dayEnd },
-      status: 1
-    };
-    if (locationId) {
-      where.locationId = locationId;
+  try {
+    // Build where clause based on filters
+    // Logic:
+    // - If only date: filter by date
+    // - If both date and doctor: filter by both
+    // - If only doctor: filter by doctor but only show today's sessions
+    const whereClause: Prisma.SessionWhereInput = {};
+
+    if (date && doctorId) {
+      // Both filters: filter by both date and doctor
+      const dateMoment = moment(date);
+      const dateStart = dateMoment.startOf('day').toDate();
+      const dateEnd = dateMoment.endOf('day').toDate();
+      whereClause.date = {
+        gte: dateStart,
+        lte: dateEnd
+      };
+      whereClause.doctorId = doctorId;
+    } else if (date) {
+      // Only date filter: filter by date only
+      const dateMoment = moment(date);
+      const dateStart = dateMoment.startOf('day').toDate();
+      const dateEnd = dateMoment.endOf('day').toDate();
+      whereClause.date = {
+        gte: dateStart,
+        lte: dateEnd
+      };
+    } else if (doctorId) {
+      // Only doctor filter: filter by doctor but only show today's sessions
+      const todayStart = moment().startOf('day').toDate();
+      const todayEnd = moment().endOf('day').toDate();
+      whereClause.doctorId = doctorId;
+      whereClause.date = {
+        gte: todayStart,
+        lte: todayEnd
+      };
     }
 
     const records = await prisma.session.findMany({
-      where,
+      skip,
+      take: limit,
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
       include: {
-        doctor: {
-          select: { id: true, title: true, name: true }
-        },
+        doctor: true,
+        department: true,
         location: true,
-        room: true
-      },
-      orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
+        room: true,
+        createdUser: true,
+        updatedUser: true
+      }
     });
 
-    const data = records.map((r) => ({
-      id: r.id,
-      institution: r.institution,
-      date: r.date,
-      doctorSessionId: r.doctorSessionId,
-      previousDoctorSession: r.previousDoctorSession,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      durationMinutes: r.durationMinutes,
-      startingPatientNumber: r.startingPatientNumber,
-      maxPatientNumber: r.maxPatientNumber,
-      refundable: r.refundable,
-      fees: r.fees,
-      amountLocal: r.amountLocal,
-      amountForeign: r.amountForeign,
-      status: r.status,
-      remarks: r.remarks,
-      appointmentNo: r.appointmentNo,
-      isScan: r.isScan,
-      doctorId: r.doctorId,
-      departmentId: r.departmentId,
-      locationId: r.locationId,
-      roomId: r.roomId,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-      doctor: r.doctor ?? undefined,
-      location: r.location ?? undefined,
-      room: r.room ?? undefined
-    })) as Session[];
+    const totalRecords = await prisma.session.count({
+      where: whereClause
+    });
 
-    return { success: true, data };
+    return {
+      success: true,
+      data: {
+        records,
+        totalRecords
+      },
+      message: 'Sessions fetched successfully'
+    };
   } catch (error: any) {
-    console.error('getSessionsForChannelBookingService error', error);
+    console.error('getAllSessionsService error:', error);
+
     return {
       success: false,
-      message: error?.message ?? 'Failed to fetch sessions',
-      error: { message: error?.message }
+      error: {
+        message: error.message || 'Failed to fetch sessions'
+      }
     };
   }
 };

@@ -2,7 +2,7 @@ import type { Doctor } from "@/types/doctor"
 import type { DoctorSession } from "@/types/doctor.session"
 import type { Location } from "@/types/location"
 import type { Room } from "@/types/room"
-import type { Session } from "@/types/sessions"
+import type { Session } from "@/types/booking.dashboard"
 
 /** Dummy doctor used when none is selected so date/branch selection still functions. */
 export const DUMMY_DOCTOR: Doctor = {

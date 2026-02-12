@@ -25,7 +25,8 @@ import {
 import {
   extractTime,
   buildDateFromTime,
-  calculateDurationMinutes
+  calculateDurationMinutes,
+  SRI_LANKA_TZ
 } from '@/lib/utils';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
 import { Loader } from 'lucide-react';
@@ -94,11 +95,11 @@ export default function DoctorSessionForm({
   );
 
   const startExtracted = doctorSession?.startTime
-    ? extractTime(new Date(doctorSession.startTime))
+    ? extractTime(new Date(doctorSession.startTime), SRI_LANKA_TZ)
     : { time: '', meridiem: 'AM' };
 
   const endExtracted = doctorSession?.endTime
-    ? extractTime(new Date(doctorSession.endTime))
+    ? extractTime(new Date(doctorSession.endTime), SRI_LANKA_TZ)
     : { time: '', meridiem: 'AM' };
 
   const initialValues: FormSubmissionValues = {
