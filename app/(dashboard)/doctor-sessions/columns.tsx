@@ -95,7 +95,7 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
     header: 'Location / Department / Institution',
     cell: ({ row }) => {
       const { location, department, institution } = row.original;
-      const institutionName = INSTITUTION_OPTIONS[institution] ?? '';
+      const institutionName = INSTITUTION_OPTIONS[institution] ?? { name: '' };
 
       return (
         <div className="max-w-64 truncate">

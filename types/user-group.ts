@@ -46,6 +46,7 @@ export const RESOURCES = [
   { id: "channel-booking", name: "Channel Booking" },
   { id: "shift", name: "Shift (Channel Booking)" },
   { id: "doctors", name: "Doctors" },
+  { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
   { id: "patients", name: "Patients" },
   { id: "tags", name: "Tags" },

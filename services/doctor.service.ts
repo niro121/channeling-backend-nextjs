@@ -35,11 +35,10 @@ const doctorSchema = z.object({
     ),
   mobile: z
     .string()
-    .regex(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
-  registrationNumber: z
-    .string()
-    .trim()
-    .min(1, 'Registration number is required'),
+    .optional()
+    .nullable()
+    .refine((val) => !val || val.trim() === '' || sriLankaMobileRegex.test(val), 'Mobile Number Ex: 07x xxxxxxx'),
+  registrationNumber: z.string().trim().optional().nullable(),
   qualification: z.string().trim().min(1, 'Qualification is required'),
   referralCharge: z.number().min(0, 'Must be 0 or greater'),
   sessionNoPrefix: z.string().optional().nullable(),
@@ -188,12 +187,12 @@ export const createDoctorService = async (
         code: doctorCodeResult.data,
         order: data.order,
         phone: data.phone ?? null,
-        mobile: data.mobile,
+        mobile: data.mobile?.trim() || null,
         fax: data.fax?.trim() || null,
         addressLine1: data.addressLine1 ?? null,
         addressLine2: data.addressLine2 ?? null,
         city: data.city ?? null,
-        registrationNumber: data.registrationNumber,
+        registrationNumber: data.registrationNumber?.trim() || null,
         qualification: data.qualification,
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
@@ -276,12 +275,12 @@ export const updateOneDoctorService = async (
         name: data.name,
         order: data.order,
         phone: data.phone ?? null,
-        mobile: data.mobile,
+        mobile: data.mobile?.trim() || null,
         fax: data.fax?.trim() || null,
         addressLine1: data.addressLine1 ?? null,
         addressLine2: data.addressLine2 ?? null,
         city: data.city ?? null,
-        registrationNumber: data.registrationNumber,
+        registrationNumber: data.registrationNumber?.trim() || null,
         qualification: data.qualification,
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,

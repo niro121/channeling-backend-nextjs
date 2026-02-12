@@ -125,11 +125,15 @@ export const getAllDoctorSessions = async (sort: getDoctorSessionParams) => {
       page: sort.page
         ? parseInt(sort.page)
         : parseInt(process.env.DEFAULT_PAGE ?? '0'),
-      limit: sort.limit
-        ? parseInt(sort.limit)
-        : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
+      limit:
+        sort.doctorId && sort.institutionId
+          ? 10000
+          : sort.limit
+            ? parseInt(sort.limit)
+            : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       locationId: sort.locationId ?? undefined,
-      doctorId: sort.doctorId ?? undefined
+      doctorId: sort.doctorId ?? undefined,
+      institutionId: sort.institutionId ?? undefined
     };
 
     const response = await getAllDoctorSessionsService(newFilter);
