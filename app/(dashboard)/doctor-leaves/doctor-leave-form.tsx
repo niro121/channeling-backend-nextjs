@@ -9,69 +9,92 @@ import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { useRouter } from 'next/navigation';
-import { Room, RoomFormValues } from '@/types/room';
-import {
-  createRoom,
-  getAllZonesByLocaionID,
-  updateOneRoom
-} from '@/app/actions/room.actions';
-import { Zone } from '@/types/zone';
 import { Loader } from 'lucide-react';
+import {
+  DoctorLeave,
+  DoctorLeaveFormProps,
+  Session
+} from '@/types/doctor.leave';
+import CustomDatePickerField from '@/components/common/custom-date-picker-field';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+import { getAllActiveSessions } from '@/app/actions/doctor.leave.action';
+import moment from 'moment';
 
-type RoomFormProps = {
-  room: Room | null;
+type LeaveFormProps = {
+  doctorId: string;
+  doctorName: string;
+  doctorLeave: DoctorLeave | null;
   isEditPage?: boolean;
   user?: {
     id?: string;
     name?: string;
   };
-  locationOptions: { id: string; name: string }[];
 };
 
-export default function RoomForm({
-  room,
-  user,
-  locationOptions
-}: RoomFormProps) {
+export default function DoctorLeaveForm({
+  doctorId,
+  doctorName,
+  doctorLeave,
+  user
+}: LeaveFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
-  const [zoneOptions, setZoneOptions] = React.useState<
-    { id: string; name: string }[]
-  >([]);
-  const [zoneloading, setZoneLoading] = React.useState<boolean>(false);
+  const [sessionsLoading, setSessionsLoading] = React.useState<boolean>(false);
+  const [availableSessions, setAvailableSessions] = React.useState<Session[]>(
+    []
+  );
+  const [dateRange, setDateRange] = React.useState<{
+    fromDate?: Date;
+    toDate?: Date;
+  }>({});
 
-  const initialValues: RoomFormValues = {
-    number: room?.number ?? '',
-    locationId: room?.locationId ?? '',
-    zoneId: room?.zoneId ?? '',
-    description: room?.description ? room.description : '',
-    status: room?.status ? room.status : 0
+  const initialValues: DoctorLeaveFormProps = {
+    fromDate: doctorLeave?.fromDate ?? new Date(),
+    toDate: doctorLeave?.toDate ?? new Date(),
+    remarks: doctorLeave?.remarks ?? '',
+    sesssions: doctorLeave?.sessions ?? [],
+    sendSms: doctorLeave?.sendSms ?? 0,
+    status: doctorLeave?.status ?? 0,
+    doctorId: doctorLeave?.doctorId ?? doctorId
   };
 
   const validationSchema = Yup.object({
-    number: Yup.string()
-      .max(100, 'Must be less than 100 characters')
+    doctorId: Yup.string().required(),
+
+    fromDate: Yup.date().required('From date is required'),
+
+    toDate: Yup.date()
+      .required('To date is required')
+      .min(Yup.ref('fromDate'), 'To date cannot be before From date'),
+
+    remarks: Yup.string().required('Remarks is required'),
+
+    sessions: Yup.array()
+      .min(1, 'At least one session must be selected')
+      .required('Sessions is required'),
+
+    sendSms: Yup.number()
+      .oneOf([0, 1], 'Send SMS must be No (0) or Yes (1)')
       .required('This field is mandatory'),
-    locationId: Yup.string().required('This field is mandatory'),
-    zoneId: Yup.string().required('This field is mandatory'),
-    description: Yup.string().max(500, 'Must be less than 500 characters'),
+
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
       .required('This field is mandatory')
   });
 
   const handleSubmit = async (
-    values: RoomFormValues,
-    { resetForm, setErrors, setTouched }: FormikHelpers<RoomFormValues>
+    values: DoctorLeaveFormProps,
+    { resetForm, setErrors, setTouched }: FormikHelpers<DoctorLeaveFormProps>
   ) => {
     try {
       let respond: any;
 
       setLoading(true);
 
-      if (room && room.id) {
-        respond = await updateOneRoom(room.id, values);
+      if (doctorLeave && doctorLeave.id) {
+        // respond = await updateOneRoom(room.id, values);
 
         setLoading(false);
 
@@ -97,7 +120,8 @@ export default function RoomForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: respond.error?.message || 'Room update unsuccessful.'
+            description:
+              respond.error?.message || 'Doctor leave update unsuccessful.'
           });
           return;
         }
@@ -105,12 +129,12 @@ export default function RoomForm({
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Room was updated successfully'
+          description: 'Doctor leave was updated successfully'
         });
 
-        router.push('/rooms');
+        // router.push('/rooms');
       } else {
-        respond = await createRoom(values, user);
+        // respond = await createRoom(values, user);
 
         setLoading(false);
 
@@ -136,7 +160,8 @@ export default function RoomForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: respond.error?.message || 'Room save unsuccessful.'
+            description:
+              respond.error?.message || 'Doctor leave save unsuccessful.'
           });
           return;
         }
@@ -144,24 +169,66 @@ export default function RoomForm({
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Room was created successfully'
+          description: 'Doctor leave was created successfully'
         });
 
-        if (respond.data?.id) {
+        /* if (respond.data?.id) {
           router.push(`/rooms/${respond.data.id}/edit`);
         } else {
           router.push('/rooms');
-        }
+        } */
       }
     } catch (error: any) {
       setLoading(false);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.message ?? 'Room save unsuccessful.'
+        description: error.message ?? 'Doctor leave save unsuccessful.'
       });
     }
   };
+
+  function mapApiSessionToItem(raw: any): Session {
+    return {
+      id: raw.id,
+      date: new Date(raw.date),
+      location: raw.location?.name ?? '',
+      startTime: raw.startTime,
+      endTime: raw.endTime
+    };
+  }
+
+  React.useEffect(() => {
+    if (
+      !doctorId ||
+      !dateRange.fromDate ||
+      !dateRange.toDate ||
+      dateRange.toDate < dateRange.fromDate
+    ) {
+      setAvailableSessions([]);
+      return;
+    }
+
+    const fromStr = moment(dateRange.fromDate).format('YYYY-MM-DD');
+    const toStr = moment(dateRange.toDate).format('YYYY-MM-DD');
+
+    setSessionsLoading(true);
+
+    getAllActiveSessions({ doctorId, fromDate: fromStr, toDate: toStr })
+      .then((res) => {
+        if (res.success && res.data?.length) {
+          setAvailableSessions(res.data.map(mapApiSessionToItem));
+        } else {
+          setAvailableSessions([]);
+        }
+      })
+      .catch(() => {
+        setAvailableSessions([]);
+      })
+      .finally(() => setSessionsLoading(false));
+  }, [doctorId, dateRange.fromDate, dateRange.toDate]);
+
+  console.log("Sessions", availableSessions)
 
   return (
     <Formik
@@ -177,93 +244,80 @@ export default function RoomForm({
           inputClassName: 'col-span-full sm:col-span-3'
         };
 
-        const setLocationHandler = async (value: string) => {
-          formik.setFieldValue('locationId', value);
-          setZoneLoading(true);
-
-          try {
-            const result = await getAllZonesByLocaionID(value);
-
-            if (result.success) {
-              const mappedZones = result.data?.map((z) => ({
-                id: z.id,
-                name: z.name
-              }));
-
-              setZoneOptions(mappedZones || []);
-            } else {
-              toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Getting zones unsuccessful.'
-              });
-              setZoneLoading(false);
-            }
-          } catch (error: any) {
-            toast({
-              variant: 'destructive',
-              title: 'Error',
-              description: 'Getting zones unsuccessful.'
-            });
-          } finally {
-            setZoneLoading(false);
-          }
-        };
-
         return (
           <Form className="w-full">
             <div className="grid gap-4 border rounded-lg p-6">
               <CustomFormField
                 type="text"
-                id="number"
-                placeholder="Room Number"
-                value={formik.values.number}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
+                id="doctorName"
+                placeholder="Doctor"
+                value={doctorName}
+                disabled
                 required
+                onChange={() => {}}
+                onBlur={() => {}}
                 styleClasses={styleClasses}
               />
-
-              <CustomSelectField
-                id="locationId"
-                placeholder="Location"
-                value={formik.values.locationId}
-                onChange={setLocationHandler}
-                required
-                options={locationOptions}
-                styleClasses={styleClasses}
-              />
-              {
-                <div className="relative">
-                  <>
-                    {zoneloading && (
-                      <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
-                    )}
-                    <CustomSelectField
-                      id="zoneId"
-                      placeholder="Zone"
-                      disabled={zoneloading || zoneOptions.length === 0}
-                      value={formik.values.zoneId}
-                      onChange={(value: string) =>
-                        formik.setFieldValue('zoneId', value)
-                      }
-                      required
-                      options={zoneOptions}
-                      styleClasses={styleClasses}
-                    />
-                  </>
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>
+                  Date Range
+                </Label>
+                <div
+                  className={`${styleClasses.inputClassName} flex flex-wrap md:flex-nowrap gap-10`}
+                >
+                  <CustomDatePickerField
+                    id="fromDate"
+                    placeholder="From Date"
+                    value={formik.values.fromDate}
+                    onChange={(date) => {
+                      formik.setFieldValue('fromDate', date ?? undefined);
+                      setDateRange({ ...dateRange, fromDate: date });
+                    }}
+                    onBlur={formik.handleBlur}
+                    error={
+                      formik.touched.toDate &&
+                      typeof formik.errors.toDate === 'string'
+                        ? formik.errors.toDate
+                        : undefined
+                    }
+                    touched={!!formik.touched.toDate}
+                    captionLayout="dropdown"
+                    disablePast
+                    required
+                  />
+                  <CustomDatePickerField
+                    id="toDate"
+                    placeholder="To Date"
+                    value={formik.values.toDate}
+                    onChange={(date) => {
+                      formik.setFieldValue('toDate', date ?? undefined);
+                      setDateRange({ ...dateRange, toDate: date });
+                    }}
+                    onBlur={formik.handleBlur}
+                    error={
+                      formik.touched.toDate &&
+                      typeof formik.errors.toDate === 'string'
+                        ? formik.errors.toDate
+                        : undefined
+                    }
+                    touched={!!formik.touched.toDate}
+                    captionLayout="dropdown"
+                    disablePast
+                    required
+                  />
                 </div>
-              }
-              <CustomFormField
-                type="textarea"
-                id="description"
-                placeholder="Description"
-                value={formik.values.description || ''}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                required={false}
-                styleClasses={styleClasses}
-              />
+              </div>
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>Sessions</Label>
+                <Card
+                  className={`${styleClasses.inputClassName} p-3 space-y-3`}
+                >
+                  <p className="text-sm text-red-500 font-semibold">
+                    Removing sessions are remained as ACTIVE sessions.
+                  </p>
+                  <Card className={`flex flex-wrap gap-3 p-2`}></Card>
+                </Card>
+              </div>
 
               <CustomSelectField
                 id="status"
@@ -274,12 +328,22 @@ export default function RoomForm({
                 }
                 required
                 options={[
-                  { id: '0', name: 'Unpublish' },
-                  { id: '1', name: 'Publish' }
+                  { id: '0', name: 'Cancel' },
+                  { id: '1', name: 'Active' }
                 ]}
                 styleClasses={styleClasses}
               />
 
+              <CustomFormField
+                type="textarea"
+                id="remarks"
+                placeholder="Remarks"
+                value={formik.values.remarks || ''}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required
+                styleClasses={styleClasses}
+              />
               <div className="flex flex-col sm:flex-row justify-end gap-3">
                 <Button
                   size="sm"
@@ -287,7 +351,7 @@ export default function RoomForm({
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
                   onClick={() => {
-                    router.push('/rooms');
+                    // router.push('/rooms');
                   }}
                   disabled={loading}
                 >
