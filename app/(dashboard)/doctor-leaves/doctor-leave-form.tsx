@@ -20,6 +20,9 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { getAllActiveSessions } from '@/app/actions/doctor.leave.action';
 import moment from 'moment';
+import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
+import { Badge } from '@/components/ui/badge';
+import { X } from 'lucide-react';
 
 type LeaveFormProps = {
   doctorId: string;
@@ -48,7 +51,10 @@ export default function DoctorLeaveForm({
   const [dateRange, setDateRange] = React.useState<{
     fromDate?: Date;
     toDate?: Date;
-  }>({});
+  }>({
+    fromDate: doctorLeave?.fromDate ?? new Date(),
+    toDate: doctorLeave?.toDate ?? new Date()
+  });
 
   const initialValues: DoctorLeaveFormProps = {
     fromDate: doctorLeave?.fromDate ?? new Date(),
@@ -193,8 +199,8 @@ export default function DoctorLeaveForm({
       id: raw.id,
       date: new Date(raw.date),
       location: raw.location?.name ?? '',
-      startTime: raw.startTime,
-      endTime: raw.endTime
+      startTime: formatSessionTime(raw.startTime, raw.date),
+      endTime: formatSessionTime(raw.endTime, raw.date)
     };
   }
 
@@ -228,7 +234,13 @@ export default function DoctorLeaveForm({
       .finally(() => setSessionsLoading(false));
   }, [doctorId, dateRange.fromDate, dateRange.toDate]);
 
-  console.log("Sessions", availableSessions)
+  const handleRemove = (sessionId: string) => {
+    const leaveSessions = availableSessions.filter(
+      (session) => sessionId !== session.id
+    );
+
+    setAvailableSessions(leaveSessions);
+  };
 
   return (
     <Formik
@@ -251,7 +263,7 @@ export default function DoctorLeaveForm({
                 type="text"
                 id="doctorName"
                 placeholder="Doctor"
-                value={doctorName}
+                value={`DR.${doctorName}`}
                 disabled
                 required
                 onChange={() => {}}
@@ -315,7 +327,26 @@ export default function DoctorLeaveForm({
                   <p className="text-sm text-red-500 font-semibold">
                     Removing sessions are remained as ACTIVE sessions.
                   </p>
-                  <Card className={`flex flex-wrap gap-3 p-2`}></Card>
+                  <Card className={`flex flex-wrap gap-3 p-2`}>
+                    {sessionsLoading && (
+                      <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
+                    )}
+                    {availableSessions.map((option) => (
+                      <Badge
+                        key={option.id}
+                        variant="secondary"
+                        className={`flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600`}
+                      >
+                        {new Date(option.date).toLocaleDateString()} |{' '}
+                        {option.location} | {option.startTime} -{' '}
+                        {option.endTime}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onPointerDown={() => handleRemove(option.id)}
+                        />
+                      </Badge>
+                    ))}
+                  </Card>
                 </Card>
               </div>
 
