@@ -5,7 +5,7 @@ import { Form, Formik, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Doctor, DoctorFormValues, TITLE_OPTIONS } from '@/types/doctor';
+import { Doctor, DoctorFormValues, TITLE_OPTIONS, normalizeTitleForSelect } from '@/types/doctor';
 import { createDoctor, updateOneDoctor } from '@/app/actions/doctor.actions';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
@@ -33,7 +33,7 @@ export default function DoctorForm({
   const router = useRouter();
 
   const initialValues: DoctorFormValues = {
-    title: doctor?.title ?? '',
+    title: normalizeTitleForSelect(doctor?.title ?? ''),
     name: doctor?.name ?? '',
     code: doctor?.code ?? '',
     order: doctor?.order ?? 0,
@@ -67,10 +67,8 @@ export default function DoctorForm({
     mobile: Yup.string()
       .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx')
       .nullable()
-      .required('This field is mandatory'),
-    registrationNumber: Yup.string()
-      .trim()
-      .required('Registration number is required'),
+      .optional(),
+    registrationNumber: Yup.string().trim().nullable().optional(),
     qualification: Yup.string().trim().required("Qualification is required"),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').required(),
     status: Yup.number()
@@ -160,7 +158,11 @@ export default function DoctorForm({
               <CustomSelectField
                 id="title"
                 placeholder="Title"
-                value={formik.values.title}
+                value={
+                  formik.values.title && TITLE_OPTIONS.some((o) => o.id === formik.values.title)
+                    ? formik.values.title
+                    : undefined
+                }
                 onChange={(value) => formik.setFieldValue('title', value)}
                 required
                 options={TITLE_OPTIONS}

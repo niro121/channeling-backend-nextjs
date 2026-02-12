@@ -27,7 +27,7 @@ import {
   buildDateFromTime,
   calculateDurationMinutes
 } from '@/lib/utils';
-import { CustomTimeField } from '@/components/common/custom-time-field';
+import { TimePickerSelect } from '@/components/common/time-picker-select';
 import { Loader } from 'lucide-react';
 import { DoctorSessionFeeColumns } from './session-fee-columns';
 import CustomTable from '@/components/common/custom-table';
@@ -47,6 +47,10 @@ type DoctorSessionFormProps = {
     id?: string;
     name?: string;
   };
+  /** When provided (e.g. in a dialog), called instead of navigating on Close */
+  onClose?: () => void;
+  /** When provided (e.g. in a dialog), called after successful create/update instead of navigating */
+  onSuccess?: () => void;
 };
 
 type FormSubmissionValues = DoctorSessionFormValues & {
@@ -65,7 +69,9 @@ export default function DoctorSessionForm({
   dayTypeOptions,
   refundableOptions,
   feeTypeOptions,
-  user
+  user,
+  onClose,
+  onSuccess
 }: DoctorSessionFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
@@ -130,7 +136,7 @@ export default function DoctorSessionForm({
       .required('This field is mandatory'),
     institution: Yup.number()
       .transform((value) => (isNaN(value) ? 0 : value))
-      .moreThan(0, 'This field is mandatory')
+      .min(0, 'This field is mandatory')
       .required('This field is mandatory'),
     departmentId: Yup.string().required('This field is mandatory'),
     locationId: Yup.string().required('This field is mandatory'),
@@ -244,7 +250,8 @@ export default function DoctorSessionForm({
           title: 'Success',
           description: 'Doctor Session was updated successfully'
         });
-        router.push('/doctor-sessions');
+        if (onSuccess) onSuccess();
+        else router.push('/doctor-sessions');
       } else {
         respond = await createDoctorSession(doctorId, payload, user);
         setLoading(false);
@@ -264,7 +271,8 @@ export default function DoctorSessionForm({
           description: 'Doctor Session was created successfully'
         });
 
-        if (respond.data?.id) {
+        if (onSuccess) onSuccess();
+        else if (respond.data?.id) {
           router.push(`/doctor-sessions/${respond.data.id}/edit`);
         } else {
           router.push('/doctor-sessions');
@@ -324,11 +332,14 @@ export default function DoctorSessionForm({
       enableReinitialize={false}
     >
       {(formik) => {
-        const styleClasses = {
-          parentDiv: 'grid grid-cols-1 items-center gap-4 sm:grid-cols-4',
-          labelClassName: 'text-sm text-black font-semibold capitalize',
-          inputClassName: 'col-span-full sm:col-span-3'
+        const compactClasses = {
+          parentDiv: 'flex flex-col gap-2',
+          labelClassName: 'text-sm font-medium text-foreground',
+          inputClassName: 'w-full'
         };
+
+        const sectionTitle = 'text-sm font-semibold text-green-700 border-b border-border pb-2 mb-4';
+        const sectionCard = 'rounded-lg border border-border bg-muted/30 p-5 space-y-4';
 
         const setLocationHandler = (value: string) => {
           formik.setFieldValue('locationId', value);
@@ -339,65 +350,73 @@ export default function DoctorSessionForm({
           <Form className="w-full">
             <div className="border rounded-lg p-6">
               <Tabs defaultValue="details" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="details">Session Details</TabsTrigger>
-                  <TabsTrigger value="fees">Session Fees</TabsTrigger>
+                <TabsList className="w-full bg-muted rounded-lg p-1.5 h-11">
+                  <TabsTrigger
+                    value="details"
+                    className="flex-1 data-[state=active]:bg-green-700 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:font-semibold"
+                  >
+                    Session Details
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="fees"
+                    className="flex-1 data-[state=active]:bg-green-700 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:font-semibold"
+                  >
+                    Session Fees
+                  </TabsTrigger>
                 </TabsList>
-                <TabsContent value="details">
-                  <div className="grid gap-4">
+                <TabsContent value="details" className="mt-6">
+                  <div className="space-y-8">
                     <CustomFormField
                       type="text"
                       id="name"
-                      placeholder="Name"
+                      placeholder="Session Name"
                       value={formik.values.name}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="institution"
-                      placeholder="Institution"
-                      value={
-                        formik.values.institution === 0
-                          ? ''
-                          : String(formik.values.institution)
-                      }
-                      onChange={(value) =>
-                        formik.setFieldValue('institution', Number(value))
-                      }
-                      required
-                      options={institutionOptions}
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="departmentId"
-                      placeholder="Department"
-                      value={formik.values.department}
-                      onChange={(value) =>
-                        formik.setFieldValue('departmentId', value)
-                      }
-                      required
-                      disabled={departmentOptions?.length === 0}
-                      options={departmentOptions || []}
-                      styleClasses={styleClasses}
+                      styleClasses={compactClasses}
                     />
 
-                    <CustomSelectField
-                      id="locationId"
-                      placeholder="Location"
-                      value={formik.values.locationId}
-                      onChange={setLocationHandler}
-                      required
-                      disabled={locationOptions?.length === 0}
-                      options={locationOptions || []}
-                      styleClasses={styleClasses}
-                    />
-                    {
-                      <div className="relative">
-                        <>
+                    {/* Where */}
+                    <div className={sectionCard}>
+                      <h3 className={sectionTitle}>Where</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <CustomSelectField
+                          id="institution"
+                          placeholder="Institution"
+                          value={String(formik.values.institution)}
+                          onChange={(value) =>
+                            formik.setFieldValue('institution', Number(value))
+                          }
+                          required
+                          options={institutionOptions}
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="departmentId"
+                          placeholder="Department"
+                          value={formik.values.departmentId}
+                          onChange={(value) =>
+                            formik.setFieldValue('departmentId', value)
+                          }
+                          required
+                          disabled={departmentOptions?.length === 0}
+                          options={departmentOptions || []}
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="locationId"
+                          placeholder="Location"
+                          value={formik.values.locationId}
+                          onChange={setLocationHandler}
+                          required
+                          disabled={locationOptions?.length === 0}
+                          options={locationOptions || []}
+                          styleClasses={compactClasses}
+                        />
+                        <div className="relative">
                           {roomloading && (
-                            <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
+                            <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4 z-10" />
                           )}
                           <CustomSelectField
                             id="roomId"
@@ -406,203 +425,227 @@ export default function DoctorSessionForm({
                             onChange={(value) =>
                               formik.setFieldValue('roomId', value)
                             }
-                            required
+                            required={false}
                             disabled={roomOptions.length === 0}
                             options={roomOptions}
-                            styleClasses={styleClasses}
+                            styleClasses={compactClasses}
                           />
-                        </>{' '}
+                        </div>
                       </div>
-                    }
+                    </div>
 
-                    <CustomTimeField
-                      label="Start Time"
-                      timeId="startTimeValue"
-                      meridiemId="startMeridiem"
-                      timeValue={formik.values.startTimeValue}
-                      meridiemValue={formik.values.startMeridiem}
-                      onTimeChange={(e) => {
-                        formik.handleChange(e);
-                        const duration = calculateDurationMinutes(
-                          e.target.value,
-                          formik.values.startMeridiem,
-                          formik.values.endTimeValue,
-                          formik.values.endMeridiem
-                        );
-                        formik.setFieldValue('durationMinutes', duration);
-                      }}
-                      onMeridiemChange={(v) => {
-                        formik.setFieldValue('startMeridiem', v);
-                        const duration = calculateDurationMinutes(
-                          formik.values.startTimeValue,
-                          v,
-                          formik.values.endTimeValue,
-                          formik.values.endMeridiem
-                        );
-                        formik.setFieldValue('durationMinutes', duration);
-                      }}
-                      required
-                      styleClasses={styleClasses}
-                    />
+                    {/* When */}
+                    <div className={sectionCard}>
+                      <h3 className={sectionTitle}>When</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <TimePickerSelect
+                          id="startTimeValue"
+                          label="Start Time"
+                          timeValue={formik.values.startTimeValue}
+                          meridiemValue={formik.values.startMeridiem}
+                          onTimeChange={(e) => {
+                            formik.handleChange(e);
+                            const duration = calculateDurationMinutes(
+                              e.target.value,
+                              formik.values.startMeridiem,
+                              formik.values.endTimeValue,
+                              formik.values.endMeridiem
+                            );
+                            formik.setFieldValue('durationMinutes', duration);
+                          }}
+                          onMeridiemChange={(v) => {
+                            formik.setFieldValue('startMeridiem', v);
+                            const duration = calculateDurationMinutes(
+                              formik.values.startTimeValue,
+                              v,
+                              formik.values.endTimeValue,
+                              formik.values.endMeridiem
+                            );
+                            formik.setFieldValue('durationMinutes', duration);
+                          }}
+                          required
+                          styleClasses={compactClasses}
+                        />
+                        <TimePickerSelect
+                          id="endTimeValue"
+                          label="End Time"
+                          timeValue={formik.values.endTimeValue}
+                          meridiemValue={formik.values.endMeridiem}
+                          onTimeChange={(e) => {
+                            formik.handleChange(e);
+                            const duration = calculateDurationMinutes(
+                              formik.values.startTimeValue,
+                              formik.values.startMeridiem,
+                              e.target.value,
+                              formik.values.endMeridiem
+                            );
+                            formik.setFieldValue('durationMinutes', duration);
+                          }}
+                          onMeridiemChange={(v) => {
+                            formik.setFieldValue('endMeridiem', v);
+                            const duration = calculateDurationMinutes(
+                              formik.values.startTimeValue,
+                              formik.values.startMeridiem,
+                              formik.values.endTimeValue,
+                              v
+                            );
+                            formik.setFieldValue('durationMinutes', duration);
+                          }}
+                          required
+                          styleClasses={compactClasses}
+                        />
+                        <CustomFormField
+                          type="number"
+                          id="durationMinutes"
+                          placeholder="Duration (minutes)"
+                          value={formik.values.durationMinutes}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          disabled
+                          required
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="dayType"
+                          placeholder="Day Type"
+                          value={
+                            formik.values.dayType === 0
+                              ? ''
+                              : String(formik.values.dayType)
+                          }
+                          onChange={(value) =>
+                            formik.setFieldValue('dayType', Number(value))
+                          }
+                          required
+                          options={dayTypeOptions}
+                          styleClasses={compactClasses}
+                        />
+                        <div className={formik.values.dayType === 8 ? 'sm:col-span-2' : ''}>
+                          <CustomDatePickerField
+                            id="applyTo"
+                            placeholder="Apply only to (specific date)"
+                            value={
+                              formik.values.applyTo
+                                ? new Date(formik.values.applyTo)
+                                : undefined
+                            }
+                            onChange={(date) => {
+                              formik.setFieldValue('applyTo', date ?? undefined);
+                            }}
+                            onBlur={formik.handleBlur}
+                            required={formik.values.dayType === 8}
+                            disabled={formik.values.dayType !== 8}
+                            styleClasses={compactClasses}
+                            error={formik.errors.applyTo}
+                            touched={formik.touched.applyTo}
+                            captionLayout="dropdown"
+                            disablePast
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-                    <CustomTimeField
-                      label="End Time"
-                      timeId="endTimeValue"
-                      meridiemId="endMeridiem"
-                      timeValue={formik.values.endTimeValue}
-                      meridiemValue={formik.values.endMeridiem}
-                      onTimeChange={(e) => {
-                        formik.handleChange(e);
-                        const duration = calculateDurationMinutes(
-                          formik.values.startTimeValue,
-                          formik.values.startMeridiem,
-                          e.target.value,
-                          formik.values.endMeridiem
-                        );
-                        formik.setFieldValue('durationMinutes', duration);
-                      }}
-                      onMeridiemChange={(v) => {
-                        formik.setFieldValue('endMeridiem', v);
-                        const duration = calculateDurationMinutes(
-                          formik.values.startTimeValue,
-                          formik.values.startMeridiem,
-                          formik.values.endTimeValue,
-                          v
-                        );
-                        formik.setFieldValue('durationMinutes', duration);
-                      }}
-                      required
-                      styleClasses={styleClasses}
-                    />
+                    {/* Capacity */}
+                    <div className={sectionCard}>
+                      <h3 className={sectionTitle}>Capacity</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <CustomFormField
+                          type="number"
+                          id="startingPatientNumber"
+                          placeholder="Starting Patient No."
+                          value={formik.values.startingPatientNumber}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required
+                          styleClasses={compactClasses}
+                        />
+                        <CustomFormField
+                          type="number"
+                          id="maxPatientNumber"
+                          placeholder="Maximum Patient No."
+                          value={formik.values.maxPatientNumber}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="previousSessionId"
+                          placeholder="Previous Session"
+                          value={formik.values.previousSessionId}
+                          onChange={(value) =>
+                            formik.setFieldValue('previousSessionId', value)
+                          }
+                          required={false}
+                          disabled={
+                            previousSessions?.length === 0 ||
+                            previousSessions === undefined
+                          }
+                          options={previousSessions || []}
+                          styleClasses={compactClasses}
+                        />
+                      </div>
+                    </div>
 
-                    <CustomFormField
-                      type="number"
-                      id="durationMinutes"
-                      placeholder="Duration in Minutes"
-                      value={formik.values.durationMinutes}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      disabled
-                      required
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="dayType"
-                      placeholder="Day Type"
-                      value={
-                        formik.values.dayType === 0
-                          ? ''
-                          : String(formik.values.dayType)
-                      }
-                      onChange={(value) =>
-                        formik.setFieldValue('dayType', Number(value))
-                      }
-                      required
-                      options={dayTypeOptions}
-                      styleClasses={styleClasses}
-                    />
-                    <CustomDatePickerField
-                      id="applyTo"
-                      placeholder="Apply Only To"
-                      value={
-                        formik.values.applyTo
-                          ? new Date(formik.values.applyTo)
-                          : undefined
-                      }
-                      onChange={(date) => {
-                        formik.setFieldValue('applyTo', date ?? undefined);
-                      }}
-                      onBlur={formik.handleBlur}
-                      required={formik.values.dayType === 8}
-                      disabled={formik.values.dayType !== 8}
-                      styleClasses={styleClasses}
-                      error={formik.errors.applyTo}
-                      touched={formik.touched.applyTo}
-                      captionLayout="dropdown"
-                      disablePast
-                    />
-                    <CustomFormField
-                      type="number"
-                      id="startingPatientNumber"
-                      placeholder="Starting Patient No."
-                      value={formik.values.startingPatientNumber}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required
-                      styleClasses={styleClasses}
-                    />
-                    <CustomFormField
-                      type="number"
-                      id="maxPatientNumber"
-                      placeholder="Maximum Patient No"
-                      value={formik.values.maxPatientNumber}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="previousSessionId"
-                      placeholder="Previous Session"
-                      value={formik.values.previousSessionId}
-                      onChange={formik.handleChange}
-                      required={false}
-                      disabled={
-                        previousSessions?.length === 0 ||
-                        previousSessions === undefined
-                      }
-                      options={previousSessions || []}
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="refundable"
-                      placeholder="Refundable"
-                      value={String(formik.values.refundable)}
-                      onChange={(value) =>
-                        formik.setFieldValue('refundable', Number(value))
-                      }
-                      required
-                      options={refundableOptions}
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="advancedBookingDays"
-                      placeholder="Advance Booking Date"
-                      value={String(formik.values.advancedBookingDays)}
-                      onChange={(value) =>
-                        formik.setFieldValue(
-                          'advancedBookingDays',
-                          Number(value)
-                        )
-                      }
-                      required
-                      options={ADVANCED_BOOKING_OPTIONS}
-                      styleClasses={styleClasses}
-                    />
-                    <CustomSelectField
-                      id="status"
-                      placeholder="Status"
-                      value={formik.values.status?.toString()}
-                      onChange={(value) =>
-                        formik.setFieldValue('status', parseInt(value))
-                      }
-                      required
-                      options={[
-                        { id: '0', name: 'Unpublish' },
-                        { id: '1', name: 'Publish' }
-                      ]}
-                      styleClasses={styleClasses}
-                    />
+                    {/* Booking & status */}
+                    <div className={sectionCard}>
+                      <h3 className={sectionTitle}>Booking & status</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                        <CustomSelectField
+                          id="refundable"
+                          placeholder="Refundable"
+                          value={String(formik.values.refundable)}
+                          onChange={(value) =>
+                            formik.setFieldValue('refundable', Number(value))
+                          }
+                          required={false}
+                          options={refundableOptions}
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="advancedBookingDays"
+                          placeholder="Advance Booking Days"
+                          value={String(formik.values.advancedBookingDays)}
+                          onChange={(value) =>
+                            formik.setFieldValue(
+                              'advancedBookingDays',
+                              Number(value)
+                            )
+                          }
+                          required
+                          options={ADVANCED_BOOKING_OPTIONS}
+                          styleClasses={compactClasses}
+                        />
+                        <CustomSelectField
+                          id="status"
+                          placeholder="Status"
+                          value={formik.values.status?.toString()}
+                          onChange={(value) =>
+                            formik.setFieldValue('status', parseInt(value))
+                          }
+                          required={false}
+                          options={[
+                            { id: '0', name: 'Unpublish' },
+                            { id: '1', name: 'Publish' }
+                          ]}
+                          styleClasses={compactClasses}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
-                <TabsContent value="fees">
-                  <CustomTable
-                    columns={DoctorSessionFeeColumns(formik)}
-                    data={formik.values.fees}
-                    rowCount={formik.values.fees.length}
-                  />
-
-                  <FeeTotals formik={formik} />
+                <TabsContent value="fees" className="mt-4">
+                  <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                    <CustomTable
+                      columns={DoctorSessionFeeColumns(formik)}
+                      data={formik.values.fees}
+                      rowCount={formik.values.fees.length}
+                      compact
+                      showFooter={false}
+                      noCard
+                    />
+                    <FeeTotals formik={formik} />
+                  </div>
                 </TabsContent>
               </Tabs>
               <div className="mt-5 flex flex-col sm:flex-row justify-end gap-3">
@@ -612,12 +655,13 @@ export default function DoctorSessionForm({
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
                   onClick={() => {
-                    router.push('/doctor-sessions');
+                    if (onClose) onClose();
+                    else router.push('/doctor-sessions');
                   }}
                   disabled={loading}
                 >
                   <Ban className="h-4 w-4" />
-                  <span>Cancel</span>
+                  <span>Close</span>
                 </Button>
                 <Button
                   disabled={loading}

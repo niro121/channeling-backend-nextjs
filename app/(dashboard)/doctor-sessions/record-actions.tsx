@@ -10,6 +10,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { DoctorSession } from '@/types/doctor.session';
 import { deleteDoctorSession } from '@/app/actions/doctor.sessions.action';
+import { EditDoctorSessionDialog } from './edit-doctor-session-dialog';
 
 type DoctorSessionActionsProps<TData extends DoctorSession> = {
   row: Row<TData>;
@@ -20,6 +21,10 @@ export function DoctorSessionRecordActions({
 }: DoctorSessionActionsProps<DoctorSession>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+  const [sessionIdToEdit, setSessionIdToEdit] = React.useState<string | null>(
+    null
+  );
   const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -29,6 +34,13 @@ export function DoctorSessionRecordActions({
 
   const showHideDeleteModal = (value: boolean) => {
     setShowDelConfirmation(value);
+  };
+
+  const openEditDialog = () => {
+    if (doctorSession.id) {
+      setSessionIdToEdit(doctorSession.id);
+      setEditDialogOpen(true);
+    }
   };
 
   const onDeleteConfirmation = async () => {
@@ -42,6 +54,7 @@ export function DoctorSessionRecordActions({
           title: 'Success',
           description: 'Doctor session was deleted successfully.'
         });
+        router.refresh();
       } catch (error: any) {
         toast({
           variant: 'destructive',
@@ -68,7 +81,7 @@ export function DoctorSessionRecordActions({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => router.push(`/doctor-sessions/${doctorSession.id}/edit`)}
+          onClick={openEditDialog}
         >
           <Pencil className="h-4 w-4" />
           <span className="sr-only">Edit</span>
@@ -83,6 +96,15 @@ export function DoctorSessionRecordActions({
           <span className="sr-only">Delete</span>
         </Button>
       </DataTableRowActions>
+
+      <EditDoctorSessionDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setSessionIdToEdit(null);
+        }}
+        sessionId={sessionIdToEdit}
+      />
 
       <CustomAlertDialog
         open={showDeleteConfirmation}

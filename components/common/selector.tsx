@@ -27,13 +27,17 @@ export function Selector({
   onChange,
   defaultValue = '__all__'
 }: SelectorProps) {
+  const hasDefaultInOptions = options.some((o) => o.id === (value ?? defaultValue));
+
   return (
     <Select value={value ?? defaultValue} onValueChange={onChange}>
       <SelectTrigger className="w-60" disabled={options.length === 0}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={defaultValue}>{label}</SelectItem>
+        {!hasDefaultInOptions && (
+          <SelectItem value={defaultValue}>{label}</SelectItem>
+        )}
         {options.map((s) => (
           <SelectItem key={s.id} value={s.id}>
             {s.name}
