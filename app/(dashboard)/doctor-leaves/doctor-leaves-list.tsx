@@ -1,26 +1,32 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { DoctorLeaveColumns } from './columns';
 import { DoctorLeaveListItem } from '@/types/doctor.leave';
 import Loading from '../loading';
 import { getDoctorLeaves } from '@/app/actions/doctor.leave.action';
+import FilterSection from './filter-section';
+import AddBtnSection from './add-btn-section';
 
 interface DoctorLeavesListProps {
   doctorId: string | undefined;
+  doctorName: string | undefined
   fromDate: string | undefined;
   toDate: string | undefined;
   page?: string;
   limit?: string;
+  doctorOptions?: { id: string; name: string }[];
 }
 
 export default function DoctorLeavesList({
   doctorId,
+  doctorName,
   fromDate,
   toDate,
   page = '0',
-  limit = '10'
+  limit = '10',
+  doctorOptions
 }: DoctorLeavesListProps) {
   const [data, setData] = useState<DoctorLeaveListItem[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -74,14 +80,6 @@ export default function DoctorLeavesList({
     };
   }, [doctorId, fromDate, toDate, page, limit]);
 
-  if (!doctorId) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Select a doctor and click Apply to view leaves.
-      </p>
-    );
-  }
-
   if (loading) return <Loading />;
 
   if (error) {
@@ -91,13 +89,29 @@ export default function DoctorLeavesList({
   return (
     <CustomDataTable
       heading="Doctor Leaves"
-      subHeading="Leaves for the selected doctor and date range."
+      subHeading={
+        doctorId
+          ? 'Leaves for the selected doctor and date range.'
+          : 'Select a doctor and click Apply to view leaves.'
+      }
       columns={DoctorLeaveColumns}
       data={data}
       rowCount={totalRecords}
+      // deleteServerAction={}
       haveBulkDelete={false}
       page={page}
       limit={limit}
+      toolbarLeft={
+        <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
+          <FilterSection
+            doctorOptions={doctorOptions ?? []}
+            doctorId={doctorId}
+            fromDate={fromDate}
+            toDate={toDate}
+          />
+        </div>
+      }
+      toolbarRight={<AddBtnSection doctorId={doctorId} doctorName={doctorName} />}
     />
   );
 }
