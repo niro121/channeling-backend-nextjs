@@ -16,6 +16,7 @@ import { requirePermission } from '@/lib/server-permissions';
 import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 import { Doctor } from '@/types/doctor';
 import { Session } from '@/types/booking.dashboard';
+import { AgencyBook } from '@/types/agencybook';
 import moment from 'moment';
 
 // ==== GET DOCTOR REPORT DATA ==== //
@@ -146,14 +147,7 @@ export const exportChannelAgentReferenceBookReportData = async (
       };
     }
 
-    const formatUserName = (user: { name: string; code: string | null } | null): string => {
-      if (!user) return '-';
-      const name = user.name ? user.name.toUpperCase() : '';
-      const code = user.code ? `(${user.code})` : '';
-      return code ? `${name} ${code}` : name;
-    };
-
-    const mappedBooks: ExportChannelAgentReferenceBookData[] = result.data.map((book, index: number) => {
+    const mappedBooks: ExportChannelAgentReferenceBookData[] = result.data.map((book: AgencyBook, index: number) => {
       const createdDate = book.createdAt 
         ? (book.createdAt instanceof Date ? book.createdAt : new Date(book.createdAt))
         : new Date();
@@ -168,9 +162,9 @@ export const exportChannelAgentReferenceBookReportData = async (
         utilizedPageCount: '', // Empty as per requirement
         startingReferenceNumber: book.startNumber || '-',
         endingReferenceNumber: book.endNumber || '-',
-        createdBy: formatUserName(book.createdUser ?? null),
+        createdBy: book.createdUser?.name || '-',
         createdDate: moment(createdDate).format('YYYY-MM-DD hh:mm A'),
-        updatedBy: book.updatedBy ? formatUserName(book.updatedUser ?? null) : '-',
+        updatedBy: book.updatedUser?.name || '-',
         updatedDate: book.updatedBy ? moment(updatedDate).format('YYYY-MM-DD hh:mm A') : '-',
         active: book.status === 1 ? 'Active' : 'Inactive',
       };

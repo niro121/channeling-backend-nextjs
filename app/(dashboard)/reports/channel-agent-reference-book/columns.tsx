@@ -6,19 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
 
-type AgencyBookWithUsers = AgencyBook & {
-  createdUser?: { name: string; code: string | null } | null;
-  updatedUser?: { name: string; code: string | null } | null;
-};
-
-const formatUserName = (user: { name: string; code: string | null } | null | undefined): string => {
-  if (!user) return '-';
-  const name = user.name ? user.name.toUpperCase() : '';
-  const code = user.code ? `(${user.code})` : '';
-  return code ? `${name} ${code}` : name;
-};
-
-export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBookWithUsers>[] = [
+export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBook>[] = [
   {
     id: 'sNo',
     header: 'S.No',
@@ -68,11 +56,8 @@ export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBookWithUse
     }
   },
   {
-    id: 'createdBy',
-    header: 'Created By',
-    cell: ({ row }) => {
-      return formatUserName(row.original.createdUser);
-    }
+    accessorKey: 'createdUser.name',
+    header: 'Created By'
   },
   {
     accessorKey: 'createdAt',
@@ -83,11 +68,8 @@ export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBookWithUse
     }
   },
   {
-    id: 'updatedBy',
-    header: 'Updated By',
-    cell: ({ row }) => {
-      return row.original.updatedBy ? formatUserName(row.original.updatedUser) : '-';
-    }
+    accessorKey: 'updatedUser.name',
+    header: 'Updated By'
   },
   {
     accessorKey: 'updatedAt',

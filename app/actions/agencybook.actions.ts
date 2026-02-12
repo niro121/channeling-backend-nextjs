@@ -17,6 +17,7 @@ import {
 } from '@/types/agencybook';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { fetchServerSession } from '@/lib/session';
 
 // ==== GET ALL AGENCY BOOKS ==== //
 export const getAllAgencyBooks = async (params: GetAgencyBooksParams) => {
@@ -101,8 +102,7 @@ export const getAgencyBookById = async (
 
 // ==== CREATE AGENCY BOOK ==== //
 export const createAgencyBook = async (
-  payload: AgencyBookFormValues,
-  user?: { id?: string; name?: string }
+  payload: AgencyBookFormValues
 ): Promise<{
   success: boolean;
   data?: any;
@@ -117,6 +117,12 @@ export const createAgencyBook = async (
   await requirePermission('agency-books', 'add');
 
   try {
+    // Get current user from session
+    const session = await fetchServerSession();
+    const user = session?.user?.id
+      ? { id: session.user.id, name: session.user.name || undefined }
+      : undefined;
+
     const result = await createAgencyBookService(payload, user);
 
     if (!result.success) {
@@ -155,8 +161,7 @@ export const createAgencyBook = async (
 // ==== UPDATE AGENCY BOOK ==== //
 export const updateAgencyBook = async (
   id: string,
-  payload: UpdateAgencyBookPayload,
-  user?: { id?: string; name?: string }
+  payload: UpdateAgencyBookPayload
 ): Promise<{
   success: boolean;
   data?: any;
@@ -171,6 +176,12 @@ export const updateAgencyBook = async (
   await requirePermission('agency-books', 'edit');
 
   try {
+    // Get current user from session
+    const session = await fetchServerSession();
+    const user = session?.user?.id
+      ? { id: session.user.id, name: session.user.name || undefined }
+      : undefined;
+
     const result = await updateAgencyBookService(id, payload, user);
 
     if (!result.success) {

@@ -80,9 +80,3 @@ export type ExportChannelAgentReferenceBookData = {
   updatedDate: string;
   active: string;
 };
-
-// Type for AgencyBook with user information
-export type AgencyBookWithUsers = AgencyBook & {
-  createdUser?: { name: string; code: string | null } | null;
-  updatedUser?: { name: string; code: string | null } | null;
-};

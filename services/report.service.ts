@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery, DoctorArrivalsReportQuery, AgencyBookWithUsers } from '@/types/report';
+import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery, DoctorArrivalsReportQuery } from '@/types/report';
 import moment from 'moment';
 
 // Get Prisma types from the prisma instance
@@ -162,47 +162,13 @@ export const getChannelAgentReferenceBookReportDataService = async ({
             id: true,
             name: true
           }
-        }
+        },
+        createdUser: true,
+        updatedUser: true
       },
       orderBy: {
         createdAt: 'desc'
       }
-    });
-
-    // Fetch users for createdBy and updatedBy
-    const userIds = new Set<string>();
-    records.forEach((record: { createdBy: string | null; updatedBy: string | null }) => {
-      if (record.createdBy) userIds.add(record.createdBy);
-      if (record.updatedBy) userIds.add(record.updatedBy);
-    });
-
-    const users = userIds.size > 0
-      ? await prisma.user.findMany({
-          where: {
-            id: {
-              in: Array.from(userIds)
-            }
-          },
-          select: {
-            id: true,
-            name: true
-          }
-        })
-      : [];
-
-    type UserInfo = { id: string; name: string | null };
-    const userMap = new Map<string, UserInfo>(users.map((u: UserInfo) => [u.id, u]));
-
-    // Attach user information to records
-    const recordsWithUsers: AgencyBookWithUsers[] = records.map((record: { createdBy: string | null; updatedBy: string | null; [key: string]: unknown }) => {
-      const createdUser = record.createdBy ? userMap.get(record.createdBy) : null;
-      const updatedUser = record.updatedBy ? userMap.get(record.updatedBy) : null;
-
-      return {
-        ...record,
-        createdUser: createdUser ? { name: createdUser.name || '', code: createdUser.id || null } : null,
-        updatedUser: updatedUser ? { name: updatedUser.name || '', code: updatedUser.id || null } : null
-      } as AgencyBookWithUsers;
     });
 
     const totalRecords = await prisma.agencyBook.count({
@@ -211,7 +177,7 @@ export const getChannelAgentReferenceBookReportDataService = async ({
 
     return {
       success: true,
-      data: recordsWithUsers,
+      data: records,
       totalRecords
     };
   } catch (error: unknown) {

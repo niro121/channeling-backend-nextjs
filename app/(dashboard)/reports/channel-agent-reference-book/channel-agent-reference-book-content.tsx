@@ -32,18 +32,13 @@ type ChannelAgentReferenceBookReportContentProps = {
   initialAgencyOptions: Array<{ id: string; name: string }>;
 };
 
-type AgencyBookWithUsers = AgencyBook & {
-  createdUser?: { name: string; code: string | null } | null;
-  updatedUser?: { name: string; code: string | null } | null;
-};
-
 export default function ChannelAgentReferenceBookReportContent({
   initialAgencyOptions
 }: ChannelAgentReferenceBookReportContentProps) {
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
-  const [books, setBooks] = useState<AgencyBookWithUsers[]>([]);
+  const [books, setBooks] = useState<AgencyBook[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   
   // Filter states
@@ -87,11 +82,12 @@ export default function ChannelAgentReferenceBookReportContent({
         setBooks([]);
         setTotalRecords(0);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch report data';
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.message || 'Failed to fetch report data'
+        description: errorMessage
       });
       setBooks([]);
       setTotalRecords(0);
