@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery,DoctorArrivalsReportQuery } from '@/types/report';
+import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery, DoctorArrivalsReportQuery, AgencyBookWithUsers } from '@/types/report';
 import moment from 'moment';
 
 // Get Prisma types from the prisma instance
@@ -54,9 +54,10 @@ export const getDoctorReportDataService = async ({
       data: doctors,
       totalRecords: doctors.length
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getDoctorReportDataService error', error);
-    throw new Error(error.message ?? 'Error getting doctor report data');
+    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor report data';
+    throw new Error(errorMessage);
   }
 };
 
@@ -114,9 +115,10 @@ export const getDoctorArrivalsReportDataService = async ({
       data: sessions,
       totalRecords: sessions.length
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getDoctorArrivalsReportDataService error', error);
-    throw new Error(error.message ?? 'Error getting doctor arrivals report data');
+    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor arrivals report data';
+    throw new Error(errorMessage);
   }
 };
 
@@ -169,7 +171,7 @@ export const getChannelAgentReferenceBookReportDataService = async ({
 
     // Fetch users for createdBy and updatedBy
     const userIds = new Set<string>();
-    records.forEach((record:any) => {
+    records.forEach((record: { createdBy: string | null; updatedBy: string | null }) => {
       if (record.createdBy) userIds.add(record.createdBy);
       if (record.updatedBy) userIds.add(record.updatedBy);
     });
@@ -192,7 +194,7 @@ export const getChannelAgentReferenceBookReportDataService = async ({
     const userMap = new Map<string, UserInfo>(users.map((u: UserInfo) => [u.id, u]));
 
     // Attach user information to records
-    const recordsWithUsers = records.map((record:any) => {
+    const recordsWithUsers: AgencyBookWithUsers[] = records.map((record: { createdBy: string | null; updatedBy: string | null; [key: string]: unknown }) => {
       const createdUser = record.createdBy ? userMap.get(record.createdBy) : null;
       const updatedUser = record.updatedBy ? userMap.get(record.updatedBy) : null;
 
@@ -200,7 +202,7 @@ export const getChannelAgentReferenceBookReportDataService = async ({
         ...record,
         createdUser: createdUser ? { name: createdUser.name || '', code: createdUser.id || null } : null,
         updatedUser: updatedUser ? { name: updatedUser.name || '', code: updatedUser.id || null } : null
-      };
+      } as AgencyBookWithUsers;
     });
 
     const totalRecords = await prisma.agencyBook.count({
@@ -212,8 +214,9 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       data: recordsWithUsers,
       totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getChannelAgentReferenceBookReportDataService error', error);
-    throw new Error(error.message ?? 'Error getting channel agent reference book report data');
+    const errorMessage = error instanceof Error ? error.message : 'Error getting channel agent reference book report data';
+    throw new Error(errorMessage);
   }
 };

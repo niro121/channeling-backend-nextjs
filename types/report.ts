@@ -42,3 +42,47 @@ export type ChannelAgentReferenceBookReportResponse = {
   totalRecords: number;
   message?: string;
 };
+
+// Export types for mapped data
+export type ExportDoctorData = {
+  code: string;
+  name: string;
+  registrationNumber: string;
+  updatedBy: string;
+  updatedDate: string;
+  createdBy: string;
+  createdDate: string;
+  published: string;
+};
+
+export type ExportDoctorArrivalsData = {
+  consultantName: string;
+  roomAllocatedBy: string;
+  sessionDate: string;
+  sessionTime: string;
+  sessionStatus: string;
+  arrivalTime: string;
+  departureTime: string;
+  roomReleaseBy: string;
+  roomNumber: string;
+};
+
+export type ExportChannelAgentReferenceBookData = {
+  sNo: number;
+  agent: string;
+  bookNumber: string;
+  utilizedPageCount: string;
+  startingReferenceNumber: string;
+  endingReferenceNumber: string;
+  createdBy: string;
+  createdDate: string;
+  updatedBy: string;
+  updatedDate: string;
+  active: string;
+};
+
+// Type for AgencyBook with user information
+export type AgencyBookWithUsers = AgencyBook & {
+  createdUser?: { name: string; code: string | null } | null;
+  updatedUser?: { name: string; code: string | null } | null;
+};
