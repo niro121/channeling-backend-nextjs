@@ -1,11 +1,13 @@
 "use client"
 
+import Link from 'next/link'
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Zone } from "@/types/zone"
 import ZoneRecordActions from "./record-actions"
 import { CheckCircle2, XCircle } from "lucide-react"
+import moment from 'moment'
 
 // DEFINE THE COLUMNS OF THE ZONE TABLE
 export const zoneColumns: ColumnDef<Zone>[] = [
@@ -36,6 +38,23 @@ export const zoneColumns: ColumnDef<Zone>[] = [
     {
         accessorKey: "name",
         header: "Zone Name",
+        cell: ({ row }) => {
+            const name = row.getValue<string>('name');
+            const id = row.original.id;
+            const content = name ?? '—';
+            if (id) {
+                return (
+                    <Link
+                        href={`/zones/${id}/edit`}
+                        className="max-w-28 truncate block text-primary hover:underline underline-offset-2 cursor-pointer"
+                        title={`Edit ${name ?? 'zone'}`}
+                    >
+                        {content}
+                    </Link>
+                );
+            }
+            return <span className="max-w-28 truncate">{content}</span>;
+        },
     },
     {
         accessorKey: "location.name",
@@ -80,6 +99,38 @@ export const zoneColumns: ColumnDef<Zone>[] = [
                     {isActive ? "Visible" : "Hidden"}
                 </Badge>
             )
+        },
+    },
+    {
+        id: "updated",
+        header: "Updated",
+        cell: ({ row }) => {
+            const name = row.original.updatedUser?.name ?? "—";
+            const date = row.original.updatedAt
+                ? moment(row.original.updatedAt).format("DD/MM/YYYY hh:mm A")
+                : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span>{name}</span>
+                    <span className="text-muted-foreground">{date}</span>
+                </div>
+            );
+        },
+    },
+    {
+        id: "created",
+        header: "Created",
+        cell: ({ row }) => {
+            const name = row.original.createdUser?.name ?? "—";
+            const date = row.original.createdAt
+                ? moment(row.original.createdAt).format("DD/MM/YYYY hh:mm A")
+                : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span>{name}</span>
+                    <span className="text-muted-foreground">{date}</span>
+                </div>
+            );
         },
     },
     {

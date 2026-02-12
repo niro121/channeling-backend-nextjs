@@ -88,6 +88,7 @@ export type getDoctorSessionParams = {
   limit?: string;
   locationId?: string;
   doctorId?: string;
+  institutionId?: string;
 };
 
 export type getDoctorSessionQuery = {
@@ -95,6 +96,7 @@ export type getDoctorSessionQuery = {
   limit: number;
   locationId?: string;
   doctorId?: string;
+  institutionId?: string;
 };
 
 type Option = {
@@ -102,13 +104,18 @@ type Option = {
   name: string;
 };
 
-export const INSTITUTION_OPTIONS: Option[] = [
-  { id: '1', name: 'Hospital Main' },
-  { id: '2', name: 'Hospital A' },
-  { id: '3', name: 'Hospital B' },
-  { id: '4', name: 'Hospital C' },
-  { id: '5', name: 'Hospital D' }
-];
+export const INSTITUTION_LIST = [
+  { id: 0, name: 'Ruhunu Hospital (Pvt) Ltd  (RH)' },
+  { id: 1, name: 'Ruhunu Hospital Diagnostics (Private) Limited  (RHD)' },
+  { id: 2, name: 'Ruhunu Hospital Training  (RHT)' },
+  { id: 3, name: 'Ruhunu Pharmaceuticals & Services (Pvt) Ltd  (RPS)' }
+] as const;
+
+// For dropdowns that expect { id: string, name: string }
+export const INSTITUTION_OPTIONS: Option[] = INSTITUTION_LIST.map((item) => ({
+  id: String(item.id),
+  name: item.name
+}));
 
 export const REFUNDABLE_OPTIONS: Option[] = [
   { id: '0', name: 'No' },
