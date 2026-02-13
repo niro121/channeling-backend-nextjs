@@ -3,6 +3,9 @@
 import {
   getDoctorLeavesService,
   getActiveSessionsService,
+  getCanceledSessionsService,
+  getSessionIdsLockedByOtherLeavesService,
+  getSessionsByIdsService,
   getOneLeaveByIdService,
   createDoctorLeaveService,
   updateDoctorLeaveService,
@@ -14,6 +17,7 @@ import {
   GetActiveSession,
   GetDoctorLeavesParams,
   GetDoctorLeavesQuery,
+  GetLockedSessionIdsParams,
   DoctorLeaveFormProps
 } from '@/types/doctor.leave';
 import { revalidatePath } from 'next/cache';
@@ -126,6 +130,126 @@ export const getAllActiveSessions = async (params: GetActiveSession) => {
         error?.message || 'Unexpected error occurred while fetching sessions.',
       data: [],
       totalRecords: 0
+    };
+  }
+};
+
+// ==== GET ALL CANCELED SESSIONS (status 0) IN DATE RANGE ==== //
+export const getCanceledSessions = async (
+  params: GetActiveSession
+): Promise<{
+  success: boolean;
+  data?: any[];
+  totalRecords?: number;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  await requirePermission('doctor_leaves', 'view');
+  try {
+    if (!params?.doctorId) {
+      return {
+        success: false,
+        message: 'Doctor ID is required.',
+        data: [],
+        totalRecords: 0
+      };
+    }
+    const response = await getCanceledSessionsService(params);
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message ?? 'Failed to fetch canceled sessions',
+        data: [],
+        totalRecords: 0
+      };
+    }
+    return {
+      success: true,
+      data: response.data ?? [],
+      totalRecords: response.totalRecords ?? 0,
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getCanceledSessions action error:', error);
+    return {
+      success: false,
+      message: error?.message ?? 'Failed to fetch canceled sessions',
+      data: [],
+      totalRecords: 0
+    };
+  }
+};
+
+// ==== GET SESSION IDs LOCKED BY OTHER LEAVES (same doctor) ==== //
+export const getSessionIdsLockedByOtherLeaves = async (
+  params: GetLockedSessionIdsParams
+): Promise<{
+  success: boolean;
+  data?: string[];
+  message?: string;
+  error?: { message?: string };
+}> => {
+  await requirePermission('doctor_leaves', 'view');
+  try {
+    if (!params?.doctorId) {
+      return { success: true, data: [] };
+    }
+    const response = await getSessionIdsLockedByOtherLeavesService(
+      params.doctorId,
+      params.excludeLeaveId ?? undefined
+    );
+    if (!response.success) {
+      return {
+        success: false,
+        data: [],
+        message: response.error?.message ?? 'Failed to fetch locked session IDs'
+      };
+    }
+    return {
+      success: true,
+      data: response.data ?? [],
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getSessionIdsLockedByOtherLeaves action error:', error);
+    return {
+      success: false,
+      data: [],
+      message: error?.message ?? 'Failed to fetch locked session IDs'
+    };
+  }
+};
+
+// ==== GET SESSIONS BY IDS (any status, for leave canceled-sessions display) ==== //
+export const getSessionsByIds = async (
+  ids: string[]
+): Promise<{
+  success: boolean;
+  data?: any[];
+  message?: string;
+  error?: { message?: string };
+}> => {
+  await requirePermission('doctor_leaves', 'view');
+  try {
+    const response = await getSessionsByIdsService(ids);
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message ?? 'Failed to fetch sessions',
+        data: []
+      };
+    }
+    return {
+      success: true,
+      data: response.data ?? [],
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getSessionsByIds action error:', error);
+    return {
+      success: false,
+      message: error?.message ?? 'Failed to fetch sessions by ids',
+      data: []
     };
   }
 };

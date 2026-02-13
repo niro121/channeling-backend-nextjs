@@ -65,7 +65,11 @@ function normalizeSendSms(value: unknown): 0 | 1 {
   return 0;
 }
 
-/** Set session status for all session IDs in the leave. When leave status is 0 (cancel), sessions get 0; when 1 (active), sessions get 0 (unavailable on leave). */
+/**
+ * Set Session.status to match DoctorLeave.status for the given session IDs.
+ * DoctorLeave status 1 (ACTIVE) = sessions available → Session.status = 1.
+ * DoctorLeave status 0 (CANCEL) = sessions on leave → Session.status = 0.
+ */
 async function setSessionsStatusByLeave(
   sessionIds: string[],
   leaveStatus: number,
@@ -76,11 +80,11 @@ async function setSessionsStatusByLeave(
   }
 ) {
   if (sessionIds.length === 0) return;
-  const sessionStatus = leaveStatus === 0 ? 0 : 0; // both cancel and active leave → session unavailable (0)
+  const status = leaveStatus === 1 ? 1 : 0;
   await prisma.session.updateMany({
     where: { id: { in: sessionIds } },
     data: {
-      status: sessionStatus,
+      status,
       ...(options?.doctorLeaveRemark != null && {
         doctorLeaveRemark: options.doctorLeaveRemark
       }),
@@ -106,6 +110,16 @@ async function restoreSessionsToActive(sessionIds: string[]) {
       doctorLeaveCreatedAt: null
     }
   });
+}
+
+/** Get session IDs already used by other leaves for this doctor (for validation) */
+async function getLockedSessionIdsForDoctor(
+  doctorId: string,
+  excludeLeaveId?: string | null
+): Promise<Set<string>> {
+  const res = await getSessionIdsLockedByOtherLeavesService(doctorId, excludeLeaveId);
+  if (!res.success || !res.data) return new Set();
+  return new Set(res.data);
 }
 
 // ================ //
@@ -250,6 +264,157 @@ export const getActiveSessionsService = async ({
   }
 };
 
+// ==== GET ALL CANCELED SESSIONS (status 0) IN DATE RANGE ==== //
+export const getCanceledSessionsService = async ({
+  doctorId,
+  fromDate,
+  toDate
+}: GetActiveSession): Promise<{
+  success: boolean;
+  data?: any[];
+  totalRecords?: number;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const whereClause: Prisma.SessionWhereInput = {
+      doctorId,
+      status: 0 // canceled / on leave
+    };
+
+    if (fromDate && toDate) {
+      whereClause.date = {
+        gte: new Date(fromDate),
+        lte: new Date(toDate)
+      };
+    } else if (fromDate) {
+      whereClause.date = { gte: new Date(fromDate) };
+    } else if (toDate) {
+      whereClause.date = { lte: new Date(toDate) };
+    }
+
+    const records = await prisma.session.findMany({
+      where: whereClause,
+      orderBy: { date: 'asc' },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        date: true,
+        doctor: { select: { id: true, name: true, code: true } },
+        location: { select: { id: true, name: true } },
+        room: { select: { id: true, number: true } },
+        department: { select: { id: true, name: true } }
+      }
+    });
+
+    const totalRecords = await prisma.session.count({
+      where: whereClause
+    });
+
+    return {
+      success: true,
+      data: records,
+      totalRecords
+    };
+  } catch (error: any) {
+    console.error('getCanceledSessionsService error:', error);
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      error: { message: error?.message ?? 'Failed to fetch canceled sessions' }
+    };
+  }
+};
+
+// ==== GET SESSION IDs LOCKED BY OTHER LEAVES (same doctor) ==== //
+/** Returns session IDs that are already in another leave for this doctor. Exclude current leave when editing. */
+export const getSessionIdsLockedByOtherLeavesService = async (
+  doctorId: string,
+  excludeLeaveId?: string | null
+): Promise<{
+  success: boolean;
+  data?: string[];
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!doctorId?.trim()) {
+      return { success: true, data: [] };
+    }
+    const where: Prisma.DoctorLeaveWhereInput = { doctorId };
+    if (excludeLeaveId?.trim()) {
+      where.id = { not: excludeLeaveId };
+    }
+    const leaves = await prisma.doctorLeave.findMany({
+      where,
+      select: { sessions: true }
+    });
+    const lockedIds = new Set<string>();
+    for (const leave of leaves) {
+      const raw = leave.sessions;
+      if (raw == null) continue;
+      const arr = Array.isArray(raw) ? raw : [];
+      for (const item of arr) {
+        const id = typeof item === 'string' ? item : (item as { id?: string })?.id;
+        if (id && typeof id === 'string') lockedIds.add(id);
+      }
+    }
+    return { success: true, data: Array.from(lockedIds) };
+  } catch (error: any) {
+    console.error('getSessionIdsLockedByOtherLeavesService error:', error);
+    return {
+      success: false,
+      data: [],
+      error: { message: error?.message ?? 'Failed to fetch locked session IDs' }
+    };
+  }
+};
+
+// ==== GET SESSIONS BY IDS (any status, for leave's canceled sessions display) ==== //
+export const getSessionsByIdsService = async (
+  ids: string[]
+): Promise<{
+  success: boolean;
+  data?: any[];
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!ids?.length) {
+      return { success: true, data: [] };
+    }
+    const validIds = ids.filter((id) => id && typeof id === 'string');
+    if (validIds.length === 0) return { success: true, data: [] };
+
+    const records = await prisma.session.findMany({
+      where: { id: { in: validIds } },
+      orderBy: { date: 'asc' },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        date: true,
+        status: true,
+        doctor: { select: { id: true, name: true, code: true } },
+        location: { select: { id: true, name: true } },
+        room: { select: { id: true, number: true } },
+        department: { select: { id: true, name: true } }
+      }
+    });
+
+    return { success: true, data: records };
+  } catch (error: any) {
+    console.error('getSessionsByIdsService error:', error);
+    return {
+      success: false,
+      data: [],
+      error: { message: error?.message ?? 'Failed to fetch sessions by ids' }
+    };
+  }
+};
+
 // ==== GET ONE DOCTOR LEAVE BY ID ==== //
 export const getOneLeaveByIdService = async (
   id: string
@@ -328,6 +493,17 @@ export const createDoctorLeaveService = async (
     }
 
     const data = parsed.data;
+    const lockedIds = await getLockedSessionIdsForDoctor(data.doctorId, undefined);
+    const conflicting = data.sessions.map((s) => s.id).filter((id) => lockedIds.has(id));
+    if (conflicting.length > 0) {
+      return {
+        success: false,
+        error: {
+          message: `Cannot add sessions that are already in another leave for this doctor. ${conflicting.length} session(s) are already used.`
+        }
+      };
+    }
+
     const sessionsJson = data.sessions.map(
       (s) => s.id
     ) as unknown as Prisma.InputJsonValue;
@@ -351,9 +527,9 @@ export const createDoctorLeaveService = async (
       }
     });
 
-    const remark = data.remarks ?? 'Doctor leave';
+    // Apply DoctorLeave status to selected sessions: Active (1) → Session 1, Cancel (0) → Session 0.
     await setSessionsStatusByLeave(sessionIds, data.status, {
-      doctorLeaveRemark: remark,
+      doctorLeaveRemark: data.remarks ?? 'Doctor leave',
       doctorLeaveCreator: user?.name ?? undefined,
       doctorLeaveCreatedAt: Math.floor(Date.now() / 1000)
     });
@@ -423,9 +599,22 @@ export const updateDoctorLeaveService = async (
     }
 
     const data = parsed.data;
-    const previousSessionIds = (existing.sessions as string[] | null) ?? [];
     const newSessionIds = (data.sessions ?? []).map((s) => s.id);
+    const lockedIds = await getLockedSessionIdsForDoctor(
+      data.doctorId ?? existing.doctorId,
+      id
+    );
+    const conflicting = newSessionIds.filter((sid) => lockedIds.has(sid));
+    if (conflicting.length > 0) {
+      return {
+        success: false,
+        error: {
+          message: `Cannot add sessions that are already in another leave for this doctor. ${conflicting.length} session(s) are already used.`
+        }
+      };
+    }
 
+    const previousSessionIds = (existing.sessions as string[] | null) ?? [];
     const sessionsToRestore = previousSessionIds.filter(
       (sid) => !newSessionIds.includes(sid)
     );
@@ -454,6 +643,7 @@ export const updateDoctorLeaveService = async (
       }
     });
 
+    // Always apply DoctorLeave status to selected sessions: Active (1) → Session 1, Cancel (0) → Session 0.
     if (newSessionIds.length > 0) {
       await setSessionsStatusByLeave(newSessionIds, leaveStatus, {
         doctorLeaveRemark: data.remarks ?? 'Doctor leave',
