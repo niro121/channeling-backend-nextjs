@@ -20,14 +20,17 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import {
   getAllActiveSessions,
+  getCanceledSessions,
+  getSessionIdsLockedByOtherLeaves,
   createDoctorLeave,
   updateDoctorLeave
 } from '@/app/actions/doctor.leave.action';
 import moment from 'moment';
 import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { CustomSwitch } from '@/components/common/custom-switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type LeaveFormProps = {
   doctorId: string;
@@ -56,9 +59,16 @@ export default function DoctorLeaveForm({
   const { toast } = useToast();
   const router = useRouter();
   const [sessionsLoading, setSessionsLoading] = React.useState<boolean>(false);
-  const [availableSessions, setAvailableSessions] = React.useState<Session[]>(
-    []
-  );
+  const [activeSessionsFromAPI, setActiveSessionsFromAPI] = React.useState<
+    Session[]
+  >([]);
+  const [canceledSessionsFromAPI, setCanceledSessionsFromAPI] = React.useState<
+    Session[]
+  >([]);
+  const [removedSessions, setRemovedSessions] = React.useState<Session[]>([]);
+  /** Session IDs already used by another leave for this doctor — not selectable for this leave */
+  const [lockedSessionIds, setLockedSessionIds] = React.useState<Set<string>>(new Set());
+  const [sessionsTab, setSessionsTab] = React.useState<'active' | 'selected'>('active');
   const [dateRange, setDateRange] = React.useState<{
     fromDate?: Date;
     toDate?: Date;
@@ -70,10 +80,10 @@ export default function DoctorLeaveForm({
 
   const initialValues: DoctorLeaveFormProps = React.useMemo(
     () => ({
-      fromDate: doctorLeave?.fromDate ?? new Date(),
-      toDate: doctorLeave?.toDate ?? new Date(),
+      fromDate: doctorLeave?.fromDate ?? dateRange.fromDate ?? new Date(),
+      toDate: doctorLeave?.toDate ?? dateRange.toDate ?? new Date(),
       remarks: doctorLeave?.remarks ?? '',
-      sesssions: doctorLeave?.sessions ?? availableSessions,
+      sesssions: doctorLeave?.sessions ?? [],
       sendSms: Boolean(doctorLeave?.sendSms),
       status: doctorLeave?.status ?? 0,
       doctorId: doctorLeave?.doctorId ?? doctorId
@@ -87,8 +97,7 @@ export default function DoctorLeaveForm({
       doctorLeave?.sendSms,
       doctorLeave?.status,
       doctorLeave?.doctorId,
-      doctorId,
-      availableSessions
+      doctorId
     ]
   );
 
@@ -241,8 +250,13 @@ export default function DoctorLeaveForm({
       !dateRange.toDate ||
       dateRange.toDate < dateRange.fromDate
     ) {
-      setAvailableSessions([]);
-      formikRef.current?.setFieldValue('sesssions', []);
+      setActiveSessionsFromAPI([]);
+      setCanceledSessionsFromAPI([]);
+      setLockedSessionIds(new Set());
+      setRemovedSessions([]);
+      if (!doctorLeave?.id) {
+        formikRef.current?.setFieldValue('sesssions', []);
+      }
       return;
     }
 
@@ -251,23 +265,44 @@ export default function DoctorLeaveForm({
 
     setSessionsLoading(true);
 
-    getAllActiveSessions({ doctorId, fromDate: fromStr, toDate: toStr })
-      .then((res) => {
-        if (res.success && res.data?.length) {
-          const mapped = res.data.map(mapApiSessionToItem);
-          setAvailableSessions(mapped);
-          formikRef.current?.setFieldValue('sesssions', mapped);
-        } else {
-          setAvailableSessions([]);
+    Promise.all([
+      getAllActiveSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
+      getCanceledSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
+      getSessionIdsLockedByOtherLeaves({
+        doctorId,
+        excludeLeaveId: doctorLeave?.id ?? undefined
+      })
+    ])
+      .then(([activeRes, canceledRes, lockedRes]) => {
+        const activeMapped = activeRes.success && activeRes.data?.length
+          ? activeRes.data.map(mapApiSessionToItem)
+          : [];
+        const canceledMapped = canceledRes.success && canceledRes.data?.length
+          ? canceledRes.data.map(mapApiSessionToItem)
+          : [];
+        setActiveSessionsFromAPI(activeMapped);
+        setCanceledSessionsFromAPI(canceledMapped);
+        setLockedSessionIds(
+          lockedRes.success && Array.isArray(lockedRes.data)
+            ? new Set(lockedRes.data)
+            : new Set()
+        );
+        setRemovedSessions([]);
+        if (!doctorLeave?.id) {
           formikRef.current?.setFieldValue('sesssions', []);
         }
       })
       .catch(() => {
-        setAvailableSessions([]);
-        formikRef.current?.setFieldValue('sesssions', []);
+        setActiveSessionsFromAPI([]);
+        setCanceledSessionsFromAPI([]);
+        setLockedSessionIds(new Set());
+        setRemovedSessions([]);
+        if (!doctorLeave?.id) {
+          formikRef.current?.setFieldValue('sesssions', []);
+        }
       })
       .finally(() => setSessionsLoading(false));
-  }, [doctorId, dateRange.fromDate, dateRange.toDate]);
+  }, [doctorId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id, doctorLeave?.sessions]);
 
   return (
     <Formik
@@ -284,10 +319,45 @@ export default function DoctorLeaveForm({
           inputClassName: 'col-span-full sm:col-span-3'
         };
 
-        const handleRemove = (id: string) => {
-          const updated = formik.values.sesssions.filter((s) => s.id !== id);
+        const getSessionId = (s: Session | string) => (typeof s === 'string' ? s : s.id);
+        const selectedIds = new Set(formik.values.sesssions.map(getSessionId));
+        const removedIds = new Set(removedSessions.map((s) => s.id));
+
+        const handleRemoveFromLeave = (session: Session) => {
+          const updated = formik.values.sesssions.filter((s) => getSessionId(s) !== session.id);
           formik.setFieldValue('sesssions', updated);
+          setRemovedSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [...prev, session]));
+          setSessionsTab('active');
         };
+
+        const handleAddToLeave = (session: Session) => {
+          const current = formik.values.sesssions;
+          if (current.some((s) => getSessionId(s) === session.id)) return;
+          formik.setFieldValue('sesssions', [...current, session]);
+          setRemovedSessions((prev) => prev.filter((s) => s.id !== session.id));
+          setSessionsTab('selected');
+        };
+
+        // Active tab: only sessions that are not selected and not locked by another leave
+        const activeSessions = [
+          ...activeSessionsFromAPI.filter(
+            (s) => !selectedIds.has(s.id) && !lockedSessionIds.has(s.id)
+          ),
+          ...removedSessions.filter((s) => !lockedSessionIds.has(s.id))
+        ].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i);
+
+        // Selected tab: resolve to Session objects (form may have IDs from server; display needs full Session)
+        const allSessionSources: Session[] = [
+          ...activeSessionsFromAPI,
+          ...canceledSessionsFromAPI.filter((s) => !removedIds.has(s.id))
+        ];
+        const byId = new Map<string, Session>();
+        allSessionSources.forEach((s) => byId.set(s.id, s));
+        formik.values.sesssions.forEach((s) => {
+          const id = getSessionId(s);
+          if (typeof s === 'object' && 'date' in s && s.date) byId.set(id, s as Session);
+        });
+        const selectedSessions = Array.from(byId.values()).filter((s) => selectedIds.has(s.id));
 
         return (
           <Form className="w-full">
@@ -323,6 +393,7 @@ export default function DoctorLeaveForm({
                     placeholder="From Date"
                     value={formik.values.fromDate}
                     onChange={(date) => {
+                      // console.log("From Date: ", date)
                       formik.setFieldValue('fromDate', date ?? undefined);
                       setDateRange({ ...dateRange, fromDate: date });
                     }}
@@ -343,6 +414,7 @@ export default function DoctorLeaveForm({
                     placeholder="To Date"
                     value={formik.values.toDate}
                     onChange={(date) => {
+                      // console.log("To Date: ", date)
                       formik.setFieldValue('toDate', date ?? undefined);
                       setDateRange({ ...dateRange, toDate: date });
                     }}
@@ -367,34 +439,80 @@ export default function DoctorLeaveForm({
                 <Card
                   className={`${styleClasses.inputClassName} p-3 space-y-3`}
                 >
-                  <p className="text-sm text-red-500 font-semibold text-center">
-                    Removing sessions are remained as ACTIVE sessions.
-                  </p>
-                  <Card className={`flex flex-wrap gap-3 p-2 relative`}>
-                    {sessionsLoading && (
-                      <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
-                    )}
-                    {availableSessions.length === 0 && (
-                      <p className="text-muted-foreground text-center text-sm">
-                        No active sessions available
+                  <Tabs value={sessionsTab} onValueChange={(v) => setSessionsTab(v as 'active' | 'selected')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="active" className='data-[state=active]:bg-green-700 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:font-semibold'>
+                        Active sessions ({activeSessions.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="selected" className='data-[state=active]:bg-green-700 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:font-semibold'>
+                        Selected sessions ({selectedSessions.length})
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="active" className="mt-3">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Sessions available for channeling. Add to Selected sessions to include in this leave; on save, their status will follow the leave status (Active = available, Cancel = unavailable).
+                        {lockedSessionIds.size > 0 && (
+                          <span className="block mt-1 text-amber-600 dark:text-amber-500">
+                            Sessions already in another leave for this doctor are not shown and cannot be selected.
+                          </span>
+                        )}
                       </p>
-                    )}
-                    {availableSessions.map((option) => (
-                      <Badge
-                        key={option.id}
-                        variant="secondary"
-                        className={`flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600`}
-                      >
-                        {new Date(option.date).toLocaleDateString()} |{' '}
-                        {option.location} | {option.startTime} -{' '}
-                        {option.endTime}
-                        <X
-                          className="h-3 w-3 cursor-pointer"
-                          onPointerDown={() => handleRemove(option.id)}
-                        />
-                      </Badge>
-                    ))}
-                  </Card>
+                      <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
+                        {sessionsLoading && (
+                          <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
+                        )}
+                        {!sessionsLoading && activeSessions.length === 0 && (
+                          <p className="text-muted-foreground text-center text-sm w-full py-4">
+                            No active sessions in this range, or all are already
+                            on leave.
+                          </p>
+                        )}
+                        {activeSessions.map((option) => (
+                          <Badge
+                            key={option.id}
+                            variant="secondary"
+                            className="h-fit flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 cursor-pointer"
+                            onClick={() => handleAddToLeave(option)}
+                          >
+                            {new Date(option.date).toLocaleDateString()} |{' '}
+                            {option.location} | {option.startTime} -{' '}
+                            {option.endTime}
+                            <Plus className="h-3 w-3 ml-0.5" />
+                          </Badge>
+                        ))}
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="selected" className="mt-3">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Sessions selected for this leave. On save, Session status will match the leave status: Active = available, Cancel = unavailable. Remove to exclude from this leave.
+                      </p>
+                      <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
+                        {selectedSessions.length === 0 && (
+                          <p className="text-muted-foreground text-center text-sm w-full py-4">
+                            No sessions selected. Add from Active sessions tab.
+                          </p>
+                        )}
+                        {selectedSessions.map((option) => (
+                          <Badge
+                            key={option.id}
+                            variant="secondary"
+                            className="h-fit flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600"
+                          >
+                            {new Date(option.date).toLocaleDateString()} |{' '}
+                            {option.location} | {option.startTime} -{' '}
+                            {option.endTime}
+                            <X
+                              className="h-3 w-3 cursor-pointer"
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                handleRemoveFromLeave(option);
+                              }}
+                            />
+                          </Badge>
+                        ))}
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
                 </Card>
               </div>
 
