@@ -1,6 +1,7 @@
 import { Doctor } from './doctor';
 import { Session } from './booking.dashboard';
 import { AgencyBook } from './agencybook';
+import { Agency } from './agency';
 
 export type DoctorReportQuery = {
   date?: Date | string;
@@ -79,4 +80,38 @@ export type ExportChannelAgentReferenceBookData = {
   updatedBy: string;
   updatedDate: string;
   active: string;
+};
+
+// Agent Detail Report Types
+export type AgentDetailReportQuery = {
+  fromDate: string;
+  toDate: string;
+  agencyName?: string;
+  agencyCode?: string;
+  status?: string; // '0' | '1' | '__all__'
+};
+
+export type AgentDetailReportResponse = {
+  success: boolean;
+  data: Agency[];
+  totalRecords: number;
+  message?: string;
+};
+
+export type ExportAgentDetailData = {
+  created: string;
+  agentCode: string;
+  agentName: string;
+  status: string;
+  address: string;
+  phone: string;
+  fax: string;
+  email: string;
+  contactPerson: string;
+  contactPhone: string;
+  contactPersonEmail: string;
+  standardCreditLimit: string;
+  allowedCreditLimit: string;
+  allowedMaximinCreditLimit: string;
+  balance: string;
 };
