@@ -6,6 +6,12 @@ export type Session = {
   endTime: string;
 };
 
+type Doctor = {
+  id: string
+  name: string
+  code: string
+}
+
 /** Doctor leave record as stored (fromDate/toDate as YYYYMMDD) */
 export type DoctorLeave = {
   id?: string;
@@ -15,6 +21,7 @@ export type DoctorLeave = {
   sessions?: Session[];
   sendSms: boolean;
   status: number; // 0 = CANCEL, 1 = ACTIVE
+  doctor: Doctor
   doctorId: string;
   createdBy: string | null;
   updatedBy: string | null;
@@ -71,4 +78,11 @@ export type GetActiveSession = {
   doctorId: string;
   fromDate: string;
   toDate: string;
+};
+
+/** Params for fetching session IDs already used by other leaves (to disallow double-booking) */
+export type GetLockedSessionIdsParams = {
+  doctorId: string;
+  /** When editing, exclude this leave so its own sessions are not considered "locked" */
+  excludeLeaveId?: string | null;
 };
