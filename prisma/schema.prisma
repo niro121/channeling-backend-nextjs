@@ -195,7 +195,7 @@ model Session {
   doctorLeaveRemark     String?
   doctorLeaveCreator    String?
   doctorLeaveCreatedAt  Int?
-  status                Int // == 1: ACTIVE. 0: Session available | LEAVE: Doctor leave (DoctorSession status) == //
+  status                Int // == 1: ACTIVE. 0: Session unavailable | LEAVE: Doctor leave (DoctorSession status) == //
   remarks               String?
   appointmentNo         Int      @default(0)
   isScan                Boolean  @default(false)
@@ -222,12 +222,12 @@ model Session {
 
 model DoctorLeave {
   id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  fromDate      Int
-  toDate        Int
+  fromDate      DateTime
+  toDate        DateTime
   remarks       String?
   cancelRemarks String?
   sessions      Json?
-  sendSms       Int?
+  sendSms       Int? // == 0: no, 1: yes == //
   status        Int // == 0 = CANCEL, 1 = ACTIVE == //
 
   createdBy String?  @db.ObjectId
