@@ -25,10 +25,18 @@ const reportsData = [
   },
   {
     id: '2',
+    masterData: 'Channel Agent Reference Book',
+    description: 'View channel agent reference book information with filters',
+    route: '/reports/channel-agent-reference-book'
+    
+  },
+  {
+    id: '3',
     masterData: 'Doctor Arrivals Report',
-    description: 'View doctor arrival information based on sessions',
+    description: 'View doctor arrivals information with filters',
     route: '/reports/arrivals'
-  }
+  },
+
 ];
 
 export default function ReportsPage() {

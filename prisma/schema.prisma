@@ -43,6 +43,8 @@ model User {
   updatedSessions       Session[]       @relation("UserUpdatedSessions")
   createdLogs           Log[]           @relation("UserCreatedLogs")
   updatedLogs           Log[]           @relation("UserUpdatedLogs")
+  createdAgencyBooks    AgencyBook[]    @relation("UserCreatedAgencyBooks")
+  updatedAgencyBooks    AgencyBook[]    @relation("UserUpdatedAgencyBooks")
   userGroupId           String?         @db.ObjectId
   userGroup             UserGroup?      @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
   shifts                Shift[]         @relation("UserShifts")
@@ -429,8 +431,12 @@ model AgencyBook {
   // ==== AUDIT FIELDS ==== //
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  // ==== USER RELATIONS ==== //
+  createdUser User? @relation("UserCreatedAgencyBooks", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User? @relation("UserUpdatedAgencyBooks", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Agency {

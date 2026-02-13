@@ -1,9 +1,14 @@
 'use server';
 
-import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { DoctorReportQuery, DoctorArrivalsReportQuery } from '@/types/report';
+import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery, DoctorArrivalsReportQuery } from '@/types/report';
 import moment from 'moment';
+
+// Get Prisma types from the prisma instance
+type ExtractWhereInput<T> = T extends { where?: infer W } ? W : never;
+type PrismaDoctorWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.doctor.findMany>[0]>>;
+type PrismaSessionWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.session.findMany>[0]>>;
+type PrismaAgencyBookWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.agencyBook.findMany>[0]>>;
 
 // ==== GET DOCTOR REPORT DATA ==== //
 export const getDoctorReportDataService = async ({
@@ -13,13 +18,13 @@ export const getDoctorReportDataService = async ({
 }: DoctorReportQuery) => {
   try {
     // Build where clause for filtering
-    const whereClause: Prisma.DoctorWhereInput = {};
+    const whereClause: PrismaDoctorWhereInput = {};
 
     // Apply doctor name filter
     if (doctorName && doctorName.trim() !== '') {
       whereClause.name = {
         contains: doctorName.trim(),
-        mode: Prisma.QueryMode.insensitive
+        mode: 'insensitive'
       };
     }
 
@@ -27,7 +32,7 @@ export const getDoctorReportDataService = async ({
     if (doctorCode && doctorCode.trim() !== '') {
       whereClause.code = {
         contains: doctorCode.trim(),
-        mode: Prisma.QueryMode.insensitive
+        mode: 'insensitive'
       };
     }
 
@@ -49,9 +54,10 @@ export const getDoctorReportDataService = async ({
       data: doctors,
       totalRecords: doctors.length
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getDoctorReportDataService error', error);
-    throw new Error(error.message ?? 'Error getting doctor report data');
+    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor report data';
+    throw new Error(errorMessage);
   }
 };
 
@@ -71,7 +77,7 @@ export const getDoctorArrivalsReportDataService = async ({
     const toDateEnd = moment(toDateObj).endOf('day').toDate();
 
     // Build where clause
-    const whereClause: Prisma.SessionWhereInput = {
+    const whereClause: PrismaSessionWhereInput = {
       date: {
         gte: fromDateStart,
         lte: toDateEnd
@@ -109,8 +115,74 @@ export const getDoctorArrivalsReportDataService = async ({
       data: sessions,
       totalRecords: sessions.length
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getDoctorArrivalsReportDataService error', error);
-    throw new Error(error.message ?? 'Error getting doctor arrivals report data');
+    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor arrivals report data';
+    throw new Error(errorMessage);
+  }
+};
+
+// ==== GET CHANNEL AGENT REFERENCE BOOK REPORT DATA ==== //
+export const getChannelAgentReferenceBookReportDataService = async ({
+  fromDate,
+  toDate,
+  agencyId,
+  bookNumber
+}: ChannelAgentReferenceBookReportQuery) => {
+  try {
+    const whereClause: PrismaAgencyBookWhereInput = {};
+
+    // Date range filter (required)
+    const startOfDay = moment(fromDate).startOf('day').toDate();
+    const endOfDay = moment(toDate).endOf('day').toDate();
+
+    whereClause.createdAt = {
+      gte: startOfDay,
+      lte: endOfDay,
+    };
+
+    // Agency filter (optional)
+    if (agencyId && agencyId !== '__all__') {
+      whereClause.agencyId = agencyId;
+    }
+
+    // Book number filter (optional)
+    if (bookNumber && bookNumber.trim() !== '') {
+      whereClause.bookNumber = {
+        contains: bookNumber.trim(),
+        mode: 'insensitive'
+      };
+    }
+
+    const records = await prisma.agencyBook.findMany({
+      where: whereClause,
+      include: {
+        agency: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        createdUser: true,
+        updatedUser: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const totalRecords = await prisma.agencyBook.count({
+      where: whereClause
+    });
+
+    return {
+      success: true,
+      data: records,
+      totalRecords
+    };
+  } catch (error: unknown) {
+    console.error('getChannelAgentReferenceBookReportDataService error', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error getting channel agent reference book report data';
+    throw new Error(errorMessage);
   }
 };
