@@ -5,7 +5,7 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { DoctorLeaveColumns } from './columns';
 import { DoctorLeaveListItem } from '@/types/doctor.leave';
 import Loading from '../loading';
-import { getDoctorLeaves } from '@/app/actions/doctor.leave.action';
+import { bulkDeleteDoctorLeaves, getDoctorLeaves } from '@/app/actions/doctor.leave.action';
 import FilterSection from './filter-section';
 import AddBtnSection from './add-btn-section';
 
@@ -97,8 +97,11 @@ export default function DoctorLeavesList({
       columns={DoctorLeaveColumns}
       data={data}
       rowCount={totalRecords}
-      // deleteServerAction={}
-      haveBulkDelete={false}
+      deleteServerAction={async (ids: string[]) => {
+        const res = await bulkDeleteDoctorLeaves(ids);
+        return res.success === true;
+      }}
+      haveBulkDelete={true}
       page={page}
       limit={limit}
       toolbarLeft={
