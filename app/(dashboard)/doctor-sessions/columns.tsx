@@ -50,7 +50,7 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
         <div className="max-w-48 truncate">
           <Link
             href={`/doctor-sessions/${id}/edit`}
-            className="cursor-pointer hover:text-blue-700 transition duration-75"
+            className="font-medium text-primary hover:underline"
           >
             {name} {time} ({day.name})
           </Link>
