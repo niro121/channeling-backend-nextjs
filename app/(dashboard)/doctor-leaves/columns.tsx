@@ -5,14 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { DoctorLeaveListItem } from '@/types/doctor.leave';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-
-/** Format YYYYMMDD number to YYYY-MM-DD string */
-export function formatDateInt(n: number): string {
-  const y = Math.floor(n / 10000);
-  const m = Math.floor((n % 10000) / 100);
-  const d = n % 100;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
+import { DoctorLeaveRecordActions } from './record-actions';
+import moment from 'moment';
+import Link from 'next/link';
 
 export const DoctorLeaveColumns: ColumnDef<DoctorLeaveListItem>[] = [
   {
@@ -40,25 +35,40 @@ export const DoctorLeaveColumns: ColumnDef<DoctorLeaveListItem>[] = [
     enableHiding: false
   },
   {
+    id: 'leaveCount',
+    header: 'Leave count',
+    cell: ({ row }) => {
+      const leaveId = row.original.id;
+      const raw = row.original.sessions;
+      const count = Array.isArray(raw) ? raw.length : 0;
+      if (!leaveId) {
+        return <span>{count}</span>;
+      }
+      return (
+        <Link
+          href={`/doctor-leaves/${leaveId}/edit`}
+          className="font-medium text-primary hover:underline"
+        >
+          Sessions: {count}
+        </Link>
+      );
+    },
+    enableSorting: false
+  },
+  {
     accessorKey: 'fromDate',
     header: 'From',
-    cell: ({ row }) => formatDateInt(row.getValue<number>('fromDate'))
+    cell: ({ row }) => {
+      const dateValue = row.getValue<number>('fromDate');
+      return moment(dateValue).format('YYYY-MM-DD');
+    }
   },
   {
     accessorKey: 'toDate',
     header: 'To',
-    cell: ({ row }) => formatDateInt(row.getValue<number>('toDate'))
-  },
-  {
-    accessorKey: 'remarks',
-    header: 'Remarks',
     cell: ({ row }) => {
-      const remarks = row.getValue<string | null>('remarks');
-      return (
-        <div className="max-w-48 truncate" title={remarks ?? undefined}>
-          {remarks ?? '—'}
-        </div>
-      );
+      const dateValue = row.getValue<number>('toDate');
+      return moment(dateValue).format('YYYY-MM-DD');
     }
   },
   {
@@ -67,6 +77,7 @@ export const DoctorLeaveColumns: ColumnDef<DoctorLeaveListItem>[] = [
     cell: ({ row }) => {
       const status = row.getValue<number>('status');
       const isActive = status === 1;
+
       return (
         <Badge
           variant={isActive ? 'default' : 'secondary'}
@@ -85,5 +96,10 @@ export const DoctorLeaveColumns: ColumnDef<DoctorLeaveListItem>[] = [
         </Badge>
       );
     }
+  },
+  {
+    id: 'actions',
+    header: () => <div className="text-right">Actions</div>,
+    cell: ({ row }) => <DoctorLeaveRecordActions row={row} />
   }
 ];
