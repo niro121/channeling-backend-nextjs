@@ -216,7 +216,10 @@ export default function DoctorLeaveForm({
           title: 'Success',
           description: 'Doctor leave was created successfully'
         });
-        if (onSuccess) onSuccess();
+        if (onSuccess) {
+          onSuccess(),
+          router.refresh()
+        }
         else if (respond.data?.id) {
           router.push(`/doctor-leaves/${respond.data.id}/edit`);
         } else {
