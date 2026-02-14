@@ -44,7 +44,7 @@ const CustomAlertDialog = ({
           >
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} disabled={loading}>
+          <AlertDialogAction onClick={handleContinue} disabled={loading} className="relative">
             Continue {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>
