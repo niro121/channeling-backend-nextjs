@@ -54,6 +54,7 @@ model User {
   activityLogs          ActivityLog[]   @relation("UserActivityLogs")
   createdDoctorLeaves   DoctorLeave[]   @relation("UserCreatedLeaves")
   updatedDoctorLeaves   DoctorLeave[]   @relation("UserUpdatedLeaves")
+  createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
 }
 
 model UserGroup {
@@ -175,6 +176,52 @@ model DoctorSession {
   previousSessions  DoctorSession[] @relation("PreviousSession")
   createdUser       User?           @relation("UserCreatedDoctorSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser       User?           @relation("UserUpdatedDoctorSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+// Bulk price change: one record per "campaign" (name + single fee type)
+model DoctorSessionBulkPriceChange {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  feeTypeId  String   // FEE_TYPES id e.g. "1" for Hospital Fee
+  status     String   // DRAFT | PROCESSED
+  createdBy  String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
+
+  createdUser User?   @relation("UserCreatedBulkPriceChanges", fields: [createdBy], references: [id], onDelete: SetNull)
+  rules       DoctorSessionBulkPriceChangeRule[]
+  results     DoctorSessionBulkPriceChangeResult[]
+}
+
+// Rule: single condition (op + value) or range (localFeeMin..localFeeMax)
+model DoctorSessionBulkPriceChangeRule {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  bulkPriceChangeId String @db.ObjectId
+  localFeeOp     String   // gt | gte | lt | lte | eq | range
+  localFeeValue  Float    // used when not range
+  localFeeMin    Float?   // when range: from this value
+  localFeeMax    Float?   // when range: to this value
+  newLocalFee    Float
+  newForeignFee  Float
+  order          Int      @default(0) // apply first matching rule
+
+  bulkPriceChange DoctorSessionBulkPriceChange @relation(fields: [bulkPriceChangeId], references: [id], onDelete: Cascade)
+}
+
+// Record of what changed (report) after processing
+model DoctorSessionBulkPriceChangeResult {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  bulkPriceChangeId String  @db.ObjectId
+  doctorSessionId  String   @db.ObjectId
+  sessionName      String?
+  doctorName       String?
+  oldLocalFee      Float
+  oldForeignFee    Float
+  newLocalFee      Float
+  newForeignFee    Float
+  processedAt      DateTime @default(now())
+
+  bulkPriceChange DoctorSessionBulkPriceChange @relation(fields: [bulkPriceChangeId], references: [id], onDelete: Cascade)
 }
 
 model Session {

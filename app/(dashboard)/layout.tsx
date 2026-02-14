@@ -25,6 +25,7 @@ import {
   CalendarCheck,
   LucideHome,
   TicketIcon,
+  DollarSign,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -82,6 +83,7 @@ async function MobileNav({ session }: { session: Session | null }) {
             <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channelling</p>
             <div className="space-y-0.5">
               <NavLink href={hasAccess('/channel-booking') ? '/channel-booking' : 'unauthorized-access'} label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />
+              <NavLink href={hasAccess('/sessions') ? '/sessions' : 'unauthorized-access'} label="Sessions" icon={<Clock10 className="h-5 w-5" />} />
             </div>
           </div>
           <div className="space-y-1">
@@ -89,6 +91,7 @@ async function MobileNav({ session }: { session: Session | null }) {
             <div className="space-y-0.5">
               <NavLink href={hasAccess('/doctors') ? '/doctors' : 'unauthorized-access'} label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />
               <NavLink href={hasAccess('/doctor-sessions') ? '/doctor-sessions' : 'unauthorized-access'} label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />
+              <NavLink href={hasAccess('/doctor-sessions') ? '/doctor-sessions/bulk-price-change' : 'unauthorized-access'} label="Bulk Price Change" icon={<DollarSign className="h-5 w-5" />} />
               <NavLink href={hasAccess('/specialities') ? '/specialities' : 'unauthorized-access'} label="Speciality" icon={<StarIcon className="h-5 w-5" />} />
               <NavLink href={hasAccess('/doctor-leaves') ? '/doctor-leaves' : 'unauthorized-access'} label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />
             </div>

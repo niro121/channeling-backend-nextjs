@@ -26,6 +26,8 @@ import {
   extractTime,
   buildDateFromTime,
   calculateDurationMinutes,
+  timeToMinutes,
+  minutesToTime,
   SRI_LANKA_TZ
 } from '@/lib/utils';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
@@ -339,6 +341,47 @@ export default function DoctorSessionForm({
           inputClassName: 'w-full'
         };
 
+        // Default end to start + 1 hour when start is set and end is empty; enforce end >= start; sync duration
+        React.useEffect(() => {
+          const startVal = formik.values.startTimeValue;
+          const startMer = formik.values.startMeridiem;
+          const endVal = formik.values.endTimeValue;
+          const endMer = formik.values.endMeridiem;
+
+          const startMins = timeToMinutes(startVal, startMer);
+          const endMins = timeToMinutes(endVal, endMer);
+          const minEndMins = startMins + 1; // end must be at least 1 minute after start
+
+          let effectiveEndMins = endMins;
+          if (startVal && startVal.trim()) {
+            if (!endVal || !endVal.trim()) {
+              // Default to start + 1 hour when end is empty
+              effectiveEndMins = startMins + 60;
+              const { timeStr, meridiem } = minutesToTime(effectiveEndMins);
+              formik.setFieldValue('endTimeValue', timeStr);
+              formik.setFieldValue('endMeridiem', meridiem);
+            } else if (endMins < minEndMins) {
+              // End is before or equal to start: clamp to start + 1 minute
+              effectiveEndMins = minEndMins;
+              const { timeStr, meridiem } = minutesToTime(minEndMins);
+              if (endVal !== timeStr || endMer !== meridiem) {
+                formik.setFieldValue('endTimeValue', timeStr);
+                formik.setFieldValue('endMeridiem', meridiem);
+              }
+            }
+          }
+
+          const duration = Math.max(0, effectiveEndMins - startMins);
+          if (formik.values.durationMinutes !== duration) {
+            formik.setFieldValue('durationMinutes', duration);
+          }
+        }, [
+          formik.values.startTimeValue,
+          formik.values.startMeridiem,
+          formik.values.endTimeValue,
+          formik.values.endMeridiem
+        ]);
+
         const sectionTitle = 'text-sm font-semibold text-green-700 border-b border-border pb-2 mb-4';
         const sectionCard = 'rounded-lg border border-border bg-muted/30 p-5 space-y-4';
 
@@ -445,7 +488,7 @@ export default function DoctorSessionForm({
                           timeValue={formik.values.startTimeValue}
                           meridiemValue={formik.values.startMeridiem}
                           onTimeChange={(e) => {
-                            formik.handleChange(e);
+                            formik.setFieldValue('startTimeValue', e.target.value);
                             const duration = calculateDurationMinutes(
                               e.target.value,
                               formik.values.startMeridiem,
@@ -473,7 +516,7 @@ export default function DoctorSessionForm({
                           timeValue={formik.values.endTimeValue}
                           meridiemValue={formik.values.endMeridiem}
                           onTimeChange={(e) => {
-                            formik.handleChange(e);
+                            formik.setFieldValue('endTimeValue', e.target.value);
                             const duration = calculateDurationMinutes(
                               formik.values.startTimeValue,
                               formik.values.startMeridiem,
