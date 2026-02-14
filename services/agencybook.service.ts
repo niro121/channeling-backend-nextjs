@@ -228,6 +228,15 @@ export const createAgencyBookService = async (
       ? { connect: { id: data.agencyId } }
       : undefined;
 
+    // Use relation syntax for user connections (required when relations are defined)
+    const createdUserRelation = user?.id && isValidObjectId(user.id)
+      ? { connect: { id: user.id } }
+      : undefined;
+    
+    const updatedUserRelation = user?.id && isValidObjectId(user.id)
+      ? { connect: { id: user.id } }
+      : undefined;
+
     const agencyBook = await prisma.agencyBook.create({
       data: {
         bookNumber: data.bookNumber,
@@ -235,8 +244,8 @@ export const createAgencyBookService = async (
         endNumber: data.endNumber,
         status: data.status,
         agency: agencyRelation,
-        createdBy: user?.id || null,
-        updatedBy: user?.id || null
+        ...(createdUserRelation && { createdUser: createdUserRelation }),
+        ...(updatedUserRelation && { updatedUser: updatedUserRelation })
       },
       include: {
         agency: {
@@ -244,7 +253,9 @@ export const createAgencyBookService = async (
             id: true,
             name: true
           }
-        }
+        },
+        createdUser: true,
+        updatedUser: true
       }
     });
 
@@ -322,6 +333,11 @@ export const updateAgencyBookService = async (
           : { disconnect: true }
         : undefined;
 
+    // Use relation syntax for updatedUser (required when relations are defined)
+    const updatedUserRelation = user?.id && isValidObjectId(user.id)
+      ? { connect: { id: user.id } }
+      : undefined;
+
     const agencyBook = await prisma.agencyBook.update({
       where: { id },
       data: {
@@ -330,7 +346,7 @@ export const updateAgencyBookService = async (
         ...(data.endNumber !== undefined && { endNumber: data.endNumber }),
         ...(data.status !== undefined && { status: data.status }),
         ...(agencyRelation && { agency: agencyRelation }),
-        updatedBy: user?.id || null,
+        ...(updatedUserRelation && { updatedUser: updatedUserRelation }),
         updatedAt: new Date()
       },
       include: {
@@ -339,7 +355,9 @@ export const updateAgencyBookService = async (
             id: true,
             name: true
           }
-        }
+        },
+        createdUser: true,
+        updatedUser: true
       }
     });
 

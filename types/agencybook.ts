@@ -1,4 +1,5 @@
 // EXPORT ALL TYPES RELATED TO AGENCYBOOK FROM HERE
+import { User } from './user';
 
 export type AgencyBook = {
   id?: string;
@@ -15,6 +16,8 @@ export type AgencyBook = {
   updatedAt?: Date;
   createdBy?: string | null;
   updatedBy?: string | null;
+  createdUser?: User | null;
+  updatedUser?: User | null;
 };
 
 export type AgencyBookFormValues = {

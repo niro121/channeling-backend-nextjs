@@ -5,6 +5,7 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import DoctorArrivalsReportContent from './doctor-arrivals-report-content';
 
+
 // Force dynamic rendering to prevent prerendering during build
 export const dynamic = 'force-dynamic';
 

@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { SearchableSelector } from '@/components/common/searchable-selector';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
-import { getDoctorReportData, exportDoctorReportData } from '@/app/actions/reports/report.action';
-import { Doctor } from '@/types/doctor';
-import { DoctorReportColumns } from './columns';
+import { getChannelAgentReferenceBookReportData, exportChannelAgentReferenceBookReportData } from '@/app/actions/reports/report.action';
+import { AgencyBook } from '@/types/agencybook';
+import { ChannelAgentReferenceBookReportColumns } from './columns';
 import {
   Table,
   TableBody,
@@ -29,31 +28,50 @@ import { SearchIcon } from '@/components/icons';
 import { Printer } from 'lucide-react';
 import { ExportWrapper } from '../../export-wrapper';
 
-function AllDoctorsReportContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+type ChannelAgentReferenceBookReportContentProps = {
+  initialAgencyOptions: Array<{ id: string; name: string }>;
+};
+
+export default function ChannelAgentReferenceBookReportContent({
+  initialAgencyOptions
+}: ChannelAgentReferenceBookReportContentProps) {
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [books, setBooks] = useState<AgencyBook[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   
   // Filter states
-  const [date, setDate] = useState<Date>(new Date());
-  const [doctorName, setDoctorName] = useState(searchParams.get('doctorName') || '');
-  const [doctorCode, setDoctorCode] = useState(searchParams.get('doctorCode') || '');
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [agencyId, setAgencyId] = useState<string>('');
+  const [bookNumber, setBookNumber] = useState<string>('');
+  
+  // Options - initialized from server props
+  const [agencyOptions] = useState(initialAgencyOptions);
 
   const fetchReportData = async () => {
+    // Validate required fields
+    if (!fromDate || !toDate) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select both from date and to date'
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await getDoctorReportData({
-        date: date,
-        doctorName: doctorName || undefined,
-        doctorCode: doctorCode || undefined
+      const result = await getChannelAgentReferenceBookReportData({
+        fromDate: fromDate.toISOString().split('T')[0],
+        toDate: toDate.toISOString().split('T')[0],
+        agencyId: agencyId && agencyId !== '__all__' ? agencyId : undefined,
+        bookNumber: bookNumber && bookNumber.trim() !== '' ? bookNumber.trim() : undefined
       });
 
       if (result.success) {
-        setDoctors(result.data);
+        setBooks(result.data);
         setTotalRecords(result.totalRecords);
       } else {
         toast({
@@ -61,33 +79,24 @@ function AllDoctorsReportContent() {
           title: 'Error',
           description: result.message || 'Failed to fetch report data'
         });
-        setDoctors([]);
+        setBooks([]);
         setTotalRecords(0);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch report data';
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.message || 'Failed to fetch report data'
+        description: errorMessage
       });
-      setDoctors([]);
+      setBooks([]);
       setTotalRecords(0);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchReportData();
-  }, []);
-
   const handleSearch = () => {
-    // Update URL params
-    const params = new URLSearchParams();
-    if (doctorName) params.set('doctorName', doctorName);
-    if (doctorCode) params.set('doctorCode', doctorCode);
-    
-    router.push(`/reports/doctors?${params.toString()}`);
     fetchReportData();
   };
 
@@ -96,17 +105,21 @@ function AllDoctorsReportContent() {
   };
 
   const handleExport = async () => {
-    return await exportDoctorReportData({
-      date: date,
-      doctorName: doctorName || undefined,
-      doctorCode: doctorCode || undefined
-    });
-  };
+    if (!fromDate || !toDate) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select both from date and to date'
+      });
+      return { success: false, message: 'Please select date range' };
+    }
 
-  const styleClasses = {
-    parentDiv: 'grid grid-cols-1 items-center gap-4 sm:grid-cols-4',
-    labelClassName: 'text-sm text-black font-semibold capitalize',
-    inputClassName: 'col-span-full sm:col-span-3'
+    return await exportChannelAgentReferenceBookReportData({
+      fromDate: fromDate.toISOString().split('T')[0],
+      toDate: toDate.toISOString().split('T')[0],
+      agencyId: agencyId && agencyId !== '__all__' ? agencyId : undefined,
+      bookNumber: bookNumber && bookNumber.trim() !== '' ? bookNumber.trim() : undefined
+    });
   };
 
   return (
@@ -115,36 +128,42 @@ function AllDoctorsReportContent() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold">All Doctors Report</CardTitle>
+              <CardTitle className="text-2xl font-bold">Channel Agent Reference Book</CardTitle>
               <CardDescription>
-                View comprehensive list of all doctors with filters
+                View channel agent reference book information with filters
               </CardDescription>
             </div>
             <div className="flex gap-2">
               <ExportWrapper
                 serverData={handleExport}
                 columns={[
-                  'Doctor Code',
-                  'Doctor Name',
-                  'Reg. Number',
-                  'Updated By',
-                  'Updated Date',
+                  'S.No',
+                  'Agent',
+                  'Book Number',
+                  'Utilized Page Count',
+                  'Starting Reference Number',
+                  'Ending Reference Number',
                   'Created By',
                   'Created Date',
-                  'Published'
+                  'Updated By',
+                  'Updated Date',
+                  'Active'
                 ]}
                 keys={[
-                  'code',
-                  'name',
-                  'registrationNumber',
-                  'updatedBy',
-                  'updatedDate',
+                  'sNo',
+                  'agent',
+                  'bookNumber',
+                  'utilizedPageCount',
+                  'startingReferenceNumber',
+                  'endingReferenceNumber',
                   'createdBy',
                   'createdDate',
-                  'published'
+                  'updatedBy',
+                  'updatedDate',
+                  'active'
                 ]}
-                title="All Doctors Report"
-                fileName={`doctors-report-${date.toISOString().split('T')[0]}`}
+                title="Channel Agent Reference Book Report"
+                fileName={`channel-agent-reference-book-${fromDate ? fromDate.toISOString().split('T')[0] : 'report'}`}
               />
               <Button
                 variant="outline"
@@ -161,47 +180,62 @@ function AllDoctorsReportContent() {
         <CardContent>
           {/* Filters - Horizontal Layout */}
           <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 pb-4 border-b">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-shrink-0" style={{ minWidth: '320px' }}>
+              <label className="text-sm text-black font-semibold mb-2 block">
+                Agent
+              </label>
+              <SearchableSelector
+                label="All Agency"
+                options={agencyOptions}
+                value={agencyId || '__all__'}
+                onChange={(v) => setAgencyId(v)}
+                className="w-full"
+              />
+            </div>
+
+            <div className="flex-shrink-0" style={{ minWidth: '140px' }}>
               <CustomDatePickerField
-                id="date"
-                placeholder="Select Date"
-                value={date}
-                onChange={(selectedDate) => {
-                  if (selectedDate) {
-                    setDate(selectedDate);
-                  }
-                }}
+                id="fromDate"
+                placeholder="From Date"
+                value={fromDate}
+                onChange={(date) => setFromDate(date || null)}
                 onBlur={() => {}}
                 required={true}
                 useFormikError={false}
                 styleClasses={{
                   parentDiv: '',
                   labelClassName: 'text-sm text-black font-semibold mb-2 block',
-                  inputClassName: ''
+                  inputClassName: '[&>button]:hover:bg-background [&>button]:hover:text-foreground [&>button]:hover:border-gray-300'
                 }}
               />
             </div>
 
-            <div className="flex-1 min-w-[200px]">
-              <Input
-                id="doctorName"
-                placeholder="Enter doctor name"
-                value={doctorName}
-                onChange={(e) => setDoctorName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
+            <div className="flex-shrink-0" style={{ minWidth: '140px' }}>
+              <CustomDatePickerField
+                id="toDate"
+                placeholder="To Date"
+                value={toDate}
+                onChange={(date) => setToDate(date || null)}
+                onBlur={() => {}}
+                required={true}
+                useFormikError={false}
+                styleClasses={{
+                  parentDiv: '',
+                  labelClassName: 'text-sm text-black font-semibold mb-2 block',
+                  inputClassName: '[&>button]:hover:bg-background [&>button]:hover:text-foreground [&>button]:hover:border-gray-300'
                 }}
               />
             </div>
 
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-shrink-0" style={{ minWidth: '200px' }}>
+              <label className="text-sm text-black font-semibold mb-2 block">
+                Book Number
+              </label>
               <Input
-                id="doctorCode"
-                placeholder="Enter doctor code (e.g., DR001)"
-                value={doctorCode}
-                onChange={(e) => setDoctorCode(e.target.value)}
+                id="bookNumber"
+                placeholder="Enter book number"
+                value={bookNumber}
+                onChange={(e) => setBookNumber(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleSearch();
@@ -213,7 +247,7 @@ function AllDoctorsReportContent() {
             <div className="flex-shrink-0">
               <Button
                 onClick={handleSearch}
-                disabled={loading}
+                disabled={loading || !fromDate || !toDate}
                 className="gap-2"
               >
                 <SearchIcon />
@@ -226,25 +260,24 @@ function AllDoctorsReportContent() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">
-                Total Records: {totalRecords}
+                {totalRecords > 0 ? `Showing 1 to ${totalRecords} of ${totalRecords} entries` : 'Showing 0 to 0 of 0 entries'}
               </p>
             </div>
 
             {loading ? (
               <div className="text-center py-8">Loading...</div>
-            ) : doctors.length === 0 ? (
+            ) : books.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No doctors found
+                No data available in table
               </div>
             ) : (
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {DoctorReportColumns.map((column) => {
+                      {ChannelAgentReferenceBookReportColumns.map((column) => {
                         let header: any;
                         if (typeof column.header === 'function') {
-                          // For function headers, try to render with minimal props
                           try {
                             header = column.header({
                               table: {
@@ -270,15 +303,15 @@ function AllDoctorsReportContent() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {doctors.map((doctor) => (
-                      <TableRow key={doctor.id}>
-                        {DoctorReportColumns.map((column) => {
+                    {books.map((book, index) => (
+                      <TableRow key={book.id || index}>
+                        {ChannelAgentReferenceBookReportColumns.map((column) => {
                           const accessorKey = (column as any).accessorKey;
                           let value: any;
                           
                           if (accessorKey) {
                             const keys = accessorKey.split('.');
-                            value = doctor;
+                            value = book;
                             for (const k of keys) {
                               value = value?.[k];
                             }
@@ -289,14 +322,23 @@ function AllDoctorsReportContent() {
                                 row: {
                                   getValue: (key: string) => {
                                     const k = key.split('.');
-                                    let v: any = doctor;
+                                    let v: any = book;
                                     for (const kk of k) {
                                       v = v?.[kk];
                                     }
                                     return v;
                                   },
-                                  original: doctor
-                                }
+                                  original: book,
+                                  index: index
+                                },
+                                table: {
+                                  getSortedRowModel: () => ({
+                                    flatRows: books.map((b, i) => ({
+                                      original: b,
+                                      index: i
+                                    }))
+                                  })
+                                } as any
                               } as any)
                             : value;
 
@@ -316,13 +358,5 @@ function AllDoctorsReportContent() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-export default function AllDoctorsReportPage() {
-  return (
-    <Suspense fallback={<div className="container mx-auto py-6">Loading...</div>}>
-      <AllDoctorsReportContent />
-    </Suspense>
   );
 }
