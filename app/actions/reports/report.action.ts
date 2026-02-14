@@ -1,6 +1,6 @@
 'use server';
 
-import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService, getDoctorArrivalsReportDataService } from '@/services/report.service';
+import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService, getDoctorArrivalsReportDataService } from '@/services/reports/report.service';
 import { 
   DoctorReportQuery, 
   DoctorReportResponse, 

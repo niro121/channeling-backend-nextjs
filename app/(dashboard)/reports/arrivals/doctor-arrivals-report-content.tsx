@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Selector } from '@/components/common/selector';
 import { SearchableSelector } from '@/components/common/searchable-selector';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
-import { getDoctorArrivalsReportData, exportDoctorArrivalsReportData } from '@/app/actions/report.action';
+import { getDoctorArrivalsReportData, exportDoctorArrivalsReportData } from '@/app/actions/reports/report.action';
 import { Session } from '@/types/booking.dashboard';
 import { DoctorArrivalsReportColumns } from './columns';
 import {

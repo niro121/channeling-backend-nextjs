@@ -28,7 +28,6 @@ const reportsData = [
     masterData: 'Channel Agent Reference Book',
     description: 'View channel agent reference book information with filters',
     route: '/reports/channel-agent-reference-book'
-    
   },
   {
     id: '3',
@@ -36,7 +35,12 @@ const reportsData = [
     description: 'View doctor arrivals information with filters',
     route: '/reports/arrivals'
   },
-
+  {
+    id: '4',
+    masterData: 'Agent Detail Report',
+    description: 'View agent information with filters',
+    route: '/reports/agent-detail'
+  }
 ];
 
 export default function ReportsPage() {

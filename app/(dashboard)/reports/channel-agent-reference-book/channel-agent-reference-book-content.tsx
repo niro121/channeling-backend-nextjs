@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SearchableSelector } from '@/components/common/searchable-selector';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
-import { getChannelAgentReferenceBookReportData, exportChannelAgentReferenceBookReportData } from '@/app/actions/report.action';
+import { getChannelAgentReferenceBookReportData, exportChannelAgentReferenceBookReportData } from '@/app/actions/reports/report.action';
 import { AgencyBook } from '@/types/agencybook';
 import { ChannelAgentReferenceBookReportColumns } from './columns';
 import {
