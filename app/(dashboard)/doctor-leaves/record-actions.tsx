@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { DoctorLeaveListItem } from '@/types/doctor.leave';
 import { deleteOneDoctorLeave } from '@/app/actions/doctor.leave.action';
 import { EditDoctorLeaveDialog } from './edit-doctor-leave-dialog';
+import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 
 type DoctorLeaveRecordActionsProps<TData extends DoctorLeaveListItem> = {
   row: Row<TData>;
@@ -28,6 +29,7 @@ export function DoctorLeaveRecordActions({
   const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const refetch = useDoctorLeavesRefetch();
 
   const leave = row.original;
 
@@ -54,6 +56,7 @@ export function DoctorLeaveRecordActions({
             title: 'Success',
             description: result.message ?? 'Doctor leave was deleted successfully.'
           });
+          refetch();
           router.refresh();
         } else {
           toast({

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import DoctorLeaveForm from './doctor-leave-form';
 import { getOneLeaveByID, getSessionsByIds } from '@/app/actions/doctor.leave.action';
+import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 import type { DoctorLeave, Session } from '@/types/doctor.leave';
 import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
 import Loading from '../loading';
@@ -38,6 +39,7 @@ export function EditDoctorLeaveDialog({
 }: EditDoctorLeaveDialogProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const refetch = useDoctorLeavesRefetch();
   const [doctorLeaveData, setDoctorLeaveData] = useState<DoctorLeave | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export function EditDoctorLeaveDialog({
   }, [open, leaveId]);
 
   const handleSuccess = () => {
+    refetch();
     onOpenChange(false);
     router.refresh();
   };

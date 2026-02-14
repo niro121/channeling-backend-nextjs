@@ -177,8 +177,11 @@ export default function DoctorLeaveForm({
           title: 'Success',
           description: 'Doctor leave was updated successfully'
         });
-        if (onSuccess) onSuccess();
-        else router.push('/doctor-leaves');
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push(`/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`);
+        }
       } else {
         respond = await createDoctorLeave(payload, user);
 
@@ -217,13 +220,11 @@ export default function DoctorLeaveForm({
           description: 'Doctor leave was created successfully'
         });
         if (onSuccess) {
-          onSuccess(),
-          router.refresh()
-        }
-        else if (respond.data?.id) {
+          onSuccess();
+        } else if (respond.data?.id) {
           router.push(`/doctor-leaves/${respond.data.id}/edit`);
         } else {
-          router.push('/doctor-leaves');
+          router.push(`/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`);
         }
       }
     } catch (error: any) {

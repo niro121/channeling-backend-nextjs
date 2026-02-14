@@ -10,6 +10,7 @@ import {
 import DoctorLeaveForm from './doctor-leave-form';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 
 type AddDoctorLeaveDialogProps = {
   open: boolean;
@@ -26,8 +27,10 @@ export default function AddDoctorLeaveDialog({
 }: AddDoctorLeaveDialogProps) {
   const { data: session } = useSession();
   const router = useRouter();
+  const refetch = useDoctorLeavesRefetch();
 
   const handleSuccess = () => {
+    refetch();
     onOpenChange(false);
     router.refresh();
   };
