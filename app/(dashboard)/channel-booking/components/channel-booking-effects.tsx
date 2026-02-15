@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect } from "react"
+import { getBookingsBySession } from "@/app/actions/channel-booking"
 import { useChannelBooking } from "../context/channel-booking-context"
 
 /**
  * Runs data side-effects from context state:
- * - Sessions are fetched from SessionsSelection when doctor + date (and optional location) are set (Session model).
- * - When session selected → fetch bookings for that session (placeholder until API exists).
+ * - When session selected → fetch bookings for that session.
  */
 export function ChannelBookingEffects() {
   const {
@@ -15,7 +15,6 @@ export function ChannelBookingEffects() {
     setBookingsLoading,
   } = useChannelBooking()
 
-  // Load bookings when session is selected (placeholder – replace with real API)
   useEffect(() => {
     if (!selectedSession?.id) {
       setBookings([])
@@ -24,15 +23,17 @@ export function ChannelBookingEffects() {
     }
     setBookingsLoading(true)
     let cancelled = false
-    // TODO: replace with real bookings API, e.g. getBookingsBySessionId(selectedSession.id)
-    const timer = setTimeout(() => {
+    getBookingsBySession(selectedSession.id).then((res) => {
       if (cancelled) return
-      setBookings([])
+      if (res.success && res.data) {
+        setBookings(res.data)
+      } else {
+        setBookings([])
+      }
       setBookingsLoading(false)
-    }, 300)
+    })
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
   }, [selectedSession?.id, setBookings, setBookingsLoading])
 

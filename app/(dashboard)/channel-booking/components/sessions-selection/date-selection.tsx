@@ -27,14 +27,15 @@ export function DateSelection({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           disabled={disabled}
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "h-8 w-full justify-start text-left font-normal text-xs",
             !value && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
           {value ? format(value, "PPP") : placeholder}
         </Button>
       </PopoverTrigger>

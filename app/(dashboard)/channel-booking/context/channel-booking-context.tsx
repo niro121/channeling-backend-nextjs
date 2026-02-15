@@ -1,17 +1,20 @@
 "use client"
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react"
-import type { Doctor } from "@/types/doctor"
+import type { ChannelBookingDoctorOption } from "@/services/channel-booking"
 import type { Session } from "@/types/booking.dashboard"
 
-/** Placeholder until booking API/types exist. Replace with your real Booking type. */
+/** Booking record for list panel (and selection). */
 export type ChannelBookingRecord = {
   id: string
-  patientNumber?: number
-  patientName?: string
-  sessionId?: string
-  doctorId?: string
-  status?: string
+  appointmentNo: number
+  title: string
+  name: string
+  status: number
+  method: number
+  methodName: string
+  agencyRef: string | null
+  staffId: string | null
   [key: string]: unknown
 }
 
@@ -31,7 +34,7 @@ export type ReservationDetails = {
 
 export type ChannelBookingState = {
   selectedSpecialityId: string | null
-  selectedDoctor: Doctor | null
+  selectedDoctor: ChannelBookingDoctorOption | null
   selectedSession: Session | null
   selectedBooking: ChannelBookingRecord | null
   /** Bookable sessions (Session model) for selected doctor+date, optionally filtered by location. */
@@ -44,11 +47,13 @@ export type ChannelBookingState = {
   bookingsLoading: boolean
   /** Reservation summary for New Booking Details (from selected session). */
   reservationDetails: ReservationDetails
+  /** Increment to force Booking tab to refetch details (e.g. after settle). */
+  bookingDetailsRefreshKey: number
 }
 
 export type ChannelBookingActions = {
   setSelectedSpecialityId: (id: string | null) => void
-  setSelectedDoctor: (doctor: Doctor | null) => void
+  setSelectedDoctor: (doctor: ChannelBookingDoctorOption | null) => void
   setSelectedSession: (session: Session | null) => void
   setSelectedBooking: (booking: ChannelBookingRecord | null) => void
   setSessions: (sessions: Session[]) => void
@@ -56,11 +61,13 @@ export type ChannelBookingActions = {
   setBookings: (bookings: ChannelBookingRecord[]) => void
   setBookingsLoading: (loading: boolean) => void
   /** Call when doctor changes: clear session/booking and clear sessions. */
-  onDoctorSelect: (doctor: Doctor | null) => void
+  onDoctorSelect: (doctor: ChannelBookingDoctorOption | null) => void
   /** Call when session changes: clear booking, set reservation details, trigger bookings fetch. */
   onSessionSelect: (session: Session | null) => void
   /** Call when booking is selected: fill information panel. */
   onBookingSelect: (booking: ChannelBookingRecord | null) => void
+  /** Bump to force information panel (e.g. Booking tab) to refetch. */
+  refreshBookingDetails: () => void
 }
 
 export type ChannelBookingContextValue = ChannelBookingState & ChannelBookingActions
@@ -69,7 +76,7 @@ const ChannelBookingContext = createContext<ChannelBookingContextValue | undefin
 
 /** Build start/end Date from Session date + startTime/endTime (minutes from midnight). */
 function reservationFromSession(
-  doctor: Doctor | null,
+  doctor: ChannelBookingDoctorOption | null,
   session: Session | null
 ): ReservationDetails {
   if (!doctor || !session) return null
@@ -98,15 +105,20 @@ function reservationFromSession(
 
 export function ChannelBookingProvider({ children }: { children: React.ReactNode }) {
   const [selectedSpecialityId, setSelectedSpecialityId] = useState<string | null>(null)
-  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
+  const [selectedDoctor, setSelectedDoctor] = useState<ChannelBookingDoctorOption | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<ChannelBookingRecord | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [bookings, setBookings] = useState<ChannelBookingRecord[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [bookingDetailsRefreshKey, setBookingDetailsRefreshKey] = useState(0)
 
-  const onDoctorSelect = useCallback((doctor: Doctor | null) => {
+  const refreshBookingDetails = useCallback(() => {
+    setBookingDetailsRefreshKey((k) => k + 1)
+  }, [])
+
+  const onDoctorSelect = useCallback((doctor: ChannelBookingDoctorOption | null) => {
     setSelectedDoctor(doctor)
     setSelectedSession(null)
     setSelectedBooking(null)
@@ -141,6 +153,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookings,
       bookingsLoading,
       reservationDetails,
+      bookingDetailsRefreshKey,
       setSelectedSpecialityId,
       setSelectedDoctor,
       setSelectedSession,
@@ -152,6 +165,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       onDoctorSelect,
       onSessionSelect,
       onBookingSelect,
+      refreshBookingDetails,
     }),
     [
       selectedSpecialityId,
@@ -163,9 +177,11 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookings,
       bookingsLoading,
       reservationDetails,
+      bookingDetailsRefreshKey,
       onDoctorSelect,
       onSessionSelect,
       onBookingSelect,
+      refreshBookingDetails,
     ]
   )
 

@@ -45,6 +45,8 @@ model User {
   updatedLogs           Log[]           @relation("UserUpdatedLogs")
   createdAgencyBooks    AgencyBook[]    @relation("UserCreatedAgencyBooks")
   updatedAgencyBooks    AgencyBook[]    @relation("UserUpdatedAgencyBooks")
+  createdBookings       Booking[]       @relation("UserCreatedBookings")
+  updatedBookings       Booking[]       @relation("UserUpdatedBookings")
   userGroupId           String?         @db.ObjectId
   userGroup             UserGroup?      @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
   shifts                Shift[]         @relation("UserShifts")
@@ -134,6 +136,7 @@ model Doctor {
   speciality     Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
   sessions       Session[]       @relation("DoctorToSession")
+  bookings       Booking[]       @relation("DoctorToBooking")
   doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
@@ -263,7 +266,7 @@ model Session {
   location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: Cascade)
   roomId       String?     @db.ObjectId
   room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: Cascade)
-  // bookings                  Booking[]
+  bookings     Booking[]   @relation("SessionToBooking")
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
@@ -307,13 +310,16 @@ model Location {
   updatedAt       DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  rooms          Room[]          @relation("LocationToRoom")
-  zones          Zone[]          @relation("LocationToZone")
-  agencies       Agency[]        @relation("LocationToAgency")
-  doctorSessions DoctorSession[] @relation("SessionToLocation")
-  sessions       Session[]       @relation("LocationToSession")
-  createdUser    User?           @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser    User?           @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+  rooms                 Room[]    @relation("LocationToRoom")
+  zones                 Zone[]    @relation("LocationToZone")
+  agencies              Agency[]   @relation("LocationToAgency")
+  doctorSessions        DoctorSession[] @relation("SessionToLocation")
+  sessions              Session[]  @relation("LocationToSession")
+  bookings              Booking[]  @relation("LocationToBooking")
+  receiptsBilling       Receipt[] @relation("ReceiptBillingLocation")
+  receiptsUserLocation  Receipt[] @relation("ReceiptUserLocation")
+  createdUser           User?     @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser           User?     @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Room {
@@ -467,6 +473,9 @@ model Discount {
   vouchers    VoucherCode[] @relation("DiscountVouchers")
   createdUser User?         @relation("UserCreatedDiscounts", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?         @relation("UserUpdatedDiscounts", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([status, fromDate, toDate])
+  @@index([createdAt(sort: Desc)])
 }
 
 model VoucherCode {
@@ -559,12 +568,106 @@ model Agency {
   locationId    String?      @db.ObjectId
   location      Location?    @relation("LocationToAgency", fields: [locationId], references: [id], onDelete: SetNull)
   history       Log[]        @relation("AgencyToLog")
+  bookings      Booking[]    @relation("AgencyToBooking")
+  receipts      Receipt[]    @relation("AgencyToReceipt")
 
   // ==== AUDIT FIELDS ==== //
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?
   updatedBy String?
+}
+
+model Booking {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  title                   String
+  name                    String
+  phone                   String
+  sex                     String
+  area                    String
+  remarks                 String   @default("")
+  method                  Int
+  sessionId               String   @db.ObjectId
+  session                 Session  @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: Cascade)
+  doctorId                String   @db.ObjectId
+  doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
+  amount                  Int
+  discount                Int      @default(0)
+  foriegner               Boolean  @default(false)
+  status                  Int      @default(0)
+  createdBy               String?  @db.ObjectId
+  createdUser             User?    @relation("UserCreatedBookings", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy               String?  @db.ObjectId
+  updatedUser             User?    @relation("UserUpdatedBookings", fields: [updatedBy], references: [id], onDelete: SetNull)
+  fees                    Json
+  refund                  Int      @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
+  refundAmount            Int      @default(0)
+  refundReason            String?
+  refundReceiptId         String?  @db.ObjectId
+  refundReceiptNoString   String?
+  refundReceiptCreatedAt  DateTime?
+  canceledAt              DateTime?
+  canceledBy              String?  @db.ObjectId
+  agencyRef               String?  @default("")
+  agencyId                String?  @db.ObjectId
+  agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
+  staffId                 String?  @db.ObjectId
+  discountDivision        Json?
+  hospitalFeeDiscount     Int      @default(0)
+  professionsalFeeDiscount Int     @default(0)
+  professionalFee         Int      @default(0)
+  hospitalFee             Int      @default(0)
+  referredDoctorId        String?  @db.ObjectId
+  referredAgencyId        String?  @db.ObjectId
+  referredStaffId         String?  @db.ObjectId
+  sessionStartTime        Int
+  sessionEndTime          Int
+  isScan                  Boolean  @default(false)
+  locationId              String?  @db.ObjectId
+  location                Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
+  appointmentNo           Int
+  discountId              String?  @db.ObjectId
+  autoDiscountId          String?  @db.ObjectId
+  receiptNo               Int?
+  receiptNoString         String?
+  receiptPaymentMethod    Int?
+  receiptNoCreatedAt      DateTime?
+  receiptNoId             String?  @db.ObjectId
+  receipts                Receipt[] @relation("ReceiptToBooking")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
+model Receipt {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNo       Int
+  receiptNoString String
+  paymentMethod   Int      // 0 Cash, 1 Credit Card, 2 Slip, 3 Check, 4 Agent, 5 Credit
+  amount          Int
+  bank            String   @default("")
+  bankId          String?  @db.ObjectId
+  cardReference   String   @default("")
+  slipReference   String   @default("")
+  remarks         String   @default("")
+  type            Int      // 0 CREDIT (decrease), 1 DEBIT (increase)
+  method         Int      @default(1) // 0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
+  whd             Int      @default(0)
+  whdPercentage   Float    @default(0)
+
+  bookingId       String   @db.ObjectId
+  booking         Booking  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: Cascade)
+  agencyId        String?  @db.ObjectId
+  agency          Agency?  @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
+  createdBy       String?  @db.ObjectId
+  locationId      String?  @db.ObjectId
+  location        Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  userLocationId  String?  @db.ObjectId
+  userLocation    Location? @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Log {
@@ -587,6 +690,14 @@ model Log {
   session     Session? @relation("SessionToLog", fields: [sessionId], references: [id])
   createdUser User?    @relation("UserCreatedLogs", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?    @relation("UserUpdatedLogs", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+/// Atomic sequence per scope (e.g. appointment:sessionId, receipt:locationId). Use getNextSequenceNumber().
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 enum DiscountMethod {
