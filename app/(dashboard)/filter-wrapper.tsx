@@ -9,6 +9,8 @@ type FilterValues = Record<string, string | undefined>;
 interface FilterWrapperProps {
   initialValues?: FilterValues;
   buttonLabel?: string;
+  /** Set to false to hide the Apply button (e.g. when other actions handle filter application). */
+  showApplyButton?: boolean;
   children: (props: {
     values: FilterValues;
     setValue: (key: string, value?: string) => void;
@@ -18,6 +20,7 @@ interface FilterWrapperProps {
 export function FilterWrapper({
   initialValues = {},
   buttonLabel = 'Apply',
+  showApplyButton = true,
   children
 }: FilterWrapperProps) {
   const router = useRouter();
@@ -54,9 +57,11 @@ export function FilterWrapper({
     <div className="flex flex-wrap items-center gap-3">
       {children({ values, setValue })}
 
-      <Button size="sm" variant="outline" onClick={applyFilters} className="h-10 shrink-0">
-        {buttonLabel}
-      </Button>
+      {showApplyButton && (
+        <Button size="sm" variant="outline" onClick={applyFilters} className="h-10 shrink-0">
+          {buttonLabel}
+        </Button>
+      )}
     </div>
   );
 }

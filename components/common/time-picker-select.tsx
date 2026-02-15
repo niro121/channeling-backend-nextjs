@@ -87,6 +87,8 @@ interface TimePickerSelectProps {
   onMeridiemChange: (value: 'AM' | 'PM') => void;
   required?: boolean;
   disabled?: boolean;
+  /** Set to true when used outside Formik to avoid ErrorMessage reading undefined context */
+  hideErrorMessage?: boolean;
   styleClasses?: {
     parentDiv?: string;
     labelClassName?: string;
@@ -103,6 +105,7 @@ export function TimePickerSelect({
   onMeridiemChange,
   required = false,
   disabled = false,
+  hideErrorMessage = false,
   styleClasses
 }: TimePickerSelectProps) {
   const parsed = useMemo(
@@ -203,11 +206,13 @@ export function TimePickerSelect({
             </div>
           </PopoverContent>
         </Popover>
-        <ErrorMessage
-          name={id}
-          component="div"
-          className="text-red-600 text-sm pt-1"
-        />
+        {!hideErrorMessage && (
+          <ErrorMessage
+            name={id}
+            component="div"
+            className="text-red-600 text-sm pt-1"
+          />
+        )}
       </div>
     </div>
   );

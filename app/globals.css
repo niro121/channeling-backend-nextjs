@@ -219,4 +219,10 @@ input[type='search']::-ms-clear {
   }
 }
 
+/* React Day Picker: use app primary (green) instead of default blue */
+.rdp-root {
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-accent-background-color: hsl(var(--primary) / 0.15);
+}
+
 
