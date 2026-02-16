@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/server-permissions';
+import prisma from '@/lib/prisma';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
   createdBy?: string;
@@ -128,7 +129,32 @@ export const getNextSpecialityCode = async (): Promise<string> => {
     throw new Error('Maximum speciality code limit reached');
   }
 
-  return `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
+  let candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
+  
+  // Check if code already exists and find next available
+  let attempts = 0;
+  const maxAttempts = 100; // Prevent infinite loop
+  
+  while (attempts < maxAttempts) {
+    const existing = await prisma.speciality.findUnique({
+      where: { code: candidateCode },
+      select: { code: true }
+    });
+    
+    if (!existing) {
+      return candidateCode; // Code is available
+    }
+    
+    // Code exists, try next number
+    nextNumber++;
+    if (nextNumber > MAX_CODE) {
+      throw new Error('Maximum speciality code limit reached');
+    }
+    candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`;
+    attempts++;
+  }
+  
+  throw new Error('Unable to generate unique speciality code after multiple attempts');
 };
 
 export const createSpeciality = async (
@@ -147,23 +173,55 @@ export const createSpeciality = async (
   await requirePermission('specialities', 'add');
 
   try {
-    const specialityCode = await getNextSpecialityCode();
+    let specialityCode = await getNextSpecialityCode();
+    let result: {
+      success: boolean;
+      data?: any;
+      message?: string;
+      error?: {
+        message?: string;
+        issues?: any;
+      };
+    } | undefined;
+    let retries = 0;
+    const maxRetries = 3;
 
-    const result = await createSpecialityService(
-      {
-        name: payload.name,
-        description: payload.description,
-        status: payload.status,
-        code: specialityCode
-      },
-      user
-    );
+    // Retry logic in case of race condition
+    while (retries < maxRetries) {
+      result = await createSpecialityService(
+        {
+          name: payload.name,
+          description: payload.description,
+          status: payload.status,
+          code: specialityCode
+        },
+        user
+      );
 
-    if (!result.success) {
+      // If successful, break
+      if (result.success) {
+        break;
+      }
+
+      // If duplicate code error, generate a new code and retry
+      const isDuplicateCodeError = 
+        result.error?.message?.includes('code') && 
+        result.error?.message?.includes('already exists');
+      
+      if (isDuplicateCodeError && retries < maxRetries - 1) {
+        retries++;
+        specialityCode = await getNextSpecialityCode();
+      } else {
+        // Not a duplicate code error or max retries reached, break
+        break;
+      }
+    }
+
+    if (!result || !result.success) {
       return {
         success: false,
-        error: result.error || {
-          message: result.message || 'Speciality creation failed'
+        error: result?.error || {
+          message: result?.message || 'Speciality creation failed'
         }
       };
     }
