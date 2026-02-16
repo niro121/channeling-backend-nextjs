@@ -7,12 +7,13 @@ import TagRecordActions from './record-actions';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
+// Align with old system / migrate: 0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank
 const TAG_TYPES: Record<number, string> = {
-  1: 'Area',
-  2: 'Bank',
-  3: 'Staff Category',
-  4: 'Staff Designation',
-  5: 'Staff Grade'
+  0: 'City',
+  1: 'Staff Category',
+  2: 'Staff Designation',
+  3: 'Staff Grade',
+  4: 'Bank'
 };
 
 // DEFINE THE COLUMNS OF THE TAG TABLE

@@ -1,0 +1,259 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import {
+  getBookingDetails,
+  getBookingsBySession,
+  refundChannelAction,
+} from "@/app/actions/channel-booking"
+import type { BookingDetailsView } from "@/services/channel-booking/get-booking-details.service"
+import { useChannelBooking } from "../../context/channel-booking-context"
+import { useToast } from "@/components/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Ban } from "lucide-react"
+import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
+
+/** refund_to: 0 Cash, 1 Card, 4 Agent */
+const REFUND_TO_OPTIONS = [
+  { value: 0, label: "Refund as CASH" },
+  { value: 1, label: "Refund as CREDIT CARD" },
+  { value: 4, label: "Refund to Agent" },
+] as const
+
+function formatRs(amount: number): string {
+  return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void }) {
+  const { selectedBooking, selectedSession, setBookings, setSelectedBooking } = useChannelBooking()
+  const { toast } = useToast()
+  const [details, setDetails] = useState<BookingDetailsView | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [remarks, setRemarks] = useState("")
+  const [refundTo, setRefundTo] = useState(0)
+  const [professionalChecked, setProfessionalChecked] = useState(false)
+  const [hospitalChecked, setHospitalChecked] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!selectedBooking?.id) {
+      setDetails(null)
+      setError(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    getBookingDetails(selectedBooking.id)
+      .then((res) => {
+        if (res.success && res.data) {
+          setDetails(res.data)
+          setProfessionalChecked(false)
+          setHospitalChecked(false)
+        } else {
+          setDetails(null)
+          setError(res.message ?? "Failed to load")
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [selectedBooking?.id])
+
+  if (!selectedBooking) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+        Select a booking
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+        Loading…
+      </div>
+    )
+  }
+
+  if (error || !details) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-destructive text-sm">
+        {error ?? "Failed to load booking"}
+      </div>
+    )
+  }
+
+  if (details.status === 2) {
+    const cancelDetails = details.cancelOrRefundDetails
+    return (
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0">
+          <Ban className="size-5 text-red-600 dark:text-red-400 shrink-0" aria-hidden />
+          <h3 className="text-sm font-medium text-foreground">Booking already canceled</h3>
+        </div>
+        {cancelDetails ? (
+          <CancelRefundDetailsCard details={cancelDetails} />
+        ) : (
+          <div className="flex-1 min-h-[120px] rounded-lg border border-dashed border-border bg-muted/20 flex items-center justify-center text-muted-foreground text-sm">
+            No cancel details available.
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (details.status !== 1) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+        Booking must be paid before refund.
+      </div>
+    )
+  }
+
+  const breakdown = details.refundableBreakdown
+  if (!breakdown) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+        Refund breakdown not available.
+      </div>
+    )
+  }
+
+  const professionalRefundable = breakdown.refundableProfessional
+  const hospitalRefundable = breakdown.refundableHospital
+  const totalRefund =
+    (professionalChecked ? professionalRefundable : 0) + (hospitalChecked ? hospitalRefundable : 0)
+
+  async function handleRefund() {
+    if (totalRefund <= 0) {
+      toast({ title: "Select items", description: "Select at least one refundable item.", variant: "destructive" })
+      return
+    }
+    setSubmitting(true)
+    try {
+      const result = await refundChannelAction({
+        booking_id: selectedBooking.id,
+        refund_type: 1,
+        professional_fee: professionalChecked ? professionalRefundable : 0,
+        hospital_fee: hospitalChecked ? hospitalRefundable : 0,
+        refund_to: refundTo,
+        remarks: remarks.trim() || undefined,
+      })
+      if (result.success) {
+        toast({ title: "Refunded", description: "Refund has been recorded." })
+        if (selectedSession?.id) {
+          const res = await getBookingsBySession(selectedSession.id)
+          if (res.success && res.data) {
+            setBookings(res.data)
+            const updated = res.data.find((b) => b.id === selectedBooking.id)
+            if (updated) setSelectedBooking(updated)
+          }
+        }
+        setRemarks("")
+        setProfessionalChecked(false)
+        setHospitalChecked(false)
+        onRefundSuccess?.()
+      } else {
+        toast({ title: "Error", description: result.message ?? result.errorCode, variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Refund failed.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          Refundable items
+        </Label>
+        <div className="rounded-md border border-border/60 bg-muted/10 overflow-hidden">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border/40">
+                <th className="text-left py-1.5 px-2 w-8" />
+                <th className="text-left py-1.5 px-2 text-[11px] font-medium text-muted-foreground">Type</th>
+                <th className="text-right py-1.5 px-2 text-[11px] font-medium text-muted-foreground">Fee</th>
+                <th className="text-right py-1.5 px-2 text-[11px] font-medium text-muted-foreground">Discount</th>
+                <th className="text-right py-1.5 px-2 text-[11px] font-medium text-muted-foreground">Refundable</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border/40">
+                <td className="py-1.5 px-2">
+                  <Checkbox
+                    checked={professionalChecked}
+                    onCheckedChange={(c) => setProfessionalChecked(!!c)}
+                    disabled={professionalRefundable <= 0}
+                  />
+                </td>
+                <td className="py-1.5 px-2 text-foreground">Professional Fee</td>
+                <td className="py-1.5 px-2 text-right text-foreground">{formatRs(breakdown.professionalFee)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{formatRs(breakdown.professionalDiscount)}</td>
+                <td className="py-1.5 px-2 text-right text-foreground">{formatRs(professionalRefundable)}</td>
+              </tr>
+              <tr className="border-b border-border/40 last:border-0">
+                <td className="py-1.5 px-2">
+                  <Checkbox
+                    checked={hospitalChecked}
+                    onCheckedChange={(c) => setHospitalChecked(!!c)}
+                    disabled={hospitalRefundable <= 0}
+                  />
+                </td>
+                <td className="py-1.5 px-2 text-foreground">Hospital Fee</td>
+                <td className="py-1.5 px-2 text-right text-foreground">{formatRs(breakdown.hospitalFee)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{formatRs(breakdown.hospitalDiscount)}</td>
+                <td className="py-1.5 px-2 text-right text-foreground">{formatRs(hospitalRefundable)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Refund Remarks</Label>
+        <Textarea
+          className="min-h-[60px] text-xs resize-y"
+          placeholder="Reason for refund…"
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Refund method</Label>
+        <Select value={String(refundTo)} onValueChange={(v) => setRefundTo(Number(v))}>
+          <SelectTrigger className="text-xs">
+            <SelectValue placeholder="Refund as…" />
+          </SelectTrigger>
+          <SelectContent>
+            {REFUND_TO_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={String(opt.value)} className="text-xs">
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        className="w-full bg-red-600 hover:bg-red-700 text-white"
+        onClick={handleRefund}
+        disabled={submitting || totalRefund <= 0}
+      >
+        {submitting ? "Refunding…" : `Refund ${formatRs(totalRefund)}`}
+      </Button>
+    </div>
+  )
+}

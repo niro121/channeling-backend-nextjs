@@ -141,7 +141,7 @@ export default function CustomDatePickerField({
                             disabled={disabled}
                             onBlur={onBlur}
                             className={cn(
-                                "w-99 pl-3 text-left font-normal p-2 border rounded outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                                "w-99 pl-3 text-left font-normal p-2 gap-x-3 border rounded outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
                                 !value && "text-muted-foreground",
                                 error && touched ? "border-red-600" : "border-gray-300"
                             )}

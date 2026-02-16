@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
-import { getDoctorReportData, exportDoctorReportData } from '@/app/actions/report.action';
+import { getDoctorReportData, exportDoctorReportData } from '@/app/actions/reports/report.action';
 import { Doctor } from '@/types/doctor';
 import { DoctorReportColumns } from './columns';
 import {

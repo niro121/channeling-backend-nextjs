@@ -39,6 +39,8 @@ export type getSessionParams = {
   page?: string;
   limit?: string;
   date?: string;
+  fromDate?: string;
+  toDate?: string;
   doctorId?: string;
 };
 
@@ -46,5 +48,7 @@ export type getSessionQuery = {
   page: number;
   limit: number;
   date?: Date;
+  fromDate?: Date;
+  toDate?: Date;
   doctorId?: string;
 };

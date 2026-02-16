@@ -1,5 +1,7 @@
 import React, { Suspense } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import Loading from '../loading';
 import FilterSection from './filter-section';
 import {
@@ -55,7 +57,12 @@ export default async function Page({ searchParams }: SearchParams) {
                 doctorId={doctorId}
                 doctorOptions={doctorOptions}
               />
-              <AddBtnSection />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/doctor-sessions/bulk-price-change">Bulk price change</Link>
+                </Button>
+                <AddBtnSection />
+              </div>
             </div>
 
             {doctorId && doctorId !== '__all__' ? (

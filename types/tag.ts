@@ -3,7 +3,7 @@
 export type Tag = {
     id?: string
     name?: string | null
-    type?: number | null   // e.g., 1 = Area, 2 = Bank, etc.
+    type?: number | null   // 0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank (align with old system/migrate)
     status?: number | null // 0 = inactive, 1 = active
     
     // Audit fields

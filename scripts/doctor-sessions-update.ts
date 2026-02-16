@@ -1,5 +1,4 @@
-import { getDoctorOptionsService } from '@/services/sessions.service';
-import { analyseSessionsHelper } from '@/lib/helpers/doctor-sessions-generate.helper';
+import { getDoctorsForSessionsService, analyseSessionsService } from '@/services/sessions';
 import moment from 'moment';
 
 const updateSessions = async (): Promise<{
@@ -27,12 +26,12 @@ const updateSessions = async (): Promise<{
       .format('YYYY-MM-DD');
 
     // == GET ALL ACTIVE DOCTORS == //
-    const doctorsResponse = await getDoctorOptionsService();
+    const doctorsResponse = await getDoctorsForSessionsService();
 
     console.log('DOCTORS FOUND ::: ' + doctorsResponse.totalRecords);
 
     const promises = doctorsResponse.data.map((doctor) =>
-      analyseSessionsHelper({
+      analyseSessionsService({
         fromDate,
         toDate,
         doctorId: doctor.id,

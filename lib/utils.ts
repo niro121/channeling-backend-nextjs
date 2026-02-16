@@ -202,24 +202,74 @@ export const buildDateFromTime = (
   return date;
 };
 
+/** Convert time string + meridiem to minutes from midnight (0–1439). */
+export function timeToMinutes(timeValue: string, meridiem: 'AM' | 'PM'): number {
+  if (!timeValue || !timeValue.trim()) return 0;
+  const [hoursStr, minutesStr] = timeValue.split(':');
+  let hours = parseInt(hoursStr, 10);
+  const minutes = parseInt(minutesStr ?? '0', 10);
+  if (Number.isNaN(hours)) hours = 0;
+  if (Number.isNaN(minutes)) return 0;
+  if (meridiem === 'PM' && hours !== 12) hours += 12;
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+/** Convert minutes from midnight to { timeStr: 'HH:mm', meridiem: 'AM' | 'PM' }. */
+export function minutesToTime(totalMinutes: number): { timeStr: string; meridiem: 'AM' | 'PM' } {
+  const clamped = Math.max(0, Math.min(1439, Math.floor(totalMinutes)));
+  const hours24 = Math.floor(clamped / 60);
+  const minutes = clamped % 60;
+  const isPM = hours24 >= 12;
+  const hour12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24;
+  const timeStr = `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  return { timeStr, meridiem: isPM ? 'PM' : 'AM' };
+}
+
 export const calculateDurationMinutes = (
   startTimeValue: string,
   startMeridiem: 'AM' | 'PM',
   endTimeValue: string,
   endMeridiem: 'AM' | 'PM'
-) => {
-  const parseTime = (time: string, meridiem: 'AM' | 'PM') => {
-    const [hoursStr, minutesStr] = time.split(':');
-    let hours = parseInt(hoursStr, 10);
-    const minutes = parseInt(minutesStr, 10);
-    if (meridiem === 'PM' && hours !== 12) hours += 12;
-    if (meridiem === 'AM' && hours === 12) hours = 0;
-    return hours * 60 + minutes;
-  };
-
-  const startMinutes = parseTime(startTimeValue, startMeridiem);
-  const endMinutes = parseTime(endTimeValue, endMeridiem);
-
+): number => {
+  const startMinutes = timeToMinutes(startTimeValue, startMeridiem);
+  const endMinutes = timeToMinutes(endTimeValue, endMeridiem);
   const duration = endMinutes - startMinutes;
-  return duration >= 0 ? duration : 0; 
+  return duration >= 0 ? duration : 0;
 };
+
+/** Given a calendar date and 12h time, return Unix seconds for that moment in Sri Lanka (UTC+5:30). */
+export function timeToSriLankaUnix(
+  baseDate: Date,
+  timeValue: string,
+  meridiem: 'AM' | 'PM'
+): number {
+  const minutes = timeToMinutes(timeValue, meridiem);
+  const hours24 = Math.floor(minutes / 60);
+  const min = minutes % 60;
+  const timeStr24 = `${hours24.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+  const y = baseDate.getUTCFullYear();
+  const m = (baseDate.getUTCMonth() + 1).toString().padStart(2, '0');
+  const d = baseDate.getUTCDate().toString().padStart(2, '0');
+  const dateStr = `${y}-${m}-${d}`;
+  const iso = `${dateStr}T${timeStr24}:00+05:30`;
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+/** Convert unix seconds (e.g. Session.startTime/endTime) to { timeStr, meridiem } in Sri Lanka for time picker. */
+export function unixToTimeDisplay(unixSeconds: number): { timeStr: string; meridiem: 'AM' | 'PM' } {
+  const d = new Date(unixSeconds * 1000);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Colombo',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const parts = formatter.formatToParts(d);
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+  const minute = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
+  const dayPeriod = (parts.find((p) => p.type === 'dayPeriod')?.value ?? 'AM') as 'AM' | 'PM';
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const timeStr = `${hour12.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  return { timeStr, meridiem: dayPeriod };
+}

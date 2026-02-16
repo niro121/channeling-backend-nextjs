@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 import type { BranchOption } from "./session-date-utils"
 
 export type BranchSelectionProps = {
@@ -32,7 +33,9 @@ export function BranchSelection({
       onValueChange={(v) => onChange(v || null)}
       disabled={disabled}
     >
-      <SelectTrigger className={className}>
+      <SelectTrigger
+        className={cn("h-8 px-2 py-1.5 text-xs", className)}
+      >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

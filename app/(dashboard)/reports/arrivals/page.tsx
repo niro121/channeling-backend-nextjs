@@ -1,9 +1,20 @@
 import { getAllDoctors } from '@/app/actions/doctor.actions';
 import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
 import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 import DoctorArrivalsReportContent from './doctor-arrivals-report-content';
 
+
+// Force dynamic rendering to prevent prerendering during build
+export const dynamic = 'force-dynamic';
+
 export default async function DoctorArrivalsReportPage() {
+  // Check if user can access reports
+  const canView = await checkRouteAccess('/reports/arrivals');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
   // Fetch data on the server
   const [doctorsResult, locationsResult] = await Promise.all([
     getAllDoctors({ page: '0', limit: '1000' }),
