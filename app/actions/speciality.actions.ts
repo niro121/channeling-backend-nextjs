@@ -173,55 +173,23 @@ export const createSpeciality = async (
   await requirePermission('specialities', 'add');
 
   try {
-    let specialityCode = await getNextSpecialityCode();
-    let result: {
-      success: boolean;
-      data?: any;
-      message?: string;
-      error?: {
-        message?: string;
-        issues?: any;
-      };
-    } | undefined;
-    let retries = 0;
-    const maxRetries = 3;
+    const specialityCode = await getNextSpecialityCode();
 
-    // Retry logic in case of race condition
-    while (retries < maxRetries) {
-      result = await createSpecialityService(
-        {
-          name: payload.name,
-          description: payload.description,
-          status: payload.status,
-          code: specialityCode
-        },
-        user
-      );
+    const result = await createSpecialityService(
+      {
+        name: payload.name,
+        description: payload.description,
+        status: payload.status,
+        code: specialityCode
+      },
+      user
+    );
 
-      // If successful, break
-      if (result.success) {
-        break;
-      }
-
-      // If duplicate code error, generate a new code and retry
-      const isDuplicateCodeError = 
-        result.error?.message?.includes('code') && 
-        result.error?.message?.includes('already exists');
-      
-      if (isDuplicateCodeError && retries < maxRetries - 1) {
-        retries++;
-        specialityCode = await getNextSpecialityCode();
-      } else {
-        // Not a duplicate code error or max retries reached, break
-        break;
-      }
-    }
-
-    if (!result || !result.success) {
+    if (!result.success) {
       return {
         success: false,
-        error: result?.error || {
-          message: result?.message || 'Speciality creation failed'
+        error: result.error || {
+          message: result.message || 'Speciality creation failed'
         }
       };
     }
