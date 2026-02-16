@@ -1,67 +1,26 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useChannelBooking } from "../context/channel-booking-context"
-import {
-  getSpecialitiesForChannelBooking,
-  getDoctorsForChannelBooking,
-} from "@/app/actions/channel-booking"
 import type { ChannelBookingDoctorOption, ChannelBookingSpecialityOption } from "@/services/channel-booking"
 import { cn } from "@/lib/utils"
 
 export function DoctorSelection() {
   const {
+    initialData,
+    initialDataLoading,
     selectedSpecialityId,
     selectedDoctor,
     setSelectedSpecialityId,
     onDoctorSelect,
   } = useChannelBooking()
 
-  const [allSpecialities, setAllSpecialities] = useState<ChannelBookingSpecialityOption[]>([])
-  const [allDoctors, setAllDoctors] = useState<ChannelBookingDoctorOption[]>([])
+  const allSpecialities: ChannelBookingSpecialityOption[] = initialData?.specialities ?? []
+  const allDoctors: ChannelBookingDoctorOption[] = initialData?.doctors ?? []
   const [specialitySearch, setSpecialitySearch] = useState("")
   const [consultantSearch, setConsultantSearch] = useState("")
-  const [loading, setLoading] = useState(true)
-
-  // Fetch both specialities and doctors in parallel using a single useEffect
-  useEffect(() => {
-    let cancelled = false
-
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        // Fetch both in parallel
-        const [specialitiesResult, doctorsResult] = await Promise.all([
-          getSpecialitiesForChannelBooking(),
-          getDoctorsForChannelBooking(),
-        ])
-
-        if (cancelled) return
-
-        if (specialitiesResult.success && specialitiesResult.data) {
-          setAllSpecialities(specialitiesResult.data)
-        }
-
-        if (doctorsResult.success && doctorsResult.data) {
-          setAllDoctors(doctorsResult.data)
-        }
-      } catch (error) {
-        console.error("Failed to fetch data:", error)
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    fetchData()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // Memoize filtered specialities to avoid recalculating on every render
   const filteredSpecialities = useMemo(
@@ -136,7 +95,7 @@ export function DoctorSelection() {
               listHeight
             )}
           >
-            {loading ? (
+            {initialDataLoading ? (
               <div className="p-2 text-xs text-muted-foreground">Loading...</div>
             ) : filteredSpecialities.length === 0 ? (
               <div className="p-2 text-xs text-muted-foreground">
@@ -186,7 +145,7 @@ export function DoctorSelection() {
               listHeight
             )}
           >
-            {loading ? (
+            {initialDataLoading ? (
               <div className="p-2 text-xs text-muted-foreground">Loading...</div>
             ) : filteredDoctors.length === 0 ? (
               <div className="p-2 text-xs text-muted-foreground">

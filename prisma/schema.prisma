@@ -415,6 +415,28 @@ model Patient {
   updatedBy String?
 }
 
+model Staff {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  code          String    @unique()
+  title         String    @default("")
+  name          String
+  nic           String
+  dateOfBirth   DateTime?
+  gender        String    @default("")
+  contactMobile String
+  address       String    @default("")
+  dateJoined    DateTime?
+  status        Int       @default(1) // 0 = Inactive, 1 = Active
+
+  bookingsAsStaff     Booking[] @relation("BookingStaff")
+  bookingsReferred    Booking[] @relation("BookingReferredStaff")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+}
+
 model Tag {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String?
@@ -612,6 +634,7 @@ model Booking {
   agencyId                String?  @db.ObjectId
   agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
   staffId                 String?  @db.ObjectId
+  staff                   Staff?   @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
   discountDivision        Json?
   hospitalFeeDiscount     Int      @default(0)
   professionsalFeeDiscount Int     @default(0)
@@ -620,6 +643,7 @@ model Booking {
   referredDoctorId        String?  @db.ObjectId
   referredAgencyId        String?  @db.ObjectId
   referredStaffId         String?  @db.ObjectId
+  referredStaff           Staff?   @relation("BookingReferredStaff", fields: [referredStaffId], references: [id], onDelete: SetNull)
   sessionStartTime        Int
   sessionEndTime          Int
   isScan                  Boolean  @default(false)

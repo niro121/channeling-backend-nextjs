@@ -10,6 +10,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/doctor-sessions": "doctor-sessions",
   "/departments": "departments",
   "/patients": "patients",
+  "/staff": "staff",
   "/tags": "tags",
   "/zones": "zones",
   "/rooms": "rooms",

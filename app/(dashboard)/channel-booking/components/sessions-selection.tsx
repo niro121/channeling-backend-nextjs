@@ -1,10 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import {
-  getLocationsForChannelBooking,
-  getSessionsForChannelBooking,
-} from "@/app/actions/channel-booking"
+import { getSessionsForChannelBooking } from "@/app/actions/channel-booking"
 import { Card, CardContent } from "@/components/ui/card"
 import { useChannelBooking } from "../context/channel-booking-context"
 import { BranchSelection } from "./sessions-selection/branch-selection"
@@ -20,6 +17,7 @@ import {
 
 export function SessionsSelection() {
   const {
+    initialData,
     selectedDoctor,
     selectedSession,
     sessions,
@@ -32,22 +30,9 @@ export function SessionsSelection() {
   // Default date to today on page load; reset to today when doctor is cleared
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date())
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const [allLocations, setAllLocations] = useState<BranchOption[]>([])
+  const allLocations: BranchOption[] = initialData?.locations ?? []
 
   const hasDoctor = Boolean(selectedDoctor?.id)
-
-  // Load all locations on mount (for branch dropdown)
-  useEffect(() => {
-    let cancelled = false
-    getLocationsForChannelBooking()
-      .then((res) => {
-        if (cancelled || !res.success || !res.data) return
-        setAllLocations(res.data)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // When doctor is cleared, reset location and clear sessions; keep date as today
   useEffect(() => {

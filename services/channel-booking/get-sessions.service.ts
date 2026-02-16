@@ -32,6 +32,7 @@ export async function getSessionsForChannelBookingService(
       where.locationId = locationId
     }
 
+    const start = Date.now()
     const records = await prisma.session.findMany({
       where,
       include: {
@@ -43,6 +44,10 @@ export async function getSessionsForChannelBookingService(
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })
+    const ms = Date.now() - start
+    if (process.env.NODE_ENV !== "test") {
+      console.log(`[channel-booking] getSessionsForChannelBooking: ${ms}ms (${records.length} rows)`)
+    }
 
     const data = records.map((r) => ({
       id: r.id,

@@ -1,8 +1,10 @@
 "use client"
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { getChannelBookingInitialData } from "@/app/actions/channel-booking"
 import type { ChannelBookingDoctorOption } from "@/services/channel-booking"
 import type { Session } from "@/types/booking.dashboard"
+import type { ChannelBookingInitialData } from "@/services/channel-booking/get-initial-data.service"
 
 /** Booking record for list panel (and selection). */
 export type ChannelBookingRecord = {
@@ -33,6 +35,9 @@ export type ReservationDetails = {
 } | null
 
 export type ChannelBookingState = {
+  /** Specialities, doctors, locations – fetched once on mount (one POST). */
+  initialData: ChannelBookingInitialData | null
+  initialDataLoading: boolean
   selectedSpecialityId: string | null
   selectedDoctor: ChannelBookingDoctorOption | null
   selectedSession: Session | null
@@ -104,6 +109,8 @@ function reservationFromSession(
 }
 
 export function ChannelBookingProvider({ children }: { children: React.ReactNode }) {
+  const [initialData, setInitialData] = useState<ChannelBookingInitialData | null>(null)
+  const [initialDataLoading, setInitialDataLoading] = useState(true)
   const [selectedSpecialityId, setSelectedSpecialityId] = useState<string | null>(null)
   const [selectedDoctor, setSelectedDoctor] = useState<ChannelBookingDoctorOption | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
@@ -113,6 +120,18 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [bookings, setBookings] = useState<ChannelBookingRecord[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingDetailsRefreshKey, setBookingDetailsRefreshKey] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    getChannelBookingInitialData().then((res) => {
+      if (cancelled) return
+      if (res.success && res.data) setInitialData(res.data)
+      setInitialDataLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const refreshBookingDetails = useCallback(() => {
     setBookingDetailsRefreshKey((k) => k + 1)
@@ -144,6 +163,8 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
 
   const value = useMemo<ChannelBookingContextValue>(
     () => ({
+      initialData,
+      initialDataLoading,
       selectedSpecialityId,
       selectedDoctor,
       selectedSession,
@@ -168,6 +189,8 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       refreshBookingDetails,
     }),
     [
+      initialData,
+      initialDataLoading,
       selectedSpecialityId,
       selectedDoctor,
       selectedSession,

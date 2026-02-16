@@ -16,10 +16,21 @@ const getSecret = () => {
   return 'development-secret-key-change-in-production';
 };
 
+const STATIC_PATHS = ['/favicon.ico', '/favicon', '/_next/static', '/_next/image'];
+const STATIC_EXT = /\.(ico|png|jpg|jpeg|gif|svg|webp|woff2?|css|js)(\?.*)?$/i;
+
 export default withAuth(
   function middleware(request) {
-    const token = request.nextauth.token;
     const currentPath = request.nextUrl.pathname;
+    // Skip auth for static assets (favicon, _next, and common file extensions)
+    if (STATIC_PATHS.some((p) => currentPath === p || currentPath.startsWith(p + '/'))) {
+      return NextResponse.next();
+    }
+    if (STATIC_EXT.test(currentPath)) {
+      return NextResponse.next();
+    }
+
+    const token = request.nextauth.token;
 
     if (process.env.NODE_ENV === 'development') {
       console.log('auth-pathname:', currentPath);
@@ -71,7 +82,7 @@ export default withAuth(
 );
 
 
-// Don't invoke Middleware on some paths
+// Don't invoke Middleware on some paths (include favicon/static assets so they don't run auth)
 export const config = {
-  matcher: ['/((?!login|forgot-password|check-email|register|api/*).*)', "/api/doctors/:path*"]
+  matcher: ['/((?!login|forgot-password|check-email|register|api/|favicon|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)', "/api/doctors/:path*"]
 }
