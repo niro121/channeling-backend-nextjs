@@ -176,6 +176,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const showBank = showCard || showSlip
 
   async function handleSettle() {
+    if (!selectedBooking || !details) return
     setSubmitting(true)
     try {
       const result = await settleBookingAction({

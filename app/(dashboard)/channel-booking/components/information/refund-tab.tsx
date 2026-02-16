@@ -134,6 +134,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
     (professionalChecked ? professionalRefundable : 0) + (hospitalChecked ? hospitalRefundable : 0)
 
   async function handleRefund() {
+    if (!selectedBooking) return
     if (totalRefund <= 0) {
       toast({ title: "Select items", description: "Select at least one refundable item.", variant: "destructive" })
       return
@@ -154,7 +155,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
           const res = await getBookingsBySession(selectedSession.id)
           if (res.success && res.data) {
             setBookings(res.data)
-            const updated = res.data.find((b) => b.id === selectedBooking.id)
+            const updated = res.data.find((b) => b.id === selectedBooking?.id)
             if (updated) setSelectedBooking(updated)
           }
         }

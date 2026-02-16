@@ -106,6 +106,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
   const refundAmount = isPaid ? details.billTotal : 0
 
   async function handleCancel() {
+    if (!selectedBooking) return
     setSubmitting(true)
     try {
       const result = await refundChannelAction({
@@ -122,7 +123,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           const res = await getBookingsBySession(selectedSession.id)
           if (res.success && res.data) {
             setBookings(res.data)
-            const updated = res.data.find((b) => b.id === selectedBooking.id)
+            const updated = res.data.find((b) => b.id === selectedBooking?.id)
             if (updated) setSelectedBooking(updated)
           }
         }
