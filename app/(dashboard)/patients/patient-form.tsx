@@ -19,27 +19,7 @@ import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
 
-const TITLE_LIST = [
-  { id: 0, name: 'MR.' },
-  { id: 1, name: 'MRS.' },
-  { id: 2, name: 'MISS.' },
-  { id: 3, name: 'MS.' },
-  { id: 4, name: "Ma'am" },
-  { id: 5, name: 'DR.' },
-  { id: 6, name: 'DR.(MRS)' },
-  { id: 7, name: 'DR.(MS)' },
-  { id: 8, name: 'DR.(MISS)' },
-  { id: 9, name: 'PROF.' },
-  { id: 10, name: 'PROF.(MRS)' },
-  { id: 11, name: 'MASTER.' },
-  { id: 12, name: 'BABY.' },
-  { id: 13, name: 'REV.' },
-  { id: 14, name: 'RT.REV.' },
-  { id: 15, name: 'HON.' },
-  { id: 16, name: 'RT.HON.' },
-  { id: 17, name: 'OTHER' },
-  { id: 18, name: 'BABY OF' }
-];
+import { TITLE_LIST } from "@/types/title"
 
 type PatientFormProps = {
   patient?: Patient | null;

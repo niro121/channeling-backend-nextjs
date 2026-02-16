@@ -241,15 +241,11 @@ export const bulkDeletePatientsAction = async (ids: string[]) => {
 // Fetch Areas for filtering or dropdowns
 export const getAreasAction = async () => {
     try {
-        // Tag type 1 is assumed to be "Area" based on context or we filter by just existing
-        // Since there's no specific "Area" model, we look at Tag with type filter if applicable
-        // Or simply all tags if 'type' isn't strictly defined for Area yet. 
-        // Based on prompt: "City/Area (Select/Dropdown, populated from a Tag or Area list)"
-        // I will assume we fetch all Tags. Refine if Tag schema 'type' is strict.
+        // Tag type 0 = City (Area) per old system / migrate tag list
         const areas = await prisma.tag.findMany({
             where: { 
                 status: 1, // Active tags
-                type: 1    // Area tags
+                type: 0    // City/Area tags
             }, 
             orderBy: { name: 'asc' }
         })

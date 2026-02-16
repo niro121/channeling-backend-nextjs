@@ -46,11 +46,10 @@ const doctorSessionSchema = z
     advancedBookingDays: z.number().min(0).max(100),
 
     fees: z.array(feeSchema),
-    amountLocal: z.coerce.number().min(0, 'Amount must be positive').optional(),
+    amountLocal: z.coerce.number().min(0.01, 'Local fee must be greater than 0'),
     amountForeign: z.coerce
       .number()
-      .min(0, 'Amount must be positive')
-      .optional(),
+      .min(0.01, 'Foreign fee must be greater than 0'),
 
     dayType: z.number().min(1).max(8),
     applyTo: z.coerce.date().optional().nullable(),

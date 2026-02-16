@@ -39,7 +39,8 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
         type: Yup.number()
             .typeError("Type is required")
             .required("This field is mandatory")
-            .min(1, "Type is required"),
+            .min(0, "Type is required")
+            .max(4, "Type must be 0–4 (City, Staff Category, Staff Designation, Staff Grade, Bank)"),
         status: Yup.number()
             .oneOf([0, 1], "Status must be Inactive (0) or Active (1)")
             .required("This field is mandatory"),
@@ -200,11 +201,11 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                 }}
                                 required
                                 options={[
-                                    { id: "1", name: "Area" },
-                                    { id: "2", name: "Bank" },
-                                    { id: "3", name: "Staff Category" },
-                                    { id: "4", name: "Staff Designation" },
-                                    { id: "5", name: "Staff Grade" },
+                                    { id: "0", name: "City" },
+                                    { id: "1", name: "Staff Category" },
+                                    { id: "2", name: "Staff Designation" },
+                                    { id: "3", name: "Staff Grade" },
+                                    { id: "4", name: "Bank" },
                                 ]}
                                 styleClasses={styleClasses}
                             />

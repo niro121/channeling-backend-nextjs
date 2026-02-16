@@ -196,7 +196,17 @@ export default function DoctorSessionForm({
     advancedBookingDays: Yup.number()
       .min(0)
       .max(100)
-      .required('This field is mandatory')
+      .required('This field is mandatory'),
+
+    amountLocal: Yup.number()
+      .transform((value) => (value === '' || value == null ? undefined : Number(value)))
+      .required('Local fee is required')
+      .min(0.01, 'Local fee must be greater than 0'),
+
+    amountForeign: Yup.number()
+      .transform((value) => (value === '' || value == null ? undefined : Number(value)))
+      .required('Foreign fee is required')
+      .min(0.01, 'Foreign fee must be greater than 0')
   });
 
   const handleSubmit = async (

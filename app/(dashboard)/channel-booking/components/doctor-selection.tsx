@@ -1,14 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useChannelBooking } from "../context/channel-booking-context"
-import { getAllSpecialityOptions } from "@/app/actions/doctor.actions"
-import { getAllDoctors } from "@/app/actions/doctor.actions"
+import {
+  getSpecialitiesForChannelBooking,
+  getDoctorsForChannelBooking,
+} from "@/app/actions/channel-booking"
+import type { ChannelBookingDoctorOption, ChannelBookingSpecialityOption } from "@/services/channel-booking"
 import { cn } from "@/lib/utils"
-import type { Speciality } from "@/types/speciality"
-import type { Doctor } from "@/types/doctor"
 
 export function DoctorSelection() {
   const {
@@ -18,8 +19,8 @@ export function DoctorSelection() {
     onDoctorSelect,
   } = useChannelBooking()
 
-  const [allSpecialities, setAllSpecialities] = useState<Speciality[]>([])
-  const [allDoctors, setAllDoctors] = useState<Doctor[]>([])
+  const [allSpecialities, setAllSpecialities] = useState<ChannelBookingSpecialityOption[]>([])
+  const [allDoctors, setAllDoctors] = useState<ChannelBookingDoctorOption[]>([])
   const [specialitySearch, setSpecialitySearch] = useState("")
   const [consultantSearch, setConsultantSearch] = useState("")
   const [loading, setLoading] = useState(true)
@@ -33,8 +34,8 @@ export function DoctorSelection() {
       try {
         // Fetch both in parallel
         const [specialitiesResult, doctorsResult] = await Promise.all([
-          getAllSpecialityOptions(),
-          getAllDoctors({ page: "0", limit: "1000" }),
+          getSpecialitiesForChannelBooking(),
+          getDoctorsForChannelBooking(),
         ])
 
         if (cancelled) return
@@ -71,18 +72,23 @@ export function DoctorSelection() {
     [allSpecialities, specialitySearch]
   )
 
-  // Memoize filtered doctors to avoid recalculating on every render
-  // Filter by both search term and selected speciality
+  // Memoize filtered doctors: when searching consultant, ignore specialty and filter from full list
   const filteredDoctors = useMemo(
     () =>
       allDoctors.filter((doctor) => {
-        // Filter by speciality if one is selected
+        const doctorName = [doctor.title, doctor.name].filter(Boolean).join(" ")
+        const matchesSearch = doctorName
+          .toLowerCase()
+          .includes(consultantSearch.toLowerCase())
+        // When user is searching, show all doctors matching the search (drop specialty filter)
+        if (consultantSearch.trim()) {
+          return matchesSearch
+        }
+        // When not searching, filter by selected specialty only
         if (selectedSpecialityId && doctor.specialityId !== selectedSpecialityId) {
           return false
         }
-        // Filter by search term
-        const doctorName = [doctor.title, doctor.name].filter(Boolean).join(" ")
-        return doctorName.toLowerCase().includes(consultantSearch.toLowerCase())
+        return true
       }),
     [allDoctors, consultantSearch, selectedSpecialityId]
   )
@@ -97,7 +103,7 @@ export function DoctorSelection() {
     }
   }
 
-  const handleDoctorClick = (doctor: Doctor) => {
+  const handleDoctorClick = (doctor: ChannelBookingDoctorOption) => {
     const isDeselecting = doctor.id === selectedDoctor?.id
     
     if (isDeselecting) {
@@ -111,41 +117,44 @@ export function DoctorSelection() {
     }
   }
 
+  const listHeight = "h-[160px]"
+
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Specialities Card */}
-      <Card className="flex flex-col min-h-[320px]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Specialities</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 p-4 pt-0">
-          <div className="mb-3">
-            <Input
-              placeholder="Search specialities..."
-              value={specialitySearch}
-              onChange={(e) => setSpecialitySearch(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="flex-1 rounded-md border border-border bg-muted/20 min-h-[200px] overflow-auto">
+    <div className="grid grid-cols-2 gap-2 min-h-0">
+      {/* Specialities – single border, smaller text */}
+      <Card className="flex flex-col min-h-0 border border-border">
+        <CardContent className="flex flex-col min-h-0 p-0 overflow-hidden rounded-[inherit]">
+          <Input
+            placeholder="Specialty"
+            value={specialitySearch}
+            onChange={(e) => setSpecialitySearch(e.target.value)}
+            className="h-7 text-xs rounded-none border-0 border-b border-border bg-muted/10 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <div
+            className={cn(
+              "flex-1 bg-muted/10 overflow-y-auto shrink-0 scrollbar-thinner",
+              listHeight
+            )}
+          >
             {loading ? (
-              <div className="p-2 text-sm text-muted-foreground">Loading...</div>
+              <div className="p-2 text-xs text-muted-foreground">Loading...</div>
             ) : filteredSpecialities.length === 0 ? (
-              <div className="p-2 text-sm text-muted-foreground">
+              <div className="p-2 text-xs text-muted-foreground">
                 {specialitySearch ? "No specialities found." : "No specialities available."}
               </div>
             ) : (
-              <div className="p-1">
+              <div className="py-0.5 divide-y divide-border">
                 {filteredSpecialities.map((speciality) => {
                   if (!speciality.id) return null
                   return (
                     <div
                       key={speciality.id}
-                      onClick={() => handleSpecialityClick(speciality.id!)}
+                      onClick={() => handleSpecialityClick(speciality.id)}
                       className={cn(
-                        "p-2 text-sm cursor-pointer rounded-md hover:bg-muted/50 transition-colors",
+                        "px-2 py-1.5 text-xs cursor-pointer transition-colors duration-150",
+                        "hover:bg-primary hover:text-primary-foreground",
                         selectedSpecialityId === speciality.id &&
-                          "bg-primary/10 text-primary font-medium"
+                          "bg-primary text-primary-foreground font-medium"
                       )}
                     >
                       {speciality.name}
@@ -158,31 +167,34 @@ export function DoctorSelection() {
         </CardContent>
       </Card>
 
-      {/* Consultant Card */}
-      <Card className="flex flex-col min-h-[320px]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Consultant</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 p-4 pt-0">
-          <div className="mb-3">
-            <Input
-              placeholder="Search consultants..."
-              value={consultantSearch}
-              onChange={(e) => setConsultantSearch(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="flex-1 rounded-md border border-border bg-muted/20 min-h-[200px] overflow-auto">
+      {/* Consultant – single border, smaller text */}
+      <Card className="flex flex-col min-h-0 border border-border">
+        <CardContent className="flex flex-col min-h-0 p-0 overflow-hidden rounded-[inherit]">
+          <Input
+            placeholder="Consultant"
+            value={consultantSearch}
+            onChange={(e) => {
+              const value = e.target.value
+              setConsultantSearch(value)
+              if (value.trim()) setSelectedSpecialityId(null)
+            }}
+            className="h-7 text-xs rounded-none border-0 border-b border-border bg-muted/10 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <div
+            className={cn(
+              "flex-1 bg-muted/10 overflow-y-auto shrink-0 scrollbar-thinner",
+              listHeight
+            )}
+          >
             {loading ? (
-              <div className="p-2 text-sm text-muted-foreground">Loading...</div>
+              <div className="p-2 text-xs text-muted-foreground">Loading...</div>
             ) : filteredDoctors.length === 0 ? (
-              <div className="p-2 text-sm text-muted-foreground">
+              <div className="p-2 text-xs text-muted-foreground">
                 {consultantSearch ? "No consultants found." : "No consultants available."}
               </div>
             ) : (
-              <div className="p-1">
+              <div className="py-0.5 divide-y divide-border">
                 {filteredDoctors.map((doctor) => {
-                  if (!doctor.id) return null
                   const doctorName = [doctor.title, doctor.name]
                     .filter(Boolean)
                     .join(" ")
@@ -191,9 +203,10 @@ export function DoctorSelection() {
                       key={doctor.id}
                       onClick={() => handleDoctorClick(doctor)}
                       className={cn(
-                        "p-2 text-sm cursor-pointer rounded-md hover:bg-muted/50 transition-colors",
+                        "px-2 py-1.5 text-xs cursor-pointer transition-colors duration-150",
+                        "hover:bg-primary hover:text-primary-foreground",
                         selectedDoctor?.id === doctor.id &&
-                          "bg-primary/10 text-primary font-medium"
+                          "bg-primary text-primary-foreground font-medium"
                       )}
                     >
                       {doctorName}

@@ -67,3 +67,40 @@ export function getSessionDisplayName(session: Session): string {
   }
   return session.location?.name ?? "Session"
 }
+
+const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** Day abbreviation from session date (e.g. "Mon"). */
+export function formatSessionDay(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date
+  return DAY_ABBR[d.getDay()] ?? ""
+}
+
+/** Date as Mon/Day/YY (e.g. "Mar/2/26"). */
+export function formatSessionDateShort(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date
+  const mon = MONTH_ABBR[d.getMonth()] ?? ""
+  const day = d.getDate()
+  const yy = String(d.getFullYear()).slice(-2)
+  return `${mon}/${day}/${yy}`
+}
+
+/** Session start time as "8:30 AM" / "12:00 PM". */
+export function formatSessionStartTimeDisplay(
+  startTime: number | string | Date,
+  sessionDate?: Date | string
+): string {
+  const minutes = toMinutesFromMidnight(startTime, sessionDate)
+  const h = Math.floor(minutes / 60) % 24
+  const m = minutes % 60
+  const ampm = h < 12 ? "AM" : "PM"
+  const hour12 = h % 12 || 12
+  return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
+}
+
+/** Local fee with thousands separator (e.g. 6190 -> "6,190"). */
+export function formatLocalFee(amount: number | null | undefined): string {
+  const n = amount ?? 0
+  return n.toLocaleString()
+}
