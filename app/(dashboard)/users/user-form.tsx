@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { User } from "@/types/user"
 import { Form, Formik, FormikHelpers } from "formik"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,10 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import * as Yup from "yup"
 import { useDialog } from "@/components/common/custom-dialog"
 import { Separator } from "@/components/ui/separator"
-import { createNewUser, updateUser, updateUserPassword } from "@/app/actions/user.actions"
+import { createNewUser, updateUser, updateUserPassword, getLocationOptions } from "@/app/actions/user.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 import CustomSelectField from "@/components/common/custom-select-field"
+import { CustomMultiSelect } from "@/components/common/custom-mulit-select"
+import { CustomSwitch } from "@/components/common/custom-switch"
+
+type LocationOption = { id: string; name: string }
 
 type UserFormProps = {
     user: User | null
@@ -27,8 +31,25 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const [tab, setTab] = useState(isEditMode ? "settings" : "main")
     const [loading, setLoading] = useState<boolean>(false)
     const [passwordLoading, setPasswordLoading] = useState<boolean>(false)
+    const [locationOptions, setLocationOptions] = useState<LocationOption[]>([])
+    const [locationOptionsLoading, setLocationOptionsLoading] = useState(false)
     const { setDialogOpen } = useDialog()
     const { toast } = useToast()
+
+    useEffect(() => {
+        const loadLocations = async () => {
+            setLocationOptionsLoading(true)
+            const res = await getLocationOptions()
+            setLocationOptionsLoading(false)
+            if (res.success && res.data) setLocationOptions(res.data)
+        }
+        loadLocations()
+    }, [])
+
+    const bookingLocationIdsFromUser = (u: User | null): string[] => {
+        if (!u?.bookingLocations?.length) return []
+        return u.bookingLocations.map((b: any) => b.locationId ?? b.location?.id).filter(Boolean)
+    }
 
     // Initial values for user settings
     const settingsInitialValues = {
@@ -37,6 +58,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         userType: user?.userType || 2,
         userGroupId: user?.userGroupId || "",
         status: user?.status !== undefined ? user.status : 1,
+        checkedDefaultLocation: user?.checkedDefaultLocation ?? false,
+        defaultLocation: user?.defaultLocation ?? "",
+        userLocationId: user?.userLocationId ?? "",
+        bookingLocationIds: bookingLocationIdsFromUser(user),
     }
 
     // Initial values for password change
@@ -55,6 +80,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         userType: 2,
         status: 1,
         userGroupId: "",
+        userLocationId: "",
+        checkedDefaultLocation: false
     }
 
     // Validation schema for user settings
@@ -118,9 +145,17 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             const { fetchUserById } = await import("@/app/actions/user.actions")
             const currentUser = await fetchUserById(user!.id!)
             
+            // When checkedDefaultLocation is true, set defaultLocation to the first booking location
+            const defaultLocation =
+                values.checkedDefaultLocation && (values.bookingLocationIds?.length ?? 0) > 0
+                    ? values.bookingLocationIds![0]
+                    : "";
+
             const userPayload: User = {
                 ...currentUser,
                 ...values,
+                defaultLocation: defaultLocation || undefined,
+                bookingLocationIds: values.bookingLocationIds,
                 password: "", // Empty password means keep existing
             } as User
 
@@ -353,6 +388,43 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 />
                             )}
 
+                            <CustomSelectField
+                                    id="userLocationId"
+                                    placeholder="User Location"
+                                    value={formik.values.userLocationId || "__none__"}
+                                    onChange={(value) => {
+                                        formik.setFieldValue("userLocationId", value === "__none__" ? "" : value);
+                                        formik.setFieldTouched("userLocationId", true);
+                                    }}
+                                    required={false}
+                                    options={[{ id: "__none__", name: "None" }, ...locationOptions]}
+                                    styleClasses={styleClasses}
+                                    loading={locationOptionsLoading}
+                                />
+
+                                <Separator />
+
+                                <CustomMultiSelect
+                                    id="bookingLocationIds"
+                                    placeholder="Booking Locations"
+                                    value={formik.values.bookingLocationIds ?? []}
+                                    onChange={(values) => formik.setFieldValue("bookingLocationIds", values)}
+                                    required={false}
+                                    options={locationOptions}
+                                    styleClasses={styleClasses}
+                                />
+
+                                <div>
+                                    <CustomSwitch
+                                    id="checkedDefaultLocation"
+                                    placeholder="Use default location"
+                                    checked={formik.values.checkedDefaultLocation}
+                                    onChange={(checked) => formik.setFieldValue("checkedDefaultLocation", checked)}
+                                    styleClasses={styleClasses}
+                                />
+                                    <p className="text-secondary-foreground text-xs">Make First Location Auto Selected ( In Channeling Module )</p>
+                                </div>
+
                             <div className="flex flex-col sm:flex-row justify-end gap-3">
                                 <Button
                                     size="sm"
@@ -460,7 +532,46 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     />
                                 )}
 
+                                <CustomSelectField
+                                    id="userLocationId"
+                                    placeholder="User Location"
+                                    value={formik.values.userLocationId || "__none__"}
+                                    onChange={(value) => {
+                                        formik.setFieldValue("userLocationId", value === "__none__" ? "" : value);
+                                        formik.setFieldTouched("userLocationId", true);
+                                    }}
+                                    required={false}
+                                    options={[{ id: "__none__", name: "None" }, ...locationOptions]}
+                                    styleClasses={styleClasses}
+                                    loading={locationOptionsLoading}
+                                />
+
                                 <Separator />
+
+                                <CustomMultiSelect
+                                    id="bookingLocationIds"
+                                    placeholder="Booking Locations"
+                                    value={formik.values.bookingLocationIds ?? []}
+                                    onChange={(values) => formik.setFieldValue("bookingLocationIds", values)}
+                                    required={false}
+                                    options={locationOptions}
+                                    styleClasses={styleClasses}
+                                />
+
+                                <div>
+                                    <CustomSwitch
+                                    id="checkedDefaultLocation"
+                                    placeholder="Use default location"
+                                    checked={formik.values.checkedDefaultLocation}
+                                    onChange={(checked) => formik.setFieldValue("checkedDefaultLocation", checked)}
+                                    styleClasses={styleClasses}
+                                />
+                                    <p className="text-secondary-foreground text-xs">Make First Location Auto Selected ( In Channeling Module )</p>
+                                </div>
+                                
+
+                                <Separator />
+
 
                                 <div className="flex items-center align-middle mb-3">
                                     <Checkbox

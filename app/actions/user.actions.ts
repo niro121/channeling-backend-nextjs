@@ -2,7 +2,7 @@
 
 import { GetUsersParams, GetUsersQuery, User } from "@/types/user"
 import * as argon2 from "argon2";
-import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser } from "@/services/user.service"
+import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 
@@ -134,6 +134,10 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
             userType?: number;
             status?: number;
             userGroupId?: string | null;
+            checkedDefaultLocation?: boolean;
+            defaultLocation?: string | null;
+            userLocationId?: string | null;
+            bookingLocationIds?: string[];
         } = {};
 
         if (payload.name !== undefined) updatePayload.name = payload.name;
@@ -142,6 +146,10 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         if (payload.userType !== undefined) updatePayload.userType = payload.userType;
         if (payload.status !== undefined) updatePayload.status = payload.status;
         if (payload.userGroupId !== undefined) updatePayload.userGroupId = payload.userGroupId;
+        if (payload.checkedDefaultLocation !== undefined) updatePayload.checkedDefaultLocation = payload.checkedDefaultLocation;
+        if (payload.defaultLocation !== undefined) updatePayload.defaultLocation = payload.defaultLocation || null;
+        if (payload.userLocationId !== undefined) updatePayload.userLocationId = payload.userLocationId || null;
+        if (payload.bookingLocationIds !== undefined) updatePayload.bookingLocationIds = payload.bookingLocationIds;
 
         const result = await updateOneUser(id, updatePayload)
 
@@ -266,3 +274,24 @@ export const deactivateUser = async (id: string) => {
         throw new Error(error.message ?? "Error deactivating data. please try again later")
     }
 }
+
+// ==== GET LOCATION OPTIONS ==== //
+export const getLocationOptions = async () => {
+  try {
+    const response = await getLocationOptionsService();
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: any) {
+    console.error('getLocationOptions error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get locations'
+      }
+    };
+  }
+};

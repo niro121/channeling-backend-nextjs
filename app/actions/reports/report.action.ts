@@ -26,9 +26,22 @@ export const getDoctorReportData = async (
   try {
     const result = await getDoctorReportDataService(query);
 
+    // Map the result to ensure User objects have all required fields
+    const mappedData: Doctor[] = result.data.map((doctor: any) => ({
+      ...doctor,
+      createdUser: doctor.createdUser ? {
+        ...doctor.createdUser,
+        checkedDefaultLocation: doctor.createdUser.checkedDefaultLocation ?? false
+      } : null,
+      updatedUser: doctor.updatedUser ? {
+        ...doctor.updatedUser,
+        checkedDefaultLocation: doctor.updatedUser.checkedDefaultLocation ?? false
+      } : null
+    }));
+
     return {
       success: true,
-      data: result.data,
+      data: mappedData,
       totalRecords: result.totalRecords
     };
   } catch (error: unknown) {
@@ -58,7 +71,20 @@ export const exportDoctorReportData = async (
       };
     }
 
-    const mappedDoctors: ExportDoctorData[] = result.data.map((d: Doctor) => ({
+    // Map the result to ensure User objects have all required fields
+    const mappedDoctorsData: Doctor[] = result.data.map((doctor: any) => ({
+      ...doctor,
+      createdUser: doctor.createdUser ? {
+        ...doctor.createdUser,
+        checkedDefaultLocation: doctor.createdUser.checkedDefaultLocation ?? false
+      } : null,
+      updatedUser: doctor.updatedUser ? {
+        ...doctor.updatedUser,
+        checkedDefaultLocation: doctor.updatedUser.checkedDefaultLocation ?? false
+      } : null
+    }));
+
+    const mappedDoctors: ExportDoctorData[] = mappedDoctorsData.map((d: Doctor) => ({
       code: d.code,
       name: `${d.title} ${d.name}`,
       registrationNumber: d.registrationNumber || '-',
@@ -115,9 +141,23 @@ export const getChannelAgentReferenceBookReportData = async (
   await requirePermission('reports', 'view');
   try {
     const result = await getChannelAgentReferenceBookReportDataService(query);
+    
+    // Map the result to ensure User objects have all required fields
+    const mappedData: AgencyBook[] = result.data.map((book: any) => ({
+      ...book,
+      createdUser: book.createdUser ? {
+        ...book.createdUser,
+        checkedDefaultLocation: book.createdUser.checkedDefaultLocation ?? false
+      } : null,
+      updatedUser: book.updatedUser ? {
+        ...book.updatedUser,
+        checkedDefaultLocation: book.updatedUser.checkedDefaultLocation ?? false
+      } : null
+    }));
+    
     return {
       success: true,
-      data: result.data,
+      data: mappedData,
       totalRecords: result.totalRecords,
     };
   } catch (error: unknown) {
@@ -147,7 +187,20 @@ export const exportChannelAgentReferenceBookReportData = async (
       };
     }
 
-    const mappedBooks: ExportChannelAgentReferenceBookData[] = result.data.map((book: AgencyBook, index: number) => {
+    // Map the result to ensure User objects have all required fields
+    const mappedBooksData: AgencyBook[] = result.data.map((book: any) => ({
+      ...book,
+      createdUser: book.createdUser ? {
+        ...book.createdUser,
+        checkedDefaultLocation: book.createdUser.checkedDefaultLocation ?? false
+      } : null,
+      updatedUser: book.updatedUser ? {
+        ...book.updatedUser,
+        checkedDefaultLocation: book.updatedUser.checkedDefaultLocation ?? false
+      } : null
+    }));
+
+    const mappedBooks: ExportChannelAgentReferenceBookData[] = mappedBooksData.map((book: AgencyBook, index: number) => {
       const createdDate = book.createdAt 
         ? (book.createdAt instanceof Date ? book.createdAt : new Date(book.createdAt))
         : new Date();
