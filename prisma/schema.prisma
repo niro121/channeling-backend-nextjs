@@ -98,9 +98,9 @@ model Department {
   name            String
   description     String?
   visibility      Int // 0 = unpublish, 1 = publish
-  migrateSourceId String?  @unique // Source system id (e.g. Sails) for migrate import lookup
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now())
+  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now())
 
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
@@ -117,7 +117,7 @@ model Speciality {
   code            String   @unique()
   description     String
   status          Int // == 0: unpublish, 1: publish == //
-  migrateSourceId String?  @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
   createdAt       DateTime @default(now())
@@ -146,7 +146,7 @@ model Doctor {
   referralCharge     Float
   sessionNoPrefix    String?
   status             Int // == 0: unpublish, 1: publish == //
-  migrateSourceId    String?  @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId    String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy          String?  @db.ObjectId
   updatedBy          String?  @db.ObjectId
   createdAt          DateTime @default(now())
@@ -324,7 +324,7 @@ model Location {
   branchType      Int
   status          Int // == 0: unpublish, 1: publish == //
   code            String   @unique()
-  migrateSourceId String?  @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
   createdAt       DateTime @default(now())
@@ -350,7 +350,7 @@ model Room {
   number          String
   description     String
   status          Int // == 0: unpublish, 1: publish == //
-  migrateSourceId String?  @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
   createdAt       DateTime @default(now())
@@ -443,7 +443,7 @@ model Tag {
   name            String?
   type            Int?
   status          Int?
-  migrateSourceId String? @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
 
   patients Patient[] @relation("PatientArea")
 
@@ -458,7 +458,7 @@ model Zone {
   name            String
   description     String?
   visibility      Int // 0 = unpublish, 1 = publish
-  migrateSourceId String? @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -485,7 +485,7 @@ model Discount {
   autoApply            Boolean          @default(false)
   status               Int // 0 = unpublish, 1 = publish
   applyTo              Int              @default(0) // 0 = hospital-fee, 1 = professional-fee
-  migrateSourceId      String?          @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId      String?    // Source system id (e.g. Sails) for migrate import lookup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -580,7 +580,7 @@ model Agency {
   // ==== SETTINGS ==== //
   sendSms         Int?    @default(0) // 0 = No, 1 = Yes
   status          Int?    @default(1) // 0 = Unpublish, 1 = Publish
-  migrateSourceId String? @unique // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
 
   // ==== RELATIONS ==== //
   parentAgency  Agency?      @relation("AgencyParent", fields: [parentAgencyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
