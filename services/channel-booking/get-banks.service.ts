@@ -2,7 +2,7 @@ import prisma from "@/lib/prisma"
 
 export type ChannelBookingBankOption = { id: string; name: string }
 
-const TAG_TYPE_BANK = 2
+const TAG_TYPE_BANK = 4 // Bank (old system type 4)
 const TAG_STATUS_ACTIVE = 1
 
 /**

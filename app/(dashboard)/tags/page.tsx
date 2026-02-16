@@ -36,12 +36,13 @@ export default async function Page({ searchParams }: SearchParams) {
         type: resolvedSearchParams?.type,
     })
 
+    // Align with old system / migrate: 0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank
     const tagTypeOptions = [
-        { id: "1", name: "Area" },
-        { id: "2", name: "Bank" },
-        { id: "3", name: "Staff Category" },
-        { id: "4", name: "Staff Designation" },
-        { id: "5", name: "Staff Grade" },
+        { id: "0", name: "City" },
+        { id: "1", name: "Staff Category" },
+        { id: "2", name: "Staff Designation" },
+        { id: "3", name: "Staff Grade" },
+        { id: "4", name: "Bank" },
     ];
 
     const handleExport = async () => {
@@ -62,11 +63,11 @@ export default async function Page({ searchParams }: SearchParams) {
         }
 
         const TAG_TYPES: Record<number, string> = {
-            1: 'Area',
-            2: 'Bank',
-            3: 'Staff Category',
-            4: 'Staff Designation',
-            5: 'Staff Grade'
+            0: 'City',
+            1: 'Staff Category',
+            2: 'Staff Designation',
+            3: 'Staff Grade',
+            4: 'Bank'
         };
 
         const mappedTags = tagListResponse.data.map((t) => ({

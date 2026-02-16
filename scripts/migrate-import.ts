@@ -30,6 +30,30 @@ import { getTitleNameById } from '@/types/doctor';
 
 const prisma = new PrismaClient();
 
+/** Run an async operation, retrying on Prisma P2034 (write conflict/deadlock). */
+async function retryOnConflict<T>(
+  fn: () => Promise<T>,
+  opts: { maxAttempts?: number; delayMs?: number } = {}
+): Promise<T> {
+  const maxAttempts = opts.maxAttempts ?? 5;
+  const delayMs = opts.delayMs ?? 80;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      lastError = e;
+      const code = (e as { code?: string })?.code;
+      if (code === 'P2034' && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, delayMs * attempt));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
+}
+
 const BASE_URL = process.env.MIGRATE_BASE_URL || 'http://localhost:1337';
 const USER_KEY = process.env.MIGRATE_USER_KEY || '';
 const IMPORT_USER_EMAIL = 'developer@archmage.lk';
@@ -92,8 +116,13 @@ function ask(question: string): Promise<string> {
 
 async function deleteMigrateTables(): Promise<void> {
   console.log('Deleting existing data in migrate-related tables...');
+  const r0a = await prisma.receipt.deleteMany({});
+  console.log('  receipt:', r0a.count);
+  const r0b = await prisma.booking.deleteMany({});
+  console.log('  booking:', r0b.count);
   const r1 = await prisma.session.deleteMany({});
   console.log('  session:', r1.count);
+  await prisma.doctorSession.updateMany({ where: {}, data: { previousSessionId: null } });
   const r2 = await prisma.doctorSession.deleteMany({});
   console.log('  doctorSession:', r2.count);
   const r3 = await prisma.agencyBook.deleteMany({});
@@ -145,7 +174,8 @@ type SourceRoom = {
   location: string; // source location id → resolve via locationIdMap
   zone: string | { id?: string }; // source zone id (migrateSourceId) → resolve via zoneIdMap
 };
-type SourceTag = { id: string; name: string; type?: number; status?: number };
+/** Old system: taglist items are type definitions (id 0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank). id is the type. */
+type SourceTag = { id: string | number; name: string; type?: number; status?: number };
 type SourceDiscount = {
   id: string; name: string; discount_type: number; discount_method: number; payment_type?: number;
   discount_value: number; discount_value_foreign: number; from_date: number; to_date: number;
@@ -197,17 +227,19 @@ async function importSpecialities(importUserId: string): Promise<Map<string, str
   const list = await migrateFetch<SourceSpeciality>('all-specialties', 'specialitylist');
   const map = new Map<string, string>();
   for (const s of list) {
-    const created = await prisma.speciality.create({
-      data: {
-        name: s.name || '',
-        code: s.code || `S${s.id}`,
-        description: s.description ?? '',
-        status: s.status ?? 0,
-        migrateSourceId: s.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    const created = await retryOnConflict(() =>
+      prisma.speciality.create({
+        data: {
+          name: s.name || '',
+          code: s.code || `S${s.id}`,
+          description: s.description ?? '',
+          status: s.status ?? 0,
+          migrateSourceId: s.id,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
     map.set(s.id, created.id);
   }
   console.log(`  Specialities: ${list.length}`);
@@ -225,17 +257,19 @@ async function ensureSpecialityInMap(
   const list = await migrateFetch<SourceSpeciality>('all-specialties', 'specialitylist', { id: sourceId });
   const s = list[0];
   if (!s) return null;
-  const created = await prisma.speciality.create({
-    data: {
-      name: s.name || '',
-      code: s.code || `S${s.id}`,
-      description: s.description ?? '',
-      status: s.status ?? 0,
-      migrateSourceId: s.id,
-      createdBy: importUserId,
-      updatedBy: importUserId
-    }
-  });
+  const created = await retryOnConflict(() =>
+    prisma.speciality.create({
+      data: {
+        name: s.name || '',
+        code: s.code || `S${s.id}`,
+        description: s.description ?? '',
+        status: s.status ?? 0,
+        migrateSourceId: s.id,
+        createdBy: importUserId,
+        updatedBy: importUserId
+      }
+    })
+  );
   map.set(s.id, created.id);
   return created.id;
 }
@@ -255,29 +289,31 @@ async function importDoctors(specialityIdMap: Map<string, string>, importUserId:
     }
     try {
       const titleName = getTitleNameById(d.title) ?? (typeof d.title === 'string' ? d.title : '');
-      await prisma.doctor.create({
-        data: {
-          title: titleName || 'OTHER',
-          name: d.name ?? '',
-          code: d.code ?? `D${d.id}`,
-          order: d.order ?? 0,
-          phone: d.phone ?? null,
-          fax: d.fax ?? null,
-          mobile: d.mobile ? String(d.mobile).trim() || null : null,
-          addressLine1: d.address_line_01 ?? null,
-          addressLine2: d.address_line_02 ?? null,
-          city: d.city ?? null,
-          registrationNumber: d.registration_number ? String(d.registration_number).trim() || null : null,
-          qualification: d.qualification ?? '',
-          referralCharge: Number(d.referral_charge) ?? 0,
-          sessionNoPrefix: d.session_no_prefix ?? null,
-          status: d.status ?? 0,
-          specialityId,
-          migrateSourceId: d.id,
-          createdBy: importUserId,
-          updatedBy: importUserId
-        }
-      });
+      await retryOnConflict(() =>
+        prisma.doctor.create({
+          data: {
+            title: titleName || 'OTHER',
+            name: d.name ?? '',
+            code: d.code ?? `D${d.id}`,
+            order: d.order ?? 0,
+            phone: d.phone ?? null,
+            fax: d.fax ?? null,
+            mobile: d.mobile ? String(d.mobile).trim() || null : null,
+            addressLine1: d.address_line_01 ?? null,
+            addressLine2: d.address_line_02 ?? null,
+            city: d.city ?? null,
+            registrationNumber: d.registration_number ? String(d.registration_number).trim() || null : null,
+            qualification: d.qualification ?? '',
+            referralCharge: Number(d.referral_charge) ?? 0,
+            sessionNoPrefix: d.session_no_prefix ?? null,
+            status: d.status ?? 0,
+            specialityId,
+            migrateSourceId: d.id,
+            createdBy: importUserId,
+            updatedBy: importUserId
+          }
+        })
+      );
     } catch (e: any) {
       if (e?.code === 'P2002') {
         const target = e?.meta?.target ?? 'unique constraint';
@@ -294,14 +330,16 @@ async function importDoctors(specialityIdMap: Map<string, string>, importUserId:
 async function importDepartments(): Promise<void> {
   const list = await migrateFetch<SourceDepartment>('all-departments', 'departmentlist');
   for (const d of list) {
-    await prisma.department.create({
-      data: {
-        name: d.name ?? '',
-        description: d.description ?? null,
-        visibility: d.status === '1' ? 1 : 0,
-        migrateSourceId: d.id
-      }
-    });
+    await retryOnConflict(() =>
+      prisma.department.create({
+        data: {
+          name: d.name ?? '',
+          description: d.description ?? null,
+          visibility: d.status === '1' ? 1 : 0,
+          migrateSourceId: d.id
+        }
+      })
+    );
   }
   console.log(`  Departments: ${list.length}`);
 }
@@ -310,20 +348,22 @@ async function importLocations(importUserId: string): Promise<Map<string, string
   const list = await migrateFetch<SourceLocation>('all-locations', 'locationlist');
   const map = new Map<string, string>();
   for (const l of list) {
-    const created = await prisma.location.create({
-      data: {
-        name: l.name ?? '',
-        code: l.code ?? `L${l.id}`,
-        addressLine1: l.address_line_01 ?? '',
-        addressLine2: l.address_line_02 ?? '',
-        city: l.city ?? '',
-        branchType: l.branch_type ?? 0,
-        status: l.status ?? 0,
-        migrateSourceId: l.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    const created = await retryOnConflict(() =>
+      prisma.location.create({
+        data: {
+          name: l.name ?? '',
+          code: l.code ?? `L${l.id}`,
+          addressLine1: l.address_line_01 ?? '',
+          addressLine2: l.address_line_02 ?? '',
+          city: l.city ?? '',
+          branchType: l.branch_type ?? 0,
+          status: l.status ?? 0,
+          migrateSourceId: l.id,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
     map.set(l.id, created.id);
   }
   console.log(`  Locations: ${list.length}`);
@@ -345,17 +385,19 @@ async function importZonesFromApi(
       skipped++;
       continue;
     }
-    const zone = await prisma.zone.create({
-      data: {
-        name: z.name ?? 'Default',
-        description: z.description ?? null,
-        visibility: z.status === 1 ? 1 : 0,
-        locationId,
-        migrateSourceId: z.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    const zone = await retryOnConflict(() =>
+      prisma.zone.create({
+        data: {
+          name: z.name ?? 'Default',
+          description: z.description ?? null,
+          visibility: z.status === 1 ? 1 : 0,
+          locationId,
+          migrateSourceId: z.id,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
     zoneIdMap.set(z.id, zone.id);
   }
   console.log(`  Zones: ${list.length} from API${skipped > 0 ? `, ${skipped} skipped` : ''}`);
@@ -369,16 +411,18 @@ async function createDefaultZones(locationIdMap: Map<string, string>, importUser
   for (const z of existingZones) zoneByLocation.set(z.locationId, z.id);
   const locationIdsNeedingZone = [...new Set(locationIdMap.values())].filter((id) => !zoneByLocation.has(id));
   for (const locationId of locationIdsNeedingZone) {
-    const zone = await prisma.zone.create({
-      data: {
-        name: 'Default',
-        description: 'Default zone (migrate)',
-        visibility: 1,
-        locationId,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    const zone = await retryOnConflict(() =>
+      prisma.zone.create({
+        data: {
+          name: 'Default',
+          description: 'Default zone (migrate)',
+          visibility: 1,
+          locationId,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
     zoneByLocation.set(locationId, zone.id);
   }
   console.log(`  Zones (default per location): ${zoneByLocation.size} total, ${locationIdsNeedingZone.length} created this run`);
@@ -448,18 +492,20 @@ async function importRooms(
       console.warn(`  Skip room ${r.id}: no zone for location ${r.location}`);
       continue;
     }
-    await prisma.room.create({
-      data: {
-        number: r.number ?? '',
-        description: r.description ?? '',
-        status: r.status ?? 0,
-        locationId,
-        zoneId,
-        migrateSourceId: r.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    await retryOnConflict(() =>
+      prisma.room.create({
+        data: {
+          number: r.number ?? '',
+          description: r.description ?? '',
+          status: r.status ?? 0,
+          locationId,
+          zoneId,
+          migrateSourceId: r.id,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
   }
   if (usedFallbackZone > 0) {
     console.warn(`  Rooms: ${list.length} imported, ${usedFallbackZone} linked to location default zone (source zone id not in zoneIdMap – import zones from API with migrateSourceId first)`);
@@ -468,19 +514,37 @@ async function importRooms(
   }
 }
 
+/** Resolve tag type: explicit type, or id when id is the type (0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank). */
+function resolveTagType(t: SourceTag): number | null {
+  if (t.type != null) {
+    const n = typeof t.type === 'number' ? t.type : parseInt(String(t.type), 10);
+    if (!Number.isNaN(n)) return n;
+  }
+  const rawId = t.id;
+  if (typeof rawId === 'number' && rawId >= 0 && rawId <= 4) return rawId;
+  if (typeof rawId === 'string') {
+    const n = parseInt(rawId, 10);
+    if (!Number.isNaN(n) && n >= 0 && n <= 4) return n;
+  }
+  return null;
+}
+
 async function importTags(importUserId: string): Promise<void> {
   const list = await migrateFetch<SourceTag>('all-tags', 'taglist');
   for (const t of list) {
-    await prisma.tag.create({
-      data: {
-        name: t.name ?? null,
-        type: t.type ?? null,
-        status: t.status ?? null,
-        migrateSourceId: t.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    const typeNum = resolveTagType(t);
+    await retryOnConflict(() =>
+      prisma.tag.create({
+        data: {
+          name: t.name ?? null,
+          type: typeNum,
+          status: t.status != null ? Number(t.status) : null,
+          migrateSourceId: String(t.id),
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
   }
   console.log(`  Tags: ${list.length}`);
 }
@@ -492,25 +556,27 @@ async function importDiscounts(importUserId: string): Promise<void> {
     const payment = d.payment_type != null && PAYMENT_TYPE_MAP[d.payment_type] != null
       ? PAYMENT_TYPE_MAP[d.payment_type]
       : PaymentType.CASH;
-    await prisma.discount.create({
-      data: {
-        name: d.name ?? '',
-        discountType: d.discount_type ?? 0,
-        discountMethod: [method],
-        paymentType: [payment],
-        discountValue: d.discount_value ?? 0,
-        discountValueForeign: d.discount_value_foreign ?? 0,
-        fromDate: new Date(d.from_date ?? 0),
-        toDate: new Date(d.to_date ?? 0),
-        isVoucher: d.is_voucher ?? 0,
-        autoApply: d.auto_apply ?? false,
-        status: d.status ?? 0,
-        applyTo: d.apply_to ?? 0,
-        migrateSourceId: d.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
-      }
-    });
+    await retryOnConflict(() =>
+      prisma.discount.create({
+        data: {
+          name: d.name ?? '',
+          discountType: d.discount_type ?? 0,
+          discountMethod: [method],
+          paymentType: [payment],
+          discountValue: d.discount_value ?? 0,
+          discountValueForeign: d.discount_value_foreign ?? 0,
+          fromDate: new Date(d.from_date ?? 0),
+          toDate: new Date(d.to_date ?? 0),
+          isVoucher: d.is_voucher ?? 0,
+          autoApply: d.auto_apply ?? false,
+          status: d.status ?? 0,
+          applyTo: d.apply_to ?? 0,
+          migrateSourceId: d.id,
+          createdBy: importUserId,
+          updatedBy: importUserId
+        }
+      })
+    );
   }
   console.log(`  Discounts: ${list.length}`);
 }
@@ -520,21 +586,22 @@ async function importAgencies(importUserId: string): Promise<Map<string, string>
   const idMap = new Map<string, string>();
   // First pass: create all without parent
   for (const a of list) {
-    const created = await prisma.agency.create({
-      data: {
-        name: a.name ?? '',
-        code: a.code ?? null,
-        chequePrintingName: a.cheque_printing_name ?? '',
-        creditLimit: Number(a.credit_limit) ?? 0,
-        allowedCreditLimit: Number(a.allowed_credit_limit) ?? 0,
-        maxCreditLimit: Number(a.max_credit_limit) ?? 0,
-        balance: Number(a.balance) ?? 0,
-        phone: a.phone ?? null,
-        mobile: a.mobile ?? null,
-        fax: a.fax ?? null,
-        email: a.email ?? null,
-        website: a.website ?? null,
-        memo: a.memo ?? null,
+    const created = await retryOnConflict(() =>
+      prisma.agency.create({
+        data: {
+          name: a.name ?? '',
+          code: a.code ?? null,
+          chequePrintingName: a.cheque_printing_name ?? '',
+          creditLimit: Number(a.credit_limit) ?? 0,
+          allowedCreditLimit: Number(a.allowed_credit_limit) ?? 0,
+          maxCreditLimit: Number(a.max_credit_limit) ?? 0,
+          balance: Number(a.balance) ?? 0,
+          phone: a.phone ?? null,
+          mobile: a.mobile ?? null,
+          fax: a.fax ?? null,
+          email: a.email ?? null,
+          website: a.website ?? null,
+          memo: a.memo ?? null,
         addressLine1: a.address_line_01 ?? null,
         addressLine2: a.address_line_02 ?? null,
         city: a.city ?? null,
@@ -548,7 +615,8 @@ async function importAgencies(importUserId: string): Promise<Map<string, string>
         createdBy: importUserId,
         updatedBy: importUserId
       }
-    });
+    })
+    );
     idMap.set(a.id, created.id);
   }
   // Second pass: set parentAgencyId where applicable

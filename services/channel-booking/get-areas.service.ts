@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma"
 /** Result type for channel-booking area options (tag cities: id + name). */
 export type ChannelBookingAreaOption = { id: string; name: string }
 
-const TAG_TYPE_AREA = 1
+const TAG_TYPE_AREA = 0 // City (old system type 0)
 const TAG_STATUS_ACTIVE = 1
 
 /**
