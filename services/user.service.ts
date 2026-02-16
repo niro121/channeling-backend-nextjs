@@ -39,11 +39,17 @@ const userSchema = z.object({
       message: 'Status must be Inactive (0) or Active (1)'
     })
     .optional(),
-  userGroupId: z.string().nullable().optional()
+  userGroupId: z.string().nullable().optional(),
+  checkedDefaultLocation: z.boolean().optional(),
+  defaultLocation: z.string().nullable().optional(),
 });
 
 const userUpdateSchema = userSchema.partial().extend({
-  id: z.string().min(1, 'User ID is required')
+  id: z.string().min(1, 'User ID is required'),
+  checkedDefaultLocation: z.boolean().optional(),
+  defaultLocation: z.string().nullable().optional(),
+  userLocationId: z.string().nullable().optional(),
+  bookingLocationIds: z.array(z.string()).optional(),
 }).refine(
   (data) => {
     // For updates, password is optional (can be empty to keep existing)
@@ -93,6 +99,9 @@ export const getUsers = async ({
             },
             orderBy: {
                 createdAt: "desc",
+            },
+            include: {
+                bookingLocations: { select: { locationId: true } },
             },
         })
 
@@ -251,6 +260,10 @@ export const updateOneUser = async (
     userType?: number;
     status?: number;
     userGroupId?: string | null;
+    checkedDefaultLocation?: boolean;
+    defaultLocation?: string | null;
+    userLocationId?: string | null;
+    bookingLocationIds?: string[];
   }
 ): Promise<{
   success: boolean;
@@ -262,8 +275,9 @@ export const updateOneUser = async (
   };
 }> => {
   try {
+    const { bookingLocationIds, ...restPayload } = payload;
     const parsed = userUpdateSchema.safeParse({
-      ...payload,
+      ...restPayload,
       id
     });
 
@@ -286,6 +300,9 @@ export const updateOneUser = async (
     if (data.userType !== undefined) updateData.userType = data.userType;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.userGroupId !== undefined) updateData.userGroupId = data.userGroupId || null;
+    if (data.checkedDefaultLocation !== undefined) updateData.checkedDefaultLocation = data.checkedDefaultLocation;
+    if (data.defaultLocation !== undefined) updateData.defaultLocation = data.defaultLocation ?? null;
+    if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
 
     const result = await prisma.user.update({
       data: updateData,
@@ -293,6 +310,15 @@ export const updateOneUser = async (
         id
       }
     });
+
+    if (bookingLocationIds !== undefined) {
+      await prisma.userBookingLocation.deleteMany({ where: { userId: id } });
+      if (bookingLocationIds.length > 0) {
+        await prisma.userBookingLocation.createMany({
+          data: bookingLocationIds.map((locationId) => ({ userId: id, locationId })),
+        });
+      }
+    }
 
     return {
       success: true,
@@ -335,6 +361,10 @@ export const getUserById = async (id: string) => {
     try {
         const result = await prisma.user.findUnique({
             where: { id: id },
+            include: {
+                userLocation: { select: { id: true, name: true } },
+                bookingLocations: { select: { locationId: true, location: { select: { id: true, name: true } } } },
+            },
         })
 
         return result
@@ -410,3 +440,29 @@ export const deactivateOneUser = async (id: string) => {
         throw new Error(error.message ?? "Delete user Error")
     }
 }
+
+// ==== GET LOCATION OPTIONS ==== //
+export const getLocationOptionsService = async () => {
+  try {
+    const records = await prisma.location.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true
+      }
+    });
+
+    const totalRecords = await prisma.location.count({
+      where: { status: 1 }
+    });
+
+    return {
+      data: records,
+      totalRecords
+    };
+  } catch (error: any) {
+    console.log('getLocationOptionsService error', error);
+    throw error;
+  }
+};
