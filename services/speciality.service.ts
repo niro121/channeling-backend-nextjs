@@ -169,10 +169,11 @@ export const createSpecialityService = async (
     console.error('createSpecialityService error:', error);
 
     if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'field';
       return {
         success: false,
         error: {
-          message: 'Duplicate record detected',
+          message: `A speciality with this ${field} already exists. Please use a different ${field}.`,
           issues: error.meta?.target
         }
       };
