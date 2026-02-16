@@ -98,6 +98,7 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
   }
 
   async function handleUpdate() {
+    if (!selectedBooking) return
     if (!title.trim() || !name.trim() || !sex.trim() || !phone.trim()) {
       toast({
         title: "Missing fields",
@@ -122,7 +123,7 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
           const res = await getBookingsBySession(selectedSession.id)
           if (res.success && res.data) {
             setBookings(res.data)
-            const updated = res.data.find((b) => b.id === selectedBooking.id)
+            const updated = res.data.find((b) => b.id === selectedBooking?.id)
             if (updated) setSelectedBooking(updated)
           }
         }
