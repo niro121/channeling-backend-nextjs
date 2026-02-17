@@ -34,6 +34,7 @@ import { userTypes } from "@/lib/roles";
 import { ChannelBookingLayoutClient } from "./channel-booking-layout-client";
 import { ChannelBookingShiftBar } from "./channel-booking/shift-bar";
 import { SignOutShiftReminder } from "./signout-shift-reminder";
+import { NavigationLoadingWrapper } from "./navigation-loading-wrapper";
 
 async function MobileNav({ session }: { session: Session | null }) {
   const userType = session?.user?.userType;
@@ -151,24 +152,26 @@ export default async function DashboardLayout({
 
   return (
     <Providers session={session}>
-      <SignOutShiftReminder />
-      <div className="flex min-h-screen w-full flex-col bg-background">
-        <ChannelBookingLayoutClient session={session}>
-          <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
-            <MobileNav session={session} />
-            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
-              <DashboardBreadcrumb />
-              <ChannelBookingShiftBar />
-            </div>
-            <div className="shrink-0">
-              <Profile />
-            </div>
-          </header>
-          <main className="flex-1 p-4 sm:p-6">
-            {children}
-          </main>
-        </ChannelBookingLayoutClient>
-      </div>
+      <NavigationLoadingWrapper>
+        <SignOutShiftReminder />
+        <div className="flex min-h-screen w-full flex-col bg-background">
+          <ChannelBookingLayoutClient session={session}>
+            <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
+              <MobileNav session={session} />
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
+                <DashboardBreadcrumb />
+                <ChannelBookingShiftBar />
+              </div>
+              <div className="shrink-0">
+                <Profile />
+              </div>
+            </header>
+            <main className="flex-1 p-4 sm:p-6">
+              {children}
+            </main>
+          </ChannelBookingLayoutClient>
+        </div>
+      </NavigationLoadingWrapper>
     </Providers>
   );
 }
