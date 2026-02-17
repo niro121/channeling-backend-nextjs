@@ -64,7 +64,7 @@ const CustomSelectField = ({
               value={value}
               disabled={disabled}
             >
-              <SelectTrigger className="select-span focus-visible:ring-offset-0! focus:ring-offset-0!">
+              <SelectTrigger className="select-span focus-visible:ring-offset-0! focus:ring-offset-0! cursor-pointer w-full">
                 <SelectValue placeholder={placeholder} />
               </SelectTrigger>
               <SelectContent className="overflow-auto! max-h-80">

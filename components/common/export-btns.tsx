@@ -18,7 +18,7 @@ export const ExportButtons = ({
         variant="outline"
         size="sm"
         onClick={onPdfExport}
-        className="gap-2"
+        className="gap-2 cursor-pointer"
       >
         <FileText size={16} />
         Download
@@ -28,7 +28,7 @@ export const ExportButtons = ({
         variant="outline"
         size="sm"
         onClick={onExcelExport}
-        className="gap-2"
+        className="gap-2 cursor-pointer"
       >
         <FileSpreadsheet size={16} />
         Excel

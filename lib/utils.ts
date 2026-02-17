@@ -32,6 +32,29 @@ export function generateCode() {
 export const padCode = (num: number, length: number) =>
   num.toString().padStart(length, '0');
 
+// ==== FORMAT EXPORT FILE NAME ==== //
+/**
+ * Formats export file names to include " - Ruhunu Hospital" suffix
+ * @param componentName - The name of the component/report (e.g., "doctors", "specialities", "doctor-arrivals-report-2024-01-15")
+ * @returns Formatted file name (e.g., "Doctors - Ruhunu Hospital")
+ */
+export const formatExportFileName = (componentName: string): string => {
+  if (!componentName) {
+    return 'Report - Ruhunu Hospital';
+  }
+
+  // Remove file extension if present
+  const nameWithoutExt = componentName.replace(/\.(pdf|xlsx)$/i, '');
+  
+  // Capitalize first letter of each word
+  const formattedName = nameWithoutExt
+    .split(/[-_\s]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+  return `${formattedName} - Ruhunu Hospital`;
+};
+
 // ==== PDF DOWNLOAD HANDLE UTIL ==== //
 type DownloadPdfOptions<T> = {
   title?: string;
