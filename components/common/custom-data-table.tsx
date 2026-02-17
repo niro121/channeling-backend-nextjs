@@ -42,6 +42,8 @@ interface DataTableProps<TData, TValue> {
   haveBulkDelete?: boolean
   haveDataDownload?: boolean
   deleteServerAction?: (ids: string[]) => Promise<boolean>
+  /** Optional function to get custom bulk delete description. Receives selected IDs and returns description string or Promise<string> */
+  getBulkDeleteDescription?: (ids: string[]) => Promise<string> | string
   /** Renders inside the card above the table (e.g. search + Add button), like shadcn tasks example */
   toolbar?: React.ReactNode
   /** Left side of toolbar (e.g. search). When used with toolbarRight, Add stays right and Bulk delete appears to its left when selected */
@@ -61,6 +63,7 @@ export function CustomDataTable<TData, TValue>({
   haveBulkDelete = true,
   haveDataDownload = false,
   deleteServerAction,
+  getBulkDeleteDescription,
   toolbar,
   toolbarLeft,
   toolbarRight,
@@ -73,6 +76,10 @@ export function CustomDataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({})
   const [showDeleteConfirmation, setShowDelConfirmation] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [fetchingDescription, setFetchingDescription] = React.useState(false)
+  const [bulkDeleteDescription, setBulkDeleteDescription] = React.useState<string>(
+    "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+  )
 
 
   const table = useReactTable({
@@ -170,8 +177,48 @@ export function CustomDataTable<TData, TValue>({
     }
   }
 
-  const showHideDeleteModal = (value: boolean) => {
-    setShowDelConfirmation(value)
+  const showHideDeleteModal = async (value: boolean) => {
+    if (value) {
+      // When opening the modal, fetch custom description if provided
+      const idsToDelete: string[] = []
+      Object.keys(rowSelection).forEach((item) => {
+        const row = table.getRow(item).original as { id: string }
+        if (row.id) {
+          idsToDelete.push(row.id)
+        }
+      })
+
+      if (getBulkDeleteDescription && idsToDelete.length > 0) {
+        setFetchingDescription(true)
+        try {
+          const description = await getBulkDeleteDescription(idsToDelete)
+          setBulkDeleteDescription(description)
+          // Only show modal after description is fetched
+          setShowDelConfirmation(true)
+        } catch (error: any) {
+          console.error('Error fetching bulk delete description:', error)
+          // Fallback to default description on error
+          setBulkDeleteDescription(
+            "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+          )
+          setShowDelConfirmation(true)
+        } finally {
+          setFetchingDescription(false)
+        }
+      } else {
+        // Use default description
+        setBulkDeleteDescription(
+          "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+        )
+        setShowDelConfirmation(true)
+      }
+    } else {
+      // When closing, reset description
+      setBulkDeleteDescription(
+        "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+      )
+      setShowDelConfirmation(false)
+    }
   }
 
   // const downloadDataResults = async() => {
@@ -209,12 +256,12 @@ export function CustomDataTable<TData, TValue>({
                       key="bulk-delete-btn"
                       variant="ghost"
                       size="sm"
-                      className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
+                      className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer"
                       disabled={Object.keys(rowSelection).length === 0}
-                      onClick={() => setShowDelConfirmation(true)}
+                      onClick={() => showHideDeleteModal(true)}
                     >
                       <Trash2 className="h-4 w-4" />
-                      <span>Bulk delete</span>
+                      <span>Bulk Delete</span>
                     </Button>
                   ) : null}
                   {toolbarRight != null ? (
@@ -304,10 +351,9 @@ export function CustomDataTable<TData, TValue>({
       <CustomAlertDialog
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
-        loading={loading}
+        loading={loading || fetchingDescription}
         title="Are you absolutely sure?"
-        description="This action cannot be undone. This will permanently delete these
-            records and remove the data from our servers."
+        description={fetchingDescription ? "Loading..." : bulkDeleteDescription}
         handleContinue={onDeleteConfirmation}
       />
     </>

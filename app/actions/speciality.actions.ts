@@ -7,6 +7,9 @@ import {
   getSpecialityByIdService,
   deleteSpecialityByIdService,
   bulkDeleteSpecialitiesByIdsService,
+  getAllSpecialitiesForExportService,
+  getDoctorCountBySpecialityIdService,
+  getTotalDoctorCountBySpecialityIdsService
 } from '@/services/speciality.service';
 import {
   getSpecialityParams,
@@ -288,5 +291,110 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
     console.error('bulkDeleteSpecialities action error:', error);
 
     return false;
+  }
+};
+
+
+// ==== GET SPECIALITIES FOR EXPORT ==== //
+export const getSpecialitiesExport = async (
+  keyword?: string
+): Promise<{
+  success: boolean;
+  data?: any[];
+  message?: string;
+}> => {
+  try {
+    const response = await getAllSpecialitiesForExportService(keyword);
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.message || 'No specialities available'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getSpecialitiesExport error', error);
+    return {
+      success: false,
+      message: 'Error getting specialities data'
+    };
+  }
+};
+
+// ==== GET DOCTOR COUNT FOR SPECIALITY ==== //
+export const getDoctorCountBySpecialityId = async (
+  specialityId: string
+): Promise<{
+  success: boolean;
+  data?: number;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await getDoctorCountBySpecialityIdService(specialityId);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || 'Failed to get doctor count'
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? 0,
+      message: 'Doctor count fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getDoctorCountBySpecialityId action error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Error getting doctor count'
+      }
+    };
+  }
+};
+
+// ==== GET TOTAL DOCTOR COUNT FOR MULTIPLE SPECIALITIES ==== //
+export const getTotalDoctorCountBySpecialityIds = async (
+  specialityIds: string[]
+): Promise<{
+  success: boolean;
+  data?: number;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await getTotalDoctorCountBySpecialityIdsService(specialityIds);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || 'Failed to get doctor count'
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data ?? 0,
+      message: 'Doctor count fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getTotalDoctorCountBySpecialityIds action error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Error getting doctor count'
+      }
+    };
   }
 };

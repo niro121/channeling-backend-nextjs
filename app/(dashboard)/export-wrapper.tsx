@@ -1,6 +1,6 @@
 'use client';
 
-import { downloadExcelUtil, downloadPdfUtil } from '@/lib/utils';
+import { downloadExcelUtil, downloadPdfUtil, formatExportFileName } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -19,9 +19,12 @@ export const ExportWrapper = <T,>({
   columns,
   keys,
   title = 'Report',
-  fileName = 'report.pdf',
+  fileName = 'report',
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
+
+  // Format the file name with the standard suffix
+  const formattedFileName = formatExportFileName(fileName);
 
   const handlePdfDownload = async () => {
     const response = await serverData();
@@ -41,7 +44,7 @@ export const ExportWrapper = <T,>({
       data: response.data,
       columns,
       keys,
-      fileName: `${fileName}.pdf`
+      fileName: `${formattedFileName}.pdf`
     });
   };
 
@@ -63,7 +66,7 @@ export const ExportWrapper = <T,>({
       data: response.data,
       columns,
       keys,
-      fileName: `${fileName}.xlsx`
+      fileName: `${formattedFileName}.xlsx`
     })
   }
 

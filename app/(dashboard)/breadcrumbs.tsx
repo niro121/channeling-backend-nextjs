@@ -20,7 +20,6 @@ const PATH_NAMES: Path[] = [
     { path: "bulk-price-change", name: "Bulk Price Change" },
     { path: "departments", name: "Departments" },
     { path: "patients", name: "Patients" },
-    { path: "staff", name: "Staff" },
     { path: "tags", name: "Tags" },
     { path: "zones", name: "Zones" },
     { path: "rooms", name: "Rooms" },
@@ -67,16 +66,30 @@ function DashboardBreadcrumb() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 {
-                    pathNames.map((link, index) => (
-                        <React.Fragment key={link}>
-                            <BreadcrumbItem className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
-                                <BreadcrumbPage className={index === pathNames.length - 1 ? 'font-semibold text-foreground truncate' : 'truncate'}>
-                                    {formatSegment(link)}
-                                </BreadcrumbPage>
-                            </BreadcrumbItem>
-                            {index !== pathNames.length - 1 && <BreadcrumbSeparator />}
-                        </React.Fragment>
-                    ))
+                    pathNames.map((link, index) => {
+                        const isLast = index === pathNames.length - 1;
+                        // Build the path up to this segment
+                        const href = '/' + pathNames.slice(0, index + 1).join('/');
+                        
+                        return (
+                            <React.Fragment key={link}>
+                                <BreadcrumbItem className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
+                                    {isLast ? (
+                                        <BreadcrumbPage className="font-semibold text-foreground truncate">
+                                            {formatSegment(link)}
+                                        </BreadcrumbPage>
+                                    ) : (
+                                        <BreadcrumbLink asChild>
+                                            <Link href={href} className="cursor-pointer transition-colors hover:text-foreground truncate">
+                                                {formatSegment(link)}
+                                            </Link>
+                                        </BreadcrumbLink>
+                                    )}
+                                </BreadcrumbItem>
+                                {!isLast && <BreadcrumbSeparator />}
+                            </React.Fragment>
+                        );
+                    })
                 }
             </BreadcrumbList>
         </Breadcrumb>
