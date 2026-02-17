@@ -11,6 +11,7 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import { ExportWrapper } from '../export-wrapper';
 import moment from 'moment';
+import { NavLoadingButton } from '@/components/common/nav-loading-button';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -103,49 +104,43 @@ export default async function Page({ searchParams }: SearchParams) {
           getBulkDeleteDescription={getBulkDeleteDescription}
           page={params?.page}
           toolbarLeft={
-            <div className="relative w-full sm:max-w-sm">
-              <SearchInput
-                name="keyword"
-                placeholder="Search by name, code"
-                className="pl-8 w-full h-9"
-              />
-            </div>
-          }
-          toolbarRight={
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              <div className="relative w-full sm:max-w-sm">
+                <SearchInput
+                  name="keyword"
+                  placeholder="Search by name, code"
+                  className="pl-8 w-full h-9"
+                />
+              </div>
               <ExportWrapper
                 serverData={handleExport}
                 columns={[
                   'Code',
                   'Name',
-                  'Description',
-                  'Updated By',
-                  'Updated Date',
-                  'Created By',
-                  'Created Date',
-                  'Published'
+                  'Description'
                 ]}
                 keys={[
                   'code',
                   'name',
-                  'description',
-                  'updatedBy',
-                  'updatedDate',
-                  'createdBy',
-                  'createdDate',
-                  'published'
+                  'description'
                 ]}
                 title="Specialities List"
                 fileName="specialities"
               />
-              <Link href="/specialities/add" className="cursor-pointer">
-                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Add New
-                  </span>
-                </Button>
-              </Link>
+            </div>
+          }
+          toolbarRight={
+            <div className="flex items-center gap-2 shrink-0">
+              <NavLoadingButton
+                href="/specialities/add"
+                size="sm"
+                className="gap-1.5 h-9 cursor-pointer"
+                icon={<Plus className="h-4 w-4" />}
+              >
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Add New
+                </span>
+              </NavLoadingButton>
             </div>
           }
         />
