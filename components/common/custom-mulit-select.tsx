@@ -72,7 +72,7 @@ export function CustomMultiSelect({
         >
           <SelectTrigger
             id={id}
-            className={`min-h-10 flex items-center justify-between gap-2 disabled:opacity-95 ${styleClasses?.inputClassName}`}
+            className={`min-h-10 h-auto flex flex-wrap items-start gap-1 py-2 disabled:opacity-95 ${styleClasses?.inputClassName}`}
           >
             {selectedOptions.length === 0 && (
               <span className="text-muted-foreground text-sm truncate">
@@ -81,7 +81,7 @@ export function CustomMultiSelect({
             )}
 
             {selectedOptions.length > 0 && (
-              <div className="mr-auto flex flex-wrap justify-end gap-1 max-w-[85%]">
+              <div className="flex flex-wrap gap-1 max-w-[85%]">
                 {selectedOptions.map((option) => (
                   <Badge
                     key={option.id}
