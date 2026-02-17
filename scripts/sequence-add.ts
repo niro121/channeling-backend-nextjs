@@ -8,7 +8,9 @@
  *
  * Examples:
  *   npx tsx scripts/sequence-add.ts speciality 5     # Next speciality code will be 6 → RHC0006
- *   npx tsx scripts/sequence-add.ts speciality 0    # Next will be 1 → RHC0001
+ *   npx tsx scripts/sequence-add.ts speciality 0     # Next will be 1 → RHC0001
+ *   npx tsx scripts/sequence-add.ts doctor 10       # Next doctor code will be 11 → DR0011
+ *   npx tsx scripts/sequence-add.ts agency 0        # Next agency code will be 1 (no prefix)
  *   npx tsx scripts/sequence-add.ts "receipt:loc-id" 100
  *
  * If lastValue is omitted, defaults to 0 (so next value will be 1 for startFrom:1).
