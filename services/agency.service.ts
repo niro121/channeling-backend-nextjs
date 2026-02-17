@@ -11,6 +11,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
+import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
 
 // ==== AGENCY: VALIDATION SCHEMA ==== //
 const agencySchema = z.object({
@@ -367,9 +368,12 @@ export const createAgencyService = async (
       ? { connect: { id: data.locationId } }
       : undefined;
 
+    const agencyCode = await getNextAgencyCode();
+
     const agency = await prisma.agency.create({
       data: {
         name: data.name,
+        code: agencyCode,
         chequePrintingName: data.chequePrintingName,
         creditLimit: data.creditLimit,
         allowedCreditLimit: data.allowedCreditLimit,
@@ -712,26 +716,18 @@ export const bulkDeleteAgenciesService = async (
   }
 };
 
-// ==== GET NEXT AGENCY CODE ==== //
-export const getNextAgencyCode = async (): Promise<number> => {
+// ==== GET NEXT AGENCY CODE (Sequence model, no prefix: "1", "2", ...) ==== //
+const AGENCY_SCOPE = 'agency';
+
+export const getNextAgencyCode = async (): Promise<string> => {
   try {
-    const lastAgency = await prisma.agency.findFirst({
-      orderBy: {
-        createdAt: 'desc'
-      },
-      select: {
-        code: true
-      }
-    });
-
-    if (!lastAgency?.code) {
-      return 1;
+    const result = await getNextSequenceNumber(AGENCY_SCOPE, { startFrom: 1 });
+    if (!result.success) {
+      throw new Error('Unable to generate agency code');
     }
-
-    const lastCode = parseInt(lastAgency.code) || 0;
-    return lastCode + 1;
+    return String(result.value);
   } catch (error: any) {
     console.log('getNextAgencyCode error', error);
-    return 1;
+    throw error;
   }
 };

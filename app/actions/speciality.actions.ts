@@ -7,7 +7,6 @@ import {
   getSpecialityByIdService,
   deleteSpecialityByIdService,
   bulkDeleteSpecialitiesByIdsService,
-  lastSpecialityCode
 } from '@/services/speciality.service';
 import {
   getSpecialityParams,
@@ -20,7 +19,7 @@ import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/server-permissions';
-import prisma from '@/lib/prisma';
+import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
   createdBy?: string;
@@ -113,48 +112,20 @@ export const getSpecialityById = async (
 };
 
 // ==== CREATE A SPECIALITY ==== //
+const SPECIALITY_SCOPE = 'speciality';
+
+/** Get next speciality code using Sequence model (same pattern as appointment ID). Format: RHC0001, RHC0002, ... */
 export const getNextSpecialityCode = async (): Promise<string> => {
-  const lastSpeciality = await lastSpecialityCode();
+  const result = await getNextSequenceNumber(SPECIALITY_SCOPE, {
+    startFrom: 1,
+    max: MAX_CODE,
+  });
 
-  let nextNumber = 1;
-
-  if (lastSpeciality?.code) {
-    const match = lastSpeciality.code.match(/\d+$/);
-    if (match) {
-      nextNumber = parseInt(match[0]) + 1;
-    }
-  }
-
-  if (nextNumber > MAX_CODE) {
+  if (!result.success) {
     throw new Error('Maximum speciality code limit reached');
   }
 
-  let candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
-  
-  // Check if code already exists and find next available
-  let attempts = 0;
-  const maxAttempts = 100; // Prevent infinite loop
-  
-  while (attempts < maxAttempts) {
-    const existing = await prisma.speciality.findUnique({
-      where: { code: candidateCode },
-      select: { code: true }
-    });
-    
-    if (!existing) {
-      return candidateCode; // Code is available
-    }
-    
-    // Code exists, try next number
-    nextNumber++;
-    if (nextNumber > MAX_CODE) {
-      throw new Error('Maximum speciality code limit reached');
-    }
-    candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`;
-    attempts++;
-  }
-  
-  throw new Error('Unable to generate unique speciality code after multiple attempts');
+  return `${PREFIX}${padCode(result.value, 4)}`; // FORMAT: RHC0001
 };
 
 export const createSpeciality = async (
