@@ -8,8 +8,7 @@ import {
   deleteAgencyByIdService,
   bulkDeleteAgenciesService,
   getAllAgenciesOptionsService,
-  getAllAgenciesExportService,
-  getNextAgencyCode
+  getAllAgenciesExportService
 } from '@/services/agency.service';
 import {
   GetAgenciesParams,
