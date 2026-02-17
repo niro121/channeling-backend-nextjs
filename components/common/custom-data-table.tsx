@@ -29,7 +29,7 @@ import { Button } from "../ui/button"
 import CustomAlertDialog from "./custom-alert-dialog"
 import { DataTablePagination } from "./custom-data-table-pagination"
 import { useToast } from "../hooks/use-toast"
-import { Trash2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -257,10 +257,14 @@ export function CustomDataTable<TData, TValue>({
                       variant="ghost"
                       size="sm"
                       className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer"
-                      disabled={Object.keys(rowSelection).length === 0}
+                      disabled={Object.keys(rowSelection).length === 0 || fetchingDescription}
                       onClick={() => showHideDeleteModal(true)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {fetchingDescription ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                       <span>Bulk Delete</span>
                     </Button>
                   ) : null}
@@ -278,10 +282,14 @@ export function CustomDataTable<TData, TValue>({
                     variant="ghost"
                     size="sm"
                     className="h-9 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
-                    disabled={Object.keys(rowSelection).length === 0}
-                    onClick={() => setShowDelConfirmation(true)}
+                    disabled={Object.keys(rowSelection).length === 0 || fetchingDescription}
+                    onClick={() => showHideDeleteModal(true)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {fetchingDescription ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     <span>Bulk delete</span>
                   </Button>
                 ) : null}
@@ -355,6 +363,7 @@ export function CustomDataTable<TData, TValue>({
         title="Are you absolutely sure?"
         description={fetchingDescription ? "Loading..." : bulkDeleteDescription}
         handleContinue={onDeleteConfirmation}
+        hasWarning={!fetchingDescription && bulkDeleteDescription.includes("doctor(s)")}
       />
     </>
   )

@@ -168,6 +168,7 @@ export function SpecialityRecordActions({
         title="Are you absolutely sure?"
         description={getDeleteDescription()}
         handleContinue={onDeleteConfirmation}
+        hasWarning={doctorCount !== null && doctorCount > 0}
       />
     </>
   )
