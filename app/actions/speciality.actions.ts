@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/server-permissions';
+import prisma from '@/lib/prisma';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
   createdBy?: string;
@@ -128,7 +129,32 @@ export const getNextSpecialityCode = async (): Promise<string> => {
     throw new Error('Maximum speciality code limit reached');
   }
 
-  return `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
+  let candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`; // == FORMAT: RHC0001 == //
+  
+  // Check if code already exists and find next available
+  let attempts = 0;
+  const maxAttempts = 100; // Prevent infinite loop
+  
+  while (attempts < maxAttempts) {
+    const existing = await prisma.speciality.findUnique({
+      where: { code: candidateCode },
+      select: { code: true }
+    });
+    
+    if (!existing) {
+      return candidateCode; // Code is available
+    }
+    
+    // Code exists, try next number
+    nextNumber++;
+    if (nextNumber > MAX_CODE) {
+      throw new Error('Maximum speciality code limit reached');
+    }
+    candidateCode = `${PREFIX}${padCode(nextNumber, 4)}`;
+    attempts++;
+  }
+  
+  throw new Error('Unable to generate unique speciality code after multiple attempts');
 };
 
 export const createSpeciality = async (
