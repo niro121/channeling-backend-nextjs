@@ -67,7 +67,7 @@ export function NavigationLoadingWrapper({ children }: { children: React.ReactNo
       e.preventDefault()
       e.stopPropagation()
       setNavigating(true)
-      router.push(href ?? path)
+      router.push(href ?? path ?? "/")
     },
     [router, pathname]
   )
