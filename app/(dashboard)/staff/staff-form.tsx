@@ -57,7 +57,7 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
       let respond: {
         isError?: boolean
         errors?: Record<string, string | string[]> | { message?: string }
-        data?: { saved?: boolean; id?: string }
+        data?: { saved?: boolean; id?: string } | null
       }
       if (isEditPage && staff?.id) {
         respond = await updateStaffAction(staff.id, values)
@@ -68,9 +68,10 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
 
       if (respond?.isError && respond?.errors && typeof respond.errors === 'object' && !Array.isArray(respond.errors)) {
         const fieldErrors: Record<string, string> = {}
-        Object.keys(respond.errors).forEach((key) => {
+        const errMap = respond.errors as Record<string, string | string[] | undefined>
+        Object.keys(errMap).forEach((key) => {
           if (key === 'message') return
-          const err = respond!.errors![key]
+          const err = errMap[key]
           const msg = Array.isArray(err) && err.length > 0 ? err[0] : typeof err === 'string' ? err : undefined
           if (msg) fieldErrors[key] = msg
         })
@@ -142,6 +143,7 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
                   placeholder="Select Title"
                   value={formik.values.title}
                   onChange={(v) => formik.setFieldValue('title', v)}
+                  required={false}
                   options={TITLE_OPTIONS}
                   styleClasses={{ ...styleClasses, parentDiv: '', inputClassName: '', labelClassName: 'hidden' }}
                 />
