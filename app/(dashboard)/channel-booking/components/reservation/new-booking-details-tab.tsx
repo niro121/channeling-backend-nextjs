@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import type { LucideIcon } from "lucide-react"
-import {
-  getAreasForChannelBooking,
-  getBookingsBySession,
-  getDiscountsForBooking,
-  saveBookingAction,
-} from "@/app/actions/channel-booking"
+import { getBookingsBySession, saveBookingAction } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
 import type { DiscountForBookingOption } from "@/services/channel-booking/get-discounts-for-booking.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
@@ -89,7 +84,7 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
 export function NewBookingDetailsTab() {
-  const { selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings } = useChannelBooking()
+  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings } = useChannelBooking()
   const { toast } = useToast()
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
@@ -101,12 +96,10 @@ export function NewBookingDetailsTab() {
   const [remarks, setRemarks] = useState("")
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
-  const [areas, setAreas] = useState<ChannelBookingAreaOption[]>([])
-  const [areasLoading, setAreasLoading] = useState(true)
-  const [allDiscounts, setAllDiscounts] = useState<DiscountForBookingOption[]>([])
-  const [allAutoDiscounts, setAllAutoDiscounts] = useState<DiscountForBookingOption[]>([])
-  const [discountsLoading, setDiscountsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const areas: ChannelBookingAreaOption[] = initialData?.areas ?? []
+  const allDiscounts = initialData?.discounts?.manual ?? []
+  const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({})
   const bookAmount =
@@ -171,35 +164,6 @@ export function NewBookingDetailsTab() {
         : 0,
     [selectedSession?.fees, foreigner, discountsToApply]
   )
-
-  useEffect(() => {
-    let cancelled = false
-    setAreasLoading(true)
-    void getAreasForChannelBooking().then((res) => {
-      if (cancelled) return
-      if (res.success && res.data) setAreas(res.data)
-    }).finally(() => {
-      if (!cancelled) setAreasLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [])
-
-  // Load all manual discounts once; filter is done client-side by booking type
-  useEffect(() => {
-    let cancelled = false
-    setDiscountsLoading(true)
-    void getDiscountsForBooking()
-      .then((res) => {
-        if (cancelled) return
-        const data = res.success && res.data ? res.data : { manual: [], auto: [] }
-        setAllDiscounts(data.manual)
-        setAllAutoDiscounts(data.auto)
-      })
-      .finally(() => {
-        if (!cancelled) setDiscountsLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [])
 
   // Reset reservation form whenever session, doctor, or specialty changes
   useEffect(() => {
@@ -344,7 +308,7 @@ export function NewBookingDetailsTab() {
             })}
           </SelectContent>
         </Select>
-        {discountsLoading ? (
+        {initialDataLoading ? (
           <div className={`${fieldClass} flex items-center gap-2 w-full rounded-md border border-input bg-muted/30 text-muted-foreground text-xs px-3`}>
             <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-green-800" />
             Loading…
@@ -491,7 +455,7 @@ export function NewBookingDetailsTab() {
             <span className={`absolute left-0 flex h-8 w-8 items-center justify-center pointer-events-none z-10 ${areaError ? "text-red-500" : ""}`}>
               <MapPin className={iconClass} />
             </span>
-            {areasLoading ? (
+            {initialDataLoading ? (
               <div className={`${fieldClass} pl-8 flex items-center gap-2 w-full rounded-md border border-input bg-muted/30 text-muted-foreground text-xs`}>
                 <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-green-800" />
                 Loading…

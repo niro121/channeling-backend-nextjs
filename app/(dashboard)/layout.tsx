@@ -26,6 +26,7 @@ import {
   LucideHome,
   TicketIcon,
   DollarSign,
+  UserCircle,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -109,6 +110,7 @@ async function MobileNav({ session }: { session: Session | null }) {
             <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">People</p>
             <div className="space-y-0.5">
               <NavLink href={hasAccess("/patients") ? "/patients" : "unauthorized-access"} label="Patients" icon={<UserPlus className="h-5 w-5" />} />
+              <NavLink href={hasAccess("/staff") ? "/staff" : "unauthorized-access"} label="Staff" icon={<UserCircle className="h-5 w-5" />} />
               <NavLink href={hasAccess('/users') ? '/users' : 'unauthorized-access'} label="Users" icon={<UserGroup className="h-5 w-5" />} />
               <NavLink href={hasAccess('/user-groups') ? '/user-groups' : 'unauthorized-access'} label="User Groups" icon={<Users className="h-5 w-5" />} />
             </div>

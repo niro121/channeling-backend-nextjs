@@ -16,11 +16,16 @@ export async function getLocationsForChannelBookingService(): Promise<{
   error?: { message?: string }
 }> {
   try {
+    const start = Date.now()
     const records = await prisma.location.findMany({
       where: { status: 1 },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     })
+    const ms = Date.now() - start
+    if (process.env.NODE_ENV !== "test") {
+      console.log(`[channel-booking] getLocationsForChannelBooking: ${ms}ms (${records.length} rows)`)
+    }
 
     const data: ChannelBookingLocationOption[] = records
       .filter((r) => r.id)

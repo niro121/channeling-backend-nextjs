@@ -438,6 +438,28 @@ model Patient {
   updatedBy String?
 }
 
+model Staff {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  code          String    @unique()
+  title         String    @default("")
+  name          String
+  nic           String
+  dateOfBirth   DateTime?
+  gender        String    @default("")
+  contactMobile String
+  address       String    @default("")
+  dateJoined    DateTime?
+  status        Int       @default(1) // 0 = Inactive, 1 = Active
+
+  bookingsAsStaff     Booking[] @relation("BookingStaff")
+  bookingsReferred    Booking[] @relation("BookingReferredStaff")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+}
+
 model Tag {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
   name            String?
@@ -602,61 +624,63 @@ model Agency {
 }
 
 model Booking {
-  id                       String    @id @default(auto()) @map("_id") @db.ObjectId
-  title                    String
-  name                     String
-  phone                    String
-  sex                      String
-  area                     String
-  remarks                  String    @default("")
-  method                   Int
-  sessionId                String    @db.ObjectId
-  session                  Session   @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: Cascade)
-  doctorId                 String    @db.ObjectId
-  doctor                   Doctor    @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
-  amount                   Int
-  discount                 Int       @default(0)
-  foriegner                Boolean   @default(false)
-  status                   Int       @default(0)
-  createdBy                String?   @db.ObjectId
-  createdUser              User?     @relation("UserCreatedBookings", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedBy                String?   @db.ObjectId
-  updatedUser              User?     @relation("UserUpdatedBookings", fields: [updatedBy], references: [id], onDelete: SetNull)
-  fees                     Json
-  refund                   Int       @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
-  refundAmount             Int       @default(0)
-  refundReason             String?
-  refundReceiptId          String?   @db.ObjectId
-  refundReceiptNoString    String?
-  refundReceiptCreatedAt   DateTime?
-  canceledAt               DateTime?
-  canceledBy               String?   @db.ObjectId
-  agencyRef                String?   @default("")
-  agencyId                 String?   @db.ObjectId
-  agency                   Agency?   @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
-  staffId                  String?   @db.ObjectId
-  discountDivision         Json?
-  hospitalFeeDiscount      Int       @default(0)
-  professionsalFeeDiscount Int       @default(0)
-  professionalFee          Int       @default(0)
-  hospitalFee              Int       @default(0)
-  referredDoctorId         String?   @db.ObjectId
-  referredAgencyId         String?   @db.ObjectId
-  referredStaffId          String?   @db.ObjectId
-  sessionStartTime         Int
-  sessionEndTime           Int
-  isScan                   Boolean   @default(false)
-  locationId               String?   @db.ObjectId
-  location                 Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
-  appointmentNo            Int
-  discountId               String?   @db.ObjectId
-  autoDiscountId           String?   @db.ObjectId
-  receiptNo                Int?
-  receiptNoString          String?
-  receiptPaymentMethod     Int?
-  receiptNoCreatedAt       DateTime?
-  receiptNoId              String?   @db.ObjectId
-  receipts                 Receipt[] @relation("ReceiptToBooking")
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  title                   String
+  name                    String
+  phone                   String
+  sex                     String
+  area                    String
+  remarks                 String   @default("")
+  method                  Int
+  sessionId               String   @db.ObjectId
+  session                 Session  @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: Cascade)
+  doctorId                String   @db.ObjectId
+  doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
+  amount                  Int
+  discount                Int      @default(0)
+  foriegner               Boolean  @default(false)
+  status                  Int      @default(0)
+  createdBy               String?  @db.ObjectId
+  createdUser             User?    @relation("UserCreatedBookings", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy               String?  @db.ObjectId
+  updatedUser             User?    @relation("UserUpdatedBookings", fields: [updatedBy], references: [id], onDelete: SetNull)
+  fees                    Json
+  refund                  Int      @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
+  refundAmount            Int      @default(0)
+  refundReason            String?
+  refundReceiptId         String?  @db.ObjectId
+  refundReceiptNoString   String?
+  refundReceiptCreatedAt  DateTime?
+  canceledAt              DateTime?
+  canceledBy              String?  @db.ObjectId
+  agencyRef               String?  @default("")
+  agencyId                String?  @db.ObjectId
+  agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
+  staffId                 String?  @db.ObjectId
+  staff                   Staff?   @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  discountDivision        Json?
+  hospitalFeeDiscount     Int      @default(0)
+  professionsalFeeDiscount Int     @default(0)
+  professionalFee         Int      @default(0)
+  hospitalFee             Int      @default(0)
+  referredDoctorId        String?  @db.ObjectId
+  referredAgencyId        String?  @db.ObjectId
+  referredStaffId         String?  @db.ObjectId
+  referredStaff           Staff?   @relation("BookingReferredStaff", fields: [referredStaffId], references: [id], onDelete: SetNull)
+  sessionStartTime        Int
+  sessionEndTime          Int
+  isScan                  Boolean  @default(false)
+  locationId              String?  @db.ObjectId
+  location                Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
+  appointmentNo           Int
+  discountId              String?  @db.ObjectId
+  autoDiscountId          String?  @db.ObjectId
+  receiptNo               Int?
+  receiptNoString         String?
+  receiptPaymentMethod    Int?
+  receiptNoCreatedAt      DateTime?
+  receiptNoId             String?  @db.ObjectId
+  receipts                Receipt[] @relation("ReceiptToBooking")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
