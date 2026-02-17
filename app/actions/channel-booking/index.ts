@@ -1,4 +1,8 @@
 export {
+  getChannelBookingInitialData,
+  type GetChannelBookingInitialDataResult,
+} from "./get-initial-data.action"
+export {
   getLocationsForChannelBooking,
   type GetLocationsForChannelBookingResult,
 } from "./get-locations.action"

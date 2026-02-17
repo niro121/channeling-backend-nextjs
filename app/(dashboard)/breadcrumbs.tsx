@@ -20,6 +20,7 @@ const PATH_NAMES: Path[] = [
     { path: "bulk-price-change", name: "Bulk Price Change" },
     { path: "departments", name: "Departments" },
     { path: "patients", name: "Patients" },
+    { path: "staff", name: "Staff" },
     { path: "tags", name: "Tags" },
     { path: "zones", name: "Zones" },
     { path: "rooms", name: "Rooms" },
