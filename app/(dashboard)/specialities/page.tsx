@@ -6,9 +6,11 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { SpecialityColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
-import { bulkDeleteSpecialities, getAllSpecialities } from '@/app/actions/speciality.actions';
+import { bulkDeleteSpecialities, getAllSpecialities, getSpecialitiesExport, getTotalDoctorCountBySpecialityIds } from '@/app/actions/speciality.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { ExportWrapper } from '../export-wrapper';
+import moment from 'moment';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -33,6 +35,61 @@ export default async function Page({ searchParams }: SearchParams) {
     keyword: params?.keyword,
   });
 
+  const handleExport = async () => {
+    'use server';
+
+    const specialityListResponse = await getSpecialitiesExport(params?.keyword);
+
+    if (!specialityListResponse.success || !specialityListResponse.data?.length) {
+      return {
+        success: false,
+        message: specialityListResponse.success
+          ? 'No specialities found'
+          : specialityListResponse.message
+      };
+    }
+
+    const mappedSpecialities = specialityListResponse.data.map((s) => ({
+      code: s.code || '-',
+      name: s.name || '-',
+      description: s.description || '-',
+      updatedBy: s.updatedUser?.name || '-',
+      updatedDate: s.updatedAt ? moment(s.updatedAt).format('DD/MM/YYYY hh:mm A') : '-',
+      createdBy: s.createdUser?.name || '-',
+      createdDate: s.createdAt ? moment(s.createdAt).format('DD/MM/YYYY hh:mm A') : '-',
+      published: s.status === 1 ? 'Published' : 'Unpublished'
+    }));
+
+    return {
+      success: true,
+      data: mappedSpecialities
+    };
+  };
+
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    
+    try {
+      const result = await getTotalDoctorCountBySpecialityIds(ids);
+      
+      if (result.success && result.data !== undefined) {
+        const doctorCount = result.data;
+        
+        if (doctorCount > 0) {
+          // Format count with leading zero if less than 10
+          const formattedCount = doctorCount < 10 ? `0${doctorCount}` : `${doctorCount}`;
+          return `One or more of the selected specialties are assigned to ${formattedCount} doctor(s). If you proceed, the association will be removed from all related records, and the affected doctor profiles must be updated separately.\n\nAre you sure you want to continue?`;
+        }
+      }
+      
+      // Default message if no doctors are linked
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    } catch (error: any) {
+      console.error('Error getting bulk delete description:', error);
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    }
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -43,6 +100,7 @@ export default async function Page({ searchParams }: SearchParams) {
           data={data}
           rowCount={totalRecords}
           deleteServerAction={bulkDeleteSpecialities}
+          getBulkDeleteDescription={getBulkDeleteDescription}
           page={params?.page}
           toolbarLeft={
             <div className="relative w-full sm:max-w-sm">
@@ -54,14 +112,41 @@ export default async function Page({ searchParams }: SearchParams) {
             </div>
           }
           toolbarRight={
-            <Link href="/specialities/add">
-              <Button size="sm" className="gap-1.5 h-9">
-                <Plus className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Add New
-                </span>
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              <ExportWrapper
+                serverData={handleExport}
+                columns={[
+                  'Code',
+                  'Name',
+                  'Description',
+                  'Updated By',
+                  'Updated Date',
+                  'Created By',
+                  'Created Date',
+                  'Published'
+                ]}
+                keys={[
+                  'code',
+                  'name',
+                  'description',
+                  'updatedBy',
+                  'updatedDate',
+                  'createdBy',
+                  'createdDate',
+                  'published'
+                ]}
+                title="Specialities List"
+                fileName="specialities"
+              />
+              <Link href="/specialities/add" className="cursor-pointer">
+                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                  <Plus className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Add New
+                  </span>
+                </Button>
+              </Link>
+            </div>
           }
         />
       </Suspense>

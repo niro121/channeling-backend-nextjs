@@ -18,7 +18,7 @@ const specialitySchema = z.object({
     .min(1, 'This field is mandatory')
     .max(150, 'Must be less than 150 characters'),
   code: z.string().min(1, 'This field is mandatory'),
-  description: z.string().min(1, 'This field is mandatory'),
+  description: z.string().optional(),
   status: z
     .number()
     .int()
@@ -153,7 +153,7 @@ export const createSpecialityService = async (
       data: {
         name: data.name,
         code: data.code,
-        description: data.description,
+        description: data.description ?? "",
         status: data.status,
         createdUser: userRelation,
         updatedUser: userRelation
@@ -423,6 +423,143 @@ export const bulkDeleteSpecialitiesByIdsService = async (
       success: false,
       error: {
         message: error.message || 'Failed to delete specialities'
+      }
+    };
+  }
+};
+
+// ==== GET ALL SPECIALITIES FOR EXPORT (NO PAGINATION) ==== //
+export const getAllSpecialitiesForExportService = async (
+  keyword?: string
+): Promise<{
+  success: boolean;
+  data?: any[];
+  message?: string;
+  error?: {
+    message?: string;
+  };
+}> => {
+  try {
+    const whereClause: Prisma.SpecialityWhereInput | undefined =
+      keyword && keyword.trim() !== ''
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: keyword,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              },
+              {
+                code: {
+                  contains: keyword,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              }
+            ]
+          }
+        : undefined;
+
+    const records = await prisma.speciality.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdUser: true,
+        updatedUser: true
+      }
+    });
+
+    return {
+      success: true,
+      data: records,
+      message: 'Specialities fetched successfully'
+    };
+  } catch (error: any) {
+    console.log('getAllSpecialitiesForExportService error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch specialities'
+      }
+    };
+  }
+};
+
+// ==== GET DOCTOR COUNT FOR SPECIALITY ==== //
+export const getDoctorCountBySpecialityIdService = async (
+  specialityId: string
+): Promise<{
+  success: boolean;
+  data?: number;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!specialityId) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid speciality ID'
+        }
+      };
+    }
+
+    const count = await prisma.doctor.count({
+      where: {
+        specialityId: specialityId
+      }
+    });
+
+    return {
+      success: true,
+      data: count
+    };
+  } catch (error: any) {
+    console.error('getDoctorCountBySpecialityIdService error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get doctor count'
+      }
+    };
+  }
+};
+
+// ==== GET TOTAL DOCTOR COUNT FOR MULTIPLE SPECIALITIES ==== //
+export const getTotalDoctorCountBySpecialityIdsService = async (
+  specialityIds: string[]
+): Promise<{
+  success: boolean;
+  data?: number;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!specialityIds || specialityIds.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid speciality IDs'
+        }
+      };
+    }
+
+    const count = await prisma.doctor.count({
+      where: {
+        specialityId: {
+          in: specialityIds
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: count
+    };
+  } catch (error: any) {
+    console.error('getTotalDoctorCountBySpecialityIdsService error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get doctor count'
       }
     };
   }
