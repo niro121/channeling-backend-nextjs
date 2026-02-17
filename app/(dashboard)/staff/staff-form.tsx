@@ -54,7 +54,11 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
   const handleSubmit = async (values: Staff, { setErrors, setTouched }: FormikHelpers<Staff>) => {
     try {
       setLoading(true)
-      let respond: { isError?: boolean; errors?: Record<string, string | string[]>; data?: { saved?: boolean; id?: string } }
+      let respond: {
+        isError?: boolean
+        errors?: Record<string, string | string[]> | { message?: string }
+        data?: { saved?: boolean; id?: string }
+      }
       if (isEditPage && staff?.id) {
         respond = await updateStaffAction(staff.id, values)
       } else {
