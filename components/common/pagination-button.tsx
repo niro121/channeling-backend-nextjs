@@ -31,6 +31,7 @@ const PaginationButton = ({ type, disabled, offset, children }: PaginationBtnPro
         size="sm"
         type="submit"
         disabled={disabled}
+        className="cursor-pointer"
       >
         {children}
       </Button>

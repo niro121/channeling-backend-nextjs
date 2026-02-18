@@ -27,7 +27,7 @@ export function NavDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger
         className={clsx(
-          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full',
+          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full cursor-pointer',
           {
             'bg-white/10 text-white': isActive,
             'text-white/70 hover:text-white hover:bg-white/5': !isActive
@@ -44,7 +44,7 @@ export function NavDropdown({
             <Link
               href={item.href}
               className={clsx(
-                'flex items-center gap-3 w-full',
+                'flex items-center gap-3 w-full cursor-pointer',
                 {
                   'text-white': pathname === item.href || pathname?.startsWith(item.href + '/'),
                   'text-white/70': pathname !== item.href && !pathname?.startsWith(item.href + '/')

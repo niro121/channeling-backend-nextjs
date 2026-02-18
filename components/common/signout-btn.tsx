@@ -4,7 +4,7 @@ import { dispatchSignOutRequested } from "@/app/(dashboard)/signout-shift-remind
 
 export default function SignOutButton() {
   return (
-    <button type="button" onClick={dispatchSignOutRequested}>
+    <button type="button" onClick={dispatchSignOutRequested} className="cursor-pointer">
       Sign Out
     </button>
   )

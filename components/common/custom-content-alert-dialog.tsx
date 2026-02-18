@@ -41,10 +41,11 @@ export function CustomContentAlertDialog({
           <AlertDialogCancel
             onClick={() => handleVisibilityChange(false)}
             disabled={loading}
+            className="cursor-pointer"
           >
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} disabled={loading}>
+          <AlertDialogAction onClick={handleContinue} disabled={loading} className="cursor-pointer">
             Continue {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>
