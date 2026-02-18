@@ -5,7 +5,7 @@ import { Speciality } from "@/types/speciality"
 import { Row } from "@tanstack/react-table"
 import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
-import CustomAlertDialog from "@/components/common/custom-alert-dialog"
+import CustomAlertDialogWithWarning from "@/components/common/custom-alert-dialog-with-warning"
 import { deleteSpeciality, getDoctorCountBySpecialityId } from "@/app/actions/speciality.actions"
 import { Button } from "@/components/ui/button"
 import { Loader2, Pencil, Trash2 } from "lucide-react"
@@ -105,16 +105,24 @@ export function SpecialityRecordActions({
     }
   }
 
-  // Generate description based on doctor count
+  // Generate description component based on doctor count
   const getDeleteDescription = () => {
     if (doctorCount === null) {
-      return "Loading..."
+      return <span>Loading...</span>
     }
 
     if (doctorCount > 0) {
       // Format count with leading zero if less than 10
       const formattedCount = doctorCount < 10 ? `0${doctorCount}` : `${doctorCount}`;
-      return `This specialty is currently linked to ${formattedCount} doctor(s). Deleting it will remove the association for all linked doctors, and you will need to update those doctor profiles separately by assigning a new specialty.\n\nAre you sure you want to continue?`
+      return (
+        <>
+          One or more of the selected specialties are assigned to <strong style={{ fontWeight: 700 }}>{formattedCount} doctor(s)</strong>. If you proceed, the association will be removed from all related records, and the affected doctor profiles must be updated separately.
+
+          <br />
+          <br />
+          Are you sure you want to continue?
+        </>
+      )
     }
 
     return "This action cannot be undone. This will permanently delete this speciality and remove the data from our servers."
@@ -161,7 +169,7 @@ export function SpecialityRecordActions({
         )}
       </DataTableRowActions>
 
-      <CustomAlertDialog
+      <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
         loading={loading}
