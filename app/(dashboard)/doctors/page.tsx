@@ -16,6 +16,7 @@ import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { BulkDeleteButton } from '@/components/common/custom-data-table';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -89,31 +90,36 @@ export default async function Page({ searchParams }: SearchParams) {
           deleteServerAction={bulkDeleteDoctors}
           page={params?.page}
           toolbarLeft={
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
-              <div className="relative w-full sm:max-w-sm">
-                <SearchInput
-                  name="keyword"
-                  placeholder="Search by name, code, registration number"
-                  className="pl-8 w-full h-9"
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <div className="relative w-full sm:max-w-sm">
+                  <SearchInput
+                    name="keyword"
+                    placeholder="Search by name, code, registration number"
+                    className="pl-8 w-full h-9"
+                  />
+                </div>
+                <FilterSection
+                  specialityOptions={specialityOptions}
+                  specialityId={params?.specialityId}
                 />
               </div>
-              <FilterSection
-                specialityOptions={specialityOptions}
-                specialityId={params?.specialityId}
-              />
+              <div className="flex items-center">
+                <ExportWrapper
+                  serverData={handleExport}
+                  columns={['Name', 'Code', 'Registration Number', 'Speciality']}
+                  keys={['name', 'code', 'registrationNumber', 'speciality']}
+                  title="Doctors List"
+                  fileName="doctors"
+                />
+              </div>
             </div>
           }
           toolbarRight={
-            <div className="flex items-center gap-2 shrink-0">
-              <ExportWrapper
-                serverData={handleExport}
-                columns={['Name', 'Code', 'Registration Number', 'Speciality']}
-                keys={['name', 'code', 'registrationNumber', 'speciality']}
-                title="Doctors List"
-                fileName="doctors"
-              />
+            <div className="flex items-start gap-2 shrink-0">
+              <BulkDeleteButton />
               <Link href="/doctors/add">
-                <Button size="sm" className="gap-1.5 h-9">
+                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
                   <Plus className="h-4 w-4" />
                   <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                     Add New
@@ -122,6 +128,7 @@ export default async function Page({ searchParams }: SearchParams) {
               </Link>
             </div>
           }
+          hideAutoBulkDelete={true}
         />
       </Suspense>
     </div>

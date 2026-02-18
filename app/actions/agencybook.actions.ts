@@ -275,3 +275,32 @@ export const bulkDeleteAgencyBooks = async (ids: string[]) => {
   }
 };
 
+// ==== AGENCY BOOKS EXPORT ==== //
+export const getAgencyBooksExport = async (params: { keyword?: string; agencyId?: string }) => {
+  try {
+    const response = await getAllAgencyBooks({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? "",
+      agencyId: params.agencyId
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No agency books found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getAgencyBooksExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

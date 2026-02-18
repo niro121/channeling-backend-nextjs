@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import RoomForm from '../../room-form';
 import { getRoomById, getAllLocations } from '@/app/actions/room.actions';
+import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
   params: Promise<{
@@ -31,7 +32,10 @@ export default async function EditRoomPage({ params }: PageProps) {
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
-        <h1 className="text-2xl font-bold mb-6">Edit Room</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Edit Room</h1>
+          <BackButton href="/rooms" />
+        </div>
         <RoomForm
           room={data}
           locationOptions={locationOptions}

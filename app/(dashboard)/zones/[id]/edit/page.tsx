@@ -2,6 +2,7 @@ import React from "react"
 import ZoneForm from "../../zone-form"
 import { fetchZoneById } from "@/app/actions/zone.actions"
 import { getAllLocations } from "@/app/actions/location.action"
+import { BackButton } from '@/components/common/back-button';
 
 type EditPageProps = {
     params: Promise<{ id: string }>
@@ -34,11 +35,14 @@ const Page = async ({ params }: EditPageProps) => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold tracking-tight">Edit Zone</h1>
-                <p className="text-muted-foreground">
-                    Update the zone details below.
-                </p>
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-2xl font-bold tracking-tight">Edit Zone</h1>
+                    <p className="text-muted-foreground">
+                        Update the zone details below.
+                    </p>
+                </div>
+                <BackButton href="/zones" />
             </div>
             <ZoneForm 
                 zone={zoneResult.data} 
