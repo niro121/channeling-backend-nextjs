@@ -69,8 +69,11 @@ export const authOptions: NextAuthOptions = {
                 },
                 include: { userGroup: true }
               });
+              if (!user) {
+                throw new Error("Invalid or expired 2FA. Please try again.");
+              }
               const totpSecret = user.twoFactorSecret || process.env.TOTP_SECRET;
-              if (!user || !totpSecret) {
+              if (!totpSecret) {
                 throw new Error("Invalid or expired 2FA. Please try again.");
               }
               const valid = await verifyTotp(credentials.twoFactorCode, totpSecret);

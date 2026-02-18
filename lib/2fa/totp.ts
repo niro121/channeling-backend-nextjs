@@ -17,7 +17,8 @@ export function generateTotpURI(options: { secret: string; label: string; issuer
 /** Verify TOTP token from authenticator app */
 export async function verifyTotp(token: string, secret: string): Promise<boolean> {
   try {
-    return await verify({ secret, token: token.trim() });
+    const result = await verify({ secret, token: token.trim() });
+    return result.valid === true;
   } catch {
     return false;
   }
