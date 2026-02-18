@@ -59,8 +59,7 @@ export default async function Page({ searchParams }: SearchParams) {
       code: l.code || '-',
       name: l.name || '-',
       type: LOCATION_OPTIONS.find(opt => String(l.branchType) === opt.id)?.name || '-',
-      address: [l.addressLine1, l.addressLine2, l.city].filter(Boolean).join(', ') || '-',
-      status: l.status === 1 ? 'Published' : 'Unpublished'
+      address: [l.addressLine1, l.addressLine2, l.city].filter(Boolean).join(', ') || '-'
     }));
 
     return {
@@ -98,8 +97,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Code', 'Name', 'Type', 'Address', 'Status']}
-                  keys={['code', 'name', 'type', 'address', 'status']}
+                  columns={['Code', 'Name', 'Type', 'Address']}
+                  keys={['code', 'name', 'type', 'address']}
                   title="Locations List"
                   fileName="locations"
                 />

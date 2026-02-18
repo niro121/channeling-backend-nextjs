@@ -61,8 +61,7 @@ export default async function Page({ searchParams }: SearchParams) {
             name: u.name || '-',
             email: u.email || '-',
             userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
-            userGroup: u.userGroup?.name || '-',
-            status: u.status === 1 ? 'Active' : 'Inactive'
+            userGroup: u.userGroup?.name || '-'
         }));
 
         return {
@@ -96,8 +95,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Name', 'Email', 'User Type', 'User Group', 'Status']}
-                                    keys={['name', 'email', 'userType', 'userGroup', 'status']}
+                                    columns={['Name', 'Email', 'User Type', 'User Group']}
+                                    keys={['name', 'email', 'userType', 'userGroup']}
                                     title="Users List"
                                     fileName="users"
                                 />

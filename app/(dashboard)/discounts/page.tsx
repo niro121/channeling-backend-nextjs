@@ -69,8 +69,7 @@ export default async function Page({ searchParams }: SearchParams) {
       name: d.name || '-',
       discountType: discountTypeMap[d.discountType] || '-',
       discountValue: d.discountValue || '-',
-      discountValueForeign: d.discountValueForeign || '-',
-      status: d.status === 1 ? 'Published' : 'Unpublished'
+      discountValueForeign: d.discountValueForeign || '-'
     }));
 
     return {
@@ -111,8 +110,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Discount Name', 'Discount Type', 'Discount Value', 'Discount Foreign Value', 'Status']}
-                  keys={['name', 'discountType', 'discountValue', 'discountValueForeign', 'status']}
+                  columns={['Discount Name', 'Discount Type', 'Discount Value', 'Discount Foreign Value']}
+                  keys={['name', 'discountType', 'discountValue', 'discountValueForeign']}
                   title="Discounts List"
                   fileName="discounts"
                 />

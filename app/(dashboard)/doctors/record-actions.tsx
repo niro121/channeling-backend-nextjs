@@ -5,10 +5,10 @@ import { Doctor } from '@/types/doctor';
 import { Row } from '@tanstack/react-table';
 import { useToast } from '@/components/hooks/use-toast';
 import { DataTableRowActions } from '@/components/common/custom-table-row-actions';
-import CustomAlertDialog from '@/components/common/custom-alert-dialog';
-import { deleteDoctor } from '@/app/actions/doctor.actions';
+import CustomAlertDialogWithWarning from '@/components/common/custom-alert-dialog-with-warning';
+import { deleteDoctor, checkDoctorHasActiveSessionsOrLeaves } from '@/app/actions/doctor.actions';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/components/hooks/use-permissions';
 
@@ -20,6 +20,11 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [fetchingCheck, setFetchingCheck] = React.useState(false);
+  const [hasActiveSessionsOrLeaves, setHasActiveSessionsOrLeaves] = React.useState<{
+    hasActiveSessions: boolean;
+    hasApprovedLeaves: boolean;
+  } | null>(null);
   const { toast } = useToast();
   const router = useRouter();
   const { has } = usePermissions();
@@ -29,6 +34,45 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
 
   const showHideDeleteModal = (value: boolean) => {
     setShowDelConfirmation(value);
+    if (!value) {
+      // Reset check when dialog is closed
+      setHasActiveSessionsOrLeaves(null);
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    if (!doctor.id) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Doctor id not found.'
+      });
+      return;
+    }
+
+    // Fetch check before showing dialog
+    setFetchingCheck(true);
+    try {
+      const result = await checkDoctorHasActiveSessionsOrLeaves(doctor.id);
+      if (result.success && result.data) {
+        setHasActiveSessionsOrLeaves(result.data);
+        setShowDelConfirmation(true);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.error?.message || 'Failed to check doctor sessions and leaves.'
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to check doctor sessions and leaves.'
+      });
+    } finally {
+      setFetchingCheck(false);
+    }
   };
 
   const onDeleteConfirmation = async () => {
@@ -61,6 +105,29 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
     }
   };
 
+  // Generate description component based on check result
+  const getDeleteDescription = () => {
+    if (hasActiveSessionsOrLeaves === null) {
+      return <span>Loading...</span>;
+    }
+
+    if (hasActiveSessionsOrLeaves.hasActiveSessions || hasActiveSessionsOrLeaves.hasApprovedLeaves) {
+      return (
+        <>
+          <span className="text-[#d94a4a]">
+            One or more selected doctors have active sessions and/or approved leave records. Deleting them may affect scheduled appointments and availability records.
+          </span>
+
+          <br />
+          <br />
+          <span className="text-[#d94a4a]">Are you sure you want to continue?</span>
+        </>
+      );
+    }
+
+    return "This action cannot be undone. This will permanently delete this doctor and remove the data from our servers.";
+  };
+
   return (
     <>
       <DataTableRowActions>
@@ -79,22 +146,28 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => showHideDeleteModal(true)}
+            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+            onClick={handleDeleteClick}
+            disabled={fetchingCheck}
           >
-            <Trash2 className="h-4 w-4" />
+            {fetchingCheck ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
             <span className="sr-only">Delete</span>
           </Button>
         )}
       </DataTableRowActions>
 
-      <CustomAlertDialog
+      <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
         loading={loading}
         title="Are you absolutely sure?"
-        description="This action cannot be undone. This will permanently delete this doctor and remove the data from our servers."
+        description={getDeleteDescription()}
         handleContinue={onDeleteConfirmation}
+        hasWarning={hasActiveSessionsOrLeaves !== null && (hasActiveSessionsOrLeaves.hasActiveSessions || hasActiveSessionsOrLeaves.hasApprovedLeaves)}
       />
     </>
   );
