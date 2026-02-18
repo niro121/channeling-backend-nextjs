@@ -7,6 +7,7 @@ export {
 } from "./get-processed-discount"
 export { verifyAgencyReference } from "./verify-agency-reference"
 export { getAgentBalance } from "./get-agent-balance"
+export { updateAgentBalance } from "./update-agent-balance"
 export { getBookingForSaveBooking } from "./get-booking"
 export { resolveUser } from "./resolve-user"
 export {

@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { redirect } from 'next/navigation';
+import { checkRouteAccess } from '@/lib/server-permissions';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
 import DoctorLeavesList from './doctor-leaves-list';
 import Loading from '../loading';
@@ -14,6 +16,9 @@ type SearchParams = {
 };
 
 export default async function DoctorLeavesPage({ searchParams }: SearchParams) {
+  const canView = await checkRouteAccess('/doctor-leaves');
+  if (!canView) redirect('/unauthorized-access');
+
   const params = await searchParams;
   const doctorOptions = await getDoctorOptions();
 

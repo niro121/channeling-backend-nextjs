@@ -20,7 +20,32 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
 }
 ```
 
-✅ **That's it!** The resource will automatically appear in the User Group permissions form.
+✅ **That's it!** The resource will automatically appear in the User Group permissions form. Sidebar links for that route are hidden when the user has no **view** permission.
+
+### Current route → resource mappings (sidebar-gated)
+
+| Route | Resource |
+|-------|----------|
+| `/users` | users |
+| `/user-groups` | users |
+| `/channel-booking` | channel-booking |
+| `/sessions` | sessions |
+| `/doctors` | doctors |
+| `/doctor-sessions` | doctor-sessions |
+| `/doctor-leaves` | doctor-leaves |
+| `/specialities` | specialities |
+| `/departments` | departments |
+| `/patients` | patients |
+| `/staff` | staff |
+| `/tags` | tags |
+| `/zones` | zones |
+| `/rooms` | rooms |
+| `/locations` | locations |
+| `/agency-books` | agency-books |
+| `/agencies` | agencies |
+| `/discounts` | discounts |
+| `/sms-playground` | sms-playground |
+| `/reports` | reports |
 
 ---
 
