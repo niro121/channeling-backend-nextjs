@@ -160,3 +160,34 @@ export async function bulkDeleteStaffAction(ids: string[]) {
     throw new Error(error.message ?? "Error deleting records. Please try again later")
   }
 }
+
+// ==== STAFF EXPORT ==== //
+export const getStaffExport = async (params: { keyword?: string }) => {
+  try {
+    const response = await getStaffAction({
+      page: "1",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (response.isError || !response.data?.data?.length) {
+      return {
+        success: false,
+        message: response.isError 
+          ? (response.errors?.message || 'Error getting data')
+          : 'No staff found'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data.data
+    };
+  } catch (error: any) {
+    console.log('getStaffExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

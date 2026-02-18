@@ -147,3 +147,38 @@ export const getAllUserGroupsOptions = async () => {
         throw new Error(error.message ?? "Error getting user group options. please try again later")
     }
 };
+
+// ==== USER GROUPS EXPORT ==== //
+export const getUserGroupsExport = async (params: { keyword?: string }) => {
+  await requirePermission("users", "view");
+  try {
+    const response = await getAllUserGroups({
+      page: "0",
+      limit: "1000000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (!response.data?.length) {
+      return {
+        success: false,
+        message: 'No user groups found',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: any) {
+    console.log('getUserGroupsExport error', error);
+    return {
+      success: false,
+      message: error.message || "Error getting data. please try again later",
+      data: [],
+      totalRecords: 0
+    };
+  }
+};

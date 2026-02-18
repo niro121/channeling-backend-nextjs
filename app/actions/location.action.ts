@@ -251,3 +251,33 @@ export const bulkDeleteLocations = async (ids: string[]) => {
     throw error;
   }
 };
+
+// ==== LOCATIONS EXPORT ==== //
+export const getLocationsExport = async (params: { keyword?: string; locationId?: string }) => {
+  try {
+    const response = await getAllLocations({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? "",
+      locationId: params.locationId
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No locations found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getLocationsExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

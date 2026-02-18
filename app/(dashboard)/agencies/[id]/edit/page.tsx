@@ -3,6 +3,7 @@ import AgencyForm from '../../agency-form';
 import { getAgencyById, getAllAgenciesOptions } from '@/app/actions/agency.actions';
 import { getAllLocations } from '@/app/actions/location.action';
 import { notFound } from 'next/navigation';
+import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -36,6 +37,7 @@ export default async function Page({ params }: PageProps) {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Edit Agency</h2>
+        <BackButton href="/agencies" />
       </div>
       <div className="h-full flex-1 flex-col space-y-8">
         <AgencyForm

@@ -295,3 +295,33 @@ export const getLocationOptions = async () => {
     };
   }
 };
+
+// ==== USERS EXPORT ==== //
+export const getUsersExport = async (params: { keyword?: string; userType?: string }) => {
+  try {
+    const response = await getAllUsers({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? "",
+      userType: params.userType
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No users found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getUsersExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

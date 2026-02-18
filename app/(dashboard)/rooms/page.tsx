@@ -8,12 +8,15 @@ import Link from 'next/link';
 import {
   bulkDeleteRooms,
   getAllLocations,
-  getAllRooms
+  getAllRooms,
+  getRoomsExport
 } from '@/app/actions/room.actions';
 import { RoomColumns } from './columns';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { ExportWrapper } from '../export-wrapper';
+import { BulkDeleteButton } from '@/components/common/custom-data-table';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -43,6 +46,36 @@ export default async function Page({ searchParams }: SearchParams) {
   const locationOptions =
     locationRes?.data?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
 
+  const handleExport = async () => {
+    'use server';
+
+    const roomListResponse = await getRoomsExport({
+      keyword: params?.keyword,
+      locationId: params?.locationId
+    });
+
+    if (!roomListResponse.success || !roomListResponse.data?.length) {
+      return {
+        success: false,
+        message: roomListResponse.success
+          ? 'No rooms found'
+          : roomListResponse.message
+      };
+    }
+
+    const mappedRooms = roomListResponse.data.map((r: any) => ({
+      number: r.number || '-',
+      location: r.location?.name || '-',
+      zone: r.zone?.name || '-',
+      status: r.status === 1 ? 'Published' : 'Unpublished'
+    }));
+
+    return {
+      success: true,
+      data: mappedRooms
+    };
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -55,30 +88,45 @@ export default async function Page({ searchParams }: SearchParams) {
           deleteServerAction={bulkDeleteRooms}
           page={params?.page}
           toolbarLeft={
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
-              <div className="relative w-full sm:max-w-sm">
-                <SearchInput
-                  name="keyword"
-                  placeholder="Search by number, location"
-                  className="pl-8 w-full h-9"
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <div className="relative w-full sm:max-w-sm">
+                  <SearchInput
+                    name="keyword"
+                    placeholder="Search by number, location"
+                    className="pl-8 w-full h-9"
+                  />
+                </div>
+                <FilterSection
+                  locationOptions={locationOptions}
+                  locationId={params?.locationId}
                 />
               </div>
-              <FilterSection
-                locationOptions={locationOptions}
-                locationId={params?.locationId}
-              />
+              <div className="flex items-center">
+                <ExportWrapper
+                  serverData={handleExport}
+                  columns={['Room Number', 'Location', 'Zone', 'Status']}
+                  keys={['number', 'location', 'zone', 'status']}
+                  title="Rooms List"
+                  fileName="rooms"
+                />
+              </div>
             </div>
           }
           toolbarRight={
-            <Link href="/rooms/add">
-              <Button size="sm" className="gap-1.5 h-9">
-                <Plus className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Add New
-                </span>
-              </Button>
-            </Link>
+            <div className="flex items-start gap-2 shrink-0">
+              <BulkDeleteButton />
+              <Link href="/rooms/add">
+                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                  <Plus className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Add New
+                  </span>
+                </Button>
+              </Link>
+            </div>
           }
+          hideAutoBulkDelete={true}
         />
       </Suspense>
     </div>
