@@ -12,6 +12,8 @@ export type DiscountForBookingOption = {
   applyTo: number
   discountValue: number
   discountValueForeign: number
+  /** 0 = no, 1 = yes — when true, UI must collect and validate voucher code */
+  isVoucher: number
 }
 
 export type GetDiscountsForBookingPayload = {
@@ -28,6 +30,7 @@ const mapRecord = (r: {
   applyTo: number
   discountValue: number
   discountValueForeign: number
+  isVoucher: number
 }): DiscountForBookingOption => ({
   id: r.id,
   name: r.name,
@@ -37,6 +40,7 @@ const mapRecord = (r: {
   applyTo: r.applyTo,
   discountValue: r.discountValue,
   discountValueForeign: r.discountValueForeign,
+  isVoucher: r.isVoucher,
 })
 
 /**
@@ -63,6 +67,7 @@ export async function getDiscountsForBookingService(): Promise<GetDiscountsForBo
       applyTo: true,
       discountValue: true,
       discountValueForeign: true,
+      isVoucher: true,
     },
     orderBy: { name: "asc" },
   })

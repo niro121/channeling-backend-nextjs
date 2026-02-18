@@ -48,7 +48,9 @@ const userUpdateSchema = userSchema.partial().extend({
   id: z.string().min(1, 'User ID is required'),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
+  defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
   userLocationId: z.string().nullable().optional(),
+  staffId: z.string().nullable().optional(),
   bookingLocationIds: z.array(z.string()).optional(),
 }).refine(
   (data) => {
@@ -262,7 +264,9 @@ export const updateOneUser = async (
     userGroupId?: string | null;
     checkedDefaultLocation?: boolean;
     defaultLocation?: string | null;
+    defaultBookingMethod?: number | null;
     userLocationId?: string | null;
+    staffId?: string | null;
     bookingLocationIds?: string[];
   }
 ): Promise<{
@@ -302,7 +306,9 @@ export const updateOneUser = async (
     if (data.userGroupId !== undefined) updateData.userGroupId = data.userGroupId || null;
     if (data.checkedDefaultLocation !== undefined) updateData.checkedDefaultLocation = data.checkedDefaultLocation;
     if (data.defaultLocation !== undefined) updateData.defaultLocation = data.defaultLocation ?? null;
+    if (data.defaultBookingMethod !== undefined) updateData.defaultBookingMethod = data.defaultBookingMethod ?? null;
     if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
+    if (data.staffId !== undefined) updateData.staffId = data.staffId ?? null;
 
     const result = await prisma.user.update({
       data: updateData,
@@ -330,11 +336,18 @@ export const updateOneUser = async (
 
     if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
+        const target = error.meta?.target as string[] | undefined
+        const isStaffIdConflict = Array.isArray(target) && target.includes('staffId')
+        const message = isStaffIdConflict
+          ? 'This staff member is already linked to another user.'
+          : 'Duplicate record detected'
         return {
           success: false,
           error: {
-            message: 'Duplicate record detected',
-            issues: error.meta?.target
+            message,
+            issues: isStaffIdConflict
+              ? { staffId: [message] }
+              : error.meta?.target
           }
         };
       }
@@ -363,6 +376,7 @@ export const getUserById = async (id: string) => {
             where: { id: id },
             include: {
                 userLocation: { select: { id: true, name: true } },
+                staff: { select: { id: true, name: true, code: true } },
                 bookingLocations: { select: { locationId: true, location: { select: { id: true, name: true } } } },
             },
         })

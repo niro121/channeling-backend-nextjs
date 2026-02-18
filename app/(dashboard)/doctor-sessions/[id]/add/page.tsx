@@ -6,6 +6,7 @@ import DoctorSessionForm from '../../doctor-session-form';
 import { BackButton } from '@/components/common/back-button';
 import {
   getDepartmentOptions,
+  getAllDoctorSessions,
   getDoctorById,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
@@ -36,6 +37,14 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
 
   const departmentOptions = await getDepartmentOptions();
   const locationOptions = await getLocationOptions();
+  const { data: doctorSessionsList } = await getAllDoctorSessions({
+    doctorId: data.id,
+    page: '0',
+    limit: '1000'
+  });
+  const doctorSessionsForPreviousDropdown = (doctorSessionsList ?? []).map(
+    (s: { id: string; name: string }) => ({ id: s.id, name: s.name })
+  );
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -49,6 +58,7 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
         <DoctorSessionForm
           doctorId={data.id}
           doctorSession={null}
+          doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
           institutionOptions={INSTITUTION_OPTIONS}
           departmentOptions={departmentOptions.data}
           locationOptions={locationOptions.data}

@@ -136,7 +136,9 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
             userGroupId?: string | null;
             checkedDefaultLocation?: boolean;
             defaultLocation?: string | null;
+            defaultBookingMethod?: number | null;
             userLocationId?: string | null;
+            staffId?: string | null;
             bookingLocationIds?: string[];
         } = {};
 
@@ -148,17 +150,21 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         if (payload.userGroupId !== undefined) updatePayload.userGroupId = payload.userGroupId;
         if (payload.checkedDefaultLocation !== undefined) updatePayload.checkedDefaultLocation = payload.checkedDefaultLocation;
         if (payload.defaultLocation !== undefined) updatePayload.defaultLocation = payload.defaultLocation || null;
+        if (payload.defaultBookingMethod !== undefined) updatePayload.defaultBookingMethod = payload.defaultBookingMethod ?? null;
         if (payload.userLocationId !== undefined) updatePayload.userLocationId = payload.userLocationId || null;
+        if (payload.staffId !== undefined) updatePayload.staffId = payload.staffId ?? null;
         if (payload.bookingLocationIds !== undefined) updatePayload.bookingLocationIds = payload.bookingLocationIds;
 
         const result = await updateOneUser(id, updatePayload)
 
         if (!result.success) {
+            const issues = result.error?.issues ?? {}
+            const message = result.error?.message ?? "Something went wrong. please try again later"
             return {
                 isError: true,
-                errors: result.error?.issues || {
-                    message: result.error?.message ?? "Something went wrong. please try again later"
-                },
+                errors: typeof issues === "object" && issues !== null
+                    ? { ...issues, message }
+                    : { message },
                 data: {}
             };
         }

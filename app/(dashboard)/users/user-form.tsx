@@ -12,6 +12,7 @@ import * as Yup from "yup"
 import { useDialog } from "@/components/common/custom-dialog"
 import { Separator } from "@/components/ui/separator"
 import { createNewUser, updateUser, updateUserPassword, getLocationOptions } from "@/app/actions/user.actions"
+import { getStaffOptionsAction } from "@/app/actions/staff.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 import CustomSelectField from "@/components/common/custom-select-field"
@@ -19,6 +20,7 @@ import { CustomMultiSelect } from "@/components/common/custom-mulit-select"
 import { CustomSwitch } from "@/components/common/custom-switch"
 
 type LocationOption = { id: string; name: string }
+type StaffOption = { id: string; name: string; code: string }
 
 type UserFormProps = {
     user: User | null
@@ -33,6 +35,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const [passwordLoading, setPasswordLoading] = useState<boolean>(false)
     const [locationOptions, setLocationOptions] = useState<LocationOption[]>([])
     const [locationOptionsLoading, setLocationOptionsLoading] = useState(false)
+    const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
+    const [staffOptionsLoading, setStaffOptionsLoading] = useState(false)
     const { setDialogOpen } = useDialog()
     const { toast } = useToast()
 
@@ -44,6 +48,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             if (res.success && res.data) setLocationOptions(res.data)
         }
         loadLocations()
+    }, [])
+
+    useEffect(() => {
+        const loadStaffOptions = async () => {
+            setStaffOptionsLoading(true)
+            const res = await getStaffOptionsAction()
+            setStaffOptionsLoading(false)
+            if (!res.isError && res.data) setStaffOptions(res.data)
+        }
+        loadStaffOptions()
     }, [])
 
     const bookingLocationIdsFromUser = (u: User | null): string[] => {
@@ -60,7 +74,9 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         status: user?.status !== undefined ? user.status : 1,
         checkedDefaultLocation: user?.checkedDefaultLocation ?? false,
         defaultLocation: user?.defaultLocation ?? "",
+        defaultBookingMethod: user?.defaultBookingMethod != null ? String(user.defaultBookingMethod) : "__none__",
         userLocationId: user?.userLocationId ?? "",
+        staffId: user?.staffId ?? "__none__",
         bookingLocationIds: bookingLocationIdsFromUser(user),
     }
 
@@ -95,6 +111,9 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         userType: Yup.number()
             .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
             .required("This field is mandatory"),
+        userLocationId: Yup.string()
+            .required("User Location is mandatory")
+            .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
     })
 
     // Validation schema for password change
@@ -132,6 +151,9 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         userType: Yup.number()
             .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
             .required("This field is mandatory"),
+        userLocationId: Yup.string()
+            .required("User Location is mandatory")
+            .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
     })
 
     const handleSettingsSubmit = async (
@@ -151,10 +173,19 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                     ? values.bookingLocationIds![0]
                     : "";
 
+            const defaultBookingMethod =
+                values.defaultBookingMethod === "__none__" || values.defaultBookingMethod === ""
+                    ? null
+                    : parseInt(values.defaultBookingMethod, 10)
+
+            const staffId = values.staffId === "__none__" || values.staffId === "" ? null : values.staffId
+
             const userPayload: User = {
                 ...currentUser,
                 ...values,
                 defaultLocation: defaultLocation || undefined,
+                defaultBookingMethod: defaultBookingMethod !== undefined && !Number.isNaN(defaultBookingMethod) ? defaultBookingMethod : null,
+                staffId: staffId ?? undefined,
                 bookingLocationIds: values.bookingLocationIds,
                 password: "", // Empty password means keep existing
             } as User
@@ -396,7 +427,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         formik.setFieldValue("userLocationId", value === "__none__" ? "" : value);
                                         formik.setFieldTouched("userLocationId", true);
                                     }}
-                                    required={false}
+                                    required={true}
                                     options={[{ id: "__none__", name: "None" }, ...locationOptions]}
                                     styleClasses={styleClasses}
                                     loading={locationOptionsLoading}
@@ -460,7 +491,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     // Edit User Form (two tabs: Settings and Password)
     return (
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="settings">User Settings</TabsTrigger>
                 <TabsTrigger value="password">Change Password</TabsTrigger>
             </TabsList>
@@ -475,125 +506,164 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                 >
                     {(formik) => (
                         <Form className="w-full">
-                            <div className="grid gap-4 py-4">
-                                <CustomFormField
-                                    type="text"
-                                    id="name"
-                                    placeholder="Full Name"
-                                    value={formik.values.name}
-                                    onChange={formik.handleChange}
-                                    onBlur={formik.handleBlur}
-                                    required
-                                    styleClasses={styleClasses}
-                                />
+                            <div className="space-y-5 py-3">
+                                {/* Profile */}
+                                <section className="space-y-3">
+                                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider border-b border-border/60 pb-1">Profile</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                                        <CustomFormField
+                                            type="text"
+                                            id="name"
+                                            placeholder="Full Name"
+                                            value={formik.values.name}
+                                            onChange={formik.handleChange}
+                                            onBlur={formik.handleBlur}
+                                            required
+                                            styleClasses={styleClasses}
+                                        />
+                                        <CustomFormField
+                                            type="email"
+                                            id="email"
+                                            placeholder="Email"
+                                            value={formik.values.email}
+                                            onChange={formik.handleChange}
+                                            onBlur={formik.handleBlur}
+                                            required
+                                            styleClasses={styleClasses}
+                                        />
+                                        <CustomSelectField
+                                            id="userType"
+                                            placeholder="User Type"
+                                            value={formik.values.userType?.toString()}
+                                            onChange={(value) => {
+                                                formik.setFieldValue("userType", parseInt(value));
+                                                formik.setFieldTouched("userType", true);
+                                            }}
+                                            required
+                                            options={[
+                                                { id: "1", name: "Admin" },
+                                                { id: "2", name: "Staff" }
+                                            ]}
+                                            styleClasses={styleClasses}
+                                        />
+                                        {userGroupOptions.length > 0 && (
+                                            <CustomSelectField
+                                                id="userGroupId"
+                                                placeholder="User Group"
+                                                value={formik.values.userGroupId || "__none__"}
+                                                onChange={(value) => {
+                                                    const newValue = value === "__none__" ? undefined : value;
+                                                    formik.setFieldValue("userGroupId", newValue);
+                                                }}
+                                                required={false}
+                                                options={[
+                                                    { id: "__none__", name: "None" },
+                                                    ...userGroupOptions
+                                                ]}
+                                                styleClasses={styleClasses}
+                                            />
+                                        )}
+                                        <CustomSelectField
+                                            id="userLocationId"
+                                            placeholder="User Location"
+                                            value={formik.values.userLocationId || "__none__"}
+                                            onChange={(value) => {
+                                                formik.setFieldValue("userLocationId", value === "__none__" ? "" : value);
+                                                formik.setFieldTouched("userLocationId", true);
+                                            }}
+                                            required={true}
+                                            options={[{ id: "__none__", name: "None" }, ...locationOptions]}
+                                            styleClasses={styleClasses}
+                                            loading={locationOptionsLoading}
+                                        />
+                                        <div>
+                                            <CustomSelectField
+                                                id="defaultBookingMethod"
+                                                placeholder="Default method"
+                                                value={formik.values.defaultBookingMethod ?? "__none__"}
+                                                onChange={(value) => {
+                                                    formik.setFieldValue("defaultBookingMethod", value);
+                                                    formik.setFieldTouched("defaultBookingMethod", true);
+                                                }}
+                                                required={false}
+                                                options={[
+                                                    { id: "__none__", name: "No default" },
+                                                    { id: "0", name: "Cash" },
+                                                    { id: "1", name: "OnCall" },
+                                                    { id: "2", name: "Agent" },
+                                                    { id: "3", name: "Staff" },
+                                                    { id: "4", name: "Card" },
+                                                    { id: "5", name: "Slip" },
+                                                ]}
+                                                styleClasses={styleClasses}
+                                            />
+                                        </div>
 
-                                <CustomFormField
-                                    type="email"
-                                    id="email"
-                                    placeholder="Email"
-                                    value={formik.values.email}
-                                    onChange={formik.handleChange}
-                                    onBlur={formik.handleBlur}
-                                    required
-                                    styleClasses={styleClasses}
-                                />
+                                        <CustomSelectField
+                                            id="staffId"
+                                            placeholder="Linked staff"
+                                            value={formik.values.staffId ?? "__none__"}
+                                            onChange={(value) => {
+                                                formik.setFieldValue("staffId", value === "__none__" ? "" : value);
+                                                formik.setFieldTouched("staffId", true);
+                                            }}
+                                            required={false}
+                                            options={[
+                                                { id: "__none__", name: "None" },
+                                                ...staffOptions.map((s) => ({ id: s.id, name: s.code ? `${s.name} (${s.code})` : s.name })),
+                                            ]}
+                                            styleClasses={styleClasses}
+                                            loading={staffOptionsLoading}
+                                        />
+                                    </div>
+                                </section>
 
-                                <CustomSelectField
-                                    id="userType"
-                                    placeholder="User Type"
-                                    value={formik.values.userType?.toString()}
-                                    onChange={(value) => {
-                                        formik.setFieldValue("userType", parseInt(value));
-                                        formik.setFieldTouched("userType", true);
-                                    }}
-                                    required
-                                    options={[
-                                        { id: "1", name: "Admin" },
-                                        { id: "2", name: "Staff" }
-                                    ]}
-                                    styleClasses={styleClasses}
-                                />
-
-                                {userGroupOptions.length > 0 && (
-                                    <CustomSelectField
-                                        id="userGroupId"
-                                        placeholder="User Group"
-                                        value={formik.values.userGroupId || "__none__"}
-                                        onChange={(value) => {
-                                            const newValue = value === "__none__" ? undefined : value;
-                                            formik.setFieldValue("userGroupId", newValue);
-                                        }}
+                                {/* Locations */}
+                                <section className="space-y-3">
+                                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider border-b border-border/60 pb-1">Locations</h3>
+                                    <CustomMultiSelect
+                                        id="bookingLocationIds"
+                                        placeholder="Booking Locations"
+                                        value={formik.values.bookingLocationIds ?? []}
+                                        onChange={(values) => formik.setFieldValue("bookingLocationIds", values)}
                                         required={false}
-                                        options={[
-                                            { id: "__none__", name: "None" },
-                                            ...userGroupOptions
-                                        ]}
+                                        options={locationOptions}
                                         styleClasses={styleClasses}
                                     />
-                                )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <CustomSwitch
+                                                id="checkedDefaultLocation"
+                                                placeholder="Use default location"
+                                                checked={formik.values.checkedDefaultLocation}
+                                                onChange={(checked) => formik.setFieldValue("checkedDefaultLocation", checked)}
+                                                styleClasses={styleClasses}
+                                            />
+                                            <span className="text-muted-foreground text-xs">Auto-select first in Channeling</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <Checkbox
+                                                id="status"
+                                                checked={formik.values.status === 1 ? true : false}
+                                                onCheckedChange={(value) => {
+                                                    if (value) {
+                                                        formik.setFieldValue("status", 1)
+                                                    } else {
+                                                        formik.setFieldValue("status", 0)
+                                                    }
+                                                }}
+                                            />
+                                            <Label
+                                                htmlFor="status"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
+                                            >
+                                                Active Login
+                                            </Label>
+                                        </div>
+                                    </div>
+                                </section>
 
-                                <CustomSelectField
-                                    id="userLocationId"
-                                    placeholder="User Location"
-                                    value={formik.values.userLocationId || "__none__"}
-                                    onChange={(value) => {
-                                        formik.setFieldValue("userLocationId", value === "__none__" ? "" : value);
-                                        formik.setFieldTouched("userLocationId", true);
-                                    }}
-                                    required={false}
-                                    options={[{ id: "__none__", name: "None" }, ...locationOptions]}
-                                    styleClasses={styleClasses}
-                                    loading={locationOptionsLoading}
-                                />
-
-                                <Separator />
-
-                                <CustomMultiSelect
-                                    id="bookingLocationIds"
-                                    placeholder="Booking Locations"
-                                    value={formik.values.bookingLocationIds ?? []}
-                                    onChange={(values) => formik.setFieldValue("bookingLocationIds", values)}
-                                    required={false}
-                                    options={locationOptions}
-                                    styleClasses={styleClasses}
-                                />
-
-                                <div>
-                                    <CustomSwitch
-                                    id="checkedDefaultLocation"
-                                    placeholder="Use default location"
-                                    checked={formik.values.checkedDefaultLocation}
-                                    onChange={(checked) => formik.setFieldValue("checkedDefaultLocation", checked)}
-                                    styleClasses={styleClasses}
-                                />
-                                    <p className="text-secondary-foreground text-xs">Make First Location Auto Selected ( In Channeling Module )</p>
-                                </div>
-                                
-
-                                <Separator />
-
-
-                                <div className="flex items-center align-middle mb-3">
-                                    <Checkbox
-                                        id="status"
-                                        checked={formik.values.status === 1 ? true : false}
-                                        onCheckedChange={(value) => {
-                                            if (value) {
-                                                formik.setFieldValue("status", 1)
-                                            } else {
-                                                formik.setFieldValue("status", 0)
-                                            }
-                                        }}
-                                    />
-                                    <Label
-                                        htmlFor="status"
-                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
-                                    >
-                                        Active Login
-                                    </Label>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row justify-end gap-3">
+                                <div className="flex flex-col sm:flex-row justify-end gap-2 pt-1">
                                     <Button
                                         size="sm"
                                         variant="outline"

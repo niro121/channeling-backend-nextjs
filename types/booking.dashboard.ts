@@ -12,10 +12,8 @@ export type Session = {
   date: Date;
   doctorSessionId: string;
   previousDoctorSession: string | null;
-  /** Minutes from midnight (0–1439). */
-  startTime: number;
-  /** Minutes from midnight (0–1439). */
-  endTime: number;
+  startTime: Date;
+  endTime: Date;
   durationMinutes: number | null;
   startingPatientNumber: number;
   maxPatientNumber: number;
@@ -36,6 +34,9 @@ export type Session = {
   doctor?: Doctor | null;
   location?: Location | null;
   room?: Room | null;
+  /** Current booking count (paid + pending) for list display. */
+  paidCount?: number;
+  pendingCount?: number;
 };
 
 export type GetSessionsForChannelBookingParams = {

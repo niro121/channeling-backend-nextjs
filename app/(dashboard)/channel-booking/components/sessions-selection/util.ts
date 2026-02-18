@@ -41,12 +41,12 @@ function toMinutesFromMidnight(
   return Math.round((minutesFromMidnight + MINUTES_PER_DAY) % MINUTES_PER_DAY)
 }
 
-/** Unix timestamp in seconds (Session model stores startTime/endTime as unix seconds). */
+/** Legacy: detect unix timestamp in seconds (for backward compatibility). */
 function isUnixSeconds(n: number): boolean {
   return n >= 1e9 && n < 1e13
 }
 
-/** Format startTime/endTime for display. Uses Sri Lanka time for unix timestamps from API. */
+/** Format startTime/endTime for display. Session uses DateTime; API may send Date or ISO string. Handles legacy number (minutes or unix seconds). */
 export function formatSessionTime(
   value: number | string | Date,
   sessionDate?: Date | string
@@ -77,6 +77,13 @@ export function formatSessionDay(date: Date | string): string {
   return DAY_ABBR[d.getDay()] ?? ""
 }
 
+/** True if session date is Saturday (6) or Sunday (0). */
+export function isSessionWeekend(date: Date | string): boolean {
+  const d = typeof date === "string" ? new Date(date) : date
+  const day = d.getDay()
+  return day === 0 || day === 6
+}
+
 /** Date as Mon/Day/YY (e.g. "Mar/2/26"). */
 export function formatSessionDateShort(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date
@@ -99,8 +106,13 @@ export function formatSessionStartTimeDisplay(
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-/** Local fee with thousands separator (e.g. 6190 -> "6,190"). */
+/** Local fee with thousands separator, no decimals (e.g. 6190 -> "6,190"). */
 export function formatLocalFee(amount: number | null | undefined): string {
   const n = amount ?? 0
-  return n.toLocaleString()
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0, minimumFractionDigits: 0 })
+}
+
+/** Pad number to at least 2 digits (e.g. 5 -> "05"). */
+export function padTwo(n: number): string {
+  return String(n).padStart(2, "0")
 }

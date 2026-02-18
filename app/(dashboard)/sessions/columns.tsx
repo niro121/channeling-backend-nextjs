@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import moment from 'moment';
+import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { SessionRecordActions } from './record-actions';
 import { SessionViewDialog } from './session-view-dialog';
 
@@ -26,15 +27,12 @@ function SessionIdCell({ row }: { row: { original: SessionListItem } }) {
   );
 }
 
-/** startTime/endTime from DB may be unix seconds (from helper) or minutes from midnight (from service). */
-function formatSessionTime(value: number, date?: Date): string {
-  const d = date ? moment(date) : moment();
-  if (value > 86400 * 2) {
-    return moment.unix(value).format('LT');
-  }
-  const hours = Math.floor(value / 60);
-  const mins = value % 60;
-  return moment().startOf('day').add(hours, 'hours').add(mins, 'minutes').format('LT');
+/** Format session time for display in Sri Lanka (DB stores UTC). */
+function formatSessionTime(value: Date | number | string, date?: Date): string {
+  const sessionDate = date instanceof Date ? date : date ? new Date(date) : new Date();
+  const normalized =
+    typeof value === 'string' ? new Date(value) : normalizeSessionTime(value as Date | number, sessionDate);
+  return formatTimeSriLanka(normalized);
 }
 
 export type SessionListItem = {
@@ -71,24 +69,29 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     enableSorting: false
   },
   {
-    accessorKey: 'date',
+    id: 'date',
     header: 'Date',
-    cell: ({ row }) => moment(row.original.date).format('YYYY-MM-DD'),
+    cell: ({ row }) => {
+      const { date, originalSessionName } = row.original;
+      const dateStr = moment(date).format('DD MMM YYYY');
+      const original = originalSessionName ? `(${originalSessionName})` : null;
+      return (
+        <div className="flex flex-col gap-0.5 text-xs whitespace-nowrap">
+          <span>{dateStr}</span>
+          {original && <span className="text-muted-foreground/80">{original}</span>}
+        </div>
+      );
+    },
     enableSorting: false
   },
   {
     id: 'time',
     header: 'Time',
     cell: ({ row }) => {
-      const { startTime, endTime, date } = row.original;
-      return `${formatSessionTime(startTime, date)} – ${formatSessionTime(endTime, date)}`;
+      const { date, startTime, endTime } = row.original;
+      const timeStr = `${formatSessionTime(startTime, date)} – ${formatSessionTime(endTime, date)}`;
+      return <span className="text-xs whitespace-nowrap">{timeStr}</span>;
     },
-    enableSorting: false
-  },
-  {
-    accessorKey: 'originalSessionName',
-    header: 'Original Session',
-    cell: ({ row }) => row.original.originalSessionName ?? '—',
     enableSorting: false
   },
   {
@@ -98,15 +101,18 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     enableSorting: false
   },
   {
-    accessorKey: 'amountLocal',
-    header: 'Local Fee',
-    cell: ({ row }) => (row.original.amountLocal != null ? String(row.original.amountLocal) : '—'),
-    enableSorting: false
-  },
-  {
-    accessorKey: 'amountForeign',
-    header: 'Foreign Fee',
-    cell: ({ row }) => (row.original.amountForeign != null ? String(row.original.amountForeign) : '—'),
+    id: 'fees',
+    header: 'Fee',
+    cell: ({ row }) => {
+      const local = row.original.amountLocal != null ? String(row.original.amountLocal) : '—';
+      const foreign = row.original.amountForeign != null ? String(row.original.amountForeign) : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>Local: {local}</span>
+          <span className="text-muted-foreground">Foreign: {foreign}</span>
+        </div>
+      );
+    },
     enableSorting: false
   },
   {
@@ -116,34 +122,29 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     enableSorting: false
   },
   {
-    id: 'created',
-    header: 'Created',
+    id: 'createdUpdated',
+    header: 'Created / Updated',
     cell: ({ row }) => {
-      const name = row.original.createdUser?.name ?? '—';
-      const date = row.original.createdAt
+      const createdName = row.original.createdUser?.name ?? '—';
+      const createdDate = row.original.createdAt
         ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
         : '—';
-      return (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span>{name}</span>
-          <span className="text-muted-foreground">{date}</span>
-        </div>
-      );
-    },
-    enableSorting: false
-  },
-  {
-    id: 'updated',
-    header: 'Updated',
-    cell: ({ row }) => {
-      const name = row.original.updatedUser?.name ?? '—';
-      const date = row.original.updatedAt
+      const updatedName = row.original.updatedUser?.name ?? '—';
+      const updatedDate = row.original.updatedAt
         ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
         : '—';
       return (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span>{name}</span>
-          <span className="text-muted-foreground">{date}</span>
+        <div className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-muted-foreground">Created</span>
+            <span>{createdName}</span>
+            <span className="text-muted-foreground">{createdDate}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-muted-foreground">Updated</span>
+            <span>{updatedName}</span>
+            <span className="text-muted-foreground">{updatedDate}</span>
+          </div>
         </div>
       );
     },

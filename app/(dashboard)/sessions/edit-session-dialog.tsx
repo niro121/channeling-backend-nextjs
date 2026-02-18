@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
 import { useToast } from '@/components/hooks/use-toast';
 import { updateSession } from '@/app/actions/sessions.action';
-import { calculateDurationMinutes, unixToTimeDisplay } from '@/lib/utils';
+import { calculateDurationMinutes, sessionTimeToUnixSeconds, unixToTimeDisplay } from '@/lib/utils';
 import type { SessionListItem } from './columns';
 
 type EditSessionDialogProps = {
@@ -47,8 +47,10 @@ export function EditSessionDialog({
 
   useEffect(() => {
     if (!session || !open) return;
-    const start = unixToTimeDisplay(session.startTime);
-    const end = unixToTimeDisplay(session.endTime);
+    const startUnix = sessionTimeToUnixSeconds(session.startTime as number | string | Date);
+    const endUnix = sessionTimeToUnixSeconds(session.endTime as number | string | Date);
+    const start = unixToTimeDisplay(startUnix);
+    const end = unixToTimeDisplay(endUnix);
     setStartTimeValue(start.timeStr);
     setStartMeridiem(start.meridiem);
     setEndTimeValue(end.timeStr);

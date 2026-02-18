@@ -19,6 +19,9 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/agency-books": "agency-books",
   "/agencies": "agencies",
   "/discounts": "discounts",
+  "/doctor-leaves": "doctor-leaves",
+  "/sms-playground": "sms-playground",
+  "/reports": "reports",
 }
 
 // Map HTTP methods to permission actions
