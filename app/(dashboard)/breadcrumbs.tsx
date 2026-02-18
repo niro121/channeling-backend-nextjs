@@ -39,12 +39,23 @@ const PATH_NAMES: Path[] = [
     { path: "edit", name: "Edit" },
 ]
 
+/** Check if a segment is a dynamic ID (UUID, MongoDB ObjectId, or number) */
+function isDynamicId(segment: string): boolean {
+    // UUID format: 8-4-4-4-12 hex characters with dashes
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return true
+    // MongoDB ObjectId: 24 hex characters
+    if (/^[0-9a-f]{24}$/i.test(segment)) return true
+    // Pure number
+    if (/^\d+$/.test(segment)) return true
+    return false
+}
+
 /** Format a path segment for display: use mapped name or humanise the segment */
 function formatSegment(segment: string): string {
     const mapped = PATH_NAMES.find((item) => item.path === segment)
     if (mapped) return mapped.name
-    // Dynamic id segment (uuid or number): show as "Details"
-    if (/^[0-9a-f-]{36}$/i.test(segment) || /^\d+$/.test(segment)) return "Details"
+    // Dynamic id segment (uuid, MongoDB ObjectId, or number): show as "Details"
+    if (isDynamicId(segment)) return "Details"
     // Fallback: convert kebab-case to Title Case (e.g. "some-route" -> "Some Route")
     return segment
         .split("-")
@@ -68,14 +79,15 @@ function DashboardBreadcrumb() {
                 {
                     pathNames.map((link, index) => {
                         const isLast = index === pathNames.length - 1;
+                        const isId = isDynamicId(link);
                         // Build the path up to this segment
                         const href = '/' + pathNames.slice(0, index + 1).join('/');
                         
                         return (
                             <React.Fragment key={link}>
                                 <BreadcrumbItem className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
-                                    {isLast ? (
-                                        <BreadcrumbPage className="font-semibold text-foreground truncate">
+                                    {isLast || isId ? (
+                                        <BreadcrumbPage className={isLast ? "font-semibold text-foreground truncate" : "truncate"}>
                                             {formatSegment(link)}
                                         </BreadcrumbPage>
                                     ) : (

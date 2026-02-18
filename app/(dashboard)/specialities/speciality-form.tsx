@@ -4,7 +4,7 @@ import React from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import { Button } from '@/components/ui/button';
-import { Ban, Save } from 'lucide-react';
+import { Ban, Loader2, Save } from 'lucide-react';
 import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
@@ -26,6 +26,7 @@ type SpecialityFormProps = {
 
 export default function SpecialityForm({ speciality, isEditPage = false, user }: SpecialityFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [cancelLoading, setCancelLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -58,9 +59,8 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
       if (speciality && speciality.id) {
         respond = await updateOneSpeciality(speciality.id, values);
 
-        setLoading(false);
-
         if (!respond?.success) {
+          setLoading(false);
           if (respond?.error?.issues && typeof respond.error.issues === 'object') {
             const fieldErrors: Record<string, string> = {};
             Object.keys(respond.error.issues).forEach((key) => {
@@ -99,9 +99,8 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
       } else {
         respond = await createSpeciality(values, user);
 
-        setLoading(false);
-
         if (!respond?.success) {
+          setLoading(false);
           if (respond?.error?.issues && typeof respond.error.issues === 'object') {
             const fieldErrors: Record<string, string> = {};
             Object.keys(respond.error.issues).forEach((key) => {
@@ -223,20 +222,29 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white cursor-pointer"
                     type="button"
                     onClick={() => {
+                      setCancelLoading(true);
                       router.push('/specialities');
                     }}
-                    disabled={loading}
+                    disabled={loading || cancelLoading}
                   >
-                    <Ban className="h-4 w-4" />
+                    {cancelLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ban className="h-4 w-4" />
+                    )}
                     <span>Cancel</span>
                   </Button>
                   <Button
-                    disabled={loading}
+                    disabled={loading || cancelLoading}
                     size={'sm'}
                     type="submit"
                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black cursor-pointer"
                   >
-                    <Save className="h-4 w-4" />
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                     <span>Save</span>
                   </Button>
                 </div>

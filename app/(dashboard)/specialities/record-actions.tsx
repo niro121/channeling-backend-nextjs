@@ -5,10 +5,10 @@ import { Speciality } from "@/types/speciality"
 import { Row } from "@tanstack/react-table"
 import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
-import CustomAlertDialog from "@/components/common/custom-alert-dialog"
+import CustomAlertDialogWithWarning from "@/components/common/custom-alert-dialog-with-warning"
 import { deleteSpeciality, getDoctorCountBySpecialityId } from "@/app/actions/speciality.actions"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Loader2, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
@@ -24,6 +24,7 @@ export function SpecialityRecordActions({
   const [loading, setLoading] = React.useState(false)
   const [fetchingCount, setFetchingCount] = React.useState(false)
   const [doctorCount, setDoctorCount] = React.useState<number | null>(null)
+  const [navigatingEdit, setNavigatingEdit] = React.useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const { has } = usePermissions()
@@ -104,14 +105,24 @@ export function SpecialityRecordActions({
     }
   }
 
-  // Generate description based on doctor count
+  // Generate description component based on doctor count
   const getDeleteDescription = () => {
     if (doctorCount === null) {
-      return "Loading..."
+      return <span>Loading...</span>
     }
 
     if (doctorCount > 0) {
-      return `One or more of the selected specialties are assigned to ${doctorCount} doctor(s). If you proceed, the association will be removed from all related records, and the affected doctor profiles must be updated separately.\n\nAre you sure you want to continue?`
+      // Format count with leading zero if less than 10
+      const formattedCount = doctorCount < 10 ? `0${doctorCount}` : `${doctorCount}`;
+      return (
+        <>
+          One or more of the selected specialties are assigned to <strong style={{ fontWeight: 700 }}>{formattedCount} doctor(s)</strong>. If you proceed, the association will be removed from all related records, and the affected doctor profiles must be updated separately.
+
+          <br />
+          <br />
+          Are you sure you want to continue?
+        </>
+      )
     }
 
     return "This action cannot be undone. This will permanently delete this speciality and remove the data from our servers."
@@ -125,9 +136,17 @@ export function SpecialityRecordActions({
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
-            onClick={() => router.push(`/specialities/${speciality.id}/edit`)}
+            disabled={navigatingEdit}
+            onClick={() => {
+              setNavigatingEdit(true)
+              router.push(`/specialities/${speciality.id}/edit`)
+            }}
           >
-            <Pencil className="h-4 w-4" />
+            {navigatingEdit ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Pencil className="h-4 w-4" />
+            )}
             <span className="sr-only">Edit</span>
           </Button>
         )}
@@ -140,19 +159,24 @@ export function SpecialityRecordActions({
             onClick={handleDeleteClick}
             disabled={fetchingCount}
           >
-            <Trash2 className="h-4 w-4" />
+            {fetchingCount ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
             <span className="sr-only">Delete</span>
           </Button>
         )}
       </DataTableRowActions>
 
-      <CustomAlertDialog
+      <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
         loading={loading}
         title="Are you absolutely sure?"
         description={getDeleteDescription()}
         handleContinue={onDeleteConfirmation}
+        hasWarning={doctorCount !== null && doctorCount > 0}
       />
     </>
   )
