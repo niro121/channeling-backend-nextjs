@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { normalizeSessionTime } from "@/lib/utils"
 import {
   getProcessedDiscount,
   getBookingForSaveBooking,
@@ -51,11 +52,12 @@ export async function settleBookingService(
   } as { hospital_fee_discount: number; professionsal_fee_discount: number; other_discount: number }
 
   if (input.auto_discount_type && booking.session) {
+    const sessionDate = booking.session.date instanceof Date ? booking.session.date : new Date(booking.session.date);
     const sessionForDiscount: Session = {
       id: booking.session.id,
       date: booking.session.date,
-      startTime: booking.session.startTime,
-      endTime: booking.session.endTime,
+      startTime: normalizeSessionTime(booking.session.startTime as Date | number, sessionDate),
+      endTime: normalizeSessionTime(booking.session.endTime as Date | number, sessionDate),
       fees: booking.session.fees as Session["fees"],
       amountLocal: booking.session.amountLocal ?? null,
       amountForeign: booking.session.amountForeign ?? null,

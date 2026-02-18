@@ -257,8 +257,8 @@ model Session {
   date                  DateTime
   doctorSessionId       String
   previousDoctorSession String?
-  startTime             Int
-  endTime               Int
+  startTime             DateTime
+  endTime               DateTime
   durationMinutes       Int?
   startingPatientNumber Int
   maxPatientNumber      Int
@@ -294,6 +294,8 @@ model Session {
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([doctorId, date, status])
 }
 
 model DoctorLeave {

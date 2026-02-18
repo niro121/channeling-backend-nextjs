@@ -1,15 +1,17 @@
 import prisma from "@/lib/prisma"
+import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
   loadSessionForSaveBooking,
-  // checkConsecutiveSessionFull,
+  checkConsecutiveSessionFull,
   getProcessedDiscount,
   getRefundFeeTypes,
-  verifyAgencyReference,
+  verifyAgencyReferenceWithReason,
   getAgentBalance,
   getBookingForSaveBooking,
   getNextSequenceNumber,
   updateAgentBalance,
+  validateVoucherForDiscount,
 } from "./helpers"
 
 export type SaveBookingServiceResult =
@@ -40,17 +42,17 @@ export async function saveBookingService(
     }
   }
 
-  // Temporarily disabled: consecutive session rule
-  // if (session.previousDoctorSession) {
-  //   const previousFull = await checkConsecutiveSessionFull(sessionId)
-  //   if (!previousFull) {
-  //     return {
-  //       success: false,
-  //       errorCode: "previousessionfill",
-  //       message: "Previous Consecutive Sessions is not Full.",
-  //     }
-  //   }
-  // }
+  // Consecutive session rule: if this session has a previous session, it must be full before booking here
+  if (session.previousDoctorSession) {
+    const previousFull = await checkConsecutiveSessionFull(sessionId)
+    if (!previousFull) {
+      return {
+        success: false,
+        errorCode: "previousessionfill",
+        message: "Previous session must be filled first before booking here.",
+      }
+    }
+  }
 
   let totalDiscount = 0
   let hospitalFeeDiscount = 0
@@ -79,6 +81,31 @@ export async function saveBookingService(
   }
 
   if (input.discount_type) {
+    const discountRecord = await prisma.discount.findUnique({
+      where: { id: input.discount_type },
+      select: { isVoucher: true },
+    })
+    if (discountRecord?.isVoucher === 1) {
+      const voucherCode = (input.voucher_code ?? "").trim()
+      if (!voucherCode) {
+        return {
+          success: false,
+          errorCode: "discountError",
+          message: "Voucher code is required for this discount scheme.",
+        }
+      }
+      const voucherValidation = await validateVoucherForDiscount(
+        voucherCode,
+        input.discount_type
+      )
+      if (!voucherValidation.valid) {
+        return {
+          success: false,
+          errorCode: "discountError",
+          message: voucherValidation.message ?? "Invalid voucher code.",
+        }
+      }
+    }
     const result = await getProcessedDiscount(
       input.discount_type,
       input.payment_method,
@@ -113,13 +140,13 @@ export async function saveBookingService(
   )
 
   if (input.agency?.id) {
-    const ref = (input.agency_ref ?? "").toUpperCase()
-    const refError = await verifyAgencyReference(ref, input.agency.id)
-    if (refError) {
+    const ref = (input.agency_ref ?? "").toUpperCase().trim()
+    const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
+    if (!refResult.valid) {
       return {
         success: false,
         errorCode: "agencyRefError",
-        message: "Agency Reference Error.",
+        message: refResult.reason ?? "Agency Reference Error.",
       }
     }
     const agency = await prisma.agency.findUnique({
@@ -153,12 +180,11 @@ export async function saveBookingService(
   }
   const appointmentNo = appointmentResult.value
 
-  const sessionDate = new Date(session.date)
-  sessionDate.setUTCHours(0, 0, 0, 0)
-  const sessionStartTime =
-    Math.floor(sessionDate.getTime() / 1000) + session.startTime * 60
-  const sessionEndTime =
-    Math.floor(sessionDate.getTime() / 1000) + session.endTime * 60
+  const sessionDate = session.date instanceof Date ? session.date : new Date(session.date)
+  const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDate)
+  const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDate)
+  const sessionStartTime = Math.floor(startDate.getTime() / 1000)
+  const sessionEndTime = Math.floor(endDate.getTime() / 1000)
 
   const discountDivision = {
     hospital_fee_discount: hospitalFeeDiscount,

@@ -14,6 +14,8 @@ import {
   formatSessionDay,
   formatLocalFee,
   formatSessionStartTimeDisplay,
+  isSessionWeekend,
+  padTwo,
 } from "./sessions-selection/util"
 
 export function SessionsSelection() {
@@ -165,7 +167,14 @@ export function SessionsSelection() {
                 <ul className="divide-y divide-border">
                   {sessionsForDateAndBranch.map((session) => {
                     const isSelected = selectedSession?.id === session.id
-                    const maxPatients = session.maxPatientNumber ?? 10
+                    const start = session.startingPatientNumber ?? 1
+                    const max = session.maxPatientNumber ?? 10
+                    const capacity = max - start + 1
+                    const currentCount = (session.paidCount ?? 0) + (session.pendingCount ?? 0)
+                    const nextAppointmentNo = (session.appointmentNo ?? 0) + 1
+                    const isFull = currentCount >= capacity
+                    const isWeekend = isSessionWeekend(session.date)
+                    const isOnLeave = session.status === 0
                     return (
                       <li key={session.id}>
                         <button
@@ -177,7 +186,7 @@ export function SessionsSelection() {
                             isSelected && "bg-primary text-primary-foreground font-medium"
                           )}
                         >
-                          <span className="shrink-0 tabular-nums">
+                          <span className={cn("shrink-0 tabular-nums", isWeekend && "font-bold")}>
                             {formatSessionDay(session.date)}
                           </span>
                           <span className="shrink-0 tabular-nums">
@@ -186,17 +195,31 @@ export function SessionsSelection() {
                           <span className="shrink-0 tabular-nums text-left">
                             {formatSessionStartTimeDisplay(session.startTime, session.date)}
                           </span>
-                          <span className="shrink-0 tabular-nums">
+                          <span className="shrink-0 tabular-nums text-right min-w-[4rem]">
                             {formatLocalFee(session.amountLocal)}
                           </span>
                           <span className="shrink-0 tabular-nums">
-                            0({maxPatients})
-                          </span>
-                          <span className="shrink-0 text-primary font-normal">
-                            #
+                            <span className={cn(!isSelected && "text-green-600 dark:text-green-400")}>
+                              {currentCount}
+                            </span>
+                            ({capacity})
                           </span>
                           <span className="shrink-0 tabular-nums">
-                            **0**
+                            {isFull ? (
+                              <span className={cn(!isSelected && "text-red-600 dark:text-red-400 font-medium")}>
+                                Full
+                              </span>
+                            ) : (
+                              <>
+                                #
+                                <span className={cn(!isSelected && "text-red-600 dark:text-red-400 font-medium")}>
+                                  {padTwo(nextAppointmentNo)}
+                                </span>
+                              </>
+                            )}
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            {isOnLeave ? "ON LEAVE" : `**${session.pendingCount ?? 0}**`}
                           </span>
                         </button>
                       </li>

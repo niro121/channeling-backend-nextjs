@@ -3,6 +3,7 @@
 import { Card, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useChannelBooking } from "../../context/channel-booking-context"
+import { AgentBookTab } from "./agent-book-tab"
 import { NewBookingDetailsTab } from "./new-booking-details-tab"
 
 const tabContentClass = "mt-0 p-2 flex-1 min-h-0 overflow-y-auto"
@@ -41,7 +42,7 @@ export function Reservation() {
           </TabsContent>
           <TabsContent value="agent-book" className={tabContentClass}>
             <div className="min-h-[200px] rounded-md bg-secondary p-2">
-              <div className="min-h-[120px] rounded border border-dashed border-border" />
+              <AgentBookTab />
             </div>
           </TabsContent>
           <TabsContent value="referred" className={tabContentClass}>

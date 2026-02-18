@@ -161,15 +161,6 @@ export const createDoctorSessionService = async (
       }
     });
 
-    if (doctorSession && doctorSession.id) {
-      await prisma.doctorSession.update({
-        where: { id: doctorSession.id },
-        data: { previousSession: { connect: { id: doctorSession.id } } }
-      });
-    }
-
-    // console.log('Session', doctorSession);
-
     return {
       success: true,
       data: doctorSession,
@@ -279,7 +270,7 @@ export const updateDoctorSessionService = async (
 
         ...(data.previousSessionId
           ? { previousSession: { connect: { id: data.previousSessionId } } }
-          : {}),
+          : { previousSession: { disconnect: true } }),
 
         updatedUser: userRelation
       }

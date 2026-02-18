@@ -33,7 +33,6 @@ export async function getBookingsBySessionService(
       return { success: true, data: [] }
     }
 
-    const start = Date.now()
     const records = await prismaBooking.findMany({
       where: { sessionId },
       orderBy: { appointmentNo: "desc" },
@@ -48,10 +47,6 @@ export async function getBookingsBySessionService(
         staffId: true,
       },
     })
-    const ms = Date.now() - start
-    if (process.env.NODE_ENV !== "test") {
-      console.log(`[channel-booking] getBookingsBySession: ${ms}ms (${records.length} rows)`)
-    }
 
     type Row = { id: string; appointmentNo: number; title: string; name: string; status: number; method: number; agencyRef: string | null; staffId: string | null }
     const data: ChannelBookingListItem[] = (records as Row[]).map((r) => ({

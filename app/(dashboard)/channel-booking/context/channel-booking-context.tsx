@@ -54,6 +54,10 @@ export type ChannelBookingState = {
   reservationDetails: ReservationDetails
   /** Increment to force Booking tab to refetch details (e.g. after settle). */
   bookingDetailsRefreshKey: number
+  /** Active tab in the Information panel (e.g. "booking", "settle"). */
+  activeInformationTab: string
+  /** Selected agency id (when payment method is Agent). Used by Agent Book tab to show agency details. */
+  selectedAgencyId: string | null
 }
 
 export type ChannelBookingActions = {
@@ -61,6 +65,8 @@ export type ChannelBookingActions = {
   setSelectedDoctor: (doctor: ChannelBookingDoctorOption | null) => void
   setSelectedSession: (session: Session | null) => void
   setSelectedBooking: (booking: ChannelBookingRecord | null) => void
+  setActiveInformationTab: (tab: string) => void
+  setSelectedAgencyId: (id: string | null) => void
   setSessions: (sessions: Session[]) => void
   setSessionsLoading: (loading: boolean) => void
   setBookings: (bookings: ChannelBookingRecord[]) => void
@@ -79,17 +85,33 @@ export type ChannelBookingContextValue = ChannelBookingState & ChannelBookingAct
 
 const ChannelBookingContext = createContext<ChannelBookingContextValue | undefined>(undefined)
 
-/** Build start/end Date from Session date + startTime/endTime (minutes from midnight). */
+/** Build start/end Date from Session (startTime/endTime are DateTime or legacy number). */
 function reservationFromSession(
   doctor: ChannelBookingDoctorOption | null,
   session: Session | null
 ): ReservationDetails {
   if (!doctor || !session) return null
   const d = session.date instanceof Date ? session.date : new Date(session.date)
-  const startTime = new Date(d)
-  startTime.setHours(Math.floor(session.startTime / 60), session.startTime % 60, 0, 0)
-  const endTime = new Date(d)
-  endTime.setHours(Math.floor(session.endTime / 60), session.endTime % 60, 0, 0)
+  const startTime =
+    session.startTime instanceof Date
+      ? session.startTime
+      : (() => {
+          const n = Number(session.startTime)
+          if (n >= 1e9 && n < 1e13) return new Date(n * 1000)
+          const t = new Date(d)
+          t.setUTCHours(Math.floor(n / 60), n % 60, 0, 0)
+          return t
+        })()
+  const endTime =
+    session.endTime instanceof Date
+      ? session.endTime
+      : (() => {
+          const n = Number(session.endTime)
+          if (n >= 1e9 && n < 1e13) return new Date(n * 1000)
+          const t = new Date(d)
+          t.setUTCHours(Math.floor(n / 60), n % 60, 0, 0)
+          return t
+        })()
   const sessionName =
     session.location?.name && session.room?.number
       ? `${session.location.name} – ${session.room.number}`
@@ -120,6 +142,8 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [bookings, setBookings] = useState<ChannelBookingRecord[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingDetailsRefreshKey, setBookingDetailsRefreshKey] = useState(0)
+  const [activeInformationTab, setActiveInformationTab] = useState("booking")
+  const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -175,7 +199,11 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookingsLoading,
       reservationDetails,
       bookingDetailsRefreshKey,
+      activeInformationTab,
+      selectedAgencyId,
       setSelectedSpecialityId,
+      setActiveInformationTab,
+      setSelectedAgencyId,
       setSelectedDoctor,
       setSelectedSession,
       setSelectedBooking,
@@ -201,6 +229,8 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookingsLoading,
       reservationDetails,
       bookingDetailsRefreshKey,
+      activeInformationTab,
+      selectedAgencyId,
       onDoctorSelect,
       onSessionSelect,
       onBookingSelect,

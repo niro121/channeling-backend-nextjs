@@ -79,7 +79,6 @@ export async function getChannelBookingInitialDataService(
       }
     }
 
-    const start = Date.now()
     const [
       specialitiesRes,
       doctorsRes,
@@ -100,19 +99,13 @@ export async function getChannelBookingInitialDataService(
     let agencies: ChannelBookingAgencyOption[] = []
     try {
       const agencyRes = await getAllAgenciesOptionsService()
-      agencies = (agencyRes.data ?? []).map((a: { id: string; name: string; code?: string }) => ({
+      agencies = (agencyRes.data ?? []).map((a: { id: string; name: string; code?: string | null }) => ({
         id: a.id,
         name: a.name,
         code: a.code ?? null,
       }))
-    } catch (e) {
-      console.warn("getChannelBookingInitialData agencies failed", e)
-    }
-    const ms = Date.now() - start
-    if (process.env.NODE_ENV !== "test") {
-      console.log(
-        `[channel-booking] getChannelBookingInitialData: ${ms}ms (specialities: ${specialitiesRes.data?.length ?? 0}, doctors: ${doctorsRes.data?.length ?? 0}, locations: ${locationsRes.data?.length ?? 0}, areas: ${areasRes.data?.length ?? 0}, discounts: ${(discountsPayload.manual?.length ?? 0) + (discountsPayload.auto?.length ?? 0)}, agencies: ${agencies.length}, banks: ${banksRes.data?.length ?? 0}, staff: ${staffRes.data?.length ?? 0})`
-      )
+    } catch {
+      // agencies optional; leave empty on failure
     }
 
     const data: ChannelBookingInitialData = {
