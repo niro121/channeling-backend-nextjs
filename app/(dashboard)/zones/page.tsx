@@ -54,8 +54,7 @@ export default async function Page({ searchParams }: SearchParams) {
         const mappedZones = zoneListResponse.data.map((z: any) => ({
             name: z.name || '-',
             location: z.location?.name || '-',
-            description: z.description || '-',
-            visibility: z.visibility === 1 ? 'Visible' : 'Hidden'
+            description: z.description || '-'
         }));
 
         return {
@@ -89,8 +88,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Zone Name', 'Location', 'Description', 'Visibility']}
-                                    keys={['name', 'location', 'description', 'visibility']}
+                                    columns={['Zone Name', 'Location', 'Description']}
+                                    keys={['name', 'location', 'description']}
                                     title="Zones List"
                                     fileName="zones"
                                 />

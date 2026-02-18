@@ -61,8 +61,7 @@ export default async function Page({ searchParams }: SearchParams) {
             email: p.email || '-',
             age: p.age || '-',
             sex: p.sex || '-',
-            area: p.area?.name || '-',
-            status: p.status === 1 ? 'Active' : 'Inactive'
+            area: p.area?.name || '-'
         }));
 
         return {
@@ -96,8 +95,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Code', 'Name', 'Phone', 'Email', 'Age', 'Sex', 'Area', 'Status']}
-                                    keys={['code', 'name', 'phone', 'email', 'age', 'sex', 'area', 'status']}
+                                    columns={['Code', 'Name', 'Phone', 'Email', 'Age', 'Sex', 'Area']}
+                                    keys={['code', 'name', 'phone', 'email', 'age', 'sex', 'area']}
                                     title="Patients List"
                                     fileName="patients"
                                 />

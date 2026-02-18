@@ -127,7 +127,7 @@ export default function DoctorSessionForm({
     previousSessionId: doctorSession?.previousSessionId ?? '',
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
-    status: doctorSession?.status ?? 0,
+    status: doctorSession?.status ?? 1,
     fees: doctorSession?.fees ?? feeTypeOptions,
     amountLocal: doctorSession?.amountLocal ?? 0,
     amountForeign: doctorSession?.amountForeign ?? 0

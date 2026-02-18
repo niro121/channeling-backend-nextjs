@@ -66,8 +66,7 @@ export default async function Page({ searchParams }: SearchParams) {
     const mappedRooms = roomListResponse.data.map((r: any) => ({
       number: r.number || '-',
       location: r.location?.name || '-',
-      zone: r.zone?.name || '-',
-      status: r.status === 1 ? 'Published' : 'Unpublished'
+      zone: r.zone?.name || '-'
     }));
 
     return {
@@ -105,8 +104,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Room Number', 'Location', 'Zone', 'Status']}
-                  keys={['number', 'location', 'zone', 'status']}
+                  columns={['Room Number', 'Location', 'Zone']}
+                  keys={['number', 'location', 'zone']}
                   title="Rooms List"
                   fileName="rooms"
                 />

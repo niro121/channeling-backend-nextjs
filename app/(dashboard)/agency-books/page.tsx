@@ -68,8 +68,7 @@ export default async function Page({ searchParams }: SearchParams) {
       bookNumber: ab.bookNumber || '-',
       agency: ab.agency?.name || '-',
       startNumber: ab.startNumber || '-',
-      endNumber: ab.endNumber || '-',
-      status: ab.status === 1 ? 'Active' : 'Inactive'
+      endNumber: ab.endNumber || '-'
     }));
 
     return {
@@ -107,8 +106,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Book Number', 'Agency', 'Start Number', 'End Number', 'Status']}
-                  keys={['bookNumber', 'agency', 'startNumber', 'endNumber', 'status']}
+                  columns={['Book Number', 'Agency', 'Start Number', 'End Number']}
+                  keys={['bookNumber', 'agency', 'startNumber', 'endNumber']}
                   title="Agency Books List"
                   fileName="agency-books"
                 />

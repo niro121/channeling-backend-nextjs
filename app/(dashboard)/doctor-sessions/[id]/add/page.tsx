@@ -1,11 +1,9 @@
 import React from 'react';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
 import DoctorSessionForm from '../../doctor-session-form';
+import { BackButton } from '@/components/common/back-button';
 import {
   getDepartmentOptions,
   getDoctorById,
@@ -42,16 +40,10 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="shrink-0" asChild>
-            <Link href="/doctor-sessions" aria-label="Back to Doctor Sessions">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <h2 className="text-3xl font-bold tracking-tight">
-            Add New Doctor Session — DR. {data.name}
-          </h2>
-        </div>
+        <h2 className="text-3xl font-bold tracking-tight">
+          Add New Doctor Session — DR. {data.name}
+        </h2>
+        <BackButton href="/doctor-sessions" />
       </div>
       <div className="h-full flex-1 flex-col space-y-8">
         <DoctorSessionForm
