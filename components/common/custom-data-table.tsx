@@ -26,10 +26,10 @@ import {
   CardFooter,
 } from "@/components/ui/card"
 import { Button } from "../ui/button"
-import CustomAlertDialog from "./custom-alert-dialog"
+import CustomAlertDialogWithWarning from "./custom-alert-dialog-with-warning"
 import { DataTablePagination } from "./custom-data-table-pagination"
 import { useToast } from "../hooks/use-toast"
-import { Trash2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -226,6 +226,55 @@ export function CustomDataTable<TData, TValue>({
 
   // }
 
+  // Convert description string to component with bold doctor count
+  const formatDescription = (text: string): React.ReactNode => {
+    // Check if description contains doctor count (warning message)
+    const doctorCountMatch = text.match(/(\d+)\s+doctor\(s\)/i)
+    if (doctorCountMatch) {
+      const parts = text.split(/(\d+\s+doctor\(s\))/i)
+      return (
+        <>
+          {parts.map((part, index) => {
+            if (part.match(/\d+\s+doctor\(s\)/i)) {
+              return (
+                <strong key={index} style={{ fontWeight: 700 }}>
+                  {part}
+                </strong>
+              )
+            }
+            // Handle newlines by splitting and adding <br /> elements
+            const lines = part.split('\n')
+            return (
+              <span key={index}>
+                {lines.map((line, lineIndex) => (
+                  <React.Fragment key={lineIndex}>
+                    {lineIndex > 0 && <br />}
+                    {line}
+                  </React.Fragment>
+                ))}
+              </span>
+            )
+          })}
+        </>
+      )
+    }
+    // For non-warning messages, handle newlines
+    const lines = text.split('\n')
+    return (
+      <>
+        {lines.map((line, index) => (
+          <React.Fragment key={index}>
+            {index > 0 && <br />}
+            {line}
+          </React.Fragment>
+        ))}
+      </>
+    )
+  }
+
+  // Check if description has warning (contains doctor count)
+  const hasWarning = bulkDeleteDescription.includes("doctor(s)")
+
   useEffect(() => {
     if (limit) {
       table.setPageSize(Number(limit))
@@ -260,7 +309,12 @@ export function CustomDataTable<TData, TValue>({
                       disabled={Object.keys(rowSelection).length === 0}
                       onClick={() => showHideDeleteModal(true)}
                     >
-                      <Trash2 className="h-4 w-4" />
+
+                      {fetchingDescription ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                       <span>Bulk Delete</span>
                     </Button>
                   ) : null}
@@ -281,7 +335,11 @@ export function CustomDataTable<TData, TValue>({
                     disabled={Object.keys(rowSelection).length === 0}
                     onClick={() => setShowDelConfirmation(true)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {fetchingDescription ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     <span>Bulk delete</span>
                   </Button>
                 ) : null}
@@ -348,13 +406,14 @@ export function CustomDataTable<TData, TValue>({
           </div>
         </CardFooter>
       </Card>
-      <CustomAlertDialog
+      <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
         loading={loading || fetchingDescription}
         title="Are you absolutely sure?"
-        description={fetchingDescription ? "Loading..." : bulkDeleteDescription}
+        description={fetchingDescription ? <span>Loading...</span> : formatDescription(bulkDeleteDescription)}
         handleContinue={onDeleteConfirmation}
+        hasWarning={hasWarning}
       />
     </>
   )
