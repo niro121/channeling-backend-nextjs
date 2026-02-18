@@ -9,16 +9,15 @@ import {
   getAgentBalance,
   getBookingForSaveBooking,
   getNextSequenceNumber,
+  updateAgentBalance,
 } from "./helpers"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
   | { success: false; errorCode: SaveBookingErrorCode; message: string }
 
-/**
- * Save booking: validate, run business rules, create booking, return full booking.
- * Does not create receipt, update agency balance, or send SMS (phase 2).
- */
+/** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
+const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
 export async function saveBookingService(
   input: SaveBookingInput,
   userId: string | null
@@ -37,7 +36,7 @@ export async function saveBookingService(
     return {
       success: false,
       errorCode: "server_error",
-      message: "Cannot book past session.",
+      message: "Cannot Book Past Sessions.",
     }
   }
 
@@ -212,6 +211,60 @@ export async function saveBookingService(
       where: { id: sessionId },
       data: { appointmentNo },
     })
+
+    if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+      const receiptAmount = Math.round(Number(input.amount) - totalDiscount)
+      const scopeKey = `receipt:${booking.locationId ?? "global"}`
+      const seqResult = await getNextSequenceNumber(scopeKey)
+      if (seqResult.success) {
+        const receiptNo = seqResult.value
+        const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+        const remarks =
+          input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+        try {
+          const newReceipt = await prisma.receipt.create({
+            data: {
+              receiptNo,
+              receiptNoString,
+              paymentMethod: input.payment_type,
+              amount: receiptAmount,
+              bank: input.bank?.name ?? "",
+              bankId: input.bank?.id ?? null,
+              cardReference: input.card ?? "",
+              slipReference: input.slip_ref ?? "",
+              remarks,
+              type: 1,
+              method: 1,
+              whd: 0,
+              whdPercentage: 0,
+              bookingId: booking.id,
+              agencyId: input.agency?.id ?? null,
+              createdBy: userId,
+              locationId: booking.locationId ?? null,
+              userLocationId: null,
+            },
+          })
+          if (input.agency?.id) {
+            await updateAgentBalance(input.agency.id, -receiptAmount)
+          }
+          await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 1,
+              receiptNo: newReceipt.receiptNo,
+              receiptNoString: newReceipt.receiptNoString,
+              receiptPaymentMethod: input.payment_type,
+              receiptNoCreatedAt: newReceipt.createdAt,
+              receiptNoId: newReceipt.id,
+              updatedBy: userId,
+            },
+          })
+        } catch (receiptErr) {
+          console.error("saveBookingService receipt create error", receiptErr)
+          // Booking remains status 0 (pending)
+        }
+      }
+    }
 
     const fullBooking = await getBookingForSaveBooking(booking.id)
     return { success: true, data: fullBooking }

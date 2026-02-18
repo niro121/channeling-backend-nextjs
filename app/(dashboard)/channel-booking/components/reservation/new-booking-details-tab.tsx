@@ -1,9 +1,14 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import type { LucideIcon } from "lucide-react"
-import { getBookingsBySession, saveBookingAction } from "@/app/actions/channel-booking"
+import {
+  getBookingsBySession,
+  saveBookingAction,
+  getAgencyBooksByAgencyForChannelBooking,
+} from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
+import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/get-agency-books-by-agency.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/get-discounts-for-booking.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
@@ -86,6 +91,7 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
 export function NewBookingDetailsTab() {
   const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings } = useChannelBooking()
   const { toast } = useToast()
+  const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
   const [foreigner, setForeigner] = useState(false)
@@ -97,7 +103,20 @@ export function NewBookingDetailsTab() {
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Booking-type–specific fields (Agent=2, Staff=3, Card=4, Slip=5)
+  const [agencyId, setAgencyId] = useState<string>("")
+  const [agencyBookId, setAgencyBookId] = useState<string>("")
+  const [agencyRef, setAgencyRef] = useState("")
+  const [staffId, setStaffId] = useState<string>("")
+  const [bankId, setBankId] = useState<string>("")
+  const [cardLast4, setCardLast4] = useState("")
+  const [slipRef, setSlipRef] = useState("")
+  const [agencyBooks, setAgencyBooks] = useState<ChannelBookingAgencyBookOption[]>([])
+  const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
   const areas: ChannelBookingAreaOption[] = initialData?.areas ?? []
+  const agencies = initialData?.agencies ?? []
+  const banks = initialData?.banks ?? []
+  const staffOptions = initialData?.staffOptions ?? []
   const allDiscounts = initialData?.discounts?.manual ?? []
   const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
@@ -117,7 +136,21 @@ export function NewBookingDetailsTab() {
   const sexError = !!invalidFields.sex
   const phoneError = !!invalidFields.phone
   const areaError = !!invalidFields.area
+  const agencyError = !!invalidFields.agency
+  const agencyRefError = !!invalidFields.agency_ref
+  const staffError = !!invalidFields.staff
+  const bankError = !!invalidFields.bank
+  const cardError = !!invalidFields.card
+  const slipRefError = !!invalidFields.slip_ref
   const errorClass = "border-red-500 focus-visible:ring-red-500"
+
+  const isAgent = paymentMethodId === "2"
+  const isStaff = paymentMethodId === "3"
+  const isCard = paymentMethodId === "4"
+  const isSlip = paymentMethodId === "5"
+  const selectedAgency = agencies.find((a) => a.id === agencyId)
+  const selectedBank = banks.find((b) => b.id === bankId)
+  const selectedStaff = staffOptions.find((s) => s.id === staffId)
 
   const { payment_method, payment_type } = getPaymentMethodAndType(
     Number(paymentMethodId)
@@ -165,9 +198,24 @@ export function NewBookingDetailsTab() {
     [selectedSession?.fees, foreigner, discountsToApply]
   )
 
+  // Apply user's default preferred booking method once when initial data is loaded
+  useEffect(() => {
+    if (initialDataLoading || appliedDefaultBookingMethod.current) return
+    const defaultId = initialData?.defaultBookingMethod
+    if (defaultId != null && defaultId >= 0 && defaultId <= 5) {
+      setPaymentMethodId(String(defaultId))
+      appliedDefaultBookingMethod.current = true
+    }
+  }, [initialDataLoading, initialData?.defaultBookingMethod])
+
   // Reset reservation form whenever session, doctor, or specialty changes
   useEffect(() => {
-    setPaymentMethodId("0")
+    const defaultId = initialData?.defaultBookingMethod
+    setPaymentMethodId(
+      defaultId != null && defaultId >= 0 && defaultId <= 5
+        ? String(defaultId)
+        : "0"
+    )
     setDiscountSchemeId("")
     setForeigner(false)
     setTitleId("")
@@ -177,8 +225,50 @@ export function NewBookingDetailsTab() {
     setRemarks("")
     setAreaId("")
     setAreaOpen(false)
+    setAgencyId("")
+    setAgencyBookId("")
+    setAgencyRef("")
+    setStaffId("")
+    setBankId("")
+    setCardLast4("")
+    setSlipRef("")
+    setAgencyBooks([])
     setInvalidFields({})
   }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId])
+
+  // Reset booking-type–specific fields when payment method changes
+  useEffect(() => {
+    setAgencyId("")
+    setAgencyBookId("")
+    setAgencyRef("")
+    setStaffId("")
+    setBankId("")
+    setCardLast4("")
+    setSlipRef("")
+    setAgencyBooks([])
+  }, [paymentMethodId])
+
+  // Fetch agency books when Agency is selected (Agent = id 2)
+  const fetchAgencyBooks = useCallback(async (agencyId: string) => {
+    if (!agencyId) {
+      setAgencyBooks([])
+      return
+    }
+    setAgencyBooksLoading(true)
+    try {
+      const res = await getAgencyBooksByAgencyForChannelBooking(agencyId)
+      if (res.success && res.data) setAgencyBooks(res.data)
+      else setAgencyBooks([])
+    } finally {
+      setAgencyBooksLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (paymentMethodId !== "2") return
+    if (agencyId) fetchAgencyBooks(agencyId)
+    else setAgencyBooks([])
+  }, [paymentMethodId, agencyId, fetchAgencyBooks])
 
   const fieldClass = "h-8 text-xs"
   const smallSelectClass = "h-8 text-xs w-24 shrink-0"
@@ -214,6 +304,36 @@ export function NewBookingDetailsTab() {
       }
       return
     }
+    const typeErrors: Record<string, boolean> = {}
+    if (isAgent) {
+      if (!agencyId || !selectedAgency) typeErrors.agency = true
+      if (!agencyRef.trim()) typeErrors.agency_ref = true
+    }
+    if (isStaff && !staffId) typeErrors.staff = true
+    if (isCard) {
+      const digits = cardLast4.replace(/\D/g, "")
+      if (digits.length !== 4) typeErrors.card = true
+      if (!bankId || !selectedBank) typeErrors.bank = true
+    }
+    if (isSlip) {
+      if (!slipRef.trim()) typeErrors.slip_ref = true
+      if (!bankId || !selectedBank) typeErrors.bank = true
+    }
+    if (Object.keys(typeErrors).length > 0) {
+      setInvalidFields(typeErrors)
+      toast({
+        title: "Booking type required",
+        description: isAgent
+          ? "Please select Agency and enter REF NO."
+          : isStaff
+            ? "Please select Staff Member."
+            : isCard
+              ? "Please enter Last 4 Digits and select Bank."
+              : "Please enter Bank Reference and select Bank.",
+        variant: "destructive",
+      })
+      return
+    }
     setInvalidFields({})
     const { payment_method, payment_type } = getPaymentMethodAndType(
       Number(paymentMethodId)
@@ -240,6 +360,12 @@ export function NewBookingDetailsTab() {
         discount: computedDiscountAmount,
         auto_discount_type: firstAutoDiscount?.id ?? undefined,
         discount_type: discountSchemeId ? discountSchemeId : undefined,
+        agency: isAgent && selectedAgency ? { id: selectedAgency.id } : undefined,
+        agency_ref: isAgent ? agencyRef.trim().toUpperCase() : undefined,
+        staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
+        bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
+        card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
+        slip_ref: isSlip ? slipRef.trim() : undefined,
       })
       if (result.success) {
         setInvalidFields({})
@@ -253,6 +379,14 @@ export function NewBookingDetailsTab() {
         setRemarks("")
         setAreaId("")
         setAreaOpen(false)
+        setAgencyId("")
+        setAgencyBookId("")
+        setAgencyRef("")
+        setStaffId("")
+        setBankId("")
+        setCardLast4("")
+        setSlipRef("")
+        setAgencyBooks([])
         toast({
           title: "Booking saved",
           description: "The booking was created successfully.",
@@ -350,7 +484,151 @@ export function NewBookingDetailsTab() {
         )}
       </div>
 
-      {/* Row 2: Foreigner only */}
+      {/* Row 2: Booking-type–specific fields (Agent / Staff / Card / Slip) */}
+      {isAgent && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <div className="space-y-0.5">
+            <Select
+              value={agencyId || undefined}
+              onValueChange={(v) => {
+                setAgencyId(v)
+                setAgencyBookId("")
+                setAgencyRef("")
+              }}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${agencyError ? errorClass : ""} ${!agencyId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder="Select Agency" />
+              </SelectTrigger>
+              <SelectContent>
+                {agencies.map((a) => (
+                  <SelectItem key={a.id} value={a.id} className="text-xs">
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-0.5">
+            <Select
+              value={agencyBookId || undefined}
+              onValueChange={setAgencyBookId}
+              disabled={!agencyId || agencyBooksLoading}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${!agencyId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder={agencyBooksLoading ? "Loading…" : "Select a Book"} />
+              </SelectTrigger>
+              <SelectContent>
+                {agencyBooks.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs">
+                    {b.bookNumber}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2 space-y-0.5">
+            <Input
+              className={`${fieldClass} ${agencyRefError ? errorClass : ""}`}
+              placeholder="REF NO."
+              value={agencyRef}
+              onChange={(e) => setAgencyRef(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+      {isStaff && (
+        <div className="space-y-0.5">
+          <Select
+            value={staffId || undefined}
+            onValueChange={setStaffId}
+          >
+            <SelectTrigger
+              className={`${fieldClass} ${staffError ? errorClass : ""} ${!staffId ? "text-placeholder" : ""}`}
+            >
+              <SelectValue placeholder="Select Staff Member" />
+            </SelectTrigger>
+            <SelectContent>
+              {staffOptions.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">
+                  {s.name} {s.code ? `(${s.code})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {isCard && (
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="space-y-0.5">
+            <Input
+              className={`${fieldClass} ${cardError ? errorClass : ""}`}
+              placeholder="Last 4 Digits"
+              value={cardLast4}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 4)
+                setCardLast4(digits)
+              }}
+              maxLength={4}
+            />
+          </div>
+          <div className="space-y-0.5">
+            <Select
+              value={bankId || undefined}
+              onValueChange={setBankId}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${bankError ? errorClass : ""} ${!bankId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder="Select Bank" />
+              </SelectTrigger>
+              <SelectContent>
+                {banks.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs">
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+      {isSlip && (
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="space-y-0.5">
+            <Input
+              className={`${fieldClass} ${slipRefError ? errorClass : ""}`}
+              placeholder="Bank Reference"
+              value={slipRef}
+              onChange={(e) => setSlipRef(e.target.value)}
+            />
+          </div>
+          <div className="space-y-0.5">
+            <Select
+              value={bankId || undefined}
+              onValueChange={setBankId}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${bankError ? errorClass : ""} ${!bankId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder="Select Bank" />
+              </SelectTrigger>
+              <SelectContent>
+                {banks.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs">
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {/* Row 3: Foreigner only */}
       <div className="flex items-center gap-1.5">
         <Checkbox
           id="foreigner"
@@ -534,7 +812,11 @@ export function NewBookingDetailsTab() {
             !titleId ||
             !sexId ||
             !isPhoneValid ||
-            !selectedArea
+            !selectedArea ||
+            (isAgent && (!agencyId || !agencyRef.trim())) ||
+            (isStaff && !staffId) ||
+            (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
+            (isSlip && (!slipRef.trim() || !bankId))
           }
           onClick={handleBookNow}
           className="h-8 bg-green-700 hover:bg-green-800 text-white text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"

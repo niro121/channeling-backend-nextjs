@@ -36,6 +36,10 @@ export {
   type GetBookingDetailsResult,
 } from "./get-booking-details.action"
 export {
+  getAgencyBooksByAgencyForChannelBooking,
+  type GetAgencyBooksByAgencyResult,
+} from "./get-agency-books-by-agency.action"
+export {
   getBanksForChannelBooking,
   type GetBanksForChannelBookingResult,
 } from "./get-banks.action"

@@ -1,9 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getSessionsForChannelBooking } from "@/app/actions/channel-booking"
 import { Card, CardContent } from "@/components/ui/card"
 import { useChannelBooking } from "../context/channel-booking-context"
+import { usePermissions } from "@/components/hooks/use-permissions"
 import { BranchSelection } from "./sessions-selection/branch-selection"
 import { DateSelection } from "./sessions-selection/date-selection"
 import type { BranchOption } from "./sessions-selection/session-date-utils"
@@ -26,13 +27,30 @@ export function SessionsSelection() {
     setSessionsLoading,
     onSessionSelect,
   } = useChannelBooking()
+  const { has } = usePermissions()
+  const canChangeDate = has("channel-booking-date", "view")
 
-  // Default date to today on page load; reset to today when doctor is cleared
+  // Default date to today on page load; reset to today when doctor is cleared (or when user has no change-date permission)
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date())
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+
+  // When user has no "Change Date" permission, keep date fixed to today
+  useEffect(() => {
+    if (!canChangeDate) {
+      setSelectedDate(new Date())
+    }
+  }, [canChangeDate])
+
   const allLocations: BranchOption[] = initialData?.locations ?? []
+  const allowedIds = initialData?.userBookingLocationIds ?? []
+  const filteredLocations: BranchOption[] = useMemo(() => {
+    if (allowedIds.length === 0) return allLocations
+    return allLocations.filter((loc) => allowedIds.includes(loc.id))
+  }, [allLocations, allowedIds])
 
   const hasDoctor = Boolean(selectedDoctor?.id)
+  const userDefaultLocationId = initialData?.userDefaultLocationId ?? null
+  const userUseDefaultLocation = initialData?.userUseDefaultLocation ?? false
 
   // When doctor is cleared, reset location and clear sessions; keep date as today
   useEffect(() => {
@@ -44,13 +62,23 @@ export function SessionsSelection() {
     }
   }, [hasDoctor, setSessions])
 
-  // On doctor or date change: reset branch, clear selected session, then fetch sessions for doctor + date
+  const defaultLocationToSelect = useMemo(() => {
+    if (!userUseDefaultLocation || !userDefaultLocationId) return null
+    return filteredLocations.some((l) => l.id === userDefaultLocationId)
+      ? userDefaultLocationId
+      : null
+  }, [userUseDefaultLocation, userDefaultLocationId, filteredLocations])
+
+  const defaultLocationRef = useRef<string | null>(null)
+  defaultLocationRef.current = defaultLocationToSelect
+
+  // On doctor or date change: set branch to default (if "Use default location") or null, clear selected session, then fetch sessions
   useEffect(() => {
     if (!hasDoctor || !selectedDoctor?.id || !selectedDate) {
       if (!hasDoctor || !selectedDate) setSessions([])
       return
     }
-    setSelectedLocationId(null)
+    setSelectedLocationId(defaultLocationRef.current)
     onSessionSelect(null)
     let cancelled = false
     setSessionsLoading(true)
@@ -96,14 +124,16 @@ export function SessionsSelection() {
         ) : (
           <>
             <div className="flex flex-wrap gap-1.5 items-center shrink-0">
-              <DateSelection
-                value={selectedDate}
-                onChange={handleDateChange}
-                placeholder="Select date"
-                className="min-w-[130px]"
-              />
+              {canChangeDate && (
+                <DateSelection
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  placeholder="Select date"
+                  className="min-w-[130px]"
+                />
+              )}
               <BranchSelection
-                options={allLocations}
+                options={filteredLocations}
                 value={selectedLocationId}
                 onChange={setSelectedLocationId}
                 placeholder="Select branch"

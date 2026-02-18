@@ -213,6 +213,33 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
+export type StaffOption = { id: string; name: string; code: string }
+
+export async function getStaffOptions(): Promise<{
+  success: boolean
+  data?: StaffOption[]
+  message?: string
+  error?: { message?: string }
+}> {
+  try {
+    const records = await prisma.staff.findMany({
+      where: { status: 1 },
+      orderBy: { name: "asc" },
+      take: 500,
+      select: { id: true, name: true, code: true },
+    })
+    const data: StaffOption[] = records.map((r) => ({
+      id: r.id,
+      name: r.name ?? "",
+      code: r.code ?? "",
+    }))
+    return { success: true, data, message: "Staff options fetched" }
+  } catch (error: any) {
+    console.error("getStaffOptions error:", error)
+    return { success: false, error: { message: error.message || "Failed to fetch staff options" } }
+  }
+}
+
 export async function deleteStaff(id: string): Promise<{
   success: boolean
   data?: any

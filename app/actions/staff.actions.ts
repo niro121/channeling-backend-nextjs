@@ -3,6 +3,7 @@
 import {
   getStaff,
   getStaffById,
+  getStaffOptions,
   createStaff,
   updateStaff,
   deleteStaff,
@@ -11,6 +12,36 @@ import {
 import { GetStaffParams, Staff } from "@/types/staff"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+
+export async function getStaffOptionsAction(): Promise<{
+  isError: boolean
+  data: { id: string; name: string; code: string }[] | null
+  errors: { message?: string }
+}> {
+  try {
+    await requirePermission("staff", "view")
+    const result = await getStaffOptions()
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: { message: result.error?.message ?? "Failed to load staff options" },
+      }
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {},
+    }
+  } catch (error: any) {
+    console.error("getStaffOptionsAction error", error)
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? "Failed to load staff options" },
+    }
+  }
+}
 
 export async function getStaffAction(params: GetStaffParams) {
   try {

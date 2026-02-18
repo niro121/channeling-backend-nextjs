@@ -14,8 +14,11 @@ export type User = {
     status: number //0 -> inactive, 1 ->  active
     checkedDefaultLocation: boolean // == false: not selected default location | true: selected default selection == //
     defaultLocation?: string | null
+    defaultBookingMethod?: number | null // 0–5 = channel booking PAYMENT_METHODS id; null = no default
     userLocationId?: string | null
     userLocation?: Location | null
+    staffId?: string | null
+    staff?: { id: string; name: string; code?: string } | null
     bookingLocations?: { locationId: string; location?: Location }[]
     bookingLocationIds?: string[] // form-only: ids for multi-select, synced to bookingLocations
     userGroupId?: string | null
