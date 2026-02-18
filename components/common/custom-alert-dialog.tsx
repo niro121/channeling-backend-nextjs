@@ -41,10 +41,11 @@ const CustomAlertDialog = ({
           <AlertDialogCancel
             onClick={() => handleVisibilityChange(false)}
             disabled={loading}
+            className="cursor-pointer"
           >
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} disabled={loading} className="relative">
+          <AlertDialogAction onClick={handleContinue} disabled={loading} className="relative cursor-pointer">
             Continue {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>

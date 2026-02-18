@@ -28,7 +28,7 @@ export function NavLoadingButton({
     <Button
       {...props}
       disabled={disabled || loading}
-      className={cn(className)}
+      className={cn('cursor-pointer', className)}
       onClick={(e) => {
         onClick?.(e);
         if (e.defaultPrevented) return;
@@ -64,7 +64,7 @@ export function NavLoadingIconButton({
     <Button
       {...props}
       disabled={disabled || loading}
-      className={cn(className)}
+      className={cn('cursor-pointer', className)}
       onClick={(e) => {
         onClick?.(e);
         if (e.defaultPrevented) return;
