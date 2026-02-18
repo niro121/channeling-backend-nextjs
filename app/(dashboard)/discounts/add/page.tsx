@@ -9,6 +9,7 @@ import {
   PAYMENT_METHOD_OPTIONS
 } from '@/types/discount';
 import DiscountForm from '../discount-form';
+import { BackButton } from '@/components/common/back-button';
 
 export default async function AddDiscountPage() {
   const session = await getServerSession(authOptions);
@@ -17,7 +18,10 @@ export default async function AddDiscountPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
-        <h1 className="text-2xl font-bold mb-6">Add New Discount</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Add New Discount</h1>
+          <BackButton href="/discounts" />
+        </div>
         <DiscountForm
           discount={null}
           applyToOptions={APPLY_TO_OPTIONS}

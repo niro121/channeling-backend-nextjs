@@ -30,7 +30,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
         name: zone?.name ? zone.name : "",
         description: zone?.description ? zone.description : undefined,
         locationId: zone?.locationId ? String(zone.locationId) : "",
-        visibility: zone?.visibility !== undefined ? zone.visibility : 0,
+        visibility: zone?.visibility !== undefined ? zone.visibility : 1,
         createdAt: zone?.createdAt ? zone.createdAt : new Date(),
         updatedAt: zone?.updatedAt ? zone.updatedAt : new Date(),
     }
