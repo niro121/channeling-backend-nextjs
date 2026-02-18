@@ -42,7 +42,7 @@ export function Bookings() {
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           {!hasSession ? (
             <div className="flex flex-1 min-h-0 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground px-2">
-              Please select a session
+              Please Select a Session
             </div>
           ) : bookingsLoading ? (
             <div className="flex flex-1 min-h-0 w-full items-center justify-center py-8">

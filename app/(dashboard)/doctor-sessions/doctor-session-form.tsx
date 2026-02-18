@@ -149,12 +149,18 @@ export default function DoctorSessionForm({
     departmentId: Yup.string().required('This field is mandatory'),
     locationId: Yup.string().required('This field is mandatory'),
     roomId: Yup.string().required('This field is mandatory'),
+    startTimeValue: Yup.string()
+      .required('This field is mandatory')
+      .test('non-empty', 'This field is mandatory', (v) => v != null && String(v).trim() !== ''),
+    endTimeValue: Yup.string()
+      .required('This field is mandatory')
+      .test('non-empty', 'This field is mandatory', (v) => v != null && String(v).trim() !== ''),
     startTime: Yup.mixed().test(
       'is-valid-date',
-      'Start time is required',
+      'This field is mandatory',
       function () {
         const { startTimeValue, startMeridiem } = this.parent;
-        if (!startTimeValue) return false;
+        if (!startTimeValue || String(startTimeValue).trim() === '') return false;
         const date = buildDateFromTime(
           startTimeValue,
           startMeridiem,
@@ -165,10 +171,10 @@ export default function DoctorSessionForm({
     ),
     endTime: Yup.mixed().test(
       'is-valid-date',
-      'End time is required',
+      'This field is mandatory',
       function () {
         const { endTimeValue, endMeridiem } = this.parent;
-        if (!endTimeValue) return false;
+        if (!endTimeValue || String(endTimeValue).trim() === '') return false;
         const date = buildDateFromTime(endTimeValue, endMeridiem, new Date());
         return !isNaN(date.getTime());
       }
