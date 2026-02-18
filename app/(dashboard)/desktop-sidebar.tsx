@@ -85,52 +85,60 @@ export function DesktopSidebar({
         </Link>
       </div>
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        <SidebarGroup label="Channelling">
-          <NavLink
-            href={hasAccess("/channel-booking") ? "/channel-booking" : "unauthorized-access"}
-            label="Channel Booking"
-            icon={<CalendarCheck className="h-5 w-5" />}
-          />
-          <NavLink
-            href={hasAccess("/sessions") ? "/sessions" : "unauthorized-access"}
-            label="Sessions"
-            icon={<Clock10 className="h-5 w-5" />}
-          />
-        </SidebarGroup>
+        {(hasAccess("/channel-booking") || hasAccess("/sessions")) && (
+          <SidebarGroup label="Channelling">
+            {hasAccess("/channel-booking") && (
+              <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />
+            )}
+            {hasAccess("/sessions") && (
+              <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />
+            )}
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup label="Consultants">
-          <NavLink href={hasAccess("/doctors") ? "/doctors" : "unauthorized-access"} label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/doctor-sessions") ? "/doctor-sessions" : "unauthorized-access"} label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/doctor-sessions") ? "/doctor-sessions/bulk-price-change" : "unauthorized-access"} label="Bulk Price Change" icon={<DollarSign className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/specialities") ? "/specialities" : "unauthorized-access"} label="Speciality" icon={<StarIcon className="h-5 w-5" />} />
-          <NavLink href={hasAccess('/doctor-leaves') ? '/doctor-leaves' : 'unauthorized-access'} label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />
-        </SidebarGroup>
+        {(hasAccess("/doctors") || hasAccess("/doctor-sessions") || hasAccess("/specialities") || hasAccess("/doctor-leaves")) && (
+          <SidebarGroup label="Consultants">
+            {hasAccess("/doctors") && <NavLink href="/doctors" label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />}
+            {hasAccess("/doctor-sessions") && <NavLink href="/doctor-sessions" label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />}
+            {hasAccess("/doctor-sessions") && <NavLink href="/doctor-sessions/bulk-price-change" label="Bulk Price Change" icon={<DollarSign className="h-5 w-5" />} />}
+            {hasAccess("/specialities") && <NavLink href="/specialities" label="Speciality" icon={<StarIcon className="h-5 w-5" />} />}
+            {hasAccess("/doctor-leaves") && <NavLink href="/doctor-leaves" label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup label="Organization">
-          <NavLink href={hasAccess("/departments") ? "/departments" : "unauthorized-access"} label="Department" icon={<Building2 className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/zones") ? "/zones" : "unauthorized-access"} label="Zones" icon={<MapPinned className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/rooms") ? "/rooms" : "unauthorized-access"} label="Rooms" icon={<LucideHome className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/locations") ? "/locations" : "unauthorized-access"} label="Location" icon={<LocateFixedIcon className="h-5 w-5" />} />
-        </SidebarGroup>
+        {(hasAccess("/departments") || hasAccess("/zones") || hasAccess("/rooms") || hasAccess("/locations")) && (
+          <SidebarGroup label="Organization">
+            {hasAccess("/departments") && <NavLink href="/departments" label="Department" icon={<Building2 className="h-5 w-5" />} />}
+            {hasAccess("/zones") && <NavLink href="/zones" label="Zones" icon={<MapPinned className="h-5 w-5" />} />}
+            {hasAccess("/rooms") && <NavLink href="/rooms" label="Rooms" icon={<LucideHome className="h-5 w-5" />} />}
+            {hasAccess("/locations") && <NavLink href="/locations" label="Location" icon={<LocateFixedIcon className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup label="People">
-          <NavLink href={hasAccess("/patients") ? "/patients" : "unauthorized-access"} label="Patients" icon={<UserPlus className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/staff") ? "/staff" : "unauthorized-access"} label="Staff" icon={<UserCircle className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/users") ? "/users" : "unauthorized-access"} label="Users" icon={<UserGroup className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/user-groups") ? "/user-groups" : "unauthorized-access"} label="User Groups" icon={<Users className="h-5 w-5" />} />
-        </SidebarGroup>
+        {(hasAccess("/patients") || hasAccess("/staff") || hasAccess("/users") || hasAccess("/user-groups")) && (
+          <SidebarGroup label="People">
+            {hasAccess("/patients") && <NavLink href="/patients" label="Patients" icon={<UserPlus className="h-5 w-5" />} />}
+            {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+            {hasAccess("/users") && <NavLink href="/users" label="Users" icon={<UserGroup className="h-5 w-5" />} />}
+            {hasAccess("/user-groups") && <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup label="Agency & billing">
-          <NavLink href={hasAccess("/agency-books") ? "/agency-books" : "unauthorized-access"} label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/agencies") ? "/agencies" : "unauthorized-access"} label="Agency" icon={<Landmark className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/discounts") ? "/discounts" : "unauthorized-access"} label="Discount" icon={<TicketIcon className="h-5 w-5" />} />
-        </SidebarGroup>
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts")) && (
+          <SidebarGroup label="Agency & billing">
+            {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
+            {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
+            {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
 
-        <SidebarGroup label="Other">
-          <NavLink href={hasAccess("/tags") ? "/tags" : "unauthorized-access"} label="Tags" icon={<Tags className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/sms-playground") ? "/sms-playground" : "unauthorized-access"} label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />
-          <NavLink href={hasAccess("/reports") ? "/reports" : "unauthorized-access"} label="Reports" icon={<FileText className="h-5 w-5" />} />
-        </SidebarGroup>
+        {(hasAccess("/tags") || hasAccess("/sms-playground") || hasAccess("/reports")) && (
+          <SidebarGroup label="Other">
+            {hasAccess("/tags") && <NavLink href="/tags" label="Tags" icon={<Tags className="h-5 w-5" />} />}
+            {hasAccess("/sms-playground") && <NavLink href="/sms-playground" label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />}
+            {hasAccess("/reports") && <NavLink href="/reports" label="Reports" icon={<FileText className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
       </nav>
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">
         <p className="text-muted-foreground text-xs">{process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"}</p>

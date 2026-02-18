@@ -161,15 +161,6 @@ export const createDoctorSessionService = async (
       }
     });
 
-    if (doctorSession && doctorSession.id) {
-      await prisma.doctorSession.update({
-        where: { id: doctorSession.id },
-        data: { previousSession: { connect: { id: doctorSession.id } } }
-      });
-    }
-
-    // console.log('Session', doctorSession);
-
     return {
       success: true,
       data: doctorSession,
@@ -279,7 +270,7 @@ export const updateDoctorSessionService = async (
 
         ...(data.previousSessionId
           ? { previousSession: { connect: { id: data.previousSessionId } } }
-          : {}),
+          : { previousSession: { disconnect: true } }),
 
         updatedUser: userRelation
       }
@@ -598,14 +589,39 @@ export const getDoctorByIdService = async (
       };
     }
 
-    const doctor = await prisma.doctor.findUnique({
-      where: { id },
-      include: {
-        createdUser: true,
-        updatedUser: true,
-        speciality: true
+    // Try to fetch with speciality first
+    // Note: in the fallback query we don't include `speciality`, so we keep this as `any`
+    // to allow attaching `speciality: null` for downstream code paths.
+    let doctor: any;
+    try {
+      doctor = await prisma.doctor.findUnique({
+        where: { id },
+        include: {
+          createdUser: true,
+          updatedUser: true,
+          speciality: true
+        }
+      });
+    } catch (relationError: any) {
+      // If speciality relation fails (e.g., invalid specialityId), fetch without it
+      if (relationError.message?.includes('Inconsistent query result') || 
+          relationError.message?.includes('speciality')) {
+        console.warn(`Doctor ${id} has invalid speciality relation, fetching without it`);
+        doctor = await prisma.doctor.findUnique({
+          where: { id },
+          include: {
+            createdUser: true,
+            updatedUser: true
+          }
+        });
+        // Manually set speciality to null if it wasn't included
+        if (doctor) {
+          doctor.speciality = null;
+        }
+      } else {
+        throw relationError;
       }
-    });
+    }
 
     if (!doctor) {
       return {

@@ -3,6 +3,7 @@
 import {
   getStaff,
   getStaffById,
+  getStaffOptions,
   createStaff,
   updateStaff,
   deleteStaff,
@@ -11,6 +12,36 @@ import {
 import { GetStaffParams, Staff } from "@/types/staff"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+
+export async function getStaffOptionsAction(): Promise<{
+  isError: boolean
+  data: { id: string; name: string; code: string }[] | null
+  errors: { message?: string }
+}> {
+  try {
+    await requirePermission("staff", "view")
+    const result = await getStaffOptions()
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: { message: result.error?.message ?? "Failed to load staff options" },
+      }
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {},
+    }
+  } catch (error: any) {
+    console.error("getStaffOptionsAction error", error)
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? "Failed to load staff options" },
+    }
+  }
+}
 
 export async function getStaffAction(params: GetStaffParams) {
   try {
@@ -160,3 +191,34 @@ export async function bulkDeleteStaffAction(ids: string[]) {
     throw new Error(error.message ?? "Error deleting records. Please try again later")
   }
 }
+
+// ==== STAFF EXPORT ==== //
+export const getStaffExport = async (params: { keyword?: string }) => {
+  try {
+    const response = await getStaffAction({
+      page: "1",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (response.isError || !response.data?.data?.length) {
+      return {
+        success: false,
+        message: response.isError 
+          ? (response.errors?.message || 'Error getting data')
+          : 'No staff found'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data.data
+    };
+  } catch (error: any) {
+    console.log('getStaffExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

@@ -33,7 +33,7 @@ export default function DoctorLeavesFilterSection({
         return (
           <>
             <Combobox
-              label="Select doctor"
+              label="Select Doctor"
               options={doctorOptions}
               value={values.doctorId ?? ''}
               defaultValue=""

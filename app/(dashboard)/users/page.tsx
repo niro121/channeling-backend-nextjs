@@ -10,6 +10,8 @@ import Loading from "../loading"
 import { getAllUserGroupsOptions } from "@/app/actions/user-group.actions"
 import { checkRouteAccess } from "@/lib/server-permissions"
 import { redirect } from "next/navigation"
+import { UsersExport } from "./users-export"
+import { BulkDeleteButton } from "@/components/common/custom-data-table"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -38,7 +40,35 @@ export default async function Page({ searchParams }: SearchParams) {
 
     const { data: userGroupOptions } = await getAllUserGroupsOptions()
 
-    
+    const handleExport = async () => {
+        'use server';
+
+        const userListResponse = await getUsersExport({
+            keyword: resolvedSearchParams?.keyword,
+            userType: session?.user?.userType?.toString()
+        });
+
+        if (!userListResponse.success || !userListResponse.data?.length) {
+            return {
+                success: false,
+                message: userListResponse.success
+                    ? 'No users found'
+                    : userListResponse.message
+            };
+        }
+
+        const mappedUsers = userListResponse.data.map((u: any) => ({
+            name: u.name || '-',
+            email: u.email || '-',
+            userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
+            userGroup: u.userGroup?.name || '-'
+        }));
+
+        return {
+            success: true,
+            data: mappedUsers
+        };
+    };
 
     return (
         <div className="overflow-hidden">
@@ -52,23 +82,40 @@ export default async function Page({ searchParams }: SearchParams) {
                     deleteServerAction={bulkDeleteUsers}
                     page={resolvedSearchParams?.page}
                     toolbarLeft={
-                        <div className="relative w-full sm:max-w-sm">
-                            <SearchInput
-                                name="keyword"
-                                placeholder="Search by name, email"
-                                className="pl-8 w-full h-9"
-                            />
+                        <div className="flex flex-col gap-3 flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row gap-3 items-start">
+                                <div className="relative w-full sm:max-w-sm">
+                                    <SearchInput
+                                        name="keyword"
+                                        placeholder="Search by name, email"
+                                        className="pl-8 w-full h-9"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center">
+                                <ExportWrapper
+                                    serverData={handleExport}
+                                    columns={['Name', 'Email', 'User Type', 'User Group']}
+                                    keys={['name', 'email', 'userType', 'userGroup']}
+                                    title="Users List"
+                                    fileName="users"
+                                />
+                            </div>
                         </div>
                     }
                     toolbarRight={
-                        <AddBtn dialogTitle="New User">
-                            <UserForm
-                                user={null}
-                                sessionUserType={session?.user?.userType}
-                                userGroupOptions={userGroupOptions.map((ug) => ({ id: ug.id, name: ug.name }))}
-                            />
-                        </AddBtn>
+                        <div className="flex items-start gap-2 shrink-0">
+                            <BulkDeleteButton />
+                            <AddBtn dialogTitle="New User">
+                                <UserForm
+                                    user={null}
+                                    sessionUserType={session?.user?.userType}
+                                    userGroupOptions={userGroupOptions.map((ug) => ({ id: ug.id, name: ug.name }))}
+                                />
+                            </AddBtn>
+                        </div>
                     }
+                    hideAutoBulkDelete={true}
                 />
             </Suspense>
         </div>

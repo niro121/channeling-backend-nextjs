@@ -39,6 +39,8 @@ import { FeeTotals } from './fee-total';
 type DoctorSessionFormProps = {
   doctorId: string;
   doctorSession: DoctorSession | null;
+  /** Same doctor's sessions for Previous Session dropdown (excluding current when editing). When not provided, dropdown is empty/disabled. */
+  doctorSessionsForPreviousDropdown?: { id: string; name: string }[];
   institutionOptions: { id: string; name: string }[];
   departmentOptions: { id: string; name: string }[] | undefined;
   locationOptions: { id: string; name: string }[] | undefined;
@@ -66,6 +68,7 @@ type FormSubmissionValues = DoctorSessionFormValues & {
 export default function DoctorSessionForm({
   doctorId,
   doctorSession,
+  doctorSessionsForPreviousDropdown,
   institutionOptions,
   departmentOptions,
   locationOptions,
@@ -87,14 +90,12 @@ export default function DoctorSessionForm({
     doctorSession?.locationId
   );
 
-  const previousSessions = React.useMemo(
-    () =>
-      doctorSession?.previousSessions?.map((session) => ({
-        id: session.id,
-        name: session.name
-      })),
-    [doctorSession]
-  );
+  /** Previous Session dropdown: same doctor's sessions, excluding current when editing. */
+  const previousSessionOptions = React.useMemo(() => {
+    const list = doctorSessionsForPreviousDropdown ?? [];
+    if (doctorSession?.id) return list.filter((s) => s.id !== doctorSession.id);
+    return list;
+  }, [doctorSessionsForPreviousDropdown, doctorSession?.id]);
 
   const startExtracted = doctorSession?.startTime
     ? extractTime(new Date(doctorSession.startTime), SRI_LANKA_TZ)
@@ -124,10 +125,14 @@ export default function DoctorSessionForm({
     applyTo: doctorSession?.applyTo ?? undefined,
     startingPatientNumber: doctorSession?.startingPatientNumber ?? 1,
     maxPatientNumber: doctorSession?.maxPatientNumber ?? 1,
-    previousSessionId: doctorSession?.previousSessionId ?? '',
+    previousSessionId:
+      doctorSession?.previousSessionId &&
+      doctorSession.previousSessionId !== doctorSession.id
+        ? doctorSession.previousSessionId
+        : '',
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
-    status: doctorSession?.status ?? 0,
+    status: doctorSession?.status ?? 1,
     fees: doctorSession?.fees ?? feeTypeOptions,
     amountLocal: doctorSession?.amountLocal ?? 0,
     amountForeign: doctorSession?.amountForeign ?? 0
@@ -144,12 +149,18 @@ export default function DoctorSessionForm({
     departmentId: Yup.string().required('This field is mandatory'),
     locationId: Yup.string().required('This field is mandatory'),
     roomId: Yup.string().required('This field is mandatory'),
+    startTimeValue: Yup.string()
+      .required('This field is mandatory')
+      .test('non-empty', 'This field is mandatory', (v) => v != null && String(v).trim() !== ''),
+    endTimeValue: Yup.string()
+      .required('This field is mandatory')
+      .test('non-empty', 'This field is mandatory', (v) => v != null && String(v).trim() !== ''),
     startTime: Yup.mixed().test(
       'is-valid-date',
-      'Start time is required',
+      'This field is mandatory',
       function () {
         const { startTimeValue, startMeridiem } = this.parent;
-        if (!startTimeValue) return false;
+        if (!startTimeValue || String(startTimeValue).trim() === '') return false;
         const date = buildDateFromTime(
           startTimeValue,
           startMeridiem,
@@ -160,10 +171,10 @@ export default function DoctorSessionForm({
     ),
     endTime: Yup.mixed().test(
       'is-valid-date',
-      'End time is required',
+      'This field is mandatory',
       function () {
         const { endTimeValue, endMeridiem } = this.parent;
-        if (!endTimeValue) return false;
+        if (!endTimeValue || String(endTimeValue).trim() === '') return false;
         const date = buildDateFromTime(endTimeValue, endMeridiem, new Date());
         return !isNaN(date.getTime());
       }
@@ -631,11 +642,8 @@ export default function DoctorSessionForm({
                             formik.setFieldValue('previousSessionId', value)
                           }
                           required={false}
-                          disabled={
-                            previousSessions?.length === 0 ||
-                            previousSessions === undefined
-                          }
-                          options={previousSessions || []}
+                          disabled={previousSessionOptions.length === 0}
+                          options={previousSessionOptions}
                           styleClasses={compactClasses}
                         />
                       </div>

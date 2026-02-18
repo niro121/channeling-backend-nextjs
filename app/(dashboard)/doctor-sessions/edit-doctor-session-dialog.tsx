@@ -12,6 +12,7 @@ import {
 import DoctorSessionForm from './doctor-session-form';
 import {
   getDepartmentOptions,
+  getAllDoctorSessions,
   getLocationOptions,
   getDoctorSessionById
 } from '@/app/actions/doctor.sessions.action';
@@ -44,6 +45,8 @@ export function EditDoctorSessionDialog({
   const [locationOptions, setLocationOptions] = useState<
     { id: string; name: string }[]
   >([]);
+  const [doctorSessionsForPreviousDropdown, setDoctorSessionsForPreviousDropdown] =
+    useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +69,26 @@ export function EditDoctorSessionDialog({
         setDoctorSessionData(sessionRes.data);
         setDepartmentOptions(deptRes.data ?? []);
         setLocationOptions(locRes.data ?? []);
+        const doctorId =
+          sessionRes.data.doctorId ?? sessionRes.data.doctor?.id ?? '';
+        if (doctorId) {
+          getAllDoctorSessions({
+            doctorId,
+            page: '0',
+            limit: '1000'
+          }).then((res) => {
+            if (cancelled) return;
+            const list = res.data ?? [];
+            setDoctorSessionsForPreviousDropdown(
+              list.map((s: { id: string; name: string }) => ({
+                id: s.id,
+                name: s.name
+              }))
+            );
+          });
+        } else {
+          setDoctorSessionsForPreviousDropdown([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -110,6 +133,7 @@ export function EditDoctorSessionDialog({
           <DoctorSessionForm
             doctorId={doctorId}
             doctorSession={doctorSessionData}
+            doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
             institutionOptions={INSTITUTION_OPTIONS}
             departmentOptions={departmentOptions}
             locationOptions={locationOptions}

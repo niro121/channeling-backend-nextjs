@@ -523,14 +523,39 @@ export const getDoctorByIdService = async (
       };
     }
 
-    const doctor = await prisma.doctor.findUnique({
-      where: { id },
-      include: {
-        createdUser: true,
-        updatedUser: true,
-        speciality: true
+    // Try to fetch with speciality first
+    // Note: in the fallback query we don't include `speciality`, so we keep this as `any`
+    // to allow attaching `speciality: null` for downstream code paths.
+    let doctor: any;
+    try {
+      doctor = await prisma.doctor.findUnique({
+        where: { id },
+        include: {
+          createdUser: true,
+          updatedUser: true,
+          speciality: true
+        }
+      });
+    } catch (relationError: any) {
+      // If speciality relation fails (e.g., invalid specialityId), fetch without it
+      if (relationError.message?.includes('Inconsistent query result') || 
+          relationError.message?.includes('speciality')) {
+        console.warn(`Doctor ${id} has invalid speciality relation, fetching without it`);
+        doctor = await prisma.doctor.findUnique({
+          where: { id },
+          include: {
+            createdUser: true,
+            updatedUser: true
+          }
+        });
+        // Manually set speciality to null if it wasn't included
+        if (doctor) {
+          doctor.speciality = null;
+        }
+      } else {
+        throw relationError;
       }
-    });
+    }
 
     if (!doctor) {
       return {
@@ -577,6 +602,124 @@ export const getAllSpecialityOptionsService = async () => {
   }
 };
 
+// ==== CHECK SINGLE DOCTOR HAS ACTIVE SESSIONS OR APPROVED LEAVES ==== //
+export const checkDoctorHasActiveSessionsOrLeavesService = async (
+  doctorId: string
+): Promise<{
+  success: boolean;
+  data?: {
+    hasActiveSessions: boolean;
+    hasApprovedLeaves: boolean;
+  };
+  error?: { message?: string };
+}> => {
+  try {
+    if (!doctorId) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid doctor ID'
+        }
+      };
+    }
+
+    // Check for active doctor sessions associated with this doctor
+    // DoctorSession: status === 1 means published/active
+    const activeSessionsCount = await prisma.doctorSession.count({
+      where: {
+        doctorId: doctorId,
+        status: 1 // 1 = published/active, 0 = unpublished
+      }
+    });
+
+    // Check for approved leave records associated with this doctor
+    // DoctorLeave: status === 1 means active/approved, status === 0 means cancelled
+    const approvedLeavesCount = await prisma.doctorLeave.count({
+      where: {
+        doctorId: doctorId,
+        status: 1 // 1 = ACTIVE/approved, 0 = CANCEL
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        hasActiveSessions: activeSessionsCount > 0,
+        hasApprovedLeaves: approvedLeavesCount > 0
+      }
+    };
+  } catch (error: any) {
+    console.error('checkDoctorHasActiveSessionsOrLeavesService error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to check doctor sessions and leaves'
+      }
+    };
+  }
+};
+
+// ==== CHECK DOCTORS HAVE ACTIVE SESSIONS OR APPROVED LEAVES ==== //
+export const checkDoctorsHaveActiveSessionsOrLeavesService = async (
+  doctorIds: string[]
+): Promise<{
+  success: boolean;
+  data?: {
+    hasActiveSessions: boolean;
+    hasApprovedLeaves: boolean;
+  };
+  error?: { message?: string };
+}> => {
+  try {
+    if (!doctorIds || doctorIds.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid doctor IDs'
+        }
+      };
+    }
+
+    // Check for active doctor sessions associated with any of these doctors
+    // DoctorSession: status === 1 means published/active
+    const activeSessionsCount = await prisma.doctorSession.count({
+      where: {
+        doctorId: {
+          in: doctorIds
+        },
+        status: 1 // 1 = published/active, 0 = unpublished
+      }
+    });
+
+    // Check for approved leave records associated with any of these doctors
+    // DoctorLeave: status === 1 means active/approved, status === 0 means cancelled
+    const approvedLeavesCount = await prisma.doctorLeave.count({
+      where: {
+        doctorId: {
+          in: doctorIds
+        },
+        status: 1 // 1 = ACTIVE/approved, 0 = CANCEL
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        hasActiveSessions: activeSessionsCount > 0,
+        hasApprovedLeaves: approvedLeavesCount > 0
+      }
+    };
+  } catch (error: any) {
+    console.error('checkDoctorsHaveActiveSessionsOrLeavesService error', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to check doctor sessions and leaves'
+      }
+    };
+  }
+};
+
 // ==== DOCTOR LIST DOWLOAD ==== //
 export const getAllDoctorsDownloadService = async ({
   keyword,
@@ -607,17 +750,40 @@ export const getAllDoctorsDownloadService = async ({
       ...(specialityId ? { specialityId } : {})
     };
 
-    const [doctors, totalRecords] = await Promise.all([
-      prisma.doctor.findMany({
+    // Try to fetch with speciality first
+    let doctors: any[];
+    try {
+      doctors = await prisma.doctor.findMany({
         where: whereClause,
         include: {
           speciality: true
         }
-      }),
-      prisma.doctor.count({
-        where: whereClause
-      })
-    ]);
+      });
+    } catch (relationError: any) {
+      // If speciality relation fails (e.g., some doctors have invalid specialityId), fetch without it
+      if (relationError.message?.includes('Inconsistent query result') || 
+          relationError.message?.includes('speciality')) {
+        console.warn('Some doctors have invalid speciality relations, fetching without speciality');
+        doctors = await prisma.doctor.findMany({
+          where: whereClause,
+          include: {
+            createdUser: true,
+            updatedUser: true
+          }
+        });
+        // Manually set speciality to null for all doctors
+        doctors = doctors.map(doctor => ({
+          ...doctor,
+          speciality: null
+        }));
+      } else {
+        throw relationError;
+      }
+    }
+
+    const totalRecords = await prisma.doctor.count({
+      where: whereClause
+    });
 
     return {
       doctors,

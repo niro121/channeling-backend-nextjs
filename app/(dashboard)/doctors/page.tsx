@@ -9,13 +9,15 @@ import Link from 'next/link';
 import {
   bulkDeleteDoctors,
   getAllDoctors,
-  getAllSpecialityOptions
+  getAllSpecialityOptions,
+  checkDoctorsHaveActiveSessionsOrLeaves
 } from '@/app/actions/doctor.actions';
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { BulkDeleteButton } from '@/components/common/custom-data-table';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -77,6 +79,28 @@ export default async function Page({ searchParams }: SearchParams) {
     };
   };
 
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    
+    try {
+      const result = await checkDoctorsHaveActiveSessionsOrLeaves(ids);
+      
+      if (result.success && result.data) {
+        const { hasActiveSessions, hasApprovedLeaves } = result.data;
+        
+        if (hasActiveSessions || hasApprovedLeaves) {
+          return "One or more selected doctors have active sessions and/or approved leave records. Deleting them may affect scheduled appointments and availability records.\n\nAre you sure you want to continue?";
+        }
+      }
+      
+      // Default message if no active sessions or leaves
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    } catch (error: any) {
+      console.error('Error getting bulk delete description:', error);
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    }
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -87,33 +111,39 @@ export default async function Page({ searchParams }: SearchParams) {
           data={data}
           rowCount={totalRecords}
           deleteServerAction={bulkDeleteDoctors}
+          getBulkDeleteDescription={getBulkDeleteDescription}
           page={params?.page}
           toolbarLeft={
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
-              <div className="relative w-full sm:max-w-sm">
-                <SearchInput
-                  name="keyword"
-                  placeholder="Search by name, code, registration number"
-                  className="pl-8 w-full h-9"
+            <div className="flex flex-col gap-3 flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <div className="relative w-full sm:max-w-sm">
+                  <SearchInput
+                    name="keyword"
+                    placeholder="Search by name, code, registration number"
+                    className="pl-8 w-full h-9"
+                  />
+                </div>
+                <FilterSection
+                  specialityOptions={specialityOptions}
+                  specialityId={params?.specialityId}
                 />
               </div>
-              <FilterSection
-                specialityOptions={specialityOptions}
-                specialityId={params?.specialityId}
-              />
+              <div className="flex items-center">
+                <ExportWrapper
+                  serverData={handleExport}
+                  columns={['Name', 'Code', 'Registration Number', 'Speciality']}
+                  keys={['name', 'code', 'registrationNumber', 'speciality']}
+                  title="Doctors List"
+                  fileName="doctors"
+                />
+              </div>
             </div>
           }
           toolbarRight={
-            <div className="flex items-center gap-2 shrink-0">
-              <ExportWrapper
-                serverData={handleExport}
-                columns={['Name', 'Code', 'Registration Number', 'Speciality']}
-                keys={['name', 'code', 'registrationNumber', 'speciality']}
-                title="Doctors List"
-                fileName="doctors"
-              />
+            <div className="flex items-start gap-2 shrink-0">
+              <BulkDeleteButton />
               <Link href="/doctors/add">
-                <Button size="sm" className="gap-1.5 h-9">
+                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
                   <Plus className="h-4 w-4" />
                   <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                     Add New
@@ -122,6 +152,7 @@ export default async function Page({ searchParams }: SearchParams) {
               </Link>
             </div>
           }
+          hideAutoBulkDelete={true}
         />
       </Suspense>
     </div>

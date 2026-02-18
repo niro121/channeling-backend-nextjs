@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { UserGroup, RESOURCES, PERMISSION_ACTIONS, ResourcePermissions, Permissions } from "@/types/user-group"
+import { UserGroup, RESOURCES, PERMISSION_ACTIONS, ResourcePermissions, Permissions, ResourceWithOptionalActions } from "@/types/user-group"
 import { Form, Formik, FormikHelpers } from "formik"
 import CustomFormField from "@/components/common/form-field"
 import { Button } from "@/components/ui/button"
@@ -124,24 +124,26 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
         formik.setFieldValue("permissions", syncedPermissions)
     }
 
-    const handleSelectAll = (formik: any, resourceId: string) => {
+    const handleSelectAll = (formik: any, resource: ResourceWithOptionalActions) => {
         const currentPermissions = { ...formik.values.permissions }
-        currentPermissions[resourceId] = {
-            view: true,
-            add: true,
-            edit: true,
-            delete: true,
+        const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
+        currentPermissions[resource.id] = {
+            view: actions.includes("view"),
+            add: actions.includes("add"),
+            edit: actions.includes("edit"),
+            delete: actions.includes("delete"),
         }
         formik.setFieldValue("permissions", currentPermissions)
     }
 
-    const handleDeselectAll = (formik: any, resourceId: string) => {
+    const handleDeselectAll = (formik: any, resource: ResourceWithOptionalActions) => {
         const currentPermissions = { ...formik.values.permissions }
-        currentPermissions[resourceId] = {
-            view: false,
-            add: false,
-            edit: false,
-            delete: false,
+        const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
+        currentPermissions[resource.id] = {
+            view: actions.includes("view") ? false : (formik.values.permissions[resource.id]?.view ?? false),
+            add: actions.includes("add") ? false : (formik.values.permissions[resource.id]?.add ?? false),
+            edit: actions.includes("edit") ? false : (formik.values.permissions[resource.id]?.edit ?? false),
+            delete: actions.includes("delete") ? false : (formik.values.permissions[resource.id]?.delete ?? false),
         }
         formik.setFieldValue("permissions", currentPermissions)
     }
@@ -333,14 +335,14 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                     <div className="flex items-center gap-4">
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleSelectAll(formik, resource.id)}
+                                                            onClick={() => handleSelectAll(formik, resource)}
                                                             className="text-sm text-muted-foreground hover:text-foreground underline"
                                                         >
                                                             Select All
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleDeselectAll(formik, resource.id)}
+                                                            onClick={() => handleDeselectAll(formik, resource)}
                                                             className="text-sm text-muted-foreground hover:text-foreground underline"
                                                         >
                                                             Deselect All
@@ -348,8 +350,16 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                     </div>
                                                 </div>
 
+                                                {(() => {
+                                                    const actionsToShow = resource.actions?.length
+                                                        ? PERMISSION_ACTIONS.filter((a) => resource.actions!.includes(a.id))
+                                                        : PERMISSION_ACTIONS
+                                                    return (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                    {PERMISSION_ACTIONS.map((action) => (
+                                                    {actionsToShow.map((action) => {
+                                                        const label = resource.actionLabels?.[action.id] ?? action.name
+                                                        const description = resource.actionLabels?.[action.id] ? "" : action.description
+                                                        return (
                                                         <div
                                                             key={action.id}
                                                             className="flex items-center space-x-2 p-3 border rounded-md"
@@ -371,15 +381,20 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                                     htmlFor={`${resource.id}-${action.id}`}
                                                                     className="text-sm font-medium cursor-pointer"
                                                                 >
-                                                                    {action.name}
+                                                                    {label}
                                                                 </Label>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    {action.description}
-                                                                </p>
+                                                                {description ? (
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        {description}
+                                                                    </p>
+                                                                ) : null}
                                                             </div>
                                                         </div>
-                                                    ))}
+                                                        )
+                                                    })}
                                                 </div>
+                                                    )
+                                                })()}
                                             </div>
                                         )
                                     })}

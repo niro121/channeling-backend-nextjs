@@ -12,13 +12,19 @@ interface DoctorSessionFiltersProps {
   institutionId?: string;
   doctorOptions: Option[];
   doctorId?: string;
+  /** Called when Search Sessions is clicked. Use to clear list and show loading. */
+  onSearchStart?: () => void;
+  /** Called when institution or doctor selection changes. Use to clear list until Search is clicked. */
+  onFilterChange?: () => void;
 }
 
 export default function FilterSection({
   institutionOptions,
   institutionId,
   doctorOptions,
-  doctorId
+  doctorId,
+  onSearchStart,
+  onFilterChange
 }: DoctorSessionFiltersProps) {
   const { setDoctor, setInstitution } = useDoctorSessionStore();
 
@@ -38,7 +44,9 @@ export default function FilterSection({
         institutionId,
         doctorId
       }}
-      buttonLabel="Search sessions"
+      buttonLabel="Search Sessions"
+      onApplyClick={onSearchStart}
+      onValuesChange={() => onFilterChange?.()}
     >
       {({ values, setValue }) => (
         <>

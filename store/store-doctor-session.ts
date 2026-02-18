@@ -8,7 +8,7 @@ type Option = {
 
 const doctorState: Option = {
   id: '__all__',
-  name: 'Select doctor'
+  name: 'Select Doctor'
 };
 
 const institutionState: Option = {

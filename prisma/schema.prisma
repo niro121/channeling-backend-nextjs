@@ -24,6 +24,7 @@ model User {
   status                 Int
   checkedDefaultLocation Boolean  @default(false)
   defaultLocation        String?
+  defaultBookingMethod   Int?     // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
 
   // == 2FA STATE == //
   twoFactorMethod      String?
@@ -69,6 +70,8 @@ model User {
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
   userLocationId          String?                        @db.ObjectId
   userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staffId                 String?                        @unique @db.ObjectId
+  staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
 }
 
@@ -266,8 +269,8 @@ model Session {
   date                  DateTime
   doctorSessionId       String
   previousDoctorSession String?
-  startTime             Int
-  endTime               Int
+  startTime             DateTime
+  endTime               DateTime
   durationMinutes       Int?
   startingPatientNumber Int
   maxPatientNumber      Int
@@ -303,6 +306,8 @@ model Session {
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([doctorId, date, status])
 }
 
 model DoctorLeave {
@@ -465,6 +470,7 @@ model Staff {
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
+  user                User?     @relation("UserToStaff")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,6 +1,7 @@
 'use client';
 
-import { downloadExcelUtil, downloadPdfUtil } from '@/lib/utils';
+import { useState } from 'react';
+import { downloadExcelUtil, downloadPdfUtil, formatExportFileName } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -19,58 +20,87 @@ export const ExportWrapper = <T,>({
   columns,
   keys,
   title = 'Report',
-  fileName = 'report.pdf',
+  fileName = 'report',
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingExcel, setLoadingExcel] = useState(false);
+
+  // Format the file name with the standard suffix
+  const formattedFileName = formatExportFileName(fileName);
 
   const handlePdfDownload = async () => {
-    const response = await serverData();
+    try {
+      setLoadingPdf(true);
+      const response = await serverData();
 
-    if (!response.success || !response.data?.length) {
-      console.error(response.message || 'No data available');
+      if (!response.success || !response.data?.length) {
+        console.error(response.message || 'No data available');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: response.message || 'No data available'
+        });
+        return;
+      }
+
+      downloadPdfUtil({
+        title,
+        data: response.data,
+        columns,
+        keys,
+        fileName: `${formattedFileName}.pdf`
+      });
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: response.message || 'No data available'
+        description: error.message || 'Failed to export PDF'
       });
-      return;
+    } finally {
+      setLoadingPdf(false);
     }
-
-    downloadPdfUtil({
-      title,
-      data: response.data,
-      columns,
-      keys,
-      fileName: `${fileName}.pdf`
-    });
   };
 
   const handleExcelDownload = async () => {
-    const response = await serverData()
+    try {
+      setLoadingExcel(true);
+      const response = await serverData()
 
-    if (!response.success || !response.data?.length) {
-      console.error(response.message || 'No data available');
+      if (!response.success || !response.data?.length) {
+        console.error(response.message || 'No data available');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: response.message || 'No data available'
+        });
+        return;
+      }
+
+      downloadExcelUtil({
+        title,
+        data: response.data,
+        columns,
+        keys,
+        fileName: `${formattedFileName}.xlsx`
+      })
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: response.message || 'No data available'
+        description: error.message || 'Failed to export Excel'
       });
-      return;
+    } finally {
+      setLoadingExcel(false);
     }
-
-    downloadExcelUtil({
-      title,
-      data: response.data,
-      columns,
-      keys,
-      fileName: `${fileName}.xlsx`
-    })
   }
 
   return (
     <ExportButtons
       onPdfExport={handlePdfDownload}
       onExcelExport={handleExcelDownload}
+      loadingPdf={loadingPdf}
+      loadingExcel={loadingExcel}
     />
   );
 };

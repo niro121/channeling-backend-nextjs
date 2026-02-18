@@ -8,7 +8,9 @@ import {
   getDoctorByIdService,
   updateOneDoctorService,
   getAllDoctorsDownloadService,
-  getAllSpecialityOptionsService
+  getAllSpecialityOptionsService,
+  checkDoctorsHaveActiveSessionsOrLeavesService,
+  checkDoctorHasActiveSessionsOrLeavesService
 } from '@/services/doctor.service';
 import {
   getDoctorParams,
@@ -309,6 +311,84 @@ export const getDoctorsExport = async (
     return {
       success: false,
       message: 'Error getting data'
+    };
+  }
+};
+
+// ==== CHECK SINGLE DOCTOR HAS ACTIVE SESSIONS OR APPROVED LEAVES ==== //
+export const checkDoctorHasActiveSessionsOrLeaves = async (
+  doctorId: string
+): Promise<{
+  success: boolean;
+  data?: {
+    hasActiveSessions: boolean;
+    hasApprovedLeaves: boolean;
+  };
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await checkDoctorHasActiveSessionsOrLeavesService(doctorId);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || 'Failed to check doctor sessions and leaves'
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: 'Check completed successfully'
+    };
+  } catch (error: any) {
+    console.error('checkDoctorHasActiveSessionsOrLeaves action error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Error checking doctor sessions and leaves'
+      }
+    };
+  }
+};
+
+// ==== CHECK DOCTORS HAVE ACTIVE SESSIONS OR APPROVED LEAVES ==== //
+export const checkDoctorsHaveActiveSessionsOrLeaves = async (
+  doctorIds: string[]
+): Promise<{
+  success: boolean;
+  data?: {
+    hasActiveSessions: boolean;
+    hasApprovedLeaves: boolean;
+  };
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await checkDoctorsHaveActiveSessionsOrLeavesService(doctorIds);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || 'Failed to check doctor sessions and leaves'
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: 'Check completed successfully'
+    };
+  } catch (error: any) {
+    console.error('checkDoctorsHaveActiveSessionsOrLeaves action error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Error checking doctor sessions and leaves'
+      }
     };
   }
 };

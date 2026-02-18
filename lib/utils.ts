@@ -32,6 +32,29 @@ export function generateCode() {
 export const padCode = (num: number, length: number) =>
   num.toString().padStart(length, '0');
 
+// ==== FORMAT EXPORT FILE NAME ==== //
+/**
+ * Formats export file names to include " - Ruhunu Hospital" suffix
+ * @param componentName - The name of the component/report (e.g., "doctors", "specialities", "doctor-arrivals-report-2024-01-15")
+ * @returns Formatted file name (e.g., "Doctors - Ruhunu Hospital")
+ */
+export const formatExportFileName = (componentName: string): string => {
+  if (!componentName) {
+    return 'Report - Ruhunu Hospital';
+  }
+
+  // Remove file extension if present
+  const nameWithoutExt = componentName.replace(/\.(pdf|xlsx)$/i, '');
+  
+  // Capitalize first letter of each word
+  const formattedName = nameWithoutExt
+    .split(/[-_\s]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+  return `${formattedName} - Ruhunu Hospital`;
+};
+
 // ==== PDF DOWNLOAD HANDLE UTIL ==== //
 type DownloadPdfOptions<T> = {
   title?: string;
@@ -124,6 +147,32 @@ export const downloadExcelUtil = async <T>({
 export const SRI_LANKA_TZ = 'Asia/Colombo'
 
 /**
+ * ISO timezone offset string (e.g. "+05:30" or "-08:00") for session start/end.
+ * Uses SESSION_TIMEZONE_OFFSET env if set (e.g. "+05:30"), otherwise the server's
+ * current timezone (so set TZ=Asia/Colombo on the server to get +05:30).
+ */
+export function getSessionTimeZoneOffsetString(): string {
+  const envOffset = process.env.SESSION_TIMEZONE_OFFSET?.trim()
+  if (envOffset && /^[+-]\d{1,2}:\d{2}$/.test(envOffset)) return envOffset
+  const offsetMinutes = -new Date().getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  const hours = Math.floor(abs / 60)
+  const mins = abs % 60
+  return `${sign}${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+}
+
+/**
+ * Parse "YYYY-MM-DD" + "HH:mm" in the session timezone (server TZ or SESSION_TIMEZONE_OFFSET).
+ * Use when creating Session startTime/endTime so they are stored correctly in UTC.
+ */
+export function parseSessionDateTime(dateStr: string, timeStr: string): Date {
+  const offset = getSessionTimeZoneOffsetString()
+  const iso = `${dateStr}T${timeStr}:00${offset}`
+  return new Date(iso)
+}
+
+/**
  * Extract time and meridiem from a Date using optional timezone.
  * When timeZone is provided (e.g. SRI_LANKA_TZ), hours/minutes are in that zone so
  * doctor session times stored in UTC display correctly as Sri Lanka time.
@@ -183,6 +232,39 @@ export const formatTimeSriLanka = (value: Date | number): string => {
   const minute = parts.find((p) => p.type === 'minute')?.value ?? '00'
   const dayPeriod = parts.find((p) => p.type === 'dayPeriod')?.value ?? 'AM'
   return `${hour}.${minute}${dayPeriod}`
+}
+
+/**
+ * Format date only in Sri Lanka (Asia/Colombo), e.g. "18/02/2026" or "23 Feb 2026".
+ */
+export const formatDateSriLanka = (
+  value: Date | number | string,
+  style: 'short' | 'medium' = 'short'
+): string => {
+  const date = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: SRI_LANKA_TZ,
+    ...(style === 'short'
+      ? { day: '2-digit', month: '2-digit', year: 'numeric' }
+      : { day: 'numeric', month: 'short', year: 'numeric' })
+  }).format(date)
+}
+
+/**
+ * Format date+time in Sri Lanka (Asia/Colombo) for display.
+ * Use for createdAt/updatedAt etc. so all app times use the same timezone.
+ */
+export const formatDateTimeSriLanka = (value: Date | number | string): string => {
+  const date = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: SRI_LANKA_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).format(date)
 }
 
 export const buildDateFromTime = (
@@ -252,8 +334,38 @@ export function timeToSriLankaUnix(
   const m = (baseDate.getUTCMonth() + 1).toString().padStart(2, '0');
   const d = baseDate.getUTCDate().toString().padStart(2, '0');
   const dateStr = `${y}-${m}-${d}`;
-  const iso = `${dateStr}T${timeStr24}:00+05:30`;
+  const offset = getSessionTimeZoneOffsetString();
+  const iso = `${dateStr}T${timeStr24}:00${offset}`;
   return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+/**
+ * Normalize Session.startTime/endTime to a Date.
+ * Handles: Date (return as-is), unix seconds (number >= 1e9), or minutes-from-midnight (number 0–1439) using sessionDate.
+ */
+export function normalizeSessionTime(
+  value: Date | number,
+  sessionDate: Date
+): Date {
+  if (value instanceof Date) return value;
+  const n = Number(value);
+  if (n >= 1e9 && n < 1e13) return new Date(n * 1000); // unix seconds
+  // minutes from midnight
+  const d = new Date(sessionDate);
+  d.setUTCHours(Math.floor(n / 60), n % 60, 0, 0);
+  return d;
+}
+
+/**
+ * Normalize Session.startTime/endTime from API (number = unix sec, Date, or ISO string) to unix seconds.
+ * Use before unixToTimeDisplay when the value might be serialized from Prisma.
+ */
+export function sessionTimeToUnixSeconds(value: number | string | Date | null | undefined): number {
+  if (value == null) return 0;
+  if (typeof value === 'number') return value >= 1e12 ? Math.floor(value / 1000) : value;
+  if (value instanceof Date) return Math.floor(value.getTime() / 1000);
+  const ms = new Date(value as string).getTime();
+  return Number.isNaN(ms) ? 0 : Math.floor(ms / 1000);
 }
 
 /** Convert unix seconds (e.g. Session.startTime/endTime) to { timeStr, meridiem } in Sri Lanka for time picker. */

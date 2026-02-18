@@ -26,10 +26,47 @@ import {
   CardFooter,
 } from "@/components/ui/card"
 import { Button } from "../ui/button"
-import CustomAlertDialog from "./custom-alert-dialog"
+import CustomAlertDialogWithWarning from "./custom-alert-dialog-with-warning"
 import { DataTablePagination } from "./custom-data-table-pagination"
 import { useToast } from "../hooks/use-toast"
-import { Trash2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
+
+// Context for exposing table state and handlers
+const DataTableContext = React.createContext<{
+  rowSelection: Record<string, boolean>
+  showHideDeleteModal: (value: boolean) => Promise<void>
+  fetchingDescription: boolean
+} | null>(null)
+
+export const useDataTableContext = () => {
+  const context = React.useContext(DataTableContext)
+  if (!context) {
+    throw new Error('useDataTableContext must be used within CustomDataTable')
+  }
+  return context
+}
+
+// Bulk Delete Button component that can be used in toolbarLeft
+export const BulkDeleteButton = ({ className }: { className?: string }) => {
+  const { rowSelection, showHideDeleteModal, fetchingDescription } = useDataTableContext()
+  
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer ${className || ''}`}
+      disabled={Object.keys(rowSelection).length === 0}
+      onClick={() => showHideDeleteModal(true)}
+    >
+      {fetchingDescription ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Trash2 className="h-4 w-4" />
+      )}
+      <span>Bulk Delete</span>
+    </Button>
+  )
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -42,12 +79,16 @@ interface DataTableProps<TData, TValue> {
   haveBulkDelete?: boolean
   haveDataDownload?: boolean
   deleteServerAction?: (ids: string[]) => Promise<boolean>
+  /** Optional function to get custom bulk delete description. Receives selected IDs and returns description string or Promise<string> */
+  getBulkDeleteDescription?: (ids: string[]) => Promise<string> | string
   /** Renders inside the card above the table (e.g. search + Add button), like shadcn tasks example */
   toolbar?: React.ReactNode
   /** Left side of toolbar (e.g. search). When used with toolbarRight, Add stays right and Bulk delete appears to its left when selected */
   toolbarLeft?: React.ReactNode
   /** Right side of toolbar (e.g. Add button). Rendered to the right of Bulk delete when rows selected */
   toolbarRight?: React.ReactNode
+  /** If true, hides the automatic bulk delete button (useful when you want to place it manually in toolbarLeft/toolbarRight) */
+  hideAutoBulkDelete?: boolean
 }
 
 export function CustomDataTable<TData, TValue>({
@@ -61,9 +102,11 @@ export function CustomDataTable<TData, TValue>({
   haveBulkDelete = true,
   haveDataDownload = false,
   deleteServerAction,
+  getBulkDeleteDescription,
   toolbar,
   toolbarLeft,
   toolbarRight,
+  hideAutoBulkDelete = false,
 }: DataTableProps<TData, TValue>) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -73,6 +116,10 @@ export function CustomDataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({})
   const [showDeleteConfirmation, setShowDelConfirmation] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [fetchingDescription, setFetchingDescription] = React.useState(false)
+  const [bulkDeleteDescription, setBulkDeleteDescription] = React.useState<string>(
+    "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+  )
 
 
   const table = useReactTable({
@@ -170,14 +217,103 @@ export function CustomDataTable<TData, TValue>({
     }
   }
 
-  const showHideDeleteModal = (value: boolean) => {
-    setShowDelConfirmation(value)
+  const showHideDeleteModal = async (value: boolean) => {
+    if (value) {
+      // When opening the modal, fetch custom description if provided
+      const idsToDelete: string[] = []
+      Object.keys(rowSelection).forEach((item) => {
+        const row = table.getRow(item).original as { id: string }
+        if (row.id) {
+          idsToDelete.push(row.id)
+        }
+      })
+
+      if (getBulkDeleteDescription && idsToDelete.length > 0) {
+        setFetchingDescription(true)
+        try {
+          const description = await getBulkDeleteDescription(idsToDelete)
+          setBulkDeleteDescription(description)
+          // Only show modal after description is fetched
+          setShowDelConfirmation(true)
+        } catch (error: any) {
+          console.error('Error fetching bulk delete description:', error)
+          // Fallback to default description on error
+          setBulkDeleteDescription(
+            "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+          )
+          setShowDelConfirmation(true)
+        } finally {
+          setFetchingDescription(false)
+        }
+      } else {
+        // Use default description
+        setBulkDeleteDescription(
+          "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+        )
+        setShowDelConfirmation(true)
+      }
+    } else {
+      // When closing, reset description
+      setBulkDeleteDescription(
+        "This action cannot be undone. This will permanently delete these records and remove the data from our servers."
+      )
+      setShowDelConfirmation(false)
+    }
   }
 
   // const downloadDataResults = async() => {
   //   console.log('rowse',rowSelection);
 
   // }
+
+  // Convert description string to component with bold doctor count
+  const formatDescription = (text: string): React.ReactNode => {
+    // Check if description contains doctor count (warning message)
+    const doctorCountMatch = text.match(/(\d+)\s+doctor\(s\)/i)
+    if (doctorCountMatch) {
+      const parts = text.split(/(\d+\s+doctor\(s\))/i)
+      return (
+        <>
+          {parts.map((part, index) => {
+            if (part.match(/\d+\s+doctor\(s\)/i)) {
+              return (
+                <strong key={index} style={{ fontWeight: 700 }}>
+                  {part}
+                </strong>
+              )
+            }
+            // Handle newlines by splitting and adding <br /> elements
+            const lines = part.split('\n')
+            return (
+              <span key={index}>
+                {lines.map((line, lineIndex) => (
+                  <React.Fragment key={lineIndex}>
+                    {lineIndex > 0 && <br />}
+                    {line}
+                  </React.Fragment>
+                ))}
+              </span>
+            )
+          })}
+        </>
+      )
+    }
+    // For non-warning messages, handle newlines
+    const lines = text.split('\n')
+    return (
+      <>
+        {lines.map((line, index) => (
+          <React.Fragment key={index}>
+            {index > 0 && <br />}
+            {line}
+          </React.Fragment>
+        ))}
+      </>
+    )
+  }
+
+  // Check if description has warning (contains doctor count)
+  const hasWarning = bulkDeleteDescription.includes("doctor(s)")
 
   useEffect(() => {
     if (limit) {
@@ -189,8 +325,14 @@ export function CustomDataTable<TData, TValue>({
     }
   }, [table, limit, page])
 
+  const contextValue = React.useMemo(() => ({
+    rowSelection,
+    showHideDeleteModal,
+    fetchingDescription,
+  }), [rowSelection, fetchingDescription])
+
   return (
-    <>
+    <DataTableContext.Provider value={contextValue}>
       <Card className="rounded-lg border border-border shadow-sm overflow-hidden">
         <CardHeader>
           <div>
@@ -199,22 +341,27 @@ export function CustomDataTable<TData, TValue>({
           </div>
         </CardHeader>
         {(toolbar != null || toolbarLeft != null || toolbarRight != null || haveBulkDelete) ? (
-          <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-center ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
+          <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-start ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
             {toolbarLeft != null || toolbarRight != null ? (
               <>
                 <React.Fragment key="toolbar-left">{toolbarLeft ?? null}</React.Fragment>
-                <div key="toolbar-right" className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
-                  {haveBulkDelete ? (
+                <div key="toolbar-right" className="flex flex-1 items-start justify-end gap-2 sm:flex-initial">
+                  {haveBulkDelete && !hideAutoBulkDelete ? (
                     <Button
                       key="bulk-delete-btn"
                       variant="ghost"
                       size="sm"
-                      className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
+                      className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer"
                       disabled={Object.keys(rowSelection).length === 0}
-                      onClick={() => setShowDelConfirmation(true)}
+                      onClick={() => showHideDeleteModal(true)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Bulk delete</span>
+
+                      {fetchingDescription ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      <span>Bulk Delete</span>
                     </Button>
                   ) : null}
                   {toolbarRight != null ? (
@@ -234,7 +381,11 @@ export function CustomDataTable<TData, TValue>({
                     disabled={Object.keys(rowSelection).length === 0}
                     onClick={() => setShowDelConfirmation(true)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {fetchingDescription ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     <span>Bulk delete</span>
                   </Button>
                 ) : null}
@@ -301,15 +452,15 @@ export function CustomDataTable<TData, TValue>({
           </div>
         </CardFooter>
       </Card>
-      <CustomAlertDialog
+      <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}
         handleVisibilityChange={showHideDeleteModal}
-        loading={loading}
+        loading={loading || fetchingDescription}
         title="Are you absolutely sure?"
-        description="This action cannot be undone. This will permanently delete these
-            records and remove the data from our servers."
+        description={fetchingDescription ? <span>Loading...</span> : formatDescription(bulkDeleteDescription)}
         handleContinue={onDeleteConfirmation}
+        hasWarning={hasWarning}
       />
-    </>
+    </DataTableContext.Provider>
   )
 }

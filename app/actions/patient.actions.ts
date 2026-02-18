@@ -262,3 +262,32 @@ export const getAreasAction = async () => {
         }
     }
 }
+
+// ==== PATIENTS EXPORT ==== //
+export const getPatientsExport = async (params: { keyword?: string }) => {
+    try {
+        const result = await getPatients({
+            page: "1",
+            limit: "10000", // Get all records
+            keyword: params.keyword ?? ""
+        })
+
+        if (!result.success || !result.data?.records?.length) {
+            return {
+                success: false,
+                message: result.success ? 'No patients found' : result.error?.message || 'Error getting data'
+            }
+        }
+
+        return {
+            success: true,
+            data: result.data.records
+        }
+    } catch (error: any) {
+        console.log('getPatientsExport error', error)
+        return {
+            success: false,
+            message: 'Error getting data'
+        }
+    }
+}

@@ -14,10 +14,15 @@ import { EditDoctorSessionDialog } from './edit-doctor-session-dialog';
 
 type DoctorSessionActionsProps<TData extends DoctorSession> = {
   row: Row<TData>;
+  /** When provided, edit dialog open state is controlled by parent (e.g. so the Doctor Session link can open the same dialog) */
+  controlledEditOpen?: boolean;
+  onControlledEditOpenChange?: (open: boolean) => void;
 };
 
 export function DoctorSessionRecordActions({
-  row
+  row,
+  controlledEditOpen,
+  onControlledEditOpenChange
 }: DoctorSessionActionsProps<DoctorSession>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
@@ -29,6 +34,9 @@ export function DoctorSessionRecordActions({
   const { toast } = useToast();
   const router = useRouter();
 
+  const isControlled = controlledEditOpen !== undefined && onControlledEditOpenChange !== undefined;
+  const dialogOpen = isControlled ? controlledEditOpen : editDialogOpen;
+
   // ==== DOCTOR SESSION DATA ROW ==== //
   const doctorSession = row.original;
 
@@ -38,8 +46,21 @@ export function DoctorSessionRecordActions({
 
   const openEditDialog = () => {
     if (doctorSession.id) {
-      setSessionIdToEdit(doctorSession.id);
-      setEditDialogOpen(true);
+      if (isControlled) {
+        onControlledEditOpenChange?.(true);
+      } else {
+        setSessionIdToEdit(doctorSession.id);
+        setEditDialogOpen(true);
+      }
+    }
+  };
+
+  const handleEditDialogOpenChange = (open: boolean) => {
+    if (isControlled) {
+      onControlledEditOpenChange?.(open);
+    } else {
+      setEditDialogOpen(open);
+      if (!open) setSessionIdToEdit(null);
     }
   };
 
@@ -98,12 +119,12 @@ export function DoctorSessionRecordActions({
       </DataTableRowActions>
 
       <EditDoctorSessionDialog
-        open={editDialogOpen}
+        open={dialogOpen}
         onOpenChange={(open) => {
-          setEditDialogOpen(open);
-          if (!open) setSessionIdToEdit(null);
+          handleEditDialogOpenChange(open);
+          if (!isControlled && !open) setSessionIdToEdit(null);
         }}
-        sessionId={sessionIdToEdit}
+        sessionId={isControlled ? doctorSession.id ?? null : sessionIdToEdit}
       />
 
       <CustomAlertDialog

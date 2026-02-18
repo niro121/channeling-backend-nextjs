@@ -23,7 +23,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
         id: department?.id ? department.id : "",
         name: department?.name ? department.name : "",
         description: department?.description ? department.description : undefined,
-        visibility: department?.visibility !== undefined ? department.visibility : 0,
+        visibility: department?.visibility !== undefined ? department.visibility : 1,
         createdAt: department?.createdAt ? department.createdAt : new Date(),
         updatedAt: department?.updatedAt ? department.updatedAt : new Date(),
     }

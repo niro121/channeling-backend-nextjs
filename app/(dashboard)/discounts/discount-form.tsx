@@ -77,7 +77,7 @@ export default function DiscountForm({
       toDate: discount?.toDate ?? new Date(),
       isVoucher: discount?.isVoucher ?? 0,
       autoApply: discount?.autoApply ?? false,
-      status: discount?.status ?? 0,
+      status: discount?.status ?? 1,
       applyTo: discount?.applyTo ?? 0,
       vouchers: discount?.vouchers ?? []
     }),

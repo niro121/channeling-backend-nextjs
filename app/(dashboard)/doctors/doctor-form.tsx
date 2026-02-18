@@ -47,7 +47,7 @@ export default function DoctorForm({
     qualification: doctor?.qualification ?? '',
     referralCharge: doctor?.referralCharge ?? 0,
     sessionNoPrefix: doctor?.sessionNoPrefix ?? '',
-    status: doctor?.status ?? 0,
+    status: doctor?.status ?? 1,
     specialityId: doctor?.specialityId ?? ''
   };
 

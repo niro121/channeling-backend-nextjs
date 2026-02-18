@@ -43,7 +43,7 @@ export default function AddBtnSection() {
           <TooltipContent>
             {canAdd
               ? 'Add new doctor session'
-              : 'Select a doctor above to add sessions'}
+              : 'Select a Doctor above to add sessions'}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

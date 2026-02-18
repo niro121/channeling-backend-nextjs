@@ -33,6 +33,7 @@ This document lists all components and their permission check status.
      - `resumeShiftAction` – requirePermission("shift", "view")
      - `endShiftAction` – requirePermission("shift", "view")
    - ✅ UI: Shift bar and start/skip dialog only on channel-booking route; sidebar link gated by `hasAccess('/channel-booking')`. Grant **Shift (Channel Booking)** view to allow shift creation and controls.
+   - ✅ **Channel Booking – Change Date** (resource **channel-booking-date**): When **view** is ticked, user can change the session date in the channeling page. If not granted, date is fixed to today and shown as read-only.
 
 ---
 

@@ -4,7 +4,7 @@ import React from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import { Button } from '@/components/ui/button';
-import { Ban, Save } from 'lucide-react';
+import { Ban, Loader2, Save } from 'lucide-react';
 import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import CustomSelectField from '@/components/common/custom-select-field';
@@ -26,6 +26,7 @@ type SpecialityFormProps = {
 
 export default function SpecialityForm({ speciality, isEditPage = false, user }: SpecialityFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [cancelLoading, setCancelLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -33,7 +34,7 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
     name: speciality?.name ? speciality.name : '',
     code: speciality?.code ? speciality.code : '',
     description: speciality?.description ? speciality.description : '',
-    status: speciality?.status ? speciality.status : 0
+    status: speciality?.status ? speciality.status : 1 // Default to Published (1)
   };
 
   const validationSchema = Yup.object({
@@ -58,9 +59,8 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
       if (speciality && speciality.id) {
         respond = await updateOneSpeciality(speciality.id, values);
 
-        setLoading(false);
-
         if (!respond?.success) {
+          setLoading(false);
           if (respond?.error?.issues && typeof respond.error.issues === 'object') {
             const fieldErrors: Record<string, string> = {};
             Object.keys(respond.error.issues).forEach((key) => {
@@ -99,9 +99,8 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
       } else {
         respond = await createSpeciality(values, user);
 
-        setLoading(false);
-
         if (!respond?.success) {
+          setLoading(false);
           if (respond?.error?.issues && typeof respond.error.issues === 'object') {
             const fieldErrors: Record<string, string> = {};
             Object.keys(respond.error.issues).forEach((key) => {
@@ -131,16 +130,12 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
           return;
         }
 
-        if (respond.data?.id) {
-          router.push(`/specialities/${respond.data.id}/edit`);
-        } else {
-          router.push('/specialities');
-        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Speciality was created successfully'
         });
+        router.push('/specialities');
       }
     } catch (error: any) {
       setLoading(false);
@@ -163,7 +158,7 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
         const styleClasses = {
           parentDiv: 'grid grid-cols-1 items-center gap-4 sm:grid-cols-4',
           labelClassName: 'text-sm text-black font-semibold capitalize',
-          inputClassName: 'col-span-full sm:col-span-3'
+          inputClassName: 'col-span-full sm:col-span-3 w-full'
         };
 
         return (
@@ -212,35 +207,47 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                 }
                 required
                 options={[
-                  { id: '0', name: 'Unpublish' },
-                  { id: '1', name: 'Publish' }
+                  { id: '1', name: 'Publish' },
+                  { id: '0', name: 'Unpublish' }
                 ]}
                 styleClasses={styleClasses}
               />
 
-              <div className="flex flex-col sm:flex-row justify-end gap-3">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
-                  type="button"
-                  onClick={() => {
-                    router.push('/specialities');
-                  }}
-                  disabled={loading}
-                >
-                  <Ban className="h-4 w-4" />
-                  <span>Cancel</span>
-                </Button>
-                <Button
-                  disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Save</span>
-                </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
+                <div className="hidden sm:block"></div>
+                <div className="col-span-full sm:col-span-3 flex flex-col sm:flex-row justify-end gap-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setCancelLoading(true);
+                      router.push('/specialities');
+                    }}
+                    disabled={loading || cancelLoading}
+                  >
+                    {cancelLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ban className="h-4 w-4" />
+                    )}
+                    <span>Cancel</span>
+                  </Button>
+                  <Button
+                    disabled={loading || cancelLoading}
+                    size={'sm'}
+                    type="submit"
+                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black cursor-pointer"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>Save</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </Form>

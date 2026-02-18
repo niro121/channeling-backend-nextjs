@@ -5,6 +5,7 @@ import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
     // Check view permission
@@ -136,7 +137,9 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
             userGroupId?: string | null;
             checkedDefaultLocation?: boolean;
             defaultLocation?: string | null;
+            defaultBookingMethod?: number | null;
             userLocationId?: string | null;
+            staffId?: string | null;
             bookingLocationIds?: string[];
         } = {};
 
@@ -148,17 +151,21 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         if (payload.userGroupId !== undefined) updatePayload.userGroupId = payload.userGroupId;
         if (payload.checkedDefaultLocation !== undefined) updatePayload.checkedDefaultLocation = payload.checkedDefaultLocation;
         if (payload.defaultLocation !== undefined) updatePayload.defaultLocation = payload.defaultLocation || null;
+        if (payload.defaultBookingMethod !== undefined) updatePayload.defaultBookingMethod = payload.defaultBookingMethod ?? null;
         if (payload.userLocationId !== undefined) updatePayload.userLocationId = payload.userLocationId || null;
+        if (payload.staffId !== undefined) updatePayload.staffId = payload.staffId ?? null;
         if (payload.bookingLocationIds !== undefined) updatePayload.bookingLocationIds = payload.bookingLocationIds;
 
         const result = await updateOneUser(id, updatePayload)
 
         if (!result.success) {
+            const issues = result.error?.issues ?? {}
+            const message = result.error?.message ?? "Something went wrong. please try again later"
             return {
                 isError: true,
-                errors: result.error?.issues || {
-                    message: result.error?.message ?? "Something went wrong. please try again later"
-                },
+                errors: typeof issues === "object" && issues !== null
+                    ? { ...issues, message }
+                    : { message },
                 data: {}
             };
         }
@@ -294,4 +301,65 @@ export const getLocationOptions = async () => {
       }
     };
   }
+};
+
+// ==== USERS EXPORT ==== //
+export const getUsersExport = async (params: { keyword?: string; userType?: string }) => {
+  try {
+    const response = await getAllUsers({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? "",
+      userType: params.userType
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No users found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getUsersExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};
+
+/** Server action for export: takes keyword, resolves session on server, returns mapped data for ExportWrapper */
+export const getUsersExportData = async (keyword?: string) => {
+  const session = await fetchServerSession();
+  const userListResponse = await getUsersExport({
+    keyword: keyword ?? "",
+    userType: session?.user?.userType?.toString()
+  });
+
+  if (!userListResponse.success || !userListResponse.data?.length) {
+    return {
+      success: false,
+      message: userListResponse.success
+        ? 'No users found'
+        : userListResponse.message
+    };
+  }
+
+  const mappedUsers = userListResponse.data.map((u: any) => ({
+    name: u.name || '-',
+    email: u.email || '-',
+    userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
+    userGroup: u.userGroup?.name || '-',
+    status: u.status === 1 ? 'Active' : 'Inactive'
+  }));
+
+  return {
+    success: true,
+    data: mappedUsers
+  };
 };

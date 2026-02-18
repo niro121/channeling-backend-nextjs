@@ -4,8 +4,8 @@ import prisma from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
 
 export interface UpdateSessionInput {
-  startTime: number;
-  endTime: number;
+  startTime: Date;
+  endTime: Date;
   durationMinutes?: number | null;
   maxPatientNumber: number;
   /** Logged-in user id for updatedBy */

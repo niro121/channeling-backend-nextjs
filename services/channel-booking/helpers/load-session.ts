@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { normalizeSessionTime } from "@/lib/utils"
 import type { Session } from "@/types/booking.dashboard"
 
 /**
@@ -21,14 +22,15 @@ export async function loadSessionForSaveBooking(
     return { session: null, isPast: false }
   }
 
+  const sessionDate = r.date instanceof Date ? r.date : new Date(r.date)
   const session: Session = {
     id: r.id,
     institution: r.institution,
     date: r.date,
     doctorSessionId: r.doctorSessionId,
     previousDoctorSession: r.previousDoctorSession,
-    startTime: r.startTime,
-    endTime: r.endTime,
+    startTime: normalizeSessionTime(r.startTime as Date | number, sessionDate),
+    endTime: normalizeSessionTime(r.endTime as Date | number, sessionDate),
     durationMinutes: r.durationMinutes,
     startingPatientNumber: r.startingPatientNumber,
     maxPatientNumber: r.maxPatientNumber,
@@ -53,16 +55,8 @@ export async function loadSessionForSaveBooking(
     room: r.room ?? undefined,
   }
 
-  const sessionStart = new Date(r.date)
-  sessionStart.setUTCHours(
-    Math.floor(r.startTime / 60),
-    r.startTime % 60,
-    0,
-    0
-  )
-  const startOfToday = new Date()
-  startOfToday.setUTCHours(0, 0, 0, 0)
-  const isPast = sessionStart.getTime() < startOfToday.getTime()
+  const sessionStart = normalizeSessionTime(r.startTime as Date | number, sessionDate)
+  const isPast = sessionStart.getTime() < Date.now()
 
   return { session, isPast }
 }

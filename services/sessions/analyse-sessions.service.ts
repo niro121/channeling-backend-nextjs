@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { normalizeSessionTime, parseSessionDateTime } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 import orderBy from 'lodash/orderBy';
@@ -8,11 +9,6 @@ import { logActivity } from '@/lib/activity-log';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
 import { Fee, SessionInputData } from '@/types/sessions';
 
-/** Parse "YYYY-MM-DD HH:mm" as Sri Lanka time and return unix seconds. */
-function parseSriLankaToUnix(dateStr: string, timeStr: string): number {
-  const iso = `${dateStr}T${timeStr}:00+05:30`;
-  return Math.floor(new Date(iso).getTime() / 1000);
-}
 
 export interface AnalyseSessionsInput {
   fromDate: string;
@@ -86,8 +82,8 @@ export async function analyseSessionsService(
 
             if (applyToDate === compareToDate && m.isSameOrBefore(rangeEnd)) {
               const dateStr = m.format('YYYY-MM-DD');
-              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
-              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
+              const newStartTime = parseSessionDateTime(dateStr, timeString);
+              const newEndTime = parseSessionDateTime(dateStr, endtimeString);
 
               inputData.push({
                 date: dateStr,
@@ -118,8 +114,8 @@ export async function analyseSessionsService(
 
             if (item.dayType === expectedDayType && m.isSameOrBefore(rangeEnd)) {
               const dateStr = m.format('YYYY-MM-DD');
-              const newStartTime = parseSriLankaToUnix(dateStr, timeString);
-              const newEndTime = parseSriLankaToUnix(dateStr, endtimeString);
+              const newStartTime = parseSessionDateTime(dateStr, timeString);
+              const newEndTime = parseSessionDateTime(dateStr, endtimeString);
 
               inputData.push({
                 date: dateStr,
@@ -149,25 +145,28 @@ export async function analyseSessionsService(
       }
 
       if (inputData.length === 0) {
-        const getStartTime = moment(inputs.fromDate).unix();
-        const endEndTime = moment(inputs.toDate).endOf('day').unix();
+        const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
+        const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
 
         const sessiondata = await prisma.session.findMany({
           where: {
             doctorId: inputs.doctorId,
-            startTime: { gte: getStartTime, lte: endEndTime }
+            date: { gte: rangeStart, lte: rangeEnd }
           },
           include: { location: true, doctor: true }
         });
 
         const formattedData = sessiondata.map((item) => {
           const originalSession = schedule.find((s) => s.id === item.doctorSessionId);
+          const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+          const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
+          const endDate = normalizeSessionTime(item.endTime as Date | number, itemDate);
           return {
             ...item,
-            start: moment.unix(item.startTime).toDate(),
-            end: moment.unix(item.endTime).toDate(),
-            startTime: moment.unix(item.startTime).format('LT'),
-            endTime: moment.unix(item.endTime).format('LT'),
+            start: startDate,
+            end: endDate,
+            startTime: moment(startDate).format('LT'),
+            endTime: moment(endDate).format('LT'),
             originalName: originalSession ? originalSession.name : '*** ORIGINAL SESSION DELETED ***',
             branch: item.location?.name || 'N/A'
           };
@@ -188,7 +187,7 @@ export async function analyseSessionsService(
         };
       }
 
-      const sortedInputData = orderBy(inputData, ['startTime'], ['asc']);
+      const sortedInputData = orderBy(inputData, [(v) => v.startTime.getTime()], ['asc']);
 
       // previousDoctorSession stores the previous DoctorSession (schedule) id, not a Session id,
       // so there is no Session→Session creation order dependency; batch create (e.g. createMany) is safe.
@@ -219,8 +218,8 @@ export async function analyseSessionsService(
             date: moment.utc(v.date, 'YYYY-MM-DD').startOf('day').toDate(),
             doctorSessionId: v.doctorSessionId,
             previousDoctorSession: v.previousDoctorSession,
-            startTime: v.startTime,
-            endTime: v.endTime,
+            startTime: v.startTime instanceof Date ? v.startTime : new Date(v.startTime),
+            endTime: v.endTime instanceof Date ? v.endTime : new Date(v.endTime),
             durationMinutes: v.durationMinutes,
             startingPatientNumber: v.startingPatientNumber,
             maxPatientNumber: v.maxPatientNumber,
@@ -310,13 +309,16 @@ export async function analyseSessionsService(
                   },
                 });
               }
+              const sessionDateObj = session.date instanceof Date ? session.date : new Date(session.date);
+              const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDateObj);
+              const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDateObj);
               const formattedSession = {
                 ...session,
                 new: false,
-                start: moment.unix(session.startTime).toDate(),
-                end: moment.unix(session.endTime).toDate(),
-                startTime: moment.unix(session.startTime).format('LT'),
-                endTime: moment.unix(session.endTime).format('LT')
+                start: startDate,
+                end: endDate,
+                startTime: moment(startDate).format('LT'),
+                endTime: moment(endDate).format('LT')
               };
               data.push(formattedSession);
             }
@@ -324,25 +326,28 @@ export async function analyseSessionsService(
         }
       }
 
-      const getStartTime = moment(inputs.fromDate).unix();
-      const endEndTime = moment(inputs.toDate).endOf('day').unix();
+      const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
+      const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
 
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          startTime: { gte: getStartTime, lte: endEndTime }
+          date: { gte: rangeStart, lte: rangeEnd }
         },
         include: { location: true, doctor: true }
       });
 
       const formattedData = sessiondata.map((item) => {
         const originalSession = schedule.find((s) => s.id === item.doctorSessionId);
+        const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+        const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
+        const endDate = normalizeSessionTime(item.endTime as Date | number, itemDate);
         return {
           ...item,
-          start: moment.unix(item.startTime).toDate(),
-          end: moment.unix(item.endTime).toDate(),
-          startTime: moment.unix(item.startTime).format('LT'),
-          endTime: moment.unix(item.endTime).format('LT'),
+          start: startDate,
+          end: endDate,
+          startTime: moment(startDate).format('LT'),
+          endTime: moment(endDate).format('LT'),
           originalName: originalSession ? originalSession.name : '*** ORIGINAL SESSION DELETED ***',
           branch: item.location?.name || 'N/A'
         };
@@ -358,26 +363,31 @@ export async function analyseSessionsService(
         schedulesFound: schedule.length
       };
     } else {
-      const getStartTime = moment(inputs.fromDate).unix();
-      const endEndTime = moment(inputs.toDate).endOf('day').unix();
+      const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
+      const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
 
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          startTime: { gte: getStartTime, lte: endEndTime }
+          date: { gte: rangeStart, lte: rangeEnd }
         },
         include: { location: true, doctor: true }
       });
 
-      const formattedData = sessiondata.map((item) => ({
-        ...item,
-        start: moment.unix(item.startTime).toDate(),
-        end: moment.unix(item.endTime).toDate(),
-        startTime: moment.unix(item.startTime).format('LT'),
-        endTime: moment.unix(item.endTime).format('LT'),
-        originalName: '*** ORIGINAL SESSION DELETED ***',
-        branch: item.location?.name || 'N/A'
-      }));
+      const formattedData = sessiondata.map((item) => {
+        const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+        const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
+        const endDate = normalizeSessionTime(item.endTime as Date | number, itemDate);
+        return {
+          ...item,
+          start: startDate,
+          end: endDate,
+          startTime: moment(startDate).format('LT'),
+          endTime: moment(endDate).format('LT'),
+          originalName: '*** ORIGINAL SESSION DELETED ***',
+          branch: item.location?.name || 'N/A'
+        };
+      });
 
       const sortedData = orderBy(formattedData, ['date', 'startTime'], ['asc']);
       const resolvedData = await resolveUsersHelper(sortedData);

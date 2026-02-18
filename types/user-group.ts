@@ -45,10 +45,21 @@ export type GetUserGroupsReturn = {
   totalRecords: number;
 };
 
+// Resource with optional single-action display (e.g. only "Change Date" instead of View/Add/Edit/Delete)
+export type ResourceWithOptionalActions = {
+  id: string
+  name: string
+  /** If set, only these actions are shown in the User Group form for this resource. */
+  actions?: readonly PermissionAction[]
+  /** Custom labels for actions (e.g. view → "Change Date"). */
+  actionLabels?: Partial<Record<PermissionAction, string>>
+}
+
 // Available resources in the system
-export const RESOURCES = [
+export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "users", name: "Users" },
   { id: "channel-booking", name: "Channel Booking" },
+  { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   { id: "shift", name: "Shift (Channel Booking)" },
   { id: "doctors", name: "Doctors" },
   { id: "doctor-sessions", name: "Doctor Sessions" },
@@ -62,7 +73,10 @@ export const RESOURCES = [
   { id: "agency-books", name: "Agency Books" },
   { id: "agencies", name: "Agencies" },
   { id: "discounts", name: "Discounts" },
-] as const;
+  { id: "doctor-leaves", name: "Doctor Leave" },
+  { id: "sms-playground", name: "SMS Playground" },
+  { id: "reports", name: "Reports" },
+];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [
   { id: "view", name: "View", description: "View list" },

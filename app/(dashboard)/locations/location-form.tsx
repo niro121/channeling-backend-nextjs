@@ -41,7 +41,7 @@ export default function LocationForm({
     addressLine1: location?.addressLine1 ?? '',
     addressLine2: location?.addressLine2 ?? '',
     city: location?.city ?? '',
-    status: location?.status ?? 0,
+    status: location?.status ?? 1,
     branchType: location?.branchType ? String(location?.branchType) : ''
   };
 

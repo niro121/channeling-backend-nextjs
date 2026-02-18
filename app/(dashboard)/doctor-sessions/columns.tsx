@@ -13,6 +13,13 @@ import moment from 'moment';
 import { DoctorSessionRecordActions } from './record-actions';
 import Link from 'next/link';
 
+function formatSessionFee(value: number | string | null | undefined): string {
+  if (value == null || value === '') return '-';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '-';
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
     id: 'select',
@@ -41,10 +48,7 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
     id: 'doctorSession',
     header: 'Doctor Session',
     cell: ({ row }) => {
-      const { name, startTime, dayType, id } = row.original;
-
-      const time = moment(startTime).format('hh.mm A');
-      const day = DAY_TYPES[dayType] ?? '';
+      const { name, id } = row.original;
 
       return (
         <div className="max-w-48 truncate">
@@ -52,7 +56,7 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
             href={`/doctor-sessions/${id}/edit`}
             className="font-medium text-primary hover:underline"
           >
-            {name} {time} ({day.name})
+            {name}
           </Link>
         </div>
       );
@@ -60,45 +64,49 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   },
 
   {
-    accessorKey: 'startTime',
-    header: 'Start Time',
-    cell: ({ row }) => moment(row.original.startTime).format('hh.mm A')
+    id: 'startEndTime',
+    header: 'Start – End Time',
+    cell: ({ row }) => {
+      const start = row.original.startTime ? moment(row.original.startTime).format('hh.mm A') : '-';
+      const end = row.original.endTime ? moment(row.original.endTime).format('hh.mm A') : '-';
+      return <span className="whitespace-nowrap">{start} – {end}</span>;
+    }
   },
 
   {
-    accessorKey: 'endTime',
-    header: 'End Time',
-    cell: ({ row }) => moment(row.original.endTime).format('hh.mm A')
-  },
-
-  {
-    accessorKey: 'amountLocal',
-    header: 'Session Value (Local)'
-  },
-
-  {
-    accessorKey: 'amountForeign',
-    header: 'Session Value (Foreign)'
+    id: 'sessionValue',
+    header: () => <div className="text-right">Session Value</div>,
+    cell: ({ row }) => (
+      <div className="text-right whitespace-nowrap">
+        <div><span className="text-muted-foreground">Local:</span> {formatSessionFee(row.original.amountLocal)}</div>
+        <div><span className="text-muted-foreground">Foreign:</span> {formatSessionFee(row.original.amountForeign)}</div>
+      </div>
+    )
   },
 
   {
     id: 'patientNumber',
-    header: 'Patient Number',
+    header: () => <div className="text-right">Patient Number</div>,
     cell: ({ row }) => {
       const { startingPatientNumber, maxPatientNumber } = row.original;
-      return `${startingPatientNumber} - ${maxPatientNumber}`;
+      return (
+        <div className="text-right">
+          {startingPatientNumber} - {maxPatientNumber}
+        </div>
+      );
     }
   },
 
   {
     id: 'locationDepartmentInstitution',
     header: 'Location / Department / Institution',
+    size: 280,
     cell: ({ row }) => {
       const { location, department, institution } = row.original;
       const institutionName = INSTITUTION_OPTIONS[institution] ?? { name: '' };
 
       return (
-        <div className="max-w-64 truncate">
+        <div className="min-w-[220px] max-w-[320px]">
           {location?.name ?? '-'} / {department?.name ?? '-'} /{' '}
           {institutionName.name ?? '-'}
         </div>
@@ -114,7 +122,7 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
     accessorKey: 'updatedAt',
     header: 'Updated Date',
-    cell: ({ row }) => moment(row.getValue('updatedAt')).format('DD/MM/YYYY')
+    cell: ({ row }) => moment(row.getValue('updatedAt')).format('DD/MM/YYYY hh.mm A')
   },
 
   {
@@ -125,33 +133,39 @@ export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [
   {
     accessorKey: 'createdAt',
     header: 'Created Date',
-    cell: ({ row }) => moment(row.getValue('createdAt')).format('DD/MM/YYYY')
+    cell: ({ row }) => moment(row.getValue('createdAt')).format('DD/MM/YYYY hh.mm A')
   },
 
   {
     accessorKey: 'status',
-    header: 'Published',
+    header: () => <div className="text-center">Published</div>,
     cell: ({ row }) => {
       const status = row.getValue('status') as number;
       const isActive = status === 1;
       return (
-        <Badge
-          variant={isActive ? 'default' : 'secondary'}
-          className={
-            isActive
-              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
-              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
-          }
-        >
-          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {isActive ? 'Published' : 'Unpublished'}
-        </Badge>
+        <div className="text-center">
+          <Badge
+            variant={isActive ? 'default' : 'secondary'}
+            className={
+              isActive
+                ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+                : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+            }
+          >
+            {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+            {isActive ? 'Published' : 'Unpublished'}
+          </Badge>
+        </div>
       );
     }
   },
   {
     id: 'actions',
-    header: () => <div className="text-right">Actions</div>,
-    cell: ({ row }) => <DoctorSessionRecordActions row={row} />
+    header: () => <div className="text-center">Actions</div>,
+    cell: ({ row }) => (
+      <div className="text-center">
+        <DoctorSessionRecordActions row={row} />
+      </div>
+    )
   }
 ];

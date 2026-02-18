@@ -1,24 +1,25 @@
 import prisma from "@/lib/prisma"
+import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
   loadSessionForSaveBooking,
-  // checkConsecutiveSessionFull,
+  checkConsecutiveSessionFull,
   getProcessedDiscount,
   getRefundFeeTypes,
-  verifyAgencyReference,
+  verifyAgencyReferenceWithReason,
   getAgentBalance,
   getBookingForSaveBooking,
   getNextSequenceNumber,
+  updateAgentBalance,
+  validateVoucherForDiscount,
 } from "./helpers"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
   | { success: false; errorCode: SaveBookingErrorCode; message: string }
 
-/**
- * Save booking: validate, run business rules, create booking, return full booking.
- * Does not create receipt, update agency balance, or send SMS (phase 2).
- */
+/** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
+const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
 export async function saveBookingService(
   input: SaveBookingInput,
   userId: string | null
@@ -37,21 +38,21 @@ export async function saveBookingService(
     return {
       success: false,
       errorCode: "server_error",
-      message: "Cannot book past session.",
+      message: "Cannot Book Past Sessions.",
     }
   }
 
-  // Temporarily disabled: consecutive session rule
-  // if (session.previousDoctorSession) {
-  //   const previousFull = await checkConsecutiveSessionFull(sessionId)
-  //   if (!previousFull) {
-  //     return {
-  //       success: false,
-  //       errorCode: "previousessionfill",
-  //       message: "Previous Consecutive Sessions is not Full.",
-  //     }
-  //   }
-  // }
+  // Consecutive session rule: if this session has a previous session, it must be full before booking here
+  if (session.previousDoctorSession) {
+    const previousFull = await checkConsecutiveSessionFull(sessionId)
+    if (!previousFull) {
+      return {
+        success: false,
+        errorCode: "previousessionfill",
+        message: "Previous session must be filled first before booking here.",
+      }
+    }
+  }
 
   let totalDiscount = 0
   let hospitalFeeDiscount = 0
@@ -80,6 +81,31 @@ export async function saveBookingService(
   }
 
   if (input.discount_type) {
+    const discountRecord = await prisma.discount.findUnique({
+      where: { id: input.discount_type },
+      select: { isVoucher: true },
+    })
+    if (discountRecord?.isVoucher === 1) {
+      const voucherCode = (input.voucher_code ?? "").trim()
+      if (!voucherCode) {
+        return {
+          success: false,
+          errorCode: "discountError",
+          message: "Voucher code is required for this discount scheme.",
+        }
+      }
+      const voucherValidation = await validateVoucherForDiscount(
+        voucherCode,
+        input.discount_type
+      )
+      if (!voucherValidation.valid) {
+        return {
+          success: false,
+          errorCode: "discountError",
+          message: voucherValidation.message ?? "Invalid voucher code.",
+        }
+      }
+    }
     const result = await getProcessedDiscount(
       input.discount_type,
       input.payment_method,
@@ -114,13 +140,13 @@ export async function saveBookingService(
   )
 
   if (input.agency?.id) {
-    const ref = (input.agency_ref ?? "").toUpperCase()
-    const refError = await verifyAgencyReference(ref, input.agency.id)
-    if (refError) {
+    const ref = (input.agency_ref ?? "").toUpperCase().trim()
+    const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
+    if (!refResult.valid) {
       return {
         success: false,
         errorCode: "agencyRefError",
-        message: "Agency Reference Error.",
+        message: refResult.reason ?? "Agency Reference Error.",
       }
     }
     const agency = await prisma.agency.findUnique({
@@ -154,12 +180,11 @@ export async function saveBookingService(
   }
   const appointmentNo = appointmentResult.value
 
-  const sessionDate = new Date(session.date)
-  sessionDate.setUTCHours(0, 0, 0, 0)
-  const sessionStartTime =
-    Math.floor(sessionDate.getTime() / 1000) + session.startTime * 60
-  const sessionEndTime =
-    Math.floor(sessionDate.getTime() / 1000) + session.endTime * 60
+  const sessionDate = session.date instanceof Date ? session.date : new Date(session.date)
+  const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDate)
+  const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDate)
+  const sessionStartTime = Math.floor(startDate.getTime() / 1000)
+  const sessionEndTime = Math.floor(endDate.getTime() / 1000)
 
   const discountDivision = {
     hospital_fee_discount: hospitalFeeDiscount,
@@ -212,6 +237,60 @@ export async function saveBookingService(
       where: { id: sessionId },
       data: { appointmentNo },
     })
+
+    if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+      const receiptAmount = Math.round(Number(input.amount) - totalDiscount)
+      const scopeKey = `receipt:${booking.locationId ?? "global"}`
+      const seqResult = await getNextSequenceNumber(scopeKey)
+      if (seqResult.success) {
+        const receiptNo = seqResult.value
+        const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+        const remarks =
+          input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+        try {
+          const newReceipt = await prisma.receipt.create({
+            data: {
+              receiptNo,
+              receiptNoString,
+              paymentMethod: input.payment_type,
+              amount: receiptAmount,
+              bank: input.bank?.name ?? "",
+              bankId: input.bank?.id ?? null,
+              cardReference: input.card ?? "",
+              slipReference: input.slip_ref ?? "",
+              remarks,
+              type: 1,
+              method: 1,
+              whd: 0,
+              whdPercentage: 0,
+              bookingId: booking.id,
+              agencyId: input.agency?.id ?? null,
+              createdBy: userId,
+              locationId: booking.locationId ?? null,
+              userLocationId: null,
+            },
+          })
+          if (input.agency?.id) {
+            await updateAgentBalance(input.agency.id, -receiptAmount)
+          }
+          await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 1,
+              receiptNo: newReceipt.receiptNo,
+              receiptNoString: newReceipt.receiptNoString,
+              receiptPaymentMethod: input.payment_type,
+              receiptNoCreatedAt: newReceipt.createdAt,
+              receiptNoId: newReceipt.id,
+              updatedBy: userId,
+            },
+          })
+        } catch (receiptErr) {
+          console.error("saveBookingService receipt create error", receiptErr)
+          // Booking remains status 0 (pending)
+        }
+      }
+    }
 
     const fullBooking = await getBookingForSaveBooking(booking.id)
     return { success: true, data: fullBooking }

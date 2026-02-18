@@ -21,7 +21,7 @@ export function AddBtn({
       <Button
         onClick={() => setDialogOpen(true)}
         size="sm"
-        className="gap-1.5 h-9"
+        className="gap-1.5 h-9 cursor-pointer"
       >
         <Plus className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">

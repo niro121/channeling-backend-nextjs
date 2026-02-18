@@ -15,7 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import moment from 'moment';
-import Link from 'next/link';
 import { DoctorSessionRecordActions } from './record-actions';
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
 import { useToast } from '@/components/hooks/use-toast';
@@ -30,9 +29,99 @@ type SessionRecord = DoctorSession & {
   updatedUser?: { name?: string } | null;
 };
 
+function DoctorSessionRow({
+  row,
+  rowSelection,
+  toggleRow,
+  getInstitutionName
+}: {
+  row: SessionRecord;
+  rowSelection: Record<string, boolean>;
+  toggleRow: (id: string) => void;
+  getInstitutionName: (institution: number) => string;
+}) {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  return (
+    <TableRow data-state={rowSelection[row.id!] && 'selected'}>
+      <TableCell>
+        <Checkbox
+          checked={!!row.id && !!rowSelection[row.id]}
+          onCheckedChange={() => row.id && toggleRow(row.id)}
+          aria-label="Select row"
+        />
+      </TableCell>
+      <TableCell>
+        <button
+          type="button"
+          onClick={() => setEditDialogOpen(true)}
+          className="font-medium text-primary hover:underline underline-offset-2 text-left cursor-pointer"
+        >
+          {row.name}
+        </button>
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        {row.startTime ? moment(row.startTime).format('hh.mm A') : '-'}
+        {' – '}
+        {row.endTime ? moment(row.endTime).format('hh.mm A') : '-'}
+      </TableCell>
+      <TableCell className="text-right whitespace-nowrap">
+        <div><span className="text-muted-foreground">Local:</span> {formatFee(row.amountLocal)}</div>
+        <div><span className="text-muted-foreground">Foreign:</span> {formatFee(row.amountForeign)}</div>
+      </TableCell>
+      <TableCell className="text-right">
+        {row.startingPatientNumber} - {row.maxPatientNumber}
+      </TableCell>
+      <TableCell className="min-w-[220px] max-w-[320px]">
+        {row.location?.name ?? '-'} / {row.department?.name ?? '-'} / {getInstitutionName(row.institution)}
+      </TableCell>
+      <TableCell>
+        <div>
+          <span className="text-muted-foreground">Created:</span> {row.createdUser?.name ?? '-'}
+          {row.createdAt != null && (
+            <span className="block text-muted-foreground">{moment(row.createdAt).format('DD/MM/YYYY hh.mm A')}</span>
+          )}
+        </div>
+        <div>
+          <span className="text-muted-foreground">Updated:</span> {row.updatedUser?.name ?? '-'}
+          {row.updatedAt != null && (
+            <span className="block text-muted-foreground">{moment(row.updatedAt).format('DD/MM/YYYY hh.mm A')}</span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-center">
+        <Badge
+          variant={row.status === 1 ? 'default' : 'secondary'}
+          className={
+            row.status === 1
+              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+          }
+        >
+          {row.status === 1 ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {row.status === 1 ? 'Published' : 'Unpublished'}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-center">
+        <DoctorSessionRecordActions
+          row={{ original: row } as any}
+          controlledEditOpen={editDialogOpen}
+          onControlledEditOpenChange={setEditDialogOpen}
+        />
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function getInstitutionName(institution: number): string {
   const opt = INSTITUTION_OPTIONS[institution];
   return opt?.name ?? '';
+}
+
+function formatFee(value: number | string | null | undefined): string {
+  if (value == null || value === '') return '-';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '-';
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function DoctorSessionsGroupedList({
@@ -133,7 +222,7 @@ export default function DoctorSessionsGroupedList({
               <div className="bg-muted/50 px-4 py-2 font-semibold text-sm">
                 {dayLabel}
               </div>
-              <Table>
+              <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -151,61 +240,24 @@ export default function DoctorSessionsGroupedList({
                       />
                     </TableHead>
                     <TableHead>Doctor Session</TableHead>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>End Time</TableHead>
-                    <TableHead>Session Value (Local)</TableHead>
-                    <TableHead>Session Value (Foreign)</TableHead>
-                    <TableHead>Patient Number</TableHead>
-                    <TableHead>Location / Department / Institution</TableHead>
-                    <TableHead>Published</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Start – End Time</TableHead>
+                    <TableHead className="text-right">Session Value</TableHead>
+                    <TableHead className="text-right">Patient Number</TableHead>
+                    <TableHead className="min-w-[220px] max-w-[320px]">Location / Department / Institution</TableHead>
+                    <TableHead>Created / Updated</TableHead>
+                    <TableHead className="text-center">Published</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {list.map((row) => (
-                    <TableRow key={row.id} data-state={rowSelection[row.id!] && 'selected'}>
-                      <TableCell>
-                        <Checkbox
-                          checked={!!row.id && !!rowSelection[row.id]}
-                          onCheckedChange={() => row.id && toggleRow(row.id)}
-                          aria-label="Select row"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/doctor-sessions/${row.id}/edit`}
-                          className="cursor-pointer hover:text-blue-700 transition duration-75"
-                        >
-                          {row.name} {row.startTime && moment(row.startTime).format('hh.mm A')}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{row.startTime ? moment(row.startTime).format('hh.mm A') : '-'}</TableCell>
-                      <TableCell>{row.endTime ? moment(row.endTime).format('hh.mm A') : '-'}</TableCell>
-                      <TableCell>{row.amountLocal ?? '-'}</TableCell>
-                      <TableCell>{row.amountForeign ?? '-'}</TableCell>
-                      <TableCell>
-                        {row.startingPatientNumber} - {row.maxPatientNumber}
-                      </TableCell>
-                      <TableCell className="max-w-64 truncate">
-                        {row.location?.name ?? '-'} / {row.department?.name ?? '-'} / {getInstitutionName(row.institution)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={row.status === 1 ? 'default' : 'secondary'}
-                          className={
-                            row.status === 1
-                              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
-                              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
-                          }
-                        >
-                          {row.status === 1 ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                          {row.status === 1 ? 'Published' : 'Unpublished'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DoctorSessionRecordActions row={{ original: row } as any} />
-                      </TableCell>
-                    </TableRow>
+                    <DoctorSessionRow
+                      key={row.id}
+                      row={row}
+                      rowSelection={rowSelection}
+                      toggleRow={toggleRow}
+                      getInstitutionName={getInstitutionName}
+                    />
                   ))}
                 </TableBody>
               </Table>

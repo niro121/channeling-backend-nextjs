@@ -7,7 +7,8 @@ import type {
   ReceiptRowView,
 } from "@/services/channel-booking/get-booking-details.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
-import { Printer } from "lucide-react"
+import { ChevronDown, ChevronRight, Printer } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -70,15 +71,27 @@ export function BookingTab() {
   const [details, setDetails] = useState<BookingDetailsView | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [discountExpanded, setDiscountExpanded] = useState(false)
+  const [agentExpanded, setAgentExpanded] = useState(false)
+  const [otherExpanded, setOtherExpanded] = useState(false)
+  const [receiptsExpanded, setReceiptsExpanded] = useState(false)
 
   useEffect(() => {
     if (!selectedBooking?.id) {
       setDetails(null)
       setError(null)
+      setDiscountExpanded(false)
+      setAgentExpanded(false)
+      setOtherExpanded(false)
+      setReceiptsExpanded(false)
       return
     }
     setLoading(true)
     setError(null)
+    setDiscountExpanded(false)
+    setAgentExpanded(false)
+    setOtherExpanded(false)
+    setReceiptsExpanded(false)
     getBookingDetails(selectedBooking.id)
       .then((res) => {
         if (res.success && res.data) {
@@ -147,28 +160,196 @@ export function BookingTab() {
           <Row label="Discount" value={formatRs(details.discount)} />
         </Section>
       </div>
-      {/* Secondary: other details at bottom */}
-      <Section title="Other" muted>
-        <div className="space-y-0">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0">
-            <Row label="Remark" value={details.remark || "—"} />
-            <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
-            <Row label="Agent Ref." value={details.agentRef} />
-            <Row label="Referred By" value={details.referredBy || "—"} />
-          </div>
-          <Row label="Billed By" value={details.billedBy} />
-        </div>
-      </Section>
 
-      {/* Receipts: 2-card condensed layout; refunds in red */}
-      {details.receipts?.length ? (
-        <Section title="Receipts" muted>
-          <div className="grid grid-cols-2 gap-2">
-            {details.receipts.map((r) => (
-              <ReceiptCard key={r.id} row={r} formatRs={formatRs} />
-            ))}
+      {/* Discount: compact summary with expand for details */}
+      {details.discountInfo && (details.discountInfo.total > 0 || details.discountInfo.manualSchemeName || details.discountInfo.autoSchemeName) && (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+            Discount
+          </h3>
+          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setDiscountExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+              )}
+            >
+              {discountExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span className="text-[11px] text-muted-foreground shrink-0">Total</span>
+              <span className="text-xs font-medium text-foreground min-w-0 truncate">
+                {formatRs(details.discountInfo.total)}
+              </span>
+              {(details.discountInfo.autoSchemeName || details.discountInfo.manualSchemeName) && (
+                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                  {[details.discountInfo.autoSchemeName, details.discountInfo.manualSchemeName]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </button>
+            {discountExpanded && (
+              <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+                {details.discountInfo.autoSchemeName && (
+                  <Row label="Auto scheme" value={details.discountInfo.autoSchemeName} />
+                )}
+                {details.discountInfo.manualSchemeName && (
+                  <Row label="Manual scheme" value={details.discountInfo.manualSchemeName} />
+                )}
+                {(details.discountInfo.hospitalFeeDiscount > 0 ||
+                  details.discountInfo.professionalFeeDiscount > 0 ||
+                  details.discountInfo.otherDiscount > 0) && (
+                  <>
+                    {details.discountInfo.hospitalFeeDiscount > 0 && (
+                      <Row label="Hospital fee" value={formatRs(details.discountInfo.hospitalFeeDiscount)} />
+                    )}
+                    {details.discountInfo.professionalFeeDiscount > 0 && (
+                      <Row label="Professional fee" value={formatRs(details.discountInfo.professionalFeeDiscount)} />
+                    )}
+                    {details.discountInfo.otherDiscount > 0 && (
+                      <Row label="Other" value={formatRs(details.discountInfo.otherDiscount)} />
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        </Section>
+        </div>
+      )}
+
+      {/* Agent: compact summary with expand for details (when booking is via Agent) */}
+      {details.agentInfo && (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+            Agent
+          </h3>
+          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setAgentExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+              )}
+            >
+              {agentExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span className="text-[11px] text-muted-foreground shrink-0">Agent</span>
+              <span className="text-xs font-medium text-foreground min-w-0 truncate">
+                {details.agentInfo.agencyCode
+                  ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})`
+                  : details.agentInfo.agencyName}
+              </span>
+              {!agentExpanded && details.agentInfo.agencyRef && (
+                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                  REF: {details.agentInfo.agencyRef}
+                </span>
+              )}
+            </button>
+            {agentExpanded && (
+              <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+                <Row label="REF NO." value={details.agentInfo.agencyRef || "—"} />
+                {details.agentInfo.bookNumber && (
+                  <Row label="Book No." value={details.agentInfo.bookNumber} />
+                )}
+                <Row
+                  label="Agent"
+                  value={details.agentInfo.agencyCode ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})` : details.agentInfo.agencyName}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Other: compact summary with expand for details */}
+      <div className="space-y-1.5">
+        <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+          Other
+        </h3>
+        <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setOtherExpanded((e) => !e)}
+            className={cn(
+              "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+              "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+            )}
+          >
+            {otherExpanded ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="text-[11px] text-muted-foreground shrink-0">Remark · Foreigner · Agent · Referred · Billed by</span>
+            {!otherExpanded && (
+              <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                {details.remark?.trim() ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}` : details.foreigner ? "Foreigner" : details.agentRef !== "-" ? "Agent" : "—"}
+              </span>
+            )}
+          </button>
+          {otherExpanded && (
+            <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0">
+                <Row label="Remark" value={details.remark || "—"} />
+                <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
+                <Row label="Agent Ref." value={details.agentRef} />
+                <Row label="Referred By" value={details.referredBy || "—"} />
+              </div>
+              <Row label="Billed By" value={details.billedBy} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Receipts: compact summary with expand for cards */}
+      {details.receipts?.length ? (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+            Receipts
+          </h3>
+          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setReceiptsExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+              )}
+            >
+              {receiptsExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {details.receipts.length} receipt{details.receipts.length !== 1 ? "s" : ""}
+              </span>
+              {!receiptsExpanded && (
+                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                  {details.receipts.map((r) => `${r.type}: ${r.receiptNoString}`).join(" · ")}
+                </span>
+              )}
+            </button>
+            {receiptsExpanded && (
+              <div className="border-t border-border/40 p-2 bg-muted/5">
+                <div className="grid grid-cols-2 gap-2">
+                  {details.receipts.map((r) => (
+                    <ReceiptCard key={r.id} row={r} formatRs={formatRs} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       ) : null}
     </div>
   )
