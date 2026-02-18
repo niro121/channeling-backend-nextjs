@@ -8,6 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import DoctorSessionForm from '../../doctor-session-form';
 import {
   getDepartmentOptions,
+  getAllDoctorSessions,
   getDoctorSessionById,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
@@ -39,6 +40,14 @@ export default async function EditDoctorSessionPage({ params }: PageProps) {
   const departmentOptions = await getDepartmentOptions();
   const locationOptions = await getLocationOptions();
   const doctorId = (data.doctorId ?? data.doctor?.id) ?? '';
+  const { data: doctorSessionsList } = await getAllDoctorSessions({
+    doctorId,
+    page: '0',
+    limit: '1000'
+  });
+  const doctorSessionsForPreviousDropdown = (doctorSessionsList ?? []).map(
+    (s: { id: string; name: string }) => ({ id: s.id, name: s.name })
+  );
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -58,6 +67,7 @@ export default async function EditDoctorSessionPage({ params }: PageProps) {
         <DoctorSessionForm
           doctorId={doctorId}
           doctorSession={data}
+          doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
           institutionOptions={INSTITUTION_OPTIONS}
           departmentOptions={departmentOptions.data}
           locationOptions={locationOptions.data}

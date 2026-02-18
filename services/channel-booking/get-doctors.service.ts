@@ -21,16 +21,11 @@ export async function getDoctorsForChannelBookingService(): Promise<{
   error?: { message?: string }
 }> {
   try {
-    const start = Date.now()
     const records = await prisma.doctor.findMany({
       where: { status: 1 },
       orderBy: { name: "asc" },
       select: { id: true, title: true, name: true, specialityId: true },
     })
-    const ms = Date.now() - start
-    if (process.env.NODE_ENV !== "test") {
-      console.log(`[channel-booking] getDoctorsForChannelBooking: ${ms}ms (${records.length} rows)`)
-    }
 
     const data: ChannelBookingDoctorOption[] = records
       .filter((r) => r.id)

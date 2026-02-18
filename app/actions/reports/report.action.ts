@@ -12,6 +12,7 @@ import {
   ExportDoctorArrivalsData,
   ExportChannelAgentReferenceBookData
 } from '@/types/report';
+import { normalizeSessionTime } from '@/lib/utils';
 import { requirePermission } from '@/lib/server-permissions';
 import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 import { Doctor } from '@/types/doctor';
@@ -253,26 +254,10 @@ export const exportDoctorArrivalsReportData = async (
 
     const mappedSessions: ExportDoctorArrivalsData[] = result.data.map((session: Session) => {
       const sessionDate = session.date instanceof Date ? session.date : new Date(session.date);
-      
-      // startTime and endTime are in minutes from midnight
-      const startTimeMinutes = Number(session.startTime) || 0;
-      const endTimeMinutes = Number(session.endTime) || 0;
-      
-      // Convert minutes to hours and minutes
-      const startHours = Math.floor(startTimeMinutes / 60);
-      const startMinutes = startTimeMinutes % 60;
-      const endHours = Math.floor(endTimeMinutes / 60);
-      const endMinutes = endTimeMinutes % 60;
-      
-      // Create Date objects for formatting (using session date as base)
-      const startTime = new Date(sessionDate);
-      startTime.setHours(startHours, startMinutes, 0, 0);
-      const endTime = new Date(sessionDate);
-      endTime.setHours(endHours, endMinutes, 0, 0);
-      
-      // Format as 12-hour time with AM/PM
-      const startTimeStr = moment(startTime).format('h:mm A');
-      const endTimeStr = moment(endTime).format('h:mm A');
+      const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDate);
+      const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDate);
+      const startTimeStr = moment(startDate).format('h:mm A');
+      const endTimeStr = moment(endDate).format('h:mm A');
       
       return {
         consultantName: formatDoctorName(session.doctor),

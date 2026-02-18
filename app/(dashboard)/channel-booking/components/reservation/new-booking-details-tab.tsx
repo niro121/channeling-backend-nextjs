@@ -6,11 +6,12 @@ import {
   getBookingsBySession,
   saveBookingAction,
   getAgencyBooksByAgencyForChannelBooking,
+  validateVoucherAction,
 } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
 import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/get-agency-books-by-agency.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/get-discounts-for-booking.service"
-import { useChannelBooking } from "../../context/channel-booking-context"
+import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
 import { getPaymentMethodAndType } from "@/types/save-booking"
@@ -89,11 +90,17 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
 export function NewBookingDetailsTab() {
-  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings } = useChannelBooking()
+  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId } = useChannelBooking()
   const { toast } = useToast()
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
+  const [voucherCode, setVoucherCode] = useState("")
+  const [voucherValid, setVoucherValid] = useState<boolean | null>(null)
+  const [voucherValidationMessage, setVoucherValidationMessage] = useState<string>("")
+  const [voucherValidating, setVoucherValidating] = useState(false)
+  /** Incremented on successful save so discount Select remounts and shows placeholder. */
+  const [formResetKey, setFormResetKey] = useState(0)
   const [foreigner, setForeigner] = useState(false)
   const [titleId, setTitleId] = useState<string>("")
   const [patientName, setPatientName] = useState("")
@@ -137,11 +144,13 @@ export function NewBookingDetailsTab() {
   const phoneError = !!invalidFields.phone
   const areaError = !!invalidFields.area
   const agencyError = !!invalidFields.agency
+  const agencyBookError = !!invalidFields.agency_book
   const agencyRefError = !!invalidFields.agency_ref
   const staffError = !!invalidFields.staff
   const bankError = !!invalidFields.bank
   const cardError = !!invalidFields.card
   const slipRefError = !!invalidFields.slip_ref
+  const voucherError = !!invalidFields.voucher_code
   const errorClass = "border-red-500 focus-visible:ring-red-500"
 
   const isAgent = paymentMethodId === "2"
@@ -149,6 +158,7 @@ export function NewBookingDetailsTab() {
   const isCard = paymentMethodId === "4"
   const isSlip = paymentMethodId === "5"
   const selectedAgency = agencies.find((a) => a.id === agencyId)
+  const selectedAgencyBook = agencyBooks.find((b) => b.id === agencyBookId)
   const selectedBank = banks.find((b) => b.id === bankId)
   const selectedStaff = staffOptions.find((s) => s.id === staffId)
 
@@ -180,6 +190,7 @@ export function NewBookingDetailsTab() {
   const manualDiscount = discountSchemeId
     ? discounts.find((d) => d.id === discountSchemeId)
     : null
+  const isVoucherScheme = manualDiscount?.isVoucher === 1
   const discountsToApply = useMemo(() => {
     const list: DiscountForBookingOption[] = []
     if (firstAutoDiscount) list.push(firstAutoDiscount)
@@ -208,7 +219,7 @@ export function NewBookingDetailsTab() {
     }
   }, [initialDataLoading, initialData?.defaultBookingMethod])
 
-  // Reset reservation form whenever session, doctor, or specialty changes
+  // Reset reservation form whenever session, doctor, specialty, or reservation details change (including when reservation is cleared)
   useEffect(() => {
     const defaultId = initialData?.defaultBookingMethod
     setPaymentMethodId(
@@ -217,6 +228,9 @@ export function NewBookingDetailsTab() {
         : "0"
     )
     setDiscountSchemeId("")
+    setVoucherCode("")
+    setVoucherValid(null)
+    setVoucherValidationMessage("")
     setForeigner(false)
     setTitleId("")
     setPatientName("")
@@ -233,8 +247,9 @@ export function NewBookingDetailsTab() {
     setCardLast4("")
     setSlipRef("")
     setAgencyBooks([])
+    setSelectedAgencyId(null)
     setInvalidFields({})
-  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId])
+  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId])
 
   // Reset booking-type–specific fields when payment method changes
   useEffect(() => {
@@ -246,7 +261,8 @@ export function NewBookingDetailsTab() {
     setCardLast4("")
     setSlipRef("")
     setAgencyBooks([])
-  }, [paymentMethodId])
+    setSelectedAgencyId(null)
+  }, [paymentMethodId, setSelectedAgencyId])
 
   // Fetch agency books when Agency is selected (Agent = id 2)
   const fetchAgencyBooks = useCallback(async (agencyId: string) => {
@@ -307,6 +323,7 @@ export function NewBookingDetailsTab() {
     const typeErrors: Record<string, boolean> = {}
     if (isAgent) {
       if (!agencyId || !selectedAgency) typeErrors.agency = true
+      if (!agencyBookId || !selectedAgencyBook) typeErrors.agency_book = true
       if (!agencyRef.trim()) typeErrors.agency_ref = true
     }
     if (isStaff && !staffId) typeErrors.staff = true
@@ -319,12 +336,21 @@ export function NewBookingDetailsTab() {
       if (!slipRef.trim()) typeErrors.slip_ref = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
+    if (isVoucherScheme && !voucherCode.trim()) {
+      setInvalidFields((prev) => ({ ...prev, voucher_code: true }))
+      toast({
+        title: "Voucher required",
+        description: "Please enter the voucher code for this discount scheme.",
+        variant: "destructive",
+      })
+      return
+    }
     if (Object.keys(typeErrors).length > 0) {
       setInvalidFields(typeErrors)
       toast({
         title: "Booking type required",
         description: isAgent
-          ? "Please select Agency and enter REF NO."
+          ? "Please select Agency, select a Book, and enter REF NO. (2 digits)."
           : isStaff
             ? "Please select Staff Member."
             : isCard
@@ -360,8 +386,11 @@ export function NewBookingDetailsTab() {
         discount: computedDiscountAmount,
         auto_discount_type: firstAutoDiscount?.id ?? undefined,
         discount_type: discountSchemeId ? discountSchemeId : undefined,
+        voucher_code: isVoucherScheme ? voucherCode.trim().toUpperCase() : undefined,
         agency: isAgent && selectedAgency ? { id: selectedAgency.id } : undefined,
-        agency_ref: isAgent ? agencyRef.trim().toUpperCase() : undefined,
+        agency_ref: isAgent
+          ? (selectedAgencyBook?.bookNumber ?? "") + agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
+          : undefined,
         staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
@@ -371,6 +400,10 @@ export function NewBookingDetailsTab() {
         setInvalidFields({})
         setPaymentMethodId("0")
         setDiscountSchemeId("")
+        setVoucherCode("")
+        setVoucherValid(null)
+        setVoucherValidationMessage("")
+        setFormResetKey((k) => k + 1)
         setForeigner(false)
         setTitleId("")
         setPatientName("")
@@ -387,12 +420,21 @@ export function NewBookingDetailsTab() {
         setCardLast4("")
         setSlipRef("")
         setAgencyBooks([])
+        setSelectedAgencyId(null)
         toast({
           title: "Booking saved",
           description: "The booking was created successfully.",
         })
+        const newBooking = result.data as ChannelBookingRecord | undefined
         getBookingsBySession(selectedSession.id).then((res) => {
-          if (res.success && res.data) setBookings(res.data)
+          if (res.success && res.data) {
+            setBookings(res.data)
+            if (newBooking?.id) {
+              const selected = res.data.find((b) => b.id === newBooking.id) ?? newBooking
+              setSelectedBooking(selected)
+              setActiveInformationTab("booking")
+            }
+          }
         })
       } else {
         toast({
@@ -448,10 +490,18 @@ export function NewBookingDetailsTab() {
             Loading…
           </div>
         ) : (
-          <div className="relative flex w-full" key={`discount-scheme-${paymentMethodId}`}>
+          <div
+            className="relative flex w-full"
+            key={`discount-scheme-${paymentMethodId}-${selectedSession?.id ?? ""}-${selectedDoctor?.id ?? ""}-${formResetKey}`}
+          >
             <Select
               value={discountSchemeId || undefined}
-              onValueChange={setDiscountSchemeId}
+              onValueChange={(v) => {
+                setDiscountSchemeId(v)
+                setVoucherCode("")
+                setVoucherValid(null)
+                setVoucherValidationMessage("")
+              }}
             >
               <SelectTrigger
                 className={`${fieldClass} pr-8 ${!discountSchemeId ? "text-placeholder" : ""}`}
@@ -475,6 +525,9 @@ export function NewBookingDetailsTab() {
                   e.preventDefault()
                   e.stopPropagation()
                   setDiscountSchemeId("")
+                  setVoucherCode("")
+                  setVoucherValid(null)
+                  setVoucherValidationMessage("")
                 }}
               >
                 <X className="h-3.5 w-3.5" />
@@ -484,6 +537,66 @@ export function NewBookingDetailsTab() {
         )}
       </div>
 
+      {/* Voucher code input: shown when selected discount scheme is voucher-based */}
+      {isVoucherScheme && (
+        <div className="space-y-1 rounded-md border border-border bg-muted/20 p-2">
+          <label className="text-xs font-medium text-foreground">
+            Voucher code <span className="text-red-500">*</span>
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            This scheme requires a voucher. Enter your code below.
+          </p>
+          <div className="flex gap-2 items-center">
+            <Input
+              className={cn(
+                fieldClass,
+                "flex-1 min-w-0",
+                voucherError && errorClass,
+                voucherValid === true && "border-green-600 focus-visible:ring-green-600"
+              )}
+              placeholder="Enter voucher code"
+              value={voucherCode}
+              onChange={(e) => {
+                setVoucherCode(e.target.value.trim().toUpperCase())
+                setVoucherValid(null)
+                setVoucherValidationMessage("")
+              }}
+              onBlur={async () => {
+                const code = voucherCode.trim()
+                if (!code || !discountSchemeId) {
+                  setVoucherValid(null)
+                  setVoucherValidationMessage("")
+                  return
+                }
+                setVoucherValidating(true)
+                setVoucherValid(null)
+                setVoucherValidationMessage("")
+                try {
+                  const res = await validateVoucherAction(discountSchemeId, code)
+                  if (res.success && "valid" in res) {
+                    setVoucherValid(res.valid)
+                    if (!res.valid && res.message) setVoucherValidationMessage(res.message)
+                  }
+                } finally {
+                  setVoucherValidating(false)
+                }
+              }}
+            />
+            {voucherValidating && (
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+            )}
+            {voucherValid === true && !voucherValidating && (
+              <Check className="h-4 w-4 shrink-0 text-green-600" />
+            )}
+          </div>
+          {voucherValid === false && voucherCode.trim() && (
+            <p className="text-xs text-red-600">
+              {voucherValidationMessage || "Invalid or inactive voucher code."}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Row 2: Booking-type–specific fields (Agent / Staff / Card / Slip) */}
       {isAgent && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -491,9 +604,10 @@ export function NewBookingDetailsTab() {
             <Select
               value={agencyId || undefined}
               onValueChange={(v) => {
-                setAgencyId(v)
+                setAgencyId(v ?? "")
                 setAgencyBookId("")
                 setAgencyRef("")
+                setSelectedAgencyId(v ?? null)
               }}
             >
               <SelectTrigger
@@ -504,7 +618,7 @@ export function NewBookingDetailsTab() {
               <SelectContent>
                 {agencies.map((a) => (
                   <SelectItem key={a.id} value={a.id} className="text-xs">
-                    {a.name}
+                    {a.code ? `${a.name} (${a.code})` : a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -517,7 +631,7 @@ export function NewBookingDetailsTab() {
               disabled={!agencyId || agencyBooksLoading}
             >
               <SelectTrigger
-                className={`${fieldClass} ${!agencyId ? "text-placeholder" : ""}`}
+                className={`${fieldClass} ${agencyBookError ? errorClass : ""} ${!agencyBookId ? "text-placeholder" : ""}`}
               >
                 <SelectValue placeholder={agencyBooksLoading ? "Loading…" : "Select a Book"} />
               </SelectTrigger>
@@ -533,9 +647,16 @@ export function NewBookingDetailsTab() {
           <div className="col-span-2 space-y-0.5">
             <Input
               className={`${fieldClass} ${agencyRefError ? errorClass : ""}`}
-              placeholder="REF NO."
+              placeholder="REF NO. (01–99)"
               value={agencyRef}
-              onChange={(e) => setAgencyRef(e.target.value)}
+              maxLength={2}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 2)
+                setAgencyRef(digits)
+              }}
+              onBlur={() => {
+                setAgencyRef((prev) => (prev.length === 1 ? "0" + prev : prev))
+              }}
             />
           </div>
         </div>
@@ -642,7 +763,10 @@ export function NewBookingDetailsTab() {
 
       {/* Row 3: Title (small) | Patient Name (rest) */}
       <div className="flex gap-2 items-stretch">
-        <div className="space-y-0.5">
+        <div
+          className="space-y-0.5"
+          key={`title-${formResetKey}-${selectedSession?.id ?? ""}-${selectedDoctor?.id ?? ""}`}
+        >
           <Select
             value={titleId || undefined}
             onValueChange={(value) => {
@@ -813,7 +937,8 @@ export function NewBookingDetailsTab() {
             !sexId ||
             !isPhoneValid ||
             !selectedArea ||
-            (isAgent && (!agencyId || !agencyRef.trim())) ||
+            (isVoucherScheme && !voucherCode.trim()) ||
+            (isAgent && (!agencyId || !agencyBookId || !agencyRef.trim())) ||
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
             (isSlip && (!slipRef.trim() || !bankId))

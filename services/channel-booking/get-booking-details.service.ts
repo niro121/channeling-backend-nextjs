@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { normalizeSessionTime } from "@/lib/utils"
 import { BOOKING_METHODS } from "@/types/channel-booking"
 import { resolveUser } from "./helpers/resolve-user"
 
@@ -52,6 +53,31 @@ export type SettlementDetailsView = {
   slipReference: string
 }
 
+/** Discount-related info for the Booking tab. */
+export type DiscountInfoView = {
+  /** Total discount amount. */
+  total: number
+  /** Manual discount scheme name (if discountId was used). */
+  manualSchemeName: string | null
+  /** Auto discount scheme name (if autoDiscountId was used). */
+  autoSchemeName: string | null
+  /** Hospital fee discount amount. */
+  hospitalFeeDiscount: number
+  /** Professional fee discount amount. */
+  professionalFeeDiscount: number
+  /** Other discount amount (if any). */
+  otherDiscount: number
+}
+
+/** Agent-related info for the Booking tab (when booking method is Agent). */
+export type AgentInfoView = {
+  agencyName: string
+  agencyCode: string | null
+  agencyRef: string
+  /** Book number (prefix of agencyRef, e.g. C0333). */
+  bookNumber: string | null
+}
+
 /** Display shape for the Information panel Booking tab. */
 export type BookingDetailsView = {
   id: string
@@ -81,6 +107,10 @@ export type BookingDetailsView = {
   foreigner: boolean
   status: number
   createdAt: Date
+  /** Discount breakdown and scheme names for display. */
+  discountInfo: DiscountInfoView
+  /** When booking method is Agent: agency and financial details. */
+  agentInfo: AgentInfoView | null
   /** Present when status !== 0 (paid). */
   settlement?: SettlementDetailsView
   /** All receipts attached to this booking (for table). */
@@ -106,9 +136,10 @@ function formatAppointmentDate(date: Date): string {
   })
 }
 
-function formatAppointmentTime(startTimeMinutes: number): string {
-  const h = Math.floor(startTimeMinutes / 60) % 24
-  const m = startTimeMinutes % 60
+function formatAppointmentTime(startTime: Date | number): string {
+  const d = startTime instanceof Date ? startTime : new Date(startTime)
+  const h = d.getHours()
+  const m = d.getMinutes()
   const ampm = h < 12 ? "AM" : "PM"
   const hour12 = h % 12 || 12
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
@@ -123,7 +154,12 @@ export async function getBookingDetailsService(
   try {
     const b = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { session: true, doctor: true, receipts: { orderBy: { createdAt: "desc" } } },
+      include: {
+        session: true,
+        doctor: true,
+        receipts: { orderBy: { createdAt: "desc" } },
+        agency: true,
+      },
     })
     if (!b) {
       return { success: false, message: "Booking not found" }
@@ -131,7 +167,8 @@ export async function getBookingDetailsService(
     const createdByName = await resolveUser(b.createdBy)
     const methodName = BOOKING_METHODS.find((m) => m.id === b.method)?.name ?? ""
     const sessionDate = b.session.date instanceof Date ? b.session.date : new Date(b.session.date)
-    const appointmentTime = formatAppointmentTime(b.session.startTime)
+    const startTime = normalizeSessionTime(b.session.startTime as Date | number, sessionDate)
+    const appointmentTime = formatAppointmentTime(startTime)
     const consultant = `${b.doctor.title} ${b.doctor.name}`.trim()
     const billedById = b.createdBy ?? ""
     const billedByStr = `${createdByName}${billedById ? ` (${billedById})` : ""} - ${b.createdAt.toLocaleString("en-CA", { dateStyle: "short", timeStyle: "medium" })}`
@@ -170,6 +207,44 @@ export async function getBookingDetailsService(
           }
         : undefined
 
+    const discountIds = [b.discountId, b.autoDiscountId].filter(Boolean) as string[]
+    const discountRecords =
+      discountIds.length > 0
+        ? await prisma.discount.findMany({
+            where: { id: { in: discountIds } },
+            select: { id: true, name: true },
+          })
+        : []
+    const manualDiscount = b.discountId
+      ? discountRecords.find((d) => d.id === b.discountId)
+      : null
+    const autoDiscount = b.autoDiscountId
+      ? discountRecords.find((d) => d.id === b.autoDiscountId)
+      : null
+    const discountDivision = b.discountDivision as { other_discount?: number } | null
+    const otherDiscount = discountDivision?.other_discount ?? 0
+
+    const discountInfo: DiscountInfoView = {
+      total: b.discount,
+      manualSchemeName: manualDiscount?.name ?? null,
+      autoSchemeName: autoDiscount?.name ?? null,
+      hospitalFeeDiscount: b.hospitalFeeDiscount ?? 0,
+      professionalFeeDiscount: b.professionsalFeeDiscount ?? 0,
+      otherDiscount,
+    }
+
+    const agencyRef = b.agencyRef?.trim() ?? ""
+    const bookNumber = agencyRef.length >= 4 ? agencyRef.substring(0, agencyRef.length - 2) : null
+    const agentInfo: AgentInfoView | null =
+      b.agencyId && b.agency
+        ? {
+            agencyName: b.agency.name,
+            agencyCode: b.agency.code ?? null,
+            agencyRef,
+            bookNumber,
+          }
+        : null
+
     const data: BookingDetailsView = {
       id: b.id,
       name: `${b.title} ${b.name}`.trim(),
@@ -194,6 +269,8 @@ export async function getBookingDetailsService(
       foreigner: b.foriegner,
       status: b.status,
       createdAt: b.createdAt,
+      discountInfo,
+      agentInfo,
       settlement,
       receipts: receiptRows,
       refundableBreakdown:

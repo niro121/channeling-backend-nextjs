@@ -5,7 +5,11 @@ export {
   getProcessedDiscount,
   type ProcessedDiscountResult,
 } from "./get-processed-discount"
-export { verifyAgencyReference } from "./verify-agency-reference"
+export {
+  verifyAgencyReference,
+  verifyAgencyReferenceWithReason,
+  type VerifyAgencyReferenceResult,
+} from "./verify-agency-reference"
 export { getAgentBalance } from "./get-agent-balance"
 export { updateAgentBalance } from "./update-agent-balance"
 export { getBookingForSaveBooking } from "./get-booking"
@@ -15,3 +19,7 @@ export {
   type GetNextSequenceResult,
   type GetNextSequenceOptions,
 } from "./sequence"
+export {
+  validateVoucherForDiscount,
+  type ValidateVoucherResult,
+} from "./validate-voucher"
