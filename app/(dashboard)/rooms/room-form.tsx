@@ -66,7 +66,7 @@ export default function RoomForm({
     locationId: room?.locationId ?? '',
     zoneId: room?.zoneId ?? '',
     description: room?.description ? room.description : '',
-    status: room?.status ? room.status : 0
+    status: room?.status ? room.status : 1
   };
 
   const validationSchema = Yup.object({

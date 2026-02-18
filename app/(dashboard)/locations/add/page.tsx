@@ -3,6 +3,7 @@ import LocationForm from '../location-form';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { LOCATION_OPTIONS } from '@/types/location';
+import { BackButton } from '@/components/common/back-button';
 
 export default async function AddLocationPage() {
   const session = await getServerSession(authOptions);
@@ -11,7 +12,10 @@ export default async function AddLocationPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
-        <h1 className="text-2xl font-bold mb-6">Add New Location</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Add New Location</h1>
+          <BackButton href="/locations" />
+        </div>
         <LocationForm
           location={null}
           locationOptions={LOCATION_OPTIONS}

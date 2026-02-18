@@ -9,7 +9,8 @@ import Link from 'next/link';
 import {
   bulkDeleteDoctors,
   getAllDoctors,
-  getAllSpecialityOptions
+  getAllSpecialityOptions,
+  checkDoctorsHaveActiveSessionsOrLeaves
 } from '@/app/actions/doctor.actions';
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
@@ -78,6 +79,28 @@ export default async function Page({ searchParams }: SearchParams) {
     };
   };
 
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    
+    try {
+      const result = await checkDoctorsHaveActiveSessionsOrLeaves(ids);
+      
+      if (result.success && result.data) {
+        const { hasActiveSessions, hasApprovedLeaves } = result.data;
+        
+        if (hasActiveSessions || hasApprovedLeaves) {
+          return "One or more selected doctors have active sessions and/or approved leave records. Deleting them may affect scheduled appointments and availability records.\n\nAre you sure you want to continue?";
+        }
+      }
+      
+      // Default message if no active sessions or leaves
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    } catch (error: any) {
+      console.error('Error getting bulk delete description:', error);
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    }
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -88,6 +111,7 @@ export default async function Page({ searchParams }: SearchParams) {
           data={data}
           rowCount={totalRecords}
           deleteServerAction={bulkDeleteDoctors}
+          getBulkDeleteDescription={getBulkDeleteDescription}
           page={params?.page}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">

@@ -53,8 +53,7 @@ export default async function Page({ searchParams }: SearchParams) {
 
         const mappedDepartments = departmentListResponse.data.map((d: any) => ({
             name: d.name || '-',
-            description: d.description || '-',
-            visibility: d.visibility === 1 ? 'Visible' : 'Hidden'
+            description: d.description || '-'
         }));
 
         return {
@@ -88,8 +87,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Department Name', 'Description', 'Visibility']}
-                                    keys={['name', 'description', 'visibility']}
+                                    columns={['Department Name', 'Description']}
+                                    keys={['name', 'description']}
                                     title="Departments List"
                                     fileName="departments"
                                 />

@@ -2,6 +2,7 @@ import React from 'react';
 import AgencyForm from '../agency-form';
 import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
 import { getAllLocations } from '@/app/actions/location.action';
+import { BackButton } from '@/components/common/back-button';
 
 export default async function Page() {
   // Get parent agencies for dropdown
@@ -24,6 +25,7 @@ export default async function Page() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Add Agency</h2>
+        <BackButton href="/agencies" />
       </div>
       <div className="h-full flex-1 flex-col space-y-8">
         <AgencyForm parentAgencies={parentAgencies} locations={locations} />

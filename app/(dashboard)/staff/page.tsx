@@ -56,8 +56,7 @@ export default async function StaffPage({ searchParams }: SearchParams) {
       code: s.code || '-',
       name: `${s.title || ''} ${s.name || ''}`.trim() || '-',
       nic: s.nic || '-',
-      contactMobile: s.contactMobile || '-',
-      status: s.status === 1 ? 'Active' : 'Inactive'
+      contactMobile: s.contactMobile || '-'
     }));
 
     return {
@@ -91,8 +90,8 @@ export default async function StaffPage({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Code', 'Name', 'NIC', 'Contact', 'Status']}
-                  keys={['code', 'name', 'nic', 'contactMobile', 'status']}
+                  columns={['Code', 'Name', 'NIC', 'Contact']}
+                  keys={['code', 'name', 'nic', 'contactMobile']}
                   title="Staff List"
                   fileName="staff"
                 />

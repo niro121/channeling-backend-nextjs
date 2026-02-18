@@ -56,8 +56,7 @@ export default async function Page({ searchParams }: SearchParams) {
 
         const mappedUserGroups = userGroupListResponse.data.map((ug: any) => ({
             name: ug.name || '-',
-            description: ug.description || '-',
-            status: ug.status === 1 ? 'Active' : 'Inactive'
+            description: ug.description || '-'
         }));
 
         return {
@@ -91,8 +90,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Group Name', 'Description', 'Status']}
-                                    keys={['name', 'description', 'status']}
+                                    columns={['Group Name', 'Description']}
+                                    keys={['name', 'description']}
                                     title="User Groups List"
                                     fileName="user-groups"
                                 />
