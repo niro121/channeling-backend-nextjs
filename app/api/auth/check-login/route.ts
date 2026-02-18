@@ -38,8 +38,9 @@ export async function POST(request: Request) {
     const group = user.userGroup;
     const twoFactorEnabled = group?.twoFactorEnabled === true;
     const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
+    const userSkipped2FA = user.twoFactorSkipped === true;
 
-    if (!twoFactorEnabled || allowedMethods.length === 0) {
+    if (!twoFactorEnabled || allowedMethods.length === 0 || userSkipped2FA) {
       return NextResponse.json({ success: true, requiresTwoFactor: false });
     }
 

@@ -82,7 +82,7 @@ export const authOptions: NextAuthOptions = {
                 data: { twoFactorTempCode: null, twoFactorExpires: null }
               });
               const permissions = user.userGroup?.permissions ? (user.userGroup.permissions as Permissions) : null;
-              return { id: user.id, userType: user.userType, name: user.name, permissions };
+              return { id: user.id, userType: user.userType, name: user.name, email: user.email, permissions };
             }
 
             // SMS/EMAIL: find by email + password, then verify stored code
@@ -108,7 +108,7 @@ export const authOptions: NextAuthOptions = {
               data: { twoFactorTempCode: null, twoFactorExpires: null }
             });
             const permissions = user.userGroup?.permissions ? (user.userGroup.permissions as Permissions) : null;
-            return { id: user.id, userType: user.userType, name: user.name, permissions };
+            return { id: user.id, userType: user.userType, name: user.name, email: user.email, permissions };
           }
 
           // --- Step 1: Validate password, then require 2FA or return user ---
@@ -129,8 +129,9 @@ export const authOptions: NextAuthOptions = {
           const group = user.userGroup;
           const twoFactorEnabled = group?.twoFactorEnabled === true;
           const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
+          const userSkipped2FA = user.twoFactorSkipped === true;
 
-          if (twoFactorEnabled && allowedMethods.length > 0) {
+          if (twoFactorEnabled && allowedMethods.length > 0 && !userSkipped2FA) {
             return null;
           }
 
@@ -142,6 +143,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             userType: user.userType,
             name: user.name,
+            email: user.email,
             permissions
           };
         } catch (error: any) {
@@ -164,6 +166,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.userType = user.userType
         token.permissions = user.permissions || null
+        token.email = (user as { email?: string }).email ?? null
       }
       // console.log('TOKEN ====>',token);
 
@@ -175,6 +178,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id
         session.user.userType = token.userType
         session.user.permissions = token.permissions || null
+        session.user.email = (token.email as string) ?? undefined
       }
       // console.log('SESSION ====>',session);
       return session

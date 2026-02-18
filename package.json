@@ -57,6 +57,7 @@
     "postcss": "^8.4.49",
     "prettier": "^3.6.2",
     "prop-types": "^15.8.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-day-picker": "^9.11.0",
     "react-dom": "^19.1.1",

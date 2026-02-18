@@ -31,6 +31,7 @@ model User {
   twoFactorTempCode    String?
   twoFactorExpires     DateTime?
   twoFactorVerified    Boolean @default(false)
+  twoFactorSkipped     Boolean @default(false) // == Security: When true, user can log in without 2FA even if group requires it == //
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")

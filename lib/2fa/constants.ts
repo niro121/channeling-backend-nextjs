@@ -11,6 +11,6 @@ export type TwoFactorMethodId = (typeof TWO_FACTOR_METHODS)[keyof typeof TWO_FAC
 export const ERROR_2FA_REQUIRED = '2FA_REQUIRED';
 
 /** Default expiry for 2FA pending step (minutes) */
-export const TWO_FA_PENDING_EXPIRY_MINUTES = 10;
+export const TWO_FA_PENDING_EXPIRY_MINUTES = Number(process.env.TWO_FA_PENDING_EXPIRY_MINUTES) || 10;
 /** Default expiry for SMS/EMAIL code (minutes) */
-export const TWO_FA_CODE_EXPIRY_MINUTES = 5;
+export const TWO_FA_CODE_EXPIRY_MINUTES = Number(process.env.TWO_FA_CODE_EXPIRY_MINUTES) || 5;

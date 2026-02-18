@@ -24,13 +24,24 @@ This document describes how two-factor authentication is implemented and how to 
    - Under **Allowed methods**, select one or more: **AUTH-APP**, **SMS**, **EMAIL**.
 4. Save the user group.
 
-All users in that group will be prompted for 2FA at login. They do **not** need `user.twoFactorMethod` (or any 2FA field) set in the database.
+Users in that group will be prompted for 2FA at login unless they have **turned off** “Require 2FA at login” in **Account → Security** (see below). They do **not** need `user.twoFactorMethod` (or any 2FA field) set in the database.
 
 ---
 
-## Optional: Per-user AUTH-APP secret
+## Setting up the authenticator app (per user)
 
-- **AUTH-APP** verification uses, in order: the user’s `twoFactorSecret` (if set in DB), then `TOTP_SECRET` from `.env`. So you can use a single shared secret in `.env` for all users, or set `user.twoFactorSecret` per user for separate authenticator entries.
+Users can add their **own** authenticator app entry (recommended) so they are not tied to a shared `TOTP_SECRET` in `.env`.
+
+1. **Go to Security:** From the header, open the profile menu (avatar) → **Security & 2FA** (or go to `/account/security`).
+2. **Set up authenticator app:** Click **“Set up authenticator app”**.
+3. **Scan or enter code:** A QR code is shown. Scan it with Google Authenticator, Authy, or any TOTP app. If the device has no camera, use **“Can’t scan? Enter this code manually”** — copy the secret and add it as a manual entry in the app (account name can be the app name or email).
+4. **Verify:** Click **“I’ve added the app — verify”**, then enter the 6-digit code from the app and click **“Verify and finish”**.
+
+After this, the user’s `twoFactorSecret` is stored in the DB and used at login when they choose AUTH-APP. No need to configure `TOTP_SECRET` in `.env` for that user.
+
+**If you can’t log in because your group requires 2FA and you haven’t set up an app:** Sign in is still possible if you had previously turned off “Require 2FA at login” in Security. If you are locked out, an admin can set your account’s `twoFactorSkipped` to `true` in the database so you can log in and then set up the authenticator or adjust the toggle.
+
+- **AUTH-APP** verification uses, in order: the user’s `twoFactorSecret` (if set in DB), then `TOTP_SECRET` from `.env`. So you can rely on per-user setup via the Security page, or use a single shared secret in `.env` for all users.
 - **SMS/EMAIL** do not use any per-user 2FA fields; a code is generated and sent when the user selects that method at login.
 
 ---
@@ -78,10 +89,15 @@ All users in that group will be prompted for 2FA at login. They do **not** need 
 | Login auth + 2FA step 2 | `lib/auth.ts` |
 | Check login (2FA required? + allowed methods) | `app/api/auth/check-login/route.ts` |
 | Request 2FA code (after user selects method) | `app/api/auth/request-2fa-code/route.ts` |
+| 2FA status (has authenticator?) | `app/api/auth/2fa-status/route.ts` |
+| Setup authenticator (generate secret + URI) | `app/api/auth/setup-2fa/route.ts` |
+| Verify 2FA setup (confirm code) | `app/api/auth/verify-2fa-setup/route.ts` |
 | Login form (email/password + method choice + code) | `app/(auth)/login/login-form.tsx` |
+| Account Security page (QR + manual entry + verify) | `app/(dashboard)/account/security/` |
 | User group 2FA (enable + methods) | `app/(dashboard)/user-groups/user-group-form.tsx` |
 | User group type | `types/user-group.ts` |
-| User 2FA fields | `prisma/schema.prisma` (User: twoFactorMethod, twoFactorSecret, twoFactorTempCode, twoFactorExpires, twoFactorVerified; UserGroup: twoFactorEnabled, twoFactorMethods) |
+| 2FA preference (require 2FA on/off for me) | `app/api/auth/2fa-preference/route.ts` |
+| User 2FA fields | `prisma/schema.prisma` (User: twoFactorMethod, twoFactorSecret, twoFactorTempCode, twoFactorExpires, twoFactorVerified, twoFactorSkipped; UserGroup: twoFactorEnabled, twoFactorMethods) |
 
 ---
 
