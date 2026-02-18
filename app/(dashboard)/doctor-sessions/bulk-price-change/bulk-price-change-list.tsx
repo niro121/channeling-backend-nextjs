@@ -52,7 +52,7 @@ export function BulkPriceChangeList({ initialData }: BulkPriceChangeListProps) {
   return (
     <BulkPriceChangeListProvider value={{ openDetail }}>
       <CustomDataTable<BulkPriceChangeListRow, unknown>
-        heading="Doctor session bulk price change"
+        heading="Doctor Session Bulk Price Change"
         subHeading="Bulk update doctor session fees. Add rules, preview, then process."
         columns={bulkPriceChangeColumns}
         data={initialData}

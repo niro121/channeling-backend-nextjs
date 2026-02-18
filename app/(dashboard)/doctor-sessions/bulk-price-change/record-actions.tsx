@@ -43,7 +43,7 @@ export function BulkPriceChangeRecordActions({ row }: BulkPriceChangeRecordActio
       const success = await bulkDeleteBulkPriceChanges([record.id]);
       setShowDelConfirmation(false);
       if (success) {
-        toast({ variant: 'success', title: 'Success', description: 'Bulk price change was deleted successfully.' });
+        toast({ variant: 'success', title: 'Success', description: 'Bulk Price Change was deleted successfully.' });
         router.refresh();
       } else {
         toast({ variant: 'destructive', title: 'Error', description: 'Deletion failed.' });
@@ -84,7 +84,7 @@ export function BulkPriceChangeRecordActions({ row }: BulkPriceChangeRecordActio
         handleVisibilityChange={setShowDelConfirmation}
         loading={loading}
         title="Are you absolutely sure?"
-        description="This action cannot be undone. This will permanently delete this bulk price change record and its rules and report data."
+        description="This action cannot be undone. This will permanently delete this Bulk Price Change record and its rules and report data."
         handleContinue={onDeleteConfirmation}
       />
     </>
