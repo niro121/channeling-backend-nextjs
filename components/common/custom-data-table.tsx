@@ -31,6 +31,43 @@ import { DataTablePagination } from "./custom-data-table-pagination"
 import { useToast } from "../hooks/use-toast"
 import { Loader2, Trash2 } from "lucide-react"
 
+// Context for exposing table state and handlers
+const DataTableContext = React.createContext<{
+  rowSelection: Record<string, boolean>
+  showHideDeleteModal: (value: boolean) => Promise<void>
+  fetchingDescription: boolean
+} | null>(null)
+
+export const useDataTableContext = () => {
+  const context = React.useContext(DataTableContext)
+  if (!context) {
+    throw new Error('useDataTableContext must be used within CustomDataTable')
+  }
+  return context
+}
+
+// Bulk Delete Button component that can be used in toolbarLeft
+export const BulkDeleteButton = ({ className }: { className?: string }) => {
+  const { rowSelection, showHideDeleteModal, fetchingDescription } = useDataTableContext()
+  
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer ${className || ''}`}
+      disabled={Object.keys(rowSelection).length === 0}
+      onClick={() => showHideDeleteModal(true)}
+    >
+      {fetchingDescription ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Trash2 className="h-4 w-4" />
+      )}
+      <span>Bulk Delete</span>
+    </Button>
+  )
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -50,6 +87,8 @@ interface DataTableProps<TData, TValue> {
   toolbarLeft?: React.ReactNode
   /** Right side of toolbar (e.g. Add button). Rendered to the right of Bulk delete when rows selected */
   toolbarRight?: React.ReactNode
+  /** If true, hides the automatic bulk delete button (useful when you want to place it manually in toolbarLeft/toolbarRight) */
+  hideAutoBulkDelete?: boolean
 }
 
 export function CustomDataTable<TData, TValue>({
@@ -67,6 +106,7 @@ export function CustomDataTable<TData, TValue>({
   toolbar,
   toolbarLeft,
   toolbarRight,
+  hideAutoBulkDelete = false,
 }: DataTableProps<TData, TValue>) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -285,8 +325,14 @@ export function CustomDataTable<TData, TValue>({
     }
   }, [table, limit, page])
 
+  const contextValue = React.useMemo(() => ({
+    rowSelection,
+    showHideDeleteModal,
+    fetchingDescription,
+  }), [rowSelection, fetchingDescription])
+
   return (
-    <>
+    <DataTableContext.Provider value={contextValue}>
       <Card className="rounded-lg border border-border shadow-sm overflow-hidden">
         <CardHeader>
           <div>
@@ -295,12 +341,12 @@ export function CustomDataTable<TData, TValue>({
           </div>
         </CardHeader>
         {(toolbar != null || toolbarLeft != null || toolbarRight != null || haveBulkDelete) ? (
-          <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-center ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
+          <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-start ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
             {toolbarLeft != null || toolbarRight != null ? (
               <>
                 <React.Fragment key="toolbar-left">{toolbarLeft ?? null}</React.Fragment>
-                <div key="toolbar-right" className="flex flex-1 items-center justify-end gap-2 sm:flex-initial">
-                  {haveBulkDelete ? (
+                <div key="toolbar-right" className="flex flex-1 items-start justify-end gap-2 sm:flex-initial">
+                  {haveBulkDelete && !hideAutoBulkDelete ? (
                     <Button
                       key="bulk-delete-btn"
                       variant="ghost"
@@ -415,6 +461,6 @@ export function CustomDataTable<TData, TValue>({
         handleContinue={onDeleteConfirmation}
         hasWarning={hasWarning}
       />
-    </>
+    </DataTableContext.Provider>
   )
 }

@@ -434,3 +434,33 @@ export const bulkDeleteDiscounts = async (ids: string[]) => {
     return false;
   }
 };
+
+// ==== DISCOUNTS EXPORT ==== //
+export const getDiscountsExport = async (params: { keyword?: string; discountType?: string }) => {
+  try {
+    const response = await getAllDiscounts({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? "",
+      discountType: params.discountType
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No discounts found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getDiscountsExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

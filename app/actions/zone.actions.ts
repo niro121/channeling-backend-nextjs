@@ -259,3 +259,32 @@ export const fetchZoneById = async (id: string) => {
         };
     }
 };
+
+// ==== ZONES EXPORT ==== //
+export const getZonesExport = async (params: { keyword?: string }) => {
+  try {
+    const response = await getAllZones({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No zones found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getZonesExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};

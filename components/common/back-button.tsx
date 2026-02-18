@@ -45,7 +45,7 @@ export function BackButton({
       className={cn(
         'gap-2 cursor-pointer',
         'bg-[#EFF5F2] hover:bg-[#EFF5F2]/80 border-[#EFF5F2] hover:border-[#EFF5F2]',
-        'text-foreground',
+        'text-gray-700 hover:text-gray-900',
         className
       )}
     >

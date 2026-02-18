@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getLocationById } from '@/app/actions/location.action';
 import { LOCATION_OPTIONS } from '@/types/location';
+import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
   params: Promise<{
@@ -27,7 +28,10 @@ export default async function EditLocationPage({ params }: PageProps) {
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
-        <h1 className="text-2xl font-bold mb-6">Edit Location</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Edit Location</h1>
+          <BackButton href="/locations" />
+        </div>
         <LocationForm
           location={data}
           locationOptions={LOCATION_OPTIONS}

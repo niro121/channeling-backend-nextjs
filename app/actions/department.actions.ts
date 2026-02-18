@@ -190,3 +190,31 @@ export const fetchDepartmentById = async (id: string) => {
     }
 };
 
+// ==== DEPARTMENTS EXPORT ==== //
+export const getDepartmentsExport = async (params: { keyword?: string }) => {
+  try {
+    const response = await getAllDepartments({
+      page: "0",
+      limit: "10000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (!response.success || !response.data?.length) {
+      return {
+        success: false,
+        message: response.success ? 'No departments found' : response.message || 'Error getting data'
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error: any) {
+    console.log('getDepartmentsExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};
