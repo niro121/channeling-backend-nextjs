@@ -12,6 +12,7 @@ import {
 import DoctorSessionForm from './doctor-session-form';
 import {
   getDepartmentOptions,
+  getAllDoctorSessions,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
 import {
@@ -42,17 +43,34 @@ export function AddDoctorSessionDialog({
   const [locationOptions, setLocationOptions] = useState<
     { id: string; name: string }[]
   >([]);
+  const [doctorSessionsForPreviousDropdown, setDoctorSessionsForPreviousDropdown] =
+    useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([getDepartmentOptions(), getLocationOptions()])
-      .then(([deptRes, locRes]) => {
+    Promise.all([
+      getDepartmentOptions(),
+      getLocationOptions(),
+      getAllDoctorSessions({
+        doctorId,
+        page: '0',
+        limit: '1000'
+      })
+    ])
+      .then(([deptRes, locRes, sessionsRes]) => {
         if (cancelled) return;
         setDepartmentOptions(deptRes.data ?? []);
         setLocationOptions(locRes.data ?? []);
+        const list = sessionsRes.data ?? [];
+        setDoctorSessionsForPreviousDropdown(
+          list.map((s: { id: string; name: string }) => ({
+            id: s.id,
+            name: s.name
+          }))
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -60,7 +78,7 @@ export function AddDoctorSessionDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, doctorId]);
 
   const handleSuccess = () => {
     onOpenChange(false);
@@ -87,6 +105,7 @@ export function AddDoctorSessionDialog({
           <DoctorSessionForm
             doctorId={doctorId}
             doctorSession={null}
+            doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
             institutionOptions={INSTITUTION_OPTIONS}
             departmentOptions={departmentOptions}
             locationOptions={locationOptions}

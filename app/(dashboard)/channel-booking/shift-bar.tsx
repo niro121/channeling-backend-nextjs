@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SHIFT_STATUS } from "@/types/shift"
 import { useToast } from "@/components/hooks/use-toast"
+import { usePermissions } from "@/components/hooks/use-permissions"
 import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -45,6 +46,8 @@ function formatElapsed(startedAt: Date | string, asOf: Date): string {
 
 export function ChannelBookingShiftBar() {
   const pathname = usePathname()
+  const { has: hasPermission } = usePermissions()
+  const hasShiftPermission = hasPermission("shift", "view")
   const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH)
   const [shift, setShift] = useState<ShiftRecord | null>(null)
   const [loading, setLoading] = useState(false)
@@ -61,16 +64,25 @@ export function ChannelBookingShiftBar() {
   }, [shift?.id, shift?.status])
 
   const refresh = () => {
-    if (!isChannelBooking) return
+    if (!isChannelBooking || !hasShiftPermission) return
     setLoading(true)
     getCurrentShiftAction()
       .then((s: ShiftRecord | null) => setShift(s))
+      .catch((err: unknown) => {
+        setShift(null)
+        const message = err instanceof Error ? err.message : "You don’t have permission to use shift features."
+        toast({
+          title: "Access denied",
+          description: message,
+          variant: "destructive",
+        })
+      })
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     refresh()
-  }, [isChannelBooking, pathname])
+  }, [isChannelBooking, hasShiftPermission, pathname])
 
   useEffect(() => {
     if (!isChannelBooking) return
@@ -79,7 +91,7 @@ export function ChannelBookingShiftBar() {
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
   }, [isChannelBooking])
 
-  if (!isChannelBooking) return null
+  if (!isChannelBooking || !hasShiftPermission) return null
   if (loading) return null
 
   const SHOW_START_SHIFT_DIALOG_EVENT = "channel-booking:show-start-shift-dialog"

@@ -11,17 +11,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import moment from 'moment';
 import { History, Loader2 } from 'lucide-react';
+import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { getSessionActivity, type SessionActivityEntry } from '@/app/actions/sessions.action';
 import type { SessionListItem } from './columns';
 
-function formatSessionTime(value: number, date?: Date): string {
-  const d = date ? moment(date) : moment();
-  if (value > 86400 * 2) {
-    return moment.unix(value).format('LT');
-  }
-  const hours = Math.floor(value / 60);
-  const mins = value % 60;
-  return moment().startOf('day').add(hours, 'hours').add(mins, 'minutes').format('LT');
+/** Format session start/end for display in Sri Lanka (DB stores UTC). */
+function formatSessionTimeForDisplay(
+  value: Date | number | string,
+  sessionDate: Date | string
+): string {
+  const d = sessionDate instanceof Date ? sessionDate : new Date(sessionDate);
+  const normalized =
+    typeof value === 'string' ? new Date(value) : normalizeSessionTime(value as Date | number, d);
+  return formatTimeSriLanka(normalized);
 }
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
@@ -80,7 +82,7 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
   const department = session.department;
   const room = session.room;
   const isActive = session.status === 1;
-  const timeRange = `${formatSessionTime(session.startTime, session.date)} – ${formatSessionTime(session.endTime, session.date)}`;
+  const timeRange = `${formatSessionTimeForDisplay(session.startTime, session.date)} – ${formatSessionTimeForDisplay(session.endTime, session.date)}`;
 
   const handleLoadActivity = async () => {
     if (activityLog !== null || activityLoading) return;

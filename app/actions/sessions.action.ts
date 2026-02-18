@@ -11,7 +11,7 @@ import { getSessionParams, getSessionQuery } from "@/types/sessions";
 import { requirePermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
-import { timeToSriLankaUnix, calculateDurationMinutes } from '@/lib/utils';
+import { parseSessionDateTime, timeToMinutes, calculateDurationMinutes } from '@/lib/utils';
 
 // ==== GET SESSIONS ==== //
 export const getAllSessions = async (sort: getSessionParams) => {
@@ -245,8 +245,17 @@ export const updateSession = async (payload: {
     });
     if (!session) return { success: false, message: 'Session not found.' };
     const baseDate = session.date instanceof Date ? session.date : new Date(session.date);
-    const startTime = timeToSriLankaUnix(baseDate, startTimeValue, startMeridiem);
-    const endTime = timeToSriLankaUnix(baseDate, endTimeValue, endMeridiem);
+    // Use same timezone logic as create/analyse: session date (UTC calendar) + time in HH:mm → parseSessionDateTime
+    const y = baseDate.getUTCFullYear();
+    const m = (baseDate.getUTCMonth() + 1).toString().padStart(2, '0');
+    const d = baseDate.getUTCDate().toString().padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    const startMins = timeToMinutes(startTimeValue, startMeridiem);
+    const endMins = timeToMinutes(endTimeValue, endMeridiem);
+    const startTimeStr24 = `${Math.floor(startMins / 60).toString().padStart(2, '0')}:${(startMins % 60).toString().padStart(2, '0')}`;
+    const endTimeStr24 = `${Math.floor(endMins / 60).toString().padStart(2, '0')}:${(endMins % 60).toString().padStart(2, '0')}`;
+    const startTime = parseSessionDateTime(dateStr, startTimeStr24);
+    const endTime = parseSessionDateTime(dateStr, endTimeStr24);
     const durationMinutes = calculateDurationMinutes(startTimeValue, startMeridiem, endTimeValue, endMeridiem);
     const result = await updateSessionService(sessionId, {
       startTime,

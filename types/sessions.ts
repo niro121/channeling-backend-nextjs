@@ -11,8 +11,8 @@ export interface SessionInputData {
   date: string;
   doctorSessionId: string;
   previousDoctorSession: string | null;
-  startTime: number;
-  endTime: number;
+  startTime: Date;
+  endTime: Date;
   durationMinutes: number | null;
   startingPatientNumber: number;
   maxPatientNumber: number;

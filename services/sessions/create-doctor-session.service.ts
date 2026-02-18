@@ -1,24 +1,39 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { parseSessionDateTime } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 
-const getDatesBetween = (start: Date, end: Date) => {
+const getDatesBetween = (start: Date, end: Date): Date[] => {
   const dates: Date[] = [];
   let current = moment(start).startOf('day');
-
   while (current.isSameOrBefore(end, 'day')) {
     dates.push(current.toDate());
     current = current.add(1, 'day');
   }
-
   return dates;
 };
 
-const getDayType = (date: Date): number => {
-  return moment(date).day() + 1;
-};
+/** Day of week 1=Sun..7=Sat for a UTC calendar date string (matches analyse-sessions). */
+function getDayTypeFromDateStr(dateStr: string): number {
+  const d = moment.utc(dateStr, 'YYYY-MM-DD').day();
+  return d === 0 ? 1 : d + 1;
+}
+
+/** Build session start/end as DateTime from date string + DoctorSession times (same as analyse). */
+function sessionStartEndForDate(
+  dateStr: string,
+  dsStartTime: Date,
+  dsEndTime: Date
+): { startTime: Date; endTime: Date } {
+  const startStr = moment(dsStartTime).utcOffset(330).format('HH:mm');
+  const endStr = moment(dsEndTime).utcOffset(330).format('HH:mm');
+  return {
+    startTime: parseSessionDateTime(dateStr, startStr),
+    endTime: parseSessionDateTime(dateStr, endStr),
+  };
+}
 
 /**
  * Create Session records from DoctorSessions for a date range and optional doctor.
@@ -75,23 +90,27 @@ export const createDoctorSessionService = async (
       const sessionsToCreate: Prisma.SessionCreateManyInput[] = [];
 
       for (const date of allDates) {
-        const dayType = getDayType(date);
+        const dateStr = moment(date).format('YYYY-MM-DD');
+        const dayType = getDayTypeFromDateStr(dateStr);
 
         for (const ds of doctorSessions) {
           if (ds.dayType !== dayType) continue;
 
-          const key = `${moment(date).format('YYYY-MM-DD')}_${ds.id}`;
+          const key = `${dateStr}_${ds.id}`;
           if (existingKeySet.has(key)) continue;
 
+          const { startTime, endTime } = sessionStartEndForDate(
+            dateStr,
+            ds.startTime,
+            ds.endTime
+          );
+          const sessionDate = moment.utc(dateStr, 'YYYY-MM-DD').startOf('day').toDate();
           sessionsToCreate.push({
             institution: ds.institution,
-            date,
+            date: sessionDate,
             doctorSessionId: ds.id,
-            startTime:
-              moment(ds.startTime).hours() * 60 +
-              moment(ds.startTime).minutes(),
-            endTime:
-              moment(ds.endTime).hours() * 60 + moment(ds.endTime).minutes(),
+            startTime,
+            endTime,
             durationMinutes: ds.durationMinutes,
             startingPatientNumber: ds.startingPatientNumber,
             maxPatientNumber: ds.maxPatientNumber,

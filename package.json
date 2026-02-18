@@ -7,7 +7,8 @@
     "sessions:generate": "tsx scripts/doctor-sessions-generate.ts",
     "sessions:update": "tsx scripts/doctor-sessions-update.ts",
     "load-doctor-sessions": "npx tsx scripts/load-doctor-sessions.ts",
-    "migrate:import": "npx tsx scripts/migrate-import.ts"
+    "migrate:import": "npx tsx scripts/migrate-import.ts",
+    "migrate:session-datetime": "npx tsx scripts/migrate-session-start-end-to-datetime.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

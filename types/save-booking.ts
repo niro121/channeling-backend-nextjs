@@ -80,6 +80,8 @@ export type SaveBookingInput = {
   amount: number
   auto_discount_type?: string
   discount_type?: string
+  /** Required when discount_type is a voucher scheme (isVoucher === 1). */
+  voucher_code?: string
   discount: number
   referred_doctor?: SaveBookingReferredRef | null
   referred_agency?: SaveBookingReferredRef | null

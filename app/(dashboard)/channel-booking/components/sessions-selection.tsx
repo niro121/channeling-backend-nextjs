@@ -1,9 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getSessionsForChannelBooking } from "@/app/actions/channel-booking"
 import { Card, CardContent } from "@/components/ui/card"
 import { useChannelBooking } from "../context/channel-booking-context"
+import { usePermissions } from "@/components/hooks/use-permissions"
 import { BranchSelection } from "./sessions-selection/branch-selection"
 import { DateSelection } from "./sessions-selection/date-selection"
 import type { BranchOption } from "./sessions-selection/session-date-utils"
@@ -13,6 +14,8 @@ import {
   formatSessionDay,
   formatLocalFee,
   formatSessionStartTimeDisplay,
+  isSessionWeekend,
+  padTwo,
 } from "./sessions-selection/util"
 
 export function SessionsSelection() {
@@ -26,13 +29,30 @@ export function SessionsSelection() {
     setSessionsLoading,
     onSessionSelect,
   } = useChannelBooking()
+  const { has } = usePermissions()
+  const canChangeDate = has("channel-booking-date", "view")
 
-  // Default date to today on page load; reset to today when doctor is cleared
+  // Default date to today on page load; reset to today when doctor is cleared (or when user has no change-date permission)
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date())
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
+
+  // When user has no "Change Date" permission, keep date fixed to today
+  useEffect(() => {
+    if (!canChangeDate) {
+      setSelectedDate(new Date())
+    }
+  }, [canChangeDate])
+
   const allLocations: BranchOption[] = initialData?.locations ?? []
+  const allowedIds = initialData?.userBookingLocationIds ?? []
+  const filteredLocations: BranchOption[] = useMemo(() => {
+    if (allowedIds.length === 0) return allLocations
+    return allLocations.filter((loc) => allowedIds.includes(loc.id))
+  }, [allLocations, allowedIds])
 
   const hasDoctor = Boolean(selectedDoctor?.id)
+  const userDefaultLocationId = initialData?.userDefaultLocationId ?? null
+  const userUseDefaultLocation = initialData?.userUseDefaultLocation ?? false
 
   // When doctor is cleared, reset location and clear sessions; keep date as today
   useEffect(() => {
@@ -44,13 +64,23 @@ export function SessionsSelection() {
     }
   }, [hasDoctor, setSessions])
 
-  // On doctor or date change: reset branch, clear selected session, then fetch sessions for doctor + date
+  const defaultLocationToSelect = useMemo(() => {
+    if (!userUseDefaultLocation || !userDefaultLocationId) return null
+    return filteredLocations.some((l) => l.id === userDefaultLocationId)
+      ? userDefaultLocationId
+      : null
+  }, [userUseDefaultLocation, userDefaultLocationId, filteredLocations])
+
+  const defaultLocationRef = useRef<string | null>(null)
+  defaultLocationRef.current = defaultLocationToSelect
+
+  // On doctor or date change: set branch to default (if "Use default location") or null, clear selected session, then fetch sessions
   useEffect(() => {
     if (!hasDoctor || !selectedDoctor?.id || !selectedDate) {
       if (!hasDoctor || !selectedDate) setSessions([])
       return
     }
-    setSelectedLocationId(null)
+    setSelectedLocationId(defaultLocationRef.current)
     onSessionSelect(null)
     let cancelled = false
     setSessionsLoading(true)
@@ -96,14 +126,16 @@ export function SessionsSelection() {
         ) : (
           <>
             <div className="flex flex-wrap gap-1.5 items-center shrink-0">
-              <DateSelection
-                value={selectedDate}
-                onChange={handleDateChange}
-                placeholder="Select date"
-                className="min-w-[130px]"
-              />
+              {canChangeDate && (
+                <DateSelection
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  placeholder="Select date"
+                  className="min-w-[130px]"
+                />
+              )}
               <BranchSelection
-                options={allLocations}
+                options={filteredLocations}
                 value={selectedLocationId}
                 onChange={setSelectedLocationId}
                 placeholder="Select branch"
@@ -135,7 +167,14 @@ export function SessionsSelection() {
                 <ul className="divide-y divide-border">
                   {sessionsForDateAndBranch.map((session) => {
                     const isSelected = selectedSession?.id === session.id
-                    const maxPatients = session.maxPatientNumber ?? 10
+                    const start = session.startingPatientNumber ?? 1
+                    const max = session.maxPatientNumber ?? 10
+                    const capacity = max - start + 1
+                    const currentCount = (session.paidCount ?? 0) + (session.pendingCount ?? 0)
+                    const nextAppointmentNo = (session.appointmentNo ?? 0) + 1
+                    const isFull = currentCount >= capacity
+                    const isWeekend = isSessionWeekend(session.date)
+                    const isOnLeave = session.status === 0
                     return (
                       <li key={session.id}>
                         <button
@@ -147,7 +186,7 @@ export function SessionsSelection() {
                             isSelected && "bg-primary text-primary-foreground font-medium"
                           )}
                         >
-                          <span className="shrink-0 tabular-nums">
+                          <span className={cn("shrink-0 tabular-nums", isWeekend && "font-bold")}>
                             {formatSessionDay(session.date)}
                           </span>
                           <span className="shrink-0 tabular-nums">
@@ -156,17 +195,31 @@ export function SessionsSelection() {
                           <span className="shrink-0 tabular-nums text-left">
                             {formatSessionStartTimeDisplay(session.startTime, session.date)}
                           </span>
-                          <span className="shrink-0 tabular-nums">
+                          <span className="shrink-0 tabular-nums text-right min-w-[4rem]">
                             {formatLocalFee(session.amountLocal)}
                           </span>
                           <span className="shrink-0 tabular-nums">
-                            0({maxPatients})
-                          </span>
-                          <span className="shrink-0 text-primary font-normal">
-                            #
+                            <span className={cn(!isSelected && "text-green-600 dark:text-green-400")}>
+                              {currentCount}
+                            </span>
+                            ({capacity})
                           </span>
                           <span className="shrink-0 tabular-nums">
-                            **0**
+                            {isFull ? (
+                              <span className={cn(!isSelected && "text-red-600 dark:text-red-400 font-medium")}>
+                                Full
+                              </span>
+                            ) : (
+                              <>
+                                #
+                                <span className={cn(!isSelected && "text-red-600 dark:text-red-400 font-medium")}>
+                                  {padTwo(nextAppointmentNo)}
+                                </span>
+                              </>
+                            )}
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            {isOnLeave ? "ON LEAVE" : `**${session.pendingCount ?? 0}**`}
                           </span>
                         </button>
                       </li>
