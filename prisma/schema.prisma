@@ -25,6 +25,13 @@ model User {
   checkedDefaultLocation Boolean  @default(false)
   defaultLocation        String?
 
+  // == 2FA STATE == //
+  twoFactorMethod      String?
+  twoFactorSecret      String?
+  twoFactorTempCode    String?
+  twoFactorExpires     DateTime?
+  twoFactorVerified    Boolean @default(false)
+
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
   updatedSpecialities     Speciality[]                   @relation("UserUpdatedSpecialities")
@@ -72,6 +79,10 @@ model UserGroup {
   permissions Json // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
+
+  // == 2FA CONFIG == //
+  twoFactorEnabled Boolean @default(false)
+  twoFactorMethods String[] // == 1: AUTH-APP, 2: "SMS", 3: "EMAIL" == //
 
   // ==== RELATIONS ==== //
   users User[] @relation("UserToUserGroup")

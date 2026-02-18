@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from "./prisma";
 import * as argon2 from "argon2";
 import { Permissions } from "@/types/user-group";
+import { verifyTotp } from "@/lib/2fa/totp";
 
 // Ensure NEXTAUTH_SECRET is set
 const getSecret = () => {
@@ -38,74 +39,118 @@ export const authOptions: NextAuthOptions = {
       // You can pass any HTML attribute to the <input> tag through the object.
       credentials: {
         username: { label: "Username", type: "text", placeholder: "username" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        twoFactorCode: { label: "2FA Code", type: "text", placeholder: "000000" },
+        twoFactorToken: { label: "2FA Token", type: "text" }
       },
       async authorize(credentials) {
-        // You need to provide your own logic here that takes the credentials
-        // submitted and returns either a object representing a user or value
-        // that is false/null if the credentials are invalid.
-        // e.g. return { id: 1, name: 'J Smith', email: 'jsmith@example.com' }
-        // You can also use the `req` object to obtain additional parameters
-        // (i.e., the request IP address)
-
         try {
           if (!credentials?.username || !credentials?.password) {
             throw new Error("Credentials are mandatory");
           }
 
           const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-          if (emailRegex.test(credentials.username)) {
-            console.log('VALIDATING EMAIL ADDRESS');
+          if (!emailRegex.test(credentials.username)) {
+            throw new Error("Invalid credentials");
+          }
 
-            const user = await prisma.user.findFirst({
-              where: {
-                AND: [
-                  {
-                    email: credentials.username
-                  },
-                  {
-                    status: 1
-                  }
-                ]
-              },
-              include: {
-                userGroup: true
+          const has2FACode = typeof credentials.twoFactorCode === "string" && credentials.twoFactorCode.trim().length > 0;
+          const twoFactorToken = typeof credentials.twoFactorToken === "string" ? credentials.twoFactorToken.trim() : null;
+
+          // --- Step 2: Verify 2FA and sign in ---
+          if (has2FACode) {
+            if (twoFactorToken) {
+              // AUTH-APP: find user by pending token
+              const user = await prisma.user.findFirst({
+                where: {
+                  twoFactorTempCode: twoFactorToken,
+                  twoFactorExpires: { gt: new Date() },
+                  status: 1
+                },
+                include: { userGroup: true }
+              });
+              const totpSecret = user.twoFactorSecret || process.env.TOTP_SECRET;
+              if (!user || !totpSecret) {
+                throw new Error("Invalid or expired 2FA. Please try again.");
               }
-            })
-
-            if (!user || !user?.password) {
-              throw new Error("Invalid credentials");
+              const valid = await verifyTotp(credentials.twoFactorCode, totpSecret);
+              if (!valid) {
+                throw new Error("Invalid 2FA code.");
+              }
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { twoFactorTempCode: null, twoFactorExpires: null }
+              });
+              const permissions = user.userGroup?.permissions ? (user.userGroup.permissions as Permissions) : null;
+              return { id: user.id, userType: user.userType, name: user.name, permissions };
             }
 
-            const isCorrectPassword = await argon2.verify(user.password, credentials?.password);
-
+            // SMS/EMAIL: find by email + password, then verify stored code
+            const user = await prisma.user.findFirst({
+              where: { email: credentials.username, status: 1 },
+              include: { userGroup: true }
+            });
+            if (!user || !user.password) {
+              throw new Error("Invalid credentials");
+            }
+            const isCorrectPassword = await argon2.verify(user.password, credentials.password);
             if (!isCorrectPassword) {
               throw new Error("Invalid credentials");
             }
-
-            // Load permissions from user group
-            let permissions = null;
-            if (user.userGroup && user.userGroup.permissions) {
-              permissions = user.userGroup.permissions as Permissions;
+            if (!user.twoFactorExpires || user.twoFactorExpires < new Date()) {
+              throw new Error("2FA code expired. Please log in again.");
             }
-
-            return {
-              id: user.id,
-              userType: user.userType,
-              name: user.name,
-              permissions: permissions
-            };
+            if (user.twoFactorTempCode !== credentials.twoFactorCode.trim()) {
+              throw new Error("Invalid 2FA code.");
+            }
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { twoFactorTempCode: null, twoFactorExpires: null }
+            });
+            const permissions = user.userGroup?.permissions ? (user.userGroup.permissions as Permissions) : null;
+            return { id: user.id, userType: user.userType, name: user.name, permissions };
           }
 
+          // --- Step 1: Validate password, then require 2FA or return user ---
+          const user = await prisma.user.findFirst({
+            where: { email: credentials.username, status: 1 },
+            include: { userGroup: true }
+          });
+
+          if (!user || !user.password) {
+            throw new Error("Invalid credentials");
+          }
+
+          const isCorrectPassword = await argon2.verify(user.password, credentials.password);
+          if (!isCorrectPassword) {
+            throw new Error("Invalid credentials");
+          }
+
+          const group = user.userGroup;
+          const twoFactorEnabled = group?.twoFactorEnabled === true;
+          const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
+
+          if (twoFactorEnabled && allowedMethods.length > 0) {
+            return null;
+          }
+
+          let permissions = null;
+          if (group?.permissions) {
+            permissions = group.permissions as Permissions;
+          }
+          return {
+            id: user.id,
+            userType: user.userType,
+            name: user.name,
+            permissions
+          };
         } catch (error: any) {
-          console.log('auth error', error);
-          // Re-throw database connection errors to help with debugging
-          if (error?.message?.includes('database name') || error?.message?.includes('AtlasError')) {
+          console.log("auth error", error);
+          if (error?.message?.includes("database name") || error?.message?.includes("AtlasError")) {
             throw new Error("Database configuration error: Please check your MONGODB_URI includes a database name");
           }
         }
-        return null
-
+        return null;
       }
     })
   ],

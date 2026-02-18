@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { RefreshCw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useDialogSafe } from "@/components/common/custom-dialog"
+import { Switch } from "@/components/ui/switch"
+import { TWO_FACTOR_AUTH } from "@/types/2FA"
 
 type UserGroupFormProps = {
     userGroup: UserGroup | null
@@ -31,6 +33,8 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
         description: userGroup?.description ? userGroup.description : "",
         status: userGroup?.status !== undefined ? userGroup.status : 1,
         permissions: userGroup?.permissions || initializePermissions(),
+        twoFactorEnabled: (userGroup as any)?.twoFactorEnabled ?? false,
+        twoFactorMethods: Array.isArray((userGroup as any)?.twoFactorMethods) ? (userGroup as any).twoFactorMethods : [],
         createdAt: userGroup?.createdAt ? userGroup.createdAt : new Date(),
     })
     const [loading, setLoading] = useState<boolean>(false)
@@ -228,6 +232,64 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                     ]}
                                     styleClasses={styleClasses}
                                 />
+                            </div>
+
+                            <Separator />
+
+                            {/* Two-factor authentication */}
+                            <div className="space-y-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-1">Two-factor authentication</h3>
+                                    <p className="text-sm text-muted-foreground mb-4">
+                                        When enabled, users in this group must enter a verification code (authenticator app, SMS, or email) at login.
+                                    </p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch
+                                        id="twoFactorEnabled"
+                                        checked={formik.values.twoFactorEnabled ?? false}
+                                        onCheckedChange={(checked) =>
+                                            formik.setFieldValue("twoFactorEnabled", !!checked)
+                                        }
+                                    />
+                                    <Label htmlFor="twoFactorEnabled" className="text-sm font-medium">
+                                        Require 2FA for this group
+                                    </Label>
+                                </div>
+                                {formik.values.twoFactorEnabled && (
+                                    <div className="space-y-2 pl-2">
+                                        <Label className="text-sm font-medium">Allowed methods</Label>
+                                        <div className="flex flex-wrap gap-4">
+                                            {TWO_FACTOR_AUTH.map((method) => {
+                                                const methods = formik.values.twoFactorMethods ?? [];
+                                                const isChecked = methods.includes(method.id);
+                                                return (
+                                                    <div
+                                                        key={method.id}
+                                                        className="flex items-center space-x-2"
+                                                    >
+                                                        <Checkbox
+                                                            id={`2fa-${method.id}`}
+                                                            checked={isChecked}
+                                                            onCheckedChange={(checked) => {
+                                                                const next = checked
+                                                                    ? [...methods, method.id]
+                                                                    : methods.filter((m) => m !== method.id);
+                                                                formik.setFieldValue("twoFactorMethods", next);
+                                                            }}
+                                                        />
+                                                        <Label
+                                                            htmlFor={`2fa-${method.id}`}
+                                                            className="text-sm font-normal cursor-pointer"
+                                                        >
+                                                            {method.option}
+                                                        </Label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <Separator />
