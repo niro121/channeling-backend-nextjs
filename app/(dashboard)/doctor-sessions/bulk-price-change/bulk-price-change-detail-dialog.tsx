@@ -32,7 +32,7 @@ export function BulkPriceChangeDetailDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="sr-only">
-            {bulkId ? 'Bulk price change' : 'Loading…'}
+            {bulkId ? 'Bulk Price Change' : 'Loading…'}
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 pb-6">

@@ -5,6 +5,7 @@ import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
     // Check view permission
@@ -330,4 +331,35 @@ export const getUsersExport = async (params: { keyword?: string; userType?: stri
       message: 'Error getting data'
     };
   }
+};
+
+/** Server action for export: takes keyword, resolves session on server, returns mapped data for ExportWrapper */
+export const getUsersExportData = async (keyword?: string) => {
+  const session = await fetchServerSession();
+  const userListResponse = await getUsersExport({
+    keyword: keyword ?? "",
+    userType: session?.user?.userType?.toString()
+  });
+
+  if (!userListResponse.success || !userListResponse.data?.length) {
+    return {
+      success: false,
+      message: userListResponse.success
+        ? 'No users found'
+        : userListResponse.message
+    };
+  }
+
+  const mappedUsers = userListResponse.data.map((u: any) => ({
+    name: u.name || '-',
+    email: u.email || '-',
+    userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
+    userGroup: u.userGroup?.name || '-',
+    status: u.status === 1 ? 'Active' : 'Inactive'
+  }));
+
+  return {
+    success: true,
+    data: mappedUsers
+  };
 };

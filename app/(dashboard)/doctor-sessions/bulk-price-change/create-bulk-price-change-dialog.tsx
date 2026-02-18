@@ -53,7 +53,7 @@ export function CreateBulkPriceChangeDialog({
     try {
       const res = await createBulkPriceChange(name.trim(), feeTypeId);
       if (res.success && res.data?.id) {
-        toast({ title: 'Bulk price change created' });
+        toast({ title: 'Bulk Price Change created' });
         setName('');
         setFeeTypeId('');
         onOpenChange(false);
@@ -70,7 +70,7 @@ export function CreateBulkPriceChangeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New bulk price change</DialogTitle>
+          <DialogTitle>New Bulk Price Change</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
