@@ -22,6 +22,7 @@ const FEATURE_ORDER = [
   "Rooms",
   "Doctor",
   "Doctor Session",
+  "Sessions",
   "Bulk Price Change",
   "Doctor Leave",
   "Patients",
