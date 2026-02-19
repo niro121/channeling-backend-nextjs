@@ -110,8 +110,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Name', 'Type', 'Status']}
-                                    keys={['name', 'type', 'status']}
+                                    columns={['Name', 'Type']}
+                                    keys={['name', 'type',]}
                                     title="Tags List"
                                     fileName="tags"
                                 />
