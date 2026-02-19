@@ -7,7 +7,7 @@ export type ChannelBookingDoctorOption = {
   id: string
   title: string
   name: string
-  specialityId: string
+  specialityId: string | null
 }
 
 /**
@@ -33,7 +33,7 @@ export async function getDoctorsForChannelBookingService(): Promise<{
         id: r.id,
         title: r.title,
         name: r.name,
-        specialityId: r.specialityId,
+        specialityId: r.specialityId ?? null,
       }))
 
     return { success: true, data }

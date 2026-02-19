@@ -164,6 +164,9 @@ export async function getBookingDetailsService(
     if (!b) {
       return { success: false, message: "Booking not found" }
     }
+    if (!b.session) {
+      return { success: false, message: "Booking has no session" }
+    }
     const createdByName = await resolveUser(b.createdBy)
     const methodName = BOOKING_METHODS.find((m) => m.id === b.method)?.name ?? ""
     const sessionDate = b.session.date instanceof Date ? b.session.date : new Date(b.session.date)

@@ -18,8 +18,8 @@ export type Doctor = {
   referralCharge: number;
   sessionNoPrefix: string | null;
   status: number; // == 0: unpublish, 1: publish == //
-  specialityId: string;
-  speciality?: Speciality
+  specialityId: string | null;
+  speciality?: Speciality | null
   createdUser?: User | null
   updatedUser?: User | null
   createdAt?: Date | undefined;

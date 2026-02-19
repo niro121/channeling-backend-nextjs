@@ -59,19 +59,9 @@ export const getAllRoomsService = async ({
                 }
               },
               {
-                location: {
+                zone: {
                   is: {
                     name: {
-                      contains: keyword,
-                      mode: Prisma.QueryMode.insensitive
-                    }
-                  }
-                }
-              },
-              {
-                location: {
-                  is: {
-                    city: {
                       contains: keyword,
                       mode: Prisma.QueryMode.insensitive
                     }

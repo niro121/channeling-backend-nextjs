@@ -92,7 +92,7 @@ export default async function Page({ searchParams }: SearchParams) {
                 <div className="relative w-full sm:max-w-sm">
                   <SearchInput
                     name="keyword"
-                    placeholder="Search by number, location"
+                    placeholder="Search by number, zone"
                     className="pl-8 w-full h-9"
                   />
                 </div>

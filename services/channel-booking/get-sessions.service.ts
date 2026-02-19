@@ -67,6 +67,7 @@ export async function getSessionsForChannelBookingService(
       countBySession.set(r.id, { paid: 0, pending: 0 })
     }
     for (const row of countRows) {
+      if (row.sessionId == null) continue
       const cur = countBySession.get(row.sessionId)
       if (!cur) continue
       if (row.status === 1) cur.paid = row._count.id
