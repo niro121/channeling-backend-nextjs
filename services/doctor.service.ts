@@ -797,7 +797,7 @@ export const getAllDoctorsDownloadService = async ({
     // Enrich doctors with speciality data
     const enrichedDoctors = doctors.map(doctor => ({
       ...doctor,
-      speciality: specialityMap.get(doctor.specialityId) || null
+      speciality: doctor.specialityId ? (specialityMap.get(doctor.specialityId) || null) : null
     }));
 
     const totalRecords = await prisma.doctor.count({

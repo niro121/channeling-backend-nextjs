@@ -1,7 +1,7 @@
 'use server'
 
 import { GetZonesParams, GetZonesQuery, Zone } from "@/types/zone"
-import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById } from "@/services/zone.service"
+import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById, checkZoneHasLinkedRecordsService, checkZonesHaveLinkedRecordsService } from "@/services/zone.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 
@@ -288,3 +288,79 @@ export const getZonesExport = async (params: { keyword?: string }) => {
     };
   }
 };
+
+// ==== CHECK SINGLE ZONE HAS LINKED RECORDS ==== //
+export const checkZoneHasLinkedRecords = async (
+  zoneId: string
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkZoneHasLinkedRecordsService(zoneId)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check zone linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkZoneHasLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking zone linked records"
+      }
+    }
+  }
+}
+
+// ==== CHECK ZONES HAVE LINKED RECORDS ==== //
+export const checkZonesHaveLinkedRecords = async (
+  zoneIds: string[]
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkZonesHaveLinkedRecordsService(zoneIds)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check zones linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkZonesHaveLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking zones linked records"
+      }
+    }
+  }
+}

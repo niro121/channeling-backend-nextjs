@@ -1,7 +1,7 @@
 'use server'
 
 import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/department"
-import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById } from "@/services/department.service"
+import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById, checkDepartmentHasLinkedRecordsService, checkDepartmentsHaveLinkedRecordsService } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 
@@ -216,3 +216,79 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
     };
   }
 };
+
+// ==== CHECK SINGLE DEPARTMENT HAS LINKED RECORDS ==== //
+export const checkDepartmentHasLinkedRecords = async (
+  departmentId: string
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkDepartmentHasLinkedRecordsService(departmentId)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check department linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkDepartmentHasLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking department linked records"
+      }
+    }
+  }
+}
+
+// ==== CHECK DEPARTMENTS HAVE LINKED RECORDS ==== //
+export const checkDepartmentsHaveLinkedRecords = async (
+  departmentIds: string[]
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkDepartmentsHaveLinkedRecordsService(departmentIds)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check departments linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkDepartmentsHaveLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking departments linked records"
+      }
+    }
+  }
+}
