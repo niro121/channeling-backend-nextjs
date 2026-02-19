@@ -86,7 +86,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         confirmPassword: "",
     }
 
-    // Initial values for new user (includes password)
+    // Initial values for new user (includes password) – same fields as edit where applicable
     const newUserInitialValues: User = {
         id: "",
         name: "",
@@ -97,7 +97,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         status: 1,
         userGroupId: "",
         userLocationId: "",
-        checkedDefaultLocation: false
+        staffId: "",
+        defaultBookingMethod: null,
+        checkedDefaultLocation: false,
+        bookingLocationIds: [],
     }
 
     // Validation schema for user settings
@@ -419,7 +422,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 />
                             )}
 
-                            <CustomSelectField
+                                <CustomSelectField
                                     id="userLocationId"
                                     placeholder="User Location"
                                     value={formik.values.userLocationId || "__none__"}
@@ -431,6 +434,44 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     options={[{ id: "__none__", name: "None" }, ...locationOptions]}
                                     styleClasses={styleClasses}
                                     loading={locationOptionsLoading}
+                                />
+
+                                <CustomSelectField
+                                    id="defaultBookingMethod"
+                                    placeholder="Default method"
+                                    value={formik.values.defaultBookingMethod != null ? String(formik.values.defaultBookingMethod) : "__none__"}
+                                    onChange={(value) => {
+                                        formik.setFieldValue("defaultBookingMethod", value === "__none__" ? null : parseInt(value, 10));
+                                        formik.setFieldTouched("defaultBookingMethod", true);
+                                    }}
+                                    required={false}
+                                    options={[
+                                        { id: "__none__", name: "No default" },
+                                        { id: "0", name: "Cash" },
+                                        { id: "1", name: "OnCall" },
+                                        { id: "2", name: "Agent" },
+                                        { id: "3", name: "Staff" },
+                                        { id: "4", name: "Card" },
+                                        { id: "5", name: "Slip" },
+                                    ]}
+                                    styleClasses={styleClasses}
+                                />
+
+                                <CustomSelectField
+                                    id="staffId"
+                                    placeholder="Linked staff"
+                                    value={formik.values.staffId ?? "__none__"}
+                                    onChange={(value) => {
+                                        formik.setFieldValue("staffId", value === "__none__" ? "" : value);
+                                        formik.setFieldTouched("staffId", true);
+                                    }}
+                                    required={false}
+                                    options={[
+                                        { id: "__none__", name: "None" },
+                                        ...staffOptions.map((s) => ({ id: s.id, name: s.code ? `${s.name} (${s.code})` : s.name })),
+                                    ]}
+                                    styleClasses={styleClasses}
+                                    loading={staffOptionsLoading}
                                 />
 
                                 <Separator />

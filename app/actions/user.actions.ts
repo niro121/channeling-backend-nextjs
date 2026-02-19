@@ -82,7 +82,13 @@ export const createNewUser = async (payload: User) => {
             password: hashedPassword,
             userType: payload.userType,
             status: payload.status,
-            userGroupId: payload.userGroupId
+            userGroupId: payload.userGroupId,
+            userLocationId: payload.userLocationId ?? null,
+            staffId: payload.staffId ?? null,
+            defaultBookingMethod: payload.defaultBookingMethod ?? null,
+            checkedDefaultLocation: payload.checkedDefaultLocation ?? false,
+            defaultLocation: payload.defaultLocation ?? null,
+            bookingLocationIds: payload.bookingLocationIds,
         })
 
         if (!result.success) {
