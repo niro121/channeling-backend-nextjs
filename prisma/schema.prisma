@@ -68,6 +68,7 @@ model User {
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
   userLocationId          String?                        @db.ObjectId
   userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // staffId is optional. Run scripts/fix-user-staffid-partial-unique.ts once so multiple users can have null.
   staffId                 String?                        @unique @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
