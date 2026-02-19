@@ -15,6 +15,11 @@ import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { getSessionActivity, type SessionActivityEntry } from '@/app/actions/sessions.action';
 import type { SessionListItem } from './columns';
 
+function formatFee(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Format session start/end for display in Sri Lanka (DB stores UTC). */
 function formatSessionTimeForDisplay(
   value: Date | number | string,
@@ -143,8 +148,8 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
               </Section>
 
               <Section title="Fees">
-                <DetailItem label="Local fee" value={session.amountLocal != null ? session.amountLocal : '—'} />
-                <DetailItem label="Foreign fee" value={session.amountForeign != null ? session.amountForeign : '—'} />
+                <DetailItem label="Local fee" value={formatFee(session.amountLocal)} />
+                <DetailItem label="Foreign fee" value={formatFee(session.amountForeign)} />
                 <DetailItem label="Refundable" value={session.refundable === 1 ? 'Yes' : 'No'} />
               </Section>
             </div>
@@ -203,7 +208,7 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
                       <History className="h-3.5 w-3.5" />
                     )}
                     <span className="ml-1.5">
-                      {activityLog === null ? 'Retrieve activity' : 'Refresh activity'}
+                      {activityLog === null ? 'Retrieve Activity' : 'Refresh activity'}
                     </span>
                   </Button>
                   {activityLog && (

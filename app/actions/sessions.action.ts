@@ -114,6 +114,17 @@ export const createSessions = async (payload: {
   if (!fromDate || !toDate) {
     return { success: false, message: 'From date and to date are required.' };
   }
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (fromDate < todayStr) {
+    return { success: false, message: 'From date cannot be in the past.' };
+  }
+  if (toDate < todayStr) {
+    return { success: false, message: 'To date cannot be in the past.' };
+  }
+  if (toDate < fromDate) {
+    return { success: false, message: 'To date must be on or after from date.' };
+  }
   try {
     const session = await fetchServerSession();
     const userId = session?.user?.id ?? undefined;
@@ -173,6 +184,17 @@ export const updateSessions = async (payload: {
   const { fromDate, toDate, doctorId } = payload;
   if (!fromDate || !toDate) {
     return { success: false, message: 'From date and to date are required.' };
+  }
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (fromDate < todayStr) {
+    return { success: false, message: 'From date cannot be in the past.' };
+  }
+  if (toDate < todayStr) {
+    return { success: false, message: 'To date cannot be in the past.' };
+  }
+  if (toDate < fromDate) {
+    return { success: false, message: 'To date must be on or after from date.' };
   }
   try {
     const session = await fetchServerSession();
@@ -245,6 +267,12 @@ export const updateSession = async (payload: {
     });
     if (!session) return { success: false, message: 'Session not found.' };
     const baseDate = session.date instanceof Date ? session.date : new Date(session.date);
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const sessionDateStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`;
+    if (sessionDateStr < todayStr) {
+      return { success: false, message: 'Cannot edit a session that is in the past.' };
+    }
     // Use same timezone logic as create/analyse: session date (UTC calendar) + time in HH:mm → parseSessionDateTime
     const y = baseDate.getUTCFullYear();
     const m = (baseDate.getUTCMonth() + 1).toString().padStart(2, '0');

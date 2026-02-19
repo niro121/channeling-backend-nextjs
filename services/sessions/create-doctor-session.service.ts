@@ -47,6 +47,20 @@ export const createDoctorSessionService = async (
   doctorId?: string
 ) => {
   try {
+    const todayStr = moment().format('YYYY-MM-DD');
+    const fromStr = moment(payload.fromDate).format('YYYY-MM-DD');
+    const toStr = moment(payload.toDate).format('YYYY-MM-DD');
+    if (fromStr < todayStr) {
+      throw new Error('From date cannot be in the past.');
+    }
+    if (toStr < todayStr) {
+      throw new Error('To date cannot be in the past.');
+    }
+    if (toStr < fromStr) {
+      throw new Error('To date must be on or after from date.');
+    }
+
+    // fromDate = start of day; toDate = end of day (inclusive full last day)
     const fromDateStart = moment(payload.fromDate).startOf('day').toDate();
     const toDateEnd = moment(payload.toDate).endOf('day').toDate();
 

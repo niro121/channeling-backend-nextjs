@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { logActivity } from '@/lib/activity-log';
+import moment from 'moment';
 
 export interface UpdateSessionInput {
   startTime: Date;
@@ -17,6 +18,19 @@ export async function updateSessionService(
   data: UpdateSessionInput
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const existing = await prisma.session.findUnique({
+      where: { id: sessionId },
+      select: { date: true },
+    });
+    if (!existing) {
+      return { success: false, error: 'Session not found.' };
+    }
+    const sessionDateStr = moment(existing.date).format('YYYY-MM-DD');
+    const todayStr = moment().format('YYYY-MM-DD');
+    if (sessionDateStr < todayStr) {
+      return { success: false, error: 'Cannot edit a session that is in the past.' };
+    }
+
     const updated = await prisma.session.update({
       where: { id: sessionId },
       data: {
