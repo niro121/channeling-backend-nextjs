@@ -136,16 +136,12 @@ export default function LocationForm({
           return;
         }
 
-        if (respond.data?.id) {
-          router.push(`/locations/${respond.data.id}/edit`);
-        } else {
-          router.push('/locations');
-        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Location was created successfully'
         });
+        router.push('/locations');
       }
     } catch (error: any) {
       setLoading(false);

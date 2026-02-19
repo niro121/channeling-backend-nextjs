@@ -119,9 +119,9 @@ export const createNewZone = async (
         delete cleanPayload.updatedAt;
         delete cleanPayload.location;
 
-        // Set default visibility if not provided
-        if (cleanPayload.visibility === undefined) {
-            cleanPayload.visibility = 0;
+        // Set default status if not provided
+        if (cleanPayload.status === undefined) {
+            cleanPayload.status = 0;
         }
 
         const result = await saveZone(cleanPayload, user);

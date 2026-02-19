@@ -70,13 +70,14 @@ export const DoctorColumns: ColumnDef<Doctor>[] = [
     }
   },
   {
-    accessorKey: 'registrationNumber',
-    header: 'Reg. Number',
+    id: 'speciality',
+    header: 'Speciality',
     cell: ({ row }) => {
-      const reg = row.getValue<string>('registrationNumber');
+      const speciality = row.original.speciality;
+      const specialityName = speciality?.name ?? '—';
       return (
-        <div className="max-w-28 truncate" title={reg ?? undefined}>
-          {reg || '-'}
+        <div className="max-w-32 truncate" title={specialityName}>
+          {specialityName}
         </div>
       );
     }

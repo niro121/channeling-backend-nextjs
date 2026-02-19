@@ -97,8 +97,13 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
             if (isEditPage) {
                 router.push("/user-groups")
             } else {
-                resetForm(initialValues)
-                setDialogOpen(false)
+                // If used in a dialog, close it; otherwise redirect to list
+                if (dialogContext) {
+                    resetForm(initialValues)
+                    setDialogOpen(false)
+                } else {
+                    router.push("/user-groups")
+                }
             }
         } catch (error: any) {
             setLoading(false)

@@ -4,6 +4,8 @@ import DoctorSessionsContent from './doctor-sessions-content';
 import {
   getAllDoctorSessions,
   getDoctorOptions,
+  getDepartmentOptions,
+  getLocationOptions,
   bulkDeleteDoctorSessions
 } from '@/app/actions/doctor.sessions.action';
 import { INSTITUTION_OPTIONS } from '@/types/doctor.session';
@@ -22,17 +24,25 @@ export default async function Page({ searchParams }: SearchParams) {
   const institutionId = params?.institutionId ?? '0';
   const doctorId = params?.doctorId;
 
-  const doctorOptionsRes = await getDoctorOptions();
+  const [doctorOptionsRes, departmentOptionsRes, locationOptionsRes, sessionsRes] =
+    await Promise.all([
+      getDoctorOptions(),
+      getDepartmentOptions(),
+      getLocationOptions(),
+      doctorId && doctorId !== '__all__'
+        ? getAllDoctorSessions({ institutionId, doctorId })
+        : Promise.resolve({ data: [], totalRecords: 0 })
+    ]);
+
   const doctorOptionsList = doctorOptionsRes.data || [];
   const doctorOptions = [
     { id: '__all__', name: 'Select Doctor' },
     ...doctorOptionsList
   ].map((o) => ({ id: o.id, name: o.name }));
 
-  const { data: sessions } =
-    doctorId && doctorId !== '__all__'
-      ? await getAllDoctorSessions({ institutionId, doctorId })
-      : { data: [] };
+  const departmentOptions = departmentOptionsRes.data ?? [];
+  const locationOptions = locationOptionsRes.data ?? [];
+  const sessions = sessionsRes.data ?? [];
 
   return (
     <div className="overflow-hidden">
@@ -43,6 +53,8 @@ export default async function Page({ searchParams }: SearchParams) {
           institutionId={institutionId}
           doctorOptions={doctorOptions}
           institutionOptions={institutionOptions}
+          departmentOptions={departmentOptions}
+          locationOptions={locationOptions}
           bulkDeleteAction={bulkDeleteDoctorSessions}
         />
       </Suspense>

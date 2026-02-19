@@ -16,11 +16,11 @@ const departmentSchema = z.object({
         .min(1, "This field is mandatory")
         .max(150, "Must be less than 150 characters"),
     description: z.string().optional().nullable(),
-    visibility: z
+    status: z
         .number()
         .int()
         .refine((val) => val === 0 || val === 1, {
-            message: "Visibility must be Unpublish (0) or Publish (1)",
+            message: "Status must be Unpublish (0) or Publish (1)",
         }),
 })
 
@@ -220,7 +220,7 @@ export const saveDepartment = async (
             data: {
                 name: data.name,
                 description: data.description ?? null,
-                visibility: data.visibility,
+                status: data.status,
             },
         })
 
@@ -290,8 +290,8 @@ export const updateOneDepartment = async (
                 ...(data.description !== undefined && {
                     description: data.description ?? null,
                 }),
-                ...(data.visibility !== undefined && {
-                    visibility: data.visibility,
+                ...(data.status !== undefined && {
+                    status: data.status,
                 }),
                 updatedAt: new Date(),
             },
