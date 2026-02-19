@@ -8,7 +8,9 @@ import {
   deleteRoomByIdService,
   bulkDeleteRoomsByIdsService,
   getAllLocationsService,
-  getAllZonesByLocaionIDService
+  getAllZonesByLocaionIDService,
+  checkRoomHasLinkedRecordsService,
+  checkRoomsHaveLinkedRecordsService
 } from '@/services/room.service';
 import {
   getRoomParam,
@@ -315,3 +317,79 @@ export const getRoomsExport = async (params: { keyword?: string; locationId?: st
     };
   }
 };
+
+// ==== CHECK SINGLE ROOM HAS LINKED RECORDS ==== //
+export const checkRoomHasLinkedRecords = async (
+  roomId: string
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkRoomHasLinkedRecordsService(roomId)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check room linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkRoomHasLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking room linked records"
+      }
+    }
+  }
+}
+
+// ==== CHECK ROOMS HAVE LINKED RECORDS ==== //
+export const checkRoomsHaveLinkedRecords = async (
+  roomIds: string[]
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkRoomsHaveLinkedRecordsService(roomIds)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check rooms linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkRoomsHaveLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking rooms linked records"
+      }
+    }
+  }
+}

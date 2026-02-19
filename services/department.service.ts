@@ -382,3 +382,114 @@ export const getDepartmentById = async (
     }
 }
 
+// ==== CHECK SINGLE DEPARTMENT HAS LINKED RECORDS ==== //
+export const checkDepartmentHasLinkedRecordsService = async (
+    departmentId: string
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!departmentId) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid department ID"
+                }
+            }
+        }
+
+        // Check for DoctorSession records associated with this department
+        const doctorSessionCount = await prisma.doctorSession.count({
+            where: {
+                departmentId: departmentId
+            }
+        })
+
+        // Check for Session records associated with this department
+        const sessionCount = await prisma.session.count({
+            where: {
+                departmentId: departmentId
+            }
+        })
+
+        const hasLinkedRecords = doctorSessionCount > 0 || sessionCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkDepartmentHasLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check department linked records"
+            }
+        }
+    }
+}
+
+// ==== CHECK DEPARTMENTS HAVE LINKED RECORDS ==== //
+export const checkDepartmentsHaveLinkedRecordsService = async (
+    departmentIds: string[]
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!departmentIds || departmentIds.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid department IDs"
+                }
+            }
+        }
+
+        // Check for DoctorSession records associated with any of these departments
+        const doctorSessionCount = await prisma.doctorSession.count({
+            where: {
+                departmentId: {
+                    in: departmentIds
+                }
+            }
+        })
+
+        // Check for Session records associated with any of these departments
+        const sessionCount = await prisma.session.count({
+            where: {
+                departmentId: {
+                    in: departmentIds
+                }
+            }
+        })
+
+        const hasLinkedRecords = doctorSessionCount > 0 || sessionCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkDepartmentsHaveLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check departments linked records"
+            }
+        }
+    }
+}
+
+

@@ -9,7 +9,8 @@ import {
   bulkDeleteRooms,
   getAllLocations,
   getAllRooms,
-  getRoomsExport
+  getRoomsExport,
+  checkRoomsHaveLinkedRecords
 } from '@/app/actions/room.actions';
 import { RoomColumns } from './columns';
 import FilterSection from './filter-section';
@@ -75,6 +76,28 @@ export default async function Page({ searchParams }: SearchParams) {
     };
   };
 
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    
+    try {
+      const result = await checkRoomsHaveLinkedRecords(ids);
+      
+      if (result.success && result.data) {
+        const { hasLinkedRecords } = result.data;
+        
+        if (hasLinkedRecords) {
+          return "One or more selected rooms are currently linked to other system records. Deleting them may affect related data and existing associations.\n\nAre you sure you want to continue?";
+        }
+      }
+      
+      // Default message if no linked records
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    } catch (error: any) {
+      console.error('Error getting bulk delete description:', error);
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    }
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -85,6 +108,7 @@ export default async function Page({ searchParams }: SearchParams) {
           data={data}
           rowCount={totalRecords}
           deleteServerAction={bulkDeleteRooms}
+          getBulkDeleteDescription={getBulkDeleteDescription}
           page={params?.page}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">

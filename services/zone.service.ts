@@ -483,3 +483,115 @@ export const getZoneById = async (
         };
     }
 };
+
+// ==== CHECK SINGLE ZONE HAS LINKED RECORDS ==== //
+export const checkZoneHasLinkedRecordsService = async (
+    zoneId: string
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!zoneId) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid zone ID"
+                }
+            }
+        }
+
+        // Check for Room records associated with this zone
+        const roomCount = await prisma.room.count({
+            where: {
+                zoneId: zoneId
+            }
+        })
+
+        // Check if zone has a location assigned (locationId is required but check anyway)
+        const zone = await prisma.zone.findUnique({
+            where: { id: zoneId },
+            select: { locationId: true }
+        })
+
+        const hasLinkedRecords = roomCount > 0 || (zone?.locationId !== null && zone?.locationId !== undefined)
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkZoneHasLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check zone linked records"
+            }
+        }
+    }
+}
+
+// ==== CHECK ZONES HAVE LINKED RECORDS ==== //
+export const checkZonesHaveLinkedRecordsService = async (
+    zoneIds: string[]
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!zoneIds || zoneIds.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid zone IDs"
+                }
+            }
+        }
+
+        // Check for Room records associated with any of these zones
+        const roomCount = await prisma.room.count({
+            where: {
+                zoneId: {
+                    in: zoneIds
+                }
+            }
+        })
+
+        // Check if any of these zones have locations assigned (locationId is required but check anyway)
+        const zonesWithLocations = await prisma.zone.count({
+            where: {
+                id: {
+                    in: zoneIds
+                },
+                locationId: {
+                    not: null
+                }
+            }
+        })
+
+        const hasLinkedRecords = roomCount > 0 || zonesWithLocations > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkZonesHaveLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check zones linked records"
+            }
+        }
+    }
+}
