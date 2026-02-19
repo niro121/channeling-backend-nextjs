@@ -290,9 +290,7 @@ export const getAgencyBooksExport = async (params: { keyword?: string; agencyId?
         success: false,
         message: response.success ? 'No agency books found' : response.message || 'Error getting data'
       };
-    }
-
-    return {
+    }    return {
       success: true,
       data: response.data
     };

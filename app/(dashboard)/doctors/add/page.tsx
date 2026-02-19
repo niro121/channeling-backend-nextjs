@@ -12,8 +12,9 @@ export default async function AddDoctorPage() {
   const specialityRes = await getAllSpecialityOptions()
 
   const specialityOptions =
-    specialityRes?.data?.map((s) => ({ id: s.id as string, name: s.name })) ??
-    [];
+    specialityRes?.data
+      ?.map((s) => ({ id: s.id as string, name: s.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
 
   return (
     <div className="container mx-auto py-6">
