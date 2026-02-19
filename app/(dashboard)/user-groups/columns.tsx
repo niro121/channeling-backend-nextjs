@@ -65,7 +65,7 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
                     ) : (
                         <XCircle className="h-4 w-4" />
                     )}
-                    {isActive ? "Active" : "Inactive"}
+                    {isActive ? "Published" : "Unpublished"}
                 </Badge>
             )
         },
