@@ -27,6 +27,7 @@ type SpecialityFormProps = {
 export default function SpecialityForm({ speciality, isEditPage = false, user }: SpecialityFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [cancelLoading, setCancelLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -51,6 +52,7 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
     values: SpecialityFormValues,
     { setErrors, setTouched }: FormikHelpers<SpecialityFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       let respond: any;
 
@@ -95,7 +97,8 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
           title: 'Success',
           description: 'Speciality was updated successfully'
         });
-        router.push('/specialities');
+        if (closeAfterSave) router.push('/specialities');
+        else router.refresh();
       } else {
         respond = await createSpeciality(values, user);
 
@@ -135,7 +138,10 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
           title: 'Success',
           description: 'Speciality was created successfully'
         });
-        router.push('/specialities');
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/specialities');
+        else if (newId) router.push(`/specialities/${newId}/edit`);
+        else router.push('/specialities');
       }
     } catch (error: any) {
       setLoading(false);
@@ -236,9 +242,10 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                   </Button>
                   <Button
                     disabled={loading || cancelLoading}
-                    size={'sm'}
-                    type="submit"
-                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black cursor-pointer"
+                    size="sm"
+                    type="button"
+                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black cursor-pointer"
+                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -246,6 +253,17 @@ export default function SpecialityForm({ speciality, isEditPage = false, user }:
                       <Save className="h-4 w-4" />
                     )}
                     <span>Save</span>
+                  </Button>
+                  <Button
+                    disabled={loading || cancelLoading}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto gap-1 px-6 cursor-pointer"
+                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>Save and Close</span>
                   </Button>
                 </div>
               </div>

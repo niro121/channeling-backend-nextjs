@@ -28,6 +28,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
         updatedAt: tag?.updatedAt ? tag.updatedAt : new Date(),
     }
     const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
     const { toast } = useToast()
     const router = useRouter()
 
@@ -48,8 +49,9 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
 
     const handleSubmit = async (
         values: Tag,
-        { resetForm, setErrors, setTouched }: FormikHelpers<Tag>
+        { setErrors, setTouched }: FormikHelpers<Tag>
     ) => {
+        const closeAfterSave = saveAndCloseRef.current
         try {
             setLoading(true);
             let respond: any;
@@ -87,12 +89,13 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
-                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was saved successfully",
                 })
+                if (closeAfterSave) router.push('/tags')
+                else router.refresh()
             } else {
                 respond = await createNewTag(values);
                 setLoading(false);
@@ -126,12 +129,15 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                     return;
                 }
 
-                router.push('/tags')
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Tag was created successfully",
                 })
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push('/tags')
+                else if (newId) router.push(`/tags/${newId}/edit`)
+                else router.push('/tags')
             }
         } catch (error: any) {
             setLoading(false);
@@ -229,24 +235,32 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                     variant="outline"
                                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                                     type="button"
-                                    onClick={() => {
-                                        router.push('/tags')
-                                    }}
+                                    onClick={() => router.push('/tags')}
                                     disabled={loading}
                                 >
                                     <Ban className="h-4 w-4" />
-                                    <span>
-                                        Cancel
-                                    </span>
+                                    <span>Cancel</span>
                                 </Button>
                                 <Button
                                     disabled={loading}
-                                    size={"sm"}
-                                    type="submit"
-                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                                 >
                                     <Save className="h-4 w-4" />
                                     <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
                                 </Button>
                             </div>
                         </div>

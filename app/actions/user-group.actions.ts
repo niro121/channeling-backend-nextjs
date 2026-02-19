@@ -72,9 +72,7 @@ export const createNewUserGroup = async (payload: UserGroup) => {
         return {
             isError: false,
             errors: {},
-            data: {
-                saved: true
-            }
+            data: result
         }
 
 
