@@ -787,3 +787,26 @@ enum LogStatus {
   INFO
   ERROR
 }
+
+// UAT (User Acceptance Testing) – results per tester, shared so anyone can see
+model UatCaseResult {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  testerName  String
+  testCaseId  String
+  status      String   // "pass" | "fail"
+  comment     String?  // issue or note
+  updatedAt   DateTime @default(now())
+
+  @@unique([testerName, testCaseId])
+  @@index([testerName])
+}
+
+model UatSectionComplete {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  testerName  String
+  feature     String
+  completedAt DateTime @default(now())
+
+  @@unique([testerName, feature])
+  @@index([testerName])
+}
