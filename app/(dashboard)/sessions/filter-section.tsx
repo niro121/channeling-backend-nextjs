@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { useSessionStore } from '@/store/store-session';
 import { useToast } from '@/components/hooks/use-toast';
-import { PlusCircle, SaveIcon } from '@/components/icons';
-import { Loader2 } from 'lucide-react';
+import { PlusCircle } from '@/components/icons';
+import { CalendarIcon, Loader2, RefreshCw } from 'lucide-react';
 import { createSessions, updateSessions } from '@/app/actions/sessions.action';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +71,9 @@ export default function FilterSection({
     totalSessionsProcessed?: number;
   } | null>(null);
 
+  const fromDateInputRef = React.useRef<HTMLInputElement>(null);
+  const toDateInputRef = React.useRef<HTMLInputElement>(null);
+
   const pushFilterToUrl = (vals: { doctorId?: string; fromDate?: string; toDate?: string }) => {
     const params = new URLSearchParams();
     if (vals.doctorId && vals.doctorId !== '-1') params.set('doctorId', vals.doctorId);
@@ -87,6 +90,11 @@ export default function FilterSection({
 
   const isDoctorSelected = (v: string | undefined) => v === '-1' || (v != null && v.length > 0);
 
+  const todayStr = React.useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
   return (
     <FilterWrapper
       key={[initialValues.doctorId, initialValues.fromDate, initialValues.toDate].join('|')}
@@ -94,6 +102,9 @@ export default function FilterSection({
       initialValues={initialValues}
     >
       {({ values, setValue }) => {
+        const fromDateMin = todayStr;
+        const toDateMin = values.fromDate && values.fromDate >= todayStr ? values.fromDate : todayStr;
+
         const canSubmit = Boolean(
           values.fromDate && values.toDate && isDoctorSelected(values.doctorId)
         );
@@ -111,32 +122,58 @@ export default function FilterSection({
             />
           </div>
           <div className="flex h-10 shrink-0 items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">From date</span>
-            <input
-              type="date"
-              aria-label="From date"
-              value={values.fromDate ?? ''}
-              onChange={(e) => setValue('fromDate', e.target.value || undefined)}
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">From Date</span>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fromDateInputRef.current?.showPicker?.()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fromDateInputRef.current?.showPicker?.(); } }}
               className={cn(
-                'h-10 w-[10.5rem] shrink-0 rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                'placeholder:text-muted-foreground'
+                'relative flex h-10 w-[10.5rem] shrink-0 cursor-pointer items-center gap-2 rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground',
+                'focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-background'
               )}
-            />
+            >
+              <input
+                ref={fromDateInputRef}
+                type="date"
+                aria-label="From Date"
+                min={fromDateMin}
+                value={values.fromDate ?? ''}
+                onChange={(e) => setValue('fromDate', e.target.value || undefined)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 pointer-events-none"
+              />
+              <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground pointer-events-none" />
+              <span className="pointer-events-none flex-1 truncate pt-0.5 text-foreground">
+                {values.fromDate || 'Select date'}
+              </span>
+            </div>
           </div>
           <div className="flex h-10 shrink-0 items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">To date</span>
-            <input
-              type="date"
-              aria-label="To date"
-              value={values.toDate ?? ''}
-              onChange={(e) => setValue('toDate', e.target.value || undefined)}
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">To Date</span>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => toDateInputRef.current?.showPicker?.()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toDateInputRef.current?.showPicker?.(); } }}
               className={cn(
-                'h-10 w-[10.5rem] shrink-0 rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                'placeholder:text-muted-foreground'
+                'relative flex h-10 w-[10.5rem] shrink-0 cursor-pointer items-center gap-2 rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground',
+                'focus-within:outline-none focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-background'
               )}
-            />
+            >
+              <input
+                ref={toDateInputRef}
+                type="date"
+                aria-label="To Date"
+                min={toDateMin}
+                value={values.toDate ?? ''}
+                onChange={(e) => setValue('toDate', e.target.value || undefined)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 pointer-events-none"
+              />
+              <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground pointer-events-none" />
+              <span className="pointer-events-none flex-1 truncate pt-0.5 text-foreground">
+                {values.toDate || 'Select date'}
+              </span>
+            </div>
           </div>
           <Button
             size="sm"
@@ -152,7 +189,7 @@ export default function FilterSection({
             }}
             className="h-10 shrink-0"
           >
-            View sessions
+            View Sessions
           </Button>
           <Button
             size="sm"
@@ -177,6 +214,7 @@ export default function FilterSection({
                   fromDate: values.fromDate ?? '',
                   toDate: values.toDate ?? ''
                 });
+                // Always leave 'running' when we have a response (including 0 sessions)
                 setProgressStatus(result.success ? 'done' : 'error');
                 setProgressResult({
                   message: result.message,
@@ -191,7 +229,6 @@ export default function FilterSection({
                     fromDate: values.fromDate,
                     toDate: values.toDate
                   });
-                  onSessionsCreatedOrUpdated?.();
                 } else {
                   toast({ variant: 'destructive', title: 'Error', description: result.message });
                 }
@@ -203,7 +240,7 @@ export default function FilterSection({
                 setCreating(false);
               }
             }}
-            className="h-10 shrink-0 gap-1 bg-blue-600 text-white hover:bg-blue-700"
+            className="h-10 shrink-0 gap-1"
           >
             <PlusCircle />
             {creating ? 'Creating…' : 'Analyse & Create'}
@@ -231,6 +268,7 @@ export default function FilterSection({
                   fromDate: values.fromDate ?? '',
                   toDate: values.toDate ?? ''
                 });
+                // Always leave 'running' when we have a response (including 0 sessions)
                 setProgressStatus(result.success ? 'done' : 'error');
                 setProgressResult({
                   message: result.message,
@@ -245,7 +283,6 @@ export default function FilterSection({
                     fromDate: values.fromDate,
                     toDate: values.toDate
                   });
-                  onSessionsCreatedOrUpdated?.();
                 } else {
                   toast({ variant: 'destructive', title: 'Error', description: result.message });
                 }
@@ -259,17 +296,13 @@ export default function FilterSection({
             }}
             className="h-10 shrink-0 gap-1 bg-red-600 text-white hover:bg-red-700"
           >
-            <SaveIcon />
+            <RefreshCw className="h-4 w-4" />
             {updating ? 'Updating…' : 'Update Only'}
           </Button>
 
           <Dialog
             open={progressOpen}
             onOpenChange={(open) => {
-              if (!open && progressStatus === 'done') {
-                // Refetch again on close so list is fresh when dialog dismisses
-                setTimeout(() => onSessionsCreatedOrUpdated?.(), 0);
-              }
               setProgressOpen(open);
             }}
           >

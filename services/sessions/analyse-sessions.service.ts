@@ -44,6 +44,20 @@ export async function analyseSessionsService(
   const inputData: SessionInputData[] = [];
 
   try {
+    const todayStr = moment().format('YYYY-MM-DD');
+    if (inputs.fromDate < todayStr) {
+      result.error = 'From date cannot be in the past.';
+      return result;
+    }
+    if (inputs.toDate < todayStr) {
+      result.error = 'To date cannot be in the past.';
+      return result;
+    }
+    if (inputs.toDate < inputs.fromDate) {
+      result.error = 'To date must be on or after from date.';
+      return result;
+    }
+
     const schedule = await prisma.doctorSession.findMany({
       where: {
         status: 1,
@@ -69,7 +83,8 @@ export async function analyseSessionsService(
           }
         }
 
-        const rangeEnd = moment(inputs.toDate).endOf('day');
+        // toDate is inclusive: use end of day so the full last day is included
+        const rangeEnd = moment.utc(inputs.toDate).endOf('day');
 
         for (
           let m = moment.utc(inputs.fromDate).startOf('day');
