@@ -5,6 +5,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -36,6 +37,8 @@ type CustomTableProps<TData, TValue> = {
   showFooter?: boolean
   /** When true with compact, render table only (no Card wrapper). Use for embedding in a custom container. */
   noCard?: boolean
+  /** Optional footer row: one cell per column. Renders as a single row in tfoot so it aligns with columns. */
+  footerCells?: React.ReactNode[]
 }
 
 export default function CustomTable<TData, TValue>({
@@ -47,6 +50,7 @@ export default function CustomTable<TData, TValue>({
   compact = false,
   showFooter = true,
   noCard = false,
+  footerCells,
 }: CustomTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -99,6 +103,20 @@ export default function CustomTable<TData, TValue>({
           </TableRow>
         )}
       </TableBody>
+      {footerCells != null && footerCells.length === columns.length && (
+        <TableFooter>
+          <TableRow className="border-t bg-muted font-semibold">
+            {footerCells.map((cell, i) => (
+              <TableCell
+                key={i}
+                className={compact ? 'py-2 px-2 text-xs' : 'py-5 px-0'}
+              >
+                {cell}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableFooter>
+      )}
     </Table>
   )
   if (noCard && compact) {
