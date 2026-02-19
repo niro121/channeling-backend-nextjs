@@ -197,12 +197,7 @@ export default function DiscountForm({
           title: 'Success',
           description: 'Discount was created successfully'
         });
-
-        if (respond.data?.id) {
-          router.push(`/discounts/${respond.data.id}/edit`);
-        } else {
-          router.push('/discounts');
-        }
+        router.push('/discounts');
       }
     } catch (error: any) {
       setLoading(false);

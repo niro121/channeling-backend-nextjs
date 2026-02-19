@@ -469,6 +469,7 @@ export const getAllDoctorsService = async ({
         : undefined;
 
   try {
+    // Fetch doctors with user relations first
     const records = await prisma.doctor.findMany({
       skip,
       take: limit,
@@ -480,6 +481,36 @@ export const getAllDoctorsService = async ({
       }
     });
 
+    // Fetch specialities for doctors that have valid specialityIds
+    const specialityIds = records
+      .map(d => d.specialityId)
+      .filter((id): id is string => Boolean(id));
+    
+    const specialitiesMap = new Map();
+    if (specialityIds.length > 0) {
+      try {
+        const specialities = await prisma.speciality.findMany({
+          where: {
+            id: { in: specialityIds }
+          },
+          select: {
+            id: true,
+            name: true,
+            code: true
+          }
+        });
+        specialities.forEach(s => specialitiesMap.set(s.id, s));
+      } catch (error) {
+        console.warn('Error fetching specialities:', error);
+      }
+    }
+
+    // Map speciality to each doctor
+    const recordsWithSpeciality = records.map(doctor => ({
+      ...doctor,
+      speciality: doctor.specialityId ? (specialitiesMap.get(doctor.specialityId) || null) : null
+    }));
+
     const totalRecords = await prisma.doctor.count({
       where: whereClause
     });
@@ -487,7 +518,7 @@ export const getAllDoctorsService = async ({
     return {
       success: true,
       data: {
-        records,
+        records: recordsWithSpeciality,
         totalRecords
       },
       message: 'Doctors fetched successfully'

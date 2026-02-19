@@ -32,7 +32,7 @@ async function main() {
   for (const s of sessions) {
     const start = s.startTime;
     const end = s.endTime;
-    if (start instanceof Date && end instanceof Date) continue;
+    if ((start as unknown) instanceof Date && (end as unknown) instanceof Date) continue;
 
     const sessionDate = s.date instanceof Date ? s.date : new Date(s.date);
     const startDate = toDate(start, sessionDate);
@@ -40,7 +40,10 @@ async function main() {
 
     await prisma.session.update({
       where: { id: s.id },
-      data: { startTime: startDate, endTime: endDate },
+      data: { 
+        startTime: startDate as any, 
+        endTime: endDate as any 
+      },
     });
     updated++;
   }

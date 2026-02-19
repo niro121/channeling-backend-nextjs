@@ -166,12 +166,7 @@ export default function RoomForm({
           title: 'Success',
           description: 'Room was created successfully'
         });
-
-        if (respond.data?.id) {
-          router.push(`/rooms/${respond.data.id}/edit`);
-        } else {
-          router.push('/rooms');
-        }
+        router.push('/rooms');
       }
     } catch (error: any) {
       setLoading(false);

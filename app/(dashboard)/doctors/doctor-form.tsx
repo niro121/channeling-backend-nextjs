@@ -121,12 +121,7 @@ export default function DoctorForm({
           title: 'Success',
           description: 'Doctor was created successfully'
         });
-
-        if (respond.data?.id) {
-          router.push(`/doctors/${respond.data.id}/edit`);
-        } else {
-          router.push('/doctors');
-        }
+        router.push('/doctors');
       }
     } catch (error: any) {
       setLoading(false);

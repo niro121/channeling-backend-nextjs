@@ -134,17 +134,12 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                     return
                 }
 
-                // Redirect first so the form doesn't clear before navigation (revalidatePath can re-render add page)
-                if (respond.data?.id) {
-                    router.push(`/departments/${respond.data.id}/edit`)
-                } else {
-                    router.push('/departments')
-                }
                 toast({
                     variant: "success",
                     title: "Success",
                     description: "Department was created successfully",
                 })
+                router.push('/departments')
             }
         } catch (error: any) {
             setLoading(false)

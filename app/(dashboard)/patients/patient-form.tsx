@@ -143,17 +143,12 @@ const PatientForm = ({
           return;
         }
 
-        const newId = respond.data?.id;
-        if (newId) {
-          router.push(`/patients/${newId}/edit`);
-        } else {
-          router.push('/patients');
-        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was created successfully'
         });
+        router.push('/patients');
       }
     } catch (error: any) {
       setLoading(false);
