@@ -40,36 +40,6 @@ export default async function Page({ searchParams }: SearchParams) {
 
     const { data: userGroupOptions } = await getAllUserGroupsOptions()
 
-    const handleExport = async () => {
-        'use server';
-
-        const userListResponse = await getUsersExport({
-            keyword: resolvedSearchParams?.keyword,
-            userType: session?.user?.userType?.toString()
-        });
-
-        if (!userListResponse.success || !userListResponse.data?.length) {
-            return {
-                success: false,
-                message: userListResponse.success
-                    ? 'No users found'
-                    : userListResponse.message
-            };
-        }
-
-        const mappedUsers = userListResponse.data.map((u: any) => ({
-            name: u.name || '-',
-            email: u.email || '-',
-            userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
-            userGroup: u.userGroup?.name || '-'
-        }));
-
-        return {
-            success: true,
-            data: mappedUsers
-        };
-    };
-
     return (
         <div className="overflow-hidden">
             <Suspense fallback={<Loading />}>
@@ -93,13 +63,7 @@ export default async function Page({ searchParams }: SearchParams) {
                                 </div>
                             </div>
                             <div className="flex items-center">
-                                <ExportWrapper
-                                    serverData={handleExport}
-                                    columns={['Name', 'Email', 'User Type', 'User Group']}
-                                    keys={['name', 'email', 'userType', 'userGroup']}
-                                    title="Users List"
-                                    fileName="users"
-                                />
+                                <UsersExport keyword={resolvedSearchParams?.keyword} />
                             </div>
                         </div>
                     }
