@@ -50,6 +50,8 @@ model User {
   updatedAgencyBooks      AgencyBook[]                   @relation("UserUpdatedAgencyBooks")
   createdBookings         Booking[]                      @relation("UserCreatedBookings")
   updatedBookings         Booking[]                      @relation("UserUpdatedBookings")
+  createdTags             Tag[]                          @relation("UserCreatedTags")
+  updatedTags             Tag[]                          @relation("UserUpdatedTags")
   userGroupId             String?                        @db.ObjectId
   userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
   shifts                  Shift[]                        @relation("UserShifts")
@@ -475,10 +477,12 @@ model Tag {
 
   patients Patient[] @relation("PatientArea")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.ObjectId
+  updatedBy String?   @db.ObjectId
+  createdUser User?   @relation("UserCreatedTags", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?   @relation("UserUpdatedTags", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Zone {

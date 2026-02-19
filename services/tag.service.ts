@@ -19,7 +19,8 @@ const tagSchema = z.object({
     type: z
         .number()
         .int()
-        .min(1, "Type is required"),
+        .min(0, "Type is required")
+        .max(4, "Type must be 0–4 (City, Staff Category, Staff Designation, Staff Grade, Bank)"),
     status: z
         .number()
         .int()
@@ -70,6 +71,10 @@ export const getTags = async ({
                 where: whereClause,
                 orderBy: {
                     createdAt: "desc",
+                },
+                include: {
+                    createdUser: { select: { name: true } },
+                    updatedUser: { select: { name: true } },
                 },
             }),
             prisma.tag.count({ where: whereClause }),
@@ -338,7 +343,7 @@ export const updateOneTag = async (
             }
         }
 
-        const updateData: Prisma.TagUpdateInput = {
+        const updateData: Prisma.TagUncheckedUpdateInput = {
             ...(user?.id ? { updatedBy: user.id } : {})
         };
 

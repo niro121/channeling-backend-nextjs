@@ -100,7 +100,7 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
           }
         >
           {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {isActive ? 'Active' : 'Inactive'}
+          {isActive ? 'Published' : 'Unpublished'}
         </Badge>
       );
     }
