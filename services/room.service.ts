@@ -528,3 +528,136 @@ export const getAllZonesByLocaionIDService = async (locationId: string) => {
     throw error;
   }
 };
+
+// ==== CHECK SINGLE ROOM HAS LINKED RECORDS ==== //
+export const checkRoomHasLinkedRecordsService = async (
+    roomId: string
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!roomId) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid room ID"
+                }
+            }
+        }
+
+        // Check if room has zoneId assigned
+        const room = await prisma.room.findUnique({
+            where: { id: roomId },
+            select: { zoneId: true, locationId: true }
+        })
+
+        // Check for DoctorSession records associated with this room
+        const doctorSessionCount = await prisma.doctorSession.count({
+            where: {
+                roomId: roomId
+            }
+        })
+
+        // Check for Session records associated with this room
+        const sessionCount = await prisma.session.count({
+            where: {
+                roomId: roomId
+            }
+        })
+
+        const hasLinkedRecords = 
+            (room?.zoneId !== null && room?.zoneId !== undefined) ||
+            (room?.locationId !== null && room?.locationId !== undefined) ||
+            doctorSessionCount > 0 ||
+            sessionCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkRoomHasLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check room linked records"
+            }
+        }
+    }
+}
+
+// ==== CHECK ROOMS HAVE LINKED RECORDS ==== //
+export const checkRoomsHaveLinkedRecordsService = async (
+    roomIds: string[]
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!roomIds || roomIds.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid room IDs"
+                }
+            }
+        }
+
+        // Check if any rooms have zoneId or locationId assigned
+        const roomsWithAssignments = await prisma.room.count({
+            where: {
+                id: {
+                    in: roomIds
+                },
+                OR: [
+                    { zoneId: { not: null } },
+                    { locationId: { not: null } }
+                ]
+            }
+        })
+
+        // Check for DoctorSession records associated with any of these rooms
+        const doctorSessionCount = await prisma.doctorSession.count({
+            where: {
+                roomId: {
+                    in: roomIds
+                }
+            }
+        })
+
+        // Check for Session records associated with any of these rooms
+        const sessionCount = await prisma.session.count({
+            where: {
+                roomId: {
+                    in: roomIds
+                }
+            }
+        })
+
+        const hasLinkedRecords = roomsWithAssignments > 0 || doctorSessionCount > 0 || sessionCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkRoomsHaveLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check rooms linked records"
+            }
+        }
+    }
+}

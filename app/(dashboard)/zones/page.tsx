@@ -4,7 +4,7 @@ import { Plus } from "lucide-react"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
 import { zoneColumns } from "./columns"
-import { bulkDeleteZones, getAllZones, getZonesExport } from "@/app/actions/zone.actions"
+import { bulkDeleteZones, getAllZones, getZonesExport, checkZonesHaveLinkedRecords } from "@/app/actions/zone.actions"
 import Loading from "../loading"
 import Link from "next/link"
 import { checkRouteAccess } from "@/lib/server-permissions"
@@ -63,6 +63,28 @@ export default async function Page({ searchParams }: SearchParams) {
         };
     };
 
+    const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+        'use server';
+        
+        try {
+            const result = await checkZonesHaveLinkedRecords(ids);
+            
+            if (result.success && result.data) {
+                const { hasLinkedRecords } = result.data;
+                
+                if (hasLinkedRecords) {
+                    return "One or more selected zones are currently linked to other system records. Deleting them may affect related data and existing associations.\n\nAre you sure you want to continue?";
+                }
+            }
+            
+            // Default message if no linked records
+            return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+        } catch (error: any) {
+            console.error('Error getting bulk delete description:', error);
+            return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+        }
+    };
+
     return (
         <div className="overflow-hidden">
             <Suspense fallback={<Loading />}>
@@ -73,6 +95,7 @@ export default async function Page({ searchParams }: SearchParams) {
                     data={data}
                     rowCount={totalRecords}
                     deleteServerAction={bulkDeleteZones}
+                    getBulkDeleteDescription={getBulkDeleteDescription}
                     page={resolvedSearchParams?.page}
                     toolbarLeft={
                         <div className="flex flex-col gap-3 flex-1 min-w-0">
