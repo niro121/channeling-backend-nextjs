@@ -17,6 +17,7 @@ model User {
   id                     String   @id @default(auto()) @map("_id") @db.ObjectId
   name                   String
   email                  String   @unique()
+  phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
   userType               Int // 1 = admin, 2 = staff
   password               String
   createdAt              DateTime @default(now())
@@ -785,4 +786,14 @@ enum PaymentType {
 enum LogStatus {
   INFO
   ERROR
+}
+
+model SmsLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  status      Int      // == 0 = sent, 1 = failed == //
+  name        String
+  description String?
+  phone       String
+  template    String
+  createdAt   DateTime @default(now())
 }

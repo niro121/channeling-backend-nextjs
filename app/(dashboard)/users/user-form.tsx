@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Ban, Save } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import * as Yup from "yup"
+import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 import { useDialog } from "@/components/common/custom-dialog"
 import { Separator } from "@/components/ui/separator"
 import { createNewUser, updateUser, updateUserPassword, getLocationOptions } from "@/app/actions/user.actions"
@@ -69,6 +70,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const settingsInitialValues = {
         name: user?.name || "",
         email: user?.email || "",
+        phone: user?.phone ?? "",
         userType: user?.userType || 2,
         userGroupId: user?.userGroupId || "",
         status: user?.status !== undefined ? user.status : 1,
@@ -91,6 +93,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         id: "",
         name: "",
         email: "",
+        phone: "",
         password: "",
         confirmPassword: "",
         userType: 2,
@@ -108,6 +111,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         email: Yup.string()
             .email("Invalid email address")
             .required("This field is mandatory"),
+        phone: Yup.string()
+            .nullable()
+            .transform((v) => (v === "" ? null : v))
+            .test("mobile", MOBILE_VALIDATION_MESSAGE, (v) => v == null || MOBILE_REGEX.test(v)),
         userType: Yup.number()
             .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
             .required("This field is mandatory"),
@@ -138,6 +145,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         email: Yup.string()
             .email("Invalid email address")
             .required("This field is mandatory"),
+        phone: Yup.string()
+            .nullable()
+            .transform((v) => (v === "" ? null : v))
+            .test("mobile", MOBILE_VALIDATION_MESSAGE, (v) => v == null || MOBILE_REGEX.test(v)),
         password: Yup.string()
             .matches(
                 /^(?=.*[^\w\s])(?=.*[a-z])(?=.*[A-Z])(?=.*\d)\S+$/,
@@ -364,6 +375,17 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                             />
 
                             <CustomFormField
+                                type="tel"
+                                id="phone"
+                                placeholder="Mobile (e.g. 07XXXXXXXX)"
+                                value={formik.values.phone ?? ""}
+                                onChange={formik.handleChange}
+                                onBlur={formik.handleBlur}
+                                required={false}
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomFormField
                                 type="password"
                                 id="password"
                                 placeholder="Password"
@@ -529,6 +551,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             onChange={formik.handleChange}
                                             onBlur={formik.handleBlur}
                                             required
+                                            styleClasses={styleClasses}
+                                        />
+                                        <CustomFormField
+                                            type="tel"
+                                            id="phone"
+                                            placeholder="Mobile (e.g. 07XXXXXXXX)"
+                                            value={formik.values.phone ?? ""}
+                                            onChange={formik.handleChange}
+                                            onBlur={formik.handleBlur}
+                                            required={false}
                                             styleClasses={styleClasses}
                                         />
                                         <CustomSelectField

@@ -1,16 +1,20 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import * as argon2 from "argon2";
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import * as argon2 from 'argon2';
 import {
   TWO_FACTOR_METHODS,
   TWO_FA_PENDING_EXPIRY_MINUTES,
   TWO_FA_CODE_EXPIRY_MINUTES
-} from "@/lib/2fa/constants";
-import { generateSixDigitCode, generateTotpSecret, generateTotpURI } from "@/lib/2fa/totp";
-import { send2faSms, send2faEmail } from "@/lib/2fa/send-2fa-code";
-import crypto from "crypto";
+} from '@/lib/helpers/2fa/constants';
+import {
+  generateSixDigitCode,
+  generateTotpSecret,
+  generateTotpURI
+} from '@/lib/helpers/2fa/totp';
+import { send2faSms, send2faEmail } from '@/lib/helpers/2fa/send-2fa-code';
+import crypto from 'crypto';
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Ruhunu Channelling";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Ruhunu Channelling';
 
 /**
  * POST /api/auth/request-2fa-code
@@ -21,14 +25,18 @@ const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Ruhunu Channelling";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
-    const password = typeof body?.password === "string" ? body.password : "";
-    const method = typeof body?.method === "string" ? body.method.trim() : "";
+    const email = typeof body?.email === 'string' ? body.email.trim() : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
+    const method = typeof body?.method === 'string' ? body.method.trim() : '';
 
-    const validMethods = [TWO_FACTOR_METHODS.AUTH_APP, TWO_FACTOR_METHODS.SMS, TWO_FACTOR_METHODS.EMAIL];
+    const validMethods = [
+      TWO_FACTOR_METHODS.AUTH_APP,
+      TWO_FACTOR_METHODS.SMS,
+      TWO_FACTOR_METHODS.EMAIL
+    ];
     if (!email || !password || !validMethods.includes(method)) {
       return NextResponse.json(
-        { error: "Email, password, and method (1, 2, or 3) required" },
+        { error: 'Email, password, and method (1, 2, or 3) required' },
         { status: 400 }
       );
     }
@@ -39,25 +47,38 @@ export async function POST(request: Request) {
     });
 
     if (!user || !user.password) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      );
     }
 
     const valid = await argon2.verify(user.password, password);
     if (!valid) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      );
     }
 
     // 2FA only when user enabled it in Settings
     if (user.twoFactorEnabled !== true) {
-      return NextResponse.json({ error: "2FA not enabled for this account" }, { status: 403 });
+      return NextResponse.json(
+        { error: '2FA not enabled for this account' },
+        { status: 403 }
+      );
     }
     const group = user.userGroup;
     const allowedMethods =
-      Array.isArray(group?.twoFactorMethods) && group.twoFactorMethods.length > 0
+      Array.isArray(group?.twoFactorMethods) &&
+      group.twoFactorMethods.length > 0
         ? group.twoFactorMethods
-        : ["1", "2", "3"];
+        : ['1', '2', '3'];
     if (!allowedMethods.includes(method)) {
-      return NextResponse.json({ error: "Method not allowed" }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Method not allowed' },
+        { status: 403 }
+      );
     }
 
     const expiresMinutes =
@@ -67,7 +88,7 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + expiresMinutes * 60 * 1000);
 
     if (method === TWO_FACTOR_METHODS.AUTH_APP) {
-      const token = crypto.randomBytes(24).toString("hex");
+      const token = crypto.randomBytes(24).toString('hex');
       const hasExistingSecret = Boolean(user.twoFactorSecret);
 
       if (!hasExistingSecret) {
@@ -92,47 +113,88 @@ export async function POST(request: Request) {
           needsSetup: true,
           uri,
           secret,
-          message: "Set up your authenticator app below, then enter the 6-digit code"
+          message:
+            'Set up your authenticator app below, then enter the 6-digit code'
         });
       }
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: token, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
+        data: {
+          twoFactorTempCode: token,
+          twoFactorExpires: expiresAt,
+          twoFactorPendingSecret: null
+        }
       });
       return NextResponse.json({
         twoFactorToken: token,
-        message: "Enter the 6-digit code from your authenticator app"
+        message: 'Enter the 6-digit code from your authenticator app'
       });
     }
 
     if (method === TWO_FACTOR_METHODS.SMS) {
+      const phone = user.phone?.trim();
+      if (!phone) {
+        return NextResponse.json(
+          {
+            error:
+              'Phone number not set. Please add your mobile number in account settings.'
+          },
+          { status: 400 }
+        );
+      }
       const code = generateSixDigitCode();
-      await send2faSms("", code);
+      const smsResult = await send2faSms(phone, code);
+      if (!smsResult.success) {
+        return NextResponse.json(
+          {
+            error: 'Failed to send SMS. Please try again or use another method.'
+          },
+          { status: 503 }
+        );
+      }
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
+        data: {
+          twoFactorTempCode: code,
+          twoFactorExpires: expiresAt,
+          twoFactorPendingSecret: null
+        }
       });
       return NextResponse.json({
-        message: "A verification code has been sent to your phone"
+        message: 'A verification code has been sent to your phone'
       });
     }
 
     if (method === TWO_FACTOR_METHODS.EMAIL) {
       const code = generateSixDigitCode();
-      await send2faEmail(user.email, code);
+      const emailResult = await send2faEmail(user.email, code);
+      // Email method is currently unavailable (send2faEmail returns success: false)
+      if (!emailResult.success) {
+        return NextResponse.json(
+          {
+            error:
+              'Email verification is currently unavailable. Please use another method.'
+          },
+          { status: 503 }
+        );
+      }
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
+        data: {
+          twoFactorTempCode: code,
+          twoFactorExpires: expiresAt,
+          twoFactorPendingSecret: null
+        }
       });
       return NextResponse.json({
-        message: "A verification code has been sent to your email"
+        message: 'A verification code has been sent to your email'
       });
     }
 
-    return NextResponse.json({ error: "Invalid method" }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid method' }, { status: 400 });
   } catch (e) {
-    console.error("request-2fa-code error", e);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error('request-2fa-code error', e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

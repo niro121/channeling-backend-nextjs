@@ -79,6 +79,7 @@ export const createNewUser = async (payload: User) => {
         const result = await saveUser({
             name: payload.name,
             email: payload.email,
+            phone: payload.phone ?? null,
             password: hashedPassword,
             userType: payload.userType,
             status: payload.status,
@@ -131,6 +132,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         const updatePayload: {
             name?: string;
             email?: string;
+            phone?: string | null;
             password?: string;
             userType?: number;
             status?: number;
@@ -145,6 +147,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
 
         if (payload.name !== undefined) updatePayload.name = payload.name;
         if (payload.email !== undefined) updatePayload.email = payload.email;
+        if (payload.phone !== undefined) updatePayload.phone = payload.phone ?? null;
         if (hashedPassword !== undefined) updatePayload.password = hashedPassword;
         if (payload.userType !== undefined) updatePayload.userType = payload.userType;
         if (payload.status !== undefined) updatePayload.status = payload.status;

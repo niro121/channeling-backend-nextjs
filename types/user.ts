@@ -8,6 +8,7 @@ export type User = {
     id?: string
     name: string
     email: string
+    phone?: string | null // Mobile number for 2FA SMS (e.g. 07XXXXXXXX)
     password: string
     confirmPassword?: string
     userType: number // 1 = admin, 2 = staff
