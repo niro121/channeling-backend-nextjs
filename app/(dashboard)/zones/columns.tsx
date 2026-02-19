@@ -80,27 +80,7 @@ export const zoneColumns: ColumnDef<Zone>[] = [
             )
         },
     },
-    {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => {
-            const value = row.getValue("status") as number
-            const isActive = value === 1
-            return (
-                <Badge
-                    variant={isActive ? "default" : "secondary"}
-                    className={
-                        isActive
-                            ? "gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0"
-                            : "gap-1 bg-muted text-muted-foreground hover:bg-muted"
-                    }
-                >
-                    {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    {isActive ? "Published" : "Unpublished"}
-                </Badge>
-            )
-        },
-    },
+    
     {
         id: "updated",
         header: "Updated",
@@ -131,6 +111,27 @@ export const zoneColumns: ColumnDef<Zone>[] = [
                     <span className="text-muted-foreground">{date}</span>
                 </div>
             );
+        },
+    },
+    {
+        accessorKey: "status",
+        header: "Published",
+        cell: ({ row }) => {
+            const value = row.getValue("status") as number
+            const isActive = value === 1
+            return (
+                <Badge
+                    variant={isActive ? "default" : "secondary"}
+                    className={
+                        isActive
+                            ? "gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0"
+                            : "gap-1 bg-muted text-muted-foreground hover:bg-muted"
+                    }
+                >
+                    {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {isActive ? "Published" : "Unpublished"}
+                </Badge>
+            )
         },
     },
     {
