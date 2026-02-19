@@ -528,7 +528,7 @@ export const getAllLocationsService = async () => {
 export const getAllZonesByLocaionIDService = async (locationId: string) => {
   try {
     const records = await prisma.zone.findMany({
-      where: { visibility: 1, locationId },
+      where: { status: 1, locationId },
       orderBy: { name: 'asc' }
     });
 

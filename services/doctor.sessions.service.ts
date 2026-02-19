@@ -651,7 +651,7 @@ export const getDoctorByIdService = async (
 export const getDepartmentOptionsService = async () => {
   try {
     const records = await prisma.department.findMany({
-      where: { visibility: 1 },
+      where: { status: 1 },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -660,7 +660,7 @@ export const getDepartmentOptionsService = async () => {
     });
 
     const totalRecords = await prisma.department.count({
-      where: { visibility: 1 }
+      where: { status: 1 }
     });
 
     return {
