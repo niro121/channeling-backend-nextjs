@@ -11,12 +11,15 @@ import { checkRouteAccess } from "@/lib/server-permissions"
 import { redirect } from "next/navigation"
 import { ExportWrapper } from "../export-wrapper"
 import { BulkDeleteButton } from "@/components/common/custom-data-table"
+import ZoneFilterSection from "./filter-section"
+import { getAllLocations } from "@/app/actions/location.action"
 
 type SearchParams = {
     searchParams?: Promise<{
         page?: string;
         limit?: string;
         keyword?: string;
+        locationId?: string;
     }>
 }
 
@@ -29,17 +32,28 @@ export default async function Page({ searchParams }: SearchParams) {
 
     const resolvedSearchParams = await searchParams;
 
-    const { data, totalRecords } = await getAllZones({
-        page: resolvedSearchParams?.page,
-        limit: resolvedSearchParams?.limit,
-        keyword: resolvedSearchParams?.keyword,
-    })
+    const [zonesResponse, locationsResponse] = await Promise.all([
+        getAllZones({
+            page: resolvedSearchParams?.page,
+            limit: resolvedSearchParams?.limit,
+            keyword: resolvedSearchParams?.keyword,
+            locationId: resolvedSearchParams?.locationId,
+        }),
+        getAllLocations({ page: "0", limit: "1000", publishedOnly: true }),
+    ]);
+
+    const { data, totalRecords } = zonesResponse;
+    const locationOptions = (locationsResponse.data ?? []).map((loc) => ({
+        id: loc.id ?? "",
+        name: loc.name ?? "",
+    })).filter((loc) => loc.id);
 
     const handleExport = async () => {
         'use server';
 
         const zoneListResponse = await getZonesExport({
-            keyword: resolvedSearchParams?.keyword
+            keyword: resolvedSearchParams?.keyword,
+            locationId: resolvedSearchParams?.locationId,
         });
 
         if (!zoneListResponse.success || !zoneListResponse.data?.length) {
@@ -107,6 +121,10 @@ export default async function Page({ searchParams }: SearchParams) {
                                         className="pl-8 w-full h-9"
                                     />
                                 </div>
+                                <ZoneFilterSection
+                                    locationOptions={locationOptions}
+                                    locationId={resolvedSearchParams?.locationId}
+                                />
                             </div>
                             <div className="flex items-center">
                                 <ExportWrapper

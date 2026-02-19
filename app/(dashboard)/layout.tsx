@@ -75,7 +75,7 @@ async function MobileNav({ session }: { session: Session | null }) {
             </span>
             <span className="min-w-0 flex flex-col items-start">
               <span className="truncate w-full text-base leading-tight">Ruhunu Hospital</span>
-              <span className="text-xs font-normal text-muted-foreground leading-tight">Channelling</span>
+              <span className="text-xs font-normal text-muted-foreground leading-tight">Channeling</span>
             </span>
           </Link>
         </div>
@@ -83,7 +83,7 @@ async function MobileNav({ session }: { session: Session | null }) {
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
           {(hasAccess('/channel-booking') || hasAccess('/sessions')) && (
             <div className="space-y-1">
-              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channelling</p>
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channeling</p>
               <div className="space-y-0.5">
                 {hasAccess('/channel-booking') && <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}

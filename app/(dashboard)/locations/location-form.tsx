@@ -50,6 +50,9 @@ export default function LocationForm({
     name: Yup.string()
       .max(150, 'Must be less than 150 characters')
       .required('This field is mandatory'),
+    code: Yup.string()
+      .max(100, 'Must be less than 100 characters')
+      .required('This field is mandatory'),
     branchType: Yup.string()
       .oneOf(
         ['1', '2', '3'],
@@ -237,7 +240,7 @@ export default function LocationForm({
                 value={formik.values.code}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 

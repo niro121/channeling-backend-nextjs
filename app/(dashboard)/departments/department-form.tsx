@@ -11,6 +11,7 @@ import { createNewDepartment, updateDepartment } from "@/app/actions/department.
 import { useToast } from "@/components/hooks/use-toast"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { useRouter } from "next/navigation"
+import { INSTITUTION_OPTIONS } from "@/types/doctor.session"
 
 type DepartmentFormProps = {
     department: Department | null
@@ -23,6 +24,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
         id: department?.id ? department.id : "",
         name: department?.name ? department.name : "",
         description: department?.description ? department.description : undefined,
+        institution: department?.institution ?? 0,
         status: department?.status !== undefined ? department.status : 1,
         createdAt: department?.createdAt ? department.createdAt : new Date(),
         updatedAt: department?.updatedAt ? department.updatedAt : new Date(),
@@ -38,6 +40,10 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
             .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
+        institution: Yup.number()
+            .min(0, "Institution is required")
+            .max(3)
+            .nullable(),
         status: Yup.number()
             .oneOf([0, 1], "Status must be Unpublish (0) or Publish (1)")
             .required("This field is mandatory"),
@@ -193,6 +199,22 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                                 onChange={formik.handleChange}
                                 onBlur={formik.handleBlur}
                                 required={false}
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomSelectField
+                                id="institution"
+                                placeholder="Institution"
+                                value={
+                                    formik.values.institution != null
+                                        ? String(formik.values.institution)
+                                        : ""
+                                }
+                                onChange={(value) =>
+                                    formik.setFieldValue("institution", value === "" ? undefined : parseInt(value, 10))
+                                }
+                                required={false}
+                                options={INSTITUTION_OPTIONS}
                                 styleClasses={styleClasses}
                             />
 

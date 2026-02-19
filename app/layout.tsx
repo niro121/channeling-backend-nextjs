@@ -3,9 +3,9 @@ import { Toaster } from "@/components/ui/toaster"
 import { Analytics } from '@vercel/analytics/react';
 
 export const metadata = {
-  title: 'Ruhunu',
+  title: 'Ruhunu Channeling System',
   description:
-    'Ruhunu Channelling'
+    'Ruhunu Channeling System'
 };
 
 export default function RootLayout({
