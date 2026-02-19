@@ -30,7 +30,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
         name: zone?.name ? zone.name : "",
         description: zone?.description ? zone.description : undefined,
         locationId: zone?.locationId ? String(zone.locationId) : "",
-        visibility: zone?.visibility !== undefined ? zone.visibility : 1,
+        status: zone?.status !== undefined ? zone.status : 1,
         createdAt: zone?.createdAt ? zone.createdAt : new Date(),
         updatedAt: zone?.updatedAt ? zone.updatedAt : new Date(),
     }
@@ -47,8 +47,8 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
             .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
-        visibility: Yup.number()
-            .oneOf([0, 1], "Visibility must be Unpublish (0) or Publish (1)")
+        status: Yup.number()
+            .oneOf([0, 1], "Status must be Unpublish (0) or Publish (1)")
             .required("This field is mandatory"),
     })
 
@@ -166,10 +166,10 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                             />
 
                             <CustomSelectField
-                                id="visibility"
-                                placeholder="Visibility"
-                                value={formik.values.visibility?.toString()}
-                                onChange={(value) => formik.setFieldValue("visibility", parseInt(value))}
+                                id="status"
+                                placeholder="Status"
+                                value={formik.values.status?.toString()}
+                                onChange={(value) => formik.setFieldValue("status", parseInt(value))}
                                 required
                                 options={[
                                     { id: "0", name: "Unpublish" },

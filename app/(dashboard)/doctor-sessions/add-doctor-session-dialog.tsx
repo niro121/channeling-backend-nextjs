@@ -27,22 +27,27 @@ type AddDoctorSessionDialogProps = {
   onOpenChange: (open: boolean) => void;
   doctorId: string;
   doctorName?: string;
+  /** When provided, dialog only fetches sessions (faster open). */
+  preloadedDepartmentOptions?: { id: string; name: string }[];
+  preloadedLocationOptions?: { id: string; name: string }[];
 };
 
 export function AddDoctorSessionDialog({
   open,
   onOpenChange,
   doctorId,
-  doctorName
+  doctorName,
+  preloadedDepartmentOptions,
+  preloadedLocationOptions
 }: AddDoctorSessionDialogProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [departmentOptions, setDepartmentOptions] = useState<
     { id: string; name: string }[]
-  >([]);
+  >(preloadedDepartmentOptions ?? []);
   const [locationOptions, setLocationOptions] = useState<
     { id: string; name: string }[]
-  >([]);
+  >(preloadedLocationOptions ?? []);
   const [doctorSessionsForPreviousDropdown, setDoctorSessionsForPreviousDropdown] =
     useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,34 +56,62 @@ export function AddDoctorSessionDialog({
     if (!open) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      getDepartmentOptions(),
-      getLocationOptions(),
+    setDepartmentOptions(preloadedDepartmentOptions ?? []);
+    setLocationOptions(preloadedLocationOptions ?? []);
+
+    const hasPreloaded =
+      (preloadedDepartmentOptions?.length ?? 0) > 0 &&
+      (preloadedLocationOptions?.length ?? 0) > 0;
+
+    if (hasPreloaded) {
       getAllDoctorSessions({
         doctorId,
         page: '0',
         limit: '1000'
       })
-    ])
-      .then(([deptRes, locRes, sessionsRes]) => {
-        if (cancelled) return;
-        setDepartmentOptions(deptRes.data ?? []);
-        setLocationOptions(locRes.data ?? []);
-        const list = sessionsRes.data ?? [];
-        setDoctorSessionsForPreviousDropdown(
-          list.map((s: { id: string; name: string }) => ({
-            id: s.id,
-            name: s.name
-          }))
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        .then((sessionsRes) => {
+          if (cancelled) return;
+          const list = sessionsRes.data ?? [];
+          setDoctorSessionsForPreviousDropdown(
+            list.map((s: { id: string; name: string }) => ({
+              id: s.id,
+              name: s.name
+            }))
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    } else {
+      Promise.all([
+        getDepartmentOptions(),
+        getLocationOptions(),
+        getAllDoctorSessions({
+          doctorId,
+          page: '0',
+          limit: '1000'
+        })
+      ])
+        .then(([deptRes, locRes, sessionsRes]) => {
+          if (cancelled) return;
+          setDepartmentOptions(deptRes.data ?? []);
+          setLocationOptions(locRes.data ?? []);
+          const list = sessionsRes.data ?? [];
+          setDoctorSessionsForPreviousDropdown(
+            list.map((s: { id: string; name: string }) => ({
+              id: s.id,
+              name: s.name
+            }))
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [open, doctorId]);
+  }, [open, doctorId, preloadedDepartmentOptions, preloadedLocationOptions]);
 
   const handleSuccess = () => {
     onOpenChange(false);

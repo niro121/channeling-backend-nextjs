@@ -22,11 +22,11 @@ const zoneSchema = z.object({
         .optional()
         .nullable(),
     locationId: z.string().min(1, "This field is mandatory"),
-    visibility: z
+    status: z
         .number()
         .int()
         .refine((val) => val === 0 || val === 1, {
-            message: "Visibility must be Unpublish (0) or Publish (1)",
+            message: "Status must be Unpublish (0) or Publish (1)",
         }),
 });
 
@@ -281,7 +281,7 @@ export const saveZone = async (
             data: {
                 name: data.name,
                 description: data.description ?? null,
-                visibility: data.visibility,
+                status: data.status,
                 location: {
                     connect: { id: data.locationId }
                 },
@@ -377,7 +377,7 @@ export const updateOneZone = async (
 
         if (data.name !== undefined) updateData.name = data.name;
         if (data.description !== undefined) updateData.description = data.description ?? null;
-        if (data.visibility !== undefined) updateData.visibility = data.visibility;
+        if (data.status !== undefined) updateData.status = data.status;
 
         if (data.locationId !== undefined) {
             updateData.location = {
