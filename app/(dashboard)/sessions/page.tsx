@@ -25,8 +25,13 @@ export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
   const doctorOptions = await getDoctorOptions();
   const defaultToday = todayYYYYMMDD();
-  const fromDate = params?.fromDate ?? defaultToday;
-  const toDate = params?.toDate ?? defaultToday;
+  const rawFrom = params?.fromDate ?? defaultToday;
+  const rawTo = params?.toDate ?? defaultToday;
+  const fromDate = rawFrom < defaultToday ? defaultToday : rawFrom;
+  const toDate = (() => {
+    const t = rawTo < defaultToday ? defaultToday : rawTo;
+    return t < fromDate ? fromDate : t;
+  })();
 
   const doctorOptionsWithAll = [
     { id: '-1', name: 'All Doctors' },
