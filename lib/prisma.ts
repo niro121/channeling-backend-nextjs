@@ -12,6 +12,11 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
+// Avoid MaxListenersExceededWarning when Prisma (and other libs) register process exit listeners
+if (typeof process !== 'undefined' && process.setMaxListeners) {
+  process.setMaxListeners(20)
+}
+
 export const prisma = globalForPrisma.prisma || new PrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma

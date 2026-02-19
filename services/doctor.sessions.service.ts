@@ -59,7 +59,7 @@ const doctorSessionSchema = z
     doctorId: z.string().nonempty('Doctor is required'),
     departmentId: z.string().nonempty('Department is required'),
     locationId: z.string().nonempty('Location is required'),
-    roomId: z.string().nonempty('Room is required'),
+    roomId: z.string().optional(),
 
     previousSessionId: z.string().optional(),
 
@@ -118,7 +118,7 @@ export const createDoctorSessionService = async (
     });
 
     if (!parsed.success) {
-      console.log('Validation unsuccessfull');
+      console.log('Validation unsuccessful');
       return {
         success: false,
         error: {
@@ -152,7 +152,7 @@ export const createDoctorSessionService = async (
         doctor: { connect: { id: data.doctorId } },
         department: { connect: { id: data.departmentId } },
         location: { connect: { id: data.locationId } },
-        room: { connect: { id: data.roomId } },
+        ...(data.roomId ? { room: { connect: { id: data.roomId } } } : {}),
         ...(data.previousSessionId
           ? { previousSession: { connect: { id: data.previousSessionId } } }
           : null),
@@ -266,7 +266,9 @@ export const updateDoctorSessionService = async (
 
         department: { connect: { id: data.departmentId } },
         location: { connect: { id: data.locationId } },
-        room: { connect: { id: data.roomId } },
+        ...(data.roomId
+          ? { room: { connect: { id: data.roomId } } }
+          : { room: { disconnect: true } }),
 
         ...(data.previousSessionId
           ? { previousSession: { connect: { id: data.previousSessionId } } }
