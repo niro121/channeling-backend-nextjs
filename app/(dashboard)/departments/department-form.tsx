@@ -23,7 +23,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
         id: department?.id ? department.id : "",
         name: department?.name ? department.name : "",
         description: department?.description ? department.description : undefined,
-        visibility: department?.visibility !== undefined ? department.visibility : 1,
+        status: department?.status !== undefined ? department.status : 1,
         createdAt: department?.createdAt ? department.createdAt : new Date(),
         updatedAt: department?.updatedAt ? department.updatedAt : new Date(),
     }
@@ -37,8 +37,8 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
             .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
-        visibility: Yup.number()
-            .oneOf([0, 1], "Visibility must be Unpublish (0) or Publish (1)")
+        status: Yup.number()
+            .oneOf([0, 1], "Status must be Unpublish (0) or Publish (1)")
             .required("This field is mandatory"),
     })
 
@@ -197,10 +197,10 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                             />
 
                             <CustomSelectField
-                                id="visibility"
-                                placeholder="Visibility"
-                                value={formik.values.visibility?.toString()}
-                                onChange={(value) => formik.setFieldValue("visibility", parseInt(value))}
+                                id="status"
+                                placeholder="Status"
+                                value={formik.values.status?.toString()}
+                                onChange={(value) => formik.setFieldValue("status", parseInt(value))}
                                 required
                                 options={[
                                     { id: "0", name: "Unpublish" },

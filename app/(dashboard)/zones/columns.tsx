@@ -81,10 +81,10 @@ export const zoneColumns: ColumnDef<Zone>[] = [
         },
     },
     {
-        accessorKey: "visibility",
-        header: "Visibility",
+        accessorKey: "status",
+        header: "Status",
         cell: ({ row }) => {
-            const value = row.getValue("visibility") as number
+            const value = row.getValue("status") as number
             const isActive = value === 1
             return (
                 <Badge
