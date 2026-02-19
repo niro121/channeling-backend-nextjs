@@ -197,9 +197,7 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
       page: "0",
       limit: "10000", // Get all records
       keyword: params.keyword ?? ""
-    });
-
-    if (!response.success || !response.data?.length) {
+    });    if (!response.success || !response.data?.length) {
       return {
         success: false,
         message: response.success ? 'No departments found' : response.message || 'Error getting data'

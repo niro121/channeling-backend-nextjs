@@ -12,6 +12,9 @@ import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
 import { Ban, Save } from 'lucide-react';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { ErrorMessage } from 'formik';
 
 type DoctorFormProps = {
   doctor: Doctor | null;
@@ -31,6 +34,32 @@ export default function DoctorForm({
   const [loading, setLoading] = React.useState<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  // Handler to allow only numeric input
+  const handleNumericKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, tab, escape, enter, and arrow keys
+    if (
+      e.key === 'Backspace' ||
+      e.key === 'Delete' ||
+      e.key === 'Tab' ||
+      e.key === 'Escape' ||
+      e.key === 'Enter' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+      (e.ctrlKey && (e.key === 'a' || e.key === 'c' || e.key === 'v' || e.key === 'x'))
+    ) {
+      return;
+    }
+    // Allow only numbers (0-9)
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
 
   const initialValues: DoctorFormValues = {
     title: normalizeTitleForSelect(doctor?.title ?? ''),
@@ -65,12 +94,11 @@ export default function DoctorForm({
       .nullable()
       .optional(),
     mobile: Yup.string()
-      .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx')
       .nullable()
       .optional(),
     registrationNumber: Yup.string().trim().nullable().optional(),
-    qualification: Yup.string().trim().required("Qualification is required"),
-    referralCharge: Yup.number().min(0, 'Must be 0 or greater').required(),
+    qualification: Yup.string().trim().nullable().optional(),
+    referralCharge: Yup.number().min(0, 'Must be 0 or greater').nullable().optional(),
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
       .required('This field is mandatory')
@@ -143,8 +171,8 @@ export default function DoctorForm({
       {(formik) => {
         const styleClasses = {
           parentDiv: 'grid grid-cols-1 items-center gap-4 sm:grid-cols-4',
-          labelClassName: 'text-sm text-black font-semibold capitalize',
-          inputClassName: 'col-span-full sm:col-span-3'
+          labelClassName: 'text-sm text-black font-semibold capitalize sm:col-span-1',
+          inputClassName: 'col-span-full sm:col-span-3 w-full'
         };
 
         return (
@@ -211,27 +239,53 @@ export default function DoctorForm({
                 styleClasses={styleClasses}
               />
 
-              <CustomFormField
-                type="text"
-                id="phone"
-                placeholder="Phone (Sri Lanka format)"
-                value={formik.values.phone}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                required={false}
-                styleClasses={styleClasses}
-              />
+              <div className={styleClasses.parentDiv}>
+                <Label htmlFor="phone" className={styleClasses.labelClassName}>
+                  Phone
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  <Input
+                    className="p-2 border rounded focus-visible:ring-offset-0! w-full"
+                    type="text"
+                    id="phone"
+                    name="phone"
+                    placeholder="07X XXXXXXX"
+                    value={formik.values.phone}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    onKeyDown={handleNumericKeyPress}
+                  />
+                  <ErrorMessage
+                    name="phone"
+                    component="div"
+                    className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0"
+                  />
+                </div>
+              </div>
 
-              <CustomFormField
-                type="text"
-                id="mobile"
-                placeholder="Mobile (Sri Lanka format)"
-                value={formik.values.mobile}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                required
-                styleClasses={styleClasses}
-              />
+              <div className={styleClasses.parentDiv}>
+                <Label htmlFor="mobile" className={styleClasses.labelClassName}>
+                  Mobile
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  <Input
+                    className="p-2 border rounded focus-visible:ring-offset-0! w-full"
+                    type="text"
+                    id="mobile"
+                    name="mobile"
+                    placeholder="07X XXXXXXX"
+                    value={formik.values.mobile}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    onKeyDown={handleNumericKeyPress}
+                  />
+                  <ErrorMessage
+                    name="mobile"
+                    component="div"
+                    className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0"
+                  />
+                </div>
+              </div>
 
               <CustomFormField
                 type="text"
@@ -284,7 +338,7 @@ export default function DoctorForm({
                 value={formik.values.registrationNumber}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required
+                required={false}
                 styleClasses={styleClasses}
               />
 
@@ -295,7 +349,7 @@ export default function DoctorForm({
                 value={formik.values.qualification}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required
+                required={false}
                 styleClasses={styleClasses}
               />
 
@@ -306,7 +360,7 @@ export default function DoctorForm({
                 value={formik.values.referralCharge}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required
+                required={false}
                 styleClasses={styleClasses}
               />
 
@@ -336,29 +390,34 @@ export default function DoctorForm({
                 styleClasses={styleClasses}
               />
 
-              <div className="flex flex-col sm:flex-row justify-end gap-3">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
-                  type="button"
-                  onClick={() => {
-                    router.push('/doctors');
-                  }}
-                  disabled={loading}
-                >
-                  <Ban className="h-4 w-4" />
-                  <span>Cancel</span>
-                </Button>
-                <Button
-                  disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Save</span>
-                </Button>
+              <div className={styleClasses.parentDiv}>
+                <div></div>
+                <div className={styleClasses.inputClassName}>
+                  <div className="flex flex-col sm:flex-row justify-end gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                      type="button"
+                      onClick={() => {
+                        router.push('/doctors');
+                      }}
+                      disabled={loading}
+                    >
+                      <Ban className="h-4 w-4" />
+                      <span>Cancel</span>
+                    </Button>
+                    <Button
+                      disabled={loading}
+                      size={'sm'}
+                      type="submit"
+                      className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>Save</span>
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </Form>
