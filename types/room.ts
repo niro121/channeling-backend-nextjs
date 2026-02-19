@@ -7,9 +7,9 @@ export type Room = {
   number: string
   description: string
   status: number // == 0: unpublish, 1: publish == //
-  locationId: string
+  locationId: string | null
   location?: Location | null
-  zoneId: string
+  zoneId: string | null
   zone?: Zone | null
   createdUser?: User | null;
   updatedUser?: User | null;

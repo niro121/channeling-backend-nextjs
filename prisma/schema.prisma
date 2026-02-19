@@ -156,8 +156,8 @@ model Doctor {
   updatedAt          DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  specialityId   String          @db.ObjectId
-  speciality     Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  specialityId   String?         @db.ObjectId
+  speciality     Speciality?     @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
   sessions       Session[]       @relation("DoctorToSession")
   bookings       Booking[]       @relation("DoctorToBooking")
@@ -285,11 +285,11 @@ model Session {
   doctorId     String?     @db.ObjectId
   doctor       Doctor?     @relation("DoctorToSession", fields: [doctorId], references: [id], onDelete: SetNull)
   departmentId String?     @db.ObjectId
-  department   Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: Cascade)
+  department   Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: SetNull)
   locationId   String?     @db.ObjectId
-  location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: Cascade)
+  location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
   roomId       String?     @db.ObjectId
-  room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: Cascade)
+  room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
   bookings     Booking[]   @relation("SessionToBooking")
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -362,10 +362,10 @@ model Room {
   updatedAt       DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  zoneId         String          @db.ObjectId
-  zone           Zone            @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
-  locationId     String          @db.ObjectId
-  location       Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
+  zoneId         String?         @db.ObjectId
+  zone           Zone?           @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: SetNull)
+  locationId     String?         @db.ObjectId
+  location       Location?       @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToRoom")
   sessions       Session[]       @relation("RoomToSession")
   createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -495,8 +495,8 @@ model Zone {
 
   // ==== RELATIONS ==== //
   rooms      Room[]   @relation("ZoneToRoom")
-  locationId String   @db.ObjectId
-  location   Location @relation("LocationToZone", fields: [locationId], references: [id], onDelete: Cascade)
+  locationId String?  @db.ObjectId
+  location   Location? @relation("LocationToZone", fields: [locationId], references: [id], onDelete: SetNull)
 }
 
 model Discount {
@@ -638,8 +638,8 @@ model Booking {
   area                    String
   remarks                 String   @default("")
   method                  Int
-  sessionId               String   @db.ObjectId
-  session                 Session  @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId               String?  @db.ObjectId
+  session                 Session? @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
   doctorId                String   @db.ObjectId
   doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
   amount                  Int
