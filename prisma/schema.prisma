@@ -27,12 +27,14 @@ model User {
   defaultBookingMethod   Int?     // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
 
   // == 2FA STATE == //
-  twoFactorMethod      String?
-  twoFactorSecret      String?
-  twoFactorTempCode    String?
-  twoFactorExpires     DateTime?
-  twoFactorVerified    Boolean @default(false)
-  twoFactorSkipped     Boolean @default(false) // == Security: When true, user can log in without 2FA even if group requires it == //
+  twoFactorEnabled       Boolean @default(false) // == User turned on 2FA in Settings; only then is 2FA required at login == //
+  twoFactorMethod        String?
+  twoFactorSecret        String?
+  twoFactorPendingSecret String? // Temporary secret during "setup at login"; moved to twoFactorSecret only after user verifies code
+  twoFactorTempCode      String?
+  twoFactorExpires       DateTime?
+  twoFactorVerified      Boolean @default(false)
+  twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")

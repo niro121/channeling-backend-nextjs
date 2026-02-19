@@ -6,25 +6,22 @@ This document describes how two-factor authentication is implemented and how to 
 
 ## Overview
 
-- **2FA is controlled at the User Group level.** Enable or disable 2FA and choose allowed methods per user group.
-- **Users in a 2FA-enabled group** are sent to the 2FA step after entering correct email and password. **No per-user 2FA setting in the DB is required**; the user chooses their verification method on the 2FA screen from the methods allowed by their group.
+- **2FA is required at login only when the user has turned it on in Settings.** Go to **Profile → Security & 2FA** and turn **“Require 2FA at login”** on. Until then, login uses only email and password.
+- **User Groups** can still define **allowed methods** (AUTH-APP, SMS, EMAIL). When a user has 2FA enabled, they choose one of the methods allowed by their group (or all three if the group has none set).
 - **Supported methods** (see `types/2FA.ts`):
-  - **1 – AUTH-APP** – TOTP (e.g. Google Authenticator, Authy). Uses `TOTP_SECRET` from `.env` or the user’s `twoFactorSecret` if set.
+  - **1 – AUTH-APP** – TOTP (e.g. Google Authenticator, Authy). Uses the user’s `twoFactorSecret` (set in Settings or at login when they choose AUTH-APP and don’t have one yet), or `TOTP_SECRET` from `.env` as fallback.
   - **2 – SMS** – One-time code sent by SMS (dummy or real API).
   - **3 – EMAIL** – One-time code sent by email (dummy or real SMTP).
 
 ---
 
-## Enabling 2FA for a User Group
+## Enabling 2FA for a user (Settings)
 
-1. Go to **User Groups** (e.g. `/user-groups`).
-2. **Create** a new group or **Edit** an existing one.
-3. In the **Two-factor authentication** section:
-   - Turn **ON** “Require 2FA for this group”.
-   - Under **Allowed methods**, select one or more: **AUTH-APP**, **SMS**, **EMAIL**.
-4. Save the user group.
+1. Go to **Profile (avatar) → Security & 2FA** (or `/account/security`).
+2. Turn **ON** the **“Require 2FA at login”** switch.
+3. Set up at least one method (e.g. authenticator app) in the same page, or at next login when you choose a method.
 
-Users in that group will be prompted for 2FA at login unless they have **turned off** “Require 2FA at login” in **Account → Security** (see below). They do **not** need `user.twoFactorMethod` (or any 2FA field) set in the database.
+2FA at login is required **only** when this switch is on. The **User Group** “Two-factor authentication” section only controls which methods are **allowed** (AUTH-APP, SMS, EMAIL) for users who have 2FA enabled.
 
 ---
 
@@ -39,9 +36,9 @@ Users can add their **own** authenticator app entry (recommended) so they are no
 
 After this, the user’s `twoFactorSecret` is stored in the DB and used at login when they choose AUTH-APP. No need to configure `TOTP_SECRET` in `.env` for that user.
 
-**If you can’t log in because your group requires 2FA and you haven’t set up an app:** Sign in is still possible if you had previously turned off “Require 2FA at login” in Security. If you are locked out, an admin can set your account’s `twoFactorSkipped` to `true` in the database so you can log in and then set up the authenticator or adjust the toggle.
+**Setting up AUTH-APP at login:** If you have 2FA enabled but have not yet set up an authenticator app, you can do it at login: after entering email and password, choose **Authenticator app**; you will see a QR code and manual entry code. Add the account in your app, enter the 6-digit code, and sign in.
 
-- **AUTH-APP** verification uses, in order: the user’s `twoFactorSecret` (if set in DB), then `TOTP_SECRET` from `.env`. So you can rely on per-user setup via the Security page, or use a single shared secret in `.env` for all users.
+- **AUTH-APP** verification uses the user’s `twoFactorSecret` (set in Settings or at login), or `TOTP_SECRET` from `.env` as fallback.
 - **SMS/EMAIL** do not use any per-user 2FA fields; a code is generated and sent when the user selects that method at login.
 
 ---
@@ -52,11 +49,11 @@ After this, the user’s `twoFactorSecret` is stored in the DB and used at login
 2. **Backend** (`POST /api/auth/check-login`):
    - Validates email and password.
    - If invalid → 401 “Invalid credentials”.
-   - If valid and **2FA not required** (group has 2FA off or no allowed methods) → returns `{ success: true, requiresTwoFactor: false }`; client then signs in with credentials.
-   - If valid and **2FA required** → returns `{ requiresTwoFactor: true, allowedMethods: ["1", "2", "3"] }` (depending on group). No code is sent yet.
-3. **Client** shows the **“Choose verification method”** screen with the allowed options (AUTH-APP, SMS, EMAIL). User selects one.
-4. **Client** calls `POST /api/auth/request-2fa-code` with `{ email, password, method }`. Backend sends the code (or sets pending token for AUTH-APP) and returns a short message.
-5. **Client** shows **“Enter verification code”** and the code input. User enters the 6-digit code and submits.
+   - If valid and **user has not enabled 2FA** (`user.twoFactorEnabled` is false) → returns `{ success: true, requiresTwoFactor: false }`; client then signs in with credentials.
+   - If valid and **user has enabled 2FA** → returns `{ requiresTwoFactor: true, allowedMethods: ["1", "2", "3"] }` (from group or default). No code is sent yet.
+3. **Client** shows **“Choose verification method”** with the allowed options (AUTH-APP, SMS, EMAIL). User selects one.
+4. **Client** calls `POST /api/auth/request-2fa-code` with `{ email, password, method }`. Backend sends the code (or for AUTH-APP with no existing secret, generates secret and returns `needsSetup: true` with `uri` and `secret` for QR/manual setup at login).
+5. **Client** shows either **“Enter verification code”** or, for AUTH-APP when `needsSetup` is true, **“Set up authenticator app”** (QR code + manual secret + code input). User adds the account (if needed), enters the 6-digit code, and submits.
 6. **Backend** (`lib/auth.ts` authorize with `twoFactorCode`): Verifies the code (TOTP for AUTH-APP, stored code for SMS/EMAIL), clears temp fields, and signs the user in. On failure, the user can try again or choose another method / back to login.
 
 ---
@@ -97,7 +94,7 @@ After this, the user’s `twoFactorSecret` is stored in the DB and used at login
 | User group 2FA (enable + methods) | `app/(dashboard)/user-groups/user-group-form.tsx` |
 | User group type | `types/user-group.ts` |
 | 2FA preference (require 2FA on/off for me) | `app/api/auth/2fa-preference/route.ts` |
-| User 2FA fields | `prisma/schema.prisma` (User: twoFactorMethod, twoFactorSecret, twoFactorTempCode, twoFactorExpires, twoFactorVerified, twoFactorSkipped; UserGroup: twoFactorEnabled, twoFactorMethods) |
+| User 2FA fields | `prisma/schema.prisma` (User: twoFactorEnabled, twoFactorMethod, twoFactorSecret, twoFactorTempCode, twoFactorExpires, twoFactorVerified, twoFactorSkipped; UserGroup: twoFactorEnabled, twoFactorMethods for allowed methods only) |
 
 ---
 

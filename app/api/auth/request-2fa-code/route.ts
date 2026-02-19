@@ -6,9 +6,11 @@ import {
   TWO_FA_PENDING_EXPIRY_MINUTES,
   TWO_FA_CODE_EXPIRY_MINUTES
 } from "@/lib/2fa/constants";
-import { generateSixDigitCode } from "@/lib/2fa/totp";
+import { generateSixDigitCode, generateTotpSecret, generateTotpURI } from "@/lib/2fa/totp";
 import { send2faSms, send2faEmail } from "@/lib/2fa/send-2fa-code";
 import crypto from "crypto";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Ruhunu Channelling";
 
 /**
  * POST /api/auth/request-2fa-code
@@ -45,12 +47,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    // 2FA only when user enabled it in Settings
+    if (user.twoFactorEnabled !== true) {
+      return NextResponse.json({ error: "2FA not enabled for this account" }, { status: 403 });
+    }
     const group = user.userGroup;
-    const twoFactorEnabled = group?.twoFactorEnabled === true;
-    const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
-
-    if (!twoFactorEnabled || !allowedMethods.includes(method)) {
-      return NextResponse.json({ error: "2FA or method not allowed" }, { status: 403 });
+    const allowedMethods =
+      Array.isArray(group?.twoFactorMethods) && group.twoFactorMethods.length > 0
+        ? group.twoFactorMethods
+        : ["1", "2", "3"];
+    if (!allowedMethods.includes(method)) {
+      return NextResponse.json({ error: "Method not allowed" }, { status: 403 });
     }
 
     const expiresMinutes =
@@ -61,9 +68,37 @@ export async function POST(request: Request) {
 
     if (method === TWO_FACTOR_METHODS.AUTH_APP) {
       const token = crypto.randomBytes(24).toString("hex");
+      const hasExistingSecret = Boolean(user.twoFactorSecret);
+
+      if (!hasExistingSecret) {
+        // User has no authenticator set up — store secret in pending only; move to twoFactorSecret only after they verify at login
+        const secret = generateTotpSecret();
+        const uri = generateTotpURI({
+          secret,
+          label: user.email,
+          issuer: APP_NAME
+        });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            twoFactorMethod: TWO_FACTOR_METHODS.AUTH_APP,
+            twoFactorPendingSecret: secret,
+            twoFactorTempCode: token,
+            twoFactorExpires: expiresAt
+          }
+        });
+        return NextResponse.json({
+          twoFactorToken: token,
+          needsSetup: true,
+          uri,
+          secret,
+          message: "Set up your authenticator app below, then enter the 6-digit code"
+        });
+      }
+
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: token, twoFactorExpires: expiresAt }
+        data: { twoFactorTempCode: token, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
       });
       return NextResponse.json({
         twoFactorToken: token,
@@ -76,7 +111,7 @@ export async function POST(request: Request) {
       await send2faSms("", code);
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt }
+        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
       });
       return NextResponse.json({
         message: "A verification code has been sent to your phone"
@@ -88,7 +123,7 @@ export async function POST(request: Request) {
       await send2faEmail(user.email, code);
       await prisma.user.update({
         where: { id: user.id },
-        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt }
+        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt, twoFactorPendingSecret: null }
       });
       return NextResponse.json({
         message: "A verification code has been sent to your email"

@@ -16,7 +16,8 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Eye, EyeOff, Smartphone, MessageSquare, Mail } from 'lucide-react';
+import { Eye, EyeOff, Smartphone, MessageSquare, Mail, Copy, Check } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { TWO_FACTOR_AUTH } from '@/types/2FA';
 
 interface FormValues {
@@ -33,6 +34,9 @@ interface Pending2FA {
   selectedMethod?: string;
   twoFactorToken?: string | null;
   message?: string;
+  needsSetup?: boolean;
+  uri?: string;
+  secret?: string;
 }
 
 const METHOD_ICONS: Record<string, React.ReactNode> = {
@@ -47,6 +51,7 @@ const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [pending2FA, setPending2FA] = useState<Pending2FA | null>(null);
   const [requestingCode, setRequestingCode] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const initialValues: FormValues = {
     email: '',
@@ -156,7 +161,10 @@ const LoginForm = () => {
               ...prev,
               selectedMethod: methodId,
               twoFactorToken: data.twoFactorToken ?? null,
-              message: data.message ?? 'Enter your verification code below.'
+              message: data.message ?? 'Enter your verification code below.',
+              needsSetup: !!data.needsSetup,
+              uri: data.uri,
+              secret: data.secret
             }
           : null
       );
@@ -168,13 +176,16 @@ const LoginForm = () => {
   const handleBackFrom2FA = () => {
     if (pending2FA?.selectedMethod) {
       setPending2FA((prev) =>
-        prev ? { ...prev, selectedMethod: undefined, twoFactorToken: undefined, message: undefined } : null
+        prev
+          ? { ...prev, selectedMethod: undefined, twoFactorToken: undefined, message: undefined, needsSetup: undefined, uri: undefined, secret: undefined }
+          : null
       );
     } else {
       setPending2FA(null);
     }
   };
 
+  const formatSecret = (secret: string) => secret.replace(/(.{4})/g, '$1 ').trim();
   const allowedMethodOptions = TWO_FACTOR_AUTH.filter((m) => pending2FA?.allowedMethods?.includes(m.id));
 
   return (
@@ -185,11 +196,19 @@ const LoginForm = () => {
       <Card className="w-full border-0 shadow-none bg-transparent p-0">
         <CardHeader className="space-y-1 px-0 pt-0">
           <CardTitle className="text-2xl">
-            {pending2FA ? (pending2FA.selectedMethod ? 'Enter verification code' : 'Choose verification method') : 'Login'}
+            {pending2FA
+              ? pending2FA.selectedMethod
+                ? pending2FA.needsSetup
+                  ? 'Set up authenticator app'
+                  : 'Enter verification code'
+                : 'Choose verification method'
+              : 'Login'}
           </CardTitle>
           <CardDescription>
             {pending2FA?.selectedMethod
-              ? pending2FA.message ?? 'Enter the code you received below.'
+              ? pending2FA.needsSetup
+                ? 'Scan the QR code or enter the secret in your app, then enter the 6-digit code below.'
+                : (pending2FA.message ?? 'Enter the code you received below.')
               : pending2FA
                 ? 'Select how you want to receive your verification code.'
                 : 'Enter your credentials to sign in to your account'}
@@ -247,22 +266,56 @@ const LoginForm = () => {
                     </div>
                   </>
                 ) : pending2FA.selectedMethod ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="twoFactorCode">Verification code</Label>
-                    <Input
-                      id="twoFactorCode"
-                      name="twoFactorCode"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      placeholder="000000"
-                      maxLength={6}
-                      value={formik.values.twoFactorCode}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      className="h-10 font-mono text-lg tracking-widest"
-                    />
-                    <ErrorMessage name="invalidCredentials" component="div" className="text-sm text-destructive" />
+                  <div className="space-y-4">
+                    {pending2FA.needsSetup && pending2FA.uri && pending2FA.secret && (
+                      <>
+                        <p className="text-sm font-medium">Scan this QR code with your authenticator app</p>
+                        <div className="flex justify-center rounded-lg border bg-white p-4 dark:bg-muted/30">
+                          <QRCodeSVG value={pending2FA.uri} size={180} level="M" />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Can&apos;t scan? Enter this code manually</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 rounded-md border bg-muted/50 px-3 py-2 text-sm font-mono tracking-wider break-all">
+                              {formatSecret(pending2FA.secret)}
+                            </code>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                if (pending2FA.secret) {
+                                  navigator.clipboard.writeText(pending2FA.secret);
+                                  setCopied(true);
+                                  setTimeout(() => setCopied(false), 2000);
+                                }
+                              }}
+                              aria-label="Copy secret"
+                            >
+                              {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">Add the account in your app, then enter the 6-digit code below.</p>
+                      </>
+                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="twoFactorCode">Verification code</Label>
+                      <Input
+                        id="twoFactorCode"
+                        name="twoFactorCode"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="000000"
+                        maxLength={6}
+                        value={formik.values.twoFactorCode}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        className="h-10 font-mono text-lg tracking-widest"
+                      />
+                      <ErrorMessage name="invalidCredentials" component="div" className="text-sm text-destructive" />
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">

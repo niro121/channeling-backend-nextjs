@@ -72,7 +72,7 @@ export const authOptions: NextAuthOptions = {
               if (!user) {
                 throw new Error("Invalid or expired 2FA. Please try again.");
               }
-              const totpSecret = user.twoFactorSecret || process.env.TOTP_SECRET;
+              const totpSecret = user.twoFactorSecret ?? user.twoFactorPendingSecret ?? process.env.TOTP_SECRET;
               if (!totpSecret) {
                 throw new Error("Invalid or expired 2FA. Please try again.");
               }
@@ -80,9 +80,16 @@ export const authOptions: NextAuthOptions = {
               if (!valid) {
                 throw new Error("Invalid 2FA code.");
               }
+              const usedPendingSecret = Boolean(user.twoFactorPendingSecret);
               await prisma.user.update({
                 where: { id: user.id },
-                data: { twoFactorTempCode: null, twoFactorExpires: null }
+                data: {
+                  twoFactorTempCode: null,
+                  twoFactorExpires: null,
+                  ...(usedPendingSecret
+                    ? { twoFactorSecret: user.twoFactorPendingSecret, twoFactorPendingSecret: null }
+                    : {})
+                }
               });
               const permissions = user.userGroup?.permissions ? (user.userGroup.permissions as Permissions) : null;
               return { id: user.id, userType: user.userType, name: user.name, email: user.email, permissions };
@@ -130,11 +137,10 @@ export const authOptions: NextAuthOptions = {
           }
 
           const group = user.userGroup;
-          const twoFactorEnabled = group?.twoFactorEnabled === true;
-          const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
-          const userSkipped2FA = user.twoFactorSkipped === true;
+          // 2FA required only when the user has enabled it in Settings
+          const userRequires2FA = user.twoFactorEnabled === true;
 
-          if (twoFactorEnabled && allowedMethods.length > 0 && !userSkipped2FA) {
+          if (userRequires2FA) {
             return null;
           }
 

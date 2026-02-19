@@ -35,12 +35,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    // 2FA required only when the user has enabled it in Settings
+    const userRequires2FA = user.twoFactorEnabled === true;
     const group = user.userGroup;
-    const twoFactorEnabled = group?.twoFactorEnabled === true;
-    const allowedMethods = Array.isArray(group?.twoFactorMethods) ? group.twoFactorMethods : [];
-    const userSkipped2FA = user.twoFactorSkipped === true;
+    const allowedMethods =
+      Array.isArray(group?.twoFactorMethods) && group.twoFactorMethods.length > 0
+        ? group.twoFactorMethods
+        : ["1", "2", "3"];
 
-    if (!twoFactorEnabled || allowedMethods.length === 0 || userSkipped2FA) {
+    if (!userRequires2FA) {
       return NextResponse.json({ success: true, requiresTwoFactor: false });
     }
 

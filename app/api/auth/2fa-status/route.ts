@@ -11,24 +11,13 @@ export async function GET() {
   }
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: {
-      twoFactorSecret: true,
-      twoFactorSkipped: true,
-      userGroup: { select: { twoFactorEnabled: true, twoFactorMethods: true } }
-    }
+    select: { twoFactorSecret: true, twoFactorEnabled: true }
   });
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
-  const group = user.userGroup;
-  const groupRequires2FA =
-    group?.twoFactorEnabled === true &&
-    Array.isArray(group?.twoFactorMethods) &&
-    group.twoFactorMethods.length > 0;
-  const require2FAAtLogin = groupRequires2FA && !user.twoFactorSkipped;
   return NextResponse.json({
     hasAuthenticator: Boolean(user.twoFactorSecret),
-    groupRequires2FA: !!groupRequires2FA,
-    require2FAAtLogin
+    require2FAAtLogin: user.twoFactorEnabled === true
   });
 }

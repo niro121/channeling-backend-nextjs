@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-/** PATCH /api/auth/2fa-preference - Set whether to require 2FA at login for the current user (only applies when group has 2FA) */
+/** PATCH /api/auth/2fa-preference - Set whether to require 2FA at login (user enables it in Settings) */
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -16,7 +16,7 @@ export async function PATCH(request: Request) {
   }
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { twoFactorSkipped: !require2FA }
+    data: { twoFactorEnabled: require2FA }
   });
   return NextResponse.json({ require2FAAtLogin: require2FA });
 }

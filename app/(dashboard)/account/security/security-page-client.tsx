@@ -15,8 +15,7 @@ type SetupStep = 'idle' | 'show-qr' | 'verify';
 export function SecurityPageClient() {
   const { toast } = useToast();
   const [hasAuthenticator, setHasAuthenticator] = useState<boolean | null>(null);
-  const [groupRequires2FA, setGroupRequires2FA] = useState(false);
-  const [require2FAAtLogin, setRequire2FAAtLogin] = useState(true);
+  const [require2FAAtLogin, setRequire2FAAtLogin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>('idle');
@@ -31,8 +30,7 @@ export function SecurityPageClient() {
       const data = await res.json();
       if (res.ok) {
         setHasAuthenticator(!!data.hasAuthenticator);
-        setGroupRequires2FA(!!data.groupRequires2FA);
-        setRequire2FAAtLogin(data.require2FAAtLogin !== false);
+        setRequire2FAAtLogin(!!data.require2FAAtLogin);
       }
     } catch {
       setHasAuthenticator(false);
@@ -83,7 +81,7 @@ export function SecurityPageClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? 'Verification failed');
-      toast({ title: 'Success', description: 'Authenticator app is set up. You can use it at login when your group requires 2FA.' });
+      toast({ title: 'Success', description: 'Authenticator app is set up. You can use it at login when you have 2FA enabled.' });
       setSetupStep('idle');
       setSetupData(null);
       setVerifyCode('');
@@ -106,7 +104,6 @@ export function SecurityPageClient() {
   };
 
   const handleRequire2FAToggle = async (checked: boolean) => {
-    if (!groupRequires2FA) return;
     setPreferenceSaving(true);
     try {
       const res = await fetch('/api/auth/2fa-preference', {
@@ -140,34 +137,32 @@ export function SecurityPageClient() {
 
   return (
     <div className="space-y-6">
-      {groupRequires2FA && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Require 2FA at login</CardTitle>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Require 2FA at login</CardTitle>
+          </div>
+          <CardDescription>
+            When turned on, you will be asked for a verification code (authenticator app, SMS, or email) when you sign in. Turn this on only if you have set up or are ready to set up an authenticator or other method.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <p className="font-medium">Ask for verification code when I sign in</p>
+              <p className="text-sm text-muted-foreground">
+                {require2FAAtLogin ? '2FA is on — a code will be required at login.' : '2FA is off — you sign in with just your password.'}
+              </p>
             </div>
-            <CardDescription>
-              Your group has 2FA enabled. You can turn this off for your account to sign in without a code (e.g. until you set up an authenticator app), then turn it back on when you&apos;re ready.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div>
-                <p className="font-medium">Ask for verification code when I sign in</p>
-                <p className="text-sm text-muted-foreground">
-                  {require2FAAtLogin ? '2FA is required for your account.' : '2FA is off — you can sign in with just your password.'}
-                </p>
-              </div>
-              <Switch
-                checked={require2FAAtLogin}
-                onCheckedChange={handleRequire2FAToggle}
-                disabled={preferenceSaving}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            <Switch
+              checked={require2FAAtLogin}
+              onCheckedChange={handleRequire2FAToggle}
+              disabled={preferenceSaving}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
     <Card>
       <CardHeader>
@@ -176,7 +171,7 @@ export function SecurityPageClient() {
           <CardTitle>Authenticator app</CardTitle>
         </div>
         <CardDescription>
-          Use an authenticator app (e.g. Google Authenticator, Authy) to get a verification code when your group requires 2FA at login.
+          Use an authenticator app (e.g. Google Authenticator, Authy) to get a verification code when you have 2FA enabled at login.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -186,7 +181,7 @@ export function SecurityPageClient() {
             <div>
               <p className="font-medium text-green-800 dark:text-green-200">Authenticator app is set up</p>
               <p className="text-sm text-green-700 dark:text-green-300">
-                You will be asked for a code from your app when you sign in and your group has 2FA enabled.
+                You will be asked for a code from your app when you sign in with 2FA enabled.
               </p>
             </div>
           </div>
