@@ -3,9 +3,10 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 
-const formatFee = (v: number | string): string => {
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return (isNaN(n) ? 0 : n).toFixed(2);
+/** Format for display: full number with commas and 2 decimals (e.g. 1,500.00) */
+const formatFeeDisplay = (v: number | string): string => {
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  return (isNaN(n) ? 0 : n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 interface NumericCellProps {
@@ -14,12 +15,12 @@ interface NumericCellProps {
 }
 
 export const NumericInputCell: React.FC<NumericCellProps> = ({ value, onChange }) => {
-  const [localValue, setLocalValue] = React.useState(() => formatFee(value ?? 0));
+  const [localValue, setLocalValue] = React.useState(() => formatFeeDisplay(value ?? 0));
   const isFocusedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!isFocusedRef.current) {
-      setLocalValue(formatFee(value ?? 0));
+      setLocalValue(formatFeeDisplay(value ?? 0));
     }
   }, [value]);
 
@@ -27,11 +28,13 @@ export const NumericInputCell: React.FC<NumericCellProps> = ({ value, onChange }
     <Input
       type="text"
       inputMode="decimal"
-      className="h-8 w-24 px-2 text-right text-sm tabular-nums"
+      className="h-8 min-w-[6rem] w-28 px-2 text-right text-sm tabular-nums"
       value={localValue}
       placeholder="0.00"
       onFocus={() => {
         isFocusedRef.current = true;
+        const num = parseFloat(String(localValue).replace(/,/g, ''));
+        if (!isNaN(num)) setLocalValue(num.toFixed(2));
       }}
       onChange={(e) => {
         const val = e.target.value;
@@ -41,10 +44,10 @@ export const NumericInputCell: React.FC<NumericCellProps> = ({ value, onChange }
       }}
       onBlur={() => {
         isFocusedRef.current = false;
-        const num = parseFloat(localValue);
+        const num = parseFloat(String(localValue).replace(/,/g, ''));
         const parsed = isNaN(num) ? 0 : num;
         onChange(parsed);
-        setLocalValue(formatFee(parsed));
+        setLocalValue(formatFeeDisplay(parsed));
       }}
     />
   );
