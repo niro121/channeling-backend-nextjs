@@ -7,7 +7,7 @@ const page = async () => {
     const session = await fetchServerSession()
 
     if (session) {
-        return redirect('/users', RedirectType.replace)
+        return redirect('/welcome', RedirectType.replace)
     }
     return (
         <LoginForm />

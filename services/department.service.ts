@@ -16,6 +16,13 @@ const departmentSchema = z.object({
         .min(1, "This field is mandatory")
         .max(150, "Must be less than 150 characters"),
     description: z.string().optional().nullable(),
+    institution: z
+        .number()
+        .int()
+        .min(0)
+        .max(3)
+        .optional()
+        .nullable(),
     status: z
         .number()
         .int()
@@ -67,6 +74,10 @@ export const getDepartments = async ({
                 take: validLimit,
                 where: whereClause,
                 orderBy: { createdAt: "desc" },
+                include: {
+                    createdUser: { select: { name: true } },
+                    updatedUser: { select: { name: true } },
+                } as Prisma.DepartmentInclude,
             }),
             prisma.department.count({ where: whereClause }),
         ])
@@ -191,7 +202,8 @@ export const deleteOneDepartment = async (
 }
 
 export const saveDepartment = async (
-    payload: Department
+    payload: Department,
+    user?: { id?: string; name?: string }
 ): Promise<{
     success: boolean
     data?: any
@@ -220,8 +232,10 @@ export const saveDepartment = async (
             data: {
                 name: data.name,
                 description: data.description ?? null,
+                institution: data.institution ?? null,
                 status: data.status,
-            },
+                ...(user?.id ? { createdBy: user.id, updatedBy: user.id } : {}),
+            } as unknown as Prisma.DepartmentUncheckedCreateInput,
         })
 
         return {
@@ -253,7 +267,8 @@ export const saveDepartment = async (
 
 export const updateOneDepartment = async (
     id: string,
-    payload: Department
+    payload: Department,
+    user?: { id?: string; name?: string }
 ): Promise<{
     success: boolean
     data?: any
@@ -281,20 +296,18 @@ export const updateOneDepartment = async (
 
         const data = parsed.data
 
+        const updateData: Prisma.DepartmentUpdateInput = {
+            ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {}),
+            ...(data.name !== undefined && { name: data.name }),
+            ...(data.description !== undefined && {
+                description: data.description ?? null,
+            }),
+            ...(data.institution !== undefined && { institution: data.institution ?? null }),
+            ...(data.status !== undefined && { status: data.status }),
+        }
         const department = await prisma.department.update({
-            where: {
-                id: id,
-            },
-            data: {
-                ...(data.name !== undefined && { name: data.name }),
-                ...(data.description !== undefined && {
-                    description: data.description ?? null,
-                }),
-                ...(data.status !== undefined && {
-                    status: data.status,
-                }),
-                updatedAt: new Date(),
-            },
+            where: { id },
+            data: updateData,
         })
 
         return {

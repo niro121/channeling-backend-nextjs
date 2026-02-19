@@ -43,7 +43,8 @@ export const getAllLocationsService = async ({
   page,
   limit,
   keyword,
-  locationId
+  locationId,
+  publishedOnly,
 }: getLocationQuery): Promise<{
   success: boolean;
   data?: Location[];
@@ -54,7 +55,7 @@ export const getAllLocationsService = async ({
   };
 }> => {
   try {
-    const whereClause: Prisma.LocationWhereInput | undefined =
+    const baseWhere: Prisma.LocationWhereInput =
       keyword && keyword?.trim() !== ''
         ? {
             OR: [
@@ -81,6 +82,13 @@ export const getAllLocationsService = async ({
           }
         : locationId
           ? { branchType: locationId }
+          : {};
+
+    const whereClause: Prisma.LocationWhereInput | undefined =
+      publishedOnly === true
+        ? { ...baseWhere, status: 1 }
+        : Object.keys(baseWhere).length > 0
+          ? baseWhere
           : undefined;
 
     const skip = page * limit;
@@ -89,14 +97,14 @@ export const getAllLocationsService = async ({
       prisma.location.findMany({
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
-        where: whereClause,
+        orderBy: { name: 'asc' },
+        ...(whereClause != null && { where: whereClause }),
         include: {
           createdUser: true,
           updatedUser: true
         }
       }),
-      prisma.location.count({ where: whereClause })
+      prisma.location.count(...(whereClause != null ? [{ where: whereClause }] : []))
     ]);
 
     return {

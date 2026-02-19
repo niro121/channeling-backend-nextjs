@@ -52,6 +52,10 @@ model User {
   updatedBookings         Booking[]                      @relation("UserUpdatedBookings")
   createdTags             Tag[]                          @relation("UserCreatedTags")
   updatedTags             Tag[]                          @relation("UserUpdatedTags")
+  createdZones            Zone[]                         @relation("UserCreatedZones")
+  updatedZones            Zone[]                         @relation("UserUpdatedZones")
+  createdDepartments      Department[]                   @relation("UserCreatedDepartments")
+  updatedDepartments      Department[]                   @relation("UserUpdatedDepartments")
   userGroupId             String?                        @db.ObjectId
   userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
   shifts                  Shift[]                        @relation("UserShifts")
@@ -102,10 +106,15 @@ model Department {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   description     String?
+  institution     Int?     // 0=RH, 1=RHD, 2=RHT, 3=RPS (align with DoctorSession/Session)
   status          Int // 0 = unpublish, 1 = publish
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now())
+  createdBy       String?   @db.ObjectId
+  updatedBy       String?   @db.ObjectId
+  createdUser     User?     @relation("UserCreatedDepartments", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser     User?     @relation("UserUpdatedDepartments", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
@@ -492,10 +501,12 @@ model Zone {
   status          Int // 0 = unpublish, 1 = publish
   migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?   @db.ObjectId
+  updatedBy   String?   @db.ObjectId
+  createdUser User?    @relation("UserCreatedZones", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedZones", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
   rooms      Room[]   @relation("ZoneToRoom")

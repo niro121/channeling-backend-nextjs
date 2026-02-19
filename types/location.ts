@@ -41,6 +41,8 @@ export type getLocationParam = {
   limit?: string;
   keyword?: string;
   locationId?: string;
+  /** When true, only return published locations (status === 1). Use for dropdowns. */
+  publishedOnly?: boolean;
 }
 
 export type getLocationQuery = {
@@ -48,6 +50,7 @@ export type getLocationQuery = {
   limit: number;
   keyword: string;
   locationId?: number;
+  publishedOnly?: boolean;
 }
 
 export type GetLocationResponse = {

@@ -38,7 +38,8 @@ export const getAllLocations = async (sort: getLocationParam) => {
         ? parseInt(sort.limit)
         : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       keyword: sort.keyword ?? '',
-      locationId: sort.locationId ? parseInt(sort.locationId) : undefined
+      locationId: sort.locationId ? parseInt(sort.locationId) : undefined,
+      publishedOnly: sort.publishedOnly,
     };
 
     const response = await getAllLocationsService(newFilter);
