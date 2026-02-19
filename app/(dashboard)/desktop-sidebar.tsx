@@ -80,13 +80,13 @@ export function DesktopSidebar({
           </span>
           <span className="min-w-0 flex flex-col items-start">
             <span className="truncate w-full text-base leading-tight">Ruhunu Hospital</span>
-            <span className="text-xs font-normal text-muted-foreground leading-tight">Channelling</span>
+            <span className="text-xs font-normal text-muted-foreground leading-tight">Channeling</span>
           </span>
         </Link>
       </div>
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
         {(hasAccess("/channel-booking") || hasAccess("/sessions")) && (
-          <SidebarGroup label="Channelling">
+          <SidebarGroup label="Channeling">
             {hasAccess("/channel-booking") && (
               <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />
             )}

@@ -20,7 +20,7 @@ type ZoneFormProps = {
 }
 
 const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
-    const locationOptions = useMemo(
+    const locationOptionsFromProps = useMemo(
         () => locations.map((l) => ({ id: String(l.id ?? ""), name: l.name })),
         [locations]
     )
@@ -120,7 +120,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 
@@ -147,15 +147,21 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                             <CustomSelectField
                                 id="locationId"
                                 placeholder="Location"
-                                value={
-                                    formik.values.locationId &&
-                                    locationOptions.some((o) => o.id === formik.values.locationId)
-                                        ? formik.values.locationId
-                                        : undefined
-                                }
+                                value={formik.values.locationId || undefined}
                                 onChange={(value) => formik.setFieldValue("locationId", value)}
                                 required
-                                options={locationOptions}
+                                options={
+                                    formik.values.locationId &&
+                                    !locationOptionsFromProps.some((o) => o.id === formik.values.locationId)
+                                        ? [
+                                            ...locationOptionsFromProps,
+                                            {
+                                                id: formik.values.locationId,
+                                                name: zone?.location?.name ?? "—",
+                                            },
+                                        ]
+                                        : locationOptionsFromProps
+                                }
                                 styleClasses={styleClasses}
                             />
 

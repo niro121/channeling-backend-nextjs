@@ -4,6 +4,7 @@ import { GetZonesParams, GetZonesQuery, Zone } from "@/types/zone"
 import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById, checkZoneHasLinkedRecordsService, checkZonesHaveLinkedRecordsService } from "@/services/zone.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllZones = async (filter: GetZonesParams) => {
     // Check view permission
@@ -14,6 +15,7 @@ export const getAllZones = async (filter: GetZonesParams) => {
             page: filter.page ? parseInt(filter.page) : 0,
             limit: filter.limit ? parseInt(filter.limit) : (parseInt(process.env.DEFAULT_PER_PAGE ?? "10") || 10),
             keyword: filter.keyword ?? "",
+            locationId: filter.locationId ?? undefined,
         }
 
         const response = await getZones(newFilter);
@@ -96,10 +98,7 @@ export const deleteZone = async (id: string) => {
     }
 }
 
-export const createNewZone = async (
-    payload: Zone,
-    user?: { id?: string; name?: string }
-): Promise<{
+export const createNewZone = async (payload: Zone): Promise<{
     success: boolean;
     data?: any;
     message?: string;
@@ -112,6 +111,11 @@ export const createNewZone = async (
     await requirePermission("zones", "add")
     
     try {
+        const session = await fetchServerSession();
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined;
+
         // Clean up payload
         const cleanPayload = { ...payload };
         delete cleanPayload.id;
@@ -156,8 +160,7 @@ export const createNewZone = async (
 
 export const updateZone = async (
     id: string,
-    payload: Zone,
-    user?: { id?: string; name?: string }
+    payload: Zone
 ): Promise<{
     success: boolean;
     data?: any;
@@ -171,6 +174,11 @@ export const updateZone = async (
     await requirePermission("zones", "edit")
     
     try {
+        const session = await fetchServerSession();
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined;
+
         // Clean up payload
         const cleanPayload = { ...payload };
         delete cleanPayload.id;
@@ -261,12 +269,13 @@ export const fetchZoneById = async (id: string) => {
 };
 
 // ==== ZONES EXPORT ==== //
-export const getZonesExport = async (params: { keyword?: string }) => {
+export const getZonesExport = async (params: { keyword?: string; locationId?: string }) => {
   try {
     const response = await getAllZones({
       page: "0",
       limit: "10000", // Get all records
-      keyword: params.keyword ?? ""
+      keyword: params.keyword ?? "",
+      locationId: params.locationId ?? undefined,
     });
 
     if (!response.success || !response.data?.length) {

@@ -4,6 +4,7 @@ import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/d
 import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById, checkDepartmentHasLinkedRecordsService, checkDepartmentsHaveLinkedRecordsService } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
     // View permission already checked by checkRouteAccess("/departments") on the page; skip duplicate session fetch
@@ -86,16 +87,25 @@ export const createNewDepartment = async (payload: Department) => {
     await requirePermission("departments", "add")
     
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
         // Set default status if not provided
         if (payload.status === undefined) {
             payload.status = 0
         }
 
-        const result = await saveDepartment(payload)
+        const result = await saveDepartment(payload, user)
 
         if (!result.success) {
             return {
@@ -134,11 +144,20 @@ export const updateDepartment = async (id: string, payload: Department) => {
     await requirePermission("departments", "edit")
     
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
-        const result = await updateOneDepartment(id, payload)
+        const result = await updateOneDepartment(id, payload, user)
 
         if (!result.success) {
             return {

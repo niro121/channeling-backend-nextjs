@@ -40,6 +40,7 @@ export const getZones = async ({
     page,
     limit,
     keyword,
+    locationId,
 }: GetZonesQuery): Promise<{
     success: boolean;
     data?: Zone[];
@@ -72,14 +73,24 @@ export const getZones = async ({
         }
 
         const whereClause: Prisma.ZoneWhereInput = {
-            locationId: {
-                in: validLocationIds
-            },
+            locationId: locationId && validLocationIds.includes(locationId)
+                ? locationId
+                : { in: validLocationIds },
             ...(keyword && keyword.trim() !== "" ? {
-                name: {
-                    contains: keyword,
-                    mode: Prisma.QueryMode.insensitive,
-                }
+                OR: [
+                    {
+                        name: {
+                            contains: keyword,
+                            mode: Prisma.QueryMode.insensitive,
+                        }
+                    },
+                    {
+                        description: {
+                            contains: keyword,
+                            mode: Prisma.QueryMode.insensitive,
+                        }
+                    }
+                ]
             } : {})
         };
 
@@ -95,6 +106,8 @@ export const getZones = async ({
                         name: true
                     }
                 },
+                createdUser: { select: { name: true } },
+                updatedUser: { select: { name: true } },
             },
             orderBy: {
                 createdAt: "desc",
@@ -282,9 +295,7 @@ export const saveZone = async (
                 name: data.name,
                 description: data.description ?? null,
                 status: data.status,
-                location: {
-                    connect: { id: data.locationId }
-                },
+                locationId: data.locationId,
                 ...(user?.id ? {
                     createdBy: user.id,
                     updatedBy: user.id
@@ -371,19 +382,14 @@ export const updateOneZone = async (
             }
         }
 
-        const updateData: Prisma.ZoneUpdateInput = {
+        const updateData: Prisma.ZoneUncheckedUpdateInput = {
             ...(user?.id ? { updatedBy: user.id } : {})
         };
 
         if (data.name !== undefined) updateData.name = data.name;
         if (data.description !== undefined) updateData.description = data.description ?? null;
         if (data.status !== undefined) updateData.status = data.status;
-
-        if (data.locationId !== undefined) {
-            updateData.location = {
-                connect: { id: data.locationId }
-            };
-        }
+        if (data.locationId !== undefined) updateData.locationId = data.locationId;
 
         const zone = await prisma.zone.update({
             where: { id },
