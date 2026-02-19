@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { Ban, Save } from 'lucide-react';
+import { Ban, ChevronRight, Save } from 'lucide-react';
 import {
   ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
@@ -89,6 +89,7 @@ export default function DoctorSessionForm({
   const [newLocationId, setNewLocationId] = React.useState(
     doctorSession?.locationId
   );
+  const [activeTab, setActiveTab] = React.useState<'details' | 'fees'>('details');
 
   /** Previous Session dropdown: same doctor's sessions, excluding current when editing. */
   const previousSessionOptions = React.useMemo(() => {
@@ -148,7 +149,7 @@ export default function DoctorSessionForm({
       .required('This field is mandatory'),
     departmentId: Yup.string().required('This field is mandatory'),
     locationId: Yup.string().required('This field is mandatory'),
-    roomId: Yup.string().required('This field is mandatory'),
+    roomId: Yup.string(),
     startTimeValue: Yup.string()
       .required('This field is mandatory')
       .test('non-empty', 'This field is mandatory', (v) => v != null && String(v).trim() !== ''),
@@ -414,7 +415,11 @@ export default function DoctorSessionForm({
         return (
           <Form className="w-full">
             <div className="border rounded-lg p-6">
-              <Tabs defaultValue="details" className="w-full">
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as 'details' | 'fees')}
+                className="w-full"
+              >
                 <TabsList className="w-full bg-muted rounded-lg p-1.5 h-11">
                   <TabsTrigger
                     value="details"
@@ -485,7 +490,8 @@ export default function DoctorSessionForm({
                           )}
                           <CustomSelectField
                             id="roomId"
-                            placeholder="Room"
+                            label="Room"
+                            placeholder="Select Room"
                             value={formik.values.roomId}
                             onChange={(value) =>
                               formik.setFieldValue('roomId', value)
@@ -674,7 +680,7 @@ export default function DoctorSessionForm({
                               Number(value)
                             )
                           }
-                          required
+                          required={false}
                           options={ADVANCED_BOOKING_OPTIONS}
                           styleClasses={compactClasses}
                         />
@@ -705,6 +711,12 @@ export default function DoctorSessionForm({
                       compact
                       showFooter={false}
                       noCard
+                      footerCells={[
+                        'TOTAL',
+                        '',
+                        <span key="local" className="text-right tabular-nums block w-full">{formik.values.fees.reduce((s: number, f: { localFee?: number }) => s + Number(f.localFee || 0), 0).toFixed(2)}</span>,
+                        <span key="foreign" className="text-right tabular-nums block w-full">{formik.values.fees.reduce((s: number, f: { foreignFee?: number }) => s + Number(f.foreignFee || 0), 0).toFixed(2)}</span>
+                      ]}
                     />
                     <FeeTotals formik={formik} />
                   </div>
@@ -725,15 +737,64 @@ export default function DoctorSessionForm({
                   <Ban className="h-4 w-4" />
                   <span>Close</span>
                 </Button>
-                <Button
-                  disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Save</span>
-                </Button>
+                {activeTab === 'details' ? (
+                  <Button
+                    size="sm"
+                    type="button"
+                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                    disabled={loading}
+                    onClick={async () => {
+                      const errors = await formik.validateForm();
+                      const detailsOnlyKeys = new Set([
+                        'name',
+                        'institution',
+                        'departmentId',
+                        'locationId',
+                        'roomId',
+                        'startTimeValue',
+                        'endTimeValue',
+                        'startTime',
+                        'endTime',
+                        'durationMinutes',
+                        'dayType',
+                        'applyTo',
+                        'startingPatientNumber',
+                        'maxPatientNumber',
+                        'advancedBookingDays'
+                      ]);
+                      const detailsErrors = Object.fromEntries(
+                        Object.entries(errors).filter(([k]) =>
+                          detailsOnlyKeys.has(k)
+                        )
+                      );
+                      formik.setErrors(detailsErrors);
+                      const detailTouched = Object.fromEntries(
+                        [...detailsOnlyKeys].map((k) => [k, true])
+                      );
+                      formik.setTouched(detailTouched);
+                      if (Object.keys(detailsErrors).length === 0) {
+                        setActiveTab('fees');
+                      }
+                    }}
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={loading}
+                    size="sm"
+                    type="submit"
+                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  >
+                    {loading ? (
+                      <Loader className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    <span>{loading ? 'Saving…' : 'Save'}</span>
+                  </Button>
+                )}
               </div>
             </div>
           </Form>

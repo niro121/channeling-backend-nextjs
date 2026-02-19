@@ -8,7 +8,7 @@ export const DoctorSessionFeeColumns = (formik: any): ColumnDef<Fee>[] => [
     accessorKey: 'name',
     header: 'Name',
     cell: ({ row }) => (
-      <span className="text-foreground font-medium truncate block max-w-[140px]" title={row.original.name}>
+      <span className="text-foreground font-medium whitespace-normal break-words">
         {row.original.name}
       </span>
     )
@@ -24,32 +24,37 @@ export const DoctorSessionFeeColumns = (formik: any): ColumnDef<Fee>[] => [
   },
   {
     accessorKey: 'localFee',
-    header: 'Local Fee',
+    header: () => <div className="text-right w-full">Local Fee</div>,
     cell: ({ row }) => {
       const index = row.index;
       return (
-        <NumericInputCell
-          value={formik.values.fees[index].localFee}
-          onChange={(val) =>
-            formik.setFieldValue(`fees.${index}.localFee`, val)
-          }
-        />
+        <div className="flex justify-end">
+          <NumericInputCell
+            value={formik.values.fees[index].localFee}
+            onChange={(val) =>
+              formik.setFieldValue(`fees.${index}.localFee`, val)
+            }
+          />
+        </div>
       );
     }
   },
   {
     accessorKey: 'foreignFee',
-    header: 'Foreign Fee',
+    header: () => <div className="text-right w-full">Foreign Fee</div>,
     cell: ({ row }) => {
       const index = row.index;
       return (
-        <NumericInputCell
-          value={formik.values.fees[index].foreignFee}
-          onChange={(val) =>
-            formik.setFieldValue(`fees.${index}.foreignFee`, val)
-          }
-        />
+        <div className="flex justify-end">
+          <NumericInputCell
+            value={formik.values.fees[index].foreignFee}
+            onChange={(val) =>
+              formik.setFieldValue(`fees.${index}.foreignFee`, val)
+            }
+          />
+        </div>
       );
     }
   }
 ];
+
