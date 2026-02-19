@@ -3,7 +3,7 @@ export type Department = {
     id?: string
     name: string
     description?: string | null
-    visibility: number // 0 = unpublish, 1 = publish
+    status: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
 }

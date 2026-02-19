@@ -335,7 +335,7 @@ async function importDepartments(): Promise<void> {
         data: {
           name: d.name ?? '',
           description: d.description ?? null,
-          visibility: d.status === '1' ? 1 : 0,
+          status: d.status === '1' ? 1 : 0,
           migrateSourceId: d.id
         }
       })
@@ -390,7 +390,7 @@ async function importZonesFromApi(
         data: {
           name: z.name ?? 'Default',
           description: z.description ?? null,
-          visibility: z.status === 1 ? 1 : 0,
+          status: z.status === 1 ? 1 : 0,
           locationId,
           migrateSourceId: z.id,
           createdBy: importUserId,
@@ -416,7 +416,7 @@ async function createDefaultZones(locationIdMap: Map<string, string>, importUser
         data: {
           name: 'Default',
           description: 'Default zone (migrate)',
-          visibility: 1,
+          status: 1,
           locationId,
           createdBy: importUserId,
           updatedBy: importUserId

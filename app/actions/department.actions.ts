@@ -90,9 +90,9 @@ export const createNewDepartment = async (payload: Department) => {
         delete payload.createdAt
         delete payload.updatedAt
 
-        // Set default visibility if not provided
-        if (payload.visibility === undefined) {
-            payload.visibility = 0
+        // Set default status if not provided
+        if (payload.status === undefined) {
+            payload.status = 0
         }
 
         const result = await saveDepartment(payload)
