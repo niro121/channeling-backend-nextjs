@@ -41,6 +41,7 @@ const AgencyBookForm = ({
   };
 
   const [loading, setLoading] = useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -64,6 +65,7 @@ const AgencyBookForm = ({
     values: AgencyBookFormValues,
     { resetForm }: FormikHelpers<AgencyBookFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       let respond: any;
 
@@ -82,7 +84,8 @@ const AgencyBookForm = ({
           title: 'Success',
           description: 'Agency book was updated successfully'
         });
-        router.push('/agency-books');
+        if (closeAfterSave) router.push('/agency-books');
+        else router.refresh();
       } else {
         respond = await createAgencyBook(values);
         setLoading(false);
@@ -96,8 +99,10 @@ const AgencyBookForm = ({
           title: 'Success',
           description: 'Agency book was created successfully'
         });
-
-        router.push('/agency-books');
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/agency-books');
+        else if (newId) router.push(`/agency-books/${newId}/edit`);
+        else router.push('/agency-books');
       }
     } catch (error: any) {
       setLoading(false);
@@ -221,9 +226,7 @@ const AgencyBookForm = ({
                   variant="outline"
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
-                  onClick={() => {
-                    router.push('/agency-books');
-                  }}
+                  onClick={() => router.push('/agency-books')}
                   disabled={loading}
                 >
                   <Ban />
@@ -231,12 +234,24 @@ const AgencyBookForm = ({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

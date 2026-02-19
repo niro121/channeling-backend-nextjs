@@ -34,6 +34,7 @@ export default function RoomForm({
   locationOptions
 }: RoomFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
   const [zoneOptions, setZoneOptions] = React.useState<
@@ -83,8 +84,9 @@ export default function RoomForm({
 
   const handleSubmit = async (
     values: RoomFormValues,
-    { resetForm, setErrors, setTouched }: FormikHelpers<RoomFormValues>
+    { setErrors, setTouched }: FormikHelpers<RoomFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       let respond: any;
 
@@ -128,7 +130,11 @@ export default function RoomForm({
           description: 'Room was updated successfully'
         });
 
-        router.push('/rooms');
+        if (closeAfterSave) {
+          router.push('/rooms');
+        } else {
+          router.refresh();
+        }
       } else {
         respond = await createRoom(values, user);
 
@@ -166,7 +172,15 @@ export default function RoomForm({
           title: 'Success',
           description: 'Room was created successfully'
         });
-        router.push('/rooms');
+
+        const newId = respond?.data?.id;
+        if (closeAfterSave) {
+          router.push('/rooms');
+        } else if (newId) {
+          router.push(`/rooms/${newId}/edit`);
+        } else {
+          router.push('/rooms');
+        }
       }
     } catch (error: any) {
       setLoading(false);
@@ -311,12 +325,30 @@ export default function RoomForm({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => {
+                    saveAndCloseRef.current = false;
+                    formik.submitForm();
+                  }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => {
+                    saveAndCloseRef.current = true;
+                    formik.submitForm();
+                  }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>
