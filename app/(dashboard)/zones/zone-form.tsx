@@ -35,6 +35,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
         updatedAt: zone?.updatedAt ? zone.updatedAt : new Date(),
     }
     const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
     const { toast } = useToast()
     const router = useRouter()
 
@@ -54,8 +55,9 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
 
     const handleSubmit = async (
         values: Zone,
-        { resetForm }: FormikHelpers<Zone>
+        _helpers: FormikHelpers<Zone>
     ) => {
+        const closeAfterSave = saveAndCloseRef.current
         try {
             setLoading(true);
             let respond: any;
@@ -78,8 +80,8 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                     title: "Success",
                     description: "Zone was saved successfully",
                 })
-                // Redirect back to list page after successful update
-                router.push('/zones')
+                if (closeAfterSave) router.push('/zones')
+                else router.refresh()
             } else {
                 respond = await createNewZone(values);
                 setLoading(false);
@@ -98,7 +100,10 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                     title: "Success",
                     description: "Zone was created successfully",
                 })
-                router.push('/zones')
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push('/zones')
+                else if (newId) router.push(`/zones/${newId}/edit`)
+                else router.push('/zones')
             }
         } catch (error: any) {
             setLoading(false);
@@ -184,24 +189,38 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                                     variant="outline"
                                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                                     type="button"
-                                    onClick={() => {
-                                        router.push('/zones')
-                                    }}
+                                    onClick={() => router.push('/zones')}
                                     disabled={loading}
                                 >
                                     <Ban className="h-4 w-4" />
-                                    <span>
-                                        Cancel
-                                    </span>
+                                    <span>Cancel</span>
                                 </Button>
                                 <Button
                                     disabled={loading}
-                                    size={"sm"}
-                                    type="submit"
-                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = false
+                                        formik.submitForm()
+                                    }}
                                 >
                                     <Save className="h-4 w-4" />
                                     <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = true
+                                        formik.submitForm()
+                                    }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
                                 </Button>
                             </div>
                         </div>

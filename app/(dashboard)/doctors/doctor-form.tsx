@@ -29,6 +29,7 @@ export default function DoctorForm({
   user
 }: DoctorFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -80,6 +81,7 @@ export default function DoctorForm({
     values: DoctorFormValues,
     { resetForm }: FormikHelpers<DoctorFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       setLoading(true);
       let respond: any;
@@ -102,7 +104,8 @@ export default function DoctorForm({
           title: 'Success',
           description: 'Doctor was updated successfully'
         });
-        router.push('/doctors');
+        if (closeAfterSave) router.push('/doctors');
+        else router.refresh();
       } else {
         respond = await createDoctor(values, user);
         setLoading(false);
@@ -121,7 +124,10 @@ export default function DoctorForm({
           title: 'Success',
           description: 'Doctor was created successfully'
         });
-        router.push('/doctors');
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/doctors');
+        else if (newId) router.push(`/doctors/${newId}/edit`);
+        else router.push('/doctors');
       }
     } catch (error: any) {
       setLoading(false);
@@ -342,9 +348,7 @@ export default function DoctorForm({
                   variant="outline"
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
-                  onClick={() => {
-                    router.push('/doctors');
-                  }}
+                  onClick={() => router.push('/doctors')}
                   disabled={loading}
                 >
                   <Ban className="h-4 w-4" />
@@ -352,12 +356,24 @@ export default function DoctorForm({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

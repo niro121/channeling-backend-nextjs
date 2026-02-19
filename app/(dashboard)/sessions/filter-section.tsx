@@ -229,6 +229,7 @@ export default function FilterSection({
                     fromDate: values.fromDate,
                     toDate: values.toDate
                   });
+                  onSessionsCreatedOrUpdated?.();
                 } else {
                   toast({ variant: 'destructive', title: 'Error', description: result.message });
                 }
@@ -283,6 +284,7 @@ export default function FilterSection({
                     fromDate: values.fromDate,
                     toDate: values.toDate
                   });
+                  onSessionsCreatedOrUpdated?.();
                 } else {
                   toast({ variant: 'destructive', title: 'Error', description: result.message });
                 }
@@ -303,6 +305,9 @@ export default function FilterSection({
           <Dialog
             open={progressOpen}
             onOpenChange={(open) => {
+              if (!open && progressStatus === 'done') {
+                onSessionsCreatedOrUpdated?.();
+              }
               setProgressOpen(open);
             }}
           >
@@ -350,7 +355,13 @@ export default function FilterSection({
               </DialogHeader>
               {progressStatus !== 'running' && (
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setProgressOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (progressStatus === 'done') onSessionsCreatedOrUpdated?.();
+                      setProgressOpen(false);
+                    }}
+                  >
                     Close
                   </Button>
                 </DialogFooter>

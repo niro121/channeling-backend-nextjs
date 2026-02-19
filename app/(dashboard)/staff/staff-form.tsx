@@ -22,6 +22,7 @@ type StaffFormProps = {
 
 export default function StaffForm({ staff, isEditPage = false }: StaffFormProps) {
   const [loading, setLoading] = useState(false)
+  const saveAndCloseRef = React.useRef<boolean>(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -52,6 +53,7 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
   })
 
   const handleSubmit = async (values: Staff, { setErrors, setTouched }: FormikHelpers<Staff>) => {
+    const closeAfterSave = saveAndCloseRef.current
     try {
       setLoading(true)
       let respond: {
@@ -91,10 +93,14 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
 
       if (isEditPage) {
         toast({ variant: 'success', title: 'Success', description: 'Staff was updated successfully.' })
-        router.push('/staff')
+        if (closeAfterSave) router.push('/staff')
+        else router.refresh()
       } else {
-        router.push('/staff')
         toast({ variant: 'success', title: 'Success', description: 'Staff was created successfully.' })
+        const newId = respond?.data?.id
+        if (closeAfterSave) router.push('/staff')
+        else if (newId) router.push(`/staff/${newId}/edit`)
+        else router.push('/staff')
       }
     } catch (error: unknown) {
       setLoading(false)
@@ -281,11 +287,23 @@ export default function StaffForm({ staff, isEditPage = false }: StaffFormProps)
               <Button
                 disabled={loading}
                 size="sm"
-                type="submit"
-                className="w-full sm:w-24 gap-1 text-white px-6 hover:text-black"
+                type="button"
+                className="w-full sm:w-auto gap-1 text-white px-6 hover:text-black"
+                onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
               >
                 <Save className="h-4 w-4" />
                 <span>Save</span>
+              </Button>
+              <Button
+                disabled={loading}
+                size="sm"
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto gap-1 px-6"
+                onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+              >
+                <Save className="h-4 w-4" />
+                <span>Save and Close</span>
               </Button>
             </div>
           </div>
