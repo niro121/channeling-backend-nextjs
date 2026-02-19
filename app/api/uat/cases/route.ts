@@ -22,6 +22,7 @@ const FEATURE_ORDER = [
   "Rooms",
   "Doctor",
   "Doctor Session",
+  "Sessions",
   "Bulk Price Change",
   "Doctor Leave",
   "Patients",
@@ -32,8 +33,6 @@ const FEATURE_ORDER = [
   "Agency",
   "Discount",
   "Tags",
-  "SMS Playground",
-  "Reports",
 ]
 
 function parseCsv(csvText: string): UatCaseRow[] {
