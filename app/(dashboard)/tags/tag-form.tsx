@@ -22,8 +22,8 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
     const initialValues: Tag = {
         id: tag?.id ? tag.id : "",
         name: tag?.name ? tag.name : "",
-        type: tag?.type ? tag.type : undefined, // No default - let validation catch it
-        status: tag?.status !== undefined ? tag.status : 1, // Default Active (1)
+        type: tag?.type ?? undefined, // 0 = City is valid; ?? preserves 0 (truthy check would not)
+        status: tag?.status !== undefined ? tag.status : 1, // Default Published (1)
         createdAt: tag?.createdAt ? tag.createdAt : new Date(),
         updatedAt: tag?.updatedAt ? tag.updatedAt : new Date(),
     }
@@ -43,7 +43,7 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
             .min(0, "Type is required")
             .max(4, "Type must be 0–4 (City, Staff Category, Staff Designation, Staff Grade, Bank)"),
         status: Yup.number()
-            .oneOf([0, 1], "Status must be Inactive (0) or Active (1)")
+            .oneOf([0, 1], "Status must be Unpublished (0) or Published (1)")
             .required("This field is mandatory"),
     })
 
@@ -174,6 +174,8 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
             enableReinitialize={isEditPage}
+            validateOnChange={false}
+            validateOnBlur={false}
         >
             {(formik) => {
 
@@ -223,8 +225,8 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                 onChange={(value) => formik.setFieldValue("status", parseInt(value))}
                                 required={false}
                                 options={[
-                                    { id: "0", name: "Inactive" },
-                                    { id: "1", name: "Active" }
+                                    { id: "0", name: "Unpublished" },
+                                    { id: "1", name: "Published" }
                                 ]}
                                 styleClasses={styleClasses}
                             />

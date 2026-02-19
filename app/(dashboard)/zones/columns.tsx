@@ -96,7 +96,7 @@ export const zoneColumns: ColumnDef<Zone>[] = [
                     }
                 >
                     {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    {isActive ? "Visible" : "Hidden"}
+                    {isActive ? "Published" : "Unpublished"}
                 </Badge>
             )
         },

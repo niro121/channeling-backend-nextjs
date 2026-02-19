@@ -4,6 +4,7 @@ import { GetTagsParams, GetTagsQuery, Tag } from "@/types/tag"
 import { deleteOneTag, deleteTags, getTags, saveTag, updateOneTag, getTagById, getAllTagsDownloadService } from "@/services/tag.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllTags = async (filter: GetTagsParams) => {
     // Check view permission
@@ -98,10 +99,7 @@ export const deleteTag = async (id: string) => {
     }
 }
 
-export const createNewTag = async (
-    payload: Tag,
-    user?: { id?: string; name?: string }
-): Promise<{
+export const createNewTag = async (payload: Tag): Promise<{
     success: boolean;
     data?: any;
     message?: string;
@@ -114,6 +112,11 @@ export const createNewTag = async (
     await requirePermission("tags", "add")
     
     try {
+        const session = await fetchServerSession();
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined;
+
         // Clean up payload
         const cleanPayload = { ...payload };
         delete cleanPayload.id;
@@ -159,8 +162,7 @@ export const createNewTag = async (
 
 export const updateTag = async (
     id: string,
-    payload: Tag,
-    user?: { id?: string; name?: string }
+    payload: Tag
 ): Promise<{
     success: boolean;
     data?: any;
@@ -174,6 +176,11 @@ export const updateTag = async (
     await requirePermission("tags", "edit")
     
     try {
+        const session = await fetchServerSession();
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined;
+
         // Clean up payload
         const cleanPayload = { ...payload };
         delete cleanPayload.id;
