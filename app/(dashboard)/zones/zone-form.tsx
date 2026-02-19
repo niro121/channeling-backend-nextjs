@@ -98,14 +98,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                     title: "Success",
                     description: "Zone was created successfully",
                 })
-                
-                // Redirect to edit page with the new zone id
-                if (respond.data?.id) {
-                    router.push(`/zones/${respond.data.id}/edit`)
-                } else {
-                    // Fallback: redirect to list if redirect fails
-                    router.push('/zones')
-                }
+                router.push('/zones')
             }
         } catch (error: any) {
             setLoading(false);
