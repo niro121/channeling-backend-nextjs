@@ -44,6 +44,20 @@ export async function analyseSessionsService(
   const inputData: SessionInputData[] = [];
 
   try {
+    const todayStr = moment().format('YYYY-MM-DD');
+    if (inputs.fromDate < todayStr) {
+      result.error = 'From date cannot be in the past.';
+      return result;
+    }
+    if (inputs.toDate < todayStr) {
+      result.error = 'To date cannot be in the past.';
+      return result;
+    }
+    if (inputs.toDate < inputs.fromDate) {
+      result.error = 'To date must be on or after from date.';
+      return result;
+    }
+
     const schedule = await prisma.doctorSession.findMany({
       where: {
         status: 1,
@@ -69,16 +83,19 @@ export async function analyseSessionsService(
           }
         }
 
-        const rangeEnd = moment(inputs.toDate).endOf('day');
+        // toDate is inclusive: use end of day so the full last day is included.
+        // Parse as UTC date-only so the loop includes the last day in all server timezones.
+        const rangeEnd = moment.utc(inputs.toDate, 'YYYY-MM-DD').endOf('day');
+        const rangeEndDay = moment.utc(inputs.toDate, 'YYYY-MM-DD');
 
         for (
-          let m = moment.utc(inputs.fromDate).startOf('day');
-          m.isSameOrBefore(inputs.toDate, 'day');
+          let m = moment.utc(inputs.fromDate, 'YYYY-MM-DD').startOf('day');
+          m.isSameOrBefore(rangeEndDay, 'day');
           m.add(1, 'days')
         ) {
+          const compareToDate = m.format('YYYY-MM-DD');
           if (item.applyTo) {
             const applyToDate = moment(item.applyTo).format('YYYY-MM-DD');
-            const compareToDate = m.format('YYYY-MM-DD');
 
             if (applyToDate === compareToDate && m.isSameOrBefore(rangeEnd)) {
               const dateStr = m.format('YYYY-MM-DD');
@@ -145,8 +162,8 @@ export async function analyseSessionsService(
       }
 
       if (inputData.length === 0) {
-        const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
-        const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
+        const rangeStart = moment.utc(inputs.fromDate, 'YYYY-MM-DD').startOf('day').toDate();
+        const rangeEnd = moment.utc(inputs.toDate, 'YYYY-MM-DD').endOf('day').toDate();
 
         const sessiondata = await prisma.session.findMany({
           where: {
@@ -192,8 +209,8 @@ export async function analyseSessionsService(
       // previousDoctorSession stores the previous DoctorSession (schedule) id, not a Session id,
       // so there is no Session→Session creation order dependency; batch create (e.g. createMany) is safe.
       if (inputs.update === false || !inputs.update) {
-        const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
-        const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
+        const rangeStart = moment.utc(inputs.fromDate, 'YYYY-MM-DD').startOf('day').toDate();
+        const rangeEnd = moment.utc(inputs.toDate, 'YYYY-MM-DD').endOf('day').toDate();
 
         const existingSessions = await prisma.session.findMany({
           where: {
@@ -326,8 +343,8 @@ export async function analyseSessionsService(
         }
       }
 
-      const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
-      const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
+      const rangeStart = moment.utc(inputs.fromDate, 'YYYY-MM-DD').startOf('day').toDate();
+      const rangeEnd = moment.utc(inputs.toDate, 'YYYY-MM-DD').endOf('day').toDate();
 
       const sessiondata = await prisma.session.findMany({
         where: {
@@ -363,8 +380,8 @@ export async function analyseSessionsService(
         schedulesFound: schedule.length
       };
     } else {
-      const rangeStart = moment.utc(inputs.fromDate).startOf('day').toDate();
-      const rangeEnd = moment.utc(inputs.toDate).endOf('day').toDate();
+      const rangeStart = moment.utc(inputs.fromDate, 'YYYY-MM-DD').startOf('day').toDate();
+      const rangeEnd = moment.utc(inputs.toDate, 'YYYY-MM-DD').endOf('day').toDate();
 
       const sessiondata = await prisma.session.findMany({
         where: {

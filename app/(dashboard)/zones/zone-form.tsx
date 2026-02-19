@@ -20,7 +20,7 @@ type ZoneFormProps = {
 }
 
 const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
-    const locationOptions = useMemo(
+    const locationOptionsFromProps = useMemo(
         () => locations.map((l) => ({ id: String(l.id ?? ""), name: l.name })),
         [locations]
     )
@@ -30,11 +30,12 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
         name: zone?.name ? zone.name : "",
         description: zone?.description ? zone.description : undefined,
         locationId: zone?.locationId ? String(zone.locationId) : "",
-        visibility: zone?.visibility !== undefined ? zone.visibility : 1,
+        status: zone?.status !== undefined ? zone.status : 1,
         createdAt: zone?.createdAt ? zone.createdAt : new Date(),
         updatedAt: zone?.updatedAt ? zone.updatedAt : new Date(),
     }
     const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
     const { toast } = useToast()
     const router = useRouter()
 
@@ -47,15 +48,16 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
             .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
-        visibility: Yup.number()
-            .oneOf([0, 1], "Visibility must be Unpublish (0) or Publish (1)")
+        status: Yup.number()
+            .oneOf([0, 1], "Status must be Unpublish (0) or Publish (1)")
             .required("This field is mandatory"),
     })
 
     const handleSubmit = async (
         values: Zone,
-        { resetForm }: FormikHelpers<Zone>
+        _helpers: FormikHelpers<Zone>
     ) => {
+        const closeAfterSave = saveAndCloseRef.current
         try {
             setLoading(true);
             let respond: any;
@@ -78,8 +80,8 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                     title: "Success",
                     description: "Zone was saved successfully",
                 })
-                // Redirect back to list page after successful update
-                router.push('/zones')
+                if (closeAfterSave) router.push('/zones')
+                else router.refresh()
             } else {
                 respond = await createNewZone(values);
                 setLoading(false);
@@ -98,14 +100,10 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                     title: "Success",
                     description: "Zone was created successfully",
                 })
-                
-                // Redirect to edit page with the new zone id
-                if (respond.data?.id) {
-                    router.push(`/zones/${respond.data.id}/edit`)
-                } else {
-                    // Fallback: redirect to list if redirect fails
-                    router.push('/zones')
-                }
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push('/zones')
+                else if (newId) router.push(`/zones/${newId}/edit`)
+                else router.push('/zones')
             }
         } catch (error: any) {
             setLoading(false);
@@ -122,7 +120,7 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
             initialValues={initialValues}
             onSubmit={handleSubmit}
             validationSchema={validationSchema}
-            enableReinitialize
+            enableReinitialize={isEditPage}
         >
             {(formik) => {
 
@@ -149,15 +147,21 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                             <CustomSelectField
                                 id="locationId"
                                 placeholder="Location"
-                                value={
-                                    formik.values.locationId &&
-                                    locationOptions.some((o) => o.id === formik.values.locationId)
-                                        ? formik.values.locationId
-                                        : undefined
-                                }
+                                value={formik.values.locationId || undefined}
                                 onChange={(value) => formik.setFieldValue("locationId", value)}
                                 required
-                                options={locationOptions}
+                                options={
+                                    formik.values.locationId &&
+                                    !locationOptionsFromProps.some((o) => o.id === formik.values.locationId)
+                                        ? [
+                                            ...locationOptionsFromProps,
+                                            {
+                                                id: formik.values.locationId,
+                                                name: zone?.location?.name ?? "—",
+                                            },
+                                        ]
+                                        : locationOptionsFromProps
+                                }
                                 styleClasses={styleClasses}
                             />
 
@@ -173,10 +177,10 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                             />
 
                             <CustomSelectField
-                                id="visibility"
-                                placeholder="Visibility"
-                                value={formik.values.visibility?.toString()}
-                                onChange={(value) => formik.setFieldValue("visibility", parseInt(value))}
+                                id="status"
+                                placeholder="Status"
+                                value={formik.values.status?.toString()}
+                                onChange={(value) => formik.setFieldValue("status", parseInt(value))}
                                 required
                                 options={[
                                     { id: "0", name: "Unpublish" },
@@ -191,24 +195,38 @@ const ZoneForm = ({ zone, isEditPage = false, locations }: ZoneFormProps) => {
                                     variant="outline"
                                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                                     type="button"
-                                    onClick={() => {
-                                        router.push('/zones')
-                                    }}
+                                    onClick={() => router.push('/zones')}
                                     disabled={loading}
                                 >
                                     <Ban className="h-4 w-4" />
-                                    <span>
-                                        Cancel
-                                    </span>
+                                    <span>Cancel</span>
                                 </Button>
                                 <Button
                                     disabled={loading}
-                                    size={"sm"}
-                                    type="submit"
-                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = false
+                                        formik.submitForm()
+                                    }}
                                 >
                                     <Save className="h-4 w-4" />
                                     <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = true
+                                        formik.submitForm()
+                                    }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
                                 </Button>
                             </div>
                         </div>

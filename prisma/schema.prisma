@@ -50,6 +50,12 @@ model User {
   updatedAgencyBooks      AgencyBook[]                   @relation("UserUpdatedAgencyBooks")
   createdBookings         Booking[]                      @relation("UserCreatedBookings")
   updatedBookings         Booking[]                      @relation("UserUpdatedBookings")
+  createdTags             Tag[]                          @relation("UserCreatedTags")
+  updatedTags             Tag[]                          @relation("UserUpdatedTags")
+  createdZones            Zone[]                         @relation("UserCreatedZones")
+  updatedZones            Zone[]                         @relation("UserUpdatedZones")
+  createdDepartments      Department[]                   @relation("UserCreatedDepartments")
+  updatedDepartments      Department[]                   @relation("UserUpdatedDepartments")
   userGroupId             String?                        @db.ObjectId
   userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
   shifts                  Shift[]                        @relation("UserShifts")
@@ -100,10 +106,15 @@ model Department {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   description     String?
-  visibility      Int // 0 = unpublish, 1 = publish
+  institution     Int?     // 0=RH, 1=RHD, 2=RHT, 3=RPS (align with DoctorSession/Session)
+  status          Int // 0 = unpublish, 1 = publish
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now())
+  createdBy       String?   @db.ObjectId
+  updatedBy       String?   @db.ObjectId
+  createdUser     User?     @relation("UserCreatedDepartments", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser     User?     @relation("UserUpdatedDepartments", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
@@ -156,8 +167,8 @@ model Doctor {
   updatedAt          DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  specialityId   String          @db.ObjectId
-  speciality     Speciality      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: Cascade)
+  specialityId   String?         @db.ObjectId
+  speciality     Speciality?     @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
   sessions       Session[]       @relation("DoctorToSession")
   bookings       Booking[]       @relation("DoctorToBooking")
@@ -285,11 +296,11 @@ model Session {
   doctorId     String?     @db.ObjectId
   doctor       Doctor?     @relation("DoctorToSession", fields: [doctorId], references: [id], onDelete: SetNull)
   departmentId String?     @db.ObjectId
-  department   Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: Cascade)
+  department   Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: SetNull)
   locationId   String?     @db.ObjectId
-  location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: Cascade)
+  location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
   roomId       String?     @db.ObjectId
-  room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: Cascade)
+  room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
   bookings     Booking[]   @relation("SessionToBooking")
   history      Log[]       @relation("SessionToLog")
   createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -362,10 +373,10 @@ model Room {
   updatedAt       DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  zoneId         String          @db.ObjectId
-  zone           Zone            @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: Cascade)
-  locationId     String          @db.ObjectId
-  location       Location        @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: Cascade)
+  zoneId         String?         @db.ObjectId
+  zone           Zone?           @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: SetNull)
+  locationId     String?         @db.ObjectId
+  location       Location?       @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToRoom")
   sessions       Session[]       @relation("RoomToSession")
   createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -475,28 +486,32 @@ model Tag {
 
   patients Patient[] @relation("PatientArea")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?   @db.ObjectId
+  updatedBy String?   @db.ObjectId
+  createdUser User?   @relation("UserCreatedTags", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?   @relation("UserUpdatedTags", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Zone {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   description     String?
-  visibility      Int // 0 = unpublish, 1 = publish
+  status          Int // 0 = unpublish, 1 = publish
   migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?   @db.ObjectId
+  updatedBy   String?   @db.ObjectId
+  createdUser User?    @relation("UserCreatedZones", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedZones", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
   rooms      Room[]   @relation("ZoneToRoom")
-  locationId String   @db.ObjectId
-  location   Location @relation("LocationToZone", fields: [locationId], references: [id], onDelete: Cascade)
+  locationId String?  @db.ObjectId
+  location   Location? @relation("LocationToZone", fields: [locationId], references: [id], onDelete: SetNull)
 }
 
 model Discount {
@@ -638,8 +653,8 @@ model Booking {
   area                    String
   remarks                 String   @default("")
   method                  Int
-  sessionId               String   @db.ObjectId
-  session                 Session  @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId               String?  @db.ObjectId
+  session                 Session? @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
   doctorId                String   @db.ObjectId
   doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
   amount                  Int
@@ -771,4 +786,27 @@ enum PaymentType {
 enum LogStatus {
   INFO
   ERROR
+}
+
+// UAT (User Acceptance Testing) – results per tester, shared so anyone can see
+model UatCaseResult {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  testerName  String
+  testCaseId  String
+  status      String   // "pass" | "fail"
+  comment     String?  // issue or note
+  updatedAt   DateTime @default(now())
+
+  @@unique([testerName, testCaseId])
+  @@index([testerName])
+}
+
+model UatSectionComplete {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  testerName  String
+  feature     String
+  completedAt DateTime @default(now())
+
+  @@unique([testerName, feature])
+  @@index([testerName])
 }

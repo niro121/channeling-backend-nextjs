@@ -11,6 +11,7 @@ import FilterSection from "./filter-section"
 import { ExportWrapper } from "../export-wrapper"
 import { checkRouteAccess } from "@/lib/server-permissions"
 import { redirect } from "next/navigation"
+import { TAG_TYPES } from "@/types/tag"
 
 type SearchParams = {
     searchParams?: Promise<{
@@ -62,19 +63,16 @@ export default async function Page({ searchParams }: SearchParams) {
             };
         }
 
-        const TAG_TYPES: Record<number, string> = {
-            0: 'City',
-            1: 'Staff Category',
-            2: 'Staff Designation',
-            3: 'Staff Grade',
-            4: 'Bank'
-        };
-
-        const mappedTags = tagListResponse.data.map((t) => ({
-            name: t.name || '-',
-            type: t.type ? TAG_TYPES[t.type] || 'Unknown' : '-',
-            status: t.status === 1 ? 'Active' : 'Inactive'
-        }));
+        // Use same TAG_TYPES as list view; coerce type to number for lookup (handles serialized string)
+        const mappedTags = tagListResponse.data.map((t) => {
+            const typeNum = t.type != null ? Number(t.type) : NaN;
+            const typeLabel = !Number.isNaN(typeNum) && typeNum >= 0 && typeNum <= 4 ? TAG_TYPES[typeNum] ?? 'Unknown' : '-';
+            return {
+                name: t.name || '-',
+                type: typeLabel,
+                status: t.status === 1 ? 'Published' : 'Unpublished'
+            };
+        });
 
         return {
             success: true,
@@ -95,29 +93,33 @@ export default async function Page({ searchParams }: SearchParams) {
                     page={resolvedSearchParams?.page}
                     limit={resolvedSearchParams?.limit}
                     toolbarLeft={
-                        <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
-                            <div className="relative w-full sm:max-w-sm">
-                                <SearchInput
-                                    name="keyword"
-                                    placeholder="Search by name"
-                                    className="pl-8 w-full h-9"
+                        <div className="flex flex-col gap-3 flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row gap-3 items-start">
+                                <div className="relative w-full sm:max-w-sm">
+                                    <SearchInput
+                                        name="keyword"
+                                        placeholder="Search by name"
+                                        className="pl-8 w-full h-9"
+                                    />
+                                </div>
+                                <FilterSection
+                                    tagTypeOptions={tagTypeOptions}
+                                    typeId={resolvedSearchParams?.type}
                                 />
                             </div>
-                            <FilterSection
-                                tagTypeOptions={tagTypeOptions}
-                                typeId={resolvedSearchParams?.type}
-                            />
+                            <div className="flex items-center">
+                                <ExportWrapper
+                                    serverData={handleExport}
+                                    columns={['Name', 'Type']}
+                                    keys={['name', 'type',]}
+                                    title="Tags List"
+                                    fileName="tags"
+                                />
+                            </div>
                         </div>
                     }
                     toolbarRight={
                         <div className="flex items-center gap-2 shrink-0">
-                            <ExportWrapper
-                                serverData={handleExport}
-                                columns={['Name', 'Type', 'Status']}
-                                keys={['name', 'type', 'status']}
-                                title="Tags List"
-                                fileName="tags"
-                            />
                             <Link href="/tags/add">
                                 <Button size="sm" className="gap-1.5 h-9">
                                     <Plus className="h-4 w-4" />

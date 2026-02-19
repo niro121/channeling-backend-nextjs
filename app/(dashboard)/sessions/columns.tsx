@@ -27,6 +27,11 @@ function SessionIdCell({ row }: { row: { original: SessionListItem } }) {
   );
 }
 
+function formatSessionFee(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Format session time for display in Sri Lanka (DB stores UTC). */
 function formatSessionTime(value: Date | number | string, date?: Date): string {
   const sessionDate = date instanceof Date ? date : date ? new Date(date) : new Date();
@@ -102,14 +107,14 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
   },
   {
     id: 'fees',
-    header: 'Fee',
+    header: () => <div className="text-right w-full">Fee</div>,
     cell: ({ row }) => {
-      const local = row.original.amountLocal != null ? String(row.original.amountLocal) : '—';
-      const foreign = row.original.amountForeign != null ? String(row.original.amountForeign) : '—';
+      const local = formatSessionFee(row.original.amountLocal);
+      const foreign = formatSessionFee(row.original.amountForeign);
       return (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span>Local: {local}</span>
-          <span className="text-muted-foreground">Foreign: {foreign}</span>
+        <div className="flex flex-col gap-0.5 text-xs text-right tabular-nums">
+          <span>Local Fee: {local}</span>
+          <span className="text-muted-foreground">Foreign Fee: {foreign}</span>
         </div>
       );
     },

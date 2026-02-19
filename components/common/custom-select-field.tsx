@@ -14,6 +14,8 @@ import { Spinner } from "../icons"
 interface CustomSelectFieldProps {
   id: string
   placeholder: string
+  /** When set, used as the label above the field; otherwise placeholder is used as label */
+  label?: string
   value: any
   onChange: (value: string) => void
   //   labelClassName?: string
@@ -34,6 +36,7 @@ interface CustomSelectFieldProps {
 const CustomSelectField = ({
   id,
   placeholder,
+  label,
   value,
   onChange,
   //   labelClassName,
@@ -48,7 +51,7 @@ const CustomSelectField = ({
   return (
     <div className={styleClasses?.parentDiv}>
       <Label className={styleClasses?.labelClassName}>
-        {placeholder}
+        {label ?? placeholder}
         {required && <span className="text-red-600"> *</span>}
       </Label>
       <div className={styleClasses?.inputClassName}>

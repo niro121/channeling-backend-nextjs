@@ -55,6 +55,7 @@ export default function DiscountForm({
 }: DiscountFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [loadingCode, setLoadingCode] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
   const [voucherModalOpen, setVoucherModalOpen] = React.useState(false);
@@ -119,6 +120,7 @@ export default function DiscountForm({
     values: DiscountFormValues,
     { setErrors, setTouched, resetForm }: FormikHelpers<DiscountFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       setLoading(true);
       let respond: any;
@@ -160,7 +162,8 @@ export default function DiscountForm({
           title: 'Success',
           description: `${respond.message || 'Discount was updated successfully'}`
         });
-        router.push('/discounts');
+        if (closeAfterSave) router.push('/discounts');
+        else router.refresh();
       } else {
         respond = await createDiscount(values, user);
         setLoading(false);
@@ -197,12 +200,10 @@ export default function DiscountForm({
           title: 'Success',
           description: 'Discount was created successfully'
         });
-
-        if (respond.data?.id) {
-          router.push(`/discounts/${respond.data.id}/edit`);
-        } else {
-          router.push('/discounts');
-        }
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/discounts');
+        else if (newId) router.push(`/discounts/${newId}/edit`);
+        else router.push('/discounts');
       }
     } catch (error: any) {
       setLoading(false);
@@ -502,9 +503,7 @@ export default function DiscountForm({
                         variant="outline"
                         className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                         type="button"
-                        onClick={() => {
-                          router.push('/discounts');
-                        }}
+                        onClick={() => router.push('/discounts')}
                         disabled={loading}
                       >
                         <Ban className="h-4 w-4" />
@@ -512,12 +511,24 @@ export default function DiscountForm({
                       </Button>
                       <Button
                         disabled={loading}
-                        size={'sm'}
-                        type="submit"
-                        className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                        size="sm"
+                        type="button"
+                        className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                        onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                       >
                         <Save className="h-4 w-4" />
                         <span>Save</span>
+                      </Button>
+                      <Button
+                        disabled={loading}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                        className="w-full sm:w-auto gap-1 px-6"
+                        onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                      >
+                        <Save className="h-4 w-4" />
+                        <span>Save and Close</span>
                       </Button>
                     </div>
                   </div>

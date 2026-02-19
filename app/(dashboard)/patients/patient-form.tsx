@@ -52,6 +52,7 @@ const PatientForm = ({
   };
 
   const [loading, setLoading] = useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -76,6 +77,7 @@ const PatientForm = ({
     values: Patient,
     { setErrors, setTouched }: FormikHelpers<Patient>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       let respond: any;
 
@@ -109,12 +111,13 @@ const PatientForm = ({
           return;
         }
 
-        router.push('/patients');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was updated successfully'
         });
+        if (closeAfterSave) router.push('/patients');
+        else router.refresh();
       } else {
         respond = await createPatientAction(values);
         setLoading(false);
@@ -143,17 +146,15 @@ const PatientForm = ({
           return;
         }
 
-        const newId = respond.data?.id;
-        if (newId) {
-          router.push(`/patients/${newId}/edit`);
-        } else {
-          router.push('/patients');
-        }
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Patient was created successfully'
         });
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/patients');
+        else if (newId) router.push(`/patients/${newId}/edit`);
+        else router.push('/patients');
       }
     } catch (error: any) {
       setLoading(false);
@@ -400,9 +401,7 @@ const PatientForm = ({
                   variant="outline"
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
-                  onClick={() => {
-                    router.push('/patients');
-                  }}
+                  onClick={() => router.push('/patients')}
                   disabled={loading}
                 >
                   <Ban className="h-4 w-4" />
@@ -410,12 +409,24 @@ const PatientForm = ({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

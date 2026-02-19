@@ -1,20 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tag } from '@/types/tag';
+import { Tag, TAG_TYPES } from '@/types/tag';
 import TagRecordActions from './record-actions';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-
-// Align with old system / migrate: 0=City, 1=Staff Category, 2=Staff Designation, 3=Staff Grade, 4=Bank
-const TAG_TYPES: Record<number, string> = {
-  0: 'City',
-  1: 'Staff Category',
-  2: 'Staff Designation',
-  3: 'Staff Grade',
-  4: 'Bank'
-};
+import moment from 'moment';
 
 // DEFINE THE COLUMNS OF THE TAG TABLE
 export const tagColumns: ColumnDef<Tag>[] = [
@@ -44,20 +37,70 @@ export const tagColumns: ColumnDef<Tag>[] = [
   },
   {
     accessorKey: 'name',
-    header: 'Name'
+    header: 'Name',
+    cell: ({ row }) => {
+      const name = row.getValue<string>('name');
+      const id = row.original.id;
+      const content = name ?? '—';
+      if (id) {
+        return (
+          <Link
+            href={`/tags/${id}/edit`}
+            className="max-w-28 truncate block text-primary hover:underline underline-offset-2 cursor-pointer"
+            title={`Edit ${name ?? 'tag'}`}
+          >
+            {content}
+          </Link>
+        );
+      }
+      return <span className="max-w-28 truncate">{content}</span>;
+    }
   },
   {
     accessorKey: 'type',
     header: 'Type',
     cell: ({ row }) => {
-      const typeMs = row.getValue('type') as number;
-      return TAG_TYPES[typeMs] ?? 'Unknown';
+      const typeVal = row.getValue('type');
+      const typeNum = typeof typeVal === 'number' ? typeVal : Number(typeVal);
+      return (typeNum >= 0 && typeNum <= 4 ? TAG_TYPES[typeNum] : null) ?? 'Unknown';
     }
   },
 
   {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const name = row.original.updatedUser?.name ?? '—';
+      const date = row.original.updatedAt
+        ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{date}</span>
+        </div>
+      );
+    }
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const name = row.original.createdUser?.name ?? '—';
+      const date = row.original.createdAt
+        ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{date}</span>
+        </div>
+      );
+    }
+  },
+  {
     accessorKey: 'status',
-    header: 'Status',
+    header: 'Published',
     cell: ({ row }) => {
       const status = row.getValue('status') as number;
       const isActive = status === 1;
@@ -71,7 +114,7 @@ export const tagColumns: ColumnDef<Tag>[] = [
           }
         >
           {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {isActive ? 'Active' : 'Inactive'}
+          {isActive ? 'Published' : 'Unpublished'}
         </Badge>
       );
     }

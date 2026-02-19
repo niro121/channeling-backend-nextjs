@@ -46,8 +46,9 @@ export default async function Page({ searchParams }: SearchParams) {
 
   const specialityRes = await getAllSpecialityOptions();
   const specialityOptions =
-    specialityRes?.data?.map((s) => ({ id: s.id as string, name: s.name })) ??
-    [];
+    specialityRes?.data
+      ?.map((s) => ({ id: s.id as string, name: s.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
 
   const handleExport = async () => {
     'use server';
@@ -131,8 +132,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Name', 'Code', 'Registration Number', 'Speciality']}
-                  keys={['name', 'code', 'registrationNumber', 'speciality']}
+                  columns={['Code','Name', 'Speciality','Registration Number']}
+                  keys={['code', 'name', 'speciality', 'registrationNumber' ]}
                   title="Doctors List"
                   fileName="doctors"
                 />

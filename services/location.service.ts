@@ -43,7 +43,8 @@ export const getAllLocationsService = async ({
   page,
   limit,
   keyword,
-  locationId
+  locationId,
+  publishedOnly,
 }: getLocationQuery): Promise<{
   success: boolean;
   data?: Location[];
@@ -54,7 +55,7 @@ export const getAllLocationsService = async ({
   };
 }> => {
   try {
-    const whereClause: Prisma.LocationWhereInput | undefined =
+    const baseWhere: Prisma.LocationWhereInput =
       keyword && keyword?.trim() !== ''
         ? {
             OR: [
@@ -81,6 +82,13 @@ export const getAllLocationsService = async ({
           }
         : locationId
           ? { branchType: locationId }
+          : {};
+
+    const whereClause: Prisma.LocationWhereInput | undefined =
+      publishedOnly === true
+        ? { ...baseWhere, status: 1 }
+        : Object.keys(baseWhere).length > 0
+          ? baseWhere
           : undefined;
 
     const skip = page * limit;
@@ -89,14 +97,14 @@ export const getAllLocationsService = async ({
       prisma.location.findMany({
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
-        where: whereClause,
+        orderBy: { name: 'asc' },
+        ...(whereClause != null && { where: whereClause }),
         include: {
           createdUser: true,
           updatedUser: true
         }
       }),
-      prisma.location.count({ where: whereClause })
+      prisma.location.count(...(whereClause != null ? [{ where: whereClause }] : []))
     ]);
 
     return {
@@ -415,59 +423,169 @@ export const deleteLocationByIdService = async (
 
 // ==== DELETE LOCATIONS ==== //
 export const bulkDeleteLocationsByIdsService = async (
-  ids: string[]
+    ids: string[]
 ): Promise<{
-  success: boolean;
-  data?: {
-    count: number;
-  };
-  message?: string;
-  error?: {
+    success: boolean;
+    data?: {
+        count: number;
+    };
     message?: string;
-  };
+    error?: {
+        message?: string;
+    };
 }> => {
-  try {
-    if (!ids || ids.length === 0) {
-      return {
-        success: false,
-        error: {
-          message: 'No location IDs provided'
+    try {
+        if (!ids || ids.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: 'No location IDs provided'
+                }
+            };
         }
-      };
+
+        const result = await prisma.location.deleteMany({
+            where: {
+                id: {
+                    in: ids
+                }
+            }
+        });
+
+        if (result.count === 0) {
+            return {
+                success: false,
+                error: {
+                    message: 'No locations found to delete'
+                }
+            };
+        }
+
+        return {
+            success: true,
+            data: {
+                count: result.count
+            },
+            message: `${result.count} location(s) deleted successfully`
+        };
+    } catch (error: any) {
+        console.error('bulkDeleteLocationsByIdsService error:', error);
+
+        return {
+            success: false,
+            error: {
+                message: error.message || 'Failed to delete locations'
+            }
+        };
     }
-
-    const result = await prisma.location.deleteMany({
-      where: {
-        id: {
-          in: ids
-        }
-      }
-    });
-
-    if (result.count === 0) {
-      return {
-        success: false,
-        error: {
-          message: 'No locations found to delete'
-        }
-      };
-    }
-
-    return {
-      success: true,
-      data: {
-        count: result.count
-      },
-      message: `${result.count} location(s) deleted successfully`
-    };
-  } catch (error: any) {
-    console.error('bulkDeleteLocationsByIdsService error:', error);
-
-    return {
-      success: false,
-      error: {
-        message: error.message || 'Failed to delete locations'
-      }
-    };
-  }
 };
+
+// ==== CHECK SINGLE LOCATION HAS LINKED RECORDS ==== //
+export const checkLocationHasLinkedRecordsService = async (
+    locationId: string
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!locationId) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid location ID"
+                }
+            }
+        }
+
+        // Check for Zone records associated with this location
+        const zoneCount = await prisma.zone.count({
+            where: {
+                locationId: locationId
+            }
+        })
+
+        // Check for Room records associated with this location
+        const roomCount = await prisma.room.count({
+            where: {
+                locationId: locationId
+            }
+        })
+
+        const hasLinkedRecords = zoneCount > 0 || roomCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkLocationHasLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check location linked records"
+            }
+        }
+    }
+}
+
+// ==== CHECK LOCATIONS HAVE LINKED RECORDS ==== //
+export const checkLocationsHaveLinkedRecordsService = async (
+    locationIds: string[]
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!locationIds || locationIds.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid location IDs"
+                }
+            }
+        }
+
+        // Check for Zone records associated with any of these locations
+        const zoneCount = await prisma.zone.count({
+            where: {
+                locationId: {
+                    in: locationIds
+                }
+            }
+        })
+
+        // Check for Room records associated with any of these locations
+        const roomCount = await prisma.room.count({
+            where: {
+                locationId: {
+                    in: locationIds
+                }
+            }
+        })
+
+        const hasLinkedRecords = zoneCount > 0 || roomCount > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkLocationsHaveLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check locations linked records"
+            }
+        }
+    }
+}

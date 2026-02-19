@@ -110,10 +110,18 @@ export const getDoctorArrivalsReportDataService = async ({
       ]
     });
 
+    // Map sessions to ensure Date fields are properly typed
+    const mappedSessions = sessions.map((session) => ({
+      ...session,
+      startTime: session.startTime instanceof Date ? session.startTime : new Date(session.startTime),
+      endTime: session.endTime instanceof Date ? session.endTime : new Date(session.endTime),
+      date: session.date instanceof Date ? session.date : new Date(session.date)
+    }));
+
     return {
       success: true,
-      data: sessions,
-      totalRecords: sessions.length
+      data: mappedSessions,
+      totalRecords: mappedSessions.length
     };
   } catch (error: unknown) {
     console.error('getDoctorArrivalsReportDataService error', error);

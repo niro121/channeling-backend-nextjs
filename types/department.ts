@@ -3,9 +3,14 @@ export type Department = {
     id?: string
     name: string
     description?: string | null
-    visibility: number // 0 = unpublish, 1 = publish
+    institution?: number | null // 0=RH, 1=RHD, 2=RHT, 3=RPS
+    status: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
+    createdBy?: string | null
+    updatedBy?: string | null
+    createdUser?: { name?: string } | null
+    updatedUser?: { name?: string } | null
 }
 
 export type GetDepartmentsParams = {

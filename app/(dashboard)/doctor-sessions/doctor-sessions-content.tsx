@@ -18,6 +18,8 @@ type Props = {
   institutionId: string;
   doctorOptions: Option[];
   institutionOptions: Option[];
+  departmentOptions?: { id: string; name: string }[];
+  locationOptions?: { id: string; name: string }[];
   bulkDeleteAction: (ids: string[]) => Promise<boolean>;
 };
 
@@ -27,6 +29,8 @@ export default function DoctorSessionsContent({
   institutionId,
   doctorOptions,
   institutionOptions,
+  departmentOptions,
+  locationOptions,
   bulkDeleteAction
 }: Props) {
   const [searchInProgress, setSearchInProgress] = useState(false);
@@ -61,7 +65,11 @@ export default function DoctorSessionsContent({
             <Button variant="outline" size="sm" asChild>
               <Link href="/doctor-sessions/bulk-price-change">Bulk Price Change</Link>
             </Button>
-            <AddBtnSection />
+            <AddBtnSection
+            searchDone={!!showData}
+            departmentOptions={departmentOptions}
+            locationOptions={locationOptions}
+          />
           </div>
         </div>
 

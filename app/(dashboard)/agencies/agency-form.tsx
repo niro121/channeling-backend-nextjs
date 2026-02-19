@@ -67,6 +67,7 @@ const AgencyForm = ({
 
   const [loading, setLoading] = useState<boolean>(false);
   const [tab, setTab] = useState('agencyDetails');
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -119,6 +120,7 @@ const AgencyForm = ({
     >
       {(formik) => {
         const handleAgencySubmitLocal = async () => {
+          const closeAfterSave = saveAndCloseRef.current;
           try {
             // Validate agency details fields
             await agencyDetailsSchema.validate(formik.values, { abortEarly: false });
@@ -169,12 +171,14 @@ const AgencyForm = ({
               title: 'Success',
               description: `Agency was ${agency?.id ? 'updated' : 'created'} successfully`
             });
-            
-            if (!agency?.id && respond.data?.id) {
-              // If we were on the add page, redirect to the edit page of the new agency
-              router.push(`/agencies/${respond.data.id}/edit`);
+            if (agency?.id) {
+              if (closeAfterSave) router.push('/agencies');
+              else router.refresh();
             } else {
-              router.push('/agencies');
+              const newId = respond?.data?.id;
+              if (closeAfterSave) router.push('/agencies');
+              else if (newId) router.push(`/agencies/${newId}/edit`);
+              else router.push('/agencies');
             }
           } catch (error: any) {
             setLoading(false);
@@ -594,9 +598,7 @@ const AgencyForm = ({
                     variant="outline"
                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                     type="button"
-                    onClick={() => {
-                      router.push('/agencies');
-                    }}
+                    onClick={() => router.push('/agencies')}
                     disabled={loading}
                   >
                     <Ban className="h-4 w-4" />
@@ -604,13 +606,24 @@ const AgencyForm = ({
                   </Button>
                   <Button
                     disabled={loading}
-                    size={'sm'}
+                    size="sm"
                     type="button"
-                    onClick={handleAgencySubmitLocal}
-                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                    onClick={() => { saveAndCloseRef.current = false; handleAgencySubmitLocal(); }}
+                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                   >
                     <Save className="h-4 w-4" />
                     <span>Save</span>
+                  </Button>
+                  <Button
+                    disabled={loading}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto gap-1 px-6"
+                    onClick={() => { saveAndCloseRef.current = true; handleAgencySubmitLocal(); }}
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>Save and Close</span>
                   </Button>
                 </div>
               </TabsContent>

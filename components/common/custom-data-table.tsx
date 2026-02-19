@@ -312,8 +312,9 @@ export function CustomDataTable<TData, TValue>({
     )
   }
 
-  // Check if description has warning (contains doctor count)
-  const hasWarning = bulkDeleteDescription.includes("doctor(s)")
+  // Check if description has warning (contains doctor count or department warning)
+  const hasWarning = bulkDeleteDescription.includes("doctor(s)") || 
+                     bulkDeleteDescription.includes("linked to other system records")
 
   useEffect(() => {
     if (limit) {

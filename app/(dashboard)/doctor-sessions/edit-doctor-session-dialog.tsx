@@ -60,7 +60,7 @@ export function EditDoctorSessionDialog({
       getDepartmentOptions(),
       getLocationOptions()
     ])
-      .then(([sessionRes, deptRes, locRes]) => {
+      .then(async ([sessionRes, deptRes, locRes]) => {
         if (cancelled) return;
         if (!sessionRes.success || !sessionRes.data) {
           setError(sessionRes.error?.message ?? 'Session not found');
@@ -72,12 +72,12 @@ export function EditDoctorSessionDialog({
         const doctorId =
           sessionRes.data.doctorId ?? sessionRes.data.doctor?.id ?? '';
         if (doctorId) {
-          getAllDoctorSessions({
+          const res = await getAllDoctorSessions({
             doctorId,
             page: '0',
             limit: '1000'
-          }).then((res) => {
-            if (cancelled) return;
+          });
+          if (!cancelled) {
             const list = res.data ?? [];
             setDoctorSessionsForPreviousDropdown(
               list.map((s: { id: string; name: string }) => ({
@@ -85,7 +85,7 @@ export function EditDoctorSessionDialog({
                 name: s.name
               }))
             );
-          });
+          }
         } else {
           setDoctorSessionsForPreviousDropdown([]);
         }

@@ -6,7 +6,7 @@ export type Zone = {
     name: string
     description?: string | null
     locationId?: string | null
-    visibility: number // 0 = unpublish, 1 = publish
+    status: number // 0 = unpublish, 1 = publish
     createdAt?: Date
     updatedAt?: Date
     createdUser?: User | null
@@ -21,12 +21,14 @@ export type GetZonesParams = {
     page?: string
     limit?: string
     keyword?: string
+    locationId?: string
 }
 
 export type GetZonesQuery = {
     page: number
     limit: number
     keyword: string
+    locationId?: string
 }
 
 export type GetZonesReturn = {
