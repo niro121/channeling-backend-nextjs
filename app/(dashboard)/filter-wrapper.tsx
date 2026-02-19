@@ -56,6 +56,17 @@ export function FilterWrapper({
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
 
+    // Also read the search input value from the DOM if it exists
+    // This ensures the search keyword is included even if user didn't press Enter
+    if (typeof window !== 'undefined') {
+      const searchInput = document.querySelector('input[name="keyword"]') as HTMLInputElement;
+      if (searchInput && searchInput.value) {
+        params.set('keyword', searchInput.value);
+      } else if (searchInput && !searchInput.value) {
+        params.delete('keyword');
+      }
+    }
+
     Object.entries(values).forEach(([key, value]) => {
       if (value && value !== '__all__') {
         params.set(key, value);

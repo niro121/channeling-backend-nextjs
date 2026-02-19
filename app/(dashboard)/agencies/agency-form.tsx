@@ -170,12 +170,7 @@ const AgencyForm = ({
               description: `Agency was ${agency?.id ? 'updated' : 'created'} successfully`
             });
             
-            if (!agency?.id && respond.data?.id) {
-              // If we were on the add page, redirect to the edit page of the new agency
-              router.push(`/agencies/${respond.data.id}/edit`);
-            } else {
-              router.push('/agencies');
-            }
+            router.push('/agencies');
           } catch (error: any) {
             setLoading(false);
             if (error.name === 'ValidationError') {
