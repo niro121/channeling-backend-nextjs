@@ -32,8 +32,6 @@ const FEATURE_ORDER = [
   "Agency",
   "Discount",
   "Tags",
-  "SMS Playground",
-  "Reports",
 ]
 
 function parseCsv(csvText: string): UatCaseRow[] {
