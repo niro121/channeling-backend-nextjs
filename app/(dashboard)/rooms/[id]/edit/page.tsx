@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import RoomForm from '../../room-form';
-import { getRoomById, getAllLocations } from '@/app/actions/room.actions';
+import { getRoomById, getAllLocations, getAllZonesByLocaionID } from '@/app/actions/room.actions';
 import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
@@ -24,10 +24,18 @@ export default async function EditRoomPage({ params }: PageProps) {
     notFound();
   }
 
-  const locationRes = await getAllLocations();
+  const [locationRes, zonesRes] = await Promise.all([
+    getAllLocations(),
+    data.locationId ? getAllZonesByLocaionID(data.locationId) : Promise.resolve({ success: false, data: [] })
+  ]);
 
   const locationOptions =
     locationRes?.data?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
+
+  const initialZoneOptions =
+    zonesRes?.success && zonesRes?.data?.length
+      ? zonesRes.data.map((z) => ({ id: z.id, name: z.name }))
+      : undefined;
 
   return (
     <div className="container mx-auto py-6">
@@ -39,6 +47,7 @@ export default async function EditRoomPage({ params }: PageProps) {
         <RoomForm
           room={data}
           locationOptions={locationOptions}
+          initialZoneOptions={initialZoneOptions}
           isEditPage={true}
           user={{
             id: user?.id,
