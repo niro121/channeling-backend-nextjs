@@ -40,6 +40,7 @@ export const getZones = async ({
     page,
     limit,
     keyword,
+    locationId,
 }: GetZonesQuery): Promise<{
     success: boolean;
     data?: Zone[];
@@ -72,14 +73,24 @@ export const getZones = async ({
         }
 
         const whereClause: Prisma.ZoneWhereInput = {
-            locationId: {
-                in: validLocationIds
-            },
+            locationId: locationId && validLocationIds.includes(locationId)
+                ? locationId
+                : { in: validLocationIds },
             ...(keyword && keyword.trim() !== "" ? {
-                name: {
-                    contains: keyword,
-                    mode: Prisma.QueryMode.insensitive,
-                }
+                OR: [
+                    {
+                        name: {
+                            contains: keyword,
+                            mode: Prisma.QueryMode.insensitive,
+                        }
+                    },
+                    {
+                        description: {
+                            contains: keyword,
+                            mode: Prisma.QueryMode.insensitive,
+                        }
+                    }
+                ]
             } : {})
         };
 
@@ -95,6 +106,8 @@ export const getZones = async ({
                         name: true
                     }
                 },
+                createdUser: { select: { name: true } },
+                updatedUser: { select: { name: true } },
             },
             orderBy: {
                 createdAt: "desc",
@@ -282,9 +295,7 @@ export const saveZone = async (
                 name: data.name,
                 description: data.description ?? null,
                 status: data.status,
-                location: {
-                    connect: { id: data.locationId }
-                },
+                locationId: data.locationId,
                 ...(user?.id ? {
                     createdBy: user.id,
                     updatedBy: user.id
@@ -371,19 +382,14 @@ export const updateOneZone = async (
             }
         }
 
-        const updateData: Prisma.ZoneUpdateInput = {
+        const updateData: Prisma.ZoneUncheckedUpdateInput = {
             ...(user?.id ? { updatedBy: user.id } : {})
         };
 
         if (data.name !== undefined) updateData.name = data.name;
         if (data.description !== undefined) updateData.description = data.description ?? null;
         if (data.status !== undefined) updateData.status = data.status;
-
-        if (data.locationId !== undefined) {
-            updateData.location = {
-                connect: { id: data.locationId }
-            };
-        }
+        if (data.locationId !== undefined) updateData.locationId = data.locationId;
 
         const zone = await prisma.zone.update({
             where: { id },
@@ -483,3 +489,115 @@ export const getZoneById = async (
         };
     }
 };
+
+// ==== CHECK SINGLE ZONE HAS LINKED RECORDS ==== //
+export const checkZoneHasLinkedRecordsService = async (
+    zoneId: string
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!zoneId) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid zone ID"
+                }
+            }
+        }
+
+        // Check for Room records associated with this zone
+        const roomCount = await prisma.room.count({
+            where: {
+                zoneId: zoneId
+            }
+        })
+
+        // Check if zone has a location assigned (locationId is required but check anyway)
+        const zone = await prisma.zone.findUnique({
+            where: { id: zoneId },
+            select: { locationId: true }
+        })
+
+        const hasLinkedRecords = roomCount > 0 || (zone?.locationId !== null && zone?.locationId !== undefined)
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkZoneHasLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check zone linked records"
+            }
+        }
+    }
+}
+
+// ==== CHECK ZONES HAVE LINKED RECORDS ==== //
+export const checkZonesHaveLinkedRecordsService = async (
+    zoneIds: string[]
+): Promise<{
+    success: boolean
+    data?: {
+        hasLinkedRecords: boolean
+    }
+    error?: { message?: string }
+}> => {
+    try {
+        if (!zoneIds || zoneIds.length === 0) {
+            return {
+                success: false,
+                error: {
+                    message: "Invalid zone IDs"
+                }
+            }
+        }
+
+        // Check for Room records associated with any of these zones
+        const roomCount = await prisma.room.count({
+            where: {
+                zoneId: {
+                    in: zoneIds
+                }
+            }
+        })
+
+        // Check if any of these zones have locations assigned (locationId is required but check anyway)
+        const zonesWithLocations = await prisma.zone.count({
+            where: {
+                id: {
+                    in: zoneIds
+                },
+                locationId: {
+                    not: null
+                }
+            }
+        })
+
+        const hasLinkedRecords = roomCount > 0 || zonesWithLocations > 0
+
+        return {
+            success: true,
+            data: {
+                hasLinkedRecords
+            }
+        }
+    } catch (error: any) {
+        console.error("checkZonesHaveLinkedRecordsService error", error)
+        return {
+            success: false,
+            error: {
+                message: error.message || "Failed to check zones linked records"
+            }
+        }
+    }
+}

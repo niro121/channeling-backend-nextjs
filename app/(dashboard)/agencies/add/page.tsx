@@ -13,8 +13,8 @@ export default async function Page() {
       name: a.name
     })) ?? [];
 
-  // Get locations for dropdown
-  const locationsRes = await getAllLocations({});
+  // Get locations for dropdown (published only)
+  const locationsRes = await getAllLocations({ publishedOnly: true });
   const locations =
     locationsRes?.data?.map((l) => ({
       id: l.id as string,

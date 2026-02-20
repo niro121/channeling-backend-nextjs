@@ -4,7 +4,7 @@ import { Plus } from "lucide-react"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
 import { departmentColumns } from "./columns"
-import { bulkDeleteDepartments, getAllDepartments, getDepartmentsExport } from "@/app/actions/department.actions"
+import { bulkDeleteDepartments, getAllDepartments, getDepartmentsExport, checkDepartmentsHaveLinkedRecords } from "@/app/actions/department.actions"
 import Loading from "../loading"
 import Link from "next/link"
 import { checkRouteAccess } from "@/lib/server-permissions"
@@ -56,13 +56,35 @@ export default async function Page({ searchParams }: SearchParams) {
             description: d.description || '-'
         }));
 
-        return {
-            success: true,
-            data: mappedDepartments
-        };
+    return {
+      success: true,
+      data: mappedDepartments
     };
+  };
 
-    return (
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    
+    try {
+      const result = await checkDepartmentsHaveLinkedRecords(ids);
+      
+      if (result.success && result.data) {
+        const { hasLinkedRecords } = result.data;
+        
+        if (hasLinkedRecords) {
+          return "One or more selected departments are currently linked to other system records. Deleting them may affect related data and existing associations.\n\nAre you sure you want to continue?";
+        }
+      }
+      
+      // Default message if no linked records
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    } catch (error: any) {
+      console.error('Error getting bulk delete description:', error);
+      return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
+    }
+  };
+
+  return (
         <div className="overflow-hidden">
             <Suspense fallback={<Loading />}>
                 <CustomDataTable
@@ -72,6 +94,7 @@ export default async function Page({ searchParams }: SearchParams) {
                     data={data}
                     rowCount={totalRecords}
                     deleteServerAction={bulkDeleteDepartments}
+                    getBulkDeleteDescription={getBulkDeleteDescription}
                     page={resolvedSearchParams?.page}
                     toolbarLeft={
                         <div className="flex flex-col gap-3 flex-1 min-w-0">
@@ -79,7 +102,7 @@ export default async function Page({ searchParams }: SearchParams) {
                                 <div className="relative w-full sm:max-w-sm">
                                     <SearchInput
                                         name="keyword"
-                                        placeholder="Search by name, description"
+                                        placeholder="Search by name"
                                         className="pl-8 w-full h-9"
                                     />
                                 </div>

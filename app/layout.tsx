@@ -1,11 +1,17 @@
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { Analytics } from '@vercel/analytics/react';
+import type { Metadata } from 'next';
 
-export const metadata = {
-  title: 'Ruhunu',
-  description:
-    'Ruhunu Channelling'
+export const metadata: Metadata = {
+  title: 'Ruhunu Channeling System',
+  description: 'Ruhunu Channeling System',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '512x512', type: 'image/x-icon' },
+    ],
+    
+  },
 };
 
 export default function RootLayout({

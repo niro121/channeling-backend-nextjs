@@ -11,6 +11,7 @@ import { createNewDepartment, updateDepartment } from "@/app/actions/department.
 import { useToast } from "@/components/hooks/use-toast"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { useRouter } from "next/navigation"
+import { INSTITUTION_OPTIONS } from "@/types/doctor.session"
 
 type DepartmentFormProps = {
     department: Department | null
@@ -23,11 +24,13 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
         id: department?.id ? department.id : "",
         name: department?.name ? department.name : "",
         description: department?.description ? department.description : undefined,
+        institution: department?.institution ?? 0,
         status: department?.status !== undefined ? department.status : 1,
         createdAt: department?.createdAt ? department.createdAt : new Date(),
         updatedAt: department?.updatedAt ? department.updatedAt : new Date(),
     }
     const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
     const { toast } = useToast()
     const router = useRouter()
 
@@ -37,6 +40,10 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
             .required("This field is mandatory"),
         description: Yup.string()
             .max(500, "Must be less than 500 characters"),
+        institution: Yup.number()
+            .min(0, "Institution is required")
+            .max(3)
+            .nullable(),
         status: Yup.number()
             .oneOf([0, 1], "Status must be Unpublish (0) or Publish (1)")
             .required("This field is mandatory"),
@@ -46,6 +53,7 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
         values: Department,
         { setErrors, setTouched }: FormikHelpers<Department>
     ) => {
+        const closeAfterSave = saveAndCloseRef.current
         try {
             let respond: any;
 
@@ -94,8 +102,8 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                     title: "Success",
                     description: "Department was saved successfully",
                 })
-                // Redirect back to list page after successful update
-                router.push('/departments')
+                if (closeAfterSave) router.push('/departments')
+                else router.refresh()
             } else {
                 respond = await createNewDepartment(values)
                 
@@ -139,7 +147,10 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                     title: "Success",
                     description: "Department was created successfully",
                 })
-                router.push('/departments')
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push('/departments')
+                else if (newId) router.push(`/departments/${newId}/edit`)
+                else router.push('/departments')
             }
         } catch (error: any) {
             setLoading(false)
@@ -192,6 +203,22 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                             />
 
                             <CustomSelectField
+                                id="institution"
+                                placeholder="Institution"
+                                value={
+                                    formik.values.institution != null
+                                        ? String(formik.values.institution)
+                                        : ""
+                                }
+                                onChange={(value) =>
+                                    formik.setFieldValue("institution", value === "" ? undefined : parseInt(value, 10))
+                                }
+                                required={false}
+                                options={INSTITUTION_OPTIONS}
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomSelectField
                                 id="status"
                                 placeholder="Status"
                                 value={formik.values.status?.toString()}
@@ -210,24 +237,32 @@ const DepartmentForm = ({ department, isEditPage = false }: DepartmentFormProps)
                                     variant="outline"
                                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                                     type="button"
-                                    onClick={() => {
-                                        router.push('/departments')
-                                    }}
+                                    onClick={() => router.push('/departments')}
                                     disabled={loading}
                                 >
                                     <Ban className="h-4 w-4" />
-                                    <span>
-                                        Cancel
-                                    </span>
+                                    <span>Cancel</span>
                                 </Button>
                                 <Button
                                     disabled={loading}
-                                    size={"sm"}
-                                    type="submit"
-                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                                 >
                                     <Save className="h-4 w-4" />
                                     <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
                                 </Button>
                             </div>
                         </div>

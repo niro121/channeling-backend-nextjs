@@ -50,6 +50,10 @@ const userSchema = z.object({
   twoFactorEnabled: z.boolean().optional(),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
+  defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
+  userLocationId: z.string().nullable().optional(),
+  staffId: z.string().nullable().optional(),
+  bookingLocationIds: z.array(z.string()).optional(),
 });
 
 const userUpdateSchema = userSchema.partial().extend({
@@ -196,6 +200,12 @@ export const saveUser = async (
     userType: number;
     status?: number;
     userGroupId?: string | null;
+    userLocationId?: string | null;
+    staffId?: string | null;
+    defaultBookingMethod?: number | null;
+    checkedDefaultLocation?: boolean;
+    defaultLocation?: string | null;
+    bookingLocationIds?: string[];
   }
 ): Promise<{
   success: boolean;
@@ -220,6 +230,8 @@ export const saveUser = async (
     }
 
     const data = parsed.data;
+    const staffId = data.staffId && data.staffId.trim() !== '' ? data.staffId : null;
+    const userLocationId = data.userLocationId && data.userLocationId.trim() !== '' ? data.userLocationId : null;
 
     const result = await prisma.user.create({
       data: {
@@ -231,8 +243,20 @@ export const saveUser = async (
         userType: data.userType,
         status: data.status ?? 1,
         userGroupId: data.userGroupId || null,
+        ...(userLocationId && { userLocationId }),
+        ...(staffId && { staffId }),
+        defaultBookingMethod: data.defaultBookingMethod ?? null,
+        checkedDefaultLocation: data.checkedDefaultLocation ?? false,
+        defaultLocation: data.defaultLocation ?? null,
       }
     });
+
+    const userId = result.id;
+    if (data.bookingLocationIds?.length) {
+      await prisma.userBookingLocation.createMany({
+        data: data.bookingLocationIds.map((locationId) => ({ userId, locationId })),
+      });
+    }
 
     return {
       success: true,

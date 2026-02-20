@@ -84,5 +84,5 @@ export default withAuth(
 
 // Don't invoke Middleware on some paths (include favicon/static assets so they don't run auth)
 export const config = {
-  matcher: ['/((?!login|forgot-password|check-email|register|api/|favicon|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)', "/api/doctors/:path*"]
+  matcher: ['/((?!login|forgot-password|check-email|register|api/|uat|favicon|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)', "/api/doctors/:path*"]
 }

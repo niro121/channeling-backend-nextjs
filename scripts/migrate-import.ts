@@ -408,7 +408,7 @@ async function importZonesFromApi(
 async function createDefaultZones(locationIdMap: Map<string, string>, importUserId: string): Promise<Map<string, string>> {
   const existingZones = await prisma.zone.findMany({ select: { locationId: true, id: true } });
   const zoneByLocation = new Map<string, string>();
-  for (const z of existingZones) zoneByLocation.set(z.locationId, z.id);
+  for (const z of existingZones) { if (z.locationId != null) zoneByLocation.set(z.locationId, z.id); }
   const locationIdsNeedingZone = [...new Set(locationIdMap.values())].filter((id) => !zoneByLocation.has(id));
   for (const locationId of locationIdsNeedingZone) {
     const zone = await retryOnConflict(() =>
@@ -456,7 +456,7 @@ async function getLocationAndZoneMapsFromDb(): Promise<{
   const zoneByLocationMap = new Map<string, string>();
   for (const z of dbZones) {
     if (z.migrateSourceId) zoneIdMap.set(z.migrateSourceId, z.id);
-    zoneByLocationMap.set(z.locationId, z.id);
+    if (z.locationId != null) zoneByLocationMap.set(z.locationId, z.id);
   }
   return { locationIdMap, zoneIdMap, zoneByLocationMap };
 }
@@ -717,7 +717,7 @@ async function main(): Promise<void> {
         zoneByLocationMap = await createDefaultZones(locationIdMap, importUserId);
       } else {
         const zones = await prisma.zone.findMany({ select: { id: true, locationId: true } });
-        for (const z of zones) zoneByLocationMap.set(z.locationId, z.id);
+        for (const z of zones) { if (z.locationId != null) zoneByLocationMap.set(z.locationId, z.id); }
       }
     }
 

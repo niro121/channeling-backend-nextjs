@@ -6,7 +6,9 @@ import {
   getLocationByIdService,
   updateOneLocationService,
   deleteLocationByIdService,
-  bulkDeleteLocationsByIdsService
+  bulkDeleteLocationsByIdsService,
+  checkLocationHasLinkedRecordsService,
+  checkLocationsHaveLinkedRecordsService
 } from '@/services/location.service';
 import {
   getLocationParam,
@@ -36,7 +38,8 @@ export const getAllLocations = async (sort: getLocationParam) => {
         ? parseInt(sort.limit)
         : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       keyword: sort.keyword ?? '',
-      locationId: sort.locationId ? parseInt(sort.locationId) : undefined
+      locationId: sort.locationId ? parseInt(sort.locationId) : undefined,
+      publishedOnly: sort.publishedOnly,
     };
 
     const response = await getAllLocationsService(newFilter);
@@ -281,3 +284,79 @@ export const getLocationsExport = async (params: { keyword?: string; locationId?
     };
   }
 };
+
+// ==== CHECK SINGLE LOCATION HAS LINKED RECORDS ==== //
+export const checkLocationHasLinkedRecords = async (
+  locationId: string
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkLocationHasLinkedRecordsService(locationId)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check location linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkLocationHasLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking location linked records"
+      }
+    }
+  }
+}
+
+// ==== CHECK LOCATIONS HAVE LINKED RECORDS ==== //
+export const checkLocationsHaveLinkedRecords = async (
+  locationIds: string[]
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkLocationsHaveLinkedRecordsService(locationIds)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check locations linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkLocationsHaveLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking locations linked records"
+      }
+    }
+  }
+}

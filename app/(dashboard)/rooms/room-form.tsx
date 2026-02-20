@@ -15,7 +15,6 @@ import {
   getAllZonesByLocaionID,
   updateOneRoom
 } from '@/app/actions/room.actions';
-import { Zone } from '@/types/zone';
 import { Loader } from 'lucide-react';
 
 type RoomFormProps = {
@@ -26,33 +25,53 @@ type RoomFormProps = {
     name?: string;
   };
   locationOptions: { id: string; name: string }[];
+  /** Zones for the room's location (edit). When provided, Zone dropdown is ready on first render. */
+  initialZoneOptions?: { id: string; name: string }[];
+  /** Pre-fetched zones by locationId (add page). When provided, Zone dropdown has no loading when user selects a location. */
+  initialZonesByLocation?: Record<string, { id: string; name: string }[]>;
 };
 
 export default function RoomForm({
   room,
   user,
-  locationOptions
+  locationOptions,
+  initialZoneOptions,
+  initialZonesByLocation
 }: RoomFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
   const [zoneOptions, setZoneOptions] = React.useState<
     { id: string; name: string }[]
-  >([]);
+  >(initialZoneOptions ?? []);
   const [zoneloading, setZoneLoading] = React.useState<boolean>(false);
+  const zonesByLocationRef = React.useRef<Record<string, { id: string; name: string }[]>>(
+    initialZonesByLocation ?? {}
+  );
 
-  // Load zone options for initial location when editing (so Zone dropdown shows selected zone)
+  React.useEffect(() => {
+    if (initialZoneOptions?.length && room?.locationId) {
+      zonesByLocationRef.current[room.locationId] = initialZoneOptions;
+    }
+  }, [room?.locationId, initialZoneOptions]);
+
+  // Fetch zones only when location is not already in cache (e.g. user changed location, or add page selected a location)
   React.useEffect(() => {
     const locationId = room?.locationId ?? '';
     if (!locationId) return;
+    if (zonesByLocationRef.current[locationId]) {
+      setZoneOptions(zonesByLocationRef.current[locationId]);
+      return;
+    }
     let cancelled = false;
     setZoneLoading(true);
     getAllZonesByLocaionID(locationId).then((result) => {
       if (cancelled) return;
       if (result.success && result.data) {
-        setZoneOptions(
-          result.data.map((z) => ({ id: z.id, name: z.name }))
-        );
+        const zones = result.data.map((z) => ({ id: z.id, name: z.name }));
+        zonesByLocationRef.current[locationId] = zones;
+        setZoneOptions(zones);
       }
       setZoneLoading(false);
     });
@@ -83,8 +102,9 @@ export default function RoomForm({
 
   const handleSubmit = async (
     values: RoomFormValues,
-    { resetForm, setErrors, setTouched }: FormikHelpers<RoomFormValues>
+    { setErrors, setTouched }: FormikHelpers<RoomFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       let respond: any;
 
@@ -128,7 +148,11 @@ export default function RoomForm({
           description: 'Room was updated successfully'
         });
 
-        router.push('/rooms');
+        if (closeAfterSave) {
+          router.push('/rooms');
+        } else {
+          router.refresh();
+        }
       } else {
         respond = await createRoom(values, user);
 
@@ -166,7 +190,15 @@ export default function RoomForm({
           title: 'Success',
           description: 'Room was created successfully'
         });
-        router.push('/rooms');
+
+        const newId = respond?.data?.id;
+        if (closeAfterSave) {
+          router.push('/rooms');
+        } else if (newId) {
+          router.push(`/rooms/${newId}/edit`);
+        } else {
+          router.push('/rooms');
+        }
       }
     } catch (error: any) {
       setLoading(false);
@@ -194,8 +226,15 @@ export default function RoomForm({
 
         const setLocationHandler = async (value: string) => {
           formik.setFieldValue('locationId', value);
-          setZoneLoading(true);
+          formik.setFieldValue('zoneId', '');
 
+          const cached = zonesByLocationRef.current[value];
+          if (cached) {
+            setZoneOptions(cached);
+            return;
+          }
+
+          setZoneLoading(true);
           try {
             const result = await getAllZonesByLocaionID(value);
 
@@ -203,16 +242,15 @@ export default function RoomForm({
               const mappedZones = result.data?.map((z) => ({
                 id: z.id,
                 name: z.name
-              }));
-
-              setZoneOptions(mappedZones || []);
+              })) ?? [];
+              zonesByLocationRef.current[value] = mappedZones;
+              setZoneOptions(mappedZones);
             } else {
               toast({
                 variant: 'destructive',
                 title: 'Error',
                 description: 'Getting zones unsuccessful.'
               });
-              setZoneLoading(false);
             }
           } catch (error: any) {
             toast({
@@ -248,27 +286,28 @@ export default function RoomForm({
                 options={locationOptions}
                 styleClasses={styleClasses}
               />
-              {
-                <div className='relative'>
-                  <>
-                    {zoneloading && <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />}
-                    <CustomSelectField
-                      id="zoneId"
-                      placeholder="Zone"
-                      disabled={zoneloading || zoneOptions.length === 0}
-                      value={
-                        formik.values.zoneId && zoneOptions.some((o) => o.id === formik.values.zoneId)
-                          ? formik.values.zoneId
-                          : undefined
-                      }
-                      onChange={(value: string) => formik.setFieldValue('zoneId', value)}
-                      required
-                      options={zoneOptions}
-                      styleClasses={styleClasses}
-                    />
-                  </>
-                </div>
-              }
+              <div className="relative w-full min-w-0">
+                {zoneloading && (
+                  <div className="absolute inset-0 flex items-center justify-center z-10 bg-background/50 rounded" aria-hidden>
+                    <Loader className="w-4 h-4 animate-spin text-primary" />
+                  </div>
+                )}
+                <CustomSelectField
+                  key={`zone-${formik.values.locationId || 'none'}`}
+                  id="zoneId"
+                  placeholder="Zone"
+                  disabled={zoneloading || zoneOptions.length === 0}
+                  value={
+                    formik.values.zoneId && zoneOptions.some((o) => o.id === formik.values.zoneId)
+                      ? formik.values.zoneId
+                      : undefined
+                  }
+                  onChange={(value: string) => formik.setFieldValue('zoneId', value)}
+                  required
+                  options={zoneOptions}
+                  styleClasses={styleClasses}
+                />
+              </div>
               <CustomFormField
                 type="textarea"
                 id="description"
@@ -311,12 +350,30 @@ export default function RoomForm({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => {
+                    saveAndCloseRef.current = false;
+                    formik.submitForm();
+                  }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => {
+                    saveAndCloseRef.current = true;
+                    formik.submitForm();
+                  }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

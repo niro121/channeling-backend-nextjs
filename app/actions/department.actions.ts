@@ -1,9 +1,10 @@
 'use server'
 
 import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/department"
-import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById } from "@/services/department.service"
+import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById, checkDepartmentHasLinkedRecordsService, checkDepartmentsHaveLinkedRecordsService } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { fetchServerSession } from "@/lib/session"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
     // View permission already checked by checkRouteAccess("/departments") on the page; skip duplicate session fetch
@@ -86,16 +87,25 @@ export const createNewDepartment = async (payload: Department) => {
     await requirePermission("departments", "add")
     
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
         // Set default status if not provided
         if (payload.status === undefined) {
             payload.status = 0
         }
 
-        const result = await saveDepartment(payload)
+        const result = await saveDepartment(payload, user)
 
         if (!result.success) {
             return {
@@ -134,11 +144,20 @@ export const updateDepartment = async (id: string, payload: Department) => {
     await requirePermission("departments", "edit")
     
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
-        const result = await updateOneDepartment(id, payload)
+        const result = await updateOneDepartment(id, payload, user)
 
         if (!result.success) {
             return {
@@ -197,9 +216,7 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
       page: "0",
       limit: "10000", // Get all records
       keyword: params.keyword ?? ""
-    });
-
-    if (!response.success || !response.data?.length) {
+    });    if (!response.success || !response.data?.length) {
       return {
         success: false,
         message: response.success ? 'No departments found' : response.message || 'Error getting data'
@@ -218,3 +235,79 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
     };
   }
 };
+
+// ==== CHECK SINGLE DEPARTMENT HAS LINKED RECORDS ==== //
+export const checkDepartmentHasLinkedRecords = async (
+  departmentId: string
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkDepartmentHasLinkedRecordsService(departmentId)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check department linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkDepartmentHasLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking department linked records"
+      }
+    }
+  }
+}
+
+// ==== CHECK DEPARTMENTS HAVE LINKED RECORDS ==== //
+export const checkDepartmentsHaveLinkedRecords = async (
+  departmentIds: string[]
+): Promise<{
+  success: boolean
+  data?: {
+    hasLinkedRecords: boolean
+  }
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    const result = await checkDepartmentsHaveLinkedRecordsService(departmentIds)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        message: result.error?.message || "Failed to check departments linked records"
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      message: "Check completed successfully"
+    }
+  } catch (error: any) {
+    console.error("checkDepartmentsHaveLinkedRecords action error:", error)
+    return {
+      success: false,
+      error: {
+        message: error.message || "Error checking departments linked records"
+      }
+    }
+  }
+}

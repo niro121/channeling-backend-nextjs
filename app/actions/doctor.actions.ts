@@ -18,7 +18,8 @@ import {
   ExportDoctorParams,
   ExportDoctorsPdfResponse,
   CreateDoctorPayload,
-  UpdateDoctorPayload
+  UpdateDoctorPayload,
+  Doctor
 } from '@/types/doctor';
 import { revalidatePath } from 'next/cache';
 import { Speciality } from '@/types/speciality';
@@ -301,9 +302,15 @@ export const getDoctorsExport = async (
       };
     }
 
+    // Transform doctors to match Doctor type: convert null speciality to undefined
+    const transformedDoctors: Doctor[] = response.doctors.map(doctor => ({
+      ...doctor,
+      speciality: doctor.speciality ?? undefined
+    }));
+
     return {
       success: true,
-      data: response.doctors,
+      data: transformedDoctors,
       totalRecords: response.totalRecords
     };
   } catch (error: any) {

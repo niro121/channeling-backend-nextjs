@@ -757,67 +757,55 @@ export const getAllDoctorsDownloadService = async ({
   specialityId
 }: ExportDoctorQuery) => {
   try {
-    const whereClause = {
-      OR: [
-        {
-          name: {
-            contains: keyword,
-            mode: Prisma.QueryMode.insensitive
+    const whereClause: Prisma.DoctorWhereInput | undefined =
+      keyword && keyword.trim() !== ''
+        ? {
+            OR: [
+              { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+              { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+              {
+                registrationNumber: {
+                  contains: keyword,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              }
+            ],
+            ...(specialityId ? { specialityId } : {})
           }
-        },
-        {
-          code: {
-            contains: keyword,
-            mode: Prisma.QueryMode.insensitive
-          }
-        },
-        {
-          registrationNumber: {
-            contains: keyword,
-            mode: Prisma.QueryMode.insensitive
-          }
-        }
-      ],
-      ...(specialityId ? { specialityId } : {})
-    };
+        : specialityId
+          ? { specialityId }
+          : undefined;
 
-    // Try to fetch with speciality first
-    let doctors: any[];
-    try {
-      doctors = await prisma.doctor.findMany({
-        where: whereClause,
-        include: {
-          speciality: true
-        }
-      });
-    } catch (relationError: any) {
-      // If speciality relation fails (e.g., some doctors have invalid specialityId), fetch without it
-      if (relationError.message?.includes('Inconsistent query result') || 
-          relationError.message?.includes('speciality')) {
-        console.warn('Some doctors have invalid speciality relations, fetching without speciality');
-        doctors = await prisma.doctor.findMany({
-          where: whereClause,
-          include: {
-            createdUser: true,
-            updatedUser: true
-          }
-        });
-        // Manually set speciality to null for all doctors
-        doctors = doctors.map(doctor => ({
-          ...doctor,
-          speciality: null
-        }));
-      } else {
-        throw relationError;
+    // Fetch doctors without speciality relation to avoid errors with invalid specialityIds
+    const doctors = await prisma.doctor.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdUser: true,
+        updatedUser: true
       }
-    }
+    });
+
+    // Fetch specialities separately and map them to doctors
+    const specialityIds = [...new Set(doctors.map(d => d.specialityId).filter(Boolean))] as string[];
+    const specialities = await prisma.speciality.findMany({
+      where: { id: { in: specialityIds } },
+      select: { id: true, name: true, code: true, description: true, status: true }
+    });
+    const specialityMap = new Map(specialities.map(s => [s.id, s]));
+
+    // Enrich doctors with speciality data
+    const enrichedDoctors = doctors.map(doctor => ({
+      ...doctor,
+      speciality: (doctor.specialityId != null ? specialityMap.get(doctor.specialityId) : undefined) ?? null
+    }));
 
     const totalRecords = await prisma.doctor.count({
       where: whereClause
     });
 
     return {
-      doctors,
+      doctors: enrichedDoctors,
       totalRecords
     };
   } catch (error: any) {

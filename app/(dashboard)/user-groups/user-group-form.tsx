@@ -38,6 +38,7 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
         createdAt: userGroup?.createdAt ? userGroup.createdAt : new Date(),
     })
     const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
     const dialogContext = useDialogSafe()
     const { toast } = useToast()
     const router = useRouter()
@@ -71,6 +72,7 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
         values: UserGroup,
         { resetForm }: FormikHelpers<UserGroup>
     ) => {
+        const closeAfterSave = saveAndCloseRef.current
         try {
             let respond: any;
 
@@ -93,17 +95,23 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                 title: "Success",
                 description: "User group was saved successfully",
             })
-            
-            if (isEditPage) {
-                router.push("/user-groups")
-            } else {
-                // If used in a dialog, close it; otherwise redirect to list
-                if (dialogContext) {
+
+            if (dialogContext) {
+                if (closeAfterSave) {
                     resetForm(initialValues)
                     setDialogOpen(false)
-                } else {
-                    router.push("/user-groups")
                 }
+                return
+            }
+
+            if (userGroup && userGroup.id) {
+                if (closeAfterSave) router.push("/user-groups")
+                else router.refresh()
+            } else {
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push("/user-groups")
+                else if (newId) router.push(`/user-groups/${newId}/edit`)
+                else router.push("/user-groups")
             }
         } catch (error: any) {
             setLoading(false)
@@ -416,11 +424,11 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                     className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                                     type="button"
                                     onClick={() => {
-                                        if (isEditPage) {
-                                            router.push("/user-groups")
-                                        } else {
+                                        if (dialogContext) {
                                             setDialogOpen(false)
                                             formik.resetForm(initialValues)
+                                        } else {
+                                            router.push("/user-groups")
                                         }
                                     }}
                                     disabled={loading}
@@ -430,12 +438,30 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                 </Button>
                                 <Button
                                     disabled={!sessionUserType || loading}
-                                    size={"sm"}
-                                    type="submit"
-                                    className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = false
+                                        formik.submitForm()
+                                    }}
                                 >
                                     <Save className="h-4 w-4" />
                                     <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={!sessionUserType || loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => {
+                                        saveAndCloseRef.current = true
+                                        formik.submitForm()
+                                    }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
                                 </Button>
                             </div>
                         </div>

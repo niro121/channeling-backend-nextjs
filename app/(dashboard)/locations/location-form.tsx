@@ -32,6 +32,7 @@ export default function LocationForm({
   user
 }: LocationFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -49,6 +50,9 @@ export default function LocationForm({
     name: Yup.string()
       .max(150, 'Must be less than 150 characters')
       .required('This field is mandatory'),
+    code: Yup.string()
+      .max(100, 'Must be less than 100 characters')
+      .required('This field is mandatory'),
     branchType: Yup.string()
       .oneOf(
         ['1', '2', '3'],
@@ -64,6 +68,7 @@ export default function LocationForm({
     values: LocationFormValues,
     { resetForm, setErrors, setTouched }: FormikHelpers<LocationFormValues>
   ) => {
+    const closeAfterSave = saveAndCloseRef.current;
     try {
       setLoading(true);
       let respond: any;
@@ -99,12 +104,13 @@ export default function LocationForm({
           return;
         }
 
-        router.push('/locations');
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Location was updated successfully'
         });
+        if (closeAfterSave) router.push('/locations');
+        else router.refresh();
       } else {
         respond = await createLocation(values, user);
         setLoading(false);
@@ -141,7 +147,10 @@ export default function LocationForm({
           title: 'Success',
           description: 'Location was created successfully'
         });
-        router.push('/locations');
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/locations');
+        else if (newId) router.push(`/locations/${newId}/edit`);
+        else router.push('/locations');
       }
     } catch (error: any) {
       setLoading(false);
@@ -231,7 +240,7 @@ export default function LocationForm({
                 value={formik.values.code}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                required={false}
+                required
                 styleClasses={styleClasses}
               />
 
@@ -256,9 +265,7 @@ export default function LocationForm({
                   variant="outline"
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
-                  onClick={() => {
-                    router.push('/locations');
-                  }}
+                  onClick={() => router.push('/locations')}
                   disabled={loading}
                 >
                   <Ban className="h-4 w-4" />
@@ -266,12 +273,24 @@ export default function LocationForm({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

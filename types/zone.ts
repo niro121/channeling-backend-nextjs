@@ -21,12 +21,14 @@ export type GetZonesParams = {
     page?: string
     limit?: string
     keyword?: string
+    locationId?: string
 }
 
 export type GetZonesQuery = {
     page: number
     limit: number
     keyword: string
+    locationId?: string
 }
 
 export type GetZonesReturn = {

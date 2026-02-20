@@ -56,6 +56,7 @@ export default function DoctorLeaveForm({
   onSuccess
 }: LeaveFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
   const [sessionsLoading, setSessionsLoading] = React.useState<boolean>(false);
@@ -133,7 +134,7 @@ export default function DoctorLeaveForm({
       doctorId: values.doctorId ?? doctorId,
       sendSms: values.sendSms === true ? 1 : 0
     } as DoctorLeaveFormProps & { sendSms: number };
-    console.log('Doctor leave form submit — payload:', payload);
+    const closeAfterSave = saveAndCloseRef.current;
 
     try {
       let respond: any;
@@ -178,9 +179,11 @@ export default function DoctorLeaveForm({
           description: 'Doctor leave was updated successfully'
         });
         if (onSuccess) {
-          onSuccess();
+          if (closeAfterSave) onSuccess();
+          else router.refresh();
         } else {
-          router.push(`/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`);
+          if (closeAfterSave) router.push(`/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`);
+          else router.refresh();
         }
       } else {
         respond = await createDoctorLeave(payload, user);
@@ -219,12 +222,17 @@ export default function DoctorLeaveForm({
           title: 'Success',
           description: 'Doctor leave was created successfully'
         });
+        const newId = respond?.data?.id;
+        const listUrl = `/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`;
         if (onSuccess) {
-          onSuccess();
-        } else if (respond.data?.id) {
-          router.push(`/doctor-leaves/${respond.data.id}/edit`);
+          if (closeAfterSave) onSuccess();
+          else router.refresh();
+        } else if (closeAfterSave) {
+          router.push(listUrl);
+        } else if (newId) {
+          router.push(`/doctor-leaves/${newId}/edit`);
         } else {
-          router.push(`/doctor-leaves?doctorId=${encodeURIComponent(doctorId)}`);
+          router.push(listUrl);
         }
       }
     } catch (error: any) {
@@ -570,20 +578,24 @@ export default function DoctorLeaveForm({
                 </Button>
                 <Button
                   disabled={loading}
-                  size={'sm'}
-                  type="submit"
-                  className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                  onClick={() => {
-                    console.log(
-                      'Save clicked — values:',
-                      formik.values,
-                      'errors:',
-                      formik.errors
-                    );
-                  }}
+                  size="sm"
+                  type="button"
+                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
                 >
                   <Save className="h-4 w-4" />
                   <span>Save</span>
+                </Button>
+                <Button
+                  disabled={loading}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto gap-1 px-6"
+                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save and Close</span>
                 </Button>
               </div>
             </div>

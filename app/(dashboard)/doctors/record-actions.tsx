@@ -105,28 +105,26 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
     }
   };
 
-  // Generate description component based on check result
-  const getDeleteDescription = () => {
-    if (hasActiveSessionsOrLeaves === null) {
-      return <span>Loading...</span>;
-    }
+// Generate description component based on check result
+const getDeleteDescription = () => {
+  if (hasActiveSessionsOrLeaves === null) {
+    return <span>Loading...</span>;
+  }
 
-    if (hasActiveSessionsOrLeaves.hasActiveSessions || hasActiveSessionsOrLeaves.hasApprovedLeaves) {
-      return (
-        <>
-          <span className="text-[#d94a4a]">
-            One or more selected doctors have active sessions and/or approved leave records. Deleting them may affect scheduled appointments and availability records.
-          </span>
+  if (hasActiveSessionsOrLeaves.hasActiveSessions || hasActiveSessionsOrLeaves.hasApprovedLeaves) {
+    return (
+      <>
+        One or more selected doctors have active sessions and/or approved leave records. Deleting them may affect scheduled appointments and availability records.
 
-          <br />
-          <br />
-          <span className="text-[#d94a4a]">Are you sure you want to continue?</span>
-        </>
-      );
-    }
+        <br />
+        <br />
+        Are you sure you want to continue?
+      </>
+    );
+  }
 
-    return "This action cannot be undone. This will permanently delete this doctor and remove the data from our servers.";
-  };
+  return "This action cannot be undone. This will permanently delete this doctor and remove the data from our servers.";
+};
 
   return (
     <>
