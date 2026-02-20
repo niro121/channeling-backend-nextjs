@@ -14,6 +14,19 @@ export async function PATCH(request: Request) {
   if (typeof require2FA !== "boolean") {
     return NextResponse.json({ error: "require2FA (boolean) required" }, { status: 400 });
   }
+  if (require2FA) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { phone: true }
+    });
+    const phone = user?.phone?.trim();
+    if (!phone) {
+      return NextResponse.json(
+        { error: "Add a mobile number in your profile before enabling 2FA." },
+        { status: 400 }
+      );
+    }
+  }
   await prisma.user.update({
     where: { id: session.user.id },
     data: { twoFactorEnabled: require2FA }

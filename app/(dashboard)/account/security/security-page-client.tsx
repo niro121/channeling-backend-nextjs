@@ -16,6 +16,7 @@ export function SecurityPageClient() {
   const { toast } = useToast();
   const [hasAuthenticator, setHasAuthenticator] = useState<boolean | null>(null);
   const [require2FAAtLogin, setRequire2FAAtLogin] = useState(false);
+  const [hasPhone, setHasPhone] = useState(false);
   const [loading, setLoading] = useState(true);
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>('idle');
@@ -31,6 +32,7 @@ export function SecurityPageClient() {
       if (res.ok) {
         setHasAuthenticator(!!data.hasAuthenticator);
         setRequire2FAAtLogin(!!data.require2FAAtLogin);
+        setHasPhone(!!data.hasPhone);
       }
     } catch {
       setHasAuthenticator(false);
@@ -81,7 +83,9 @@ export function SecurityPageClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? 'Verification failed');
-      toast({ title: 'Success', description: 'Authenticator app is set up. You can use it at login when you have 2FA enabled.' });
+      toast({ title: 'Success', style:{
+        backgroundColor: "#f0fdf4"
+      }, description: 'Authenticator app is set up. You can use it at login when you have 2FA enabled.' });
       setSetupStep('idle');
       setSetupData(null);
       setVerifyCode('');
@@ -116,6 +120,9 @@ export function SecurityPageClient() {
       setRequire2FAAtLogin(!!data.require2FAAtLogin);
       toast({
         title: checked ? '2FA required at login' : '2FA not required',
+        style:{
+        backgroundColor: "#f0fdf4"
+      },
         description: checked
           ? 'You will be asked for a verification code when you sign in.'
           : 'You can sign in without a code until you turn this back on.'
@@ -148,17 +155,28 @@ export function SecurityPageClient() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {
+            !hasPhone && (
+          <div className='rounded-lg border p-4 mb-2'>
+            <p className="font-medium text-red-500 text-sm">A phone number is required to enable 2FA.</p>
+          </div>
+            )
+          }
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
               <p className="font-medium">Ask for verification code when I sign in</p>
               <p className="text-sm text-muted-foreground">
-                {require2FAAtLogin ? '2FA is on — a code will be required at login.' : '2FA is off — you sign in with just your password.'}
+                {!hasPhone
+                  ? 'Add a mobile number in your profile (Account or User settings) to enable 2FA.'
+                  : require2FAAtLogin
+                    ? '2FA is on — a code will be required at login.'
+                    : '2FA is off — you sign in with just your password.'}
               </p>
             </div>
             <Switch
               checked={require2FAAtLogin}
               onCheckedChange={handleRequire2FAToggle}
-              disabled={preferenceSaving}
+              disabled={preferenceSaving || !hasPhone}
             />
           </div>
         </CardContent>
