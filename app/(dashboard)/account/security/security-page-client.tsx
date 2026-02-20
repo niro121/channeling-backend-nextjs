@@ -156,7 +156,7 @@ export function SecurityPageClient() {
             <CardTitle>Require 2FA at login</CardTitle>
           </div>
           <CardDescription>
-            When turned on, you will be asked for a verification code (authenticator app, SMS, or email) when you sign in. Turn this on only if you have set up or are ready to set up an authenticator or other method.
+            When turned on, you will be asked for a verification code (authenticator app or SMS) when you sign in. Turn this on only if you have set up or are ready to set up an authenticator or other method. (Email verification is currently unavailable.)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

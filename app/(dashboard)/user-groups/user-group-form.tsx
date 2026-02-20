@@ -248,7 +248,7 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                 <div>
                                     <h3 className="text-lg font-semibold mb-1">Two-factor authentication</h3>
                                     <p className="text-sm text-muted-foreground mb-4">
-                                        When enabled, users in this group must enter a verification code (authenticator app, SMS, or email) at login.
+                                        When enabled, users in this group must enter a verification code (authenticator app or SMS) at login. (Email method is currently unavailable.)
                                     </p>
                                 </div>
                                 <div className="flex items-center space-x-2">
@@ -266,6 +266,7 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                 {formik.values.twoFactorEnabled && (
                                     <div className="space-y-2 pl-2">
                                         <Label className="text-sm font-medium">Allowed methods</Label>
+                                        {/* EMAIL ('3') is currently unavailable — not shown in TWO_FACTOR_AUTH */}
                                         <div className="flex flex-wrap gap-4">
                                             {TWO_FACTOR_AUTH.map((method) => {
                                                 const methods = formik.values.twoFactorMethods ?? [];

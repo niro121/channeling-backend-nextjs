@@ -13,7 +13,7 @@ export type Permissions = {
   [resource: string]: ResourcePermissions;
 };
 
-/** 2FA method IDs: "1" = AUTH-APP, "2" = SMS, "3" = EMAIL (see types/2FA.ts) */
+/** 2FA method IDs: "1" = AUTH-APP, "2" = SMS, "3" = EMAIL (see types/2FA.ts; EMAIL currently unavailable in UI) */
 export type TwoFactorMethodId = string;
 
 export type UserGroup = {

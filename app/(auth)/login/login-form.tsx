@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Eye, EyeOff, Smartphone, MessageSquare, Mail, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { TWO_FACTOR_AUTH } from '@/types/2FA';
 
@@ -39,10 +39,11 @@ interface Pending2FA {
   secret?: string;
 }
 
+// EMAIL ('3') currently unavailable in UI — icon commented out
 const METHOD_ICONS: Record<string, React.ReactNode> = {
   '1': <Smartphone className="h-5 w-5" />,
   '2': <MessageSquare className="h-5 w-5" />,
-  '3': <Mail className="h-5 w-5" />
+  // '3': <Mail className="h-5 w-5" />,
 };
 
 const LoginForm = () => {
@@ -67,7 +68,7 @@ const LoginForm = () => {
   const handleSubmit = async (values: FormValues, { resetForm, setErrors }: FormikHelpers<FormValues>) => {
     try {
       if (pending2FA?.selectedMethod) {
-        // SMS ('2') and EMAIL ('3') do not use twoFactorToken; only AUTH-APP ('1') does
+        // SMS ('2') does not use twoFactorToken; only AUTH-APP ('1') does (EMAIL '3' currently unavailable in UI)
         const useToken = pending2FA.selectedMethod === '1' ? (pending2FA.twoFactorToken ?? undefined) : undefined;
         const result = await signIn('credentials', {
           redirect: false,

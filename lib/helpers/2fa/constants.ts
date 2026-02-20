@@ -1,8 +1,8 @@
-/** 2FA method IDs matching types/2FA.ts and UserGroup.twoFactorMethods */
+/** 2FA method IDs matching types/2FA.ts and UserGroup.twoFactorMethods. EMAIL is currently unavailable in UI. */
 export const TWO_FACTOR_METHODS = {
   AUTH_APP: '1',
   SMS: '2',
-  EMAIL: '3'
+  EMAIL: '3' // Backend still accepts; UI and send-2fa-code treat as unavailable
 } as const;
 
 export type TwoFactorMethodId = (typeof TWO_FACTOR_METHODS)[keyof typeof TWO_FACTOR_METHODS];
