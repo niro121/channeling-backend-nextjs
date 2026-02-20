@@ -2,6 +2,7 @@
 
 import { Card, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { useChannelBooking } from "../context/channel-booking-context"
 import { BookingTab } from "./information/booking-tab"
 import { CancelTab } from "./information/cancel-tab"
@@ -59,6 +60,75 @@ function BookingStatusDot({ status }: { status: number }) {
       title="Other"
       aria-hidden
     />
+  )
+}
+
+function ViewsTab() {
+  const { selectedDoctor, selectedSession } = useChannelBooking()
+  const canOpenReport = selectedDoctor && selectedSession
+
+  const handleNurseView = () => {
+    if (!selectedSession?.id) return
+    const url = `/reports/nurse-view?sessionId=${selectedSession.id}`
+    window.open(url, '_blank')
+  }
+
+  const handleDoctorView = () => {
+    if (!selectedSession?.id) return
+    const url = `/reports/doctor-view?sessionId=${selectedSession.id}`
+    window.open(url, '_blank')
+  }
+
+  const handlePhoneView = () => {
+    if (!selectedSession?.id) return
+    const url = `/reports/phone-view?sessionId=${selectedSession.id}`
+    window.open(url, '_blank')
+  }
+
+  const handleAllDoctorView = () => {
+    const url = `/reports/all-doctor-view`
+    window.open(url, '_blank')
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold mb-2">Selected Session</h4>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNurseView}
+            disabled={!canOpenReport}
+          >
+            Nurse View
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDoctorView}
+            disabled={!canOpenReport}
+          >
+            Doctor View
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePhoneView}
+            disabled={!canOpenReport}
+          >
+            Phone View
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAllDoctorView}
+          >
+            All Doctor View
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -141,7 +211,12 @@ export function Information() {
               />
             </div>
           </TabsContent>
-          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change").map((value) => (
+          <TabsContent value="views" className={tabContentClass}>
+            <div className="min-h-[200px] rounded-md bg-secondary p-2">
+              <ViewsTab />
+            </div>
+          </TabsContent>
+          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change" && v !== "views").map((value) => (
             <TabsContent key={value} value={value} className={tabContentClass}>
               <div className="min-h-[200px] rounded-md bg-secondary p-2">
                 <div className="min-h-[120px] rounded border border-dashed border-border" />
