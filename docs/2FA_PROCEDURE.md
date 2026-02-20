@@ -6,8 +6,8 @@ This document describes how two-factor authentication is implemented and how to 
 
 ## Overview
 
-- **2FA is required at login only when the user has turned it on in Settings.** Go to **Profile → Security & 2FA** and turn **“Require 2FA at login”** on. Until then, login uses only email and password.
-- **User Groups** can still define **allowed methods** (AUTH-APP, SMS, EMAIL). When a user has 2FA enabled, they choose one of the methods allowed by their group (or all three if the group has none set).
+- **2FA is required at login only when both** (1) the user has turned it on in **Profile → Security & 2FA**, and (2) **their User Group has 2FA enabled** (admin has not disabled it for the group). If the group has 2FA disabled, the user will not be asked for a code at login even if they turned 2FA on in Settings; the Security page explains this and saves their preference for when the group allows 2FA.
+- **User Groups:** An admin can **enable or disable 2FA for a group** (“Require 2FA for this group”). When disabled, no one in that group is prompted for 2FA at login. When enabled, the group can also define **allowed methods** (AUTH-APP, SMS, EMAIL); users in the group then choose one of those methods (or all three if none set).
 - **Supported methods** (see `types/2FA.ts`):
   - **1 – AUTH-APP** – TOTP (e.g. Google Authenticator, Authy). Uses the user’s `twoFactorSecret` (set in Settings or at login when they choose AUTH-APP and don’t have one yet), or `TOTP_SECRET` from `.env` as fallback.
   - **2 – SMS** – One-time code sent by SMS (dummy or real API).
@@ -21,7 +21,7 @@ This document describes how two-factor authentication is implemented and how to 
 2. Turn **ON** the **“Require 2FA at login”** switch.
 3. Set up at least one method (e.g. authenticator app) in the same page, or at next login when you choose a method.
 
-2FA at login is required **only** when this switch is on. The **User Group** “Two-factor authentication” section only controls which methods are **allowed** (AUTH-APP, SMS, EMAIL) for users who have 2FA enabled.
+2FA at login is required only when this switch is on **and** your User Group has 2FA enabled. If your group has 2FA disabled, the Security page shows a notice and your preference is saved until your administrator enables 2FA for the group. The **User Group** “Two-factor authentication” section controls whether 2FA is allowed for the group and which **methods** are allowed (AUTH-APP, SMS, EMAIL).
 
 ---
 

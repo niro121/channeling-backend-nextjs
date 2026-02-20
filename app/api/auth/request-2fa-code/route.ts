@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2FA only when user enabled it in Settings
+    // 2FA only when user enabled it in Settings AND group allows 2FA
     if (user.twoFactorEnabled !== true) {
       return NextResponse.json(
         { error: '2FA not enabled for this account' },
@@ -69,6 +69,13 @@ export async function POST(request: Request) {
       );
     }
     const group = user.userGroup;
+    const groupAllows2FA = group == null || group.twoFactorEnabled === true;
+    if (!groupAllows2FA) {
+      return NextResponse.json(
+        { error: '2FA is disabled for your group by your administrator.' },
+        { status: 403 }
+      );
+    }
     const allowedMethods =
       Array.isArray(group?.twoFactorMethods) &&
       group.twoFactorMethods.length > 0

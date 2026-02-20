@@ -16,6 +16,8 @@ export function SecurityPageClient() {
   const { toast } = useToast();
   const [hasAuthenticator, setHasAuthenticator] = useState<boolean | null>(null);
   const [require2FAAtLogin, setRequire2FAAtLogin] = useState(false);
+  const [userPreference2FA, setUserPreference2FA] = useState(false);
+  const [groupAllows2FA, setGroupAllows2FA] = useState(true);
   const [hasPhone, setHasPhone] = useState(false);
   const [loading, setLoading] = useState(true);
   const [preferenceSaving, setPreferenceSaving] = useState(false);
@@ -32,6 +34,8 @@ export function SecurityPageClient() {
       if (res.ok) {
         setHasAuthenticator(!!data.hasAuthenticator);
         setRequire2FAAtLogin(!!data.require2FAAtLogin);
+        setUserPreference2FA(!!data.userPreference2FA);
+        setGroupAllows2FA(!!data.groupAllows2FA);
         setHasPhone(!!data.hasPhone);
       }
     } catch {
@@ -117,7 +121,8 @@ export function SecurityPageClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? 'Failed to update');
-      setRequire2FAAtLogin(!!data.require2FAAtLogin);
+      setUserPreference2FA(!!data.require2FAAtLogin);
+      setRequire2FAAtLogin(!!data.require2FAAtLogin && groupAllows2FA);
       toast({
         title: checked ? '2FA required at login' : '2FA not required',
         style:{
@@ -154,27 +159,42 @@ export function SecurityPageClient() {
             When turned on, you will be asked for a verification code (authenticator app, SMS, or email) when you sign in. Turn this on only if you have set up or are ready to set up an authenticator or other method.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {
-            !hasPhone && (
-          <div className='rounded-lg border p-4 mb-2'>
-            <p className="font-medium text-red-500 text-sm">A phone number is required to enable 2FA.</p>
-          </div>
-            )
-          }
+        <CardContent className="space-y-4">
+          {!groupAllows2FA && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-4">
+              <p className="font-medium text-amber-800 dark:text-amber-200">
+                2FA is disabled for your group
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Your administrator has turned off two-factor authentication for your group. At login you will not be asked for a code until they enable 2FA for your group. You can still turn on the switch below; your preference will apply as soon as your group allows 2FA.
+              </p>
+            </div>
+          )}
+          {!hasPhone && (
+            <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 p-4">
+              <p className="font-medium text-red-600 dark:text-red-400">Phone number required</p>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                Add a mobile number in your profile (Users → edit your user, or Account settings) to enable 2FA.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
               <p className="font-medium">Ask for verification code when I sign in</p>
               <p className="text-sm text-muted-foreground">
                 {!hasPhone
-                  ? 'Add a mobile number in your profile (Account or User settings) to enable 2FA.'
-                  : require2FAAtLogin
-                    ? '2FA is on — a code will be required at login.'
-                    : '2FA is off — you sign in with just your password.'}
+                  ? 'Add a mobile number in your profile to enable 2FA.'
+                  : !groupAllows2FA
+                    ? require2FAAtLogin
+                      ? 'Your preference is on; it will apply when your group allows 2FA.'
+                      : 'Turn on to save your preference; it will apply when your group allows 2FA.'
+                    : require2FAAtLogin
+                      ? '2FA is on — a code will be required at login.'
+                      : '2FA is off — you sign in with just your password.'}
               </p>
             </div>
             <Switch
-              checked={require2FAAtLogin}
+              checked={userPreference2FA}
               onCheckedChange={handleRequire2FAToggle}
               disabled={preferenceSaving || !hasPhone}
             />

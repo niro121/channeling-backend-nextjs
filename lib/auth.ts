@@ -194,8 +194,9 @@ export const authOptions: NextAuthOptions = {
           }
 
           const group = user.userGroup;
-          // 2FA required only when the user has enabled it in Settings
-          const userRequires2FA = user.twoFactorEnabled === true;
+          // 2FA required only when BOTH user enabled it in Settings AND group allows 2FA
+          const groupAllows2FA = group == null || group.twoFactorEnabled === true;
+          const userRequires2FA = user.twoFactorEnabled === true && groupAllows2FA;
 
           if (userRequires2FA) {
             return null;
