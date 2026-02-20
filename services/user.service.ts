@@ -8,6 +8,7 @@ import {
 import prisma from "@/lib/prisma"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
+import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 
 // ==== USER: VALIDATION SCHEMA ==== //
 const userSchema = z.object({
@@ -19,6 +20,12 @@ const userSchema = z.object({
     .string()
     .min(1, 'This field is mandatory')
     .email('Invalid email address'),
+  phone: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" || v == null ? undefined : v))
+    .refine((v) => v === undefined || MOBILE_REGEX.test(v ?? ""), MOBILE_VALIDATION_MESSAGE),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters long')
@@ -40,6 +47,7 @@ const userSchema = z.object({
     })
     .optional(),
   userGroupId: z.string().nullable().optional(),
+  twoFactorEnabled: z.boolean().optional(),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
@@ -50,6 +58,12 @@ const userSchema = z.object({
 
 const userUpdateSchema = userSchema.partial().extend({
   id: z.string().min(1, 'User ID is required'),
+  phone: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" || v == null ? null : v))
+    .refine((v) => v === null || MOBILE_REGEX.test(v), MOBILE_VALIDATION_MESSAGE),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
@@ -180,6 +194,8 @@ export const saveUser = async (
   payload: {
     name: string;
     email: string;
+    phone?: string | null;
+    twoFactorEnabled?: boolean;
     password: string;
     userType: number;
     status?: number;
@@ -221,6 +237,8 @@ export const saveUser = async (
       data: {
         name: data.name,
         email: data.email,
+        phone: data.phone ?? null,
+        twoFactorEnabled: data.twoFactorEnabled ?? false,
         password: data.password,
         userType: data.userType,
         status: data.status ?? 1,
@@ -282,6 +300,8 @@ export const updateOneUser = async (
   payload: {
     name?: string;
     email?: string;
+    phone?: string | null;
+    twoFactorEnabled?: boolean;
     password?: string;
     userType?: number;
     status?: number;
@@ -333,6 +353,8 @@ export const updateOneUser = async (
     if (data.defaultBookingMethod !== undefined) updateData.defaultBookingMethod = data.defaultBookingMethod ?? null;
     if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
     if (data.staffId !== undefined) updateData.staffId = data.staffId ?? null;
+    if (data.phone !== undefined) updateData.phone = data.phone ?? null;
+    if (data.twoFactorEnabled !== undefined) updateData.twoFactorEnabled = data.twoFactorEnabled;
 
     const result = await prisma.user.update({
       data: updateData,
