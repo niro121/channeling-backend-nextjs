@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma"
+/* import prisma from "@/lib/prisma"
 import { normalizeSessionTime } from "@/lib/utils"
 import { sendSms, type SendSmsResult } from "./send-sms"
 
@@ -26,10 +26,10 @@ function formatSessionTime(startTime: Date | number, sessionDate: Date): string 
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-/**
+
  * Send channel-details SMS for a booking using the reusable sendSms helper.
  * Builds the message from booking data, then calls sendSms(phone, text).
- */
+ 
 export async function sendBookingSms(bookingId: string): Promise<SendSmsResult> {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -72,3 +72,4 @@ export async function sendBookingSms(bookingId: string): Promise<SendSmsResult> 
 
   return sendSms(booking.phone, text, { logName: "Booking" })
 }
+ */
