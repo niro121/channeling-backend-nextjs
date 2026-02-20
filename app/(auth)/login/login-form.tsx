@@ -136,8 +136,12 @@ const LoginForm = () => {
     }
   };
 
-  const handleSelectMethod = async (methodId: string) => {
+  const handleSelectMethod = async (
+    methodId: string,
+    clearTwoFactorCode: () => void
+  ) => {
     if (!pending2FA || requestingCode) return;
+    clearTwoFactorCode();
     setRequestingCode(true);
     try {
       const res = await fetch('/api/auth/request-2fa-code', {
@@ -176,7 +180,8 @@ const LoginForm = () => {
     }
   };
 
-  const handleBackFrom2FA = () => {
+  const handleBackFrom2FA = (clearTwoFactorCode: () => void) => {
+    clearTwoFactorCode();
     if (pending2FA?.selectedMethod) {
       setPending2FA((prev) =>
         prev
@@ -330,7 +335,12 @@ const LoginForm = () => {
                           type="button"
                           variant="outline"
                           className="h-auto justify-start gap-3 py-3 px-4 text-left"
-                          onClick={() => handleSelectMethod(method.id)}
+                          onClick={() =>
+                            handleSelectMethod(method.id, () => {
+                              formik.setFieldValue('twoFactorCode', '');
+                              formik.setFieldError('invalidCredentials', undefined);
+                            })
+                          }
                           disabled={requestingCode}
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted">
@@ -353,7 +363,12 @@ const LoginForm = () => {
                     type="button"
                     variant="ghost"
                     className="w-full"
-                    onClick={handleBackFrom2FA}
+                    onClick={() =>
+                      handleBackFrom2FA(() => {
+                        formik.setFieldValue('twoFactorCode', '');
+                        formik.setFieldError('invalidCredentials', undefined);
+                      })
+                    }
                     disabled={formik.isSubmitting || requestingCode}
                   >
                     {pending2FA.selectedMethod ? 'Choose another method' : 'Back to login'}
