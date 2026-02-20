@@ -1,8 +1,8 @@
 import prisma from "@/lib/prisma"
 
-const MOBITEL_SMS_USER = process.env.MOBITEL_SMS_USER
-const MOBITEL_SMS_API_PASSWORD = process.env.MOBITEL_SMS_API_PASSWORD
-const MOBITEL_SMS_URL = process.env.MOBITEL_SMS_URL
+const MOBITEL_SMS_USER = "esmsusr_ete"
+const MOBITEL_SMS_API_PASSWORD = "ICT#403!ruhunu"
+const MOBITEL_SMS_URL = "https://msmsenterpriseapi.mobitel.lk/EnterpriseSMSV3/esmsproxyURL.php"
 
 const DEFAULT_FROM = "Ruhunu Hosp"
 const MOBITEL_RESULT_SUCCESS = 200
@@ -54,14 +54,18 @@ export async function sendSms(
       mesageType: 1,
     }
 
+    // console.log("SMS BODY", body)
+
     const res = await fetch(MOBITEL_SMS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
-    const data = (await res.json()) as { resultcode?: number }
+    const data = (await res.json()) as { resultcode?: number | string }
 
-    if (data.resultcode === MOBITEL_RESULT_SUCCESS) {
+    // Mobitel API may return resultcode as string "200" or number 200
+    const code = data.resultcode != null ? Number(data.resultcode) : undefined
+    if (code === MOBITEL_RESULT_SUCCESS) {
       result.status = true
     } else {
       result.status = false

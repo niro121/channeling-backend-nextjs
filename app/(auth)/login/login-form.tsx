@@ -67,12 +67,14 @@ const LoginForm = () => {
   const handleSubmit = async (values: FormValues, { resetForm, setErrors }: FormikHelpers<FormValues>) => {
     try {
       if (pending2FA?.selectedMethod) {
+        // SMS ('2') and EMAIL ('3') do not use twoFactorToken; only AUTH-APP ('1') does
+        const useToken = pending2FA.selectedMethod === '1' ? (pending2FA.twoFactorToken ?? undefined) : undefined;
         const result = await signIn('credentials', {
           redirect: false,
           username: pending2FA.email,
           password: pending2FA.password,
           twoFactorCode: values.twoFactorCode.trim(),
-          twoFactorToken: pending2FA.twoFactorToken ?? undefined
+          twoFactorToken: useToken
         });
         if (result?.error) {
           setErrors({ invalidCredentials: 'Invalid or expired code. Try again or choose another method.' });

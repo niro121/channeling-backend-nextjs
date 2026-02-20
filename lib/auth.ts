@@ -76,7 +76,13 @@ export const authOptions: NextAuthOptions = {
 
           // --- Step 2: Verify 2FA and sign in ---
           if (has2FACode) {
-            if (twoFactorToken) {
+            // AUTH-APP uses a long hex token; SMS/EMAIL store a 6-digit code in twoFactorTempCode.
+            // Only use AUTH-APP branch when token looks like a real token (not a 6-digit code).
+            const isAuthAppToken =
+              typeof twoFactorToken === 'string' &&
+              twoFactorToken.length > 10 &&
+              !/^\d{6}$/.test(twoFactorToken);
+            if (isAuthAppToken) {
               // AUTH-APP: find user by pending token
               const user = await prisma.user.findFirst({
                 where: {
@@ -147,7 +153,10 @@ export const authOptions: NextAuthOptions = {
             if (!user.twoFactorExpires || user.twoFactorExpires < new Date()) {
               throw new Error('2FA code expired. Please log in again.');
             }
-            if (user.twoFactorTempCode !== credentials.twoFactorCode.trim()) {
+            // Compare as strings (DB may return number for twoFactorTempCode in some drivers)
+            const storedCode = user.twoFactorTempCode != null ? String(user.twoFactorTempCode) : '';
+            const enteredCode = credentials.twoFactorCode.trim();
+            if (storedCode !== enteredCode) {
               throw new Error('Invalid 2FA code.');
             }
             await prisma.user.update({
