@@ -71,6 +71,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         name: user?.name || "",
         email: user?.email || "",
         phone: user?.phone ?? "",
+        twoFactorEnabled: user?.twoFactorEnabled ?? false,
         userType: user?.userType || 2,
         userGroupId: user?.userGroupId || "",
         status: user?.status !== undefined ? user.status : 1,
@@ -94,6 +95,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         name: "",
         email: "",
         phone: "",
+        twoFactorEnabled: false,
         password: "",
         confirmPassword: "",
         userType: 2,
@@ -478,6 +480,24 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     <p className="text-secondary-foreground text-xs">Make First Location Auto Selected ( In Channeling Module )</p>
                                 </div>
 
+                                {sessionUserType === 1 && (
+                                    <div className="flex items-center">
+                                        <Checkbox
+                                            id="twoFactorEnabled"
+                                            checked={formik.values.twoFactorEnabled === true}
+                                            onCheckedChange={(value) => {
+                                                formik.setFieldValue("twoFactorEnabled", !!value)
+                                            }}
+                                        />
+                                        <Label
+                                            htmlFor="twoFactorEnabled"
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
+                                        >
+                                            Require 2FA at login (Admin override)
+                                        </Label>
+                                    </div>
+                                )}
+
                             <div className="flex flex-col sm:flex-row justify-end gap-3">
                                 <Button
                                     size="sm"
@@ -673,6 +693,23 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             />
                                             <span className="text-muted-foreground text-xs">Auto-select first in Channeling</span>
                                         </div>
+                                        {sessionUserType === 1 && (
+                                            <div className="flex items-center">
+                                                <Checkbox
+                                                    id="twoFactorEnabled"
+                                                    checked={formik.values.twoFactorEnabled === true}
+                                                    onCheckedChange={(value) => {
+                                                        formik.setFieldValue("twoFactorEnabled", !!value)
+                                                    }}
+                                                />
+                                                <Label
+                                                    htmlFor="twoFactorEnabled"
+                                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
+                                                >
+                                                    Require 2FA at login (Admin override)
+                                                </Label>
+                                            </div>
+                                        )}
                                         <div className="flex items-center">
                                             <Checkbox
                                                 id="status"

@@ -47,6 +47,7 @@ const userSchema = z.object({
     })
     .optional(),
   userGroupId: z.string().nullable().optional(),
+  twoFactorEnabled: z.boolean().optional(),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
 });
@@ -190,6 +191,7 @@ export const saveUser = async (
     name: string;
     email: string;
     phone?: string | null;
+    twoFactorEnabled?: boolean;
     password: string;
     userType: number;
     status?: number;
@@ -224,6 +226,7 @@ export const saveUser = async (
         name: data.name,
         email: data.email,
         phone: data.phone ?? null,
+        twoFactorEnabled: data.twoFactorEnabled ?? false,
         password: data.password,
         userType: data.userType,
         status: data.status ?? 1,
@@ -274,6 +277,7 @@ export const updateOneUser = async (
     name?: string;
     email?: string;
     phone?: string | null;
+    twoFactorEnabled?: boolean;
     password?: string;
     userType?: number;
     status?: number;
@@ -326,6 +330,7 @@ export const updateOneUser = async (
     if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
     if (data.staffId !== undefined) updateData.staffId = data.staffId ?? null;
     if (data.phone !== undefined) updateData.phone = data.phone ?? null;
+    if (data.twoFactorEnabled !== undefined) updateData.twoFactorEnabled = data.twoFactorEnabled;
 
     const result = await prisma.user.update({
       data: updateData,

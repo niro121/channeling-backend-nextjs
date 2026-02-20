@@ -174,7 +174,9 @@ export function SecurityPageClient() {
             <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 p-4">
               <p className="font-medium text-red-600 dark:text-red-400">Phone number required</p>
               <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                Add a mobile number in your profile (Users → edit your user, or Account settings) to enable 2FA.
+                {userPreference2FA
+                  ? "You can keep 2FA on and disable it anytime, but you cannot enable it again without a mobile number."
+                  : "Add a mobile number in your profile (Users → edit your user, or Account settings) to enable 2FA."}
               </p>
             </div>
           )}
@@ -183,7 +185,7 @@ export function SecurityPageClient() {
               <p className="font-medium">Ask for verification code when I sign in</p>
               <p className="text-sm text-muted-foreground">
                 {!hasPhone
-                  ? 'Add a mobile number in your profile to enable 2FA.'
+                  ? '2FA is off because no mobile number is set for this user.'
                   : !groupAllows2FA
                     ? require2FAAtLogin
                       ? 'Your preference is on; it will apply when your group allows 2FA.'
@@ -194,7 +196,7 @@ export function SecurityPageClient() {
               </p>
             </div>
             <Switch
-              checked={userPreference2FA}
+              checked={hasPhone ? userPreference2FA : false}
               onCheckedChange={handleRequire2FAToggle}
               disabled={preferenceSaving || !hasPhone}
             />
