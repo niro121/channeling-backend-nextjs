@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { io, type Socket } from "socket.io-client"
 import { getSessionsForChannelBooking } from "@/app/actions/channel-booking"
 import { Card, CardContent } from "@/components/ui/card"
 import { useChannelBooking } from "../context/channel-booking-context"
@@ -18,6 +19,13 @@ import {
   padTwo,
 } from "./sessions-selection/util"
 
+function toDateKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
 export function SessionsSelection() {
   const {
     initialData,
@@ -28,6 +36,7 @@ export function SessionsSelection() {
     setSessions,
     setSessionsLoading,
     onSessionSelect,
+    updateSessionInList,
   } = useChannelBooking()
   const { has } = usePermissions()
   const canChangeDate = has("channel-booking-date", "view")
@@ -96,6 +105,70 @@ export function SessionsSelection() {
       cancelled = true
     }
   }, [hasDoctor, selectedDoctor?.id, selectedDate, setSessions, setSessionsLoading, onSessionSelect])
+
+  // Socket: subscribe to session updates for current doctor (one room per doctor so changing date still gets updates)
+  const socketRef = useRef<Socket | null>(null)
+  const lastSubscribedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const doctorId = selectedDoctor?.id ?? null
+
+    if (!doctorId) {
+      if (socketRef.current) {
+        if (lastSubscribedRef.current) {
+          socketRef.current.emit("channel-booking:unsubscribe", { doctorId: lastSubscribedRef.current })
+          lastSubscribedRef.current = null
+        }
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+      return
+    }
+
+    const socket = io(window.location.origin, { path: "/socket.io", addTrailingSlash: false })
+    socketRef.current = socket
+
+    const payload = { doctorId }
+    const doSubscribe = () => {
+      if (lastSubscribedRef.current) {
+        socket.emit("channel-booking:unsubscribe", { doctorId: lastSubscribedRef.current })
+      }
+      lastSubscribedRef.current = doctorId
+      socket.emit("channel-booking:subscribe", payload)
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[sessions-selection] subscribed to room", payload)
+      }
+    }
+    if (socket.connected) {
+      doSubscribe()
+    } else {
+      socket.once("connect", doSubscribe)
+    }
+
+    const onSessionUpdate = (data: { sessionId: string; appointmentNo?: number; paidCount?: number; pendingCount?: number }) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[sessions-selection] session-update received", { doctorId, data })
+      }
+      if (data?.sessionId) {
+        updateSessionInList(data.sessionId, {
+          ...(data.appointmentNo !== undefined && { appointmentNo: data.appointmentNo }),
+          ...(data.paidCount !== undefined && { paidCount: data.paidCount }),
+          ...(data.pendingCount !== undefined && { pendingCount: data.pendingCount }),
+        })
+      }
+    }
+    socket.on("session-update", onSessionUpdate)
+
+    return () => {
+      if (lastSubscribedRef.current) {
+        socket.emit("channel-booking:unsubscribe", { doctorId: lastSubscribedRef.current })
+        lastSubscribedRef.current = null
+      }
+      socket.off("session-update", onSessionUpdate)
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [selectedDoctor?.id, updateSessionInList])
 
   // Filter sessions by selected location (show only when location is selected)
   const sessionsForDateAndBranch = useMemo(() => {
@@ -171,7 +244,8 @@ export function SessionsSelection() {
                     const max = session.maxPatientNumber ?? 10
                     const capacity = max - start + 1
                     const currentCount = (session.paidCount ?? 0) + (session.pendingCount ?? 0)
-                    const nextAppointmentNo = (session.appointmentNo ?? 0) + 1
+                    const lastAppointmentNo = session.appointmentNo ?? 0
+                    const nextAppointmentNo = lastAppointmentNo === 0 ? start : lastAppointmentNo + 1
                     const isFull = currentCount >= capacity
                     const isWeekend = isSessionWeekend(session.date)
                     const isOnLeave = session.status === 0

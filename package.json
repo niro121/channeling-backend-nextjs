@@ -1,9 +1,11 @@
 {
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
+    "next:dev": "next dev --turbopack",
+    "next:start": "next start",
     "sessions:generate": "tsx scripts/doctor-sessions-generate.ts",
     "sessions:update": "tsx scripts/doctor-sessions-update.ts",
     "load-doctor-sessions": "npx tsx scripts/load-doctor-sessions.ts",
@@ -65,6 +67,8 @@
     "react-hook-form": "^7.63.0",
     "recharts": "^3.2.1",
     "server-only": "^0.0.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.1.13",
     "tailwindcss-animate": "^1.0.7",

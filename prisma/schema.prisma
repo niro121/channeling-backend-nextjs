@@ -709,6 +709,8 @@ model Booking {
   isScan                  Boolean  @default(false)
   locationId              String?  @db.ObjectId
   location                Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
+  bookingid               Int?
+  bookingid_string        String?
   appointmentNo           Int
   discountId              String?  @db.ObjectId
   autoDiscountId          String?  @db.ObjectId

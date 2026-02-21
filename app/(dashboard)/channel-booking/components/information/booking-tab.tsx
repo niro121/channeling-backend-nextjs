@@ -14,26 +14,45 @@ function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function formatAppointmentNo(value: string | number): string {
+  const s = String(value).trim()
+  const n = parseInt(s, 10)
+  if (Number.isNaN(n) || s === "") return s
+  return String(n).padStart(2, "0")
+}
+
 function Row({
   label,
   value,
   highlight,
+  valueClassName,
 }: {
   label: string
   value: string | number
   highlight?: boolean
+  valueClassName?: string
 }) {
   return (
     <div
-      className={`flex justify-between gap-3 py-1.5 border-b border-border/40 last:border-0 px-1 -mx-1 rounded ${highlight ? "bg-primary/10" : ""}`}
+      className={cn(
+        "flex justify-between gap-3 py-1.5 border-b border-slate-200/90 last:border-0 px-1 -mx-1 dark:border-slate-600/80",
+        highlight && "border-l-2 border-l-primary bg-primary/5 -ml-0.5 pl-1.5"
+      )}
     >
       <span
-        className={`text-[11px] shrink-0 ${highlight ? "font-semibold text-foreground" : "text-muted-foreground"}`}
+        className={cn(
+          "text-[11px] shrink-0",
+          highlight ? "font-medium text-foreground" : "text-slate-600 dark:text-slate-400"
+        )}
       >
         {label}
       </span>
       <span
-        className={`text-xs text-right break-words min-w-0 ${highlight ? "text-destructive font-semibold" : "text-foreground"}`}
+        className={cn(
+          "text-xs text-right break-words min-w-0",
+          highlight ? "font-semibold text-foreground" : "text-foreground",
+          valueClassName
+        )}
       >
         {value}
       </span>
@@ -45,20 +64,32 @@ function Section({
   title,
   children,
   muted,
+  trailing,
 }: {
   title: string
   children: React.ReactNode
   muted?: boolean
+  trailing?: React.ReactNode
 }) {
   return (
     <div className="space-y-1.5">
       <h3
-        className={`text-[10px] font-medium uppercase tracking-wider ${muted ? "text-muted-foreground/80" : "text-muted-foreground"}`}
+        className={cn(
+          "flex items-center gap-2 flex-wrap",
+          "text-[10px] font-semibold uppercase tracking-wider",
+          "text-slate-600 dark:text-slate-400"
+        )}
       >
         {title}
+        {trailing}
       </h3>
       <div
-        className={`rounded-md border p-2 space-y-0 ${muted ? "bg-muted/5 border-border/40" : "bg-muted/10 border-border/60"}`}
+        className={cn(
+          "rounded-lg border p-2 space-y-0",
+          muted
+            ? "bg-slate-50/90 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700"
+            : "bg-white border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 shadow-sm"
+        )}
       >
         {children}
       </div>
@@ -72,6 +103,7 @@ export function BookingTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discountExpanded, setDiscountExpanded] = useState(false)
+  const [billingExpanded, setBillingExpanded] = useState(false)
   const [agentExpanded, setAgentExpanded] = useState(false)
   const [otherExpanded, setOtherExpanded] = useState(false)
   const [receiptsExpanded, setReceiptsExpanded] = useState(false)
@@ -81,6 +113,7 @@ export function BookingTab() {
       setDetails(null)
       setError(null)
       setDiscountExpanded(false)
+      setBillingExpanded(false)
       setAgentExpanded(false)
       setOtherExpanded(false)
       setReceiptsExpanded(false)
@@ -89,6 +122,7 @@ export function BookingTab() {
     setLoading(true)
     setError(null)
     setDiscountExpanded(false)
+    setBillingExpanded(false)
     setAgentExpanded(false)
     setOtherExpanded(false)
     setReceiptsExpanded(false)
@@ -107,7 +141,7 @@ export function BookingTab() {
 
   if (!selectedBooking) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+      <div className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 min-h-[120px] flex items-center justify-center text-slate-600 dark:text-slate-400 text-sm">
         Select a booking
       </div>
     )
@@ -115,7 +149,7 @@ export function BookingTab() {
 
   if (loading) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+      <div className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 min-h-[120px] flex items-center justify-center text-slate-600 dark:text-slate-400 text-sm">
         Loading…
       </div>
     )
@@ -123,7 +157,7 @@ export function BookingTab() {
 
   if (error || !details) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-destructive text-sm">
+      <div className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 min-h-[120px] flex items-center justify-center text-destructive text-sm">
         {error ?? "Failed to load booking"}
       </div>
     )
@@ -138,55 +172,106 @@ export function BookingTab() {
           Pending payment
         </div>
       )}
-      {/* Primary: Patient, Appointment, Billing */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      {/* Primary: Patient, Appointment */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Section title="Patient">
           <Row label="Name" value={details.name} />
           <Row label="Sex" value={details.patientSex ? details.patientSex.charAt(0).toUpperCase() + details.patientSex.slice(1).toLowerCase() : "—"} />
           <Row label="Tel" value={details.phone} />
           <Row label="Area" value={details.area} />
         </Section>
-        <Section title="Appointment">
-          <Row label="Consultant" value={details.consultant} />
-          <Row label="Appo. No" value={details.appointmentNo} highlight />
+        <Section
+          title="Appointment"
+          trailing={
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                "bg-primary/15 text-primary border border-primary/30",
+                "dark:bg-primary/20 dark:border-primary/40"
+              )}
+            >
+              {details.bookingMethod}
+            </span>
+          }
+        >
+          <Row label="Consultant" value={details.consultant} highlight />
+          <Row
+            label="Appo. No"
+            value={formatAppointmentNo(details.appointmentNo)}
+            highlight
+            valueClassName="text-destructive"
+          />
           <Row label="Date" value={details.appointmentDate} />
           <Row label="Time" value={details.appointmentTime} />
-          <Row label="Method" value={details.bookingMethod} />
         </Section>
-        <Section title="Billing">
-          <Row label="Bill No" value={details.billNo} />
-          <Row label="Bill Total" value={formatRs(details.billTotal)} highlight />
-          <Row label="Sub Total" value={formatRs(details.billSubTotal)} />
-          <Row label="Discount" value={formatRs(details.discount)} />
-        </Section>
+      </div>
+
+      {/* Billing: compact summary with expand for details (same style as Discount) */}
+      <div className="space-y-1.5">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+          Billing
+        </h3>
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
+          <button
+            type="button"
+            onClick={() => setBillingExpanded((e) => !e)}
+            className={cn(
+              "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+              "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+            )}
+          >
+            {billingExpanded ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+            )}
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Bill No</span>
+            <span className="text-xs font-medium text-foreground min-w-0 truncate">
+              {details.billNo}
+            </span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0 ml-auto">Total</span>
+            <span className="text-xs font-semibold text-foreground">
+              {formatRs(details.billTotal)}
+            </span>
+          </button>
+          {billingExpanded && (
+            <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
+              <Row label="Bill No" value={details.billNo} />
+              <Row label="Sub Total" value={formatRs(details.billSubTotal)} />
+              <Row label="Discount" value={formatRs(details.discount)} />
+              <Row label="Bill Total" value={formatRs(details.billTotal)} highlight />
+              <Row label="Billed By" value={details.billedBy} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Discount: compact summary with expand for details */}
       {details.discountInfo && (details.discountInfo.total > 0 || details.discountInfo.manualSchemeName || details.discountInfo.autoSchemeName) && (
         <div className="space-y-1.5">
-          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
             Discount
           </h3>
-          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
             <button
               type="button"
               onClick={() => setDiscountExpanded((e) => !e)}
               className={cn(
                 "w-full flex items-center gap-2 px-2 py-1.5 text-left",
-                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
               )}
             >
               {discountExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               ) : (
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               )}
-              <span className="text-[11px] text-muted-foreground shrink-0">Total</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Total</span>
               <span className="text-xs font-medium text-foreground min-w-0 truncate">
                 {formatRs(details.discountInfo.total)}
               </span>
               {(details.discountInfo.autoSchemeName || details.discountInfo.manualSchemeName) && (
-                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
                   {[details.discountInfo.autoSchemeName, details.discountInfo.manualSchemeName]
                     .filter(Boolean)
                     .join(" · ")}
@@ -194,7 +279,7 @@ export function BookingTab() {
               )}
             </button>
             {discountExpanded && (
-              <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
                 {details.discountInfo.autoSchemeName && (
                   <Row label="Auto scheme" value={details.discountInfo.autoSchemeName} />
                 )}
@@ -225,37 +310,37 @@ export function BookingTab() {
       {/* Agent: compact summary with expand for details (when booking is via Agent) */}
       {details.agentInfo && (
         <div className="space-y-1.5">
-          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
             Agent
           </h3>
-          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
             <button
               type="button"
               onClick={() => setAgentExpanded((e) => !e)}
               className={cn(
                 "w-full flex items-center gap-2 px-2 py-1.5 text-left",
-                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
               )}
             >
               {agentExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               ) : (
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               )}
-              <span className="text-[11px] text-muted-foreground shrink-0">Agent</span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Agent</span>
               <span className="text-xs font-medium text-foreground min-w-0 truncate">
                 {details.agentInfo.agencyCode
                   ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})`
                   : details.agentInfo.agencyName}
               </span>
               {!agentExpanded && details.agentInfo.agencyRef && (
-                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
                   REF: {details.agentInfo.agencyRef}
                 </span>
               )}
             </button>
             {agentExpanded && (
-              <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
                 <Row label="REF NO." value={details.agentInfo.agencyRef || "—"} />
                 {details.agentInfo.bookNumber && (
                   <Row label="Book No." value={details.agentInfo.bookNumber} />
@@ -272,39 +357,38 @@ export function BookingTab() {
 
       {/* Other: compact summary with expand for details */}
       <div className="space-y-1.5">
-        <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
           Other
         </h3>
-        <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
           <button
             type="button"
             onClick={() => setOtherExpanded((e) => !e)}
             className={cn(
               "w-full flex items-center gap-2 px-2 py-1.5 text-left",
-              "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+              "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
             )}
           >
             {otherExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
             )}
-            <span className="text-[11px] text-muted-foreground shrink-0">Remark · Foreigner · Agent · Referred · Billed by</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Remark · Foreigner · Agent · Referred</span>
             {!otherExpanded && (
-              <span className="text-[10px] text-muted-foreground truncate ml-auto">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
                 {details.remark?.trim() ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}` : details.foreigner ? "Foreigner" : details.agentRef !== "-" ? "Agent" : "—"}
               </span>
             )}
           </button>
           {otherExpanded && (
-            <div className="border-t border-border/40 px-2 py-1.5 space-y-0 bg-muted/5">
+            <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0">
                 <Row label="Remark" value={details.remark || "—"} />
                 <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
                 <Row label="Agent Ref." value={details.agentRef} />
                 <Row label="Referred By" value={details.referredBy || "—"} />
               </div>
-              <Row label="Billed By" value={details.billedBy} />
             </div>
           )}
         </div>
@@ -313,34 +397,34 @@ export function BookingTab() {
       {/* Receipts: compact summary with expand for cards */}
       {details.receipts?.length ? (
         <div className="space-y-1.5">
-          <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
             Receipts
           </h3>
-          <div className="rounded-md border border-border/40 bg-muted/5 overflow-hidden">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
             <button
               type="button"
               onClick={() => setReceiptsExpanded((e) => !e)}
               className={cn(
                 "w-full flex items-center gap-2 px-2 py-1.5 text-left",
-                "hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-t-md"
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
               )}
             >
               {receiptsExpanded ? (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               ) : (
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
               )}
-              <span className="text-[11px] text-muted-foreground shrink-0">
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">
                 {details.receipts.length} receipt{details.receipts.length !== 1 ? "s" : ""}
               </span>
               {!receiptsExpanded && (
-                <span className="text-[10px] text-muted-foreground truncate ml-auto">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
                   {details.receipts.map((r) => `${r.type}: ${r.receiptNoString}`).join(" · ")}
                 </span>
               )}
             </button>
             {receiptsExpanded && (
-              <div className="border-t border-border/40 p-2 bg-muted/5">
+              <div className="border-t border-slate-200 dark:border-slate-700 p-2 bg-slate-50/80 dark:bg-slate-900/20">
                 <div className="grid grid-cols-2 gap-2">
                   {details.receipts.map((r) => (
                     <ReceiptCard key={r.id} row={r} formatRs={formatRs} />
@@ -364,9 +448,9 @@ function ReceiptCard({
 }) {
   const isRefund = row.type === "Refund"
   const cardClass = isRefund
-    ? "rounded border border-red-300 dark:border-red-800/60 bg-red-50/80 dark:bg-red-950/30"
-    : "rounded border border-border/40 bg-background/60"
-  const typeClass = isRefund ? "text-[10px] font-medium text-red-700 dark:text-red-400" : "text-[10px] font-medium text-muted-foreground"
+    ? "rounded-lg border border-red-300 dark:border-red-800/60 bg-red-50/80 dark:bg-red-950/30"
+    : "rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+  const typeClass = isRefund ? "text-[10px] font-medium text-red-700 dark:text-red-400" : "text-[10px] font-medium text-slate-600 dark:text-slate-400"
   const amountClass = isRefund ? "text-[11px] font-semibold text-red-700 dark:text-red-400" : "text-[11px] font-semibold text-foreground"
 
   return (
@@ -375,20 +459,20 @@ function ReceiptCard({
         <span className={typeClass}>{row.type}</span>
         <button
           type="button"
-          className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 -m-0.5"
+          className="shrink-0 text-slate-500 hover:text-foreground p-0.5 -m-0.5"
           title="Print receipt"
           aria-label="Print receipt"
         >
           <Printer className="size-3" />
         </button>
       </div>
-      <div className="mt-0.5 text-[10px] text-muted-foreground truncate" title={row.receiptNoString}>
+      <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.receiptNoString}>
         {row.receiptNoString}
       </div>
       <div className={`mt-0.5 ${amountClass}`}>{formatRs(row.amount)}</div>
-      <div className="mt-0.5 text-[10px] text-muted-foreground">{row.paymentMethodName}</div>
+      <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400">{row.paymentMethodName}</div>
       {row.remarks ? (
-        <div className="mt-0.5 text-[10px] text-muted-foreground truncate" title={row.remarks}>
+        <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.remarks}>
           {row.remarks}
         </div>
       ) : null}

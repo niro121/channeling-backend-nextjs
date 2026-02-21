@@ -19,6 +19,8 @@ export {
   type GetNextSequenceResult,
   type GetNextSequenceOptions,
 } from "./sequence"
+export { getReceiptSequenceInfo } from "./get-receipt-sequence"
+export { getBookingSequenceInfo } from "./get-booking-sequence"
 export {
   validateVoucherForDiscount,
   type ValidateVoucherResult,

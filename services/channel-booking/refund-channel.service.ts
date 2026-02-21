@@ -1,6 +1,5 @@
 import prisma from "@/lib/prisma"
-import { getNextSequenceNumber } from "./helpers"
-import { getBookingForSaveBooking } from "./helpers"
+import { getNextSequenceNumber, getReceiptSequenceInfo, getBookingForSaveBooking } from "./helpers"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -51,13 +50,16 @@ export async function refundChannelService(
     if (booking.status === 1) {
       // Full refund: create refund receipt, set status 2
       const refundAmount = booking.amount - booking.discount
-      const scopeKey = `receipt:${booking.locationId ?? "global"}`
-      const seqResult = await getNextSequenceNumber(scopeKey)
+      const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
+        booking.locationId ?? null,
+        0
+      )
+      const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
       if (!seqResult.success) {
         return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
       }
       const receiptNo = seqResult.value
-      const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+      const receiptNoString = formatReceiptNoString(receiptNo)
 
       const newReceipt = await prisma.receipt.create({
         data: {
@@ -106,13 +108,16 @@ export async function refundChannelService(
       return { success: false, errorCode: "invalid_input", message: "Select at least one refundable amount." }
     }
 
-    const scopeKey = `receipt:${booking.locationId ?? "global"}`
-    const seqResult = await getNextSequenceNumber(scopeKey)
+    const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
+      booking.locationId ?? null,
+      0
+    )
+    const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
     if (!seqResult.success) {
       return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
     }
     const receiptNo = seqResult.value
-    const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+    const receiptNoString = formatReceiptNoString(receiptNo)
 
     const newReceipt = await prisma.receipt.create({
       data: {

@@ -23,7 +23,8 @@ import {
   TicketIcon,
   UserLock,
   DollarSign,
-  UserCircle
+  UserCircle,
+  Activity,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -137,6 +138,12 @@ export function DesktopSidebar({
             {hasAccess("/tags") && <NavLink href="/tags" label="Tags" icon={<Tags className="h-5 w-5" />} />}
             {hasAccess("/sms-playground") && <NavLink href="/sms-playground" label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />}
             {hasAccess("/reports") && <NavLink href="/reports" label="Reports" icon={<FileText className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
+
+        {userType === userTypes.admin && (
+          <SidebarGroup label="Admin">
+            <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
           </SidebarGroup>
         )}
       </nav>
