@@ -192,7 +192,9 @@ export function MonitorDashboard() {
               {socket.socketAvailable ? (
                 <Wifi className="h-4 w-4 text-muted-foreground shrink-0" />
               ) : (
-                <WifiOff className="h-4 w-4 text-amber-500 shrink-0" title="Custom server not in use" />
+                <span title="Custom server not in use">
+                  <WifiOff className="h-4 w-4 text-amber-500 shrink-0" />
+                </span>
               )}
             </CardHeader>
             <CardContent>
