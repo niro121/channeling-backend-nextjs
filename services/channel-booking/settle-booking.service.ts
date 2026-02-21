@@ -4,6 +4,7 @@ import {
   getProcessedDiscount,
   getBookingForSaveBooking,
   getNextSequenceNumber,
+  getReceiptSequenceInfo,
 } from "./helpers"
 import type { Session } from "@/types/booking.dashboard"
 
@@ -103,13 +104,16 @@ export async function settleBookingService(
   }
 
   const amount = booking.amount - discount
-  const scopeKey = `receipt:${booking.locationId ?? "global"}`
-  const seqResult = await getNextSequenceNumber(scopeKey)
+  const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
+    booking.locationId ?? null,
+    1
+  )
+  const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
   if (!seqResult.success) {
     return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
   }
   const receiptNo = seqResult.value
-  const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+  const receiptNoString = formatReceiptNoString(receiptNo)
 
   const newReceipt = await prisma.receipt.create({
     data: {

@@ -37,6 +37,8 @@ const PATH_NAMES: Path[] = [
     { path: "unauthorized-access", name: "Unauthorized" },
     { path: "add", name: "Add" },
     { path: "edit", name: "Edit" },
+    { path: "admin", name: "Admin" },
+    { path: "monitor", name: "Server Monitor" },
 ]
 
 /** Check if a segment is a dynamic ID (UUID, MongoDB ObjectId, or number) */

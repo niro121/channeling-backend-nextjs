@@ -27,6 +27,7 @@ import {
   TicketIcon,
   DollarSign,
   UserCircle,
+  Activity,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -141,6 +142,14 @@ async function MobileNav({ session }: { session: Session | null }) {
                 {hasAccess("/tags") && <NavLink href="/tags" label="Tags" icon={<Tags className="h-5 w-5" />} />}
                 {hasAccess('/sms-playground') && <NavLink href="/sms-playground" label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />}
                 {hasAccess('/reports') && <NavLink href="/reports" label="Reports" icon={<FileText className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {userType === userTypes.admin && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Admin</p>
+              <div className="space-y-0.5">
+                <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
               </div>
             </div>
           )}
