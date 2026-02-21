@@ -128,7 +128,7 @@ export function NewBookingDetailsTab() {
   const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({})
-  const bookAmount =
+  const baseAmount =
     foreigner
       ? (reservationDetails?.amountForeign ?? 0)
       : (reservationDetails?.amountLocal ?? 0)
@@ -208,6 +208,8 @@ export function NewBookingDetailsTab() {
         : 0,
     [selectedSession?.fees, foreigner, discountsToApply]
   )
+  /** Amount to pay (base − discount). Sent to server and shown on Book button. */
+  const amountToPay = baseAmount - computedDiscountAmount
 
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {
@@ -382,7 +384,7 @@ export function NewBookingDetailsTab() {
           title: selectedDoctor.title,
           name: selectedDoctor.name,
         },
-        amount: bookAmount,
+        amount: amountToPay,
         discount: computedDiscountAmount,
         auto_discount_type: firstAutoDiscount?.id ?? undefined,
         discount_type: discountSchemeId ? discountSchemeId : undefined,
@@ -954,7 +956,7 @@ export function NewBookingDetailsTab() {
           ) : (
             <>
               <CalendarCheck className="h-3.5 w-3.5 shrink-0" />
-              Book Now ( Rs.{bookAmount.toFixed(2)} )
+              Book Now ( Rs.{amountToPay.toFixed(2)} )
             </>
           )}
         </Button>

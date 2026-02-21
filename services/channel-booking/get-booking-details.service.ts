@@ -173,8 +173,7 @@ export async function getBookingDetailsService(
     const startTime = normalizeSessionTime(b.session.startTime as Date | number, sessionDate)
     const appointmentTime = formatAppointmentTime(startTime)
     const consultant = `${b.doctor.title} ${b.doctor.name}`.trim()
-    const billedById = b.createdBy ?? ""
-    const billedByStr = `${createdByName}${billedById ? ` (${billedById})` : ""} - ${b.createdAt.toLocaleString("en-CA", { dateStyle: "short", timeStyle: "medium" })}`
+    const billedByStr = `${createdByName} - ${b.createdAt.toLocaleString("en-CA", { dateStyle: "short", timeStyle: "medium" })}`
     const billSubTotal = b.amount + b.discount
     const receipt = b.receipts?.[0] ?? null
     const receiptRows: ReceiptRowView[] = await Promise.all(
@@ -262,7 +261,10 @@ export async function getBookingDetailsService(
       bookingMethod: methodName,
       agentRef: b.agencyRef?.trim() ? b.agencyRef : "-",
       referredBy: "",
-      billNo: b.id,
+      billNo:
+        b.receiptNo != null && b.receiptNoString != null
+          ? b.receiptNoString
+          : ((b as { bookingid_string?: string | null }).bookingid_string ?? b.id),
       billSubTotal,
       discount: b.discount,
       billTotal: b.amount,

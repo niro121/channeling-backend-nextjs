@@ -68,6 +68,8 @@ export type ChannelBookingActions = {
   setActiveInformationTab: (tab: string) => void
   setSelectedAgencyId: (id: string | null) => void
   setSessions: (sessions: Session[]) => void
+  /** Merge a partial update for one session (e.g. from real-time session-update). */
+  updateSessionInList: (sessionId: string, update: Partial<Pick<Session, "appointmentNo" | "paidCount" | "pendingCount">>) => void
   setSessionsLoading: (loading: boolean) => void
   setBookings: (bookings: ChannelBookingRecord[]) => void
   setBookingsLoading: (loading: boolean) => void
@@ -180,6 +182,15 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
     setSelectedBooking(booking)
   }, [])
 
+  const updateSessionInList = useCallback(
+    (sessionId: string, update: Partial<Pick<Session, "appointmentNo" | "paidCount" | "pendingCount">>) => {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, ...update } : s))
+      )
+    },
+    []
+  )
+
   const reservationDetails = useMemo(
     () => reservationFromSession(selectedDoctor, selectedSession),
     [selectedDoctor, selectedSession]
@@ -208,6 +219,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       setSelectedSession,
       setSelectedBooking,
       setSessions,
+      updateSessionInList,
       setSessionsLoading,
       setBookings,
       setBookingsLoading,
@@ -231,6 +243,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookingDetailsRefreshKey,
       activeInformationTab,
       selectedAgencyId,
+      updateSessionInList,
       onDoctorSelect,
       onSessionSelect,
       onBookingSelect,
