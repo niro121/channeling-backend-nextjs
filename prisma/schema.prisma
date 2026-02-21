@@ -17,6 +17,7 @@ model User {
   id                     String   @id @default(auto()) @map("_id") @db.ObjectId
   name                   String
   email                  String   @unique()
+  phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
   userType               Int // 1 = admin, 2 = staff
   password               String
   createdAt              DateTime @default(now())
@@ -25,6 +26,16 @@ model User {
   checkedDefaultLocation Boolean  @default(false)
   defaultLocation        String?
   defaultBookingMethod   Int?     // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
+
+  // == 2FA STATE == //
+  twoFactorEnabled       Boolean @default(false) // == User turned on 2FA in Settings; only then is 2FA required at login == //
+  twoFactorMethod        String?
+  twoFactorSecret        String?
+  twoFactorPendingSecret String? // Temporary secret during "setup at login"; moved to twoFactorSecret only after user verifies code
+  twoFactorTempCode      String?
+  twoFactorExpires       DateTime?
+  twoFactorVerified      Boolean @default(false)
+  twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
@@ -82,6 +93,10 @@ model UserGroup {
   permissions Json // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
+
+  // == 2FA CONFIG == //
+  twoFactorEnabled Boolean @default(false)
+  twoFactorMethods String[] // == 1: AUTH-APP, 2: "SMS", 3: "EMAIL" == //
 
   // ==== RELATIONS ==== //
   users User[] @relation("UserToUserGroup")
@@ -790,7 +805,6 @@ enum LogStatus {
   INFO
   ERROR
 }
-
 // UAT (User Acceptance Testing) – results per tester, shared so anyone can see
 model UatCaseResult {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -812,4 +826,14 @@ model UatSectionComplete {
 
   @@unique([testerName, feature])
   @@index([testerName])
+}
+
+model SmsLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  status      Int      // == 0 = sent, 1 = failed == //
+  name        String
+  description String?
+  phone       String
+  template    String
+  createdAt   DateTime @default(now())
 }

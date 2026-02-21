@@ -110,6 +110,8 @@ export const saveUserGroup = async (userGroup: UserGroup) => {
                 description: userGroup.description,
                 status: userGroup.status,
                 permissions: userGroup.permissions as any,
+                twoFactorEnabled: userGroup.twoFactorEnabled ?? false,
+                twoFactorMethods: Array.isArray(userGroup.twoFactorMethods) ? userGroup.twoFactorMethods : [],
             },
         })
 
@@ -135,6 +137,8 @@ export const updateOneUserGroup = async (id: string, payload: UserGroup) => {
                 description: payload.description,
                 status: payload.status,
                 permissions: payload.permissions as any,
+                twoFactorEnabled: payload.twoFactorEnabled ?? false,
+                twoFactorMethods: Array.isArray(payload.twoFactorMethods) ? payload.twoFactorMethods : [],
             },
             where: {
                 id: id,

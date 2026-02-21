@@ -35,6 +35,8 @@ const PATH_NAMES: Path[] = [
     { path: "customers", name: "Customers" },
     { path: "accounts", name: "Accounts" },
     { path: "unauthorized-access", name: "Unauthorized" },
+    { path: "account", name: "Account" },
+    { path: "security", name: "Security" },
     { path: "add", name: "Add" },
     { path: "edit", name: "Edit" },
     { path: "admin", name: "Admin" },

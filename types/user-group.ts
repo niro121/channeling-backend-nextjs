@@ -13,12 +13,17 @@ export type Permissions = {
   [resource: string]: ResourcePermissions;
 };
 
+/** 2FA method IDs: "1" = AUTH-APP, "2" = SMS, "3" = EMAIL (see types/2FA.ts; EMAIL currently unavailable in UI) */
+export type TwoFactorMethodId = string;
+
 export type UserGroup = {
   id?: string;
   name: string;
   description?: string;
   status: number; // 0 = inactive, 1 = active
   permissions: Permissions;
+  twoFactorEnabled?: boolean;
+  twoFactorMethods?: TwoFactorMethodId[]; // e.g. ["1", "2", "3"]
   createdAt?: Date;
   updatedAt?: Date;
 };

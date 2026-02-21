@@ -8,6 +8,8 @@ export type User = {
     id?: string
     name: string
     email: string
+    phone?: string | null // Mobile number for 2FA SMS (e.g. 07XXXXXXXX)
+    twoFactorEnabled?: boolean // Admin/user preference: require 2FA at login
     password: string
     confirmPassword?: string
     userType: number // 1 = admin, 2 = staff

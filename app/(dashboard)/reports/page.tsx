@@ -40,6 +40,12 @@ const reportsData = [
     masterData: 'Agent Detail Report',
     description: 'View agent information with filters',
     route: '/reports/agent-detail'
+  },
+  {
+    id: '5',
+    masterData: 'All Doctor View (By Session Time)',
+    description: 'View aggregated booking details by doctor and session time with filters',
+    route: '/reports/all-doctor-view'
   }
 ];
 
