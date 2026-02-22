@@ -9,6 +9,7 @@ import { CancelTab } from "./information/cancel-tab"
 import { ChangeTab } from "./information/change-tab"
 import { RefundTab } from "./information/refund-tab"
 import { SettleTab } from "./information/settle-tab"
+import { TransferTab } from "./information/transfer-tab"
 
 const tabTriggerClass =
   "rounded-none border-b-2 border-transparent bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
@@ -216,7 +217,12 @@ export function Information() {
               <ViewsTab />
             </div>
           </TabsContent>
-          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change" && v !== "views").map((value) => (
+          <TabsContent value="transfer" className={tabContentClass}>
+            <div className="min-h-[200px] rounded-md bg-secondary p-2">
+              <TransferTab />
+            </div>
+          </TabsContent>
+          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change" && v !== "views" && v !== "transfer").map((value) => (
             <TabsContent key={value} value={value} className={tabContentClass}>
               <div className="min-h-[200px] rounded-md bg-secondary p-2">
                 <div className="min-h-[120px] rounded border border-dashed border-border" />

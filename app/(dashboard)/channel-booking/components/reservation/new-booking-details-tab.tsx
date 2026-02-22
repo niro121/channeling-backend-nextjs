@@ -90,7 +90,7 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
 export function NewBookingDetailsTab() {
-  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId } = useChannelBooking()
+  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId, referredDoctorId, referredAgencyId, referredStaffId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId } = useChannelBooking()
   const { toast } = useToast()
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
@@ -250,8 +250,11 @@ export function NewBookingDetailsTab() {
     setSlipRef("")
     setAgencyBooks([])
     setSelectedAgencyId(null)
+    setReferredDoctorId(null)
+    setReferredAgencyId(null)
+    setReferredStaffId(null)
     setInvalidFields({})
-  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId])
+  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId])
 
   // Reset booking-type–specific fields when payment method changes
   useEffect(() => {
@@ -397,6 +400,9 @@ export function NewBookingDetailsTab() {
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
+        referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
+        referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
+        referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
       })
       if (result.success) {
         setInvalidFields({})
@@ -423,6 +429,9 @@ export function NewBookingDetailsTab() {
         setSlipRef("")
         setAgencyBooks([])
         setSelectedAgencyId(null)
+        setReferredDoctorId(null)
+        setReferredAgencyId(null)
+        setReferredStaffId(null)
         toast({
           title: "Booking saved",
           description: "The booking was created successfully.",

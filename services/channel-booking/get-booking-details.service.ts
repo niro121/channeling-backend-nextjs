@@ -96,7 +96,11 @@ export type BookingDetailsView = {
   phone: string
   bookingMethod: string
   agentRef: string
+  /** Legacy combined string; prefer referredDoctor, referredAgency, referredStaff for display. */
   referredBy: string
+  referredDoctor: string | null
+  referredAgency: string | null
+  referredStaff: string | null
   billNo: string
   billSubTotal: number
   discount: number
@@ -126,6 +130,21 @@ export type BookingDetailsView = {
   }
   /** When status === 2 (canceled): refund amount and refund receipts for Cancel/Refund tab. */
   cancelOrRefundDetails?: CancelOrRefundDetailsView
+  /** When booking was transferred: move details for Booking tab. */
+  movedAt: Date | null
+  movedBy: string | null
+  movedRemarks: string | null
+  /** Formatted date/time of original session (fallback when movedFromSession is absent). */
+  movedFrom: string | null
+  /** When movedFromSessionId is set: session the booking was moved from. */
+  movedFromSession: {
+    id: string
+    doctorName: string
+    date: string
+    time: string
+    /** Single-line summary e.g. "Dr X, 22 Feb 2025, 10:00 AM". */
+    summary: string
+  } | null
 }
 
 function formatAppointmentDate(date: Date): string {
@@ -159,6 +178,10 @@ export async function getBookingDetailsService(
         doctor: true,
         receipts: { orderBy: { createdAt: "desc" } },
         agency: true,
+        referredStaff: true,
+        movedFromSession: {
+          include: { doctor: { select: { title: true, name: true } } },
+        },
       },
     })
     if (!b) {
@@ -235,6 +258,57 @@ export async function getBookingDetailsService(
       otherDiscount,
     }
 
+    const [referredDoctorRecord, referredAgencyRecord] = await Promise.all([
+      b.referredDoctorId
+        ? prisma.doctor.findUnique({ where: { id: b.referredDoctorId }, select: { title: true, name: true } })
+        : null,
+      b.referredAgencyId
+        ? prisma.agency.findUnique({ where: { id: b.referredAgencyId }, select: { name: true } })
+        : null,
+    ])
+    const referredDoctorName =
+      referredDoctorRecord != null ? `${referredDoctorRecord.title ?? ""} ${referredDoctorRecord.name ?? ""}`.trim() || null : null
+    const referredAgencyName = referredAgencyRecord?.name ?? null
+    const referredStaffName =
+      b.referredStaff != null ? [b.referredStaff.name, b.referredStaff.code].filter(Boolean).join(" ").trim() || null : null
+    const referredParts = [referredDoctorName, referredAgencyName, referredStaffName].filter(Boolean)
+    const referredBy = referredParts.length > 0 ? referredParts.join(" · ") : ""
+
+    const movedByUserId = (b as { movedBy?: string | null }).movedBy ?? null
+    const movedAt = (b as { movedAt?: Date | null }).movedAt ?? null
+    const movedRemarks = (b as { movedRemarks?: string | null }).movedRemarks ?? null
+    const movedFromSessionStartTime = (b as { movedFromSessionStartTime?: number | null }).movedFromSessionStartTime ?? null
+    const movedByUserName = movedByUserId ? await resolveUser(movedByUserId) : null
+    const rawMovedFromSession = (b as { movedFromSession?: { id: string; date: Date; startTime: Date | number; doctor?: { title: string | null; name: string } | null } | null }).movedFromSession ?? null
+    let movedFrom: string | null = null
+    let movedFromSession: BookingDetailsView["movedFromSession"] = null
+    if (rawMovedFromSession) {
+      const sessionDate = rawMovedFromSession.date instanceof Date ? rawMovedFromSession.date : new Date(rawMovedFromSession.date)
+      const startTime = normalizeSessionTime(rawMovedFromSession.startTime as Date | number, sessionDate)
+      const doctorName = rawMovedFromSession.doctor
+        ? `${rawMovedFromSession.doctor.title ?? ""} ${rawMovedFromSession.doctor.name ?? ""}`.trim() || "—"
+        : "—"
+      const dateStr = formatAppointmentDate(sessionDate)
+      const timeStr = formatAppointmentTime(startTime)
+      movedFromSession = {
+        id: rawMovedFromSession.id,
+        doctorName,
+        date: dateStr,
+        time: timeStr,
+        summary: `${doctorName}, ${dateStr}, ${timeStr}`,
+      }
+      movedFrom = movedFromSession.summary
+    } else if (movedFromSessionStartTime != null) {
+      movedFrom = new Date(movedFromSessionStartTime * 1000).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    }
+
     const agencyRef = b.agencyRef?.trim() ?? ""
     const bookNumber = agencyRef.length >= 4 ? agencyRef.substring(0, agencyRef.length - 2) : null
     const agentInfo: AgentInfoView | null =
@@ -260,7 +334,10 @@ export async function getBookingDetailsService(
       phone: b.phone,
       bookingMethod: methodName,
       agentRef: b.agencyRef?.trim() ? b.agencyRef : "-",
-      referredBy: "",
+      referredBy,
+      referredDoctor: referredDoctorName,
+      referredAgency: referredAgencyName,
+      referredStaff: referredStaffName,
       billNo:
         b.receiptNo != null && b.receiptNoString != null
           ? b.receiptNoString
@@ -296,6 +373,11 @@ export async function getBookingDetailsService(
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),
             }
           : undefined,
+      movedAt: movedAt ?? null,
+      movedBy: movedByUserName ?? null,
+      movedRemarks: movedRemarks ?? null,
+      movedFrom: movedFrom ?? null,
+      movedFromSession,
     }
     return { success: true, data }
   } catch (error) {

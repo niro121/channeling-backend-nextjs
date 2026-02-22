@@ -317,10 +317,11 @@ model Session {
   location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
   roomId       String?     @db.ObjectId
   room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
-  bookings     Booking[]   @relation("SessionToBooking")
-  history      Log[]       @relation("SessionToLog")
-  createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+  bookings         Booking[]   @relation("SessionToBooking")
+  movedFromBookings Booking[]   @relation("BookingMovedFromSession")
+  history          Log[]       @relation("SessionToLog")
+  createdUser      User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
 }
@@ -720,6 +721,14 @@ model Booking {
   receiptNoCreatedAt      DateTime?
   receiptNoId             String?  @db.ObjectId
   receipts                Receipt[] @relation("ReceiptToBooking")
+
+  // Transfer: when booking was moved to another session/doctor
+  movedFromSessionId        String?   @db.ObjectId
+  movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)
+  movedFromSessionStartTime Int?      // Original session start time (Unix sec)
+  movedBy                   String?   @db.ObjectId
+  movedAt                   DateTime?
+  movedRemarks              String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
