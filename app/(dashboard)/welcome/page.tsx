@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 import { getCurrentShiftAction } from "@/app/actions/shift.actions"
 import { SHIFT_STATUS } from "@/types/shift"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 // Sample data for dashboard (no API – placeholder only)
 const SAMPLE = {
@@ -58,12 +60,34 @@ export default async function WelcomePage() {
     // No shift permission or not logged in – don't show shift section
   }
 
+  let twoFactorEnabled: Boolean = false;
+
+  try {
+    const res = await fetch(
+      '/api/auth/2fa-status',
+      { cache: 'no-store' }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      twoFactorEnabled = !!data?.hasAuthenticator;
+    }
+  } catch {
+    twoFactorEnabled = false;
+  }
   const isActive = currentShift?.status === SHIFT_STATUS.ACTIVE
   const isPaused = currentShift?.status === SHIFT_STATUS.PAUSED
   const showShift = currentShift && (isActive || isPaused)
 
   return (
     <main className="space-y-6 pb-8">
+      {
+        !twoFactorEnabled && (
+          <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 p-4">
+            <p className="font-medium text-red-600 dark:text-red-400">Two Factor Authentication (2FA) is not activated.</p>
+          </div>
+        )
+      }
       {/* Page Header */}
       <section>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
