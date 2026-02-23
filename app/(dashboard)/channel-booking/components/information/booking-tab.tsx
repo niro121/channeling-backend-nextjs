@@ -1,13 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getBookingDetails } from "@/app/actions/channel-booking"
+import { getBookingDetails, getReceiptDetails } from "@/app/actions/channel-booking"
 import type {
   BookingDetailsView,
   ReceiptRowView,
 } from "@/services/channel-booking/get-booking-details.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
-import { ChevronDown, ChevronRight, Printer } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function formatRs(amount: number): string {
@@ -109,6 +115,8 @@ export function BookingTab() {
   const [movedExpanded, setMovedExpanded] = useState(false)
   const [otherExpanded, setOtherExpanded] = useState(false)
   const [receiptsExpanded, setReceiptsExpanded] = useState(false)
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false)
+  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRowView | null>(null)
 
   useEffect(() => {
     if (!selectedBooking?.id) {
@@ -121,6 +129,7 @@ export function BookingTab() {
       setMovedExpanded(false)
       setOtherExpanded(false)
       setReceiptsExpanded(false)
+      setSelectedReceipt(null)
       return
     }
     setLoading(true)
@@ -555,7 +564,15 @@ export function BookingTab() {
               <div className="border-t border-slate-200 dark:border-slate-700 p-2 bg-slate-50/80 dark:bg-slate-900/20">
                 <div className="grid grid-cols-2 gap-2">
                   {details.receipts.map((r) => (
-                    <ReceiptCard key={r.id} row={r} formatRs={formatRs} />
+                    <ReceiptCard
+                      key={r.id}
+                      row={r}
+                      formatRs={formatRs}
+                      onViewDetails={() => {
+                        setSelectedReceipt(r)
+                        setReceiptDialogOpen(true)
+                      }}
+                    />
                   ))}
                 </div>
               </div>
@@ -563,6 +580,133 @@ export function BookingTab() {
           </div>
         </div>
       ) : null}
+
+      <ReceiptViewDialog
+        receipt={selectedReceipt}
+        open={receiptDialogOpen}
+        onOpenChange={setReceiptDialogOpen}
+        formatRs={formatRs}
+      />
+    </div>
+  )
+}
+
+function ReceiptViewDialog({
+  receipt,
+  open,
+  onOpenChange,
+  formatRs,
+}: {
+  receipt: ReceiptRowView | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  formatRs: (n: number) => string
+}) {
+  const [details, setDetails] = useState<Awaited<ReturnType<typeof getReceiptDetails>>["data"] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || !receipt?.id) {
+      setDetails(null)
+      setError(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getReceiptDetails(receipt.id)
+      .then((res) => {
+        if (cancelled) return
+        setLoading(false)
+        if (res.success && res.data) setDetails(res.data)
+        else setError(res.message ?? "Failed to load receipt details")
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setLoading(false)
+        setError(e instanceof Error ? e.message : "Failed to load receipt details")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, receipt?.id])
+
+  if (!receipt) return null
+
+  const createdAtStr = details
+    ? new Date(details.createdAt).toLocaleString("en-CA", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : ""
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b border-border/60">
+          <DialogTitle className="text-sm font-semibold tracking-tight">
+            Receipt Details
+          </DialogTitle>
+        </DialogHeader>
+        <div className="px-6 py-4 min-h-[120px]">
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+              <span className="text-xs">Loading receipt details…</span>
+            </div>
+          )}
+          {error && !loading && (
+            <p className="text-sm text-destructive py-4">{error}</p>
+          )}
+          {details && !loading && (
+            <div className="space-y-1">
+              <DetailRow label="Receipt No" value={details.receiptNoString} />
+              <DetailRow label="Type" value={details.type} />
+              <DetailRow label="Payment method" value={details.paymentMethodName} />
+              <DetailRow label="Amount" value={formatRs(details.amount)} highlight />
+              {details.bank ? (
+                <DetailRow label="Bank" value={details.bank} />
+              ) : null}
+              {details.cardReference ? (
+                <DetailRow label="Card reference" value={details.cardReference} />
+              ) : null}
+              {details.slipReference ? (
+                <DetailRow label="Slip reference" value={details.slipReference} />
+              ) : null}
+              <DetailRow label="Processed by" value={details.processedBy} />
+              <DetailRow label="Created" value={createdAtStr} />
+              {details.remarks ? (
+                <DetailRow label="Remarks" value={details.remarks} />
+              ) : null}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DetailRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string
+  highlight?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        "flex justify-between gap-4 py-1.5 border-b border-border/40 last:border-0",
+        highlight && "bg-primary/5 -mx-1 px-2 rounded"
+      )}
+    >
+      <dt className="text-xs text-muted-foreground shrink-0">{label}</dt>
+      <dd className="text-xs text-foreground font-medium text-right break-words">
+        {value}
+      </dd>
     </div>
   )
 }
@@ -570,9 +714,11 @@ export function BookingTab() {
 function ReceiptCard({
   row,
   formatRs,
+  onViewDetails,
 }: {
   row: ReceiptRowView
   formatRs: (n: number) => string
+  onViewDetails: () => void
 }) {
   const isRefund = row.type === "Refund"
   const cardClass = isRefund
@@ -585,14 +731,25 @@ function ReceiptCard({
     <div className={`min-w-0 p-1.5 ${cardClass}`}>
       <div className="flex items-start justify-between gap-1">
         <span className={typeClass}>{row.type}</span>
-        <button
-          type="button"
-          className="shrink-0 text-slate-500 hover:text-foreground p-0.5 -m-0.5"
-          title="Print receipt"
-          aria-label="Print receipt"
-        >
-          <Printer className="size-3" />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="text-[10px] font-medium text-primary hover:underline flex items-center gap-0.5 p-0.5 -m-0.5"
+            title="View receipt details"
+          >
+            <ExternalLink className="size-3" />
+            Details
+          </button>
+          <button
+            type="button"
+            className="text-slate-500 hover:text-foreground p-0.5 -m-0.5"
+            title="Print receipt"
+            aria-label="Print receipt"
+          >
+            <Printer className="size-3" />
+          </button>
+        </div>
       </div>
       <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.receiptNoString}>
         {row.receiptNoString}
