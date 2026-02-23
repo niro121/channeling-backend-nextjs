@@ -2,7 +2,10 @@ export {
   getLocationsForChannelBookingService,
   type ChannelBookingLocationOption,
 } from "./get-locations.service"
-export { getSessionsForChannelBookingService } from "./get-sessions.service"
+export {
+  getSessionsForChannelBookingService,
+  getSessionByIdForChannelBookingService,
+} from "./get-sessions.service"
 export {
   getSpecialitiesForChannelBookingService,
   type ChannelBookingSpecialityOption,

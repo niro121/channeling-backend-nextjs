@@ -5,8 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { AgentBookTab } from "./agent-book-tab"
 import { NewBookingDetailsTab } from "./new-booking-details-tab"
+import { ReferredTab } from "./referred-tab"
 
-const tabContentClass = "mt-0 p-2 flex-1 min-h-0 overflow-y-auto"
+const tabContentClass = "mt-0 p-2 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden data-[state=inactive]:absolute data-[state=inactive]:pointer-events-none"
 
 export function Reservation() {
   const { reservationDetails } = useChannelBooking()
@@ -35,19 +36,19 @@ export function Reservation() {
               Referred
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="new-booking" className={tabContentClass}>
+          <TabsContent value="new-booking" className={tabContentClass} forceMount>
             <div className="min-h-[200px] rounded-md bg-secondary p-2">
               <NewBookingDetailsTab />
             </div>
           </TabsContent>
-          <TabsContent value="agent-book" className={tabContentClass}>
+          <TabsContent value="agent-book" className={tabContentClass} forceMount>
             <div className="min-h-[200px] rounded-md bg-secondary p-2">
               <AgentBookTab />
             </div>
           </TabsContent>
-          <TabsContent value="referred" className={tabContentClass}>
+          <TabsContent value="referred" className={tabContentClass} forceMount>
             <div className="min-h-[200px] rounded-md bg-secondary p-2">
-              <div className="min-h-[120px] rounded border border-dashed border-border" />
+              <ReferredTab />
             </div>
           </TabsContent>
         </Tabs>

@@ -21,6 +21,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/discounts": "discounts",
   "/doctor-leaves": "doctor-leaves",
   "/sms-playground": "sms-playground",
+  "/sms-templates": "sms-templates",
   "/reports": "reports",
 }
 
