@@ -200,9 +200,9 @@ export async function getSessionByIdForChannelBookingService(
       roomId: record.roomId,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-      doctor: record.doctor ?? undefined,
-      location: record.location ?? undefined,
-      room: record.room ?? undefined,
+      doctor: (record.doctor ?? undefined) as Session["doctor"],
+      location: (record.location ?? undefined) as Session["location"],
+      room: (record.room ?? undefined) as Session["room"],
       paidCount: paid,
       pendingCount: pending,
     }

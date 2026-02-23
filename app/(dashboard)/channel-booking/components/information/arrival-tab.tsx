@@ -125,7 +125,7 @@ export function ArrivalTab() {
       } else {
         toast({
           title: "Failed",
-          description: result.message ?? "Could not set arrival.",
+          description: result.success === false ? result.message : "Could not set arrival.",
           variant: "destructive",
         })
       }
@@ -163,7 +163,7 @@ export function ArrivalTab() {
       } else {
         toast({
           title: "Failed",
-          description: result.message ?? "Could not set departure.",
+          description: result.success === false ? result.message : "Could not set departure.",
           variant: "destructive",
         })
       }

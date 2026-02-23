@@ -264,19 +264,19 @@ export function Bookings() {
                             {String(entry.metadata.after)}
                           </p>
                         )}
-                        {entry.metadata.remarks && (
+                        {entry.metadata.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
                           <p className="text-[11px] truncate" title={String(entry.metadata.remarks)}>
                             <span className="font-medium text-foreground/80">Remarks: </span>
                             {String(entry.metadata.remarks)}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     )}
-                    {entry.action !== "booking.transferred" && entry.metadata?.remarks && (
+                    {entry.action !== "booking.transferred" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
                       <p className="text-muted-foreground mt-0.5 truncate" title={String(entry.metadata.remarks)}>
                         {String(entry.metadata.remarks)}
                       </p>
-                    )}
+                    ) : null}
                   </li>
                 ))}
               </ul>

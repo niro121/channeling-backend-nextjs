@@ -43,7 +43,7 @@ export default function SmsTemplateForm({ template, isEditPage = false }: SmsTem
     name: Yup.string()
       .max(200, "Must be less than 200 characters")
       .required("This field is mandatory"),
-    type: Yup.number().int().min(0).max(5).nullable(),
+    type: Yup.number().integer().min(0).max(5).nullable(),
     message: Yup.string().required("This field is mandatory"),
     status: Yup.number()
       .oneOf([0, 1], "Status must be Inactive (0) or Active (1)")
@@ -132,12 +132,15 @@ export default function SmsTemplateForm({ template, isEditPage = false }: SmsTem
       validationSchema={validationSchema}
       enableReinitialize
     >
-      {({ values, setFieldValue, errors, touched }) => (
+      {({ values, setFieldValue, errors, touched, handleChange, handleBlur }) => (
         <Form className="space-y-6">
           <CustomFormField
-            name="name"
-            label="Name"
+            id="name"
+            type="text"
             placeholder="Template name"
+            value={values.name}
+            onChange={handleChange}
+            onBlur={handleBlur}
             required
           />
           <CustomSelectField
