@@ -257,7 +257,9 @@ export function SessionsSelection() {
                           className={cn(
                             "w-full grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] gap-x-2 sm:gap-x-3 items-center px-2 py-1.5 text-left text-xs transition-colors duration-150 cursor-pointer",
                             "hover:bg-primary hover:text-primary-foreground",
-                            isSelected && "bg-primary text-primary-foreground font-medium"
+                            isSelected && !isOnLeave && "bg-primary text-primary-foreground font-medium",
+                            isOnLeave && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                            isOnLeave && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60 font-medium"
                           )}
                         >
                           <span className={cn("shrink-0 tabular-nums", isWeekend && "font-bold")}>
@@ -292,8 +294,8 @@ export function SessionsSelection() {
                               </>
                             )}
                           </span>
-                          <span className="shrink-0 tabular-nums">
-                            {isOnLeave ? "ON LEAVE" : `**${session.pendingCount ?? 0}**`}
+                          <span className={cn("shrink-0 tabular-nums", isOnLeave && "font-semibold")}>
+                            {isOnLeave ? "On leave" : `**${session.pendingCount ?? 0}**`}
                           </span>
                         </button>
                       </li>

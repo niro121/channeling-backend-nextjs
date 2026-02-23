@@ -79,8 +79,8 @@ model User {
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
   userLocationId          String?                        @db.ObjectId
   userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  // staffId is optional. Run scripts/fix-user-staffid-partial-unique.ts once so multiple users can have null.
-  staffId                 String?                        @unique @db.ObjectId
+  // staffId optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-staffid-partial-unique.ts
+  staffId                 String?                        @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
 }
@@ -317,10 +317,11 @@ model Session {
   location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
   roomId       String?     @db.ObjectId
   room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
-  bookings     Booking[]   @relation("SessionToBooking")
-  history      Log[]       @relation("SessionToLog")
-  createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+  bookings         Booking[]   @relation("SessionToBooking")
+  movedFromBookings Booking[]   @relation("BookingMovedFromSession")
+  history          Log[]       @relation("SessionToLog")
+  createdUser      User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
 }
@@ -485,7 +486,7 @@ model Staff {
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
-  user                User?     @relation("UserToStaff")
+  users               User[]    @relation("UserToStaff") // at most one in practice; partial unique index on User.staffId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -721,6 +722,14 @@ model Booking {
   receiptNoId             String?  @db.ObjectId
   receipts                Receipt[] @relation("ReceiptToBooking")
 
+  // Transfer: when booking was moved to another session/doctor
+  movedFromSessionId        String?   @db.ObjectId
+  movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)
+  movedFromSessionStartTime Int?      // Original session start time (Unix sec)
+  movedBy                   String?   @db.ObjectId
+  movedAt                   DateTime?
+  movedRemarks              String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -826,6 +835,16 @@ model UatSectionComplete {
 
   @@unique([testerName, feature])
   @@index([testerName])
+}
+
+model SmsTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  type      Int?     // 0=Channel Doctor Arrival, 1=Channel Doctor Departure, 2=Channel Doctor Leave/Absent, 3=Appointment Reschedule, 4=Agent Balance, 5=Appointments count (Block wise)
+  message   String
+  status    Int?     // 0 = inactive, 1 = active
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SmsLog {

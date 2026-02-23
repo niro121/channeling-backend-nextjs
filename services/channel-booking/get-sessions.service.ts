@@ -28,13 +28,13 @@ export async function getSessionsForChannelBookingService(
     const where: Prisma.SessionWhereInput = {
       doctorId,
       date: { gte: fromDate },
-      status: 1,
+      status: { in: [0, 1] }, // 1 = ACTIVE, 0 = doctor on leave
     }
     if (locationId) {
       where.locationId = locationId
     }
 
-    // Run both queries in parallel (counts filter by same doctor/date/status as sessions)
+    // Run both queries in parallel (counts include both active and on-leave sessions)
     const [records, countRows] = await Promise.all([
       prisma.session.findMany({
         where,
@@ -51,7 +51,7 @@ export async function getSessionsForChannelBookingService(
           session: {
             doctorId,
             date: { gte: fromDate },
-            status: 1,
+            status: { in: [0, 1] },
             ...(locationId ? { locationId } : {}),
           },
           status: { in: [0, 1] },
@@ -93,6 +93,9 @@ export async function getSessionsForChannelBookingService(
         amountLocal: r.amountLocal,
         amountForeign: r.amountForeign,
         status: r.status,
+        doctorLeaveRemark: r.doctorLeaveRemark ?? null,
+        doctorLeaveCreator: r.doctorLeaveCreator ?? null,
+        doctorLeaveCreatedAt: r.doctorLeaveCreatedAt ?? null,
         remarks: r.remarks,
         appointmentNo: r.appointmentNo,
         isScan: r.isScan,
@@ -129,5 +132,84 @@ export async function getSessionsForChannelBookingService(
       message,
       error: { message },
     }
+  }
+}
+
+/**
+ * Fetch a single session by id for channel booking (e.g. when selecting a booking from search).
+ * Returns same Session shape as getSessionsForChannelBookingService.
+ */
+export async function getSessionByIdForChannelBookingService(
+  sessionId: string
+): Promise<{
+  success: boolean
+  data?: Session | null
+  message?: string
+  error?: { message?: string }
+}> {
+  try {
+    const [record, countRows] = await Promise.all([
+      prisma.session.findUnique({
+        where: { id: sessionId },
+        include: {
+          doctor: { select: { id: true, title: true, name: true } },
+          location: { select: { id: true, name: true } },
+          room: { select: { id: true, number: true } },
+        },
+      }),
+      prisma.booking.groupBy({
+        by: ["status"],
+        where: { sessionId },
+        _count: { id: true },
+      }),
+    ])
+    if (!record) return { success: true, data: null }
+
+    let paid = 0,
+      pending = 0
+    for (const row of countRows) {
+      if (row.status === 1) paid = row._count.id
+      else if (row.status === 0) pending = row._count.id
+    }
+    const sessionDate = record.date instanceof Date ? record.date : new Date(record.date)
+    const session: Session = {
+      id: record.id,
+      institution: record.institution,
+      date: record.date,
+      doctorSessionId: record.doctorSessionId,
+      previousDoctorSession: record.previousDoctorSession,
+      startTime: normalizeSessionTime(record.startTime as Date | number, sessionDate),
+      endTime: normalizeSessionTime(record.endTime as Date | number, sessionDate),
+      durationMinutes: record.durationMinutes,
+      startingPatientNumber: record.startingPatientNumber,
+      maxPatientNumber: record.maxPatientNumber,
+      refundable: record.refundable,
+      fees: record.fees,
+      amountLocal: record.amountLocal,
+      amountForeign: record.amountForeign,
+      status: record.status,
+      doctorLeaveRemark: record.doctorLeaveRemark ?? null,
+      doctorLeaveCreator: record.doctorLeaveCreator ?? null,
+      doctorLeaveCreatedAt: record.doctorLeaveCreatedAt ?? null,
+      remarks: record.remarks,
+      appointmentNo: record.appointmentNo,
+      isScan: record.isScan,
+      doctorId: record.doctorId,
+      departmentId: record.departmentId,
+      locationId: record.locationId,
+      roomId: record.roomId,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      doctor: (record.doctor ?? undefined) as Session["doctor"],
+      location: (record.location ?? undefined) as Session["location"],
+      room: (record.room ?? undefined) as Session["room"],
+      paidCount: paid,
+      pendingCount: pending,
+    }
+    return { success: true, data: session }
+  } catch (error: unknown) {
+    console.error("getSessionByIdForChannelBookingService error", error)
+    const message = error instanceof Error ? error.message : "Failed to fetch session"
+    return { success: false, message, error: { message } }
   }
 }

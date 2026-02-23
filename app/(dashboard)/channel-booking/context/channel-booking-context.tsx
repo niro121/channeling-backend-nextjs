@@ -17,6 +17,7 @@ export type ChannelBookingRecord = {
   methodName: string
   agencyRef: string | null
   staffId: string | null
+  movedAt?: Date | null
   [key: string]: unknown
 }
 
@@ -58,6 +59,12 @@ export type ChannelBookingState = {
   activeInformationTab: string
   /** Selected agency id (when payment method is Agent). Used by Agent Book tab to show agency details. */
   selectedAgencyId: string | null
+  /** Optional referred doctor/agency/staff (Referred tab). Saved with booking when set. */
+  referredDoctorId: string | null
+  referredAgencyId: string | null
+  referredStaffId: string | null
+  /** Booking IDs selected for transfer (multi-select in list). */
+  selectedTransferBookingIds: string[]
 }
 
 export type ChannelBookingActions = {
@@ -67,6 +74,9 @@ export type ChannelBookingActions = {
   setSelectedBooking: (booking: ChannelBookingRecord | null) => void
   setActiveInformationTab: (tab: string) => void
   setSelectedAgencyId: (id: string | null) => void
+  setReferredDoctorId: (id: string | null) => void
+  setReferredAgencyId: (id: string | null) => void
+  setReferredStaffId: (id: string | null) => void
   setSessions: (sessions: Session[]) => void
   /** Merge a partial update for one session (e.g. from real-time session-update). */
   updateSessionInList: (sessionId: string, update: Partial<Pick<Session, "appointmentNo" | "paidCount" | "pendingCount">>) => void
@@ -81,6 +91,12 @@ export type ChannelBookingActions = {
   onBookingSelect: (booking: ChannelBookingRecord | null) => void
   /** Bump to force information panel (e.g. Booking tab) to refetch. */
   refreshBookingDetails: () => void
+  /** Toggle a booking id in transfer selection (multi-select). */
+  toggleTransferBooking: (id: string) => void
+  /** Set full list of booking ids for transfer (e.g. select all). */
+  setSelectedTransferBookingIds: (ids: string[]) => void
+  /** Clear transfer selection. */
+  clearTransferSelection: () => void
 }
 
 export type ChannelBookingContextValue = ChannelBookingState & ChannelBookingActions
@@ -146,6 +162,10 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [bookingDetailsRefreshKey, setBookingDetailsRefreshKey] = useState(0)
   const [activeInformationTab, setActiveInformationTab] = useState("booking")
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null)
+  const [referredDoctorId, setReferredDoctorId] = useState<string | null>(null)
+  const [referredAgencyId, setReferredAgencyId] = useState<string | null>(null)
+  const [referredStaffId, setReferredStaffId] = useState<string | null>(null)
+  const [selectedTransferBookingIds, setSelectedTransferBookingIdsState] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -174,6 +194,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const onSessionSelect = useCallback((session: Session | null) => {
     setSelectedSession(session)
     setSelectedBooking(null)
+    setSelectedTransferBookingIdsState([])
     setBookings(session ? [] : []) // Caller or effect will fetch bookings for this session
     setBookingsLoading(!!session)
   }, [])
@@ -190,6 +211,20 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
     },
     []
   )
+
+  const toggleTransferBooking = useCallback((id: string) => {
+    setSelectedTransferBookingIdsState((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }, [])
+
+  const setSelectedTransferBookingIds = useCallback((ids: string[]) => {
+    setSelectedTransferBookingIdsState(ids)
+  }, [])
+
+  const clearTransferSelection = useCallback(() => {
+    setSelectedTransferBookingIdsState([])
+  }, [])
 
   const reservationDetails = useMemo(
     () => reservationFromSession(selectedDoctor, selectedSession),
@@ -212,9 +247,16 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookingDetailsRefreshKey,
       activeInformationTab,
       selectedAgencyId,
+      referredDoctorId,
+      referredAgencyId,
+      referredStaffId,
+      selectedTransferBookingIds,
       setSelectedSpecialityId,
       setActiveInformationTab,
       setSelectedAgencyId,
+      setReferredDoctorId,
+      setReferredAgencyId,
+      setReferredStaffId,
       setSelectedDoctor,
       setSelectedSession,
       setSelectedBooking,
@@ -227,6 +269,9 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       onSessionSelect,
       onBookingSelect,
       refreshBookingDetails,
+      toggleTransferBooking,
+      setSelectedTransferBookingIds,
+      clearTransferSelection,
     }),
     [
       initialData,
@@ -243,7 +288,14 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       bookingDetailsRefreshKey,
       activeInformationTab,
       selectedAgencyId,
+      referredDoctorId,
+      referredAgencyId,
+      referredStaffId,
+      selectedTransferBookingIds,
       updateSessionInList,
+      toggleTransferBooking,
+      setSelectedTransferBookingIds,
+      clearTransferSelection,
       onDoctorSelect,
       onSessionSelect,
       onBookingSelect,

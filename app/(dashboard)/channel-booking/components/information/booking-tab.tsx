@@ -35,7 +35,7 @@ function Row({
   return (
     <div
       className={cn(
-        "flex justify-between gap-3 py-1.5 border-b border-slate-200/90 last:border-0 px-1 -mx-1 dark:border-slate-600/80",
+        "flex justify-between gap-2 py-1 border-b border-slate-200/90 last:border-0 px-1 -mx-1 dark:border-slate-600/80",
         highlight && "border-l-2 border-l-primary bg-primary/5 -ml-0.5 pl-1.5"
       )}
     >
@@ -72,10 +72,10 @@ function Section({
   trailing?: React.ReactNode
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1 flex flex-col min-h-0">
       <h3
         className={cn(
-          "flex items-center gap-2 flex-wrap",
+          "flex items-center gap-2 flex-wrap shrink-0",
           "text-[10px] font-semibold uppercase tracking-wider",
           "text-slate-600 dark:text-slate-400"
         )}
@@ -85,7 +85,7 @@ function Section({
       </h3>
       <div
         className={cn(
-          "rounded-lg border p-2 space-y-0",
+          "rounded-lg border p-1.5 space-y-0 flex-1 min-h-0",
           muted
             ? "bg-slate-50/90 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700"
             : "bg-white border-slate-200 dark:bg-slate-900/50 dark:border-slate-700 shadow-sm"
@@ -105,6 +105,8 @@ export function BookingTab() {
   const [discountExpanded, setDiscountExpanded] = useState(false)
   const [billingExpanded, setBillingExpanded] = useState(false)
   const [agentExpanded, setAgentExpanded] = useState(false)
+  const [referredExpanded, setReferredExpanded] = useState(false)
+  const [movedExpanded, setMovedExpanded] = useState(false)
   const [otherExpanded, setOtherExpanded] = useState(false)
   const [receiptsExpanded, setReceiptsExpanded] = useState(false)
 
@@ -115,6 +117,8 @@ export function BookingTab() {
       setDiscountExpanded(false)
       setBillingExpanded(false)
       setAgentExpanded(false)
+      setReferredExpanded(false)
+      setMovedExpanded(false)
       setOtherExpanded(false)
       setReceiptsExpanded(false)
       return
@@ -124,6 +128,8 @@ export function BookingTab() {
     setDiscountExpanded(false)
     setBillingExpanded(false)
     setAgentExpanded(false)
+    setReferredExpanded(false)
+    setMovedExpanded(false)
     setOtherExpanded(false)
     setReceiptsExpanded(false)
     getBookingDetails(selectedBooking.id)
@@ -172,13 +178,14 @@ export function BookingTab() {
           Pending payment
         </div>
       )}
-      {/* Primary: Patient, Appointment */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {/* Primary: Patient, Appointment — compact, equal-height panels */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
         <Section title="Patient">
           <Row label="Name" value={details.name} />
           <Row label="Sex" value={details.patientSex ? details.patientSex.charAt(0).toUpperCase() + details.patientSex.slice(1).toLowerCase() : "—"} />
           <Row label="Tel" value={details.phone} />
           <Row label="Area" value={details.area} />
+          <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
         </Section>
         <Section
           title="Appointment"
@@ -355,6 +362,119 @@ export function BookingTab() {
         </div>
       )}
 
+      {/* Referred: compact summary with expand for details (when booking has referred doctor/agency/staff) */}
+      {(details.referredDoctor || details.referredAgency || details.referredStaff) && (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            Referred
+          </h3>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setReferredExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+              )}
+            >
+              {referredExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              )}
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Referred</span>
+              {!referredExpanded && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
+                  {details.referredBy}
+                </span>
+              )}
+            </button>
+            {referredExpanded && (
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
+                {details.referredDoctor != null && details.referredDoctor !== "" && (
+                  <Row label="Referred Doctor" value={details.referredDoctor} />
+                )}
+                {details.referredAgency != null && details.referredAgency !== "" && (
+                  <Row label="Referred Agency" value={details.referredAgency} />
+                )}
+                {details.referredStaff != null && details.referredStaff !== "" && (
+                  <Row label="Referred Staff" value={details.referredStaff} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Moved: only when booking was transferred */}
+      {details.movedAt != null && (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            Moved
+          </h3>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setMovedExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+              )}
+            >
+              {movedExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              )}
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Transfer details</span>
+              {!movedExpanded && details.movedFrom && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
+                  From {details.movedFrom}
+                </span>
+              )}
+            </button>
+            {movedExpanded && (
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
+                {details.movedFromSession != null ? (
+                  <>
+                    <Row label="Moved from session" value={details.movedFromSession.summary} />
+                    <Row label="Session doctor" value={details.movedFromSession.doctorName} />
+                    <Row label="Session date" value={details.movedFromSession.date} />
+                    <Row label="Session time" value={details.movedFromSession.time} />
+                  </>
+                ) : (
+                  details.movedFrom != null &&
+                  details.movedFrom !== "" && (
+                    <Row label="Moved from" value={details.movedFrom} />
+                  )
+                )}
+                {details.movedBy != null && details.movedBy !== "" && (
+                  <Row label="Moved by" value={details.movedBy} />
+                )}
+                <Row
+                  label="Moved at"
+                  value={
+                    details.movedAt
+                      ? new Date(details.movedAt).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                      : "—"
+                  }
+                />
+                {details.movedRemarks != null && details.movedRemarks !== "" && (
+                  <Row label="Transfer remarks" value={details.movedRemarks} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Other: compact summary with expand for details */}
       <div className="space-y-1.5">
         <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
@@ -374,10 +494,18 @@ export function BookingTab() {
             ) : (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
             )}
-            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Remark · Foreigner · Agent · Referred</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Remark · Referred</span>
             {!otherExpanded && (
               <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
-                {details.remark?.trim() ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}` : details.foreigner ? "Foreigner" : details.agentRef !== "-" ? "Agent" : "—"}
+                {details.remark?.trim()
+                  ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}`
+                  : details.referredBy
+                    ? "Referred"
+                    : details.foreigner
+                      ? "Foreigner"
+                      : details.agentRef !== "-"
+                        ? "Agent"
+                        : "—"}
               </span>
             )}
           </button>
@@ -385,9 +513,9 @@ export function BookingTab() {
             <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0">
                 <Row label="Remark" value={details.remark || "—"} />
-                <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
-                <Row label="Agent Ref." value={details.agentRef} />
-                <Row label="Referred By" value={details.referredBy || "—"} />
+                {!details.referredDoctor && !details.referredAgency && !details.referredStaff && (
+                  <Row label="Referred By" value="—" />
+                )}
               </div>
             </div>
           )}

@@ -26,6 +26,7 @@ export type SendSmsOptions = {
  * Reusable SMS sender for any task (booking, 2FA, notifications, etc.).
  * Uses Mobitel API: MOBITEL_SMS_USER, MOBITEL_SMS_API_PASSWORD, MOBITEL_SMS_URL from env.
  * Logs to SmsLog unless skipLog: true.
+ * @param phone - Single number or comma-separated numbers for bulk send (same message to all).
  */
 export async function sendSms(
   phone: string,

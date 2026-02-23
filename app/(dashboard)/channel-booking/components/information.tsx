@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@/lib/utils"
 import { Card, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,9 @@ import { CancelTab } from "./information/cancel-tab"
 import { ChangeTab } from "./information/change-tab"
 import { RefundTab } from "./information/refund-tab"
 import { SettleTab } from "./information/settle-tab"
+import { TransferTab } from "./information/transfer-tab"
+import { ArrivalTab } from "./information/arrival-tab"
+import { SearchTab } from "./information/search-tab"
 
 const tabTriggerClass =
   "rounded-none border-b-2 border-transparent bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
@@ -216,7 +220,22 @@ export function Information() {
               <ViewsTab />
             </div>
           </TabsContent>
-          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change" && v !== "views").map((value) => (
+          <TabsContent value="transfer" className={cn(tabContentClass, "flex flex-col")}>
+            <div className="flex flex-col min-h-full rounded-md bg-secondary p-2">
+              <TransferTab />
+            </div>
+          </TabsContent>
+          <TabsContent value="arrival" className={cn(tabContentClass, "flex flex-col")}>
+            <div className="flex flex-col min-h-full rounded-md bg-secondary p-2">
+              <ArrivalTab />
+            </div>
+          </TabsContent>
+          <TabsContent value="search" className={tabContentClass}>
+            <div className="min-h-[200px] rounded-md bg-secondary p-2">
+              <SearchTab />
+            </div>
+          </TabsContent>
+          {TABS.filter((v) => v !== "booking" && v !== "payment" && v !== "settle" && v !== "cancel" && v !== "refund" && v !== "change" && v !== "views" && v !== "transfer" && v !== "arrival" && v !== "search").map((value) => (
             <TabsContent key={value} value={value} className={tabContentClass}>
               <div className="min-h-[200px] rounded-md bg-secondary p-2">
                 <div className="min-h-[120px] rounded border border-dashed border-border" />
