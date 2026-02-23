@@ -133,10 +133,11 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/tags") || hasAccess("/sms-playground") || hasAccess("/reports")) && (
+        {(hasAccess("/tags") || hasAccess("/sms-playground") || hasAccess("/sms-templates") || hasAccess("/reports")) && (
           <SidebarGroup label="Other">
             {hasAccess("/tags") && <NavLink href="/tags" label="Tags" icon={<Tags className="h-5 w-5" />} />}
             {hasAccess("/sms-playground") && <NavLink href="/sms-playground" label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />}
+            {hasAccess("/sms-templates") && <NavLink href="/sms-templates" label="SMS Templates" icon={<MessageSquareText className="h-5 w-5" />} />}
             {hasAccess("/reports") && <NavLink href="/reports" label="Reports" icon={<FileText className="h-5 w-5" />} />}
           </SidebarGroup>
         )}

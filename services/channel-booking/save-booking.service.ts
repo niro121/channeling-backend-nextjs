@@ -1,7 +1,9 @@
 import prisma from "@/lib/prisma"
+import moment from "moment"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import { getIO, channelBookingRoom } from "@/lib/socket-server"
+import { sendSms } from "@/lib/helpers/sms/send-sms"
 import {
   loadSessionForSaveBooking,
   checkConsecutiveSessionFull,
@@ -23,6 +25,23 @@ export type SaveBookingServiceResult =
 
 /** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
 const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
+
+/** SMS template type 4 = Agent Balance Message after Booking Agent Channel. Placeholders: {agency_ref}, {doctor}, {appointment_no}, {date}, {time}, {amount}, {balance}. */
+const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4
+const DEFAULT_AGENCY_BALANCE_MESSAGE =
+  "Ref: {agency_ref}. Booking with Dr {doctor}, appointment no {appointment_no}, date {date}, time {time}. Amount: {amount}. Your balance: {balance}."
+
+async function getSmsTemplateMessage(type: number): Promise<string | null> {
+  const model = (prisma as { smsTemplate?: { findFirst: (args: object) => Promise<{ message: string } | null> } })
+    .smsTemplate
+  if (!model) return null
+  const template = await model.findFirst({
+    where: { type, status: 1 },
+    select: { message: true },
+    orderBy: { updatedAt: "desc" },
+  })
+  return template?.message?.trim() ?? null
+}
 /**
  * Create a new booking for a session. Validates session, discounts, amount, agency (if any),
  * then allocates appointment no, creates booking, optionally creates receipt for POS/Agent,
@@ -317,7 +336,36 @@ export async function saveBookingService(
             },
           })
           if (input.agency?.id) {
-            await updateAgentBalance(input.agency.id, -receiptAmount)
+            const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
+            // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone
+            const agencyDetails = await prisma.agency.findUnique({
+              where: { id: input.agency.id },
+              select: { sendSms: true, phone: true },
+            })
+            if (agencyDetails?.sendSms === 1 && agencyDetails.phone?.trim()) {
+              const templateMessage =
+                (await getSmsTemplateMessage(SMS_TEMPLATE_TYPE_AGENCY_BALANCE)) ?? DEFAULT_AGENCY_BALANCE_MESSAGE
+              const doctorName = [input.doctor.title, input.doctor.name].filter(Boolean).join(" ")
+              const dateStr = moment(sessionDate).format("DD/MM/YYYY")
+              const timeStr = moment(startDate).format("HH:mm")
+              const amountDisplay = (amountToUse - totalDiscount).toLocaleString("en-US", {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2,
+              })
+              const balanceDisplay = updateBalanceResult.balance.toLocaleString("en-US", {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2,
+              })
+              const text = templateMessage
+                .replace(/{agency_ref}/g, (input.agency_ref ?? "").toUpperCase())
+                .replace(/{doctor}/g, doctorName)
+                .replace(/{appointment_no}/g, String(appointmentNo).padStart(2, "0"))
+                .replace(/{date}/g, dateStr)
+                .replace(/{time}/g, timeStr)
+                .replace(/{amount}/g, amountDisplay)
+                .replace(/{balance}/g, balanceDisplay)
+              await sendSms(agencyDetails.phone.trim(), text, { logName: "Agency Balance" })
+            }
           }
           // Mark booking as paid and attach receipt details.
           await prisma.booking.update({

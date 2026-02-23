@@ -150,6 +150,7 @@ export function Bookings() {
                   {bookings.map((b) => {
                     const isSelected = selectedBooking?.id === b.id
                     const isTransferSelected = selectedTransferBookingIds.includes(b.id)
+                    const isRefunded = b.status === 2
                     const paidLabel =
                       b.status === 1
                         ? `Paid - ${b.methodName}`
@@ -163,7 +164,9 @@ export function Bookings() {
                         className={cn(
                           "border-t border-border cursor-pointer transition-colors",
                           "hover:bg-primary/10",
-                          isSelected && "bg-primary/15"
+                          isSelected && !isRefunded && "bg-primary/15",
+                          isRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                          isRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
                         )}
                       >
                         <td

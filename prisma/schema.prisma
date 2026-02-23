@@ -79,8 +79,8 @@ model User {
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
   userLocationId          String?                        @db.ObjectId
   userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  // staffId is optional. Run scripts/fix-user-staffid-partial-unique.ts once so multiple users can have null.
-  staffId                 String?                        @unique @db.ObjectId
+  // staffId optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-staffid-partial-unique.ts
+  staffId                 String?                        @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
 }
@@ -486,7 +486,7 @@ model Staff {
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
-  user                User?     @relation("UserToStaff")
+  users               User[]    @relation("UserToStaff") // at most one in practice; partial unique index on User.staffId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -835,6 +835,16 @@ model UatSectionComplete {
 
   @@unique([testerName, feature])
   @@index([testerName])
+}
+
+model SmsTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  type      Int?     // 0=Channel Doctor Arrival, 1=Channel Doctor Departure, 2=Channel Doctor Leave/Absent, 3=Appointment Reschedule, 4=Agent Balance, 5=Appointments count (Block wise)
+  message   String
+  status    Int?     // 0 = inactive, 1 = active
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SmsLog {

@@ -21,6 +21,23 @@ export type TransferBookingsResult =
 /** Receipt method 4 = DOCTOR PAYMENTS — bookings with such a receipt cannot be transferred. */
 const RECEIPT_METHOD_DOCTOR_PAYMENT = 4
 
+/** SMS template type 3 = Appointment Reschedule (transfer). Placeholders: {doctor}, {date}, {start_time}. */
+const SMS_TEMPLATE_TYPE_TRANSFER = 3
+const DEFAULT_TRANSFER_MESSAGE =
+  "Your channeling appointment has been transferred to {doctor} on {date} at {start_time}."
+
+async function getSmsTemplateMessage(type: number): Promise<string | null> {
+  const model = (prisma as { smsTemplate?: { findFirst: (args: object) => Promise<{ message: string } | null> } })
+    .smsTemplate
+  if (!model) return null
+  const template = await model.findFirst({
+    where: { type, status: 1 },
+    select: { message: true },
+    orderBy: { updatedAt: "desc" },
+  })
+  return template?.message?.trim() ?? null
+}
+
 /**
  * Transfer one or more bookings to another doctor's session.
  * Validates: no doctor-payment receipts, all bookings from today, then updates each booking
@@ -206,14 +223,16 @@ export async function transferBookingsService(
     })
   }
 
-  // SMS: one per transferred booking (template: doctor, date, start_time)
-  const smsTemplate = `Your channeling appointment has been transferred to {doctor} on {date} at {start_time}.`
-  for (const booking of bookingObjs) {
-    const text = smsTemplate
-      .replace("{doctor}", doctorName)
-      .replace("{date}", targetDateStr)
-      .replace("{start_time}", targetTimeStr)
-    await sendSms(booking.phone, text, { logName: "Transfer" })
+  // SMS: template from SmsTemplate (type 3 = Appointment Reschedule) or default; bulk send (phone comma-separated)
+  const templateMessage =
+    (await getSmsTemplateMessage(SMS_TEMPLATE_TYPE_TRANSFER)) ?? DEFAULT_TRANSFER_MESSAGE
+  const text = templateMessage
+    .replace(/{doctor}/g, doctorName)
+    .replace(/{date}/g, targetDateStr)
+    .replace(/{start_time}/g, targetTimeStr)
+  const transferPhones = bookingObjs.map((b) => b.phone).filter(Boolean)
+  if (transferPhones.length > 0) {
+    await sendSms(transferPhones.join(","), text, { logName: "Transfer" })
   }
 
   return { success: true }

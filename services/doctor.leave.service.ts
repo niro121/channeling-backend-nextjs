@@ -66,9 +66,9 @@ function normalizeSendSms(value: unknown): 0 | 1 {
 }
 
 /**
- * Set Session.status to match DoctorLeave.status for the given session IDs.
- * DoctorLeave status 1 (ACTIVE) = sessions available → Session.status = 1.
- * DoctorLeave status 0 (CANCEL) = sessions on leave → Session.status = 0.
+ * Set Session.status to match DoctorLeave for the given session IDs.
+ * DoctorLeave status 1 (ACTIVE) = leave in effect → sessions on leave → Session.status = 0.
+ * DoctorLeave status 0 (CANCEL) = leave cancelled → sessions available → Session.status = 1.
  */
 async function setSessionsStatusByLeave(
   sessionIds: string[],
@@ -80,7 +80,7 @@ async function setSessionsStatusByLeave(
   }
 ) {
   if (sessionIds.length === 0) return;
-  const status = leaveStatus === 1 ? 1 : 0;
+  const status = leaveStatus === 1 ? 0 : 1; // Active leave → session 0 (on leave); Cancelled leave → session 1 (available)
   await prisma.session.updateMany({
     where: { id: { in: sessionIds } },
     data: {
@@ -527,7 +527,7 @@ export const createDoctorLeaveService = async (
       }
     });
 
-    // Apply DoctorLeave status to selected sessions: Active (1) → Session 1, Cancel (0) → Session 0.
+    // Apply DoctorLeave status to selected sessions: Active (1) → Session 0 (on leave), Cancel (0) → Session 1 (available).
     await setSessionsStatusByLeave(sessionIds, data.status, {
       doctorLeaveRemark: data.remarks ?? 'Doctor leave',
       doctorLeaveCreator: user?.name ?? undefined,
@@ -643,7 +643,7 @@ export const updateDoctorLeaveService = async (
       }
     });
 
-    // Always apply DoctorLeave status to selected sessions: Active (1) → Session 1, Cancel (0) → Session 0.
+    // Always apply DoctorLeave status to selected sessions: Active (1) → Session 0 (on leave), Cancel (0) → Session 1 (available).
     if (newSessionIds.length > 0) {
       await setSessionsStatusByLeave(newSessionIds, leaveStatus, {
         doctorLeaveRemark: data.remarks ?? 'Doctor leave',

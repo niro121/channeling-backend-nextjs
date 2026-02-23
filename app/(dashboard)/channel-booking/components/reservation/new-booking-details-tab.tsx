@@ -465,6 +465,27 @@ export function NewBookingDetailsTab() {
     }
   }
 
+  if (hasSession && selectedSession?.status === 0) {
+    const reason = selectedSession?.doctorLeaveRemark?.trim() || "this reason"
+    const createdAt = selectedSession?.doctorLeaveCreatedAt
+      ? new Date(selectedSession.doctorLeaveCreatedAt * 1000)
+      : null
+    const createdBy = selectedSession?.doctorLeaveCreator?.trim() || null
+    return (
+      <div className="rounded-md border border-border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 p-4 text-center space-y-1">
+        <p className="text-sm font-medium text-red-600 dark:text-red-400">Doctor on leave</p>
+        <p className="text-xs text-muted-foreground">Due to {reason}.</p>
+        {(createdAt || createdBy) && (
+          <p className="text-xs text-muted-foreground pt-1 border-t border-red-200/50 dark:border-red-900/30 mt-2">
+            {createdAt && createdBy && `Leave created on ${createdAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} by ${createdBy}.`}
+            {createdAt && !createdBy && `Leave created on ${createdAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`}
+            {!createdAt && createdBy && `Leave created by ${createdBy}.`}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2">
       {/* Row 1: Payment | Discount Scheme (booking method) */}
