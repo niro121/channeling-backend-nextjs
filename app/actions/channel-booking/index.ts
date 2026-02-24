@@ -79,6 +79,11 @@ export {
   type TransferBookingsActionResult,
 } from "./transfer-bookings.action"
 export {
+  sendSmsToSessionAction,
+  type SendSmsToSessionActionInput,
+  type SendSmsToSessionActionResult,
+} from "./send-sms-to-session.action"
+export {
   getSessionActivityForChannelBooking,
   type SessionActivityEntry,
 } from "./get-session-activity.action"
