@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/hooks/use-toast';
-import { Smartphone, ShieldCheck, Copy, Check, Shield } from 'lucide-react';
+import { Smartphone, ShieldCheck, Copy, Check, Shield, UserLock } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 type SetupStep = 'idle' | 'show-qr' | 'verify';
 
-export function SecurityPageClient() {
+export function TwoFASettings() {
   const { toast } = useToast();
   const [hasAuthenticator, setHasAuthenticator] = useState<boolean | null>(null);
   const [require2FAAtLogin, setRequire2FAAtLogin] = useState(false);
@@ -87,9 +87,11 @@ export function SecurityPageClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? 'Verification failed');
-      toast({ title: 'Success', style:{
-        backgroundColor: "#f0fdf4"
-      }, description: 'Authenticator app is set up. You can use it at login when you have 2FA enabled.' });
+      toast({
+        title: 'Success',
+        style: { backgroundColor: '#f0fdf4' },
+        description: 'Authenticator app is set up. You can use it at login when you have 2FA enabled.'
+      });
       setSetupStep('idle');
       setSetupData(null);
       setVerifyCode('');
@@ -125,9 +127,7 @@ export function SecurityPageClient() {
       setRequire2FAAtLogin(!!data.require2FAAtLogin && groupAllows2FA);
       toast({
         title: checked ? '2FA required at login' : '2FA not required',
-        style:{
-        backgroundColor: "#f0fdf4"
-      },
+        style: { backgroundColor: '#f0fdf4' },
         description: checked
           ? 'You will be asked for a verification code when you sign in.'
           : 'You can sign in without a code until you turn this back on.'
@@ -142,7 +142,10 @@ export function SecurityPageClient() {
   if (loading && hasAuthenticator === null) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent>
+        <CardContent className="py-8 text-center text-muted-foreground flex flex-col items-center">
+          <UserLock className='w-10 h-10 animate-pulse text-muted-foreground' />
+                    <p className="text-sm text-muted-foreground py-4">Loading profile…</p>
+        </CardContent>
       </Card>
     );
   }
@@ -162,9 +165,7 @@ export function SecurityPageClient() {
         <CardContent className="space-y-4">
           {!groupAllows2FA && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-4">
-              <p className="font-medium text-amber-800 dark:text-amber-200">
-                2FA is disabled for your group
-              </p>
+              <p className="font-medium text-amber-800 dark:text-amber-200">2FA is disabled for your group</p>
               <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
                 Your administrator has turned off two-factor authentication for your group. At login you will not be asked for a code until they enable 2FA for your group. You can still turn on the switch below; your preference will apply as soon as your group allows 2FA.
               </p>
@@ -175,8 +176,8 @@ export function SecurityPageClient() {
               <p className="font-medium text-red-600 dark:text-red-400">Phone number required</p>
               <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                 {userPreference2FA
-                  ? "You can keep 2FA on and disable it anytime, but you cannot enable it again without a mobile number."
-                  : "Add a mobile number in your profile (Users → edit your user, or Account settings) to enable 2FA."}
+                  ? 'You can keep 2FA on and disable it anytime, but you cannot enable it again without a mobile number.'
+                  : 'Add a mobile number in your profile (ask your administrator to edit your user) to enable 2FA.'}
               </p>
             </div>
           )}
@@ -204,97 +205,97 @@ export function SecurityPageClient() {
         </CardContent>
       </Card>
 
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5 text-muted-foreground" />
-          <CardTitle>Authenticator app</CardTitle>
-        </div>
-        <CardDescription>
-          Use an authenticator app (e.g. Google Authenticator, Authy) to get a verification code when you have 2FA enabled at login.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {hasAuthenticator && setupStep === 'idle' && (
-          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30 p-4">
-            <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
-            <div>
-              <p className="font-medium text-green-800 dark:text-green-200">Authenticator app is set up</p>
-              <p className="text-sm text-green-700 dark:text-green-300">
-                You will be asked for a code from your app when you sign in with 2FA enabled.
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Authenticator app</CardTitle>
+          </div>
+          <CardDescription>
+            Use an authenticator app (e.g. Google Authenticator, Authy) to get a verification code when you have 2FA enabled at login.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {hasAuthenticator && setupStep === 'idle' && (
+            <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30 p-4">
+              <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+              <div>
+                <p className="font-medium text-green-800 dark:text-green-200">Authenticator app is set up</p>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  You will be asked for a code from your app when you sign in with 2FA enabled.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!hasAuthenticator && setupStep === 'idle' && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Set up an authenticator app so you can use it as a 2FA method at login. You will scan a QR code or enter a code into your app.
               </p>
+              <Button onClick={handleStartSetup} disabled={loading}>
+                Set up authenticator app
+              </Button>
             </div>
-          </div>
-        )}
+          )}
 
-        {!hasAuthenticator && setupStep === 'idle' && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Set up an authenticator app so you can use it as a 2FA method at login. You will scan a QR code or enter a code into your app.
-            </p>
-            <Button onClick={handleStartSetup} disabled={loading}>
-              Set up authenticator app
-            </Button>
-          </div>
-        )}
-
-        {setupStep === 'show-qr' && setupData && (
-          <div className="space-y-6">
-            <p className="text-sm font-medium">Scan this QR code with your authenticator app</p>
-            <div className="flex justify-center rounded-lg border bg-white p-4 dark:bg-muted/30">
-              <QRCodeSVG value={setupData.uri} size={200} level="M" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Can&apos;t scan? Enter this code manually</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-md border bg-muted/50 px-3 py-2 text-sm font-mono tracking-wider break-all">
-                  {formatSecret(setupData.secret)}
-                </code>
-                <Button type="button" variant="outline" size="icon" onClick={handleCopySecret} aria-label="Copy secret">
-                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+          {setupStep === 'show-qr' && setupData && (
+            <div className="space-y-6">
+              <p className="text-sm font-medium">Scan this QR code with your authenticator app</p>
+              <div className="flex justify-center rounded-lg border bg-white p-4 dark:bg-muted/30">
+                <QRCodeSVG value={setupData.uri} size={200} level="M" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Can&apos;t scan? Enter this code manually</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-md border bg-muted/50 px-3 py-2 text-sm font-mono tracking-wider break-all">
+                    {formatSecret(setupData.secret)}
+                  </code>
+                  <Button type="button" variant="outline" size="icon" onClick={handleCopySecret} aria-label="Copy secret">
+                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                After adding the account in your app, click below and enter the 6-digit code to confirm.
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={() => setSetupStep('verify')}>I&apos;ve added the app — verify</Button>
+                <Button type="button" variant="ghost" onClick={handleBackFromSetup}>
+                  Cancel
                 </Button>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              After adding the account in your app, click below and enter the 6-digit code to confirm.
-            </p>
-            <div className="flex gap-2">
-              <Button onClick={() => setSetupStep('verify')}>I&apos;ve added the app — verify</Button>
-              <Button type="button" variant="ghost" onClick={handleBackFromSetup}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {setupStep === 'verify' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="verify-code">Enter the 6-digit code from your app</Label>
-              <Input
-                id="verify-code"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
-                maxLength={6}
-                value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
-                className="font-mono text-lg tracking-widest w-32"
-              />
+          {setupStep === 'verify' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="verify-code">Enter the 6-digit code from your app</Label>
+                <Input
+                  id="verify-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                  className="font-mono text-lg tracking-widest w-32"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleVerify} disabled={verifying || verifyCode.length !== 6}>
+                  {verifying ? 'Verifying…' : 'Verify and finish'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setSetupStep('show-qr')}>
+                  Back
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handleVerify} disabled={verifying || verifyCode.length !== 6}>
-                {verifying ? 'Verifying…' : 'Verify and finish'}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setSetupStep('show-qr')}>
-                Back
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
