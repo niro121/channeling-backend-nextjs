@@ -76,6 +76,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
   { id: "reports", name: "Reports" },
+  { id: "api-clients", name: "API Clients" },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [
