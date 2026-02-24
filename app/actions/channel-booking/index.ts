@@ -92,6 +92,10 @@ export {
   type SessionActivityEntry,
 } from "./get-session-activity.action"
 export {
+  getBookingActivityForChannelBooking,
+  type BookingActivityEntry,
+} from "./get-booking-activity.action"
+export {
   setDoctorArrivalAction,
   type SetDoctorArrivalResult,
 } from "./set-doctor-arrival.action"
