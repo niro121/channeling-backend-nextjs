@@ -57,6 +57,14 @@ export function TransferTab() {
     (d) => d.specialityId === currentSpecialityId
   )
 
+  // Reset transfer form when the user selects a different session in the Bookings panel
+  useEffect(() => {
+    setTransferDoctorId("")
+    setTransferSessionId("")
+    setTransferRemarks("")
+    setSessionsForTransfer([])
+  }, [selectedSession?.id])
+
   useEffect(() => {
     if (!transferDoctorId) {
       setSessionsForTransfer([])
@@ -150,9 +158,14 @@ export function TransferTab() {
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-semibold">
-        Transfer {n} Booking{n !== 1 ? "s" : ""}
-      </h4>
+      <div>
+        <h4 className="text-sm font-semibold">
+          Transfer {n} Booking{n !== 1 ? "s" : ""}
+        </h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {n} booking{n !== 1 ? "s" : ""} selected for transfer to another session.
+        </p>
+      </div>
 
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">
@@ -215,13 +228,28 @@ export function TransferTab() {
         />
       </div>
 
-      <Button
-        onClick={handleTransfer}
-        disabled={!canSubmit || submitting}
-        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-      >
-        {submitting ? "Transferring…" : "Transfer Now"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          onClick={handleTransfer}
+          disabled={!canSubmit || submitting}
+          className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          {submitting ? "Transferring…" : "Transfer Now"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setTransferDoctorId("")
+            setTransferSessionId("")
+            setTransferRemarks("")
+            setSessionsForTransfer([])
+          }}
+          disabled={submitting}
+        >
+          Clear
+        </Button>
+      </div>
     </div>
   )
 }

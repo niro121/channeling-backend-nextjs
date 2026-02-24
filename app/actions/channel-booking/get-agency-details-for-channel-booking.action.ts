@@ -1,6 +1,6 @@
 "use server"
 
-import { getAgencyDetailsForChannelBookingService } from "@/services/channel-booking/get-agency-details-for-channel-booking.service"
+import { getAgencyDetailsForChannelBookingService } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
 
 export type GetAgencyDetailsForChannelBookingResult = Awaited<
   ReturnType<typeof getAgencyDetailsForChannelBookingService>

@@ -137,8 +137,15 @@ function ViewsTab() {
 }
 
 export function Information() {
-  const { selectedBooking, refreshBookingDetails, activeInformationTab, setActiveInformationTab } = useChannelBooking()
+  const {
+    selectedBooking,
+    refreshBookingDetails,
+    activeInformationTab,
+    setActiveInformationTab,
+    selectedTransferBookingIds,
+  } = useChannelBooking()
   const bookingStatus = selectedBooking?.status ?? null
+  const transferCount = selectedTransferBookingIds.length
 
   return (
     <Card className="flex flex-col h-full min-h-0">
@@ -152,7 +159,7 @@ export function Information() {
               </span>
             </TabsTrigger>
             <TabsTrigger value="transfer" className={tabTriggerClass}>
-              Transfer
+              {transferCount > 0 ? `Transfer (${transferCount})` : "Transfer"}
             </TabsTrigger>
             <TabsTrigger value="cancel" className={tabTriggerClass}>
               Cancel

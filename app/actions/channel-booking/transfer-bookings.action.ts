@@ -1,17 +1,28 @@
 "use server"
 
 import { z } from "zod"
+import prisma from "@/lib/prisma"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { transferBookingsService } from "@/services/channel-booking/transfer-bookings.service"
 
-const transferBookingsSchema = z.object({
-  bookingIds: z.array(z.string().min(1)).min(1),
-  doctorId: z.string().min(1),
-  sessionId: z.string().min(1),
-  currentSessionId: z.string().min(1),
-  remarks: z.string().min(1, "Transfer remarks are required."),
-})
+const transferBookingsSchema = z
+  .object({
+    bookingIds: z.array(z.string().min(1)).min(1),
+    doctorId: z.string().min(1),
+    sessionId: z.string().min(1),
+    currentSessionId: z.string().min(1),
+    remarks: z.string().min(1, "Transfer remarks are required."),
+  })
+  .refine(
+    async (data) => {
+      const refundedCount = await prisma.booking.count({
+        where: { id: { in: data.bookingIds }, status: 2 },
+      })
+      return refundedCount === 0
+    },
+    { message: "Refunded bookings cannot be transferred. Please remove them from the selection." }
+  )
 
 export type TransferBookingsActionInput = z.infer<typeof transferBookingsSchema>
 
@@ -35,17 +46,19 @@ export async function transferBookingsAction(
   const session = await fetchServerSession()
   const userId = session?.user?.id ?? null
 
-  const parsed = transferBookingsSchema.safeParse(raw)
+  const parsed = await transferBookingsSchema.safeParseAsync(raw)
   if (!parsed.success) {
-    const msg =
+    const firstIssue = parsed.error.issues[0]
+    const fieldMsg =
       parsed.error.flatten().fieldErrors &&
       Object.entries(parsed.error.flatten().fieldErrors)
         .map(([k, v]) => `${k}: ${Array.isArray(v) ? v[0] : v}`)
         .join("; ")
+    const msg = firstIssue?.message ?? (fieldMsg || "Invalid input")
     return {
       success: false,
       errorCode: "invalid_input",
-      message: msg || "Invalid input",
+      message: msg,
     }
   }
 
