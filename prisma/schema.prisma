@@ -37,7 +37,7 @@ model User {
   twoFactorExpires       DateTime?
   twoFactorVerified      Boolean @default(false)
   twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
-  mustChangePassword     Boolean @default(false) // When true, user must set a new password on first login (admin-created account)
+  mustChangePassword     Boolean @default(false) // == When true, user must set a new password on first login (admin-created account) == //
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
