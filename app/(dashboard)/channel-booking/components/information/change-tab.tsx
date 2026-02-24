@@ -89,10 +89,12 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
     )
   }
 
-  if (details.status === 2) {
+  const isCanceledOrRefunded =
+    details.status === 2 || details.status === 3 || (details.refund != null && details.refund !== 0)
+  if (isCanceledOrRefunded) {
     return (
       <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
-        Cannot update a canceled booking.
+        Cannot update a canceled or refunded booking.
       </div>
     )
   }

@@ -83,13 +83,15 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     )
   }
 
-  if (details.status === 2) {
+  const isCanceledOrRefunded =
+    details.status === 2 || details.status === 3 || (details.refund != null && details.refund !== 0)
+  if (isCanceledOrRefunded) {
     const cancelDetails = details.cancelOrRefundDetails
     return (
       <div className="flex flex-1 flex-col min-h-0 gap-3">
         <div className="flex items-center gap-2 shrink-0">
           <Ban className="size-5 text-red-600 dark:text-red-400 shrink-0" aria-hidden />
-          <h3 className="text-sm font-medium text-foreground">Booking already canceled</h3>
+          <h3 className="text-sm font-medium text-foreground">Booking already canceled or refunded</h3>
         </div>
         {cancelDetails ? (
           <CancelRefundDetailsCard details={cancelDetails} />

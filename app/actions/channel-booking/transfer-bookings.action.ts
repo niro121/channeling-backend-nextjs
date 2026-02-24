@@ -16,12 +16,18 @@ const transferBookingsSchema = z
   })
   .refine(
     async (data) => {
-      const refundedCount = await prisma.booking.count({
-        where: { id: { in: data.bookingIds }, status: 2 },
+      const canceledOrRefundedCount = await prisma.booking.count({
+        where: {
+          id: { in: data.bookingIds },
+          OR: [{ status: 2 }, { status: 3 }, { refund: { in: [1, 2, 3] } }],
+        },
       })
-      return refundedCount === 0
+      return canceledOrRefundedCount === 0
     },
-    { message: "Refunded bookings cannot be transferred. Please remove them from the selection." }
+    {
+      message:
+        "Canceled or refunded bookings cannot be transferred. Please remove them from the selection.",
+    }
   )
   .refine(
     async (data) => {
