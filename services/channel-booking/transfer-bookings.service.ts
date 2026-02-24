@@ -82,6 +82,7 @@ export async function transferBookingsService(
         title: true,
         name: true,
         status: true,
+        refund: true,
       },
     }),
   ])
@@ -111,12 +112,15 @@ export async function transferBookingsService(
     return { success: false, errorCode: "invalid_input", message: "Some bookings not found." }
   }
 
-  const refundedCount = bookingObjs.filter((b) => b.status === 2).length
-  if (refundedCount > 0) {
+  const canceledOrRefundedCount = bookingObjs.filter(
+    (b) => b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+  ).length
+  if (canceledOrRefundedCount > 0) {
     return {
       success: false,
       errorCode: "refunded_booking",
-      message: "Refunded bookings cannot be transferred. Please remove them from the selection.",
+      message:
+        "Canceled or refunded bookings cannot be transferred. Please remove them from the selection.",
     }
   }
 

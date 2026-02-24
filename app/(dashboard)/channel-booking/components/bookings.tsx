@@ -153,7 +153,12 @@ export function Bookings() {
                         className="h-3.5 w-3.5"
                         checked={
                           (() => {
-                            const transferable = bookings.filter((b) => b.status !== 2)
+                            const transferable = bookings.filter(
+                              (b) =>
+                                b.status !== 2 &&
+                                b.status !== 3 &&
+                                (b.refund === 0 || b.refund == null)
+                            )
                             return (
                               transferable.length > 0 &&
                               transferable.every((b) => selectedTransferBookingIds.includes(b.id))
@@ -161,7 +166,9 @@ export function Bookings() {
                           })()
                         }
                         onCheckedChange={() => {
-                          const transferable = bookings.filter((b) => b.status !== 2)
+                          const transferable = bookings.filter(
+                            (b) => b.status !== 2 && (b.refund === 0 || b.refund == null)
+                          )
                           const allSelected = transferable.every((b) =>
                             selectedTransferBookingIds.includes(b.id)
                           )
@@ -183,7 +190,9 @@ export function Bookings() {
                   {bookings.map((b) => {
                     const isSelected = selectedBooking?.id === b.id
                     const isTransferSelected = selectedTransferBookingIds.includes(b.id)
-                    const isRefunded = b.status === 2
+                    const isCanceledOrRefunded =
+                      b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+                    const canTransfer = !isCanceledOrRefunded
                     const paidLabel =
                       b.status === 1
                         ? `Paid - ${b.methodName}`
@@ -197,19 +206,19 @@ export function Bookings() {
                         className={cn(
                           "border-t border-border cursor-pointer transition-colors",
                           "hover:bg-primary/10",
-                          isSelected && !isRefunded && "bg-primary/15",
-                          isRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
-                          isRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
+                          isSelected && !isCanceledOrRefunded && "bg-primary/15",
+                          isCanceledOrRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                          isCanceledOrRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
                         )}
                       >
                         <td
                           className="w-8 px-1 py-1.5"
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (!isRefunded) toggleTransferBooking(b.id)
+                            if (canTransfer) toggleTransferBooking(b.id)
                           }}
                         >
-                          {!isRefunded && (
+                          {canTransfer && (
                             <Checkbox
                               checked={isTransferSelected}
                               aria-label={`Transfer ${displayName}`}

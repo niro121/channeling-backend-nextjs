@@ -51,7 +51,7 @@ export async function refundChannelService(
   // Cancel (refund_type 0)
   if (input.refund_type === 0) {
     if (booking.status === 1) {
-      // Full refund: create refund receipt and set status 2 in one transaction.
+      // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
       const result = await prisma.$transaction(async (tx) =>
         createReceiptAndUpdateBooking(tx, {
@@ -71,9 +71,11 @@ export async function refundChannelService(
           createdBy: userId,
           userLocationId: null,
           getBookingUpdate: (receipt) => ({
-            status: 2,
             refund: 3,
             refundAmount: receipt.amount,
+            refundReceiptId: receipt.id,
+            refundReceiptNoString: receipt.receiptNoString,
+            refundReceiptCreatedAt: receipt.createdAt,
           }),
         })
       )
