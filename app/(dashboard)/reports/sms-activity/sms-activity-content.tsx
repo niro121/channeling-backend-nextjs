@@ -53,10 +53,10 @@ export default function SmsActivityContent() {
     return d.toISOString().slice(0, 10)
   })
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
-  const [data, setData] = useState<Awaited<ReturnType<typeof getSmsActivityAction>>["data"]>(null)
+  const [data, setData] = useState<Awaited<ReturnType<typeof getSmsActivityAction>>["data"] | null>(null)
   const [recentSearch, setRecentSearch] = useState("")
   const [recentSearchInput, setRecentSearchInput] = useState("")
-  const [recentSms, setRecentSms] = useState<Awaited<ReturnType<typeof getSmsLogRecentAction>>["data"]>(null)
+  const [recentSms, setRecentSms] = useState<Awaited<ReturnType<typeof getSmsLogRecentAction>>["data"] | null>(null)
   const [recentLoading, setRecentLoading] = useState(false)
 
   const fetchData = useCallback(async () => {
