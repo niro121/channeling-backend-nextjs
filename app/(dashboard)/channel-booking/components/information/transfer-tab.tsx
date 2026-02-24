@@ -31,6 +31,19 @@ function formatTransferSessionLabel(session: Session): string {
   return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
 }
 
+/** True if session has same local/foreign fee as the source session (selected bookings' session). */
+function sessionPriceMatches(
+  sourceSession: Session | null | undefined,
+  targetSession: Session
+): boolean {
+  if (!sourceSession) return true
+  const aLocal = sourceSession.amountLocal ?? null
+  const aForeign = sourceSession.amountForeign ?? null
+  const bLocal = targetSession.amountLocal ?? null
+  const bForeign = targetSession.amountForeign ?? null
+  return aLocal === bLocal && aForeign === bForeign
+}
+
 export function TransferTab() {
   const {
     selectedSession,
@@ -86,6 +99,15 @@ export function TransferTab() {
       cancelled = true
     }
   }, [transferDoctorId])
+
+  // Clear selected session if it became disabled (price difference)
+  useEffect(() => {
+    if (!transferSessionId || !selectedSession || sessionsForTransfer.length === 0) return
+    const selected = sessionsForTransfer.find((s) => s.id === transferSessionId)
+    if (selected && !sessionPriceMatches(selectedSession, selected)) {
+      setTransferSessionId("")
+    }
+  }, [selectedSession, sessionsForTransfer, transferSessionId])
 
   const n = selectedTransferBookingIds.length
   const canSubmit =
@@ -206,11 +228,22 @@ export function TransferTab() {
             />
           </SelectTrigger>
           <SelectContent>
-            {sessionsForTransfer.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {formatTransferSessionLabel(s)}
-              </SelectItem>
-            ))}
+            {sessionsForTransfer.map((s) => {
+              const priceMatch = sessionPriceMatches(selectedSession, s)
+              const label = formatTransferSessionLabel(s)
+              return (
+                <SelectItem
+                  key={s.id}
+                  value={s.id}
+                  disabled={!priceMatch}
+                  className={!priceMatch ? "opacity-60" : undefined}
+                >
+                  {priceMatch
+                    ? label
+                    : `${label} (Not selectable due to price difference)`}
+                </SelectItem>
+              )
+            })}
           </SelectContent>
         </Select>
       </div>
