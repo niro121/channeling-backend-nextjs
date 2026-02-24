@@ -13,6 +13,8 @@ export type ChannelBookingListItem = {
   staffId: string | null
   /** Set when booking was transferred into this session (or from another). */
   movedAt: Date | null
+  /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Transfer tick hidden when !== 0. */
+  refund: number
 }
 
 /** Prisma client: booking model exists after schema add + `npx prisma generate`. */
@@ -48,10 +50,11 @@ export async function getBookingsBySessionService(
         agencyRef: true,
         staffId: true,
         movedAt: true,
+        refund: true,
       },
     })
 
-    type Row = { id: string; appointmentNo: number; title: string; name: string; status: number; method: number; agencyRef: string | null; staffId: string | null; movedAt: Date | null }
+    type Row = { id: string; appointmentNo: number; title: string; name: string; status: number; method: number; agencyRef: string | null; staffId: string | null; movedAt: Date | null; refund: number }
     const data: ChannelBookingListItem[] = (records as Row[]).map((r) => ({
       id: r.id,
       appointmentNo: r.appointmentNo,
@@ -63,6 +66,7 @@ export async function getBookingsBySessionService(
       agencyRef: r.agencyRef,
       staffId: r.staffId,
       movedAt: r.movedAt ?? null,
+      refund: r.refund ?? 0,
     }))
 
     return { success: true, data }

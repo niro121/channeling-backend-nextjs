@@ -110,6 +110,8 @@ export type BookingDetailsView = {
   area: string
   foreigner: boolean
   status: number
+  /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Used with status for canceled/refunded state. */
+  refund: number
   createdAt: Date
   /** Discount breakdown and scheme names for display. */
   discountInfo: DiscountInfoView
@@ -128,7 +130,7 @@ export type BookingDetailsView = {
     hospitalDiscount: number
     refundableHospital: number
   }
-  /** When status === 2 (canceled): refund amount and refund receipts for Cancel/Refund tab. */
+  /** When status === 2 or refund !== 0: refund amount and refund receipts for Cancel/Refund tab. */
   cancelOrRefundDetails?: CancelOrRefundDetailsView
   /** When booking was transferred: move details for Booking tab. */
   movedAt: Date | null
@@ -350,6 +352,7 @@ export async function getBookingDetailsService(
       area: b.area ?? "",
       foreigner: b.foriegner,
       status: b.status,
+      refund: b.refund ?? 0,
       createdAt: b.createdAt,
       discountInfo,
       agentInfo,
@@ -367,7 +370,7 @@ export async function getBookingDetailsService(
             }
           : undefined,
       cancelOrRefundDetails:
-        b.status === 2
+        b.status === 2 || (b.refund != null && b.refund !== 0)
           ? {
               refundAmount: b.refundAmount ?? 0,
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),

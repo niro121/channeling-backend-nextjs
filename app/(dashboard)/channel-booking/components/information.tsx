@@ -32,8 +32,18 @@ const TABS = [
 
 const tabContentClass = "mt-0 p-2 flex-1 min-h-0 overflow-y-auto"
 
-/** Status dot: 0 = pending (amber), 1 = paid (green), 2 = canceled/refunded (red), else neutral */
-function BookingStatusDot({ status }: { status: number }) {
+/** Status dot: 0 = pending (amber), 1 = paid (green), 2/3 or refund !== 0 = canceled/refunded (red), else neutral */
+function BookingStatusDot({ status, refund }: { status: number; refund?: number }) {
+  const isCanceledOrRefunded =
+    status === 2 || status === 3 || (refund != null && refund !== 0)
+  if (isCanceledOrRefunded)
+    return (
+      <span
+        className="ml-1.5 size-1.5 shrink-0 rounded-full bg-red-500 ring-2 ring-red-500/30 dark:bg-red-400 dark:ring-red-400/30"
+        title="Canceled / refunded"
+        aria-hidden
+      />
+    )
   if (status === 0)
     return (
       <span
@@ -47,14 +57,6 @@ function BookingStatusDot({ status }: { status: number }) {
       <span
         className="ml-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"
         title="Paid"
-        aria-hidden
-      />
-    )
-  if (status === 2)
-    return (
-      <span
-        className="ml-1.5 size-1.5 shrink-0 rounded-full bg-red-500 ring-2 ring-red-500/30 dark:bg-red-400 dark:ring-red-400/30"
-        title="Canceled / refunded"
         aria-hidden
       />
     )
@@ -145,6 +147,7 @@ export function Information() {
     selectedTransferBookingIds,
   } = useChannelBooking()
   const bookingStatus = selectedBooking?.status ?? null
+  const bookingRefund = selectedBooking?.refund
   const transferCount = selectedTransferBookingIds.length
 
   return (
@@ -155,7 +158,9 @@ export function Information() {
             <TabsTrigger value="booking" className={tabTriggerClass}>
               <span className="inline-flex items-center">
                 Booking
-                {bookingStatus !== null && <BookingStatusDot status={bookingStatus} />}
+                {bookingStatus !== null && (
+                <BookingStatusDot status={bookingStatus} refund={bookingRefund} />
+              )}
               </span>
             </TabsTrigger>
             <TabsTrigger value="transfer" className={tabTriggerClass}>
