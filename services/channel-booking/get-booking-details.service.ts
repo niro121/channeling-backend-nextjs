@@ -22,6 +22,19 @@ const RECEIPT_METHOD_NAMES: Record<number, string> = {
   5: "Doctor Cancel",
 }
 
+function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
+  if (!Array.isArray(json)) return []
+  return json.filter(
+    (item): item is { time: string; createdBy: string } =>
+      item != null &&
+      typeof item === "object" &&
+      "time" in item &&
+      "createdBy" in item &&
+      typeof (item as { time: string }).time === "string" &&
+      typeof (item as { createdBy: string }).createdBy === "string"
+  )
+}
+
 /** One row for the receipts table on the Booking tab. */
 export type ReceiptRowView = {
   id: string
@@ -138,6 +151,12 @@ export type BookingDetailsView = {
   movedRemarks: string | null
   /** Formatted date/time of original session (fallback when movedFromSession is absent). */
   movedFrom: string | null
+  /** Session status (1 = ACTIVE, 0 = on leave). Used by Settle tab to block when doctor on leave. */
+  sessionStatus?: number
+  /** Session date YYYY-MM-DD for Settle tab (past date = cannot settle). */
+  sessionDateForSettle?: string
+  /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
+  sessionCanSettleArrival?: boolean
   /** When movedFromSessionId is set: session the booking was moved from. */
   movedFromSession: {
     id: string
@@ -381,6 +400,17 @@ export async function getBookingDetailsService(
       movedRemarks: movedRemarks ?? null,
       movedFrom: movedFrom ?? null,
       movedFromSession,
+      sessionStatus: b.session?.status,
+      sessionDateForSettle: b.session?.date
+        ? new Date(b.session.date).toISOString().slice(0, 10)
+        : undefined,
+      sessionCanSettleArrival: (() => {
+        const arrivals = parseArrivalDepartureForSettle(b.session?.doctorArrivalTime)
+        const departures = parseArrivalDepartureForSettle(b.session?.doctorDepatureTime)
+        if (departures.length === 0) return true
+        const lastDep = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
+        return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
+      })(),
     }
     return { success: true, data }
   } catch (error) {
