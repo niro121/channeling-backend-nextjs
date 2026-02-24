@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import moment from "moment"
-import { getNextSequenceNumber } from "./helpers"
+import { getNextSequenceNumber, getPreviousSessionTransferStatus } from "./helpers"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import { logActivity } from "@/lib/activity-log"
 
@@ -138,6 +138,16 @@ export async function transferBookingsService(
       success: false,
       errorCode: "limitexceeded",
       message: `Target session has room for ${slotsLeft} more appointment(s). You selected ${bookingObjs.length}. Please reduce the selection or choose another session.`,
+    }
+  }
+
+  // Consecutive session rule: if target has a previous session (same day), it must be full before transferring here
+  const prevStatus = await getPreviousSessionTransferStatus(sessionId)
+  if (!prevStatus.canTransfer && prevStatus.previousSessionLabel) {
+    return {
+      success: false,
+      errorCode: "previous_session_not_full",
+      message: `Fill the previous session first (${prevStatus.previousSessionLabel}) before transferring to this session.`,
     }
   }
 

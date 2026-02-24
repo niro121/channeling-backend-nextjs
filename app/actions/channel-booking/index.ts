@@ -79,6 +79,10 @@ export {
   type TransferBookingsActionResult,
 } from "./transfer-bookings.action"
 export {
+  getSessionsTransferEligibilityAction,
+  type GetSessionsTransferEligibilityResult,
+} from "./get-sessions-transfer-eligibility.action"
+export {
   sendSmsToSessionAction,
   type SendSmsToSessionActionInput,
   type SendSmsToSessionActionResult,

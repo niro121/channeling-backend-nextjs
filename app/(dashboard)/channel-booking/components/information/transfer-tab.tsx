@@ -5,6 +5,7 @@ import {
   getSessionsForChannelBooking,
   getBookingsBySession,
   transferBookingsAction,
+  getSessionsTransferEligibilityAction,
 } from "@/app/actions/channel-booking"
 import type { Session } from "@/types/booking.dashboard"
 import { useChannelBooking } from "../../context/channel-booking-context"
@@ -63,6 +64,9 @@ export function TransferTab() {
   const [transferRemarks, setTransferRemarks] = useState("")
   const [sessionsForTransfer, setSessionsForTransfer] = useState<Session[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [eligibilityMap, setEligibilityMap] = useState<
+    Record<string, { canTransfer: boolean; previousSessionLabel?: string }>
+  >({})
   const [submitting, setSubmitting] = useState(false)
 
   const currentSpecialityId = selectedDoctor?.specialityId ?? null
@@ -82,6 +86,7 @@ export function TransferTab() {
     if (!transferDoctorId) {
       setSessionsForTransfer([])
       setTransferSessionId("")
+      setEligibilityMap({})
       return
     }
     let cancelled = false
@@ -100,14 +105,51 @@ export function TransferTab() {
     }
   }, [transferDoctorId])
 
-  // Clear selected session if it became disabled (price difference)
+  // Fetch transfer eligibility (previous session must be full) for loaded sessions
+  useEffect(() => {
+    if (sessionsForTransfer.length === 0) {
+      setEligibilityMap({})
+      return
+    }
+    let cancelled = false
+    getSessionsTransferEligibilityAction(sessionsForTransfer.map((s) => s.id))
+      .then((res) => {
+        if (cancelled) return
+        if (res.success && res.data) {
+          setEligibilityMap(
+            Object.fromEntries(
+              res.data.map((e) => [
+                e.sessionId,
+                {
+                  canTransfer: e.canTransfer,
+                  previousSessionLabel: e.previousSessionLabel,
+                },
+              ])
+            )
+          )
+        } else {
+          setEligibilityMap({})
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionsForTransfer])
+
+  // Clear selected session if it became disabled (price difference, leave, or previous session not full)
   useEffect(() => {
     if (!transferSessionId || !selectedSession || sessionsForTransfer.length === 0) return
     const selected = sessionsForTransfer.find((s) => s.id === transferSessionId)
-    if (selected && !sessionPriceMatches(selectedSession, selected)) {
+    if (!selected) return
+    const eligibility = eligibilityMap[transferSessionId]
+    if (
+      !sessionPriceMatches(selectedSession, selected) ||
+      selected.status === 0 ||
+      (eligibility && !eligibility.canTransfer)
+    ) {
       setTransferSessionId("")
     }
-  }, [selectedSession, sessionsForTransfer, transferSessionId])
+  }, [selectedSession, sessionsForTransfer, transferSessionId, eligibilityMap])
 
   const n = selectedTransferBookingIds.length
   const canSubmit =
@@ -230,17 +272,26 @@ export function TransferTab() {
           <SelectContent>
             {sessionsForTransfer.map((s) => {
               const priceMatch = sessionPriceMatches(selectedSession, s)
+              const isLeave = s.status === 0
+              const eligibility = eligibilityMap[s.id]
+              const previousMustBeFilled = eligibility && !eligibility.canTransfer
+              const disabled = !priceMatch || isLeave || previousMustBeFilled
               const label = formatTransferSessionLabel(s)
+              const suffix = isLeave
+                ? " (Leave)"
+                : !priceMatch
+                  ? " (Not selectable due to price difference)"
+                  : previousMustBeFilled && eligibility?.previousSessionLabel
+                    ? ` (Fill previous session first: ${eligibility.previousSessionLabel})`
+                    : ""
               return (
                 <SelectItem
                   key={s.id}
                   value={s.id}
-                  disabled={!priceMatch}
-                  className={!priceMatch ? "opacity-60" : undefined}
+                  disabled={disabled}
+                  className={disabled ? "opacity-60" : undefined}
                 >
-                  {priceMatch
-                    ? label
-                    : `${label} (Not selectable due to price difference)`}
+                  {label}{suffix}
                 </SelectItem>
               )
             })}
