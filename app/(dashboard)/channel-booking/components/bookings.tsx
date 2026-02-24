@@ -35,6 +35,13 @@ function sessionSummary(session: Session): string {
   return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
 }
 
+const MAX_NAME_CHARS = 25
+
+function truncateName(name: string, maxChars: number): string {
+  if (name.length <= maxChars) return name
+  return name.slice(0, maxChars) + "..."
+}
+
 function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "booking.transferred") {
     const dir = entry.metadata?.direction as string | undefined
@@ -140,7 +147,7 @@ export function Bookings() {
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 bg-muted/80 z-10">
                   <tr>
-                    <th className="w-8 px-1.5 py-1.5 text-left">
+                    <th className="w-8 px-1 py-1.5 text-left">
                       <Checkbox
                         aria-label="Select all for transfer"
                         className="h-3.5 w-3.5"
@@ -166,10 +173,10 @@ export function Bookings() {
                         }}
                       />
                     </th>
-                    <th className="w-10 px-1.5 py-1.5 text-left font-medium">No</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Name</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Paid</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Agent/Staff</th>
+                    <th className="w-8 px-1 py-1.5 text-left font-medium">No</th>
+                    <th className="min-w-[200px] px-1 py-1.5 text-left font-medium">Name</th>
+                    <th className="whitespace-nowrap px-1 py-1.5 text-left font-medium">Paid</th>
+                    <th className="px-1 py-1.5 text-left font-medium">Agent/Staff</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -196,7 +203,7 @@ export function Bookings() {
                         )}
                       >
                         <td
-                          className="w-8 px-1.5 py-1.5"
+                          className="w-8 px-1 py-1.5"
                           onClick={(e) => {
                             e.stopPropagation()
                             if (!isRefunded) toggleTransferBooking(b.id)
@@ -210,12 +217,17 @@ export function Bookings() {
                             />
                           )}
                         </td>
-                        <td className="w-10 px-1.5 py-1.5 tabular-nums">
+                        <td className="w-8 px-1 py-1.5 tabular-nums font-semibold">
                           {b.appointmentNo}
                         </td>
-                        <td className="px-1.5 py-1.5 truncate max-w-[120px]">
-                          <span className="inline-flex items-center gap-1 truncate">
-                            {displayName}
+                        <td className="min-w-0 px-1 py-1.5 overflow-hidden">
+                          <span className="flex items-center gap-1 min-w-0">
+                            <span
+                              className="truncate min-w-0"
+                              title={displayName}
+                            >
+                              {truncateName(displayName, MAX_NAME_CHARS)}
+                            </span>
                             {b.movedAt && (
                               <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                                 Moved
@@ -223,7 +235,7 @@ export function Bookings() {
                             )}
                           </span>
                         </td>
-                        <td className="px-1.5 py-1.5">
+                        <td className="whitespace-nowrap px-1 py-1.5">
                           <span
                             className={cn(
                               b.status === 0 && "text-amber-600 font-medium"
@@ -232,7 +244,7 @@ export function Bookings() {
                             {paidLabel}
                           </span>
                         </td>
-                        <td className="px-1.5 py-1.5 tabular-nums text-muted-foreground">
+                        <td className="px-1 py-1.5 tabular-nums text-muted-foreground">
                           {agentStaff}
                         </td>
                       </tr>

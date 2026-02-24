@@ -29,7 +29,8 @@ function formatTransferSessionLabel(session: Session): string {
   const date = session.date instanceof Date ? session.date : new Date(session.date)
   const start = formatSessionStartTimeDisplay(session.startTime, date)
   const end = formatSessionStartTimeDisplay(session.endTime, date)
-  return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
+  const branch = session.location?.name ?? "—"
+  return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end}) [${branch}]`
 }
 
 /** True if session has same local/foreign fee as the source session (selected bookings' session). */

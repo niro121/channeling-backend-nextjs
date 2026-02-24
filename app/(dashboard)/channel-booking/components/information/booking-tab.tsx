@@ -1,7 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getBookingDetails, getReceiptDetails } from "@/app/actions/channel-booking"
+import {
+  getBookingDetails,
+  getReceiptDetails,
+  getBookingActivityForChannelBooking,
+} from "@/app/actions/channel-booking"
+import type { BookingActivityEntry } from "@/app/actions/channel-booking"
 import type {
   BookingDetailsView,
   ReceiptRowView,
@@ -13,11 +18,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ChevronDown, ChevronRight, ExternalLink, Loader2, Printer } from "lucide-react"
+import { ChevronDown, ChevronRight, ExternalLink, History, Loader2, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function bookingActionLabel(entry: BookingActivityEntry): string {
+  if (entry.action === "booking.transferred") return "Transferred"
+  return entry.action.replace(/^booking\./, "").replace(/_/g, " ") || entry.action
 }
 
 function formatAppointmentNo(value: string | number): string {
@@ -117,6 +127,9 @@ export function BookingTab() {
   const [receiptsExpanded, setReceiptsExpanded] = useState(false)
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false)
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptRowView | null>(null)
+  const [activityTrailOpen, setActivityTrailOpen] = useState(false)
+  const [bookingActivity, setBookingActivity] = useState<BookingActivityEntry[] | null>(null)
+  const [bookingActivityLoading, setBookingActivityLoading] = useState(false)
 
   useEffect(() => {
     if (!selectedBooking?.id) {
@@ -130,6 +143,8 @@ export function BookingTab() {
       setOtherExpanded(false)
       setReceiptsExpanded(false)
       setSelectedReceipt(null)
+      setActivityTrailOpen(false)
+      setBookingActivity(null)
       return
     }
     setLoading(true)
@@ -153,6 +168,31 @@ export function BookingTab() {
       })
       .finally(() => setLoading(false))
   }, [selectedBooking?.id, bookingDetailsRefreshKey])
+
+  // Load booking activity when Activity trail popup is opened
+  useEffect(() => {
+    if (!activityTrailOpen || !selectedBooking?.id) {
+      return
+    }
+    let cancelled = false
+    setBookingActivityLoading(true)
+    setBookingActivity(null)
+    getBookingActivityForChannelBooking(selectedBooking.id)
+      .then((res) => {
+        if (cancelled) return
+        setBookingActivity(res.success && res.data ? res.data : [])
+        setBookingActivityLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBookingActivity([])
+          setBookingActivityLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activityTrailOpen, selectedBooking?.id])
 
   if (!selectedBooking) {
     return (
@@ -199,14 +239,27 @@ export function BookingTab() {
         <Section
           title="Appointment"
           trailing={
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                "bg-primary/15 text-primary border border-primary/30",
-                "dark:bg-primary/20 dark:border-primary/40"
+            <span className="flex items-center gap-1.5 flex-wrap">
+              {details.movedAt != null && (
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                    "bg-amber-100 text-amber-800 border border-amber-300/70",
+                    "dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700/60"
+                  )}
+                >
+                  Moved
+                </span>
               )}
-            >
-              {details.bookingMethod}
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                  "bg-primary/15 text-primary border border-primary/30",
+                  "dark:bg-primary/20 dark:border-primary/40"
+                )}
+              >
+                {details.bookingMethod}
+              </span>
             </span>
           }
         >
@@ -581,6 +634,29 @@ export function BookingTab() {
         </div>
       ) : null}
 
+      {/* Activity trail: small button at bottom */}
+      <div className="pt-1 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setActivityTrailOpen(true)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium",
+            "text-slate-600 dark:text-slate-400 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800",
+            "border border-slate-200 dark:border-slate-700"
+          )}
+        >
+          <History className="h-3.5 w-3.5" />
+          Activity trail
+        </button>
+      </div>
+
+      <ActivityTrailDialog
+        open={activityTrailOpen}
+        onOpenChange={setActivityTrailOpen}
+        activity={bookingActivity}
+        loading={bookingActivityLoading}
+      />
+
       <ReceiptViewDialog
         receipt={selectedReceipt}
         open={receiptDialogOpen}
@@ -588,6 +664,90 @@ export function BookingTab() {
         formatRs={formatRs}
       />
     </div>
+  )
+}
+
+function ActivityTrailDialog({
+  open,
+  onOpenChange,
+  activity,
+  loading,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  activity: BookingActivityEntry[] | null
+  loading: boolean
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-4 py-3 border-b border-border/60 shrink-0">
+          <DialogTitle className="text-sm font-semibold">Activity trail</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+              <span className="text-xs">Loading activity…</span>
+            </div>
+          )}
+          {!loading && activity && activity.length === 0 && (
+            <p className="text-xs text-muted-foreground py-6 text-center">No activity recorded for this booking.</p>
+          )}
+          {!loading && activity && activity.length > 0 && (
+            <ul className="space-y-0 divide-y divide-border/50">
+              {activity.map((entry) => {
+                const dateStr = new Date(entry.createdAt).toLocaleString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+                const meta = entry.metadata as Record<string, unknown> | null
+                const before = meta?.before != null ? String(meta.before) : null
+                const after = meta?.after != null ? String(meta.after) : null
+                const remarks = meta?.remarks != null && String(meta.remarks).trim() !== "" ? String(meta.remarks) : null
+                return (
+                  <li key={entry.id} className="py-2.5 first:pt-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                      <span className="font-medium text-foreground">{bookingActionLabel(entry)}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">{entry.userName ?? "—"}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">{dateStr}</span>
+                    </div>
+                    {(before || after || remarks) && (
+                      <div className="mt-1 pl-0 text-[11px] text-muted-foreground space-y-0.5">
+                        {before != null && (
+                          <p className="truncate" title={before}>
+                            <span className="font-medium text-foreground/80">From: </span>
+                            {before}
+                          </p>
+                        )}
+                        {after != null && (
+                          <p className="truncate" title={after}>
+                            <span className="font-medium text-foreground/80">To: </span>
+                            {after}
+                          </p>
+                        )}
+                        {remarks != null && (
+                          <p className="truncate" title={remarks}>
+                            <span className="font-medium text-foreground/80">Remarks: </span>
+                            {remarks}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

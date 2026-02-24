@@ -89,6 +89,14 @@ export async function transferBookingsService(
   if (!targetSession || !targetSession.doctor) {
     return { success: false, errorCode: "invalid_session", message: "Target session not found." }
   }
+  // status 1 = ACTIVE, 0 = LEAVE — do not allow transfer to a session on leave
+  if (targetSession.status === 0) {
+    return {
+      success: false,
+      errorCode: "session_on_leave",
+      message: "The selected session is on leave and cannot receive transfers. Please choose an active session.",
+    }
+  }
   if (!currentSession) {
     return { success: false, errorCode: "invalid_session", message: "Current session not found." }
   }
