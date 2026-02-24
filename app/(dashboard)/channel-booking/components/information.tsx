@@ -228,7 +228,7 @@ export function Information() {
             </div>
           </TabsContent>
           <TabsContent value="transfer" className={cn(tabContentClass, "flex flex-col")}>
-            <div className="flex flex-col min-h-full rounded-md bg-secondary p-2">
+            <div className="flex min-h-full shrink-0 flex-col rounded-md bg-secondary p-2">
               <TransferTab />
             </div>
           </TabsContent>
