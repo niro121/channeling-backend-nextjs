@@ -6,6 +6,7 @@ import {
     User,
 } from "@/types/user"
 import prisma from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
@@ -119,7 +120,7 @@ export const getUsers = async ({
                     {
                         name: {
                             contains: keyword,
-                            mode: "insensitive",
+                            mode: Prisma.QueryMode.insensitive,
                         },
                     },
                     {
@@ -128,7 +129,7 @@ export const getUsers = async ({
                         },
                     },
                     ...(keyword
-                        ? [{ username: { contains: keyword, mode: "insensitive" } }]
+                        ? [{ username: { contains: keyword, mode: Prisma.QueryMode.insensitive } }]
                         : []),
                 ]
             },
