@@ -25,6 +25,7 @@ import {
   DollarSign,
   UserCircle,
   Activity,
+  MessageCircle,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -145,6 +146,7 @@ export function DesktopSidebar({
         {userType === userTypes.admin && (
           <SidebarGroup label="Admin">
             <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
+            <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
           </SidebarGroup>
         )}
       </nav>

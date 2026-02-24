@@ -1,6 +1,6 @@
 "use server"
 
-import { getBanksForChannelBookingService } from "@/services/channel-booking/get-banks.service"
+import { getBanksForChannelBookingService } from "@/services/channel-booking/reference/get-banks.service"
 
 export type GetBanksForChannelBookingResult = Awaited<
   ReturnType<typeof getBanksForChannelBookingService>

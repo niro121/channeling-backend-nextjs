@@ -9,8 +9,8 @@ import {
   validateVoucherAction,
 } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
-import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/get-agency-books-by-agency.service"
-import type { DiscountForBookingOption } from "@/services/channel-booking/get-discounts-for-booking.service"
+import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
+import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
@@ -833,7 +833,7 @@ export function NewBookingDetailsTab() {
               className={`${fieldClass} min-w-0 w-full pl-8 ${nameError ? errorClass : ""}`}
               placeholder="PATIENT NAME"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
+              onChange={(e) => setPatientName(e.target.value.toUpperCase())}
             />
           </div>
         </div>

@@ -11,7 +11,7 @@ import type {
   BookingDetailsView,
   SettlementDetailsView,
 } from "@/services/channel-booking/get-booking-details.service"
-import type { ChannelBookingBankOption } from "@/services/channel-booking/get-banks.service"
+import type { ChannelBookingBankOption } from "@/services/channel-booking/reference/get-banks.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { Button } from "@/components/ui/button"

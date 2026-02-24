@@ -20,6 +20,13 @@ export {
   type GetNextSequenceOptions,
 } from "./sequence"
 export { getReceiptSequenceInfo } from "./get-receipt-sequence"
+export {
+  createReceiptAndUpdateBooking,
+  type CreateReceiptAndUpdateBookingParams,
+  type CreateReceiptAndUpdateBookingResult,
+  type CreateReceiptForBookingReceiptParams,
+  type CreatedReceipt,
+} from "./create-receipt-for-booking"
 export { getBookingSequenceInfo } from "./get-booking-sequence"
 export {
   validateVoucherForDiscount,

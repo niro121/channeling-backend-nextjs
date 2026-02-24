@@ -3,7 +3,7 @@
 import {
   getDiscountsForBookingService,
   type GetDiscountsForBookingPayload,
-} from "@/services/channel-booking/get-discounts-for-booking.service"
+} from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 
 export type GetDiscountsForBookingResult = {
   success: boolean

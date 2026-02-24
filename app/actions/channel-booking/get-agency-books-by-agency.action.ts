@@ -1,7 +1,7 @@
 "use server"
 
 import { requirePermission } from "@/lib/server-permissions"
-import { getAgencyBooksByAgencyForChannelBookingService } from "@/services/channel-booking/get-agency-books-by-agency.service"
+import { getAgencyBooksByAgencyForChannelBookingService } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
 
 export type GetAgencyBooksByAgencyResult = Awaited<
   ReturnType<typeof getAgencyBooksByAgencyForChannelBookingService>
