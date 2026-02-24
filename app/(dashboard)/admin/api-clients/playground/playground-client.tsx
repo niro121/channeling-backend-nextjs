@@ -1,13 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Copy, Key, Loader2, Play } from "lucide-react"
+import Link from "next/link"
+import { Copy, Download, FileText, Key, Loader2, Play } from "lucide-react"
 
 export function PublicApiPlayground() {
+  const [baseUrl, setBaseUrl] = useState("")
+  useEffect(() => {
+    if (typeof window !== "undefined") setBaseUrl(window.location.origin)
+  }, [])
+  const originForCurl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || ""
+
   const [clientId, setClientId] = useState("")
   const [clientSecret, setClientSecret] = useState("")
   const [tokenLoading, setTokenLoading] = useState(false)
@@ -24,6 +31,24 @@ export function PublicApiPlayground() {
     status: number
     body: unknown
   } | null>(null)
+
+  const curlToken = originForCurl
+    ? `curl -X POST "${originForCurl}/api/public/token" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "grant_type": "client_credentials",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET"
+  }'`
+    : ""
+  const curlSessions = originForCurl
+    ? `curl -X GET "${originForCurl}/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24" \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`
+    : ""
+
+  function copyCurl(text: string) {
+    void navigator.clipboard.writeText(text)
+  }
 
   async function handleGetToken() {
     setTokenLoading(true)
@@ -80,9 +105,28 @@ export function PublicApiPlayground() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-      {/* Step 1: Get token */}
-      <Card>
+    <div className="flex w-full flex-col gap-6">
+      {/* Postman download + Integration guide at top */}
+      <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3">
+        <a
+          href="/api/public/postman-collection"
+          download="channeling-public-api.postman_collection.json"
+          className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+        >
+          <Download className="h-4 w-4" />
+          Download Postman collection
+        </a>
+        <Link
+          href="/admin/api-clients/integration"
+          className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
+        >
+          <FileText className="h-4 w-4" />
+          Integration guide
+        </Link>
+      </div>
+
+      {/* Card 1: Get token — full width + cURL inside */}
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Key className="h-5 w-5" />
@@ -142,11 +186,29 @@ export function PublicApiPlayground() {
                 )}
             </div>
           )}
+          <div className="border-t pt-4">
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="text-xs">cURL request example</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => copyCurl(curlToken)}
+                disabled={!curlToken}
+              >
+                <Copy className="mr-1 h-3 w-3" />
+                Copy
+              </Button>
+            </div>
+            <pre className="max-h-32 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+              {curlToken || "(Detecting origin…)"}
+            </pre>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Step 2: Get sessions */}
-      <Card>
+      {/* Card 2: Get sessions — full width + cURL inside */}
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Play className="h-5 w-5" />
@@ -210,6 +272,24 @@ export function PublicApiPlayground() {
               </pre>
             </div>
           )}
+          <div className="border-t pt-4">
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="text-xs">cURL request example</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => copyCurl(curlSessions)}
+                disabled={!curlSessions}
+              >
+                <Copy className="mr-1 h-3 w-3" />
+                Copy
+              </Button>
+            </div>
+            <pre className="max-h-32 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+              {curlSessions || "(Detecting origin…)"}
+            </pre>
+          </div>
         </CardContent>
       </Card>
     </div>

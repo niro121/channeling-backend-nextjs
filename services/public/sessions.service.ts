@@ -3,22 +3,24 @@ import { getSessionsForChannelBookingService } from "@/services/channel-booking/
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
-/** Public API session DTO (no audit fields). */
+/** Public API session DTO (no audit fields, no room/paid/pending counts). */
 export type PublicSessionDto = {
   id: string
-  date: Date
+  /** Session date as YYYY-MM-DD */
+  date: string
   startTime: Date
+  /** Session start time as readable string, e.g. "7:00 PM" */
+  startTimeFormatted: string
   endTime: Date
+  /** 1 = bookable, 0 = not bookable (e.g. doctor on leave or previous session not full) */
   status: number
+  /** True when this session is marked as doctor on leave in the system */
+  doctorOnLeave: boolean
   amountLocal: number | null
   amountForeign: number | null
-  maxPatientNumber: number
   appointmentNo: number
   location: { id: string; name: string } | null
-  room: { id: string; number: string } | null
   doctor: { id: string; title: string; name: string; code: string }
-  paidCount: number
-  pendingCount: number
 }
 
 export type GetPublicSessionsResult =
@@ -72,31 +74,46 @@ export async function getPublicSessionsByDoctorCode(
     }
   }
 
-  const sessions: PublicSessionDto[] = result.data.map((s: Session) => ({
-    id: s.id,
-    date: s.date,
-    startTime: s.startTime,
-    endTime: s.endTime,
-    status: s.status,
-    amountLocal: s.amountLocal ?? null,
-    amountForeign: s.amountForeign ?? null,
-    maxPatientNumber: s.maxPatientNumber,
-    appointmentNo: s.appointmentNo,
-    location: s.location
-      ? { id: s.location.id!, name: s.location.name }
-      : null,
-    room: s.room
-      ? { id: s.room.id!, number: s.room.number }
-      : null,
-    doctor: {
-      id: doctor.id,
-      title: doctor.title,
-      name: doctor.name,
-      code: doctor.code,
-    },
-    paidCount: s.paidCount ?? 0,
-    pendingCount: s.pendingCount ?? 0,
-  }))
+  const now = new Date()
+  const futureSessions = result.data
+    .filter((s: Session) => new Date(s.startTime) > now)
+    .sort((a, b) => {
+      const dateA = new Date(a.date).getTime()
+      const dateB = new Date(b.date).getTime()
+      if (dateA !== dateB) return dateA - dateB
+      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    })
+
+  const sameDate = (a: Session, b: Session) =>
+    new Date(a.date).toDateString() === new Date(b.date).toDateString()
+  const isFull = (s: Session) => (s.appointmentNo ?? 0) >= (s.maxPatientNumber ?? 0)
+
+  const sessions: PublicSessionDto[] = futureSessions.map((s: Session, i: number) => {
+    const previous = i > 0 && sameDate(futureSessions[i - 1], s) ? futureSessions[i - 1] : null
+    const previousNotFull = previous !== null && !isFull(previous)
+    const status = previousNotFull ? 0 : s.status
+    return {
+      id: s.id,
+      date: moment(s.date).format("YYYY-MM-DD"),
+      startTime: s.startTime,
+      startTimeFormatted: moment(s.startTime).format("h:mm A"),
+      endTime: s.endTime,
+      status,
+      doctorOnLeave: s.status === 0,
+      amountLocal: s.amountLocal ?? null,
+      amountForeign: s.amountForeign ?? null,
+      appointmentNo: s.appointmentNo,
+      location: s.location
+        ? { id: s.location.id!, name: s.location.name }
+        : null,
+      doctor: {
+        id: doctor.id,
+        title: doctor.title,
+        name: doctor.name,
+        code: doctor.code,
+      },
+    }
+  })
 
   return { success: true, data: sessions }
 }

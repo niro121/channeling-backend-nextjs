@@ -7,10 +7,12 @@ const DEFAULT_EXPIRES_IN_SEC = 3600 // 1 hour
 
 function getJwtSecret(): Uint8Array {
   const secret =
-    process.env.OAUTH_JWT_SECRET ?? process.env.JWT_SECRET
+    process.env.OAUTH_JWT_SECRET ??
+    process.env.JWT_SECRET ??
+    process.env.NEXTAUTH_SECRET
   if (!secret) {
     throw new Error(
-      "OAUTH_JWT_SECRET or JWT_SECRET must be set for public API token signing"
+      "OAUTH_JWT_SECRET, JWT_SECRET, or NEXTAUTH_SECRET must be set for public API token signing"
     )
   }
   return new TextEncoder().encode(secret)
