@@ -1,6 +1,12 @@
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import Link from 'next/link';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   CalendarCheck,
   DollarSign,
@@ -10,10 +16,11 @@ import {
   Clock,
   Users,
   CircleDot,
-  PlayCircle,
-} from "lucide-react"
-import { getCurrentShiftAction } from "@/app/actions/shift.actions"
-import { SHIFT_STATUS } from "@/types/shift"
+  PlayCircle
+} from 'lucide-react';
+import { getCurrentShiftAction } from '@/app/actions/shift.actions';
+import { SHIFT_STATUS } from '@/types/shift';
+import { TwoFABanner } from '@/app/(dashboard)/welcome/two-fa-banner';
 
 // Sample data for dashboard (no API – placeholder only)
 const SAMPLE = {
@@ -22,48 +29,89 @@ const SAMPLE = {
   sessionsToday: 12,
   newPatientsThisMonth: 38,
   recentBookings: [
-    { time: "8:30 AM", name: "MRS. SURANGANI MALKANTHI", consultant: "PROF. CHANDIMA JEEWANDARA", fee: "6,190" },
-    { time: "9:00 AM", name: "MR. KUMARA PERERA", consultant: "DR. NIMAL FERNANDO", fee: "3,500" },
-    { time: "9:15 AM", name: "MRS. ANOMA JAYASINGHE", consultant: "PROF. CHANDIMA JEEWANDARA", fee: "6,190" },
-    { time: "10:00 AM", name: "MR. SUNIL GUNASEKERA", consultant: "DR. NIMAL FERNANDO", fee: "3,500" },
+    {
+      time: '8:30 AM',
+      name: 'MRS. SURANGANI MALKANTHI',
+      consultant: 'PROF. CHANDIMA JEEWANDARA',
+      fee: '6,190'
+    },
+    {
+      time: '9:00 AM',
+      name: 'MR. KUMARA PERERA',
+      consultant: 'DR. NIMAL FERNANDO',
+      fee: '3,500'
+    },
+    {
+      time: '9:15 AM',
+      name: 'MRS. ANOMA JAYASINGHE',
+      consultant: 'PROF. CHANDIMA JEEWANDARA',
+      fee: '6,190'
+    },
+    {
+      time: '10:00 AM',
+      name: 'MR. SUNIL GUNASEKERA',
+      consultant: 'DR. NIMAL FERNANDO',
+      fee: '3,500'
+    }
   ],
   quickLinks: [
-    { href: "/channel-booking", label: "Channel Booking", icon: CalendarCheck, description: "New appointment" },
-    { href: "/doctors", label: "Doctors", icon: Stethoscope, description: "Manage consultants" },
-    { href: "/patients", label: "Patients", icon: Users, description: "Patient records" },
-    { href: "/doctor-sessions", label: "Doctor Sessions", icon: Clock, description: "Session schedule" },
-  ],
-}
+    {
+      href: '/channel-booking',
+      label: 'Channel Booking',
+      icon: CalendarCheck,
+      description: 'New appointment'
+    },
+    {
+      href: '/doctors',
+      label: 'Doctors',
+      icon: Stethoscope,
+      description: 'Manage consultants'
+    },
+    {
+      href: '/patients',
+      label: 'Patients',
+      icon: Users,
+      description: 'Patient records'
+    },
+    {
+      href: '/doctor-sessions',
+      label: 'Doctor Sessions',
+      icon: Clock,
+      description: 'Session schedule'
+    }
+  ]
+};
 
 function formatShiftStarted(startedAt: Date | string): string {
-  const start = typeof startedAt === "string" ? new Date(startedAt) : startedAt
-  const now = new Date()
-  const ms = now.getTime() - start.getTime()
-  const minutes = Math.floor(ms / (1000 * 60))
-  const hours = Math.floor(ms / (1000 * 60 * 60))
-  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  const start = typeof startedAt === 'string' ? new Date(startedAt) : startedAt;
+  const now = new Date();
+  const ms = now.getTime() - start.getTime();
+  const minutes = Math.floor(ms / (1000 * 60));
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
 
-  if (minutes < 1) return "Started just now"
-  if (minutes < 60) return `Started ${minutes}m ago`
-  if (hours < 24) return `Started ${hours}h ago`
-  if (days < 7) return `Started ${days}d ago`
-  return `Started at ${start.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`
+  if (minutes < 1) return 'Started just now';
+  if (minutes < 60) return `Started ${minutes}m ago`;
+  if (hours < 24) return `Started ${hours}h ago`;
+  if (days < 7) return `Started ${days}d ago`;
+  return `Started at ${start.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`;
 }
 
 export default async function WelcomePage() {
-  let currentShift: Awaited<ReturnType<typeof getCurrentShiftAction>> = null
+  let currentShift: Awaited<ReturnType<typeof getCurrentShiftAction>> = null;
   try {
-    currentShift = await getCurrentShiftAction()
+    currentShift = await getCurrentShiftAction();
   } catch {
     // No shift permission or not logged in – don't show shift section
   }
 
-  const isActive = currentShift?.status === SHIFT_STATUS.ACTIVE
-  const isPaused = currentShift?.status === SHIFT_STATUS.PAUSED
-  const showShift = currentShift && (isActive || isPaused)
+  const isActive = currentShift?.status === SHIFT_STATUS.ACTIVE;
+  const isPaused = currentShift?.status === SHIFT_STATUS.PAUSED;
+  const showShift = currentShift && (isActive || isPaused);
 
   return (
     <main className="space-y-6 pb-8">
+      <TwoFABanner />
       {/* Page Header */}
       <section>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
@@ -78,13 +126,13 @@ export default async function WelcomePage() {
       {showShift && (
         <section>
           <Card
-            className={`border ${isActive ? "border-primary/30 bg-primary/5" : "border-amber-500/30 bg-amber-500/5"}`}
+            className={`border ${isActive ? 'border-primary/30 bg-primary/5' : 'border-amber-500/30 bg-amber-500/5'}`}
           >
             <CardHeader className="py-4 px-5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
                   <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isActive ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isActive ? 'bg-primary/15 text-primary' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'}`}
                   >
                     {isActive ? (
                       <CircleDot className="h-5 w-5" />
@@ -94,7 +142,7 @@ export default async function WelcomePage() {
                   </span>
                   <div className="min-w-0">
                     <CardTitle className="text-base font-semibold">
-                      {isActive ? "Active shift" : "Paused shift"}
+                      {isActive ? 'Active shift' : 'Paused shift'}
                     </CardTitle>
                     <CardDescription className="mt-0.5 text-sm">
                       {formatShiftStarted(currentShift.startedAt)}
@@ -123,8 +171,12 @@ export default async function WelcomePage() {
             <CalendarCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{SAMPLE.todayBookings}</div>
-            <p className="text-xs text-muted-foreground mt-1">Appointments booked for today</p>
+            <div className="text-2xl font-semibold text-foreground">
+              {SAMPLE.todayBookings}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Appointments booked for today
+            </p>
           </CardContent>
         </Card>
 
@@ -139,7 +191,9 @@ export default async function WelcomePage() {
             <div className="text-2xl font-semibold text-foreground">
               Rs. {SAMPLE.todayRevenue.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Collected from channelling</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Collected from channelling
+            </p>
           </CardContent>
         </Card>
 
@@ -151,8 +205,12 @@ export default async function WelcomePage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{SAMPLE.sessionsToday}</div>
-            <p className="text-xs text-muted-foreground mt-1">Consultant sessions running</p>
+            <div className="text-2xl font-semibold text-foreground">
+              {SAMPLE.sessionsToday}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Consultant sessions running
+            </p>
           </CardContent>
         </Card>
 
@@ -164,7 +222,9 @@ export default async function WelcomePage() {
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-foreground">{SAMPLE.newPatientsThisMonth}</div>
+            <div className="text-2xl font-semibold text-foreground">
+              {SAMPLE.newPatientsThisMonth}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">This month</p>
           </CardContent>
         </Card>
@@ -179,7 +239,7 @@ export default async function WelcomePage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {SAMPLE.quickLinks.map((item) => {
-              const Icon = item.icon
+              const Icon = item.icon;
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -200,7 +260,7 @@ export default async function WelcomePage() {
                     <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </Button>
                 </Link>
-              )
+              );
             })}
           </CardContent>
         </Card>
@@ -209,7 +269,9 @@ export default async function WelcomePage() {
         <Card className="lg:col-span-2 border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">Recent bookings (sample)</CardTitle>
+              <CardTitle className="text-base">
+                Recent bookings (sample)
+              </CardTitle>
               <CardDescription>Today&apos;s appointments</CardDescription>
             </div>
             <Link href="/channel-booking">
@@ -226,16 +288,27 @@ export default async function WelcomePage() {
                   <tr className="border-b border-border bg-muted/50">
                     <th className="text-left font-medium py-3 px-4">Time</th>
                     <th className="text-left font-medium py-3 px-4">Patient</th>
-                    <th className="text-left font-medium py-3 px-4">Consultant</th>
-                    <th className="text-right font-medium py-3 px-4">Fee (Rs.)</th>
+                    <th className="text-left font-medium py-3 px-4">
+                      Consultant
+                    </th>
+                    <th className="text-right font-medium py-3 px-4">
+                      Fee (Rs.)
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {SAMPLE.recentBookings.map((row, i) => (
-                    <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30">
-                      <td className="py-3 px-4 text-muted-foreground">{row.time}</td>
+                    <tr
+                      key={i}
+                      className="border-b border-border last:border-0 hover:bg-muted/30"
+                    >
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {row.time}
+                      </td>
                       <td className="py-3 px-4 font-medium">{row.name}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{row.consultant}</td>
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {row.consultant}
+                      </td>
                       <td className="py-3 px-4 text-right">{row.fee}</td>
                     </tr>
                   ))}
@@ -248,8 +321,9 @@ export default async function WelcomePage() {
 
       {/* Footer note */}
       <p className="text-xs text-muted-foreground">
-        This is a sample dashboard. Numbers and recent bookings are placeholders. Connect your data to show live metrics.
+        This is a sample dashboard. Numbers and recent bookings are
+        placeholders. Connect your data to show live metrics.
       </p>
     </main>
-  )
+  );
 }

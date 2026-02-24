@@ -60,11 +60,14 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Credentials are mandatory');
           }
 
-          const emailRegex =
-            /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-          if (!emailRegex.test(credentials.username)) {
-            throw new Error('Invalid credentials');
-          }
+          const loginIdentifier = credentials.username.trim();
+          const userWhere = {
+            OR: [
+              { email: loginIdentifier },
+              { username: loginIdentifier }
+            ],
+            status: 1
+          };
 
           const has2FACode =
             typeof credentials.twoFactorCode === 'string' &&
@@ -135,9 +138,9 @@ export const authOptions: NextAuthOptions = {
               };
             }
 
-            // SMS/EMAIL: find by email + password, then verify stored code
+            // SMS/EMAIL: find by email or username + password, then verify stored code
             const user = await prisma.user.findFirst({
-              where: { email: credentials.username, status: 1 },
+              where: userWhere,
               include: { userGroup: true }
             });
             if (!user || !user.password) {
@@ -177,7 +180,7 @@ export const authOptions: NextAuthOptions = {
 
           // --- Step 1: Validate password, then require 2FA or return user ---
           const user = await prisma.user.findFirst({
-            where: { email: credentials.username, status: 1 },
+            where: userWhere,
             include: { userGroup: true }
           });
 
@@ -191,6 +194,10 @@ export const authOptions: NextAuthOptions = {
           );
           if (!isCorrectPassword) {
             throw new Error('Invalid credentials');
+          }
+
+          if (user.mustChangePassword === true) {
+            return null;
           }
 
           const group = user.userGroup;
