@@ -46,6 +46,12 @@ const reportsData = [
     masterData: 'All Doctor View (By Session Time)',
     description: 'View aggregated booking details by doctor and session time with filters',
     route: '/reports/all-doctor-view'
+  },
+  {
+    id: '6',
+    masterData: 'SMS Activity',
+    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
+    route: '/reports/sms-activity'
   }
 ];
 

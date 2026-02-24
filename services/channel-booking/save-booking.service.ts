@@ -5,6 +5,7 @@ import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-bookin
 import { getIO, channelBookingRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import {
+  createReceiptAndUpdateBooking,
   loadSessionForSaveBooking,
   checkConsecutiveSessionFull,
   getProcessedDiscount,
@@ -15,7 +16,6 @@ import {
   getNextSequenceNumber,
   updateAgentBalance,
   validateVoucherForDiscount,
-  getReceiptSequenceInfo,
   getBookingSequenceInfo,
 } from "./helpers"
 
@@ -302,40 +302,40 @@ export async function saveBookingService(
     // POS and Agent create a receipt and mark booking as paid (status 1); OnCall does not.
     if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
       const receiptAmount = amountToUse
-      const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
-        booking.locationId ?? null,
-        1
-      )
-      const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
-      if (seqResult.success) {
-        const receiptNo = seqResult.value
-        const receiptNoString = formatReceiptNoString(receiptNo)
-        const remarks =
-          input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
-        try {
-          const newReceipt = await prisma.receipt.create({
-            data: {
-              receiptNo,
-              receiptNoString,
-              paymentMethod: input.payment_type,
-              amount: receiptAmount,
-              bank: input.bank?.name ?? "",
-              bankId: input.bank?.id ?? null,
-              cardReference: input.card ?? "",
-              slipReference: input.slip_ref ?? "",
-              remarks,
-              type: 1,
-              method: 1,
-              whd: 0,
-              whdPercentage: 0,
-              bookingId: booking.id,
-              agencyId: input.agency?.id ?? null,
-              createdBy: userId,
-              locationId: booking.locationId ?? null,
-              userLocationId: null,
-            },
+      const remarks =
+        input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const r = await createReceiptAndUpdateBooking(tx, {
+            bookingId: booking.id,
+            locationId: booking.locationId ?? null,
+            receiptSequenceMethod: 1, // PAYMENT RECEIPTS
+            paymentMethod: input.payment_type,
+            amount: receiptAmount,
+            bank: input.bank?.name ?? "",
+            bankId: input.bank?.id ?? null,
+            cardReference: input.card ?? "",
+            slipReference: input.slip_ref ?? "",
+            remarks,
+            type: 1,
+            method: 1,
+            agencyId: input.agency?.id ?? null,
+            createdBy: userId,
+            userLocationId: null,
+            getBookingUpdate: (receipt) => ({
+              status: 1,
+              receiptNo: receipt.receiptNo,
+              receiptNoString: receipt.receiptNoString,
+              receiptPaymentMethod: input.payment_type,
+              receiptNoCreatedAt: receipt.createdAt,
+              receiptNoId: receipt.id,
+              updatedBy: userId,
+            }),
           })
-          if (input.agency?.id) {
+          if (!r.success) throw new Error(r.message)
+          return r.receipt
+        })
+        if (input.agency?.id) {
             const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
             // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone
             const agencyDetails = await prisma.agency.findUnique({
@@ -367,24 +367,10 @@ export async function saveBookingService(
               await sendSms(agencyDetails.phone.trim(), text, { logName: "Agency Balance" })
             }
           }
-          // Mark booking as paid and attach receipt details.
-          await prisma.booking.update({
-            where: { id: booking.id },
-            data: {
-              status: 1,
-              receiptNo: newReceipt.receiptNo,
-              receiptNoString: newReceipt.receiptNoString,
-              receiptPaymentMethod: input.payment_type,
-              receiptNoCreatedAt: newReceipt.createdAt,
-              receiptNoId: newReceipt.id,
-              updatedBy: userId,
-            },
-          })
         } catch (receiptErr) {
           console.error("saveBookingService receipt create error", receiptErr)
           // Booking remains status 0 (pending); user can settle later.
         }
-      }
     }
 
     const fullBooking = await getBookingForSaveBooking(booking.id)

@@ -1,12 +1,24 @@
 import prisma from "@/lib/prisma"
-import { normalizeSessionTime } from "@/lib/utils"
 import {
+  createReceiptAndUpdateBooking,
   getProcessedDiscount,
   getBookingForSaveBooking,
-  getNextSequenceNumber,
-  getReceiptSequenceInfo,
 } from "./helpers"
-import type { Session } from "@/types/booking.dashboard"
+
+type ArrivalDepartureEntry = { time: string; createdBy: string }
+
+function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
+  if (!Array.isArray(json)) return []
+  return json.filter(
+    (item): item is ArrivalDepartureEntry =>
+      item != null &&
+      typeof item === "object" &&
+      "time" in item &&
+      "createdBy" in item &&
+      typeof (item as ArrivalDepartureEntry).time === "string" &&
+      typeof (item as ArrivalDepartureEntry).createdBy === "string"
+  )
+}
 
 export type SettleBookingInput = {
   booking_id: string
@@ -45,6 +57,47 @@ export async function settleBookingService(
     }
   }
 
+  if (booking.session?.status === 0) {
+    return {
+      success: false,
+      errorCode: "session_on_leave",
+      message: "Doctor is on leave for this session. Settlement is not allowed.",
+    }
+  }
+
+  const sessionWithMeta = booking.session as
+    | { date?: Date; doctorArrivalTime?: unknown; doctorDepatureTime?: unknown }
+    | null
+  if (sessionWithMeta?.date) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const sessionDate = sessionWithMeta.date instanceof Date ? sessionWithMeta.date : new Date(sessionWithMeta.date)
+    const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+    if (sessionDay < today) {
+      return {
+        success: false,
+        errorCode: "session_date_past",
+        message:
+          "Cannot settle a booking for a past session date. Only today's sessions can be settled.",
+      }
+    }
+  }
+
+  const arrivals = parseArrivalDepartureJson(sessionWithMeta?.doctorArrivalTime)
+  const departures = parseArrivalDepartureJson(sessionWithMeta?.doctorDepatureTime)
+  if (departures.length > 0) {
+    const lastDepTime = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
+    const hasArrivalAfterLastDep = arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDepTime)
+    if (!hasArrivalAfterLastDep) {
+      return {
+        success: false,
+        errorCode: "doctor_departed",
+        message:
+          "Doctor has departed. Doctor must arrive again before settlement is allowed.",
+      }
+    }
+  }
+
   let discount = input.discount
   const discountDivision = {
     hospital_fee_discount: booking.hospitalFeeDiscount ?? 0,
@@ -53,41 +106,12 @@ export async function settleBookingService(
   } as { hospital_fee_discount: number; professionsal_fee_discount: number; other_discount: number }
 
   if (input.auto_discount_type && booking.session) {
-    const sessionDate = booking.session.date instanceof Date ? booking.session.date : new Date(booking.session.date);
-    const sessionForDiscount: Session = {
-      id: booking.session.id,
-      date: booking.session.date,
-      startTime: normalizeSessionTime(booking.session.startTime as Date | number, sessionDate),
-      endTime: normalizeSessionTime(booking.session.endTime as Date | number, sessionDate),
-      fees: booking.session.fees as Session["fees"],
-      amountLocal: booking.session.amountLocal ?? null,
-      amountForeign: booking.session.amountForeign ?? null,
-      status: booking.session.status,
-      appointmentNo: booking.session.appointmentNo,
-      isScan: booking.session.isScan,
-      doctorId: booking.session.doctorId ?? null,
-      departmentId: booking.session.departmentId ?? null,
-      locationId: booking.session.locationId ?? null,
-      roomId: booking.session.roomId ?? null,
-      location: booking.session.location ?? null,
-      room: booking.session.room ?? null,
-      doctor: booking.session.doctor ?? null,
-      institution: booking.session.institution,
-      doctorSessionId: booking.session.doctorSessionId,
-      previousDoctorSession: booking.session.previousDoctorSession,
-      durationMinutes: booking.session.durationMinutes,
-      startingPatientNumber: booking.session.startingPatientNumber,
-      maxPatientNumber: booking.session.maxPatientNumber,
-      refundable: booking.session.refundable,
-      remarks: booking.session.remarks ?? null,
-      createdAt: booking.session.createdAt,
-      updatedAt: booking.session.updatedAt,
-    }
+    // getProcessedDiscount only uses session.fees (for professional/hospital fee split).
     const result = await getProcessedDiscount(
       input.auto_discount_type,
       booking.method,
       input.settle_method,
-      sessionForDiscount,
+      { fees: booking.session.fees },
       booking.foriegner
     )
     if (!result.status) {
@@ -104,57 +128,44 @@ export async function settleBookingService(
   }
 
   const amount = booking.amount - discount
-  const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
-    booking.locationId ?? null,
-    1
-  )
-  const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
-  if (!seqResult.success) {
-    return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
-  }
-  const receiptNo = seqResult.value
-  const receiptNoString = formatReceiptNoString(receiptNo)
 
-  const newReceipt = await prisma.receipt.create({
-    data: {
-      receiptNo,
-      receiptNoString,
+  const result = await prisma.$transaction(async (tx) =>
+    createReceiptAndUpdateBooking(tx, {
+      bookingId: booking.id,
+      locationId: booking.locationId ?? null,
+      receiptSequenceMethod: 1, // PAYMENT RECEIPTS
       paymentMethod: input.settle_method,
       amount,
       bank: input.bank?.name ?? "",
       bankId: input.bank?.id ?? null,
       cardReference: input.card ?? "",
       slipReference: input.slip_ref ?? "",
-      remarks: "POS PAYMENT",
+      remarks: "POS PAYMENT", // Settling a pending bill is issued as POS PAYMENT (same as save-booking)
       type: 1,
       method: 1, // PAYMENT RECEIPTS
-      whd: 0,
-      whdPercentage: 0,
-      bookingId: booking.id,
       agencyId: booking.agencyId ?? null,
       createdBy: userId,
-      locationId: booking.locationId ?? null,
       userLocationId: input.user_location_id ?? null,
-    },
-  })
+      getBookingUpdate: (receipt) => ({
+        status: 1,
+        discountDivision,
+        hospitalFeeDiscount: discountDivision.hospital_fee_discount,
+        professionsalFeeDiscount: discountDivision.professionsal_fee_discount,
+        discount,
+        autoDiscountId: input.auto_discount_type ?? null,
+        receiptNo: receipt.receiptNo,
+        receiptNoString: receipt.receiptNoString,
+        receiptPaymentMethod: input.settle_method,
+        receiptNoCreatedAt: receipt.createdAt,
+        receiptNoId: receipt.id,
+        updatedBy: userId,
+      }),
+    })
+  )
 
-  await prisma.booking.update({
-    where: { id: input.booking_id },
-    data: {
-      status: 1,
-      discountDivision,
-      hospitalFeeDiscount: discountDivision.hospital_fee_discount,
-      professionsalFeeDiscount: discountDivision.professionsal_fee_discount,
-      discount,
-      autoDiscountId: input.auto_discount_type ?? null,
-      receiptNo: newReceipt.receiptNo,
-      receiptNoString: newReceipt.receiptNoString,
-      receiptPaymentMethod: input.settle_method,
-      receiptNoCreatedAt: newReceipt.createdAt,
-      receiptNoId: newReceipt.id,
-      updatedBy: userId,
-    },
-  })
+  if (!result.success) {
+    return { success: false, errorCode: result.errorCode, message: result.message }
+  }
 
   const fullBooking = await getBookingForSaveBooking(input.booking_id)
   return { success: true, data: fullBooking }

@@ -18,6 +18,8 @@ export type ChannelBookingRecord = {
   agencyRef: string | null
   staffId: string | null
   movedAt?: Date | null
+  /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Transfer tick hidden when !== 0. */
+  refund?: number
   [key: string]: unknown
 }
 

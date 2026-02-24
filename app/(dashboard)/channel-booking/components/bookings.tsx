@@ -11,9 +11,15 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useChannelBooking } from "../context/channel-booking-context"
-import { getSessionActivityForChannelBooking, type SessionActivityEntry } from "@/app/actions/channel-booking"
+import {
+  getSessionActivityForChannelBooking,
+  sendSmsToSessionAction,
+  type SessionActivityEntry,
+} from "@/app/actions/channel-booking"
+import { useToast } from "@/components/hooks/use-toast"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { FileClock, Loader2, Mail } from "lucide-react"
+import { FileClock, Loader2, MessageCircle } from "lucide-react"
 import {
   formatSessionDateShort,
   formatSessionDay,
@@ -29,6 +35,13 @@ function sessionSummary(session: Session): string {
   return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
 }
 
+const MAX_NAME_CHARS = 25
+
+function truncateName(name: string, maxChars: number): string {
+  if (name.length <= maxChars) return name
+  return name.slice(0, maxChars) + "..."
+}
+
 function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "booking.transferred") {
     const dir = entry.metadata?.direction as string | undefined
@@ -36,6 +49,7 @@ function actionLabel(entry: SessionActivityEntry): string {
     if (dir === "incoming") return "Transfer in"
     return "Transfer"
   }
+  if (entry.action === "session.sms_sent") return "SMS sent"
   if (entry.action === "session.updated") return "Session updated"
   if (entry.action === "session.deleted") return "Session deleted"
   if (entry.action === "session.created.bulk") return "Sessions created (bulk)"
@@ -54,9 +68,13 @@ export function Bookings() {
     setSelectedTransferBookingIds,
   } = useChannelBooking()
 
+  const { toast } = useToast()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [activityLog, setActivityLog] = useState<SessionActivityEntry[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [smsSending, setSmsSending] = useState(false)
 
   useEffect(() => {
     if (!historyOpen || !selectedSession?.id) {
@@ -98,10 +116,13 @@ export function Bookings() {
             </button>
             <button
               type="button"
-              className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
-              aria-label="Email"
+              className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
+              aria-label="Send SMS to session"
+              title="Send SMS to session"
+              disabled={!hasSession}
+              onClick={() => setSmsDialogOpen(true)}
             >
-              <Mail className="h-4 w-4" />
+              <MessageCircle className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -126,31 +147,52 @@ export function Bookings() {
               <table className="w-full text-xs border-collapse">
                 <thead className="sticky top-0 bg-muted/80 z-10">
                   <tr>
-                    <th className="w-8 px-1.5 py-1.5 text-left">
+                    <th className="w-8 px-1 py-1.5 text-left">
                       <Checkbox
                         aria-label="Select all for transfer"
                         className="h-3.5 w-3.5"
-                        checked={bookings.length > 0 && bookings.every((b) => selectedTransferBookingIds.includes(b.id))}
+                        checked={
+                          (() => {
+                            const transferable = bookings.filter(
+                              (b) =>
+                                b.status !== 2 &&
+                                b.status !== 3 &&
+                                (b.refund === 0 || b.refund == null)
+                            )
+                            return (
+                              transferable.length > 0 &&
+                              transferable.every((b) => selectedTransferBookingIds.includes(b.id))
+                            )
+                          })()
+                        }
                         onCheckedChange={() => {
-                          if (bookings.every((b) => selectedTransferBookingIds.includes(b.id))) {
+                          const transferable = bookings.filter(
+                            (b) => b.status !== 2 && (b.refund === 0 || b.refund == null)
+                          )
+                          const allSelected = transferable.every((b) =>
+                            selectedTransferBookingIds.includes(b.id)
+                          )
+                          if (allSelected) {
                             setSelectedTransferBookingIds([])
                           } else {
-                            setSelectedTransferBookingIds(bookings.map((b) => b.id))
+                            setSelectedTransferBookingIds(transferable.map((b) => b.id))
                           }
                         }}
                       />
                     </th>
-                    <th className="w-10 px-1.5 py-1.5 text-left font-medium">No</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Name</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Paid</th>
-                    <th className="px-1.5 py-1.5 text-left font-medium">Agent/Staff</th>
+                    <th className="w-8 px-1 py-1.5 text-left font-medium">No</th>
+                    <th className="min-w-[200px] px-1 py-1.5 text-left font-medium">Name</th>
+                    <th className="whitespace-nowrap px-1 py-1.5 text-left font-medium">Paid</th>
+                    <th className="px-1 py-1.5 text-left font-medium">Agent/Staff</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bookings.map((b) => {
                     const isSelected = selectedBooking?.id === b.id
                     const isTransferSelected = selectedTransferBookingIds.includes(b.id)
-                    const isRefunded = b.status === 2
+                    const isCanceledOrRefunded =
+                      b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+                    const canTransfer = !isCanceledOrRefunded
                     const paidLabel =
                       b.status === 1
                         ? `Paid - ${b.methodName}`
@@ -164,30 +206,37 @@ export function Bookings() {
                         className={cn(
                           "border-t border-border cursor-pointer transition-colors",
                           "hover:bg-primary/10",
-                          isSelected && !isRefunded && "bg-primary/15",
-                          isRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
-                          isRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
+                          isSelected && !isCanceledOrRefunded && "bg-primary/15",
+                          isCanceledOrRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                          isCanceledOrRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
                         )}
                       >
                         <td
-                          className="w-8 px-1.5 py-1.5"
+                          className="w-8 px-1 py-1.5"
                           onClick={(e) => {
                             e.stopPropagation()
-                            toggleTransferBooking(b.id)
+                            if (canTransfer) toggleTransferBooking(b.id)
                           }}
                         >
-                          <Checkbox
-                            checked={isTransferSelected}
-                            aria-label={`Transfer ${displayName}`}
-                            className="h-3.5 w-3.5 pointer-events-none"
-                          />
+                          {canTransfer && (
+                            <Checkbox
+                              checked={isTransferSelected}
+                              aria-label={`Transfer ${displayName}`}
+                              className="h-3.5 w-3.5 pointer-events-none"
+                            />
+                          )}
                         </td>
-                        <td className="w-10 px-1.5 py-1.5 tabular-nums">
+                        <td className="w-8 px-1 py-1.5 tabular-nums font-semibold">
                           {b.appointmentNo}
                         </td>
-                        <td className="px-1.5 py-1.5 truncate max-w-[120px]">
-                          <span className="inline-flex items-center gap-1 truncate">
-                            {displayName}
+                        <td className="min-w-0 px-1 py-1.5 overflow-hidden">
+                          <span className="flex items-center gap-1 min-w-0">
+                            <span
+                              className="truncate min-w-0"
+                              title={displayName}
+                            >
+                              {truncateName(displayName, MAX_NAME_CHARS)}
+                            </span>
                             {b.movedAt && (
                               <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                                 Moved
@@ -195,7 +244,7 @@ export function Bookings() {
                             )}
                           </span>
                         </td>
-                        <td className="px-1.5 py-1.5">
+                        <td className="whitespace-nowrap px-1 py-1.5">
                           <span
                             className={cn(
                               b.status === 0 && "text-amber-600 font-medium"
@@ -204,7 +253,7 @@ export function Bookings() {
                             {paidLabel}
                           </span>
                         </td>
-                        <td className="px-1.5 py-1.5 tabular-nums text-muted-foreground">
+                        <td className="px-1 py-1.5 tabular-nums text-muted-foreground">
                           {agentStaff}
                         </td>
                       </tr>
@@ -272,7 +321,13 @@ export function Bookings() {
                         ) : null}
                       </div>
                     )}
-                    {entry.action !== "booking.transferred" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
+                    {entry.action === "session.sms_sent" && entry.metadata?.recipientCount != null && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Sent to {Number(entry.metadata.recipientCount)} recipient
+                        {Number(entry.metadata.recipientCount) !== 1 ? "s" : ""}.
+                      </p>
+                    )}
+                    {entry.action !== "booking.transferred" && entry.action !== "session.sms_sent" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
                       <p className="text-muted-foreground mt-0.5 truncate" title={String(entry.metadata.remarks)}>
                         {String(entry.metadata.remarks)}
                       </p>
@@ -281,6 +336,84 @@ export function Bookings() {
                 ))}
               </ul>
             ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={smsDialogOpen} onOpenChange={setSmsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Send SMS to Session</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Message <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                placeholder="Enter message to send to all bookings (refunded excluded)"
+                value={smsMessage}
+                onChange={(e) => setSmsMessage(e.target.value)}
+                className="min-h-[100px] resize-y"
+                disabled={smsSending}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSmsDialogOpen(false)}
+                disabled={smsSending}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  if (!selectedSession?.id || !smsMessage.trim()) return
+                  setSmsSending(true)
+                  try {
+                    const result = await sendSmsToSessionAction({
+                      sessionId: selectedSession.id,
+                      message: smsMessage.trim(),
+                    })
+                    if (result.success) {
+                      toast({
+                        title: "SMS sent",
+                        description: `Message sent to ${result.recipientCount} recipient(s).`,
+                      })
+                      setSmsDialogOpen(false)
+                      setSmsMessage("")
+                    } else {
+                      toast({
+                        title: "Send failed",
+                        description: result.message ?? result.errorCode ?? "Please try again.",
+                        variant: "destructive",
+                      })
+                    }
+                  } catch (e) {
+                    toast({
+                      title: "Error",
+                      description: e instanceof Error ? e.message : "Failed to send SMS.",
+                      variant: "destructive",
+                    })
+                  } finally {
+                    setSmsSending(false)
+                  }
+                }}
+                disabled={!smsMessage.trim() || smsSending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {smsSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Sending…
+                  </>
+                ) : (
+                  "Send"
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

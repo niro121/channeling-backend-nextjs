@@ -5,6 +5,7 @@ import {
   getSessionsForChannelBooking,
   getBookingsBySession,
   transferBookingsAction,
+  getSessionsTransferEligibilityAction,
 } from "@/app/actions/channel-booking"
 import type { Session } from "@/types/booking.dashboard"
 import { useChannelBooking } from "../../context/channel-booking-context"
@@ -28,7 +29,21 @@ function formatTransferSessionLabel(session: Session): string {
   const date = session.date instanceof Date ? session.date : new Date(session.date)
   const start = formatSessionStartTimeDisplay(session.startTime, date)
   const end = formatSessionStartTimeDisplay(session.endTime, date)
-  return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
+  const branch = session.location?.name ?? "—"
+  return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end}) [${branch}]`
+}
+
+/** True if session has same local/foreign fee as the source session (selected bookings' session). */
+function sessionPriceMatches(
+  sourceSession: Session | null | undefined,
+  targetSession: Session
+): boolean {
+  if (!sourceSession) return true
+  const aLocal = sourceSession.amountLocal ?? null
+  const aForeign = sourceSession.amountForeign ?? null
+  const bLocal = targetSession.amountLocal ?? null
+  const bForeign = targetSession.amountForeign ?? null
+  return aLocal === bLocal && aForeign === bForeign
 }
 
 export function TransferTab() {
@@ -50,6 +65,9 @@ export function TransferTab() {
   const [transferRemarks, setTransferRemarks] = useState("")
   const [sessionsForTransfer, setSessionsForTransfer] = useState<Session[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [eligibilityMap, setEligibilityMap] = useState<
+    Record<string, { canTransfer: boolean; previousSessionLabel?: string }>
+  >({})
   const [submitting, setSubmitting] = useState(false)
 
   const currentSpecialityId = selectedDoctor?.specialityId ?? null
@@ -57,10 +75,19 @@ export function TransferTab() {
     (d) => d.specialityId === currentSpecialityId
   )
 
+  // Reset transfer form when the user selects a different session in the Bookings panel
+  useEffect(() => {
+    setTransferDoctorId("")
+    setTransferSessionId("")
+    setTransferRemarks("")
+    setSessionsForTransfer([])
+  }, [selectedSession?.id])
+
   useEffect(() => {
     if (!transferDoctorId) {
       setSessionsForTransfer([])
       setTransferSessionId("")
+      setEligibilityMap({})
       return
     }
     let cancelled = false
@@ -78,6 +105,52 @@ export function TransferTab() {
       cancelled = true
     }
   }, [transferDoctorId])
+
+  // Fetch transfer eligibility (previous session must be full) for loaded sessions
+  useEffect(() => {
+    if (sessionsForTransfer.length === 0) {
+      setEligibilityMap({})
+      return
+    }
+    let cancelled = false
+    getSessionsTransferEligibilityAction(sessionsForTransfer.map((s) => s.id))
+      .then((res) => {
+        if (cancelled) return
+        if (res.success && res.data) {
+          setEligibilityMap(
+            Object.fromEntries(
+              res.data.map((e) => [
+                e.sessionId,
+                {
+                  canTransfer: e.canTransfer,
+                  previousSessionLabel: e.previousSessionLabel,
+                },
+              ])
+            )
+          )
+        } else {
+          setEligibilityMap({})
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionsForTransfer])
+
+  // Clear selected session if it became disabled (price difference, leave, or previous session not full)
+  useEffect(() => {
+    if (!transferSessionId || !selectedSession || sessionsForTransfer.length === 0) return
+    const selected = sessionsForTransfer.find((s) => s.id === transferSessionId)
+    if (!selected) return
+    const eligibility = eligibilityMap[transferSessionId]
+    if (
+      !sessionPriceMatches(selectedSession, selected) ||
+      selected.status === 0 ||
+      (eligibility && !eligibility.canTransfer)
+    ) {
+      setTransferSessionId("")
+    }
+  }, [selectedSession, sessionsForTransfer, transferSessionId, eligibilityMap])
 
   const n = selectedTransferBookingIds.length
   const canSubmit =
@@ -150,9 +223,14 @@ export function TransferTab() {
 
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-semibold">
-        Transfer {n} Booking{n !== 1 ? "s" : ""}
-      </h4>
+      <div>
+        <h4 className="text-sm font-semibold">
+          Transfer {n} Booking{n !== 1 ? "s" : ""}
+        </h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {n} booking{n !== 1 ? "s" : ""} selected for transfer to another session.
+        </p>
+      </div>
 
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">
@@ -193,11 +271,31 @@ export function TransferTab() {
             />
           </SelectTrigger>
           <SelectContent>
-            {sessionsForTransfer.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {formatTransferSessionLabel(s)}
-              </SelectItem>
-            ))}
+            {sessionsForTransfer.map((s) => {
+              const priceMatch = sessionPriceMatches(selectedSession, s)
+              const isLeave = s.status === 0
+              const eligibility = eligibilityMap[s.id]
+              const previousMustBeFilled = eligibility && !eligibility.canTransfer
+              const disabled = !priceMatch || isLeave || previousMustBeFilled
+              const label = formatTransferSessionLabel(s)
+              const suffix = isLeave
+                ? " (Leave)"
+                : !priceMatch
+                  ? " (Not selectable due to price difference)"
+                  : previousMustBeFilled && eligibility?.previousSessionLabel
+                    ? ` (Fill previous session first: ${eligibility.previousSessionLabel})`
+                    : ""
+              return (
+                <SelectItem
+                  key={s.id}
+                  value={s.id}
+                  disabled={disabled}
+                  className={disabled ? "opacity-60" : undefined}
+                >
+                  {label}{suffix}
+                </SelectItem>
+              )
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -215,13 +313,28 @@ export function TransferTab() {
         />
       </div>
 
-      <Button
-        onClick={handleTransfer}
-        disabled={!canSubmit || submitting}
-        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-      >
-        {submitting ? "Transferring…" : "Transfer Now"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          onClick={handleTransfer}
+          disabled={!canSubmit || submitting}
+          className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          {submitting ? "Transferring…" : "Transfer Now"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setTransferDoctorId("")
+            setTransferSessionId("")
+            setTransferRemarks("")
+            setSessionsForTransfer([])
+          }}
+          disabled={submitting}
+        >
+          Clear
+        </Button>
+      </div>
     </div>
   )
 }

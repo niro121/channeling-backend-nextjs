@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import moment from "moment"
-import { getNextSequenceNumber } from "./helpers"
+import { getNextSequenceNumber, getPreviousSessionTransferStatus } from "./helpers"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import { logActivity } from "@/lib/activity-log"
 
@@ -64,7 +64,7 @@ export async function transferBookingsService(
     }),
     prisma.session.findUnique({
       where: { id: currentSessionId },
-      select: { startTime: true },
+      include: { doctor: { select: { title: true, name: true } } },
     }),
     prisma.receipt.findMany({
       where: { bookingId: { in: bookingIds }, method: RECEIPT_METHOD_DOCTOR_PAYMENT },
@@ -79,12 +79,24 @@ export async function transferBookingsService(
         sessionStartTime: true,
         sessionId: true,
         phone: true,
+        title: true,
+        name: true,
+        status: true,
+        refund: true,
       },
     }),
   ])
 
   if (!targetSession || !targetSession.doctor) {
     return { success: false, errorCode: "invalid_session", message: "Target session not found." }
+  }
+  // status 1 = ACTIVE, 0 = LEAVE — do not allow transfer to a session on leave
+  if (targetSession.status === 0) {
+    return {
+      success: false,
+      errorCode: "session_on_leave",
+      message: "The selected session is on leave and cannot receive transfers. Please choose an active session.",
+    }
   }
   if (!currentSession) {
     return { success: false, errorCode: "invalid_session", message: "Current session not found." }
@@ -100,6 +112,18 @@ export async function transferBookingsService(
     return { success: false, errorCode: "invalid_input", message: "Some bookings not found." }
   }
 
+  const canceledOrRefundedCount = bookingObjs.filter(
+    (b) => b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+  ).length
+  if (canceledOrRefundedCount > 0) {
+    return {
+      success: false,
+      errorCode: "refunded_booking",
+      message:
+        "Canceled or refunded bookings cannot be transferred. Please remove them from the selection.",
+    }
+  }
+
   const todayStart = moment().startOf("day").unix()
   for (const b of bookingObjs) {
     if (b.sessionStartTime < todayStart) {
@@ -108,6 +132,34 @@ export async function transferBookingsService(
         errorCode: "previous_day",
         message: "Sorry, previous day bookings cannot be transferred.",
       }
+    }
+  }
+
+  // Pre-check: ensure target session has room for all selected bookings (avoid partial transfer)
+  const appointmentScope = `appointment:${sessionId}`
+  const seq = await prisma.sequence.findUnique({
+    where: { scopeKey: appointmentScope },
+    select: { lastValue: true },
+  })
+  const startFrom = targetSession.startingPatientNumber
+  const nextNumber =
+    seq == null ? startFrom : seq.lastValue < startFrom ? startFrom : seq.lastValue + 1
+  const slotsLeft = Math.max(0, targetSession.maxPatientNumber - nextNumber + 1)
+  if (slotsLeft < bookingObjs.length) {
+    return {
+      success: false,
+      errorCode: "limitexceeded",
+      message: `Target session has room for ${slotsLeft} more appointment(s). You selected ${bookingObjs.length}. Please reduce the selection or choose another session.`,
+    }
+  }
+
+  // Consecutive session rule: if target has a previous session (same day), it must be full before transferring here
+  const prevStatus = await getPreviousSessionTransferStatus(sessionId)
+  if (!prevStatus.canTransfer && prevStatus.previousSessionLabel) {
+    return {
+      success: false,
+      errorCode: "previous_session_not_full",
+      message: `Fill the previous session first (${prevStatus.previousSessionLabel}) before transferring to this session.`,
     }
   }
 
@@ -125,7 +177,12 @@ export async function transferBookingsService(
       : Number(currentSession.startTime)
 
   const movedAt = new Date()
-  const doctorName = [targetSession.doctor.title, targetSession.doctor.name].filter(Boolean).join(" ")
+  const targetDoctorName = [targetSession.doctor.title, targetSession.doctor.name].filter(Boolean).join(" ")
+  const currentDoctorName =
+    currentSession.doctor != null
+      ? [currentSession.doctor.title, currentSession.doctor.name].filter(Boolean).join(" ")
+      : "—"
+  const doctorName = targetDoctorName
   const targetDateStr =
     targetSession.date instanceof Date
       ? moment(targetSession.date).format("DD-MM-YYYY")
@@ -151,7 +208,8 @@ export async function transferBookingsService(
     const newAppointmentNo = appointmentResult.value
     lastAssignedAppointmentNo = newAppointmentNo
 
-    const beforeDesc = `Transfer of Appointment No.${String(booking.appointmentNo).padStart(2, "0")} of ${moment.unix(booking.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
+    const bookingName = [booking.title, booking.name].filter(Boolean).join(" ").trim() || "—"
+    const beforeDesc = `Transfer of Appointment No.${String(booking.appointmentNo).padStart(2, "0")} (${bookingName}) from ${currentDoctorName}'s session on ${moment.unix(booking.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
 
     await prisma.booking.update({
       where: { id: booking.id },
@@ -175,7 +233,7 @@ export async function transferBookingsService(
       select: { appointmentNo: true, sessionStartTime: true },
     })
     const afterDesc = updated
-      ? `Changed to Appointment No.${String(updated.appointmentNo).padStart(2, "0")} of ${moment.unix(updated.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
+      ? `Changed to Appointment No.${String(updated.appointmentNo).padStart(2, "0")} (${bookingName}) in ${targetDoctorName}'s session on ${moment.unix(updated.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
       : ""
 
     if (userId) {
