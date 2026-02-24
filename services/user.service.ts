@@ -243,6 +243,7 @@ export const saveUser = async (
         userType: data.userType,
         status: data.status ?? 1,
         userGroupId: data.userGroupId || null,
+        mustChangePassword: true,
         ...(userLocationId && { userLocationId }),
         ...(staffId && { staffId }),
         defaultBookingMethod: data.defaultBookingMethod ?? null,

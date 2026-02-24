@@ -35,6 +35,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    if (user.mustChangePassword === true) {
+      return NextResponse.json({ requiresPasswordChange: true });
+    }
+
     // 2FA required only when BOTH: (1) user has enabled it in Settings, AND (2) group allows 2FA (admin has not disabled it for the group)
     const group = user.userGroup;
     const groupAllows2FA = group == null || group.twoFactorEnabled === true;

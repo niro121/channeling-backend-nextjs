@@ -193,6 +193,10 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Invalid credentials');
           }
 
+          if (user.mustChangePassword === true) {
+            return null;
+          }
+
           const group = user.userGroup;
           // 2FA required only when BOTH user enabled it in Settings AND group allows 2FA
           const groupAllows2FA = group == null || group.twoFactorEnabled === true;
