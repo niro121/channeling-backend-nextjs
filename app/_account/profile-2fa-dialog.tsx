@@ -65,7 +65,7 @@ export function Profile2FADialogContent() {
         toast({ variant: 'destructive', title: 'Error', description: (result.errors as { message?: string })?.message ?? 'Failed to change password.' });
         return;
       }
-      toast({ title: 'Success', description: 'Your password was changed successfully.', style: { backgroundColor: '#f0fdf4' } });
+      toast({ title: 'Success', description: 'Your password was changed successfully.', variant: 'success' });
       setShowChangePassword(false);
       setCurrentPassword('');
       setNewPassword('');
