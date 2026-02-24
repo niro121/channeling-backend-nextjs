@@ -23,6 +23,17 @@ const transferBookingsSchema = z
     },
     { message: "Refunded bookings cannot be transferred. Please remove them from the selection." }
   )
+  .refine(
+    async (data) => {
+      const session = await prisma.session.findUnique({
+        where: { id: data.sessionId },
+        select: { status: true },
+      })
+      // status 1 = ACTIVE, 0 = LEAVE — cannot transfer to a session on leave
+      return session != null && session.status === 1
+    },
+    { message: "The selected session is on leave and cannot receive transfers. Please choose an active session." }
+  )
 
 export type TransferBookingsActionInput = z.infer<typeof transferBookingsSchema>
 
