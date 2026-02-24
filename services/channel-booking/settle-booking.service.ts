@@ -5,6 +5,21 @@ import {
   getBookingForSaveBooking,
 } from "./helpers"
 
+type ArrivalDepartureEntry = { time: string; createdBy: string }
+
+function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
+  if (!Array.isArray(json)) return []
+  return json.filter(
+    (item): item is ArrivalDepartureEntry =>
+      item != null &&
+      typeof item === "object" &&
+      "time" in item &&
+      "createdBy" in item &&
+      typeof (item as ArrivalDepartureEntry).time === "string" &&
+      typeof (item as ArrivalDepartureEntry).createdBy === "string"
+  )
+}
+
 export type SettleBookingInput = {
   booking_id: string
   settle_method: number // 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque
@@ -39,6 +54,47 @@ export async function settleBookingService(
       success: false,
       errorCode: "invalid_booking",
       message: !booking ? "Booking not found." : "Booking is not pending payment.",
+    }
+  }
+
+  if (booking.session?.status === 0) {
+    return {
+      success: false,
+      errorCode: "session_on_leave",
+      message: "Doctor is on leave for this session. Settlement is not allowed.",
+    }
+  }
+
+  const sessionWithMeta = booking.session as
+    | { date?: Date; doctorArrivalTime?: unknown; doctorDepatureTime?: unknown }
+    | null
+  if (sessionWithMeta?.date) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const sessionDate = sessionWithMeta.date instanceof Date ? sessionWithMeta.date : new Date(sessionWithMeta.date)
+    const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+    if (sessionDay < today) {
+      return {
+        success: false,
+        errorCode: "session_date_past",
+        message:
+          "Cannot settle a booking for a past session date. Only today's sessions can be settled.",
+      }
+    }
+  }
+
+  const arrivals = parseArrivalDepartureJson(sessionWithMeta?.doctorArrivalTime)
+  const departures = parseArrivalDepartureJson(sessionWithMeta?.doctorDepatureTime)
+  if (departures.length > 0) {
+    const lastDepTime = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
+    const hasArrivalAfterLastDep = arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDepTime)
+    if (!hasArrivalAfterLastDep) {
+      return {
+        success: false,
+        errorCode: "doctor_departed",
+        message:
+          "Doctor has departed. Doctor must arrive again before settlement is allowed.",
+      }
     }
   }
 

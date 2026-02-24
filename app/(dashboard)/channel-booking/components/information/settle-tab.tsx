@@ -170,6 +170,46 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     )
   }
 
+  if (details.sessionStatus === 0) {
+    return (
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+          <CheckCircle2 className="size-5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden />
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Doctor is on leave for this session. Settlement is not allowed.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  if (details.sessionDateForSettle && details.sessionDateForSettle < today) {
+    return (
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+          <CheckCircle2 className="size-5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden />
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Cannot settle a booking for a past session date. Only today&apos;s sessions can be settled.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (details.sessionCanSettleArrival === false) {
+    return (
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+          <CheckCircle2 className="size-5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden />
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Doctor has departed. Doctor must arrive again before settlement is allowed.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const amount = details.billTotal
   const showCard = settleMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD
   const showSlip = settleMethod === SAVE_PAYMENT_TYPE_SLIP
