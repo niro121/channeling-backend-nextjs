@@ -12,13 +12,13 @@ const MIN_PASSWORD_LENGTH = 8;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const identifier = typeof body?.email === "string" ? body.email.trim() : "";
     const currentPassword = typeof body?.currentPassword === "string" ? body.currentPassword : "";
     const newPassword = typeof body?.newPassword === "string" ? body.newPassword : "";
 
-    if (!email || !currentPassword || !newPassword) {
+    if (!identifier || !currentPassword || !newPassword) {
       return NextResponse.json(
-        { error: "Email, current password, and new password are required" },
+        { error: "Email/username, current password, and new password are required" },
         { status: 400 }
       );
     }
@@ -31,7 +31,10 @@ export async function POST(request: Request) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { email, status: 1 }
+      where: {
+        OR: [{ email: identifier }, { username: identifier }],
+        status: 1
+      }
     });
 
     if (!user || !user.password) {

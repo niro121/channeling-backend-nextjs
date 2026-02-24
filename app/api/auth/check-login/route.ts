@@ -4,8 +4,8 @@ import * as argon2 from "argon2";
 
 /**
  * POST /api/auth/check-login
- * Validates email + password and returns whether 2FA is required.
- * Body: { email: string, password: string }
+ * Validates email or username + password and returns whether 2FA is required.
+ * Body: { email: string, password: string } — "email" can be email or username
  * Returns:
  *   - { success: true, requiresTwoFactor: false } when no 2FA
  *   - { requiresTwoFactor: true, allowedMethods: string[] } when user is in a 2FA group (user then chooses method and calls request-2fa-code)
@@ -14,15 +14,18 @@ import * as argon2 from "argon2";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const identifier = typeof body?.email === "string" ? body.email.trim() : "";
     const password = typeof body?.password === "string" ? body.password : "";
 
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password required" }, { status: 400 });
+    if (!identifier || !password) {
+      return NextResponse.json({ error: "Email/username and password required" }, { status: 400 });
     }
 
     const user = await prisma.user.findFirst({
-      where: { email, status: 1 },
+      where: {
+        OR: [{ email: identifier }, { username: identifier }],
+        status: 1
+      },
       include: { userGroup: true }
     });
 

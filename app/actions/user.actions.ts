@@ -79,6 +79,7 @@ export const createNewUser = async (payload: User) => {
         const result = await saveUser({
             name: payload.name,
             email: payload.email,
+            username: payload.username ?? null,
             phone: payload.phone ?? null,
             twoFactorEnabled: payload.twoFactorEnabled ?? false,
             password: hashedPassword,
@@ -139,6 +140,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         const updatePayload: {
             name?: string;
             email?: string;
+            username?: string | null;
             phone?: string | null;
             twoFactorEnabled?: boolean;
             password?: string;
@@ -155,6 +157,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
 
         if (payload.name !== undefined) updatePayload.name = payload.name;
         if (payload.email !== undefined) updatePayload.email = payload.email;
+        if (payload.username !== undefined) updatePayload.username = payload.username ?? null;
         if (payload.phone !== undefined) updatePayload.phone = payload.phone ?? null;
         if (payload.twoFactorEnabled !== undefined) updatePayload.twoFactorEnabled = payload.twoFactorEnabled;
         if (hashedPassword !== undefined) updatePayload.password = hashedPassword;

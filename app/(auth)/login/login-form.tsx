@@ -260,13 +260,13 @@ const LoginForm = () => {
                 {!pending2FA ? (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email or username</Label>
                       <Input
                         id="email"
                         name="email"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="name@example.com"
+                        type="text"
+                        autoComplete="username"
+                        placeholder="Email or username"
                         value={formik.values.email}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
