@@ -44,7 +44,7 @@ export async function getApiClientById(id: string) {
   if (!result.success) {
     return { success: false, data: null, message: result.message }
   }
-  return { success: true, data: result.data, message: result.message }
+  return { success: true, data: result.data }
 }
 
 export async function createApiClient(payload: { name: string }) {
