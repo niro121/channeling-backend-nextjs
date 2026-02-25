@@ -1,17 +1,20 @@
 export {
   getLocationsForChannelBookingService,
   type ChannelBookingLocationOption,
-} from "./get-locations.service"
-export { getSessionsForChannelBookingService } from "./get-sessions.service"
+} from "./reference/get-locations.service"
+export {
+  getSessionsForChannelBookingService,
+  getSessionByIdForChannelBookingService,
+} from "./get-sessions.service"
 export {
   getSpecialitiesForChannelBookingService,
   type ChannelBookingSpecialityOption,
-} from "./get-specialities.service"
+} from "./reference/get-specialities.service"
 export {
   getDoctorsForChannelBookingService,
   type ChannelBookingDoctorOption,
-} from "./get-doctors.service"
+} from "./reference/get-doctors.service"
 export {
   getAreasForChannelBookingService,
   type ChannelBookingAreaOption,
-} from "./get-areas.service"
+} from "./reference/get-areas.service"

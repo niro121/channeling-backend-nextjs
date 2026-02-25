@@ -17,6 +17,9 @@ model User {
   id                     String   @id @default(auto()) @map("_id") @db.ObjectId
   name                   String
   email                  String   @unique()
+  // == username optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-username-partial-unique.ts == //
+  username               String?  // == Optional; login can use email or username == //
+  phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
   userType               Int // 1 = admin, 2 = staff
   password               String
   createdAt              DateTime @default(now())
@@ -25,6 +28,17 @@ model User {
   checkedDefaultLocation Boolean  @default(false)
   defaultLocation        String?
   defaultBookingMethod   Int?     // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
+
+  // == 2FA STATE == //
+  twoFactorEnabled       Boolean @default(false) // == User turned on 2FA in Settings; only then is 2FA required at login == //
+  twoFactorMethod        String?
+  twoFactorSecret        String?
+  twoFactorPendingSecret String? // Temporary secret during "setup at login"; moved to twoFactorSecret only after user verifies code
+  twoFactorTempCode      String?
+  twoFactorExpires       DateTime?
+  twoFactorVerified      Boolean @default(false)
+  twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
+  mustChangePassword     Boolean @default(false) // == When true, user must set a new password on first login (admin-created account) == //
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
@@ -68,8 +82,8 @@ model User {
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
   userLocationId          String?                        @db.ObjectId
   userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  // staffId is optional. Run scripts/fix-user-staffid-partial-unique.ts once so multiple users can have null.
-  staffId                 String?                        @unique @db.ObjectId
+  // staffId optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-staffid-partial-unique.ts
+  staffId                 String?                        @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
 }
@@ -82,6 +96,10 @@ model UserGroup {
   permissions Json // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
+
+  // == 2FA CONFIG == //
+  twoFactorEnabled Boolean @default(false)
+  twoFactorMethods String[] // == 1: AUTH-APP, 2: "SMS", 3: "EMAIL" == //
 
   // ==== RELATIONS ==== //
   users User[] @relation("UserToUserGroup")
@@ -302,10 +320,11 @@ model Session {
   location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
   roomId       String?     @db.ObjectId
   room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
-  bookings     Booking[]   @relation("SessionToBooking")
-  history      Log[]       @relation("SessionToLog")
-  createdUser  User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser  User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+  bookings         Booking[]   @relation("SessionToBooking")
+  movedFromBookings Booking[]   @relation("BookingMovedFromSession")
+  history          Log[]       @relation("SessionToLog")
+  createdUser      User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
 }
@@ -432,6 +451,18 @@ model ActivityLog {
   @@index([createdAt(sort: Desc)])
 }
 
+model ApiClient {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientId         String   @unique // e.g. UUID, used as client_id in OAuth2
+  clientSecretHash String   // hashed secret; plain secret returned only once on create
+  name             String   // application name
+  isBlocked        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isBlocked])
+}
+
 model Patient {
   id           String  @id @default(auto()) @map("_id") @db.ObjectId
   title        String
@@ -470,7 +501,7 @@ model Staff {
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
-  user                User?     @relation("UserToStaff")
+  users               User[]    @relation("UserToStaff") // at most one in practice; partial unique index on User.staffId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -694,6 +725,8 @@ model Booking {
   isScan                  Boolean  @default(false)
   locationId              String?  @db.ObjectId
   location                Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
+  bookingid               Int?
+  bookingid_string        String?
   appointmentNo           Int
   discountId              String?  @db.ObjectId
   autoDiscountId          String?  @db.ObjectId
@@ -703,6 +736,14 @@ model Booking {
   receiptNoCreatedAt      DateTime?
   receiptNoId             String?  @db.ObjectId
   receipts                Receipt[] @relation("ReceiptToBooking")
+
+  // Transfer: when booking was moved to another session/doctor
+  movedFromSessionId        String?   @db.ObjectId
+  movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)
+  movedFromSessionStartTime Int?      // Original session start time (Unix sec)
+  movedBy                   String?   @db.ObjectId
+  movedAt                   DateTime?
+  movedRemarks              String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -788,7 +829,6 @@ enum LogStatus {
   INFO
   ERROR
 }
-
 // UAT (User Acceptance Testing) – results per tester, shared so anyone can see
 model UatCaseResult {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -810,4 +850,24 @@ model UatSectionComplete {
 
   @@unique([testerName, feature])
   @@index([testerName])
+}
+
+model SmsTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  type      Int?     // 0=Channel Doctor Arrival, 1=Channel Doctor Departure, 2=Channel Doctor Leave/Absent, 3=Appointment Reschedule, 4=Agent Balance, 5=Appointments count (Block wise)
+  message   String
+  status    Int?     // 0 = inactive, 1 = active
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SmsLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  status      Int      // == 0 = sent, 1 = failed == //
+  name        String
+  description String?
+  phone       String
+  template    String
+  createdAt   DateTime @default(now())
 }

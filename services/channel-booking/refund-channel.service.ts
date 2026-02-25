@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma"
-import { getNextSequenceNumber } from "./helpers"
-import { getBookingForSaveBooking } from "./helpers"
+import {
+  createReceiptAndUpdateBooking,
+  getBookingForSaveBooking,
+} from "./helpers"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -49,20 +51,13 @@ export async function refundChannelService(
   // Cancel (refund_type 0)
   if (input.refund_type === 0) {
     if (booking.status === 1) {
-      // Full refund: create refund receipt, set status 2
+      // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
-      const scopeKey = `receipt:${booking.locationId ?? "global"}`
-      const seqResult = await getNextSequenceNumber(scopeKey)
-      if (!seqResult.success) {
-        return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
-      }
-      const receiptNo = seqResult.value
-      const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
-
-      const newReceipt = await prisma.receipt.create({
-        data: {
-          receiptNo,
-          receiptNoString,
+      const result = await prisma.$transaction(async (tx) =>
+        createReceiptAndUpdateBooking(tx, {
+          bookingId: booking.id,
+          locationId: booking.locationId ?? null,
+          receiptSequenceMethod: 0, // REFUND RECEIPTS
           paymentMethod: refundTo,
           amount: -1 * refundAmount,
           bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
@@ -72,24 +67,21 @@ export async function refundChannelService(
           remarks,
           type: 0,
           method: 0,
-          whd: 0,
-          whdPercentage: 0,
-          bookingId: booking.id,
           agencyId: booking.agencyId ?? null,
           createdBy: userId,
-          locationId: booking.locationId ?? null,
           userLocationId: null,
-        },
-      })
-
-      await prisma.booking.update({
-        where: { id: input.booking_id },
-        data: {
-          status: 2,
-          refund: 3,
-          refundAmount: newReceipt.amount,
-        },
-      })
+          getBookingUpdate: (receipt) => ({
+            refund: 3,
+            refundAmount: receipt.amount,
+            refundReceiptId: receipt.id,
+            refundReceiptNoString: receipt.receiptNoString,
+            refundReceiptCreatedAt: receipt.createdAt,
+          }),
+        })
+      )
+      if (!result.success) {
+        return { success: false, errorCode: result.errorCode, message: result.message }
+      }
     } else if (booking.status === 0) {
       // Pending: just cancel, no receipt
       await prisma.booking.update({
@@ -100,24 +92,22 @@ export async function refundChannelService(
       return { success: false, errorCode: "invalid_state", message: "Booking cannot be canceled." }
     }
   } else if (input.refund_type === 1 && booking.status === 1) {
-    // Partial refund
+    // Partial refund: create refund receipt and update booking in one transaction.
     const totalRefund = input.professional_fee + input.hospital_fee
     if (totalRefund <= 0) {
       return { success: false, errorCode: "invalid_input", message: "Select at least one refundable amount." }
     }
 
-    const scopeKey = `receipt:${booking.locationId ?? "global"}`
-    const seqResult = await getNextSequenceNumber(scopeKey)
-    if (!seqResult.success) {
-      return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
-    }
-    const receiptNo = seqResult.value
-    const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
+    let refundType = 0
+    if (input.hospital_fee > 0 && input.professional_fee > 0) refundType = 3
+    else if (input.hospital_fee > 0) refundType = 2
+    else if (input.professional_fee > 0) refundType = 1
 
-    const newReceipt = await prisma.receipt.create({
-      data: {
-        receiptNo,
-        receiptNoString,
+    const result = await prisma.$transaction(async (tx) =>
+      createReceiptAndUpdateBooking(tx, {
+        bookingId: booking.id,
+        locationId: booking.locationId ?? null,
+        receiptSequenceMethod: 0, // REFUND RECEIPTS
         paymentMethod: refundTo,
         amount: -1 * totalRefund,
         bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
@@ -127,28 +117,18 @@ export async function refundChannelService(
         remarks,
         type: 0,
         method: 0,
-        whd: 0,
-        whdPercentage: 0,
-        bookingId: booking.id,
         agencyId: booking.agencyId ?? null,
         createdBy: userId,
-        locationId: booking.locationId ?? null,
         userLocationId: null,
-      },
-    })
-
-    let refundType = 0
-    if (input.hospital_fee > 0 && input.professional_fee > 0) refundType = 3
-    else if (input.hospital_fee > 0) refundType = 2
-    else if (input.professional_fee > 0) refundType = 1
-
-    await prisma.booking.update({
-      where: { id: input.booking_id },
-      data: {
-        refund: refundType,
-        refundAmount: newReceipt.amount,
-      },
-    })
+        getBookingUpdate: (receipt) => ({
+          refund: refundType,
+          refundAmount: receipt.amount,
+        }),
+      })
+    )
+    if (!result.success) {
+      return { success: false, errorCode: result.errorCode, message: result.message }
+    }
   } else {
     return {
       success: false,

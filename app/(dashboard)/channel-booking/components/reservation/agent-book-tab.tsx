@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { getAgencyDetailsForChannelBooking } from "@/app/actions/channel-booking"
-import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/get-agency-details-for-channel-booking.service"
+import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 
 export function AgentBookTab() {

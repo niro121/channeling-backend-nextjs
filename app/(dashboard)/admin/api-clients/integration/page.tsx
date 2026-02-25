@@ -1,0 +1,143 @@
+import { redirect } from "next/navigation"
+import Link from "next/link"
+import { checkRouteAccess } from "@/lib/server-permissions"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FileText, ArrowLeft } from "lucide-react"
+
+export default async function IntegrationGuidePage() {
+  const canView = await checkRouteAccess("/admin/api-clients")
+  if (!canView) {
+    redirect("/unauthorized-access")
+  }
+
+  return (
+    <div className="space-y-6 print:space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 print:block">
+        <div className="flex items-center gap-2">
+          <Link href="/admin/api-clients/playground">
+            <Button variant="ghost" size="sm" className="gap-1.5 print:hidden">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Playground
+            </Button>
+          </Link>
+        </div>
+        <p className="text-muted-foreground text-sm print:text-xs">
+          Use your browser&apos;s <strong>Print → Save as PDF</strong> to export this guide.
+        </p>
+      </div>
+
+      <div className="prose prose-sm max-w-none dark:prose-invert print:prose-sm">
+        <div className="flex items-center gap-2 border-b pb-2">
+          <FileText className="h-6 w-6" />
+          <h1 className="text-2xl font-semibold tracking-tight m-0">Public API Integration Guide</h1>
+        </div>
+        <p className="text-muted-foreground mt-2">
+          This guide explains how to integrate your application with the Channeling Public API: create an API client, obtain an access token, and call the sessions endpoint.
+        </p>
+
+        {/* Step 1: Create application & get client ID and secret */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 1: Create an application and get Client ID & Secret</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>
+                Log in to the dashboard and go to <strong>Admin → API Clients</strong> (or <code className="rounded bg-muted px-1 py-0.5">/admin/api-clients</code>).
+              </li>
+              <li>
+                Click <strong>Add New</strong> to register a new API client (your application).
+              </li>
+              <li>
+                Enter an <strong>application name</strong> (e.g. your product or partner name) and save.
+              </li>
+              <li>
+                After creation, you will see the <strong>Client ID</strong> and <strong>Client Secret</strong>. The secret is shown only once at creation; store it securely. If you lose it, you must create a new client or use the reset option (if available).
+              </li>
+            </ol>
+            <p className="text-muted-foreground">
+              Use these credentials in the next step to request an access token.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Get token */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 2: Get an access token</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              The API uses <strong>OAuth 2.0 Client Credentials</strong>. Send a POST request to the token endpoint with your client ID and secret.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">POST /api/public/token</code></li>
+              <li><strong>Content-Type:</strong> <code className="rounded bg-muted px-1 py-0.5">application/json</code></li>
+              <li><strong>Body (JSON):</strong> <code className="rounded bg-muted px-1 py-0.5">grant_type</code>, <code className="rounded bg-muted px-1 py-0.5">client_id</code>, <code className="rounded bg-muted px-1 py-0.5">client_secret</code></li>
+            </ul>
+            <p>
+              Set <code className="rounded bg-muted px-1 py-0.5">grant_type</code> to <code className="rounded bg-muted px-1 py-0.5">client_credentials</code>. The response includes an <code className="rounded bg-muted px-1 py-0.5">access_token</code> and <code className="rounded bg-muted px-1 py-0.5">expires_in</code> (seconds). Use the access token in the <strong>Authorization</strong> header for all subsequent API calls.
+            </p>
+            <p className="text-muted-foreground">
+              You can test this in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 1: Get access token) or with the Postman collection below.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Step 3: Call sessions API */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 3: Call the sessions API</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              To fetch available sessions for a doctor, call the sessions endpoint with the token from Step 2.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">GET /api/public/sessions</code></li>
+              <li><strong>Header:</strong> <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;access_token&gt;</code></li>
+              <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">doctorCode</code> (required), <code className="rounded bg-muted px-1 py-0.5">fromDate</code> (optional, YYYY-MM-DD)</li>
+            </ul>
+            <p>
+              The response contains a <code className="rounded bg-muted px-1 py-0.5">sessions</code> array with session details (date, time, location, doctor, status, etc.). Only future, non-expired sessions are returned.
+            </p>
+            <p className="text-muted-foreground">
+              Test this in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 2: Get sessions) or via Postman.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Postman */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Postman collection</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              A Postman collection is available so you can run the same requests (token + sessions) from Postman.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>Download:</strong> From the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> page, click <strong>Download Postman collection</strong>. The file uses your current environment&apos;s base URL.
+              </li>
+              <li>
+                In Postman, use <strong>Import</strong> and select the downloaded JSON file.
+              </li>
+              <li>
+                Set the collection variables <code className="rounded bg-muted px-1 py-0.5">client_id</code> and <code className="rounded bg-muted px-1 py-0.5">client_secret</code>, then run <strong>Create Access Token</strong>. The collection will store the token automatically.
+              </li>
+              <li>
+                Run <strong>Get Sessions</strong> to call the sessions API with the saved token.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        <p className="text-muted-foreground text-xs mt-6">
+          For cURL examples and live testing, use the Public API Playground at Admin → API Clients → Test API.
+        </p>
+      </div>
+    </div>
+  )
+}

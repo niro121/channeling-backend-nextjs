@@ -1,7 +1,11 @@
 import prisma from "@/lib/prisma"
+import moment from "moment"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
+import { getIO, channelBookingRoom } from "@/lib/socket-server"
+import { sendSms } from "@/lib/helpers/sms/send-sms"
 import {
+  createReceiptAndUpdateBooking,
   loadSessionForSaveBooking,
   checkConsecutiveSessionFull,
   getProcessedDiscount,
@@ -12,6 +16,7 @@ import {
   getNextSequenceNumber,
   updateAgentBalance,
   validateVoucherForDiscount,
+  getBookingSequenceInfo,
 } from "./helpers"
 
 export type SaveBookingServiceResult =
@@ -20,6 +25,28 @@ export type SaveBookingServiceResult =
 
 /** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
 const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
+
+/** SMS template type 4 = Agent Balance Message after Booking Agent Channel. Placeholders: {agency_ref}, {doctor}, {appointment_no}, {date}, {time}, {amount}, {balance}. */
+const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4
+const DEFAULT_AGENCY_BALANCE_MESSAGE =
+  "Ref: {agency_ref}. Booking with Dr {doctor}, appointment no {appointment_no}, date {date}, time {time}. Amount: {amount}. Your balance: {balance}."
+
+async function getSmsTemplateMessage(type: number): Promise<string | null> {
+  const model = (prisma as { smsTemplate?: { findFirst: (args: object) => Promise<{ message: string } | null> } })
+    .smsTemplate
+  if (!model) return null
+  const template = await model.findFirst({
+    where: { type, status: 1 },
+    select: { message: true },
+    orderBy: { updatedAt: "desc" },
+  })
+  return template?.message?.trim() ?? null
+}
+/**
+ * Create a new booking for a session. Validates session, discounts, amount, agency (if any),
+ * then allocates appointment no, creates booking, optionally creates receipt for POS/Agent,
+ * and notifies real-time clients.
+ */
 export async function saveBookingService(
   input: SaveBookingInput,
   userId: string | null
@@ -54,6 +81,7 @@ export async function saveBookingService(
     }
   }
 
+  // Apply auto discount first, then manual (including voucher) if present.
   let totalDiscount = 0
   let hospitalFeeDiscount = 0
   let professionsalFeeDiscount = 0
@@ -81,6 +109,7 @@ export async function saveBookingService(
   }
 
   if (input.discount_type) {
+    // Voucher schemes require a valid code before we apply the discount.
     const discountRecord = await prisma.discount.findUnique({
       where: { id: input.discount_type },
       select: { isVoucher: true },
@@ -126,6 +155,7 @@ export async function saveBookingService(
     otherDiscount += result.other_discount
   }
 
+  // Reject if client-submitted discount total doesn't match server calculation.
   if (input.discount !== totalDiscount) {
     return {
       success: false,
@@ -139,6 +169,24 @@ export async function saveBookingService(
     input.foriegner
   )
 
+  const baseAmount = professional_fee + hospital_fee
+  const expectedAmount = Math.round(baseAmount - totalDiscount)
+  const inputAmountNum = Number(input.amount)
+  const amountTolerance = 1 // Allow Rs 1 rounding difference between client and server.
+  if (Math.abs(inputAmountNum - expectedAmount) > amountTolerance) {
+    const msg = `Amount does not match server calculation. Received: ${inputAmountNum}, expected: ${expectedAmount}. Please refresh and try again.`
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[save-booking] amountError", { received: inputAmountNum, expected: expectedAmount, baseAmount, totalDiscount })
+    }
+    return {
+      success: false,
+      errorCode: "amountError",
+      message: msg,
+    }
+  }
+  const amountToUse = expectedAmount
+
+  // Agent booking: verify agency ref and that agency credit limit is not exceeded.
   if (input.agency?.id) {
     const ref = (input.agency_ref ?? "").toUpperCase().trim()
     const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
@@ -155,7 +203,7 @@ export async function saveBookingService(
     })
     const creditLimit = agency?.allowedCreditLimit ?? 0
     const balance = await getAgentBalance(input.agency.id)
-    if (creditLimit + balance < input.amount) {
+    if (creditLimit + balance < amountToUse) {
       return {
         success: false,
         errorCode: "agencyCreditExceed",
@@ -164,6 +212,7 @@ export async function saveBookingService(
     }
   }
 
+  // Allocate next appointment number for this session (atomic; respects maxPatientNumber).
   const appointmentResult = await getNextSequenceNumber(
     `appointment:${sessionId}`,
     {
@@ -192,6 +241,14 @@ export async function saveBookingService(
     other_discount: otherDiscount,
   }
 
+  // Booking ID / bill number is location-scoped and used for display and receipts.
+  const locationId = session.locationId ?? session.location?.id ?? null
+  const { scopeKey, formatBookingIdString } = await getBookingSequenceInfo(locationId)
+  const bookingSeqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
+  const bookingid = bookingSeqResult.success ? bookingSeqResult.value : null
+  const bookingid_string =
+    bookingid != null ? formatBookingIdString(bookingid) : null
+
   try {
     const booking = await prisma.booking.create({
       data: {
@@ -204,7 +261,7 @@ export async function saveBookingService(
         method: input.payment_method,
         sessionId,
         doctorId: input.doctor.id,
-        amount: input.amount,
+        amount: amountToUse,
         discount: totalDiscount,
         foriegner: input.foriegner,
         status: 0,
@@ -226,76 +283,134 @@ export async function saveBookingService(
         sessionStartTime,
         sessionEndTime,
         isScan: session.isScan,
-        locationId: session.locationId ?? session.location?.id ?? null,
+        locationId,
+        bookingid,
+        bookingid_string,
         appointmentNo,
         discountId: input.discount_type ?? null,
         autoDiscountId: input.auto_discount_type ?? null,
       },
     })
 
+    // Keep Session.appointmentNo in sync so the session list and consecutive-session rule
+    // can read the current "last assigned" number without counting bookings.
     await prisma.session.update({
       where: { id: sessionId },
       data: { appointmentNo },
     })
 
+    // POS and Agent create a receipt and mark booking as paid (status 1); OnCall does not.
     if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
-      const receiptAmount = Math.round(Number(input.amount) - totalDiscount)
-      const scopeKey = `receipt:${booking.locationId ?? "global"}`
-      const seqResult = await getNextSequenceNumber(scopeKey)
-      if (seqResult.success) {
-        const receiptNo = seqResult.value
-        const receiptNoString = `REC-${String(receiptNo).padStart(8, "0")}`
-        const remarks =
-          input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
-        try {
-          const newReceipt = await prisma.receipt.create({
-            data: {
-              receiptNo,
-              receiptNoString,
-              paymentMethod: input.payment_type,
-              amount: receiptAmount,
-              bank: input.bank?.name ?? "",
-              bankId: input.bank?.id ?? null,
-              cardReference: input.card ?? "",
-              slipReference: input.slip_ref ?? "",
-              remarks,
-              type: 1,
-              method: 1,
-              whd: 0,
-              whdPercentage: 0,
-              bookingId: booking.id,
-              agencyId: input.agency?.id ?? null,
-              createdBy: userId,
-              locationId: booking.locationId ?? null,
-              userLocationId: null,
-            },
-          })
-          if (input.agency?.id) {
-            await updateAgentBalance(input.agency.id, -receiptAmount)
-          }
-          await prisma.booking.update({
-            where: { id: booking.id },
-            data: {
+      const receiptAmount = amountToUse
+      const remarks =
+        input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const r = await createReceiptAndUpdateBooking(tx, {
+            bookingId: booking.id,
+            locationId: booking.locationId ?? null,
+            receiptSequenceMethod: 1, // PAYMENT RECEIPTS
+            paymentMethod: input.payment_type,
+            amount: receiptAmount,
+            bank: input.bank?.name ?? "",
+            bankId: input.bank?.id ?? null,
+            cardReference: input.card ?? "",
+            slipReference: input.slip_ref ?? "",
+            remarks,
+            type: 1,
+            method: 1,
+            agencyId: input.agency?.id ?? null,
+            createdBy: userId,
+            userLocationId: null,
+            getBookingUpdate: (receipt) => ({
               status: 1,
-              receiptNo: newReceipt.receiptNo,
-              receiptNoString: newReceipt.receiptNoString,
+              receiptNo: receipt.receiptNo,
+              receiptNoString: receipt.receiptNoString,
               receiptPaymentMethod: input.payment_type,
-              receiptNoCreatedAt: newReceipt.createdAt,
-              receiptNoId: newReceipt.id,
+              receiptNoCreatedAt: receipt.createdAt,
+              receiptNoId: receipt.id,
               updatedBy: userId,
-            },
+            }),
           })
+          if (!r.success) throw new Error(r.message)
+          return r.receipt
+        })
+        if (input.agency?.id) {
+            const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
+            // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone
+            const agencyDetails = await prisma.agency.findUnique({
+              where: { id: input.agency.id },
+              select: { sendSms: true, phone: true },
+            })
+            if (agencyDetails?.sendSms === 1 && agencyDetails.phone?.trim()) {
+              const templateMessage =
+                (await getSmsTemplateMessage(SMS_TEMPLATE_TYPE_AGENCY_BALANCE)) ?? DEFAULT_AGENCY_BALANCE_MESSAGE
+              const doctorName = [input.doctor.title, input.doctor.name].filter(Boolean).join(" ")
+              const dateStr = moment(sessionDate).format("DD/MM/YYYY")
+              const timeStr = moment(startDate).format("HH:mm")
+              const amountDisplay = (amountToUse - totalDiscount).toLocaleString("en-US", {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2,
+              })
+              const balanceDisplay = updateBalanceResult.balance.toLocaleString("en-US", {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2,
+              })
+              const text = templateMessage
+                .replace(/{agency_ref}/g, (input.agency_ref ?? "").toUpperCase())
+                .replace(/{doctor}/g, doctorName)
+                .replace(/{appointment_no}/g, String(appointmentNo).padStart(2, "0"))
+                .replace(/{date}/g, dateStr)
+                .replace(/{time}/g, timeStr)
+                .replace(/{amount}/g, amountDisplay)
+                .replace(/{balance}/g, balanceDisplay)
+              await sendSms(agencyDetails.phone.trim(), text, { logName: "Agency Balance" })
+            }
+          }
         } catch (receiptErr) {
           console.error("saveBookingService receipt create error", receiptErr)
-          // Booking remains status 0 (pending)
+          // Booking remains status 0 (pending); user can settle later.
         }
-      }
     }
 
     const fullBooking = await getBookingForSaveBooking(booking.id)
+
+    // Notify real-time listeners so sessions list updates (appointmentNo, paidCount, pendingCount)
+    const doctorId = session.doctorId ?? null
+    if (doctorId) {
+      const [paidCount, pendingCount] = await Promise.all([
+        prisma.booking.count({ where: { sessionId, status: 1 } }),
+        prisma.booking.count({ where: { sessionId, status: 0 } }),
+      ])
+      const io = getIO()
+      if (io) {
+        const room = channelBookingRoom(doctorId)
+        const socketsInRoom = await io.in(room).fetchSockets()
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[save-booking] session-update emitted", {
+            room,
+            sessionId,
+            appointmentNo,
+            paidCount,
+            pendingCount,
+            clientsInRoom: socketsInRoom.length,
+          })
+        }
+        io.to(room).emit("session-update", {
+          sessionId,
+          appointmentNo,
+          paidCount,
+          pendingCount,
+        })
+      } else if (process.env.NODE_ENV !== "production") {
+        console.log("[save-booking] session-update skipped: getIO() is null (not using custom server?)")
+      }
+    }
+
     return { success: true, data: fullBooking }
   } catch (e) {
     console.error("saveBookingService create error", e)
+    // Return generic message; actual failure may be DB, sequence, or other.
     return {
       success: false,
       errorCode: "limitexceeded",

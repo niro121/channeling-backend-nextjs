@@ -9,8 +9,8 @@ import {
   validateVoucherAction,
 } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
-import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/get-agency-books-by-agency.service"
-import type { DiscountForBookingOption } from "@/services/channel-booking/get-discounts-for-booking.service"
+import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
+import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
@@ -90,7 +90,7 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
 export function NewBookingDetailsTab() {
-  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId } = useChannelBooking()
+  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId, referredDoctorId, referredAgencyId, referredStaffId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId } = useChannelBooking()
   const { toast } = useToast()
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
@@ -128,7 +128,7 @@ export function NewBookingDetailsTab() {
   const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({})
-  const bookAmount =
+  const baseAmount =
     foreigner
       ? (reservationDetails?.amountForeign ?? 0)
       : (reservationDetails?.amountLocal ?? 0)
@@ -208,6 +208,8 @@ export function NewBookingDetailsTab() {
         : 0,
     [selectedSession?.fees, foreigner, discountsToApply]
   )
+  /** Amount to pay (base − discount). Sent to server and shown on Book button. */
+  const amountToPay = baseAmount - computedDiscountAmount
 
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {
@@ -248,8 +250,11 @@ export function NewBookingDetailsTab() {
     setSlipRef("")
     setAgencyBooks([])
     setSelectedAgencyId(null)
+    setReferredDoctorId(null)
+    setReferredAgencyId(null)
+    setReferredStaffId(null)
     setInvalidFields({})
-  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId])
+  }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId])
 
   // Reset booking-type–specific fields when payment method changes
   useEffect(() => {
@@ -382,7 +387,7 @@ export function NewBookingDetailsTab() {
           title: selectedDoctor.title,
           name: selectedDoctor.name,
         },
-        amount: bookAmount,
+        amount: amountToPay,
         discount: computedDiscountAmount,
         auto_discount_type: firstAutoDiscount?.id ?? undefined,
         discount_type: discountSchemeId ? discountSchemeId : undefined,
@@ -395,6 +400,9 @@ export function NewBookingDetailsTab() {
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
+        referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
+        referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
+        referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
       })
       if (result.success) {
         setInvalidFields({})
@@ -421,6 +429,9 @@ export function NewBookingDetailsTab() {
         setSlipRef("")
         setAgencyBooks([])
         setSelectedAgencyId(null)
+        setReferredDoctorId(null)
+        setReferredAgencyId(null)
+        setReferredStaffId(null)
         toast({
           title: "Booking saved",
           description: "The booking was created successfully.",
@@ -452,6 +463,27 @@ export function NewBookingDetailsTab() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (hasSession && selectedSession?.status === 0) {
+    const reason = selectedSession?.doctorLeaveRemark?.trim() || "this reason"
+    const createdAt = selectedSession?.doctorLeaveCreatedAt
+      ? new Date(selectedSession.doctorLeaveCreatedAt * 1000)
+      : null
+    const createdBy = selectedSession?.doctorLeaveCreator?.trim() || null
+    return (
+      <div className="rounded-md border border-border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 p-4 text-center space-y-1">
+        <p className="text-sm font-medium text-red-600 dark:text-red-400">Doctor on leave</p>
+        <p className="text-xs text-muted-foreground">Due to {reason}.</p>
+        {(createdAt || createdBy) && (
+          <p className="text-xs text-muted-foreground pt-1 border-t border-red-200/50 dark:border-red-900/30 mt-2">
+            {createdAt && createdBy && `Leave created on ${createdAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} by ${createdBy}.`}
+            {createdAt && !createdBy && `Leave created on ${createdAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`}
+            {!createdAt && createdBy && `Leave created by ${createdBy}.`}
+          </p>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -801,7 +833,7 @@ export function NewBookingDetailsTab() {
               className={`${fieldClass} min-w-0 w-full pl-8 ${nameError ? errorClass : ""}`}
               placeholder="PATIENT NAME"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
+              onChange={(e) => setPatientName(e.target.value.toUpperCase())}
             />
           </div>
         </div>
@@ -954,7 +986,7 @@ export function NewBookingDetailsTab() {
           ) : (
             <>
               <CalendarCheck className="h-3.5 w-3.5 shrink-0" />
-              Book Now ( Rs.{bookAmount.toFixed(2)} )
+              Book Now ( Rs.{amountToPay.toFixed(2)} )
             </>
           )}
         </Button>

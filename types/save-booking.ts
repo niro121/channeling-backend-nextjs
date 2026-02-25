@@ -44,6 +44,7 @@ export type SaveBookingErrorCode =
   | "server_error"
   | "previousessionfill"
   | "discountError"
+  | "amountError"
   | "limitexceeded"
   | "agencyCreditExceed"
   | "agencyRefError"

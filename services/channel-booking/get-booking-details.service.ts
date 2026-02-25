@@ -22,6 +22,19 @@ const RECEIPT_METHOD_NAMES: Record<number, string> = {
   5: "Doctor Cancel",
 }
 
+function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
+  if (!Array.isArray(json)) return []
+  return json.filter(
+    (item): item is { time: string; createdBy: string } =>
+      item != null &&
+      typeof item === "object" &&
+      "time" in item &&
+      "createdBy" in item &&
+      typeof (item as { time: string }).time === "string" &&
+      typeof (item as { createdBy: string }).createdBy === "string"
+  )
+}
+
 /** One row for the receipts table on the Booking tab. */
 export type ReceiptRowView = {
   id: string
@@ -96,7 +109,11 @@ export type BookingDetailsView = {
   phone: string
   bookingMethod: string
   agentRef: string
+  /** Legacy combined string; prefer referredDoctor, referredAgency, referredStaff for display. */
   referredBy: string
+  referredDoctor: string | null
+  referredAgency: string | null
+  referredStaff: string | null
   billNo: string
   billSubTotal: number
   discount: number
@@ -106,6 +123,8 @@ export type BookingDetailsView = {
   area: string
   foreigner: boolean
   status: number
+  /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Used with status for canceled/refunded state. */
+  refund: number
   createdAt: Date
   /** Discount breakdown and scheme names for display. */
   discountInfo: DiscountInfoView
@@ -124,8 +143,29 @@ export type BookingDetailsView = {
     hospitalDiscount: number
     refundableHospital: number
   }
-  /** When status === 2 (canceled): refund amount and refund receipts for Cancel/Refund tab. */
+  /** When status === 2 or refund !== 0: refund amount and refund receipts for Cancel/Refund tab. */
   cancelOrRefundDetails?: CancelOrRefundDetailsView
+  /** When booking was transferred: move details for Booking tab. */
+  movedAt: Date | null
+  movedBy: string | null
+  movedRemarks: string | null
+  /** Formatted date/time of original session (fallback when movedFromSession is absent). */
+  movedFrom: string | null
+  /** Session status (1 = ACTIVE, 0 = on leave). Used by Settle tab to block when doctor on leave. */
+  sessionStatus?: number
+  /** Session date YYYY-MM-DD for Settle tab (past date = cannot settle). */
+  sessionDateForSettle?: string
+  /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
+  sessionCanSettleArrival?: boolean
+  /** When movedFromSessionId is set: session the booking was moved from. */
+  movedFromSession: {
+    id: string
+    doctorName: string
+    date: string
+    time: string
+    /** Single-line summary e.g. "Dr X, 22 Feb 2025, 10:00 AM". */
+    summary: string
+  } | null
 }
 
 function formatAppointmentDate(date: Date): string {
@@ -159,6 +199,10 @@ export async function getBookingDetailsService(
         doctor: true,
         receipts: { orderBy: { createdAt: "desc" } },
         agency: true,
+        referredStaff: true,
+        movedFromSession: {
+          include: { doctor: { select: { title: true, name: true } } },
+        },
       },
     })
     if (!b) {
@@ -173,8 +217,7 @@ export async function getBookingDetailsService(
     const startTime = normalizeSessionTime(b.session.startTime as Date | number, sessionDate)
     const appointmentTime = formatAppointmentTime(startTime)
     const consultant = `${b.doctor.title} ${b.doctor.name}`.trim()
-    const billedById = b.createdBy ?? ""
-    const billedByStr = `${createdByName}${billedById ? ` (${billedById})` : ""} - ${b.createdAt.toLocaleString("en-CA", { dateStyle: "short", timeStyle: "medium" })}`
+    const billedByStr = `${createdByName} - ${b.createdAt.toLocaleString("en-CA", { dateStyle: "short", timeStyle: "medium" })}`
     const billSubTotal = b.amount + b.discount
     const receipt = b.receipts?.[0] ?? null
     const receiptRows: ReceiptRowView[] = await Promise.all(
@@ -236,6 +279,57 @@ export async function getBookingDetailsService(
       otherDiscount,
     }
 
+    const [referredDoctorRecord, referredAgencyRecord] = await Promise.all([
+      b.referredDoctorId
+        ? prisma.doctor.findUnique({ where: { id: b.referredDoctorId }, select: { title: true, name: true } })
+        : null,
+      b.referredAgencyId
+        ? prisma.agency.findUnique({ where: { id: b.referredAgencyId }, select: { name: true } })
+        : null,
+    ])
+    const referredDoctorName =
+      referredDoctorRecord != null ? `${referredDoctorRecord.title ?? ""} ${referredDoctorRecord.name ?? ""}`.trim() || null : null
+    const referredAgencyName = referredAgencyRecord?.name ?? null
+    const referredStaffName =
+      b.referredStaff != null ? [b.referredStaff.name, b.referredStaff.code].filter(Boolean).join(" ").trim() || null : null
+    const referredParts = [referredDoctorName, referredAgencyName, referredStaffName].filter(Boolean)
+    const referredBy = referredParts.length > 0 ? referredParts.join(" · ") : ""
+
+    const movedByUserId = (b as { movedBy?: string | null }).movedBy ?? null
+    const movedAt = (b as { movedAt?: Date | null }).movedAt ?? null
+    const movedRemarks = (b as { movedRemarks?: string | null }).movedRemarks ?? null
+    const movedFromSessionStartTime = (b as { movedFromSessionStartTime?: number | null }).movedFromSessionStartTime ?? null
+    const movedByUserName = movedByUserId ? await resolveUser(movedByUserId) : null
+    const rawMovedFromSession = (b as { movedFromSession?: { id: string; date: Date; startTime: Date | number; doctor?: { title: string | null; name: string } | null } | null }).movedFromSession ?? null
+    let movedFrom: string | null = null
+    let movedFromSession: BookingDetailsView["movedFromSession"] = null
+    if (rawMovedFromSession) {
+      const sessionDate = rawMovedFromSession.date instanceof Date ? rawMovedFromSession.date : new Date(rawMovedFromSession.date)
+      const startTime = normalizeSessionTime(rawMovedFromSession.startTime as Date | number, sessionDate)
+      const doctorName = rawMovedFromSession.doctor
+        ? `${rawMovedFromSession.doctor.title ?? ""} ${rawMovedFromSession.doctor.name ?? ""}`.trim() || "—"
+        : "—"
+      const dateStr = formatAppointmentDate(sessionDate)
+      const timeStr = formatAppointmentTime(startTime)
+      movedFromSession = {
+        id: rawMovedFromSession.id,
+        doctorName,
+        date: dateStr,
+        time: timeStr,
+        summary: `${doctorName}, ${dateStr}, ${timeStr}`,
+      }
+      movedFrom = movedFromSession.summary
+    } else if (movedFromSessionStartTime != null) {
+      movedFrom = new Date(movedFromSessionStartTime * 1000).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    }
+
     const agencyRef = b.agencyRef?.trim() ?? ""
     const bookNumber = agencyRef.length >= 4 ? agencyRef.substring(0, agencyRef.length - 2) : null
     const agentInfo: AgentInfoView | null =
@@ -261,8 +355,14 @@ export async function getBookingDetailsService(
       phone: b.phone,
       bookingMethod: methodName,
       agentRef: b.agencyRef?.trim() ? b.agencyRef : "-",
-      referredBy: "",
-      billNo: b.id,
+      referredBy,
+      referredDoctor: referredDoctorName,
+      referredAgency: referredAgencyName,
+      referredStaff: referredStaffName,
+      billNo:
+        b.receiptNo != null && b.receiptNoString != null
+          ? b.receiptNoString
+          : ((b as { bookingid_string?: string | null }).bookingid_string ?? b.id),
       billSubTotal,
       discount: b.discount,
       billTotal: b.amount,
@@ -271,6 +371,7 @@ export async function getBookingDetailsService(
       area: b.area ?? "",
       foreigner: b.foriegner,
       status: b.status,
+      refund: b.refund ?? 0,
       createdAt: b.createdAt,
       discountInfo,
       agentInfo,
@@ -288,12 +389,28 @@ export async function getBookingDetailsService(
             }
           : undefined,
       cancelOrRefundDetails:
-        b.status === 2
+        b.status === 2 || (b.refund != null && b.refund !== 0)
           ? {
               refundAmount: b.refundAmount ?? 0,
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),
             }
           : undefined,
+      movedAt: movedAt ?? null,
+      movedBy: movedByUserName ?? null,
+      movedRemarks: movedRemarks ?? null,
+      movedFrom: movedFrom ?? null,
+      movedFromSession,
+      sessionStatus: b.session?.status,
+      sessionDateForSettle: b.session?.date
+        ? new Date(b.session.date).toISOString().slice(0, 10)
+        : undefined,
+      sessionCanSettleArrival: (() => {
+        const arrivals = parseArrivalDepartureForSettle(b.session?.doctorArrivalTime)
+        const departures = parseArrivalDepartureForSettle(b.session?.doctorDepatureTime)
+        if (departures.length === 0) return true
+        const lastDep = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
+        return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
+      })(),
     }
     return { success: true, data }
   } catch (error) {

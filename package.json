@@ -1,13 +1,16 @@
 {
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
+    "next:dev": "next dev --turbopack",
+    "next:start": "next start",
     "sessions:generate": "tsx scripts/doctor-sessions-generate.ts",
     "sessions:update": "tsx scripts/doctor-sessions-update.ts",
     "load-doctor-sessions": "npx tsx scripts/load-doctor-sessions.ts",
     "migrate:import": "npx tsx scripts/migrate-import.ts",
+    "generate:totp": "npx tsx scripts/test-totp.ts",
     "migrate:session-datetime": "npx tsx scripts/migrate-session-start-end-to-datetime.ts"
   },
   "dependencies": {
@@ -44,6 +47,7 @@
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "formik": "^2.4.6",
+    "jose": "^6.1.3",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lodash": "^4.17.21",
@@ -52,16 +56,20 @@
     "moment": "^2.30.1",
     "next": "^15.5.11",
     "next-auth": "^4.24.11",
+    "otplib": "^13.3.0",
     "pdfkit": "^0.17.2",
     "postcss": "^8.4.49",
     "prettier": "^3.6.2",
     "prop-types": "^15.8.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-day-picker": "^9.11.0",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.63.0",
     "recharts": "^3.2.1",
     "server-only": "^0.0.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.1.13",
     "tailwindcss-animate": "^1.0.7",
@@ -77,9 +85,9 @@
     "trailingComma": "none"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5",
     "@types/file-saver": "^2.0.7",
     "@types/lodash.orderby": "^4.6.9",
+    "dotenv": "^16.4.5",
     "prisma": "^6.19.0",
     "tsx": "^4.19.2"
   }

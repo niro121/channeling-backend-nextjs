@@ -22,6 +22,9 @@ export type Session = {
   amountLocal: number | null;
   amountForeign: number | null;
   status: number; // 1: ACTIVE, 0: LEAVE
+  doctorLeaveRemark?: string | null;
+  doctorLeaveCreator?: string | null;
+  doctorLeaveCreatedAt?: number | null; // Unix seconds
   remarks: string | null;
   appointmentNo: number;
   isScan: boolean;

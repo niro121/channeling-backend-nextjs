@@ -6,8 +6,10 @@ import {
     User,
 } from "@/types/user"
 import prisma from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
+import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 
 // ==== USER: VALIDATION SCHEMA ==== //
 const userSchema = z.object({
@@ -19,6 +21,18 @@ const userSchema = z.object({
     .string()
     .min(1, 'This field is mandatory')
     .email('Invalid email address'),
+  username: z
+    .string()
+    .max(50, 'Must be less than 50 characters')
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" || v == null ? undefined : v)),
+  phone: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" || v == null ? undefined : v))
+    .refine((v) => v === undefined || MOBILE_REGEX.test(v ?? ""), MOBILE_VALIDATION_MESSAGE),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters long')
@@ -40,6 +54,7 @@ const userSchema = z.object({
     })
     .optional(),
   userGroupId: z.string().nullable().optional(),
+  twoFactorEnabled: z.boolean().optional(),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
@@ -50,6 +65,18 @@ const userSchema = z.object({
 
 const userUpdateSchema = userSchema.partial().extend({
   id: z.string().min(1, 'User ID is required'),
+  username: z
+    .string()
+    .max(50, 'Must be less than 50 characters')
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" || v == null ? null : v)),
+  phone: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" || v == null ? null : v))
+    .refine((v) => v === null || MOBILE_REGEX.test(v), MOBILE_VALIDATION_MESSAGE),
   checkedDefaultLocation: z.boolean().optional(),
   defaultLocation: z.string().nullable().optional(),
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
@@ -93,7 +120,7 @@ export const getUsers = async ({
                     {
                         name: {
                             contains: keyword,
-                            mode: "insensitive",
+                            mode: Prisma.QueryMode.insensitive,
                         },
                     },
                     {
@@ -101,6 +128,9 @@ export const getUsers = async ({
                             contains: keyword,
                         },
                     },
+                    ...(keyword
+                        ? [{ username: { contains: keyword, mode: Prisma.QueryMode.insensitive } }]
+                        : []),
                 ]
             },
             orderBy: {
@@ -180,6 +210,9 @@ export const saveUser = async (
   payload: {
     name: string;
     email: string;
+    username?: string | null;
+    phone?: string | null;
+    twoFactorEnabled?: boolean;
     password: string;
     userType: number;
     status?: number;
@@ -221,10 +254,14 @@ export const saveUser = async (
       data: {
         name: data.name,
         email: data.email,
+        username: data.username ?? null,
+        phone: data.phone ?? null,
+        twoFactorEnabled: data.twoFactorEnabled ?? false,
         password: data.password,
         userType: data.userType,
         status: data.status ?? 1,
         userGroupId: data.userGroupId || null,
+        mustChangePassword: true,
         ...(userLocationId && { userLocationId }),
         ...(staffId && { staffId }),
         defaultBookingMethod: data.defaultBookingMethod ?? null,
@@ -282,6 +319,9 @@ export const updateOneUser = async (
   payload: {
     name?: string;
     email?: string;
+    username?: string | null;
+    phone?: string | null;
+    twoFactorEnabled?: boolean;
     password?: string;
     userType?: number;
     status?: number;
@@ -324,6 +364,7 @@ export const updateOneUser = async (
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.email !== undefined) updateData.email = data.email;
+    if (data.username !== undefined) updateData.username = data.username ?? null;
     if (data.password !== undefined && data.password !== '') updateData.password = data.password;
     if (data.userType !== undefined) updateData.userType = data.userType;
     if (data.status !== undefined) updateData.status = data.status;
@@ -333,6 +374,8 @@ export const updateOneUser = async (
     if (data.defaultBookingMethod !== undefined) updateData.defaultBookingMethod = data.defaultBookingMethod ?? null;
     if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
     if (data.staffId !== undefined) updateData.staffId = data.staffId ?? null;
+    if (data.phone !== undefined) updateData.phone = data.phone ?? null;
+    if (data.twoFactorEnabled !== undefined) updateData.twoFactorEnabled = data.twoFactorEnabled;
 
     const result = await prisma.user.update({
       data: updateData,

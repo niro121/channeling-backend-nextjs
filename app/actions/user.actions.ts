@@ -79,6 +79,9 @@ export const createNewUser = async (payload: User) => {
         const result = await saveUser({
             name: payload.name,
             email: payload.email,
+            username: payload.username ?? null,
+            phone: payload.phone ?? null,
+            twoFactorEnabled: payload.twoFactorEnabled ?? false,
             password: hashedPassword,
             userType: payload.userType,
             status: payload.status,
@@ -137,6 +140,9 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         const updatePayload: {
             name?: string;
             email?: string;
+            username?: string | null;
+            phone?: string | null;
+            twoFactorEnabled?: boolean;
             password?: string;
             userType?: number;
             status?: number;
@@ -151,6 +157,9 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
 
         if (payload.name !== undefined) updatePayload.name = payload.name;
         if (payload.email !== undefined) updatePayload.email = payload.email;
+        if (payload.username !== undefined) updatePayload.username = payload.username ?? null;
+        if (payload.phone !== undefined) updatePayload.phone = payload.phone ?? null;
+        if (payload.twoFactorEnabled !== undefined) updatePayload.twoFactorEnabled = payload.twoFactorEnabled;
         if (hashedPassword !== undefined) updatePayload.password = hashedPassword;
         if (payload.userType !== undefined) updatePayload.userType = payload.userType;
         if (payload.status !== undefined) updatePayload.status = payload.status;
@@ -275,6 +284,61 @@ export const updateUserPassword = async (id: string, password: string) => {
         }
     }
 }
+
+/**
+ * Change password for the currently logged-in user.
+ * Verifies currentPassword before setting newPassword.
+ */
+export const changeOwnPassword = async (currentPassword: string, newPassword: string) => {
+    try {
+        const session = await fetchServerSession();
+        if (!session?.user?.id) {
+            return { isError: true, errors: { message: "You must be signed in to change your password." }, data: {} };
+        }
+
+        if (!currentPassword || !newPassword) {
+            return { isError: true, errors: { message: "Current password and new password are required." }, data: {} };
+        }
+
+        const passwordRegex = /^(?=.*[^\w\s])(?=.*[a-z])(?=.*[A-Z])(?=.*\d)\S+$/;
+        if (!passwordRegex.test(newPassword)) {
+            return {
+                isError: true,
+                errors: {
+                    message:
+                        "New password must contain a mix of uppercase and lowercase letters, numbers, and special characters.",
+                },
+                data: {},
+            };
+        }
+        if (newPassword.length < 8) {
+            return { isError: true, errors: { message: "New password must be at least 8 characters long." }, data: {} };
+        }
+
+        const user = await getUserById(session.user.id);
+        if (!user || !user.password) {
+            return { isError: true, errors: { message: "User not found." }, data: {} };
+        }
+
+        const valid = await argon2.verify(user.password, currentPassword);
+        if (!valid) {
+            return { isError: true, errors: { message: "Current password is incorrect." }, data: {} };
+        }
+
+        const hashedPassword = await hashData(newPassword);
+        await updateOneUser(session.user.id, { password: hashedPassword });
+
+        revalidatePath("/");
+        return { isError: false, errors: {}, data: { saved: true } };
+    } catch (error: any) {
+        console.log("changeOwnPassword error ==>", error);
+        return {
+            isError: true,
+            errors: { message: error.message ?? "Something went wrong. Please try again later." },
+            data: {},
+        };
+    }
+};
 
 export const deactivateUser = async (id: string) => {
     try {
