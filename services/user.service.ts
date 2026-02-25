@@ -6,6 +6,7 @@ import {
     User,
 } from "@/types/user"
 import prisma from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
@@ -20,6 +21,12 @@ const userSchema = z.object({
     .string()
     .min(1, 'This field is mandatory')
     .email('Invalid email address'),
+  username: z
+    .string()
+    .max(50, 'Must be less than 50 characters')
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" || v == null ? undefined : v)),
   phone: z
     .string()
     .optional()
@@ -58,6 +65,12 @@ const userSchema = z.object({
 
 const userUpdateSchema = userSchema.partial().extend({
   id: z.string().min(1, 'User ID is required'),
+  username: z
+    .string()
+    .max(50, 'Must be less than 50 characters')
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" || v == null ? null : v)),
   phone: z
     .string()
     .optional()
@@ -107,7 +120,7 @@ export const getUsers = async ({
                     {
                         name: {
                             contains: keyword,
-                            mode: "insensitive",
+                            mode: Prisma.QueryMode.insensitive,
                         },
                     },
                     {
@@ -115,6 +128,9 @@ export const getUsers = async ({
                             contains: keyword,
                         },
                     },
+                    ...(keyword
+                        ? [{ username: { contains: keyword, mode: Prisma.QueryMode.insensitive } }]
+                        : []),
                 ]
             },
             orderBy: {
@@ -194,6 +210,7 @@ export const saveUser = async (
   payload: {
     name: string;
     email: string;
+    username?: string | null;
     phone?: string | null;
     twoFactorEnabled?: boolean;
     password: string;
@@ -237,12 +254,14 @@ export const saveUser = async (
       data: {
         name: data.name,
         email: data.email,
+        username: data.username ?? null,
         phone: data.phone ?? null,
         twoFactorEnabled: data.twoFactorEnabled ?? false,
         password: data.password,
         userType: data.userType,
         status: data.status ?? 1,
         userGroupId: data.userGroupId || null,
+        mustChangePassword: true,
         ...(userLocationId && { userLocationId }),
         ...(staffId && { staffId }),
         defaultBookingMethod: data.defaultBookingMethod ?? null,
@@ -300,6 +319,7 @@ export const updateOneUser = async (
   payload: {
     name?: string;
     email?: string;
+    username?: string | null;
     phone?: string | null;
     twoFactorEnabled?: boolean;
     password?: string;
@@ -344,6 +364,7 @@ export const updateOneUser = async (
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.email !== undefined) updateData.email = data.email;
+    if (data.username !== undefined) updateData.username = data.username ?? null;
     if (data.password !== undefined && data.password !== '') updateData.password = data.password;
     if (data.userType !== undefined) updateData.userType = data.userType;
     if (data.status !== undefined) updateData.status = data.status;

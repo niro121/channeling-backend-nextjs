@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { TWO_FACTOR_AUTH } from '@/types/2FA';
+import { FirstLoginPasswordDialog } from '@/app/(auth)/login/first-login-password-dialog';
 
 interface FormValues {
   email: string;
@@ -53,6 +54,7 @@ const LoginForm = () => {
   const [pending2FA, setPending2FA] = useState<Pending2FA | null>(null);
   const [requestingCode, setRequestingCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [passwordChangeEmail, setPasswordChangeEmail] = useState<string | null>(null);
 
   const initialValues: FormValues = {
     email: '',
@@ -100,6 +102,12 @@ const LoginForm = () => {
       }
       if (checkRes.status !== 200) {
         setErrors({ invalidCredentials: checkData?.error ?? 'Something went wrong' });
+        return;
+      }
+
+      if (checkData.requiresPasswordChange === true) {
+        setPasswordChangeEmail(values.email);
+        setErrors({ invalidCredentials: '' });
         return;
       }
 
@@ -198,6 +206,28 @@ const LoginForm = () => {
 
   return (
     <>
+      <FirstLoginPasswordDialog
+        open={!!passwordChangeEmail}
+        email={passwordChangeEmail ?? ''}
+        onClose={() => setPasswordChangeEmail(null)}
+        onSuccess={async (email, newPassword) => {
+          setPasswordChangeEmail(null);
+          const result = await signIn('credentials', {
+            redirect: false,
+            username: email,
+            password: newPassword
+          });
+          if (result?.error) {
+            toast({
+              variant: 'destructive',
+              title: 'Error',
+              description: 'Invalid credentials'
+            });
+            return;
+          }
+          router.replace('/welcome');
+        }}
+      />
       <div className="lg:hidden mb-6 text-center">
         <span className="text-xl font-semibold text-foreground">Ruhunu</span>
       </div>
@@ -230,13 +260,13 @@ const LoginForm = () => {
                 {!pending2FA ? (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email or username</Label>
                       <Input
                         id="email"
                         name="email"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="name@example.com"
+                        type="text"
+                        autoComplete="username"
+                        placeholder="Email or username"
                         value={formik.values.email}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}

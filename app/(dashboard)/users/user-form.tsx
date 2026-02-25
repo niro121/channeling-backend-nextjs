@@ -70,6 +70,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const settingsInitialValues = {
         name: user?.name || "",
         email: user?.email || "",
+        username: user?.username ?? "",
         phone: user?.phone ?? "",
         twoFactorEnabled: user?.twoFactorEnabled ?? false,
         userType: user?.userType || 2,
@@ -94,6 +95,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         id: "",
         name: "",
         email: "",
+        username: "",
         phone: "",
         twoFactorEnabled: false,
         password: "",
@@ -116,6 +118,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         email: Yup.string()
             .email("Invalid email address")
             .required("This field is mandatory"),
+        username: Yup.string()
+            .max(50, "Must be less than 50 characters")
+            .nullable()
+            .transform((v) => (v === "" ? null : v)),
         phone: Yup.string()
             .nullable()
             .transform((v) => (v === "" ? null : v))
@@ -150,6 +156,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         email: Yup.string()
             .email("Invalid email address")
             .required("This field is mandatory"),
+        username: Yup.string()
+            .max(50, "Must be less than 50 characters")
+            .nullable()
+            .transform((v) => (v === "" ? null : v)),
         phone: Yup.string()
             .nullable()
             .transform((v) => (v === "" ? null : v))
@@ -376,6 +386,17 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 onChange={formik.handleChange}
                                 onBlur={formik.handleBlur}
                                 required
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomFormField
+                                type="text"
+                                id="username"
+                                placeholder="Username (optional; for login)"
+                                value={formik.values.username ?? ""}
+                                onChange={formik.handleChange}
+                                onBlur={formik.handleBlur}
+                                required={false}
                                 styleClasses={styleClasses}
                             />
 
@@ -612,6 +633,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             onChange={formik.handleChange}
                                             onBlur={formik.handleBlur}
                                             required
+                                            styleClasses={styleClasses}
+                                        />
+                                        <CustomFormField
+                                            type="text"
+                                            id="username"
+                                            placeholder="Username (optional; for login)"
+                                            value={formik.values.username ?? ""}
+                                            onChange={formik.handleChange}
+                                            onBlur={formik.handleBlur}
+                                            required={false}
                                             styleClasses={styleClasses}
                                         />
                                         <CustomFormField

@@ -44,7 +44,7 @@ export function CustomDialog({
 }: ActionDialogProps) {
   return (
     <DialogContext.Provider value={{ setDialogOpen: setOpen }}>
-      <Dialog open={open} onOpenChange={() => setOpen(!open)}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className={`sm:max-w-[800px] max-h-screen overflow-auto rounded-sm`}>
           <DialogHeader className="border-b pb-6">
             <DialogTitle>{title}</DialogTitle>
