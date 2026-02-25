@@ -25,7 +25,7 @@ const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Ruhunu Channelling';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = typeof body?.email === 'string' ? body.email.trim() : '';
+    const identifier = typeof body?.email === 'string' ? body.email.trim() : '';
     const password = typeof body?.password === 'string' ? body.password : '';
     const method = typeof body?.method === 'string' ? body.method.trim() : '';
 
@@ -34,15 +34,18 @@ export async function POST(request: Request) {
       TWO_FACTOR_METHODS.SMS,
       TWO_FACTOR_METHODS.EMAIL
     ];
-    if (!email || !password || !validMethods.includes(method)) {
+    if (!identifier || !password || !validMethods.includes(method)) {
       return NextResponse.json(
-        { error: 'Email, password, and method (1, 2, or 3) required' },
+        { error: 'Email/username, password, and method (1, 2, or 3) required' },
         { status: 400 }
       );
     }
 
     const user = await prisma.user.findFirst({
-      where: { email, status: 1 },
+      where: {
+        OR: [{ email: identifier }, { username: identifier }],
+        status: 1
+      },
       include: { userGroup: true }
     });
 

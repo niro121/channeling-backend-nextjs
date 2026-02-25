@@ -23,6 +23,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/sms-playground": "sms-playground",
   "/sms-templates": "sms-templates",
   "/reports": "reports",
+  "/admin/api-clients": "api-clients",
 }
 
 // Map HTTP methods to permission actions

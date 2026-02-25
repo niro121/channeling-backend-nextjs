@@ -18,6 +18,7 @@ type CustomContentAlertDialogProps = {
   handleContinue: () => void;
   loading: boolean;
   children?: React.ReactNode;
+  continueLabel?: string;
 };
 
 export function CustomContentAlertDialog({
@@ -27,10 +28,11 @@ export function CustomContentAlertDialog({
   handleVisibilityChange,
   handleContinue,
   loading,
-  children
+  children,
+  continueLabel = 'Continue'
 }: CustomContentAlertDialogProps) {
   return (
-    <AlertDialog open={open}>
+    <AlertDialog open={open} onOpenChange={handleVisibilityChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -46,7 +48,7 @@ export function CustomContentAlertDialog({
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction onClick={handleContinue} disabled={loading} className="cursor-pointer">
-            Continue {loading && <Spinner />}
+            {continueLabel} {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
