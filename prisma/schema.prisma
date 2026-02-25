@@ -450,6 +450,18 @@ model ActivityLog {
   @@index([createdAt(sort: Desc)])
 }
 
+model ApiClient {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientId         String   @unique // e.g. UUID, used as client_id in OAuth2
+  clientSecretHash String   // hashed secret; plain secret returned only once on create
+  name             String   // application name
+  isBlocked        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isBlocked])
+}
+
 model Patient {
   id           String  @id @default(auto()) @map("_id") @db.ObjectId
   title        String

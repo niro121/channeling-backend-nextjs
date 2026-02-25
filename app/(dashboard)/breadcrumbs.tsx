@@ -41,6 +41,8 @@ const PATH_NAMES: Path[] = [
     { path: "edit", name: "Edit" },
     { path: "admin", name: "Admin" },
     { path: "monitor", name: "Server Monitor" },
+    { path: "api-clients", name: "API Clients" },
+    { path: "playground", name: "Test API" },
 ]
 
 /** Check if a segment is a dynamic ID (UUID, MongoDB ObjectId, or number) */

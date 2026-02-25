@@ -1,0 +1,65 @@
+{
+  "info": {
+    "name": "Channeling Public API",
+    "description": "OAuth2 client credentials + sessions. Get token first, then call sessions with Bearer token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "client_id", "value": "" },
+    { "key": "client_secret", "value": "" },
+    { "key": "access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Create Access Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"grant_type\": \"client_credentials\",\n  \"client_id\": \"{{client_id}}\",\n  \"client_secret\": \"{{client_secret}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/token",
+        "description": "Get OAuth2 access token. Use client_id and client_secret from API client. Saves token to collection variable for use in Get Sessions."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Sessions",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "sessions"],
+          "query": [
+            { "key": "doctorCode", "value": "DR0001", "description": "Required. Doctor code." },
+            { "key": "fromDate", "value": "2025-02-24", "description": "Optional. YYYY-MM-DD; default is today." }
+          ]
+        },
+        "description": "Returns future sessions for a doctor. Requires Bearer token from Create Access Token."
+      }
+    }
+  ]
+}
