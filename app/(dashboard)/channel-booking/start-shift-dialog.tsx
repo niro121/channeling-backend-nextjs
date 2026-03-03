@@ -14,6 +14,8 @@ import { startShiftAction } from "@/app/actions/shift.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import { Loader2, Play, SkipForward } from "lucide-react"
 
+const OPEN_REQUEST_FLOAT_EVENT = "channel-booking:open-request-float-dialog"
+
 type StartShiftDialogProps = {
   open: boolean
   shiftMaxHours: number
@@ -28,8 +30,15 @@ export function StartShiftDialog({ open, shiftMaxHours, onStarted, onSkipped }: 
   async function handleStart() {
     setLoading(true)
     try {
-      await startShiftAction()
-      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("channel-booking:shift-started"))
+      const shift = await startShiftAction()
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("channel-booking:shift-started"))
+        window.dispatchEvent(
+          new CustomEvent(OPEN_REQUEST_FLOAT_EVENT, {
+            detail: { shiftId: (shift as { id: string })?.id ?? null },
+          })
+        )
+      }
       onStarted()
       toast({ title: "Shift started", description: `Your shift is active for up to ${shiftMaxHours} hours.` })
     } catch (e) {

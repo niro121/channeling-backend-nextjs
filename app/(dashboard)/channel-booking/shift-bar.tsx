@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { usePathname } from "next/navigation"
 import {
   getCurrentShiftAction,
@@ -8,6 +8,7 @@ import {
   resumeShiftAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
+import { getMyFloatBalanceAction } from "@/app/actions/float-request.actions"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,8 +19,9 @@ import {
 import { SHIFT_STATUS } from "@/types/shift"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RequestFloatDialog } from "./request-float-dialog"
 
 type ShiftRecord = {
   id: string
@@ -53,7 +55,16 @@ export function ChannelBookingShiftBar() {
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [floatBalanceCents, setFloatBalanceCents] = useState<number | null>(null)
+  const [requestFloatOpen, setRequestFloatOpen] = useState(false)
+  const [requestFloatShiftIdOverride, setRequestFloatShiftIdOverride] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const refreshFloatBalance = useCallback(() => {
+    getMyFloatBalanceAction().then((res) => {
+      if (res.success && res.balanceCents !== undefined) setFloatBalanceCents(res.balanceCents)
+    })
+  }, [])
 
   // Live-updating clock when shift is active (tick every second)
   useEffect(() => {
@@ -86,9 +97,28 @@ export function ChannelBookingShiftBar() {
 
   useEffect(() => {
     if (!isChannelBooking) return
-    const onShiftStarted = () => refresh()
+    const onShiftStarted = () => {
+      refresh()
+      refreshFloatBalance()
+    }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
+  }, [isChannelBooking, refreshFloatBalance])
+
+  useEffect(() => {
+    if (shift) refreshFloatBalance()
+    else setFloatBalanceCents(null)
+  }, [shift?.id, refreshFloatBalance])
+
+  useEffect(() => {
+    if (!isChannelBooking) return
+    const openRequestFloat = (e: Event) => {
+      const shiftId = (e as CustomEvent<{ shiftId?: string | null }>)?.detail?.shiftId ?? null
+      setRequestFloatShiftIdOverride(shiftId ?? null)
+      setRequestFloatOpen(true)
+    }
+    window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
+    return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
   }, [isChannelBooking])
 
   if (!isChannelBooking || !hasShiftPermission) return null
@@ -98,14 +128,25 @@ export function ChannelBookingShiftBar() {
 
   if (!shift) {
     return (
-      <Button
-        size="sm"
-        className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground gap-2 rounded-md font-medium"
-        onClick={() => window.dispatchEvent(new CustomEvent(SHOW_START_SHIFT_DIALOG_EVENT))}
-      >
-        <PlayCircle className="h-4 w-4 shrink-0" />
-        Start a shift
-      </Button>
+      <>
+        <Button
+          size="sm"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground gap-2 rounded-md font-medium"
+          onClick={() => window.dispatchEvent(new CustomEvent(SHOW_START_SHIFT_DIALOG_EVENT))}
+        >
+          <PlayCircle className="h-4 w-4 shrink-0" />
+          Start a shift
+        </Button>
+        <RequestFloatDialog
+          open={requestFloatOpen}
+          onOpenChange={(open) => {
+            setRequestFloatOpen(open)
+            if (!open) setRequestFloatShiftIdOverride(null)
+          }}
+          shiftId={requestFloatShiftIdOverride}
+          onSuccess={refreshFloatBalance}
+        />
+      </>
     )
   }
 
@@ -161,53 +202,83 @@ export function ChannelBookingShiftBar() {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <>
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              disabled={!!actionLoading}
+              className={cn(
+                "gap-2 rounded-md font-medium",
+                isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
+              )}
+            >
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <CircleDot className="h-4 w-4 shrink-0" />
+              )}
+              <span className="flex items-center gap-1.5">
+                {isActive ? "Shift active" : "Shift paused"}
+                <span className="opacity-90 tabular-nums">
+                  {elapsed}
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isActive && (
+              <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
+                <Pause className="h-4 w-4 mr-2" />
+                Pause
+              </DropdownMenuItem>
+            )}
+            {isPaused && (
+              <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
+                <Play className="h-4 w-4 mr-2" />
+                Resume
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onClick={handleEnd}
+              disabled={!!actionLoading}
+              className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
+            >
+              <Square className="h-4 w-4 mr-2" />
+              End shift
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           size="sm"
-          disabled={!!actionLoading}
-          className={cn(
-            "gap-2 rounded-md font-medium",
-            isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
-            isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
-          )}
+          variant="outline"
+          className="gap-1.5 rounded-md font-medium"
+          onClick={() => {
+            setRequestFloatShiftIdOverride(null)
+            setRequestFloatOpen(true)
+          }}
         >
-          {actionLoading ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          ) : (
-            <CircleDot className="h-4 w-4 shrink-0" />
-          )}
-          <span className="flex items-center gap-1.5">
-            {isActive ? "Shift active" : "Shift paused"}
-            <span className="opacity-90 tabular-nums">
-              {elapsed}
-            </span>
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
+          <Banknote className="h-4 w-4 shrink-0" />
+          Request float
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {isActive && (
-          <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
-            <Pause className="h-4 w-4 mr-2" />
-            Pause
-          </DropdownMenuItem>
+        {floatBalanceCents !== null && (
+          <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+            Float: LKR {(floatBalanceCents / 100).toFixed(2)}
+          </span>
         )}
-        {isPaused && (
-          <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
-            <Play className="h-4 w-4 mr-2" />
-            Resume
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem
-          onClick={handleEnd}
-          disabled={!!actionLoading}
-          className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
-        >
-          <Square className="h-4 w-4 mr-2" />
-          End shift
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+      <RequestFloatDialog
+        open={requestFloatOpen}
+        onOpenChange={(open) => {
+          setRequestFloatOpen(open)
+          if (!open) setRequestFloatShiftIdOverride(null)
+        }}
+        shiftId={requestFloatShiftIdOverride ?? shift?.id ?? null}
+        onSuccess={refreshFloatBalance}
+      />
+    </>
   )
 }

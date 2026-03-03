@@ -77,6 +77,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "sms-playground", name: "SMS Playground" },
   { id: "reports", name: "Reports" },
   { id: "api-clients", name: "API Clients" },
+  {
+    id: "bulk-cashier",
+    name: "Bulk Cashier",
+    actions: ["view", "add", "edit"],
+    actionLabels: {
+      view: "Float View",
+      add: "Float Approve",
+      edit: "Bulk Cashier Dashboard",
+    },
+  },
+  { id: "accounting", name: "Accounting" },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [

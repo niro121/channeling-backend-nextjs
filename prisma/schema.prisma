@@ -17,7 +17,8 @@ model User {
   id                     String   @id @default(auto()) @map("_id") @db.ObjectId
   name                   String
   email                  String   @unique()
-  username               String?  @unique() // == Optional; login can use email or username == //
+  // username optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a sparse unique index via scripts/fix-user-username-partial-unique.ts
+  username               String?
   phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
   userType               Int // 1 = admin, 2 = staff
   password               String
@@ -85,6 +86,9 @@ model User {
   staffId                 String?                        @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
+  accounts                Account[]                     @relation("UserToAccount")
+  floatRequestsRequested  FloatRequest[]                @relation("FloatRequestRequestedBy")
+  floatRequestsAsBulkCashier FloatRequest[]             @relation("FloatRequestBulkCashier")
 }
 
 model UserGroup {
@@ -193,6 +197,7 @@ model Doctor {
   doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+  accounts       Account[]       @relation("DoctorToAccount")
 }
 
 model DoctorSession {
@@ -378,6 +383,8 @@ model Location {
   bookingUsers         UserBookingLocation[]
   createdUser          User?                 @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?                 @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+  accounts             Account[]             @relation("LocationToAccount")
+  journals             Journal[]             @relation("LocationToJournal")
 }
 
 model Room {
@@ -431,7 +438,51 @@ model Shift {
   endedByUser   User?     @relation("ShiftEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
   updatedAt     DateTime  @updatedAt
 
+  floatRequests FloatRequest[]
+
   @@index([userId, status])
+}
+
+enum FloatRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// Float request: cashier requests float at shift start; bulk cashier approves/rejects
+model FloatRequest {
+  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
+  requestedById          String             @db.ObjectId
+  requestedBy            User               @relation("FloatRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  bulkCashierId          String             @db.ObjectId
+  bulkCashier            User               @relation("FloatRequestBulkCashier", fields: [bulkCashierId], references: [id], onDelete: Cascade)
+  status                FloatRequestStatus  @default(PENDING)
+  amountRequested       Int                 // In smallest unit (e.g. cents)
+  denominationsRequested Json               // [{ "value": 5000, "count": 10 }, ...] LKR
+  denominationsApproved Json?              // Set on approve; bulk cashier can change (cannot give less total)
+  fromAccountId         String?             @db.ObjectId
+  fromAccount           Account?            @relation("FloatRequestFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  toAccountId           String?             @db.ObjectId
+  toAccount             Account?            @relation("FloatRequestToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
+  shiftId               String?             @db.ObjectId
+  shift                 Shift?              @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  approvedAt             DateTime?
+  approvedBy             String?             @db.ObjectId
+  rejectedAt             DateTime?
+  rejectedBy             String?             @db.ObjectId
+  cancelledAt            DateTime?
+  cancelledBy            String?             @db.ObjectId
+  rejectReason           String?
+  cancelReason           String?
+  journalId              String?             @unique @db.ObjectId
+  journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@index([bulkCashierId, status])
+  @@index([requestedById])
+  @@index([status])
 }
 
 model ActivityLog {
@@ -667,6 +718,7 @@ model Agency {
   history       Log[]        @relation("AgencyToLog")
   bookings      Booking[]    @relation("AgencyToBooking")
   receipts      Receipt[]    @relation("AgencyToReceipt")
+  accounts      Account[]    @relation("AgencyToAccount")
 
   // ==== AUDIT FIELDS ==== //
   createdAt DateTime @default(now())
@@ -777,6 +829,69 @@ model Receipt {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==== DOUBLE-ENTRY ACCOUNTING ==== //
+enum AccountType {
+  CASH
+  PAYABLE
+  RECEIVABLE
+}
+
+model Account {
+  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+  code                String?      @unique
+  name                String
+  type                AccountType
+  parentAccountId     String?      @db.ObjectId
+  parentAccount       Account?     @relation("AccountParent", fields: [parentAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childAccounts       Account[]    @relation("AccountParent")
+  locationId          String?      @db.ObjectId
+  location            Location?    @relation("LocationToAccount", fields: [locationId], references: [id], onDelete: SetNull)
+  doctorId            String?      @db.ObjectId
+  doctor              Doctor?      @relation("DoctorToAccount", fields: [doctorId], references: [id], onDelete: SetNull)
+  agencyId            String?      @db.ObjectId
+  agency              Agency?      @relation("AgencyToAccount", fields: [agencyId], references: [id], onDelete: SetNull)
+  userId              String?      @db.ObjectId
+  user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
+  minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  journalLines    JournalLine[]
+  floatRequestsFrom FloatRequest[] @relation("FloatRequestFromAccount")
+  floatRequestsTo   FloatRequest[] @relation("FloatRequestToAccount")
+}
+
+model Journal {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  journalNumber  Int?       // Optional display number from sequence
+  date          DateTime
+  description   String     @default("")
+  referenceType String?    // e.g. Receipt, Booking, Manual
+  referenceId    String?    @db.ObjectId
+  locationId     String?   @db.ObjectId
+  location       Location? @relation("LocationToJournal", fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy      String?   @db.ObjectId
+  createdAt      DateTime  @default(now())
+
+  journalLines   JournalLine[]
+  floatRequest   FloatRequest?
+}
+
+model JournalLine {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  journalId     String   @db.ObjectId
+  journal       Journal  @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  accountId     String   @db.ObjectId
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debitAmount   Int      @default(0) // In smallest unit (e.g. cents)
+  creditAmount  Int      @default(0)
+  memo          String?  @default("")
+
+  @@index([journalId])
+  @@index([accountId])
 }
 
 model Log {

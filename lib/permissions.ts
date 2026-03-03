@@ -1,4 +1,5 @@
 import { Permissions } from "@/types/user-group"
+import type { PermissionAction } from "@/types/user-group"
 
 // Map routes to resources
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
@@ -24,6 +25,13 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/sms-templates": "sms-templates",
   "/reports": "reports",
   "/admin/api-clients": "api-clients",
+  "/accounting": "accounting",
+  "/bulk-cashier": "bulk-cashier",
+}
+
+/** When set, route access requires this action instead of "view" (e.g. bulk-cashier dashboard uses "edit") */
+export const ROUTE_REQUIRED_ACTION: Partial<Record<string, PermissionAction>> = {
+  "/bulk-cashier": "edit",
 }
 
 // Map HTTP methods to permission actions
@@ -60,7 +68,7 @@ export function hasPermission(
 
 /**
  * Check if user can access a route
- * This checks if user has "view" permission for the resource mapped to the route
+ * Uses ROUTE_REQUIRED_ACTION when set (e.g. /bulk-cashier requires "edit"), otherwise "view"
  */
 export function canAccessRoute(
   permissions: Permissions | null | undefined,
@@ -73,8 +81,8 @@ export function canAccessRoute(
     return true
   }
 
-  // Check view permission
-  return hasPermission(permissions, resource, "view")
+  const action = ROUTE_REQUIRED_ACTION[route] ?? "view"
+  return hasPermission(permissions, resource, action)
 }
 
 /**

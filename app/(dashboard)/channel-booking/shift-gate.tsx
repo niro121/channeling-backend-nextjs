@@ -92,12 +92,12 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
   return (
     <>
       {hasShiftPermission && (
-      <StartShiftDialog
-        open={showDialog}
-        shiftMaxHours={shiftMaxHours}
-        onStarted={handleStarted}
-        onSkipped={handleSkipped}
-      />
+        <StartShiftDialog
+          open={showDialog}
+          shiftMaxHours={shiftMaxHours}
+          onStarted={handleStarted}
+          onSkipped={handleSkipped}
+        />
       )}
       {children}
     </>
