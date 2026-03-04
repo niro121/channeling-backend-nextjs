@@ -18,34 +18,48 @@ import type { Permissions } from '@/types/user-group';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 
-// --- getBulkCashierUsers: users who have Float Approve (add) permission ---
+// --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
 export async function getBulkCashierUsers(): Promise<
-  { id: string; name: string; email: string }[]
+  { id: string; name: string; email: string; isBulkCashier: boolean }[]
 > {
   const groups = await prisma.userGroup.findMany({
     where: { status: 1 },
     select: { id: true, permissions: true },
   });
 
-  const bulkCashierGroupIds = groups
+  const groupIdsWithFloatApprove = groups
     .filter((g) => {
       const p = g.permissions as Permissions | null;
-      return p?.['bulk-cashier']?.add === true;
+      return p?.['bulk-cashier']?.['float-approve'] === true;
     })
     .map((g) => g.id);
 
-  if (bulkCashierGroupIds.length === 0) return [];
+  const groupIdsWithBulkCashierDashboard = new Set(
+    groups
+      .filter((g) => {
+        const p = g.permissions as Permissions | null;
+        return p?.['bulk-cashier']?.['bulk-cashier-dashboard'] === true;
+      })
+      .map((g) => g.id)
+  );
+
+  if (groupIdsWithFloatApprove.length === 0) return [];
 
   const users = await prisma.user.findMany({
     where: {
-      userGroupId: { in: bulkCashierGroupIds },
+      userGroupId: { in: groupIdsWithFloatApprove },
       status: 1,
     },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, userGroupId: true },
     orderBy: { name: 'asc' },
   });
 
-  return users;
+  return users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    isBulkCashier: u.userGroupId ? groupIdsWithBulkCashierDashboard.has(u.userGroupId) : false,
+  }));
 }
 
 // --- createFloatRequest ---
@@ -74,6 +88,14 @@ export async function createFloatRequest(
     select: { id: true },
   });
   if (!bulkCashierUser) return { success: false, error: 'Bulk cashier not found' };
+
+  const existingPending = await prisma.floatRequest.findFirst({
+    where: { requestedById: input.requestedById, status: 'PENDING' },
+    select: { id: true },
+  });
+  if (existingPending) {
+    return { success: false, error: 'You already have a pending float request. Wait for it to be approved or rejected before requesting again.' };
+  }
 
   const row = await prisma.floatRequest.create({
     data: {
@@ -109,6 +131,18 @@ export async function getFloatRequestsForBulkCashier(
   return rows.map(mapFloatRequest);
 }
 
+// --- getPendingFloatRequestByUserId ---
+export async function getPendingFloatRequestByUserId(
+  userId: string
+): Promise<FloatRequestType | null> {
+  const row = await prisma.floatRequest.findFirst({
+    where: { requestedById: userId, status: 'PENDING' },
+    include: includeFloatRequest(),
+    orderBy: { createdAt: 'desc' },
+  });
+  return row ? mapFloatRequest(row) : null;
+}
+
 // --- getFloatRequestById ---
 export async function getFloatRequestById(
   id: string
@@ -141,12 +175,29 @@ export async function approveFloatRequest(
 
   const approvedTotalLKR = denominationsTotalLKR(input.denominationsApproved);
   const approvedTotalCents = lkrToCents(approvedTotalLKR);
-  if (approvedTotalCents < fr.amountRequested) {
+  if (approvedTotalCents <= 0) {
     return {
       success: false,
-      error: 'Approved denominations total cannot be less than requested amount',
-      errorCode: 'INSUFFICIENT_AMOUNT',
+      error: 'Approved amount must be greater than zero',
+      errorCode: 'INVALID_AMOUNT',
     };
+  }
+  if (approvedTotalCents > fr.amountRequested) {
+    return {
+      success: false,
+      error: 'Cannot give more than requested. Approved total must not exceed the requested amount.',
+      errorCode: 'EXCEEDS_REQUESTED',
+    };
+  }
+  if (approvedTotalCents < fr.amountRequested) {
+    const reason = input.reasonForLessThanRequested;
+    if (!reason || !String(reason).trim()) {
+      return {
+        success: false,
+        error: 'Reason for giving less than requested is required when approved amount is below the requested amount.',
+        errorCode: 'REASON_FOR_LESS_REQUIRED',
+      };
+    }
   }
 
   const fromAccount = await prisma.account.findFirst({
@@ -188,17 +239,30 @@ export async function approveFloatRequest(
     };
   }
 
+  const updateData: {
+    status: 'APPROVED';
+    denominationsApproved: object;
+    fromAccountId: string;
+    toAccountId: string;
+    approvedAt: Date;
+    approvedBy: string;
+    journalId: string;
+    reasonForLessThanRequested?: string | null;
+  } = {
+    status: 'APPROVED',
+    denominationsApproved: input.denominationsApproved as object,
+    fromAccountId: input.fromAccountId,
+    toAccountId: toAccount.id,
+    approvedAt: new Date(),
+    approvedBy: input.approvedBy,
+    journalId: journalResult.journalId,
+  };
+  if (approvedTotalCents < fr.amountRequested && input.reasonForLessThanRequested) {
+    updateData.reasonForLessThanRequested = String(input.reasonForLessThanRequested).trim();
+  }
   const updated = await prisma.floatRequest.update({
     where: { id: input.floatRequestId },
-    data: {
-      status: 'APPROVED',
-      denominationsApproved: input.denominationsApproved as object,
-      fromAccountId: input.fromAccountId,
-      toAccountId: toAccount.id,
-      approvedAt: new Date(),
-      approvedBy: input.approvedBy,
-      journalId: journalResult.journalId,
-    },
+    data: updateData,
     include: includeFloatRequest(),
   });
 
@@ -237,7 +301,7 @@ export async function rejectFloatRequest(
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }
 
-// --- cancelFloatRequest (requested by cashier or bulk cashier, with reason) ---
+// --- cancelFloatRequest (only the requester can cancel, with reason) ---
 export async function cancelFloatRequest(
   input: CancelFloatRequestInput
 ): Promise<
@@ -251,10 +315,8 @@ export async function cancelFloatRequest(
   if (fr.status !== 'PENDING') {
     return { success: false, error: 'Request is no longer pending' };
   }
-  const isRequestedBy = fr.requestedById === input.cancelledBy;
-  const isBulkCashier = fr.bulkCashierId === input.cancelledBy;
-  if (!isRequestedBy && !isBulkCashier) {
-    return { success: false, error: 'Only the requester or bulk cashier can cancel' };
+  if (fr.requestedById !== input.cancelledBy) {
+    return { success: false, error: 'Only the requester can cancel their own float request' };
   }
 
   const updated = await prisma.floatRequest.update({
@@ -301,6 +363,7 @@ function mapFloatRequest(row: {
   cancelledBy: string | null;
   rejectReason: string | null;
   cancelReason: string | null;
+  reasonForLessThanRequested?: string | null;
   journalId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -329,6 +392,7 @@ function mapFloatRequest(row: {
     cancelledBy: row.cancelledBy,
     rejectReason: row.rejectReason,
     cancelReason: row.cancelReason,
+    reasonForLessThanRequested: row.reasonForLessThanRequested ?? null,
     journalId: row.journalId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

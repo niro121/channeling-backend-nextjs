@@ -19,13 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { createFloatRequestAction, getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
 import { useToast } from "@/components/hooks/use-toast"
-import { Loader2 } from "lucide-react"
-import { lkrToCents } from "@/types/float-request"
+import { Loader2, Minus, Plus } from "lucide-react"
+import { lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from "@/types/float-request"
 import type { DenominationEntry } from "@/types/float-request"
-
-const LKR_DENOMINATIONS = [5000, 2000, 1000, 500, 100, 50, 20, 10]
 
 type RequestFloatDialogProps = {
   open: boolean
@@ -35,25 +34,42 @@ type RequestFloatDialogProps = {
 }
 
 export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: RequestFloatDialogProps) {
-  const [bulkCashiers, setBulkCashiers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [bulkCashiers, setBulkCashiers] = useState<{ id: string; name: string; email: string; isBulkCashier: boolean }[]>([])
   const [bulkCashierId, setBulkCashierId] = useState("")
   const [denoms, setDenoms] = useState<DenominationEntry[]>(
     LKR_DENOMINATIONS.map((v) => ({ value: v, count: 0 }))
   )
   const [loading, setLoading] = useState(false)
+  const [loadingUsers, setLoadingUsers] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
-    if (open) {
-      getBulkCashierUsersAction().then((res) => {
-        if (res.success && res.data) setBulkCashiers(res.data)
+    if (!open) return
+    setLoadingUsers(true)
+    getBulkCashierUsersAction()
+      .then((res) => {
+        if (res.success && res.data) {
+          setBulkCashiers(res.data)
+          if (res.data.length > 0) setBulkCashierId(res.data[0].id)
+        }
       })
-    }
+      .finally(() => setLoadingUsers(false))
   }, [open])
 
   const totalLKR = denoms.reduce((s, d) => s + d.value * d.count, 0)
   const totalCents = lkrToCents(totalLKR)
   const valid = bulkCashierId && totalCents > 0
+
+  const matchDenom = (a: number, b: number) => (a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6)
+  const updateDenomCount = (value: number, count: number) => {
+    setDenoms((prev) => {
+      const i = prev.findIndex((d) => matchDenom(d.value, value))
+      if (i < 0) return prev
+      const next = [...prev]
+      next[i] = { ...next[i], count }
+      return next
+    })
+  }
 
   async function handleSubmit() {
     if (!valid) return
@@ -84,7 +100,7 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Request float</DialogTitle>
           <DialogDescription>
@@ -94,42 +110,126 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
         <div className="space-y-4">
           <div>
             <Label>Bulk cashier</Label>
-            <Select value={bulkCashierId} onValueChange={setBulkCashierId}>
-              <SelectTrigger><SelectValue placeholder="Select bulk cashier" /></SelectTrigger>
+            <Select value={bulkCashierId} onValueChange={setBulkCashierId} disabled={loadingUsers}>
+              <SelectTrigger>
+                {loadingUsers ? (
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading…
+                  </span>
+                ) : (
+                  <SelectValue placeholder="Select bulk cashier" />
+                )}
+              </SelectTrigger>
               <SelectContent>
                 {bulkCashiers.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>
+                    <span className="flex items-center gap-2">
+                      {u.name}
+                      {u.isBulkCashier && (
+                        <Badge variant="secondary" className="text-xs font-normal">Bulk Cashier</Badge>
+                      )}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Denominations (LKR)</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {denoms.map((d, i) => (
-                <div key={d.value} className="flex items-center gap-2">
-                  <span className="w-14">{d.value}</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={d.count}
-                    onChange={(e) => {
-                      const next = [...denoms]
-                      next[i] = { ...next[i], count: parseInt(e.target.value, 10) || 0 }
-                      setDenoms(next)
-                    }}
-                  />
-                </div>
-              ))}
+          <div className="space-y-4">
+            <div className="flex flex-col items-center">
+              <Label className="text-sm font-medium self-start">Denominations (LKR)</Label>
+              <div className="grid grid-cols-2 gap-x-20 gap-y-4 mt-3 w-full max-w-md">
+                {LKR_DENOMINATIONS_RUPEES.map((v) => {
+                  const count = denoms.find((d) => d.value === v)?.count ?? 0
+                  return (
+                    <div key={`rupee-${v}`} className="flex items-center gap-3 min-h-[2.5rem] py-0.5">
+                      <span className="tabular-nums text-sm font-medium w-12 shrink-0">{formatDenomLabel(v)}</span>
+                      <span className="text-muted-foreground shrink-0">×</span>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => updateDenomCount(v, Math.max(0, count - 1))}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="h-9 w-16 shrink-0 text-sm text-center tabular-nums"
+                          value={count}
+                          onChange={(e) => updateDenomCount(v, parseInt(e.target.value, 10) || 0)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => updateDenomCount(v, count + 1)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">Total: {totalLKR.toFixed(2)} LKR</p>
+            <div className="flex flex-col items-center">
+              <Label className="text-sm font-normal text-muted-foreground self-start">Cents (optional)</Label>
+              <div className="grid grid-cols-2 gap-x-20 gap-y-4 mt-3 w-full max-w-md">
+                {LKR_DENOMINATIONS_CENTS.map((v, i) => {
+                  const count = denoms.find((d) => matchDenom(d.value, v))?.count ?? 0
+                  return (
+                    <div key={`cent-${i}`} className="flex items-center gap-3 min-h-[2.5rem] py-0.5">
+                      <span className="tabular-nums text-sm font-medium w-12 shrink-0">{formatDenomLabel(v)}</span>
+                      <span className="text-muted-foreground shrink-0">×</span>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => updateDenomCount(v, Math.max(0, count - 1))}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={0}
+                          className="h-9 w-16 shrink-0 text-sm text-center tabular-nums"
+                          value={count}
+                          onChange={(e) => updateDenomCount(v, parseInt(e.target.value, 10) || 0)}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => updateDenomCount(v, count + 1)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="border-t pt-3 mt-1 w-full">
+              <p className="text-center text-lg font-semibold tabular-nums">
+                Total: {totalLKR.toFixed(2)} LKR
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!valid || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Submit request
+            Submit request — {totalLKR.toFixed(2)} LKR
           </Button>
         </DialogFooter>
       </DialogContent>

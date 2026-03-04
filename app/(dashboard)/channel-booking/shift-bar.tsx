@@ -8,18 +8,31 @@ import {
   resumeShiftAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
-import { getMyFloatBalanceAction } from "@/app/actions/float-request.actions"
+import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, cancelFloatRequestAction } from "@/app/actions/float-request.actions"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { SHIFT_STATUS } from "@/types/shift"
+import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RequestFloatDialog } from "./request-float-dialog"
 
@@ -50,14 +63,19 @@ export function ChannelBookingShiftBar() {
   const pathname = usePathname()
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
+  const hasFloatRequestPermission = hasPermission("bulk-cashier", "float-request")
   const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH)
   const [shift, setShift] = useState<ShiftRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [floatBalanceCents, setFloatBalanceCents] = useState<number | null>(null)
+  const [pendingFloatRequest, setPendingFloatRequest] = useState<FloatRequest | null>(null)
   const [requestFloatOpen, setRequestFloatOpen] = useState(false)
   const [requestFloatShiftIdOverride, setRequestFloatShiftIdOverride] = useState<string | null>(null)
+  const [cancelFloatOpen, setCancelFloatOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelLoading, setCancelLoading] = useState(false)
   const { toast } = useToast()
 
   const refreshFloatBalance = useCallback(() => {
@@ -65,6 +83,34 @@ export function ChannelBookingShiftBar() {
       if (res.success && res.balanceCents !== undefined) setFloatBalanceCents(res.balanceCents)
     })
   }, [])
+
+  const refreshPendingFloatRequest = useCallback(() => {
+    getMyPendingFloatRequestAction().then((res) => {
+      if (res.success && res.data) setPendingFloatRequest(res.data)
+      else setPendingFloatRequest(null)
+    })
+  }, [])
+
+  async function handleCancelFloatRequest() {
+    if (!pendingFloatRequest || !cancelReason.trim()) return
+    setCancelLoading(true)
+    try {
+      const res = await cancelFloatRequestAction({
+        floatRequestId: pendingFloatRequest.id,
+        reason: cancelReason.trim(),
+      })
+      if (res.success) {
+        setCancelFloatOpen(false)
+        setCancelReason("")
+        refreshPendingFloatRequest()
+        toast({ title: res.message ?? "Float request cancelled" })
+      } else {
+        toast({ title: "Error", description: res.error ?? "Failed to cancel", variant: "destructive" })
+      }
+    } finally {
+      setCancelLoading(false)
+    }
+  }
 
   // Live-updating clock when shift is active (tick every second)
   useEffect(() => {
@@ -99,19 +145,27 @@ export function ChannelBookingShiftBar() {
     if (!isChannelBooking) return
     const onShiftStarted = () => {
       refresh()
-      refreshFloatBalance()
+      if (hasFloatRequestPermission) {
+        refreshFloatBalance()
+        refreshPendingFloatRequest()
+      }
     }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
-  }, [isChannelBooking, refreshFloatBalance])
+  }, [isChannelBooking, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
 
   useEffect(() => {
-    if (shift) refreshFloatBalance()
-    else setFloatBalanceCents(null)
-  }, [shift?.id, refreshFloatBalance])
+    if (shift && hasFloatRequestPermission) {
+      refreshFloatBalance()
+      refreshPendingFloatRequest()
+    } else {
+      if (!hasFloatRequestPermission) setFloatBalanceCents(null)
+      setPendingFloatRequest(null)
+    }
+  }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
 
   useEffect(() => {
-    if (!isChannelBooking) return
+    if (!isChannelBooking || !hasFloatRequestPermission) return
     const openRequestFloat = (e: Event) => {
       const shiftId = (e as CustomEvent<{ shiftId?: string | null }>)?.detail?.shiftId ?? null
       setRequestFloatShiftIdOverride(shiftId ?? null)
@@ -119,7 +173,7 @@ export function ChannelBookingShiftBar() {
     }
     window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
-  }, [isChannelBooking])
+  }, [isChannelBooking, hasFloatRequestPermission])
 
   if (!isChannelBooking || !hasShiftPermission) return null
   if (loading) return null
@@ -137,15 +191,17 @@ export function ChannelBookingShiftBar() {
           <PlayCircle className="h-4 w-4 shrink-0" />
           Start a shift
         </Button>
-        <RequestFloatDialog
-          open={requestFloatOpen}
-          onOpenChange={(open) => {
-            setRequestFloatOpen(open)
-            if (!open) setRequestFloatShiftIdOverride(null)
-          }}
-          shiftId={requestFloatShiftIdOverride}
-          onSuccess={refreshFloatBalance}
-        />
+        {hasFloatRequestPermission && (
+          <RequestFloatDialog
+            open={requestFloatOpen}
+            onOpenChange={(open) => {
+              setRequestFloatOpen(open)
+              if (!open) setRequestFloatShiftIdOverride(null)
+            }}
+            shiftId={requestFloatShiftIdOverride}
+            onSuccess={refreshFloatBalance}
+          />
+        )}
       </>
     )
   }
@@ -252,33 +308,117 @@ export function ChannelBookingShiftBar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 rounded-md font-medium"
-          onClick={() => {
-            setRequestFloatShiftIdOverride(null)
-            setRequestFloatOpen(true)
-          }}
-        >
-          <Banknote className="h-4 w-4 shrink-0" />
-          Request float
-        </Button>
-        {floatBalanceCents !== null && (
-          <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
-            Float: LKR {(floatBalanceCents / 100).toFixed(2)}
-          </span>
+        {hasFloatRequestPermission && (
+          <>
+            {pendingFloatRequest ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 rounded-md font-medium text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 bg-background hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/30 dark:hover:text-amber-300 focus-visible:ring-amber-500/50 focus-visible:ring-offset-background"
+                  >
+                    <Banknote className="h-4 w-4 shrink-0" />
+                    Float request is pending
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
+                    <p className="tabular-nums">
+                      Amount: LKR {(pendingFloatRequest.amountRequested / 100).toFixed(2)}
+                    </p>
+                    {pendingFloatRequest.bulkCashier?.name && (
+                      <p>Bulk cashier: {pendingFloatRequest.bulkCashier.name}</p>
+                    )}
+                    <p>
+                      Requested:{" "}
+                      {typeof pendingFloatRequest.createdAt === "string"
+                        ? new Date(pendingFloatRequest.createdAt).toLocaleString()
+                        : pendingFloatRequest.createdAt.toLocaleString()}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setCancelFloatOpen(true)}
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  >
+                    <Ban className="h-4 w-4 mr-2" />
+                    Cancel request
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-md font-medium"
+                onClick={() => {
+                  setRequestFloatShiftIdOverride(null)
+                  setRequestFloatOpen(true)
+                }}
+              >
+                <Banknote className="h-4 w-4 shrink-0" />
+                Request float
+              </Button>
+            )}
+            {floatBalanceCents !== null && (
+              <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+                Float: LKR {(floatBalanceCents / 100).toFixed(2)}
+              </span>
+            )}
+          </>
         )}
       </div>
-      <RequestFloatDialog
-        open={requestFloatOpen}
-        onOpenChange={(open) => {
-          setRequestFloatOpen(open)
-          if (!open) setRequestFloatShiftIdOverride(null)
-        }}
-        shiftId={requestFloatShiftIdOverride ?? shift?.id ?? null}
-        onSuccess={refreshFloatBalance}
-      />
+      {hasFloatRequestPermission && (
+        <RequestFloatDialog
+          open={requestFloatOpen}
+          onOpenChange={(open) => {
+            setRequestFloatOpen(open)
+            if (!open) setRequestFloatShiftIdOverride(null)
+          }}
+          shiftId={requestFloatShiftIdOverride ?? shift?.id ?? null}
+          onSuccess={() => {
+            refreshFloatBalance()
+            refreshPendingFloatRequest()
+          }}
+        />
+      )}
+      <Dialog open={cancelFloatOpen} onOpenChange={setCancelFloatOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel float request</DialogTitle>
+            <DialogDescription>
+              Provide a reason for cancelling this request. Only pending requests can be cancelled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="cancel-reason">Cancel reason (required)</Label>
+            <Textarea
+              id="cancel-reason"
+              placeholder="e.g. No longer needed"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelFloatOpen(false)} disabled={cancelLoading}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelFloatRequest}
+              disabled={!cancelReason.trim() || cancelLoading}
+            >
+              {cancelLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Cancel request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

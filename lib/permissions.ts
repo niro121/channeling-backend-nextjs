@@ -1,5 +1,4 @@
 import { Permissions } from "@/types/user-group"
-import type { PermissionAction } from "@/types/user-group"
 
 // Map routes to resources
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
@@ -29,9 +28,9 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/bulk-cashier": "bulk-cashier",
 }
 
-/** When set, route access requires this action instead of "view" (e.g. bulk-cashier dashboard uses "edit") */
-export const ROUTE_REQUIRED_ACTION: Partial<Record<string, PermissionAction>> = {
-  "/bulk-cashier": "edit",
+/** When set, route access requires this action instead of "view" (e.g. bulk-cashier uses "bulk-cashier-dashboard") */
+export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {
+  "/bulk-cashier": "bulk-cashier-dashboard",
 }
 
 // Map HTTP methods to permission actions
@@ -44,25 +43,17 @@ export const METHOD_TO_ACTION: Record<string, "view" | "add" | "edit" | "delete"
 }
 
 /**
- * Check if user has permission for a specific resource and action
+ * Check if user has permission for a specific resource and action.
+ * Action is standard (view/add/edit/delete) or resource-specific (e.g. bulk-cashier: float-view, float-approve).
  */
 export function hasPermission(
   permissions: Permissions | null | undefined,
   resource: string,
-  action: "view" | "add" | "edit" | "delete"
+  action: string
 ): boolean {
-  // If no permissions, deny access
-  if (!permissions) {
-    return false
-  }
-
-  // Check if resource exists in permissions
+  if (!permissions) return false
   const resourcePermissions = permissions[resource]
-  if (!resourcePermissions) {
-    return false
-  }
-
-  // Return the specific permission
+  if (!resourcePermissions) return false
   return resourcePermissions[action] === true
 }
 
@@ -105,13 +96,13 @@ export function getResourceFromRoute(route: string): string | null {
 }
 
 /**
- * Check if user can perform an action on a resource
- * Used for API routes and server actions
+ * Check if user can perform an action on a resource.
+ * Used for API routes and server actions.
  */
 export function canPerformAction(
   permissions: Permissions | null | undefined,
   resource: string,
-  action: "view" | "add" | "edit" | "delete"
+  action: string
 ): boolean {
   return hasPermission(permissions, resource, action)
 }

@@ -385,6 +385,7 @@ model Location {
   updatedUser          User?                 @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
   accounts             Account[]             @relation("LocationToAccount")
   journals             Journal[]             @relation("LocationToJournal")
+  shifts               Shift[]               @relation("ShiftToLocation")
 }
 
 model Room {
@@ -424,6 +425,8 @@ model Shift {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   userId        String    @db.ObjectId
   user          User      @relation("UserShifts", fields: [userId], references: [id], onDelete: Cascade)
+  locationId    String?   @db.ObjectId
+  location      Location? @relation("ShiftToLocation", fields: [locationId], references: [id], onDelete: SetNull)
   startedAt     DateTime  @default(now())
   endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS
   status        Int // 0 = paused, 1 = active, 3 = ended
@@ -441,6 +444,7 @@ model Shift {
   floatRequests FloatRequest[]
 
   @@index([userId, status])
+  @@index([locationId])
 }
 
 enum FloatRequestStatus {
@@ -475,7 +479,8 @@ model FloatRequest {
   cancelledBy            String?             @db.ObjectId
   rejectReason           String?
   cancelReason           String?
-  journalId              String?             @unique @db.ObjectId
+  reasonForLessThanRequested String?         // Required when approved amount < requested
+  journalId              String?             @db.ObjectId
   journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
@@ -877,7 +882,7 @@ model Journal {
   createdAt      DateTime  @default(now())
 
   journalLines   JournalLine[]
-  floatRequest   FloatRequest?
+  floatRequests FloatRequest[]
 }
 
 model JournalLine {

@@ -2,12 +2,8 @@
 
 export type PermissionAction = "view" | "add" | "edit" | "delete";
 
-export type ResourcePermissions = {
-  view: boolean;
-  add: boolean;
-  edit: boolean;
-  delete: boolean;
-};
+/** Standard resources use view/add/edit/delete; resources with customActions use their own action ids */
+export type ResourcePermissions = Record<string, boolean>;
 
 export type Permissions = {
   [resource: string]: ResourcePermissions;
@@ -53,6 +49,8 @@ export type ResourceWithOptionalActions = {
   actions?: readonly PermissionAction[]
   /** Custom labels for actions (e.g. view → "Change Date"). */
   actionLabels?: Partial<Record<PermissionAction, string>>
+  /** Resource-specific permission actions (e.g. Bulk Cashier: Float View, Float Approve, etc.). When set, these replace view/add/edit/delete for this resource. */
+  customActions?: { id: string; name: string }[]
 }
 
 // Available resources in the system
@@ -80,12 +78,12 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   {
     id: "bulk-cashier",
     name: "Bulk Cashier",
-    actions: ["view", "add", "edit"],
-    actionLabels: {
-      view: "Float View",
-      add: "Float Approve",
-      edit: "Bulk Cashier Dashboard",
-    },
+    customActions: [
+      { id: "float-view", name: "Float View" },
+      { id: "float-approve", name: "Float Approve" },
+      { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+      { id: "float-request", name: "Float Request" },
+    ],
   },
   { id: "accounting", name: "Accounting" },
 ];
@@ -95,4 +93,12 @@ export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; descripti
   { id: "add", name: "Add", description: "Add new" },
   { id: "edit", name: "Edit", description: "Edit existing" },
   { id: "delete", name: "Delete", description: "Delete" },
+] as const;
+
+/** Extended permission actions specific to Bulk Cashier (use with customActions). */
+export const BULK_CASHIER_ACTIONS = [
+  { id: "float-view", name: "Float View" },
+  { id: "float-approve", name: "Float Approve" },
+  { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+  { id: "float-request", name: "Float Request" },
 ] as const;
