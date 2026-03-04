@@ -137,6 +137,79 @@ export async function getFloatRequestsForBulkCashier(
   return rows.map(mapFloatRequest);
 }
 
+export type GetAllFloatRequestsForDashboardParams = {
+  status?: number;
+};
+
+/**
+ * Float requests for Bulk Cashier dashboard: today's requests + all PENDING (any date).
+ * So you see today's activity and never miss a pending request that needs action.
+ * Approve/Reject only for requests assigned to current user (enforced in UI and approve/reject services).
+ */
+export async function getAllFloatRequestsForDashboard(
+  params: GetAllFloatRequestsForDashboardParams = {}
+) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const todayRange = { gte: startOfToday, lte: endOfToday };
+
+  let where: object;
+  if (params.status !== undefined) {
+    if (params.status === FLOAT_REQUEST_STATUS.PENDING) {
+      where = { status: FLOAT_REQUEST_STATUS.PENDING };
+    } else {
+      where = { status: params.status, createdAt: todayRange };
+    }
+  } else {
+    where = {
+      OR: [
+        { status: FLOAT_REQUEST_STATUS.PENDING },
+        { createdAt: todayRange },
+      ],
+    };
+  }
+
+  const rows = await prisma.floatRequest.findMany({
+    where: where as never,
+    include: includeFloatRequest(),
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return rows.map(mapFloatRequest);
+}
+
+export type GetFloatRequestsForBulkCashierPaginatedParams = {
+  page?: number;
+  limit?: number;
+  status?: number | null;
+};
+
+/** Paginated list of float requests assigned to this bulk cashier (for Float Transfers dashboard). */
+export async function getFloatRequestsForBulkCashierPaginated(
+  bulkCashierId: string,
+  params: GetFloatRequestsForBulkCashierPaginatedParams = {}
+) {
+  const page = Math.max(0, params.page ?? 0);
+  const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+  const where: { bulkCashierId: string; status?: number } = { bulkCashierId };
+  if (params.status !== undefined && params.status !== null) where.status = params.status;
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.floatRequest.count({ where: where as never }),
+    prisma.floatRequest.findMany({
+      where: where as never,
+      include: includeFloatRequest(),
+      orderBy: { createdAt: 'desc' },
+      skip: page * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { data: rows.map(mapFloatRequest), totalRecords };
+}
+
 // --- getPendingFloatRequestByUserId ---
 export async function getPendingFloatRequestByUserId(
   userId: string
@@ -313,9 +386,22 @@ export async function receiveFloatRequest(
     return { success: false, error: 'Invalid receive code.', errorCode: 'INVALID_CODE' };
   }
 
-  if (!fr.fromAccountId || !fr.toAccountId) {
-    return { success: false, error: 'Float request missing account links.' };
+  if (!fr.fromAccountId) {
+    return { success: false, error: 'Float request missing source account.', errorCode: 'MISSING_SOURCE_ACCOUNT' };
   }
+
+  // Ensure cashier has a float (CASH) account; use it for the journal (covers edge case where it wasn't created at approve)
+  const cashierAccountResult = await getOrCreateAccount({
+    type: 'CASH',
+    userId: fr.requestedById,
+    name: `Float - ${fr.requestedBy.name}`,
+    minBalanceAllowed: 0,
+  });
+  if (!cashierAccountResult.success) {
+    return { success: false, error: cashierAccountResult.error, errorCode: 'CASHIER_ACCOUNT_ERROR' };
+  }
+  const toAccountId = cashierAccountResult.account.id;
+
   const approvedDenoms = (fr.denominationsApproved as DenominationEntry[] | null) ?? [];
   const amountCents = lkrToCents(denominationsTotalLKR(approvedDenoms));
   if (amountCents <= 0) {
@@ -337,7 +423,7 @@ export async function receiveFloatRequest(
     referenceId: fr.id,
     createdBy: input.receivedById,
     lines: [
-      { accountId: fr.toAccountId, debitAmount: amountCents, creditAmount: 0 },
+      { accountId: toAccountId, debitAmount: amountCents, creditAmount: 0 },
       { accountId: fr.fromAccountId, debitAmount: 0, creditAmount: amountCents },
     ],
   });
@@ -355,6 +441,7 @@ export async function receiveFloatRequest(
     where: { id: input.floatRequestId },
     data: {
       status: FLOAT_REQUEST_STATUS.RECEIVED as never,
+      toAccountId,
       journalId: journalResult.journalId,
       receivedAt: now,
       receivedById: input.receivedById,

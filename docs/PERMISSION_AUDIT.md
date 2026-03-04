@@ -51,66 +51,75 @@ This document lists all components and their permission check status.
      - `createJournalEntryAction` – add
    - ✅ UI: "Add journal entry" and "Add account" toolbar buttons only shown when user has `accounting` **add** (via `AccountingToolbarActions` client component using `usePermissions`)
 
+5. **Shifts** (`/shifts`)
+   - ✅ Page: Has `checkRouteAccess("/shifts")` check; redirects to unauthorized if no view
+   - ✅ Detail (`/shifts/[id]`): Has `checkRouteAccess("/shifts")` (view)
+   - ✅ Server Actions: All shifts-manager actions have `requirePermission` checks
+     - `getShiftsAction` – requirePermission("shifts", "view")
+     - `getShiftByIdAction` – requirePermission("shifts", "view")
+     - `getShiftUserOptionsAction` – requirePermission("shifts", "view")
+   - ✅ UI: Sidebar link gated by `hasAccess('/shifts')`. View-only (list + detail); no add/edit/delete or record actions.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
 
-5. **Agencies** (`/agencies`)
+6. **Agencies** (`/agencies`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-6. **Agency Books** (`/agency-books`)
+7. **Agency Books** (`/agency-books`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-7. **Departments** (`/departments`)
+8. **Departments** (`/departments`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-8. **Doctors** (`/doctors`)
+9. **Doctors** (`/doctors`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-9. **Patients** (`/patients`)
+10. **Patients** (`/patients`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-10. **Specialities** (`/specialities`)
+11. **Specialities** (`/specialities`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-11. **Locations** (`/locations`)
+12. **Locations** (`/locations`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-12. **Rooms** (`/rooms`)
+13. **Rooms** (`/rooms`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-13. **Zones** (`/zones`)
+14. **Zones** (`/zones`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-14. **Tags** (`/tags`)
+15. **Tags** (`/tags`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-15. **Rosters** (`/rosters`)
+16. **Rosters** (`/rosters`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-16. **Discounts** (`/discounts`)
+17. **Discounts** (`/discounts`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
@@ -119,8 +128,8 @@ This document lists all components and their permission check status.
 
 ## Summary
 
-- **Total Components:** 16
-- **With Permission Checks:** 3 (Users, Channel Booking, Accounting)
+- **Total Components:** 17
+- **With Permission Checks:** 4 (Users, Channel Booking, Accounting, Shifts)
 - **Without Permission Checks:** 13
 
 ## Action Required
@@ -152,6 +161,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ discounts
 - ✅ accounting (view / add / edit / delete)
 - ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
+- ✅ shifts (view only – manager list and detail)
 
 All routes are already mapped in `lib/permissions.ts`.
 

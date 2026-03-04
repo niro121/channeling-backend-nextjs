@@ -5,6 +5,8 @@ import {
   getBulkCashierUsers,
   createFloatRequest,
   getFloatRequestsForBulkCashier,
+  getFloatRequestsForBulkCashierPaginated,
+  getAllFloatRequestsForDashboard,
   getFloatRequestById,
   getPendingFloatRequestByUserId,
   getApprovedFloatRequestByUserId,
@@ -179,6 +181,33 @@ export async function getFloatRequestsForBulkCashierAction(
   }
 }
 
+/** Float requests for dashboard: today's + all PENDING. Approve/Reject only for ones assigned to you. */
+export async function getAllFloatRequestsForDashboardAction(params: { status?: number }) {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  try {
+    const list = await getAllFloatRequestsForDashboard({ status: params.status });
+    return { success: true, data: list };
+  } catch (e) {
+    console.error('getAllFloatRequestsForDashboardAction error:', e);
+    return { success: false, data: [], message: e instanceof Error ? e.message : 'Failed to load requests' };
+  }
+}
+
+/** Paginated float requests assigned to current user (Float Transfers dashboard). Requires float-transfers view. */
+export async function getFloatRequestsForBulkCashierPaginatedAction(
+  bulkCashierId: string,
+  params: { page?: number; limit?: number; status?: number | null }
+) {
+  await requirePermission('float-transfers', 'view');
+  try {
+    const result = await getFloatRequestsForBulkCashierPaginated(bulkCashierId, params);
+    return { success: true, data: result.data, totalRecords: result.totalRecords };
+  } catch (e) {
+    console.error('getFloatRequestsForBulkCashierPaginatedAction error:', e);
+    return { success: false, data: [], totalRecords: 0, message: e instanceof Error ? e.message : 'Failed to load' };
+  }
+}
+
 export async function getFloatRequestByIdAction(id: string) {
   try {
     const fr = await getFloatRequestById(id);
@@ -210,6 +239,15 @@ export async function approveFloatRequestAction(input: unknown) {
   if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be approved. This request has already been approved, rejected, or cancelled.', data: null };
   }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const currentUserId = session?.user?.id;
+  if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  if (parsed.data.approvedBy !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
+  }
+  if (fr.bulkCashierId !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
+  }
   const approvedTotalCents = lkrToCents(denominationsTotalLKR(parsed.data.denominationsApproved));
   if (approvedTotalCents <= 0) {
     return { success: false, error: 'Approved amount must be greater than zero', data: null };
@@ -232,6 +270,7 @@ export async function approveFloatRequestAction(input: unknown) {
       return { success: false, error: result.error, errorCode: result.errorCode, data: null, printData: undefined };
     }
     revalidatePath('/bulk-cashier');
+    revalidatePath('/float-transfers');
     revalidatePath('/channel-booking');
     return {
       success: true,
@@ -359,10 +398,20 @@ export async function rejectFloatRequestAction(input: unknown) {
   if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be rejected.', data: null };
   }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const currentUserId = session?.user?.id;
+  if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  if (parsed.data.rejectedBy !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can reject it.', data: null };
+  }
+  if (fr.bulkCashierId !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can reject it.', data: null };
+  }
   try {
     const result = await rejectFloatRequest(parsed.data);
     if (!result.success) return { success: false, error: result.error, data: null };
     revalidatePath('/bulk-cashier');
+    revalidatePath('/float-transfers');
     revalidatePath('/channel-booking');
     return { success: true, data: result.floatRequest, message: 'Float request rejected' };
   } catch (e) {

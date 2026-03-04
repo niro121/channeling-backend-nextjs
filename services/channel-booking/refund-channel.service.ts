@@ -5,6 +5,7 @@ import {
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
   resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
@@ -58,12 +59,36 @@ export async function refundChannelService(
     if (booking.status === 1) {
       // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
-      const accounts = await resolveReceiptJournalAccounts({
-        locationId: booking.locationId ?? null,
-        createdBy: userId,
-        agencyId: booking.agencyId ?? null,
-        isCash: refundTo === 0,
-      })
+      const isCash = refundTo === 0
+      const isAgent = refundTo === 4
+      const needJournal = isCash || isAgent
+      let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+      if (needJournal) {
+        const reqResult = await requireReceiptJournalAccounts(
+          {
+            locationId: booking.locationId ?? null,
+            createdBy: userId,
+            agencyId: booking.agencyId ?? null,
+            isCash,
+          },
+          { isCash, isAgent }
+        )
+        if (!reqResult.success) {
+          return {
+            success: false,
+            errorCode: reqResult.errorCode,
+            message: reqResult.error,
+          }
+        }
+        accounts = reqResult.accounts
+      } else {
+        accounts = await resolveReceiptJournalAccounts({
+          locationId: booking.locationId ?? null,
+          createdBy: userId,
+          agencyId: booking.agencyId ?? null,
+          isCash,
+        })
+      }
       const journalNumberResult = accounts
         ? await getNextSequenceNumber("journal", { startFrom: 1 })
         : null
@@ -132,12 +157,36 @@ export async function refundChannelService(
     else if (input.hospital_fee > 0) refundType = 2
     else if (input.professional_fee > 0) refundType = 1
 
-    const accounts = await resolveReceiptJournalAccounts({
-      locationId: booking.locationId ?? null,
-      createdBy: userId,
-      agencyId: booking.agencyId ?? null,
-      isCash: refundTo === 0,
-    })
+    const isCash = refundTo === 0
+    const isAgent = refundTo === 4
+    const needJournal = isCash || isAgent
+    let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+    if (needJournal) {
+      const reqResult = await requireReceiptJournalAccounts(
+        {
+          locationId: booking.locationId ?? null,
+          createdBy: userId,
+          agencyId: booking.agencyId ?? null,
+          isCash,
+        },
+        { isCash, isAgent }
+      )
+      if (!reqResult.success) {
+        return {
+          success: false,
+          errorCode: reqResult.errorCode,
+          message: reqResult.error,
+        }
+      }
+      accounts = reqResult.accounts
+    } else {
+      accounts = await resolveReceiptJournalAccounts({
+        locationId: booking.locationId ?? null,
+        createdBy: userId,
+        agencyId: booking.agencyId ?? null,
+        isCash,
+      })
+    }
     const journalNumberResult = accounts
       ? await getNextSequenceNumber("journal", { startFrom: 1 })
       : null

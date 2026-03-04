@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  getFloatRequestsForBulkCashierAction,
+  getAllFloatRequestsForDashboardAction,
   approveFloatRequestAction,
   rejectFloatRequestAction,
   getCashAccountsForFloatAction,
@@ -70,7 +70,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
   const loadRequests = () => {
     setLoading(true);
-    getFloatRequestsForBulkCashierAction(bulkCashierId, statusFilter)
+    getAllFloatRequestsForDashboardAction({ status: statusFilter })
       .then((res) => {
         if (res.success && res.data) setRequests(res.data);
       })
@@ -167,7 +167,10 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
       </section>
 
       <h3 className="text-lg font-semibold mb-3">Float requests</h3>
-      <div className="flex gap-2 mb-4">
+      <p className="text-sm text-muted-foreground mb-3">
+        Today&apos;s requests and all pending (any date). You can only approve or reject requests assigned to you.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {[
           { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
           { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
@@ -185,7 +188,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           </Button>
         ))}
         <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
-          All
+          All statuses
         </Button>
       </div>
 
@@ -198,6 +201,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Requested by</TableHead>
+              <TableHead>Assigned to</TableHead>
               <TableHead>Amount (LKR)</TableHead>
               <TableHead>Denominations</TableHead>
               <TableHead>Date</TableHead>
@@ -208,40 +212,49 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           <TableBody>
             {requests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   No requests found.
                 </TableCell>
               </TableRow>
             ) : (
-              requests.map((fr) => (
-                <TableRow key={fr.id}>
-                  <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
-                  <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
-                  <TableCell>
-                    {fr.denominationsRequested
-                      .filter((d) => d.count > 0)
-                      .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
-                      .join(', ') || '-'}
-                  </TableCell>
-                  <TableCell>{new Date(fr.createdAt).toLocaleString()}</TableCell>
-                  <TableCell>{floatRequestStatusLabel(fr.status)}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button size="sm" variant="ghost" onClick={() => setSummaryRequest(fr)}>
-                      <Eye className="h-4 w-4 mr-1" /> View
-                    </Button>
-                    {fr.status === FLOAT_REQUEST_STATUS.PENDING && (
-                      <>
-                        <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
-                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Reject
-                        </Button>
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+              requests.map((fr) => {
+                const isAssignedToMe = fr.bulkCashierId === bulkCashierId;
+                return (
+                  <TableRow key={fr.id}>
+                    <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
+                    <TableCell>
+                      {fr.bulkCashier?.name ?? fr.bulkCashierId}
+                      {isAssignedToMe && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
+                    <TableCell>
+                      {fr.denominationsRequested
+                        .filter((d) => d.count > 0)
+                        .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+                        .join(', ') || '-'}
+                    </TableCell>
+                    <TableCell>{new Date(fr.createdAt).toLocaleString()}</TableCell>
+                    <TableCell>{floatRequestStatusLabel(fr.status)}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button size="sm" variant="ghost" onClick={() => setSummaryRequest(fr)}>
+                        <Eye className="h-4 w-4 mr-1" /> View
+                      </Button>
+                      {fr.status === FLOAT_REQUEST_STATUS.PENDING && isAssignedToMe && (
+                        <>
+                          <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
+                            <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
+                            <XCircle className="h-4 w-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -292,7 +305,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   );
 }
 
-function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintData | null {
+export function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintData | null {
   if (fr.status !== FLOAT_REQUEST_STATUS.APPROVED || !fr.receiveCode) return null;
   const denoms = fr.denominationsApproved ?? [];
   const amountLKR = denoms.length > 0 ? denominationsTotalLKR(denoms) : fr.amountRequested / 100;
@@ -307,7 +320,7 @@ function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintData | nu
   };
 }
 
-function FloatRequestSummaryDialog({
+export function FloatRequestSummaryDialog({
   request,
   onClose,
   onPrintSlip,
@@ -370,7 +383,7 @@ function FloatRequestSummaryDialog({
   );
 }
 
-function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrintData; onClose: () => void }) {
+export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrintData; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = () => {
     window.print();
@@ -432,7 +445,7 @@ function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrintData; 
   );
 }
 
-function ApproveModal({
+export function ApproveModal({
   request,
   cashAccounts,
   bulkCashierId,
@@ -681,7 +694,7 @@ function ApproveModal({
   );
 }
 
-function RejectModal({
+export function RejectModal({
   request,
   bulkCashierId,
   onClose,

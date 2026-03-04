@@ -39,5 +39,7 @@ export {
 export {
   buildReceiptJournalEntryInput,
   resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
   type ReceiptJournalAccounts,
+  type RequireReceiptJournalAccountsResult,
 } from "./receipt-journal-entry"
