@@ -7,12 +7,16 @@ import {
   getFloatRequestsForBulkCashier,
   getFloatRequestById,
   getPendingFloatRequestByUserId,
+  getApprovedFloatRequestByUserId,
   approveFloatRequest,
+  receiveFloatRequest,
+  declineApprovedFloatRequest,
   rejectFloatRequest,
   cancelFloatRequest,
 } from '@/services/float-request.service';
 import { getAllAccounts, getCashierFloatBalance } from '@/services/accounting.service';
 import {
+  FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
   lkrToCents,
 } from '@/types/float-request';
@@ -61,6 +65,16 @@ const rejectFloatRequestSchema = z.object({
   floatRequestId: z.string().min(1, 'Float request is required'),
   rejectedBy: z.string().min(1, 'Rejector is required'),
   reason: z.string().min(1, 'Reject reason is required'),
+});
+
+const receiveFloatRequestSchema = z.object({
+  floatRequestId: z.string().min(1, 'Float request is required'),
+  receiveCode: z.string().min(1, 'Receive code is required').max(10),
+});
+
+const declineApprovedFloatRequestSchema = z.object({
+  floatRequestId: z.string().min(1, 'Float request is required'),
+  reason: z.string().min(1, 'Cancel reason is required'),
 });
 
 /** Cash accounts for bulk cashier to select "from account" when approving float */
@@ -153,7 +167,7 @@ export async function createFloatRequestAction(input: unknown) {
 
 export async function getFloatRequestsForBulkCashierAction(
   bulkCashierId: string,
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  status?: number
 ) {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   try {
@@ -193,7 +207,7 @@ export async function approveFloatRequestAction(input: unknown) {
   }
   const fr = await getFloatRequestById(parsed.data.floatRequestId);
   if (!fr) return { success: false, error: 'Float request not found', data: null };
-  if (fr.status !== 'PENDING') {
+  if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be approved. This request has already been approved, rejected, or cancelled.', data: null };
   }
   const approvedTotalCents = lkrToCents(denominationsTotalLKR(parsed.data.denominationsApproved));
@@ -215,14 +229,112 @@ export async function approveFloatRequestAction(input: unknown) {
       reasonForLessThanRequested: parsed.data.reasonForLessThanRequested?.trim() || null,
     });
     if (!result.success) {
-      return { success: false, error: result.error, errorCode: result.errorCode, data: null };
+      return { success: false, error: result.error, errorCode: result.errorCode, data: null, printData: undefined };
     }
     revalidatePath('/bulk-cashier');
     revalidatePath('/channel-booking');
-    return { success: true, data: result.floatRequest, message: 'Float request approved' };
+    return {
+      success: true,
+      data: result.floatRequest,
+      message: 'Float request approved. Print the slip and give it to the cashier.',
+      printData: result.printData,
+    };
   } catch (e) {
     console.error('approveFloatRequestAction error:', e);
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to approve', data: null };
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to approve', data: null, printData: undefined };
+  }
+}
+
+/** Current user's approved (not yet received) float request. Requires float-request permission. */
+export async function getMyApprovedFloatRequestAction() {
+  await requirePermission('shift', 'view');
+  await requirePermission('bulk-cashier', 'float-request');
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, data: null };
+  try {
+    const approved = await getApprovedFloatRequestByUserId(userId);
+    return { success: true, data: approved };
+  } catch (e) {
+    console.error('getMyApprovedFloatRequestAction error:', e);
+    return { success: true, data: null };
+  }
+}
+
+/** Cashier confirms receipt by entering the 4-digit code; posts double entry and sets RECEIVED. */
+export async function receiveFloatRequestAction(input: unknown) {
+  await requirePermission('shift', 'view');
+  await requirePermission('bulk-cashier', 'float-request');
+  const parsed = receiveFloatRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    const msg = parsed.error.flatten().fieldErrors
+      ? Object.entries(parsed.error.flatten().fieldErrors)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v[0] : v}`)
+          .join('; ')
+      : parsed.error.issues[0]?.message ?? 'Invalid input';
+    return { success: false, error: msg, data: null };
+  }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const receivedById = session?.user?.id;
+  if (!receivedById) return { success: false, error: 'Unauthorized', data: null };
+
+  try {
+    const result = await receiveFloatRequest({
+      floatRequestId: parsed.data.floatRequestId,
+      receiveCode: parsed.data.receiveCode.trim(),
+      receivedById,
+    });
+    if (!result.success) {
+      return { success: false, error: result.error, errorCode: result.errorCode, data: null };
+    }
+    revalidatePath('/channel-booking');
+    revalidatePath('/bulk-cashier');
+    return { success: true, data: result.floatRequest, message: 'Float received. Your balance has been updated.' };
+  } catch (e) {
+    console.error('receiveFloatRequestAction error:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to receive', data: null };
+  }
+}
+
+/** Cashier declines to receive an approved float (cancels handover; no journal entry). Reason required. */
+export async function declineApprovedFloatRequestAction(input: unknown) {
+  await requirePermission('shift', 'view');
+  await requirePermission('bulk-cashier', 'float-request');
+  const parsed = declineApprovedFloatRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    const msg = parsed.error.flatten().fieldErrors
+      ? Object.entries(parsed.error.flatten().fieldErrors)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v[0] : v}`)
+          .join('; ')
+      : parsed.error.issues[0]?.message ?? 'Invalid input';
+    return { success: false, error: msg, data: null };
+  }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const declinedBy = session?.user?.id;
+  if (!declinedBy) return { success: false, error: 'Unauthorized', data: null };
+
+  const fr = await getFloatRequestById(parsed.data.floatRequestId);
+  if (!fr) return { success: false, error: 'Float request not found', data: null };
+  if (fr.status !== FLOAT_REQUEST_STATUS.APPROVED) {
+    return { success: false, error: 'Only an approved (not yet received) request can be declined.', data: null };
+  }
+  if (fr.requestedById !== declinedBy) {
+    return { success: false, error: 'Only the requesting cashier can decline to receive this float.', data: null };
+  }
+
+  try {
+    const result = await declineApprovedFloatRequest({
+      floatRequestId: parsed.data.floatRequestId,
+      declinedBy,
+      reason: parsed.data.reason.trim(),
+    });
+    if (!result.success) return { success: false, error: result.error, data: null };
+    revalidatePath('/channel-booking');
+    revalidatePath('/bulk-cashier');
+    return { success: true, data: result.floatRequest, message: 'Float request declined. No balance change.' };
+  } catch (e) {
+    console.error('declineApprovedFloatRequestAction error:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to decline', data: null };
   }
 }
 
@@ -244,7 +356,7 @@ export async function rejectFloatRequestAction(input: unknown) {
   }
   const fr = await getFloatRequestById(parsed.data.floatRequestId);
   if (!fr) return { success: false, error: 'Float request not found', data: null };
-  if (fr.status !== 'PENDING') {
+  if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be rejected.', data: null };
   }
   try {
@@ -278,7 +390,7 @@ export async function cancelFloatRequestAction(input: unknown) {
 
   const fr = await getFloatRequestById(parsed.data.floatRequestId);
   if (!fr) return { success: false, error: 'Float request not found', data: null };
-  if (fr.status !== 'PENDING') {
+  if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be cancelled. This request has already been approved or rejected.', data: null };
   }
   if (fr.requestedById !== cancelledBy) {

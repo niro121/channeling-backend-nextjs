@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getFloatRequestsForBulkCashierAction,
   approveFloatRequestAction,
@@ -8,7 +8,8 @@ import {
   getCashAccountsForFloatAction,
 } from '@/app/actions/float-request.actions';
 import { getActiveShiftsWithFloatAction } from '@/app/actions/shift.actions';
-import type { FloatRequest, DenominationEntry } from '@/types/float-request';
+import type { FloatRequest, DenominationEntry, FloatRequestPrintData } from '@/types/float-request';
+import { FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from '@/types/float-request';
 import type { Account } from '@/types/accounting';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +39,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/hooks/use-toast';
-import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
 
 type BulkCashierContentProps = { bulkCashierId: string };
@@ -46,9 +48,11 @@ type BulkCashierContentProps = { bulkCashierId: string };
 export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const [requests, setRequests] = useState<FloatRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | undefined>('PENDING');
+  const [statusFilter, setStatusFilter] = useState<number | undefined>(FLOAT_REQUEST_STATUS.PENDING);
   const [approveModal, setApproveModal] = useState<FloatRequest | null>(null);
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
+  const [printSlipData, setPrintSlipData] = useState<FloatRequestPrintData | null>(null);
+  const [summaryRequest, setSummaryRequest] = useState<FloatRequest | null>(null);
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [activeShifts, setActiveShifts] = useState<Array<{
     id: string;
@@ -66,7 +70,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
   const loadRequests = () => {
     setLoading(true);
-    getFloatRequestsForBulkCashierAction(bulkCashierId, statusFilter ?? undefined)
+    getFloatRequestsForBulkCashierAction(bulkCashierId, statusFilter)
       .then((res) => {
         if (res.success && res.data) setRequests(res.data);
       })
@@ -164,14 +168,20 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
       <h3 className="text-lg font-semibold mb-3">Float requests</h3>
       <div className="flex gap-2 mb-4">
-        {(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const).map((s) => (
+        {[
+          { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
+          { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
+          { value: FLOAT_REQUEST_STATUS.RECEIVED, label: 'RECEIVED' },
+          { value: FLOAT_REQUEST_STATUS.REJECTED, label: 'REJECTED' },
+          { value: FLOAT_REQUEST_STATUS.CANCELLED, label: 'CANCELLED' },
+        ].map(({ value, label }) => (
           <Button
-            key={s}
-            variant={statusFilter === s ? 'default' : 'outline'}
+            key={value}
+            variant={statusFilter === value ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setStatusFilter(s)}
+            onClick={() => setStatusFilter(value)}
           >
-            {s}
+            {label}
           </Button>
         ))}
         <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
@@ -192,7 +202,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               <TableHead>Denominations</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
-              {statusFilter === 'PENDING' && <TableHead className="text-right">Actions</TableHead>}
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -214,17 +224,22 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                       .join(', ') || '-'}
                   </TableCell>
                   <TableCell>{new Date(fr.createdAt).toLocaleString()}</TableCell>
-                  <TableCell>{fr.status}</TableCell>
-                  {statusFilter === 'PENDING' && (
-                    <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
-                        <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
-                        <XCircle className="h-4 w-4 mr-1" /> Reject
-                      </Button>
-                    </TableCell>
-                  )}
+                  <TableCell>{floatRequestStatusLabel(fr.status)}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button size="sm" variant="ghost" onClick={() => setSummaryRequest(fr)}>
+                      <Eye className="h-4 w-4 mr-1" /> View
+                    </Button>
+                    {fr.status === FLOAT_REQUEST_STATUS.PENDING && (
+                      <>
+                        <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
+                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
+                          <XCircle className="h-4 w-4 mr-1" /> Reject
+                        </Button>
+                      </>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -239,7 +254,19 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           bulkCashierId={bulkCashierId}
           onClose={() => { setApproveModal(null); loadRequests(); }}
           onError={(msg) => toast({ variant: 'destructive', title: msg })}
-          onSuccess={(msg) => { toast({ title: msg }); setApproveModal(null); loadRequests(); loadActiveShifts(); }}
+          onSuccess={(msg, data) => {
+            toast({ title: msg });
+            setApproveModal(null);
+            loadRequests();
+            loadActiveShifts();
+            if (data) setPrintSlipData(data);
+          }}
+        />
+      )}
+      {printSlipData && (
+        <FloatPrintSlipDialog
+          data={printSlipData}
+          onClose={() => setPrintSlipData(null)}
         />
       )}
       {rejectModal && (
@@ -251,7 +278,157 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           onSuccess={(msg) => { toast({ title: msg }); setRejectModal(null); loadRequests(); }}
         />
       )}
+      {summaryRequest && (
+        <FloatRequestSummaryDialog
+          request={summaryRequest}
+          onClose={() => setSummaryRequest(null)}
+          onPrintSlip={(data) => {
+            setSummaryRequest(null);
+            setPrintSlipData(data);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintData | null {
+  if (fr.status !== FLOAT_REQUEST_STATUS.APPROVED || !fr.receiveCode) return null;
+  const denoms = fr.denominationsApproved ?? [];
+  const amountLKR = denoms.length > 0 ? denominationsTotalLKR(denoms) : fr.amountRequested / 100;
+  return {
+    floatRequestId: fr.id,
+    receiveCode: fr.receiveCode,
+    amountLKR,
+    denominationsApproved: denoms,
+    requestedByName: fr.requestedBy?.name ?? '',
+    bulkCashierName: fr.bulkCashier?.name ?? '',
+    approvedAt: fr.approvedAt ? new Date(fr.approvedAt).toISOString() : '',
+  };
+}
+
+function FloatRequestSummaryDialog({
+  request,
+  onClose,
+  onPrintSlip,
+}: {
+  request: FloatRequest;
+  onClose: () => void;
+  onPrintSlip: (data: FloatRequestPrintData) => void;
+}) {
+  const printData = request.status === FLOAT_REQUEST_STATUS.APPROVED && request.receiveCode
+    ? buildPrintDataFromRequest(request)
+    : null;
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Request summary</DialogTitle>
+          <DialogDescription>Float request details.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
+          <p><strong>Amount:</strong> {(request.amountRequested / 100).toFixed(2)} LKR</p>
+          <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
+          <p><strong>Bulk cashier:</strong> {request.bulkCashier?.name ?? '—'}</p>
+          <p><strong>Requested at:</strong> {new Date(request.createdAt).toLocaleString()}</p>
+          {request.denominationsRequested?.length > 0 && (
+            <p><strong>Denominations requested:</strong>{' '}
+              {request.denominationsRequested
+                .filter((d) => d.count > 0)
+                .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+                .join(', ') || '—'}
+            </p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.approvedAt && (
+            <p><strong>Approved at:</strong> {new Date(request.approvedAt).toLocaleString()}</p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.receiveCode && (
+            <p><strong>Receive code:</strong> <span className="font-mono font-semibold">{request.receiveCode}</span></p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.REJECTED && request.rejectReason && (
+            <p><strong>Reject reason:</strong> {request.rejectReason}</p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.CANCELLED && request.cancelReason && (
+            <p><strong>Cancel reason:</strong> {request.cancelReason}</p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.RECEIVED && request.receivedAt && (
+            <p><strong>Received at:</strong> {new Date(request.receivedAt).toLocaleString()}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          {printData && (
+            <Button onClick={() => onPrintSlip(printData)}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print slip
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrintData; onClose: () => void }) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = () => {
+    window.print();
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <style>{`@media print { body * { visibility: hidden; } .float-slip-print-area, .float-slip-print-area * { visibility: visible; } .float-slip-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; padding: 1rem; } .no-print { display: none !important; } }`}</style>
+        <DialogHeader className="no-print">
+          <DialogTitle>Float handover slip</DialogTitle>
+          <DialogDescription>Print this slip and give it to the cashier. They will enter the code to confirm receipt.</DialogDescription>
+        </DialogHeader>
+        <div ref={printRef} className="float-slip-print-area border rounded-lg p-6 space-y-4 bg-white">
+          <h2 className="text-lg font-bold text-center">Float handover slip</h2>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-sm text-muted-foreground">Receive code (4 digits)</p>
+            <p className="text-4xl font-mono font-bold tracking-widest tabular-nums">{data.receiveCode}</p>
+            <div className="mt-2">
+              <QRCodeSVG value={data.receiveCode} size={120} level="M" />
+            </div>
+          </div>
+          <div className="text-sm space-y-1">
+            <p><strong>Amount:</strong> {data.amountLKR.toFixed(2)} LKR</p>
+            <p><strong>Requested by:</strong> {data.requestedByName}</p>
+            <p><strong>Approved by:</strong> {data.bulkCashierName}</p>
+            <p><strong>Date:</strong> {new Date(data.approvedAt).toLocaleString()}</p>
+          </div>
+          {data.denominationsApproved.length > 0 && (
+            <div className="text-sm">
+              <p className="font-medium mb-1">Denominations:</p>
+              <p className="text-muted-foreground">
+                {data.denominationsApproved
+                  .filter((d) => d.count > 0)
+                  .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+                  .join(', ')}
+              </p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-6 pt-6 border-t mt-6">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Approved by (signature)</p>
+              <div className="border-b border-black h-8" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Received by (signature)</p>
+              <div className="border-b border-black h-8" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="no-print mt-4">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print slip
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -268,7 +445,7 @@ function ApproveModal({
   bulkCashierId: string;
   onClose: () => void;
   onError: (msg: string) => void;
-  onSuccess: (msg: string) => void;
+  onSuccess: (msg: string, printData?: FloatRequestPrintData) => void;
 }) {
   const [fromAccountId, setFromAccountId] = useState('');
   const [denoms, setDenoms] = useState<DenominationEntry[]>(
@@ -323,7 +500,7 @@ function ApproveModal({
       reasonForLessThanRequested: isGivingLess ? reasonForLess.trim() : null,
     });
     setLoading(false);
-    if (res.success && res.message) onSuccess(res.message);
+    if (res.success && res.message) onSuccess(res.message, res.printData);
     else onError(res.error ?? 'Failed to approve');
   }
 

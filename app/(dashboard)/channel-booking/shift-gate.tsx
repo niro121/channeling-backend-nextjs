@@ -61,13 +61,13 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
     return () => window.removeEventListener(SHOW_START_SHIFT_DIALOG_EVENT, openDialog)
   }, [])
 
+  const showDialog =
+    hasShiftPermission && ((!loading && !currentShift && !skipped) || showStartDialogRequested)
+
   useEffect(() => {
     if (!showDialog || !hasShiftPermission) return
     getMyDefaultLocationForShiftAction().then(setShiftLocation)
   }, [showDialog, hasShiftPermission])
-
-  const showDialog =
-    hasShiftPermission && ((!loading && !currentShift && !skipped) || showStartDialogRequested)
 
   const handleStarted = () => {
     setShowStartDialogRequested(false)

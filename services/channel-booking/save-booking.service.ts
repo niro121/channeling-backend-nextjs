@@ -2,7 +2,7 @@ import prisma from "@/lib/prisma"
 import moment from "moment"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
-import { getIO, channelBookingRoom } from "@/lib/socket-server"
+import { getIO, channelBookingRoom, floatBalanceRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import {
   createReceiptAndUpdateBooking,
@@ -17,7 +17,10 @@ import {
   updateAgentBalance,
   validateVoucherForDiscount,
   getBookingSequenceInfo,
+  buildReceiptJournalEntryInput,
+  resolveReceiptJournalAccounts,
 } from "./helpers"
+import { createJournalEntryInTransaction } from "@/services/accounting.service"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -305,6 +308,17 @@ export async function saveBookingService(
       const remarks =
         input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
       try {
+        const accounts = await resolveReceiptJournalAccounts({
+          locationId: booking.locationId ?? null,
+          createdBy: userId,
+          agencyId: input.agency?.id ?? null,
+          isCash: input.payment_type === 0,
+        })
+        const journalNumberResult = accounts
+          ? await getNextSequenceNumber("journal", { startFrom: 1 })
+          : null
+        const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
         const result = await prisma.$transaction(async (tx) => {
           const r = await createReceiptAndUpdateBooking(tx, {
             bookingId: booking.id,
@@ -333,8 +347,20 @@ export async function saveBookingService(
             }),
           })
           if (!r.success) throw new Error(r.message)
-          return r.receipt
+          const receipt = r.receipt
+          if (accounts && journalNumber > 0) {
+            const journalInput = buildReceiptJournalEntryInput(receipt, accounts)
+            if (journalInput) {
+              const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+              if (!jResult.success) throw new Error(jResult.error)
+            }
+          }
+          return receipt
         })
+        if (input.payment_type === 0 && userId) {
+          const io = getIO()
+          if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
+        }
         if (input.agency?.id) {
             const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
             // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone

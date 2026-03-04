@@ -18,3 +18,13 @@ export function getIO(): Server | null {
 export function channelBookingRoom(doctorId: string): string {
   return `channel-booking:${doctorId}`
 }
+
+/** Room name for float-request updates: per requested-by user (cashier gets notified when approved/rejected). */
+export function floatRequestRoom(requestedById: string): string {
+  return `float-request:${requestedById}`
+}
+
+/** Room name for float balance updates: per user (cashier gets notified when their ledger balance changes). */
+export function floatBalanceRoom(userId: string): string {
+  return `float-balance:${userId}`
+}

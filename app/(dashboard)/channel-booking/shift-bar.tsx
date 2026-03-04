@@ -1,14 +1,16 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { usePathname } from "next/navigation"
+import { io, type Socket } from "socket.io-client"
 import {
   getCurrentShiftAction,
   pauseShiftAction,
   resumeShiftAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
-import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, cancelFloatRequestAction } from "@/app/actions/float-request.actions"
+import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,14 +29,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SHIFT_STATUS } from "@/types/shift"
 import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RequestFloatDialog } from "./request-float-dialog"
+import { formatDenomLabel } from "@/types/float-request"
 
 type ShiftRecord = {
   id: string
@@ -71,23 +75,39 @@ export function ChannelBookingShiftBar() {
   const [now, setNow] = useState(() => new Date())
   const [floatBalanceCents, setFloatBalanceCents] = useState<number | null>(null)
   const [pendingFloatRequest, setPendingFloatRequest] = useState<FloatRequest | null>(null)
+  const [approvedFloatRequest, setApprovedFloatRequest] = useState<FloatRequest | null>(null)
   const [requestFloatOpen, setRequestFloatOpen] = useState(false)
+  const [receiveFloatOpen, setReceiveFloatOpen] = useState(false)
   const [requestFloatShiftIdOverride, setRequestFloatShiftIdOverride] = useState<string | null>(null)
   const [cancelFloatOpen, setCancelFloatOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
+  const hadPendingFloatRef = useRef(false)
+  const floatRequestSocketUserIdRef = useRef<string | null>(null)
+  const floatBalanceUserIdRef = useRef<string | null>(null)
   const { toast } = useToast()
 
   const refreshFloatBalance = useCallback(() => {
-    getMyFloatBalanceAction().then((res) => {
-      if (res.success && res.balanceCents !== undefined) setFloatBalanceCents(res.balanceCents)
-    })
+    setFloatBalanceRefreshing(true)
+    getMyFloatBalanceAction()
+      .then((res) => {
+        if (res.success && res.balanceCents !== undefined) setFloatBalanceCents(res.balanceCents)
+      })
+      .finally(() => setFloatBalanceRefreshing(false))
   }, [])
 
   const refreshPendingFloatRequest = useCallback(() => {
     getMyPendingFloatRequestAction().then((res) => {
       if (res.success && res.data) setPendingFloatRequest(res.data)
       else setPendingFloatRequest(null)
+    })
+  }, [])
+
+  const refreshApprovedFloatRequest = useCallback(() => {
+    getMyApprovedFloatRequestAction().then((res) => {
+      if (res.success && res.data) setApprovedFloatRequest(res.data)
+      else setApprovedFloatRequest(null)
     })
   }, [])
 
@@ -148,6 +168,7 @@ export function ChannelBookingShiftBar() {
       if (hasFloatRequestPermission) {
         refreshFloatBalance()
         refreshPendingFloatRequest()
+        refreshApprovedFloatRequest()
       }
     }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
@@ -158,11 +179,119 @@ export function ChannelBookingShiftBar() {
     if (shift && hasFloatRequestPermission) {
       refreshFloatBalance()
       refreshPendingFloatRequest()
+      refreshApprovedFloatRequest()
     } else {
       if (!hasFloatRequestPermission) setFloatBalanceCents(null)
       setPendingFloatRequest(null)
+      setApprovedFloatRequest(null)
     }
-  }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
+  }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
+
+  // Socket: when shift active + float permission, subscribe to float-balance (ledger updates) and optionally float-request (approval/reject)
+  const socketRef = useRef<Socket | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !shift || !hasFloatRequestPermission) {
+      if (socketRef.current) {
+        if (floatBalanceUserIdRef.current) {
+          socketRef.current.emit("float-balance:unsubscribe", { userId: floatBalanceUserIdRef.current })
+          floatBalanceUserIdRef.current = null
+        }
+        if (floatRequestSocketUserIdRef.current) {
+          socketRef.current.emit("float-request:unsubscribe", { userId: floatRequestSocketUserIdRef.current })
+          floatRequestSocketUserIdRef.current = null
+        }
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+      if (!shift) hadPendingFloatRef.current = false
+      return
+    }
+    if (pendingFloatRequest) hadPendingFloatRef.current = true
+    const userId = shift.userId
+    floatBalanceUserIdRef.current = userId
+    const requestId = pendingFloatRequest?.id ?? null
+    const socket = io(window.location.origin, { path: "/socket.io", addTrailingSlash: false })
+    socketRef.current = socket
+
+    const doSubscribe = () => {
+      socket.emit("float-balance:subscribe", { userId })
+      if (pendingFloatRequest) {
+        floatRequestSocketUserIdRef.current = userId
+        socket.emit("float-request:subscribe", { userId })
+      }
+    }
+    if (socket.connected) doSubscribe()
+    else socket.once("connect", doSubscribe)
+
+    const onFloatBalanceUpdate = () => {
+      refreshFloatBalance()
+    }
+    socket.on("float-balance-update", onFloatBalanceUpdate)
+
+    const onFloatRequestUpdate = (data: { floatRequestId: string; status: number }) => {
+      if (requestId && data?.floatRequestId !== requestId) return
+      if (data.status === FLOAT_REQUEST_STATUS.APPROVED) {
+        Promise.all([getMyPendingFloatRequestAction(), getMyApprovedFloatRequestAction()]).then(
+          ([pendingRes, approvedRes]) => {
+            setPendingFloatRequest(pendingRes.success ? pendingRes.data ?? null : null)
+            const approved = approvedRes.success ? approvedRes.data : null
+            setApprovedFloatRequest(approved ?? null)
+            if (approved) {
+              hadPendingFloatRef.current = false
+              setReceiveFloatOpen(true)
+              toast({ title: "Your float request was approved. Enter the code to receive it." })
+            }
+          }
+        )
+      } else if (data.status === FLOAT_REQUEST_STATUS.REJECTED) {
+        refreshPendingFloatRequest()
+        setApprovedFloatRequest(null)
+        hadPendingFloatRef.current = false
+        toast({ title: "Your float request was rejected.", variant: "destructive" })
+      }
+    }
+    socket.on("float-request-update", onFloatRequestUpdate)
+
+    return () => {
+      socket.emit("float-balance:unsubscribe", { userId })
+      floatBalanceUserIdRef.current = null
+      if (floatRequestSocketUserIdRef.current) {
+        socket.emit("float-request:unsubscribe", { userId: floatRequestSocketUserIdRef.current })
+        floatRequestSocketUserIdRef.current = null
+      }
+      socket.off("float-balance-update", onFloatBalanceUpdate)
+      socket.off("float-request-update", onFloatRequestUpdate)
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [shift?.id, shift?.userId, hasFloatRequestPermission, pendingFloatRequest?.id, pendingFloatRequest?.requestedById, refreshFloatBalance, refreshPendingFloatRequest, toast])
+
+  // Fallback polling when socket is not used (e.g. next:dev without custom server) or as backup
+  useEffect(() => {
+    if (!shift || !hasFloatRequestPermission || !pendingFloatRequest) {
+      if (!pendingFloatRequest) hadPendingFloatRef.current = false
+      return
+    }
+    hadPendingFloatRef.current = true
+    const POLL_MS = 8000
+    const interval = setInterval(() => {
+      Promise.all([
+        getMyPendingFloatRequestAction(),
+        getMyApprovedFloatRequestAction(),
+      ]).then(([pendingRes, approvedRes]) => {
+        const pending = pendingRes.success ? pendingRes.data : null
+        const approved = approvedRes.success ? approvedRes.data : null
+        setPendingFloatRequest(pending ?? null)
+        setApprovedFloatRequest(approved ?? null)
+        if (hadPendingFloatRef.current && !pending && approved) {
+          hadPendingFloatRef.current = false
+          setReceiveFloatOpen(true)
+          toast({ title: "Your float request was approved. Enter the code to receive it." })
+        }
+      })
+    }, POLL_MS)
+    return () => clearInterval(interval)
+  }, [shift?.id, hasFloatRequestPermission, pendingFloatRequest?.id, toast])
 
   useEffect(() => {
     if (!isChannelBooking || !hasFloatRequestPermission) return
@@ -349,6 +478,16 @@ export function ChannelBookingShiftBar() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : approvedFloatRequest ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-md font-medium text-green-600 dark:text-green-400 border-green-200 dark:border-green-800"
+                onClick={() => setReceiveFloatOpen(true)}
+              >
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                Receive float
+              </Button>
             ) : (
               <Button
                 size="sm"
@@ -364,8 +503,19 @@ export function ChannelBookingShiftBar() {
               </Button>
             )}
             {floatBalanceCents !== null && (
-              <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
                 Float: LKR {(floatBalanceCents / 100).toFixed(2)}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={refreshFloatBalance}
+                  disabled={floatBalanceRefreshing}
+                  title="Refresh balance"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", floatBalanceRefreshing && "animate-spin")} />
+                </Button>
               </span>
             )}
           </>
@@ -384,6 +534,33 @@ export function ChannelBookingShiftBar() {
             refreshPendingFloatRequest()
           }}
         />
+      )}
+      {approvedFloatRequest && (
+        <Dialog open={receiveFloatOpen} onOpenChange={setReceiveFloatOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Receive float</DialogTitle>
+              <DialogDescription>
+                Enter the 4-digit code from your handover slip to confirm receipt. Your float balance will be updated.
+              </DialogDescription>
+            </DialogHeader>
+            <ReceiveFloatForm
+              request={approvedFloatRequest}
+              onSuccess={() => {
+                setReceiveFloatOpen(false)
+                refreshFloatBalance()
+                refreshApprovedFloatRequest()
+                toast({ title: "Float received. Your balance has been updated." })
+              }}
+              onDecline={() => {
+                setReceiveFloatOpen(false)
+                refreshApprovedFloatRequest()
+                toast({ title: "Float request declined. No balance change." })
+              }}
+              onError={(msg) => toast({ title: "Error", description: msg, variant: "destructive" })}
+            />
+          </DialogContent>
+        </Dialog>
       )}
       <Dialog open={cancelFloatOpen} onOpenChange={setCancelFloatOpen}>
         <DialogContent>
@@ -420,5 +597,135 @@ export function ChannelBookingShiftBar() {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+function ReceiveFloatForm({
+  request,
+  onSuccess,
+  onDecline,
+  onError,
+}: {
+  request: FloatRequest
+  onSuccess: () => void
+  onDecline: () => void
+  onError: (msg: string) => void
+}) {
+  const [code, setCode] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [rejectMode, setRejectMode] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejectLoading, setRejectLoading] = useState(false)
+  const denoms = (request.denominationsApproved ?? []).filter((d) => d.count > 0)
+  const totalLKR = denoms.reduce((s, d) => s + d.value * d.count, 0)
+
+  async function handleSubmit() {
+    const trimmed = code.trim()
+    if (!trimmed) {
+      onError("Enter the 4-digit code from your slip.")
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await receiveFloatRequestAction({
+        floatRequestId: request.id,
+        receiveCode: trimmed,
+      })
+      if (res.success) onSuccess()
+      else onError(res.error ?? "Failed to receive float")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDecline() {
+    const reason = rejectReason.trim()
+    if (!reason) {
+      onError("Please provide a reason for rejecting the float.")
+      return
+    }
+    setRejectLoading(true)
+    try {
+      const res = await declineApprovedFloatRequestAction({
+        floatRequestId: request.id,
+        reason,
+      })
+      if (res.success) onDecline()
+      else onError(res.error ?? "Failed to decline")
+    } finally {
+      setRejectLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        <p className="font-medium tabular-nums">Amount: LKR {totalLKR.toFixed(2)}</p>
+        {denoms.length > 0 && (
+          <p className="text-muted-foreground mt-1">
+            {denoms.map((d) => `${formatDenomLabel(d.value)}×${d.count}`).join(", ")}
+          </p>
+        )}
+      </div>
+      {!rejectMode ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="receive-code">4-digit code</Label>
+            <Input
+              id="receive-code"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="e.g. 1234"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              className="font-mono text-lg tracking-widest"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10 text-xs h-7 px-2"
+              onClick={() => setRejectMode(true)}
+              disabled={loading || rejectLoading}
+            >
+              Reject (cancel float)
+            </Button>
+            <Button onClick={handleSubmit} disabled={!code.trim() || loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Confirm receipt
+            </Button>
+          </DialogFooter>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason">Reason for rejecting (required)</Label>
+            <Textarea
+              id="reject-reason"
+              placeholder="e.g. Wrong amount prepared, will request again"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { setRejectMode(false); setRejectReason(""); }} disabled={rejectLoading}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDecline}
+              disabled={!rejectReason.trim() || rejectLoading}
+            >
+              {rejectLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
+              Confirm reject
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    </div>
   )
 }

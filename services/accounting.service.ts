@@ -1,5 +1,6 @@
 'use server';
 
+import type { PrismaClient } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type {
   Account,
@@ -13,6 +14,9 @@ import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequen
 import { AccountType } from '@prisma/client';
 
 const JOURNAL_SEQUENCE_SCOPE = 'journal';
+
+/** Transaction client with models needed for journal creation and balance read. */
+export type AccountingTx = Pick<PrismaClient, 'account' | 'journal' | 'journalLine'>;
 
 // --- getMainCashBookAccount ---
 export async function getMainCashBookAccount(): Promise<Account | null> {
@@ -185,6 +189,35 @@ export async function getAccountBalance(
   return balance;
 }
 
+/** Same as getAccountBalance but uses transaction client (for use inside $transaction). */
+export async function getAccountBalanceWithTx(
+  tx: AccountingTx,
+  accountId: string
+): Promise<number> {
+  const account = await tx.account.findUnique({
+    where: { id: accountId },
+    select: { type: true },
+  });
+  if (!account) return 0;
+
+  const lines = await tx.journalLine.findMany({
+    where: { accountId },
+    select: { debitAmount: true, creditAmount: true },
+    orderBy: { journal: { date: 'asc' } },
+  });
+
+  let balance = 0;
+  for (const line of lines) {
+    const net = netEffectForAccountType(
+      line.debitAmount,
+      line.creditAmount,
+      account.type
+    );
+    balance += net;
+  }
+  return balance;
+}
+
 // --- getBranchCashBalance ---
 export async function getBranchCashBalance(locationId: string): Promise<number> {
   const acc = await getCashBookAccountForBranch(locationId);
@@ -288,6 +321,85 @@ export async function createJournalEntry(
   });
 
   await prisma.journalLine.createMany({
+    data: input.lines.map((l) => ({
+      journalId: journal.id,
+      accountId: l.accountId,
+      debitAmount: l.debitAmount,
+      creditAmount: l.creditAmount,
+      memo: l.memo ?? '',
+    })),
+  });
+
+  return { success: true, journalId: journal.id };
+}
+
+/**
+ * Create a journal entry inside an existing transaction. Use when receipt and journal must be atomic.
+ * Call getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 }) before the transaction and pass the value.
+ */
+export async function createJournalEntryInTransaction(
+  tx: AccountingTx,
+  input: CreateJournalEntryInput,
+  journalNumber: number
+): Promise<
+  | { success: true; journalId: string }
+  | { success: false; error: string; errorCode?: string; accountId?: string }
+> {
+  const validation = validateJournalLines(input.lines);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+  const accounts = await tx.account.findMany({
+    where: { id: { in: accountIds } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      minBalanceAllowed: true,
+    },
+  });
+
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+  for (const acc of accounts) {
+    if (acc.minBalanceAllowed === null) continue;
+
+    const netEffect = input.lines
+      .filter((l) => l.accountId === acc.id)
+      .reduce(
+        (sum, l) =>
+          sum + netEffectForAccountType(l.debitAmount, l.creditAmount, acc.type),
+        0
+      );
+
+    const currentBalance = await getAccountBalanceWithTx(tx, acc.id);
+    const newBalance = currentBalance + netEffect;
+
+    if (newBalance < acc.minBalanceAllowed) {
+      return {
+        success: false,
+        error: `Account "${acc.name}" would go below allowed minimum (${acc.minBalanceAllowed})`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+  }
+
+  const journal = await tx.journal.create({
+    data: {
+      journalNumber,
+      date: input.date,
+      description: input.description,
+      referenceType: input.referenceType ?? null,
+      referenceId: input.referenceId ?? null,
+      locationId: input.locationId ?? null,
+      createdBy: input.createdBy ?? null,
+    },
+  });
+
+  await tx.journalLine.createMany({
     data: input.lines.map((l) => ({
       journalId: journal.id,
       accountId: l.accountId,
