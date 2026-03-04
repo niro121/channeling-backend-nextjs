@@ -4,13 +4,17 @@ import { getAccounts } from '@/app/actions/accounting.actions';
 import { getAllLocations } from '@/app/actions/location.action';
 import { getAllDoctors } from '@/app/actions/doctor.actions';
 import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
-import { checkRouteAccess } from '@/lib/server-permissions';
+import { checkRouteAccess, checkPermission } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import type { AccountType } from '@/types/accounting';
 
 export default async function AccountingAddPage() {
   const canView = await checkRouteAccess('/accounting');
   if (!canView) {
+    redirect('/unauthorized-access');
+  }
+  const canAdd = await checkPermission('accounting', 'add');
+  if (!canAdd) {
     redirect('/unauthorized-access');
   }
 
