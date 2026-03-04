@@ -1,11 +1,9 @@
 import React, { Suspense } from 'react';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AccountingColumns } from './columns';
+import { AccountingToolbarActions } from './accounting-toolbar-actions';
 import Loading from '../loading';
-import Link from 'next/link';
 import { getAccounts } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
@@ -56,16 +54,7 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
               />
             </div>
           }
-          toolbarRight={
-            <Link href="/accounting/add">
-              <Button size="sm" className="gap-1.5 h-9">
-                <Plus className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Add account
-                </span>
-              </Button>
-            </Link>
-          }
+          toolbarRight={<AccountingToolbarActions />}
         />
       </Suspense>
     </div>

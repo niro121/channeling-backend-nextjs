@@ -35,66 +35,82 @@ This document lists all components and their permission check status.
    - ✅ UI: Shift bar and start/skip dialog only on channel-booking route; sidebar link gated by `hasAccess('/channel-booking')`. Grant **Shift (Channel Booking)** view to allow shift creation and controls.
    - ✅ **Channel Booking – Change Date** (resource **channel-booking-date**): When **view** is ticked, user can change the session date in the channeling page. If not granted, date is fixed to today and shown as read-only.
 
+4. **Accounting** (`/accounting`)
+   - ✅ Page: Has `checkRouteAccess("/accounting")` check; redirects to unauthorized if no view
+   - ✅ Add account (`/accounting/add`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Add journal entry (`/accounting/entries/new`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Account statement (`/accounting/accounts/[id]/statement`): Has `checkRouteAccess("/accounting")` (view)
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAccounts` – view
+     - `getAccountById` – view
+     - `createAccount` – add
+     - `getAccountStatement` – view
+     - `getMainCashBook` – view
+     - `getBranchBalance` – view
+     - `getInstituteCashBalance` – view
+     - `createJournalEntryAction` – add
+   - ✅ UI: "Add journal entry" and "Add account" toolbar buttons only shown when user has `accounting` **add** (via `AccountingToolbarActions` client component using `usePermissions`)
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
 
-4. **Agencies** (`/agencies`)
+5. **Agencies** (`/agencies`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-5. **Agency Books** (`/agency-books`)
+6. **Agency Books** (`/agency-books`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-6. **Departments** (`/departments`)
+7. **Departments** (`/departments`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-7. **Doctors** (`/doctors`)
+8. **Doctors** (`/doctors`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-8. **Patients** (`/patients`)
+9. **Patients** (`/patients`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-9. **Specialities** (`/specialities`)
+10. **Specialities** (`/specialities`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-10. **Locations** (`/locations`)
+11. **Locations** (`/locations`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-11. **Rooms** (`/rooms`)
+12. **Rooms** (`/rooms`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-12. **Zones** (`/zones`)
+13. **Zones** (`/zones`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-13. **Tags** (`/tags`)
+14. **Tags** (`/tags`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-14. **Rosters** (`/rosters`)
+15. **Rosters** (`/rosters`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-15. **Discounts** (`/discounts`)
+16. **Discounts** (`/discounts`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
@@ -103,9 +119,9 @@ This document lists all components and their permission check status.
 
 ## Summary
 
-- **Total Components:** 15
-- **With Permission Checks:** 2 (Users, Channel Booking) – 13%
-- **Without Permission Checks:** 13 (87%)
+- **Total Components:** 16
+- **With Permission Checks:** 3 (Users, Channel Booking, Accounting)
+- **Without Permission Checks:** 13
 
 ## Action Required
 
@@ -134,6 +150,8 @@ All these resources are already in `types/user-group.ts`:
 - ✅ agency-books
 - ✅ agencies
 - ✅ discounts
+- ✅ accounting (view / add / edit / delete)
+- ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
 
 All routes are already mapped in `lib/permissions.ts`.
 
