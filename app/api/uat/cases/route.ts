@@ -24,6 +24,7 @@ const FEATURE_ORDER = [
   "Doctor Session",
   "Sessions",
   "Transfer",
+  "Float Request",
   "Bulk Price Change",
   "Doctor Leave",
   "Patients",

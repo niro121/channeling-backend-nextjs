@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import moment from "moment"
+import { RECEIPT_METHOD } from "@/types/receipt"
 import { getNextSequenceNumber, getPreviousSessionTransferStatus } from "./helpers"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import { logActivity } from "@/lib/activity-log"
@@ -17,9 +18,6 @@ export type TransferBookingsInput = {
 export type TransferBookingsResult =
   | { success: true }
   | { success: false; errorCode: string; message: string }
-
-/** Receipt method 4 = DOCTOR PAYMENTS — bookings with such a receipt cannot be transferred. */
-const RECEIPT_METHOD_DOCTOR_PAYMENT = 4
 
 /** SMS template type 3 = Appointment Reschedule (transfer). Placeholders: {doctor}, {date}, {start_time}. */
 const SMS_TEMPLATE_TYPE_TRANSFER = 3
@@ -67,7 +65,7 @@ export async function transferBookingsService(
       include: { doctor: { select: { title: true, name: true } } },
     }),
     prisma.receipt.findMany({
-      where: { bookingId: { in: bookingIds }, method: RECEIPT_METHOD_DOCTOR_PAYMENT },
+      where: { bookingId: { in: bookingIds }, method: RECEIPT_METHOD.DOCTOR_PAYMENT },
       select: { id: true },
     }),
     prisma.booking.findMany({

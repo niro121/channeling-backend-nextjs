@@ -19,6 +19,7 @@ import {
   getBookingSequenceInfo,
   buildReceiptJournalEntryInput,
   resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 
@@ -307,13 +308,37 @@ export async function saveBookingService(
       const receiptAmount = amountToUse
       const remarks =
         input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+      const isCash = input.payment_type === 0
+      const isAgent = input.payment_type === 4
+      const needJournal = isCash || isAgent
       try {
-        const accounts = await resolveReceiptJournalAccounts({
-          locationId: booking.locationId ?? null,
-          createdBy: userId,
-          agencyId: input.agency?.id ?? null,
-          isCash: input.payment_type === 0,
-        })
+        let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+        if (needJournal) {
+          const reqResult = await requireReceiptJournalAccounts(
+            {
+              locationId: booking.locationId ?? null,
+              createdBy: userId,
+              agencyId: input.agency?.id ?? null,
+              isCash,
+            },
+            { isCash, isAgent }
+          )
+          if (!reqResult.success) {
+            return {
+              success: false,
+              errorCode: reqResult.errorCode as SaveBookingErrorCode,
+              message: reqResult.error,
+            }
+          }
+          accounts = reqResult.accounts
+        } else {
+          accounts = await resolveReceiptJournalAccounts({
+            locationId: booking.locationId ?? null,
+            createdBy: userId,
+            agencyId: input.agency?.id ?? null,
+            isCash,
+          })
+        }
         const journalNumberResult = accounts
           ? await getNextSequenceNumber("journal", { startFrom: 1 })
           : null

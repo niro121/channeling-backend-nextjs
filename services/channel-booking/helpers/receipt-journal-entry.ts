@@ -2,21 +2,18 @@
  * Build double-entry journal input for a receipt. Used when saving/settling/refunding so that
  * receipt and journal are created in the same transaction (no saved receipt without journal).
  *
- * - Cash payment (method 1, paymentMethod 0): increase cashier float — Dr Cashier CASH, Cr Branch Cash Book.
- * - Cash refund (method 0, paymentMethod 0): decrease cashier float — Cr Cashier CASH, Dr Branch Cash Book.
- * - Agent payment (method 1, agencyId set): deduct agent balance — Dr Branch Cash Book, Cr Agent RECEIVABLE.
- * - Agent refund (method 0, agencyId set): reverse agent balance — Dr Agent RECEIVABLE, Cr Branch Cash Book.
+ * - Cash payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.CASH): increase cashier float — Dr Cashier CASH, Cr Branch Cash Book.
+ * - Cash refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.CASH): decrease cashier float — Cr Cashier CASH, Dr Branch Cash Book.
+ * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): deduct agent balance — Dr Branch Cash Book, Cr Agent RECEIVABLE.
+ * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse agent balance — Dr Agent RECEIVABLE, Cr Branch Cash Book.
  *
  * Receipt.amount is in rupees; journal lines use cents.
  */
 
 import type { CreateJournalEntryInput } from '@/types/accounting';
 import { REFERENCE_TYPES } from '@/types/accounting';
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type { CreatedReceipt } from './create-receipt-for-booking';
-
-const RECEIPT_METHOD_REFUND = 0;
-const RECEIPT_METHOD_PAYMENT = 1;
-const PAYMENT_METHOD_CASH = 0;
 
 export type ReceiptJournalAccounts = {
   /** Branch/location cash book (required for all receipt journals). */
@@ -42,9 +39,10 @@ export function buildReceiptJournalEntryInput(
     ? ` - Receipt ${receipt.receiptNoString}`
     : '';
 
-  const isPayment = receipt.method === RECEIPT_METHOD_PAYMENT;
-  const isCash = receipt.paymentMethod === PAYMENT_METHOD_CASH;
-  const hasAgent = Boolean(receipt.agencyId && accounts.agentAccountId);
+  const isPayment = receipt.method === RECEIPT_METHOD.PAYMENT;
+  const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
+  const hasAgent =
+    receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT && Boolean(accounts.agentAccountId);
 
   // Cash: affect cashier float
   if (isCash && accounts.cashierAccountId) {
@@ -109,11 +107,12 @@ export function buildReceiptJournalEntryInput(
   }
 
   return null;
+  
 }
 
 /**
  * Resolve account IDs needed for receipt journal (call before transaction).
- * Returns null branchAccountId if locationId is null and no main cash book.
+ * Returns null if branch cash book not found (locationId present but no branch cash book, or no main cash book).
  */
 export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
@@ -156,4 +155,47 @@ export async function resolveReceiptJournalAccounts(params: {
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
   };
+}
+
+export type RequireReceiptJournalAccountsResult =
+  | { success: true; accounts: ReceiptJournalAccounts }
+  | { success: false; error: string; errorCode: string };
+
+/**
+ * When the receipt will require a journal (cash or agent), resolve accounts and validate.
+ * Call before starting the transaction. If validation fails, return error so booking/settlement/refund is not completed.
+ */
+export async function requireReceiptJournalAccounts(
+  params: {
+    locationId: string | null;
+    createdBy: string | null;
+    agencyId: string | null;
+    isCash: boolean;
+  },
+  options: { isCash: boolean; isAgent: boolean }
+): Promise<RequireReceiptJournalAccountsResult> {
+  const accounts = await resolveReceiptJournalAccounts(params);
+  if (!accounts) {
+    return {
+      success: false,
+      error:
+        'Branch cash book not found for this location. Please set up accounting (cash book) for the location or main cash book.',
+      errorCode: 'CASH_BOOK_NOT_FOUND',
+    };
+  }
+  if (options.isCash && !accounts.cashierAccountId) {
+    return {
+      success: false,
+      error: 'Cashier float account could not be created. Cannot complete cash payment.',
+      errorCode: 'CASHIER_ACCOUNT_ERROR',
+    };
+  }
+  if (options.isAgent && !accounts.agentAccountId) {
+    return {
+      success: false,
+      error: 'Agent account could not be found or created. Cannot complete agent payment or refund.',
+      errorCode: 'AGENT_ACCOUNT_NOT_FOUND',
+    };
+  }
+  return { success: true, accounts };
 }

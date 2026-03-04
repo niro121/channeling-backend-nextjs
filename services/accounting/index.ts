@@ -1,11 +1,13 @@
-/**
- * Accounting service – barrel re-export.
- * Implementation lives in services/accounting/ (account, balance-calc, balance, journal, statement).
- */
+// Barrel: re-exports from accounting services. Server directives are in the individual service files.
+// Balance calc (core balance by account id)
 export {
   getAccountBalance,
   getAccountBalanceWithTx,
   type AccountingTx,
+} from './balance-calc.service';
+
+// Accounts
+export {
   getMainCashBookAccount,
   getCashBookAccountForBranch,
   getCashAccountByUserId,
@@ -15,10 +17,20 @@ export {
   getAllAccounts,
   type GetOrCreateAccountParams,
   type GetAllAccountsParams,
+} from './account.service';
+
+// Balance (branch / cashier / institute)
+export {
   getBranchCashBalance,
   getCashierFloatBalance,
   getFullInstituteCashBalance,
+} from './balance.service';
+
+// Journals
+export {
   createJournalEntry,
   createJournalEntryInTransaction,
-  getAccountStatement,
-} from './accounting';
+} from './journal.service';
+
+// Statement
+export { getAccountStatement } from './statement.service';

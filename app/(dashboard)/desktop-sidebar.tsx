@@ -29,6 +29,8 @@ import {
   Key,
   Calculator,
   Banknote,
+  Timer,
+  ArrowRightLeft,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -90,13 +92,16 @@ export function DesktopSidebar({
         </Link>
       </div>
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        {(hasAccess("/channel-booking") || hasAccess("/sessions")) && (
+        {(hasAccess("/channel-booking") || hasAccess("/sessions") || hasAccess("/shifts")) && (
           <SidebarGroup label="Channeling">
             {hasAccess("/channel-booking") && (
               <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />
             )}
             {hasAccess("/sessions") && (
               <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />
+            )}
+            {hasAccess("/shifts") && (
+              <NavLink href="/shifts" label="Shifts" icon={<Timer className="h-5 w-5" />} />
             )}
           </SidebarGroup>
         )}
@@ -129,13 +134,14 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/bulk-cashier")) && (
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
           <SidebarGroup label="Agency & billing">
             {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
             {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
             {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
             {hasAccess("/accounting") && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
             {hasAccess("/bulk-cashier") && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
+            {hasAccess("/float-transfers") && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
           </SidebarGroup>
         )}
 

@@ -5,6 +5,8 @@ import {
   getBulkCashierUsers,
   createFloatRequest,
   getFloatRequestsForBulkCashier,
+  getFloatRequestsForBulkCashierPaginated,
+  getAllFloatRequestsForDashboard,
   getFloatRequestById,
   getPendingFloatRequestByUserId,
   getApprovedFloatRequestByUserId,
@@ -14,7 +16,8 @@ import {
   rejectFloatRequest,
   cancelFloatRequest,
 } from '@/services/float-request.service';
-import { getAllAccounts, getCashierFloatBalance } from '@/services/accounting.service';
+import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
+import { fetchServerSession } from '@/lib/session';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -56,7 +59,6 @@ const cancelFloatRequestSchema = z.object({
 const approveFloatRequestSchema = z.object({
   floatRequestId: z.string().min(1, 'Float request is required'),
   approvedBy: z.string().min(1, 'Approver is required'),
-  fromAccountId: z.string().min(1, 'From account is required'),
   denominationsApproved: z.array(denominationEntrySchema).min(1, 'At least one denomination with count > 0 is required'),
   reasonForLessThanRequested: z.string().optional().nullable(),
 });
@@ -76,6 +78,78 @@ const declineApprovedFloatRequestSchema = z.object({
   floatRequestId: z.string().min(1, 'Float request is required'),
   reason: z.string().min(1, 'Cancel reason is required'),
 });
+
+/** Whether the current user (bulk cashier) has an associated CASH float account. Used to gate Float requests section. */
+export async function hasBulkCashierFloatAccountAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, hasFloatAccount: false };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    return { success: true, hasFloatAccount: !!account };
+  } catch (e) {
+    console.error('hasBulkCashierFloatAccountAction error:', e);
+    return { success: true, hasFloatAccount: false };
+  }
+}
+
+/** Current user's (bulk cashier) float account balance in cents. 0 if no float account. For balance check/warning in Approve modal. */
+export async function getBulkCashierFloatBalanceAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, balanceCents: 0 };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    if (!account) return { success: true, balanceCents: 0 };
+    const balanceCents = await getAccountBalance(account.id);
+    return { success: true, balanceCents };
+  } catch (e) {
+    console.error('getBulkCashierFloatBalanceAction error:', e);
+    return { success: true, balanceCents: 0 };
+  }
+}
+
+/** Bulk cashier float account summary: balance and account id (for statement link). Used for top bar on Bulk Cashier page. */
+export async function getBulkCashierFloatSummaryAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0 };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    if (!account) return { success: true, floatAccountId: null, balanceCents: 0 };
+    const balanceCents = await getAccountBalance(account.id);
+    return { success: true, floatAccountId: account.id, balanceCents };
+  } catch (e) {
+    console.error('getBulkCashierFloatSummaryAction error:', e);
+    return { success: true, floatAccountId: null, balanceCents: 0 };
+  }
+}
+
+/** Create a CASH float account for the current user (bulk cashier). Requires linked staff for account code. */
+export async function createBulkCashierFloatAccountAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, error: 'You must be signed in to create a float account.' };
+  }
+  try {
+    const result = await getOrCreateAccount({
+      type: 'CASH',
+      userId,
+      name: 'Bulk Cashier Float',
+    });
+    if (!result.success) return { success: false, error: result.error };
+    revalidatePath('/bulk-cashier');
+    return { success: true, message: 'Float account created. You can now approve float requests.' };
+  } catch (e) {
+    console.error('createBulkCashierFloatAccountAction error:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to create float account.' };
+  }
+}
 
 /** Cash accounts for bulk cashier to select "from account" when approving float */
 export async function getCashAccountsForFloatAction() {
@@ -179,6 +253,33 @@ export async function getFloatRequestsForBulkCashierAction(
   }
 }
 
+/** Float requests for dashboard: today's + all PENDING. Approve/Reject only for ones assigned to you. */
+export async function getAllFloatRequestsForDashboardAction(params: { status?: number }) {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  try {
+    const list = await getAllFloatRequestsForDashboard({ status: params.status });
+    return { success: true, data: list };
+  } catch (e) {
+    console.error('getAllFloatRequestsForDashboardAction error:', e);
+    return { success: false, data: [], message: e instanceof Error ? e.message : 'Failed to load requests' };
+  }
+}
+
+/** Paginated float requests assigned to current user (Float Transfers dashboard). Requires float-transfers view. */
+export async function getFloatRequestsForBulkCashierPaginatedAction(
+  bulkCashierId: string,
+  params: { page?: number; limit?: number; status?: number | null }
+) {
+  await requirePermission('float-transfers', 'view');
+  try {
+    const result = await getFloatRequestsForBulkCashierPaginated(bulkCashierId, params);
+    return { success: true, data: result.data, totalRecords: result.totalRecords };
+  } catch (e) {
+    console.error('getFloatRequestsForBulkCashierPaginatedAction error:', e);
+    return { success: false, data: [], totalRecords: 0, message: e instanceof Error ? e.message : 'Failed to load' };
+  }
+}
+
 export async function getFloatRequestByIdAction(id: string) {
   try {
     const fr = await getFloatRequestById(id);
@@ -210,6 +311,15 @@ export async function approveFloatRequestAction(input: unknown) {
   if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be approved. This request has already been approved, rejected, or cancelled.', data: null };
   }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const currentUserId = session?.user?.id;
+  if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  if (parsed.data.approvedBy !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
+  }
+  if (fr.bulkCashierId !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
+  }
   const approvedTotalCents = lkrToCents(denominationsTotalLKR(parsed.data.denominationsApproved));
   if (approvedTotalCents <= 0) {
     return { success: false, error: 'Approved amount must be greater than zero', data: null };
@@ -232,6 +342,7 @@ export async function approveFloatRequestAction(input: unknown) {
       return { success: false, error: result.error, errorCode: result.errorCode, data: null, printData: undefined };
     }
     revalidatePath('/bulk-cashier');
+    revalidatePath('/float-transfers');
     revalidatePath('/channel-booking');
     return {
       success: true,
@@ -359,10 +470,20 @@ export async function rejectFloatRequestAction(input: unknown) {
   if (fr.status !== FLOAT_REQUEST_STATUS.PENDING) {
     return { success: false, error: 'Only pending requests can be rejected.', data: null };
   }
+  const session = await import('@/lib/session').then((m) => m.fetchServerSession());
+  const currentUserId = session?.user?.id;
+  if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  if (parsed.data.rejectedBy !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can reject it.', data: null };
+  }
+  if (fr.bulkCashierId !== currentUserId) {
+    return { success: false, error: 'Only the bulk cashier assigned to this request can reject it.', data: null };
+  }
   try {
     const result = await rejectFloatRequest(parsed.data);
     if (!result.success) return { success: false, error: result.error, data: null };
     revalidatePath('/bulk-cashier');
+    revalidatePath('/float-transfers');
     revalidatePath('/channel-booking');
     return { success: true, data: result.floatRequest, message: 'Float request rejected' };
   } catch (e) {
