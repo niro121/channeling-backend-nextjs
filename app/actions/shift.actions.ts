@@ -82,8 +82,9 @@ export async function endShiftAction(shiftId: string) {
 export async function getActiveShiftsWithFloatAction() {
   await requirePermission("bulk-cashier", "bulk-cashier-dashboard")
   const shifts = await getActiveShiftsWithUserAndLocation()
+  type ShiftRow = Awaited<ReturnType<typeof getActiveShiftsWithUserAndLocation>>[number]
   const withFloat = await Promise.all(
-    shifts.map(async (s) => {
+    shifts.map(async (s: ShiftRow) => {
       const balanceCents = await getCashierFloatBalance(s.userId)
       return {
         id: s.id,

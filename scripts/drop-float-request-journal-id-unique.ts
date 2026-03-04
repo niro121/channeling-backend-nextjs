@@ -20,7 +20,7 @@ async function main() {
     });
     console.log("Dropped index", indexName);
   } catch (e: unknown) {
-    const err = e as { message?: string; code?: number } = e as any;
+    const err = e as { message?: string; code?: number };
     if (
       err.message?.includes("IndexNotFound") ||
       err.message?.includes("index not found") ||
