@@ -49,11 +49,17 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
     function initializePermissions(): Permissions {
         const perms: Permissions = {}
         RESOURCES.forEach(resource => {
-            perms[resource.id] = {
-                view: false,
-                add: false,
-                edit: false,
-                delete: false,
+            if (resource.customActions?.length) {
+                perms[resource.id] = Object.fromEntries(
+                    resource.customActions.map(a => [a.id, false])
+                ) as ResourcePermissions
+            } else {
+                perms[resource.id] = {
+                    view: false,
+                    add: false,
+                    edit: false,
+                    delete: false,
+                }
             }
         })
         return perms
@@ -124,14 +130,19 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
     }
 
     const handleSyncPermissions = (formik: any) => {
-        // Sync all permissions - set all to true for all resources
         const syncedPermissions: Permissions = {}
         RESOURCES.forEach(resource => {
-            syncedPermissions[resource.id] = {
-                view: true,
-                add: true,
-                edit: true,
-                delete: true,
+            if (resource.customActions?.length) {
+                syncedPermissions[resource.id] = Object.fromEntries(
+                    resource.customActions.map(a => [a.id, true])
+                ) as ResourcePermissions
+            } else {
+                syncedPermissions[resource.id] = {
+                    view: true,
+                    add: true,
+                    edit: true,
+                    delete: true,
+                }
             }
         })
         formik.setFieldValue("permissions", syncedPermissions)
@@ -139,24 +150,37 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
 
     const handleSelectAll = (formik: any, resource: ResourceWithOptionalActions) => {
         const currentPermissions = { ...formik.values.permissions }
-        const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
-        currentPermissions[resource.id] = {
-            view: actions.includes("view"),
-            add: actions.includes("add"),
-            edit: actions.includes("edit"),
-            delete: actions.includes("delete"),
+        if (resource.customActions?.length) {
+            currentPermissions[resource.id] = Object.fromEntries(
+                resource.customActions.map(a => [a.id, true])
+            ) as ResourcePermissions
+        } else {
+            const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
+            currentPermissions[resource.id] = {
+                view: actions.includes("view"),
+                add: actions.includes("add"),
+                edit: actions.includes("edit"),
+                delete: actions.includes("delete"),
+            }
         }
         formik.setFieldValue("permissions", currentPermissions)
     }
 
     const handleDeselectAll = (formik: any, resource: ResourceWithOptionalActions) => {
         const currentPermissions = { ...formik.values.permissions }
-        const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
-        currentPermissions[resource.id] = {
-            view: actions.includes("view") ? false : (formik.values.permissions[resource.id]?.view ?? false),
-            add: actions.includes("add") ? false : (formik.values.permissions[resource.id]?.add ?? false),
-            edit: actions.includes("edit") ? false : (formik.values.permissions[resource.id]?.edit ?? false),
-            delete: actions.includes("delete") ? false : (formik.values.permissions[resource.id]?.delete ?? false),
+        const existing = formik.values.permissions[resource.id] || {}
+        if (resource.customActions?.length) {
+            currentPermissions[resource.id] = Object.fromEntries(
+                resource.customActions.map(a => [a.id, false])
+            ) as ResourcePermissions
+        } else {
+            const actions = resource.actions?.length ? resource.actions : (["view", "add", "edit", "delete"] as const)
+            currentPermissions[resource.id] = {
+                view: actions.includes("view") ? false : (existing.view ?? false),
+                add: actions.includes("add") ? false : (existing.add ?? false),
+                edit: actions.includes("edit") ? false : (existing.edit ?? false),
+                delete: actions.includes("delete") ? false : (existing.delete ?? false),
+            }
         }
         formik.setFieldValue("permissions", currentPermissions)
     }
@@ -164,17 +188,12 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
     const handlePermissionChange = (
         formik: any,
         resourceId: string,
-        action: "view" | "add" | "edit" | "delete",
+        action: string,
         value: boolean
     ) => {
         const currentPermissions = { ...formik.values.permissions }
         if (!currentPermissions[resourceId]) {
-            currentPermissions[resourceId] = {
-                view: false,
-                add: false,
-                edit: false,
-                delete: false,
-            }
+            currentPermissions[resourceId] = {}
         }
         currentPermissions[resourceId] = {
             ...currentPermissions[resourceId],
@@ -333,12 +352,16 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
 
                                 <div className="space-y-6">
                                     {RESOURCES.map((resource) => {
-                                        const resourcePermissions = formik.values.permissions[resource.id] || {
-                                            view: false,
-                                            add: false,
-                                            edit: false,
-                                            delete: false,
-                                        }
+                                        const defaultPerms = resource.customActions?.length
+                                            ? Object.fromEntries(resource.customActions.map(a => [a.id, false]))
+                                            : { view: false, add: false, edit: false, delete: false }
+                                        const resourcePermissions = { ...defaultPerms, ...formik.values.permissions[resource.id] }
+
+                                        const actionsToShow = resource.customActions?.length
+                                            ? resource.customActions
+                                            : (resource.actions?.length
+                                                ? PERMISSION_ACTIONS.filter((a) => resource.actions!.includes(a.id))
+                                                : PERMISSION_ACTIONS)
 
                                         return (
                                             <div key={resource.id} className="space-y-3">
@@ -364,35 +387,31 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                     </div>
                                                 </div>
 
-                                                {(() => {
-                                                    const actionsToShow = resource.actions?.length
-                                                        ? PERMISSION_ACTIONS.filter((a) => resource.actions!.includes(a.id))
-                                                        : PERMISSION_ACTIONS
-                                                    return (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {actionsToShow.map((action) => {
-                                                        const label = resource.actionLabels?.[action.id] ?? action.name
-                                                        const description = resource.actionLabels?.[action.id] ? "" : action.description
+                                                        const actionId = action.id
+                                                        const label = action.name
+                                                        const description = "description" in action ? (action as { description?: string }).description ?? "" : ""
                                                         return (
                                                         <div
-                                                            key={action.id}
+                                                            key={actionId}
                                                             className="flex items-center space-x-2 p-3 border rounded-md"
                                                         >
                                                             <Checkbox
-                                                                id={`${resource.id}-${action.id}`}
-                                                                checked={resourcePermissions[action.id] || false}
+                                                                id={`${resource.id}-${actionId}`}
+                                                                checked={!!resourcePermissions[actionId]}
                                                                 onCheckedChange={(checked) =>
                                                                     handlePermissionChange(
                                                                         formik,
                                                                         resource.id,
-                                                                        action.id,
+                                                                        actionId,
                                                                         checked as boolean
                                                                     )
                                                                 }
                                                             />
                                                             <div className="flex-1">
                                                                 <Label
-                                                                    htmlFor={`${resource.id}-${action.id}`}
+                                                                    htmlFor={`${resource.id}-${actionId}`}
                                                                     className="text-sm font-medium cursor-pointer"
                                                                 >
                                                                     {label}
@@ -407,8 +426,6 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                         )
                                                     })}
                                                 </div>
-                                                    )
-                                                })()}
                                             </div>
                                         )
                                     })}

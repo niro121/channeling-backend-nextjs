@@ -36,3 +36,8 @@ export {
   validateVoucherForDiscount,
   type ValidateVoucherResult,
 } from "./validate-voucher"
+export {
+  buildReceiptJournalEntryInput,
+  resolveReceiptJournalAccounts,
+  type ReceiptJournalAccounts,
+} from "./receipt-journal-entry"

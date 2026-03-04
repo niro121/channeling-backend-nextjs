@@ -11,6 +11,7 @@ const SHIFT_MAX_HOURS =
 // ==== SHIFT: VALIDATION SCHEMAS ==== //
 const startShiftSchema = z.object({
   userId: z.string().min(1, "User is required").trim(),
+  locationId: z.string().trim().optional().nullable(),
 })
 
 const shiftActionSchema = z.object({
@@ -54,8 +55,25 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
-export async function startShift(userId: string) {
-  const { userId: validUserId } = startShiftSchema.parse({ userId })
+/** All active shifts (status=ACTIVE, endsAt>now) with user and location for bulk cashier dashboard. */
+export async function getActiveShiftsWithUserAndLocation() {
+  const now = new Date()
+  const shifts = await shiftModel.findMany({
+    where: {
+      status: SHIFT_STATUS.ACTIVE,
+      endsAt: { gt: now },
+    },
+    orderBy: { startedAt: "desc" },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      location: { select: { id: true, name: true } },
+    },
+  })
+  return shifts
+}
+
+export async function startShift(userId: string, locationId?: string | null) {
+  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
   const existing = await getCurrentShift(validUserId)
   if (existing) {
     throw new Error(
@@ -68,6 +86,7 @@ export async function startShift(userId: string) {
   const shift = await shiftModel.create({
     data: {
       userId: validUserId,
+      locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
       startedAt,
       endsAt,
       status: SHIFT_STATUS.ACTIVE,

@@ -29,11 +29,12 @@ export async function checkRouteAccess(route: string): Promise<boolean> {
 }
 
 /**
- * Check if the current user has a specific permission
+ * Check if the current user has a specific permission.
+ * Action is standard (view/add/edit/delete) or resource-specific (e.g. float-approve).
  */
 export async function checkPermission(
   resource: string,
-  action: "view" | "add" | "edit" | "delete"
+  action: string
 ): Promise<boolean> {
   const session = await fetchServerSession()
   const userType = session?.user?.userType
@@ -56,7 +57,7 @@ export async function checkPermission(
  */
 export async function checkCanPerform(
   resource: string,
-  action: "view" | "add" | "edit" | "delete"
+  action: string
 ): Promise<boolean> {
   return checkPermission(resource, action)
 }
@@ -74,7 +75,7 @@ export async function getCurrentUserPermissions() {
  */
 export async function requirePermission(
   resource: string,
-  action: "view" | "add" | "edit" | "delete"
+  action: string
 ): Promise<void> {
   const hasAccess = await checkPermission(resource, action)
   if (!hasAccess) {
