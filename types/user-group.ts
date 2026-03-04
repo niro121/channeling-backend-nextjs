@@ -59,6 +59,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "channel-booking", name: "Channel Booking" },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   { id: "shift", name: "Shift (Channel Booking)" },
+  { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
   { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
@@ -85,6 +86,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "float-request", name: "Float Request" },
     ],
   },
+  { id: "float-transfers", name: "Float Transfers" },
   { id: "accounting", name: "Accounting" },
 ];
 

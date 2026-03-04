@@ -1,26 +1,8 @@
 import prisma from "@/lib/prisma"
 import { normalizeSessionTime } from "@/lib/utils"
 import { BOOKING_METHODS } from "@/types/channel-booking"
+import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { resolveUser } from "./helpers/resolve-user"
-
-const PAYMENT_METHOD_NAMES: Record<number, string> = {
-  0: "Cash",
-  1: "Credit Card",
-  2: "Slip",
-  3: "Cheque",
-  4: "Agent",
-  5: "Credit",
-}
-
-/** Receipt method: 0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS */
-const RECEIPT_METHOD_NAMES: Record<number, string> = {
-  0: "Refund",
-  1: "Settlement",
-  2: "Debit Note",
-  3: "Credit Note",
-  4: "Doctor Payment",
-  5: "Doctor Cancel",
-}
 
 function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
   if (!Array.isArray(json)) return []

@@ -6,6 +6,7 @@ import {
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
   resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
@@ -134,12 +135,35 @@ export async function settleBookingService(
 
   const amount = booking.amount - discount
 
-  const accounts = await resolveReceiptJournalAccounts({
-    locationId: booking.locationId ?? null,
-    createdBy: userId,
-    agencyId: booking.agencyId ?? null,
-    isCash: input.settle_method === 0,
-  })
+  const isCash = input.settle_method === 0
+  const needJournal = isCash
+  let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+  if (needJournal) {
+    const reqResult = await requireReceiptJournalAccounts(
+      {
+        locationId: booking.locationId ?? null,
+        createdBy: userId,
+        agencyId: booking.agencyId ?? null,
+        isCash,
+      },
+      { isCash, isAgent: false }
+    )
+    if (!reqResult.success) {
+      return {
+        success: false,
+        errorCode: reqResult.errorCode,
+        message: reqResult.error,
+      }
+    }
+    accounts = reqResult.accounts
+  } else {
+    accounts = await resolveReceiptJournalAccounts({
+      locationId: booking.locationId ?? null,
+      createdBy: userId,
+      agencyId: booking.agencyId ?? null,
+      isCash,
+    })
+  }
   const journalNumberResult = accounts
     ? await getNextSequenceNumber("journal", { startFrom: 1 })
     : null

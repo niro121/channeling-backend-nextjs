@@ -48,6 +48,9 @@ export type SaveBookingErrorCode =
   | "limitexceeded"
   | "agencyCreditExceed"
   | "agencyRefError"
+  | "CASH_BOOK_NOT_FOUND"
+  | "CASHIER_ACCOUNT_ERROR"
+  | "AGENT_ACCOUNT_NOT_FOUND"
 
 export type SaveBookingAreaRef = { id: string; name: string }
 export type SaveBookingSessionRef = { id: string }
