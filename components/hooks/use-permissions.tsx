@@ -24,28 +24,19 @@ export function usePermissions() {
     return false
   }
 
-  // Check if user has a specific permission
-  const has = (
-    resource: string,
-    action: "view" | "add" | "edit" | "delete"
-  ): boolean => {
-    // Admin has all permissions
+  // Check if user has a specific permission (standard view/add/edit/delete or resource-specific e.g. float-request)
+  const has = (resource: string, action: string): boolean => {
     if (userType === userTypes.admin) {
       return true
     }
-
     if (permissions) {
       return hasPermission(permissions, resource, action)
     }
-
     return false
   }
 
   // Check if user can perform an action
-  const canPerform = (
-    resource: string,
-    action: "view" | "add" | "edit" | "delete"
-  ): boolean => {
+  const canPerform = (resource: string, action: string): boolean => {
     return has(resource, action)
   }
 

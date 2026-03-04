@@ -2,7 +2,12 @@ import prisma from "@/lib/prisma"
 import {
   createReceiptAndUpdateBooking,
   getBookingForSaveBooking,
+  getNextSequenceNumber,
+  buildReceiptJournalEntryInput,
+  resolveReceiptJournalAccounts,
 } from "./helpers"
+import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -53,8 +58,19 @@ export async function refundChannelService(
     if (booking.status === 1) {
       // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
-      const result = await prisma.$transaction(async (tx) =>
-        createReceiptAndUpdateBooking(tx, {
+      const accounts = await resolveReceiptJournalAccounts({
+        locationId: booking.locationId ?? null,
+        createdBy: userId,
+        agencyId: booking.agencyId ?? null,
+        isCash: refundTo === 0,
+      })
+      const journalNumberResult = accounts
+        ? await getNextSequenceNumber("journal", { startFrom: 1 })
+        : null
+      const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
+      const result = await prisma.$transaction(async (tx) => {
+        const r = await createReceiptAndUpdateBooking(tx, {
           bookingId: booking.id,
           locationId: booking.locationId ?? null,
           receiptSequenceMethod: 0, // REFUND RECEIPTS
@@ -78,9 +94,22 @@ export async function refundChannelService(
             refundReceiptCreatedAt: receipt.createdAt,
           }),
         })
-      )
+        if (!r.success) return r
+        if (accounts && journalNumber > 0) {
+          const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+          if (journalInput) {
+            const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+            if (!jResult.success) throw new Error(jResult.error)
+          }
+        }
+        return r
+      })
       if (!result.success) {
         return { success: false, errorCode: result.errorCode, message: result.message }
+      }
+      if (refundTo === 0 && userId) {
+        const io = getIO()
+        if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
       }
     } else if (booking.status === 0) {
       // Pending: just cancel, no receipt
@@ -103,8 +132,19 @@ export async function refundChannelService(
     else if (input.hospital_fee > 0) refundType = 2
     else if (input.professional_fee > 0) refundType = 1
 
-    const result = await prisma.$transaction(async (tx) =>
-      createReceiptAndUpdateBooking(tx, {
+    const accounts = await resolveReceiptJournalAccounts({
+      locationId: booking.locationId ?? null,
+      createdBy: userId,
+      agencyId: booking.agencyId ?? null,
+      isCash: refundTo === 0,
+    })
+    const journalNumberResult = accounts
+      ? await getNextSequenceNumber("journal", { startFrom: 1 })
+      : null
+    const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await createReceiptAndUpdateBooking(tx, {
         bookingId: booking.id,
         locationId: booking.locationId ?? null,
         receiptSequenceMethod: 0, // REFUND RECEIPTS
@@ -125,9 +165,22 @@ export async function refundChannelService(
           refundAmount: receipt.amount,
         }),
       })
-    )
+      if (!r.success) return r
+      if (accounts && journalNumber > 0) {
+        const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+        if (journalInput) {
+          const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+          if (!jResult.success) throw new Error(jResult.error)
+        }
+      }
+      return r
+    })
     if (!result.success) {
       return { success: false, errorCode: result.errorCode, message: result.message }
+    }
+    if (refundTo === 0 && userId) {
+      const io = getIO()
+      if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
     }
   } else {
     return {
