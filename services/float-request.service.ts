@@ -17,7 +17,7 @@ import {
   denominationsTotalLKR,
   lkrToCents,
 } from '@/types/float-request';
-import { getOrCreateAccount, getAccountBalance, createJournalEntry } from '@/services/accounting.service';
+import { getOrCreateAccount, getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
 
@@ -279,11 +279,14 @@ export async function approveFloatRequest(
     }
   }
 
-  const fromAccount = await prisma.account.findFirst({
-    where: { id: input.fromAccountId, type: 'CASH', isActive: true },
-  });
+  // Source is always the bulk cashier's own float account (CASH account linked to approvedBy user)
+  const fromAccount = await getCashAccountByUserId(input.approvedBy);
   if (!fromAccount) {
-    return { success: false, error: 'Selected source cash account not found' };
+    return {
+      success: false,
+      error: 'You need a float account to approve requests. Create one from the Bulk Cashier page.',
+      errorCode: 'NO_FLOAT_ACCOUNT',
+    };
   }
 
   const fromBalanceCents = await getAccountBalance(fromAccount.id);
@@ -312,7 +315,7 @@ export async function approveFloatRequest(
   const updateData = {
     status: FLOAT_REQUEST_STATUS.APPROVED,
     denominationsApproved: input.denominationsApproved as object,
-    fromAccountId: input.fromAccountId,
+    fromAccountId: fromAccount.id,
     toAccountId: toAccount.id,
     approvedAt: new Date(),
     approvedBy: input.approvedBy,

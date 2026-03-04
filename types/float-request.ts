@@ -73,7 +73,6 @@ export type CreateFloatRequestInput = {
 export type ApproveFloatRequestInput = {
   floatRequestId: string;
   approvedBy: string;
-  fromAccountId: string;
   denominationsApproved: DenominationEntry[];
   /** Required when approved amount is less than requested */
   reasonForLessThanRequested?: string | null;

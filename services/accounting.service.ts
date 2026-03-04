@@ -8,6 +8,7 @@ export {
   type AccountingTx,
   getMainCashBookAccount,
   getCashBookAccountForBranch,
+  getCashAccountByUserId,
   getOrCreateAccount,
   createAccount,
   getAccountById,

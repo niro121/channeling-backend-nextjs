@@ -10,6 +10,7 @@ export {
 export {
   getMainCashBookAccount,
   getCashBookAccountForBranch,
+  getCashAccountByUserId,
   getOrCreateAccount,
   createAccount,
   getAccountById,

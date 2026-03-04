@@ -5,12 +5,14 @@ import {
   getAllFloatRequestsForDashboardAction,
   approveFloatRequestAction,
   rejectFloatRequestAction,
-  getCashAccountsForFloatAction,
+  hasBulkCashierFloatAccountAction,
+  createBulkCashierFloatAccountAction,
+  getBulkCashierFloatBalanceAction,
+  getBulkCashierFloatSummaryAction,
 } from '@/app/actions/float-request.actions';
 import { getActiveShiftsWithFloatAction } from '@/app/actions/shift.actions';
 import type { FloatRequest, DenominationEntry, FloatRequestPrintData } from '@/types/float-request';
 import { FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from '@/types/float-request';
-import type { Account } from '@/types/accounting';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -28,18 +30,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/hooks/use-toast';
-import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import Link from 'next/link';
+import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye, Wallet, FileText } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
 
@@ -53,7 +59,6 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
   const [printSlipData, setPrintSlipData] = useState<FloatRequestPrintData | null>(null);
   const [summaryRequest, setSummaryRequest] = useState<FloatRequest | null>(null);
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [activeShifts, setActiveShifts] = useState<Array<{
     id: string;
     userId: string;
@@ -66,7 +71,34 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     floatBalanceCents: number;
   }>>([]);
   const [activeShiftsLoading, setActiveShiftsLoading] = useState(true);
+  const [floatSummary, setFloatSummary] = useState<{ floatAccountId: string | null; balanceCents: number } | null>(null);
+  const [hasFloatAccount, setHasFloatAccount] = useState<boolean | null>(null);
+  const [createFloatAccountLoading, setCreateFloatAccountLoading] = useState(false);
+  const [showCreateFloatConfirm, setShowCreateFloatConfirm] = useState(false);
   const { toast } = useToast();
+
+  const loadFloatSummary = () => {
+    getBulkCashierFloatSummaryAction().then((res) => {
+      if (res.success) {
+        setFloatSummary({ floatAccountId: res.floatAccountId ?? null, balanceCents: res.balanceCents ?? 0 });
+        setHasFloatAccount(!!res.floatAccountId);
+      } else {
+        setFloatSummary({ floatAccountId: null, balanceCents: 0 });
+        setHasFloatAccount(false);
+      }
+    });
+  };
+
+  const loadHasFloatAccount = () => {
+    hasBulkCashierFloatAccountAction().then((res) => {
+      if (res.success) setHasFloatAccount(res.hasFloatAccount);
+      else setHasFloatAccount(false);
+    });
+  };
+
+  useEffect(() => {
+    loadFloatSummary();
+  }, [bulkCashierId]);
 
   const loadRequests = () => {
     setLoading(true);
@@ -98,16 +130,47 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     return () => clearInterval(interval);
   }, [bulkCashierId]);
 
-  useEffect(() => {
-    if (approveModal) {
-      getCashAccountsForFloatAction().then((res) => {
-        if (res.success && res.data) setCashAccounts(res.data);
-      });
+
+  const handleCreateFloatAccount = async () => {
+    setCreateFloatAccountLoading(true);
+    const res = await createBulkCashierFloatAccountAction();
+    setCreateFloatAccountLoading(false);
+    setShowCreateFloatConfirm(false);
+    if (res.success) {
+      toast({ title: res.message ?? 'Float account created.' });
+      loadFloatSummary();
+    } else {
+      toast({ variant: 'destructive', title: res.error ?? 'Failed to create float account.' });
     }
-  }, [approveModal]);
+  };
 
   return (
     <>
+      {/* Float account balance and statement at top */}
+      <section className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-card px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Float account balance:</span>
+          <span className="text-lg font-semibold tabular-nums">
+            {floatSummary === null ? (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </span>
+            ) : (
+              `${(floatSummary.balanceCents / 100).toFixed(2)} LKR`
+            )}
+          </span>
+        </div>
+        {floatSummary?.floatAccountId && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/accounting/accounts/${floatSummary.floatAccountId}/statement`}>
+              <FileText className="h-4 w-4 mr-2" />
+              Statement
+            </Link>
+          </Button>
+        )}
+      </section>
+
       <section className="mb-8">
         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Clock className="h-5 w-5" />
@@ -166,104 +229,148 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         )}
       </section>
 
-      <h3 className="text-lg font-semibold mb-3">Float requests</h3>
-      <p className="text-sm text-muted-foreground mb-3">
-        Today&apos;s requests and all pending (any date). You can only approve or reject requests assigned to you.
-      </p>
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {[
-          { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
-          { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
-          { value: FLOAT_REQUEST_STATUS.RECEIVED, label: 'RECEIVED' },
-          { value: FLOAT_REQUEST_STATUS.REJECTED, label: 'REJECTED' },
-          { value: FLOAT_REQUEST_STATUS.CANCELLED, label: 'CANCELLED' },
-        ].map(({ value, label }) => (
-          <Button
-            key={value}
-            variant={statusFilter === value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter(value)}
-          >
-            {label}
-          </Button>
-        ))}
-        <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
-          All statuses
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
+      {hasFloatAccount === null ? (
+        <div className="flex items-center justify-center py-12 border rounded-lg bg-muted/30">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : !hasFloatAccount ? (
+        <section className="border rounded-lg bg-muted/30 p-8 flex flex-col items-center justify-center text-center gap-4">
+          <Wallet className="h-12 w-12 text-muted-foreground" />
+          <div>
+            <h3 className="text-lg font-semibold mb-1">No float account</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              You need a float account to approve float requests from cashiers. Create one to use the Float requests section.
+            </p>
+          </div>
+          <Button onClick={() => setShowCreateFloatConfirm(true)} disabled={createFloatAccountLoading}>
+            {createFloatAccountLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Create float account
+          </Button>
+          <AlertDialog open={showCreateFloatConfirm} onOpenChange={setShowCreateFloatConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Create float account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will create a cash account linked to you for disbursing float to cashiers. You must have a linked staff record for the account code. Continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={createFloatAccountLoading}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void handleCreateFloatAccount();
+                  }}
+                  disabled={createFloatAccountLoading}
+                >
+                  {createFloatAccountLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Create
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </section>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Requested by</TableHead>
-              <TableHead>Assigned to</TableHead>
-              <TableHead>Amount (LKR)</TableHead>
-              <TableHead>Denominations</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {requests.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  No requests found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              requests.map((fr) => {
-                const isAssignedToMe = fr.bulkCashierId === bulkCashierId;
-                return (
-                  <TableRow key={fr.id}>
-                    <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
-                    <TableCell>
-                      {fr.bulkCashier?.name ?? fr.bulkCashierId}
-                      {isAssignedToMe && (
-                        <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
-                    <TableCell>
-                      {fr.denominationsRequested
-                        .filter((d) => d.count > 0)
-                        .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
-                        .join(', ') || '-'}
-                    </TableCell>
-                    <TableCell>{new Date(fr.createdAt).toLocaleString()}</TableCell>
-                    <TableCell>{floatRequestStatusLabel(fr.status)}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => setSummaryRequest(fr)}>
-                        <Eye className="h-4 w-4 mr-1" /> View
-                      </Button>
-                      {fr.status === FLOAT_REQUEST_STATUS.PENDING && isAssignedToMe && (
-                        <>
-                          <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
-                            <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
-                            <XCircle className="h-4 w-4 mr-1" /> Reject
-                          </Button>
-                        </>
-                      )}
+        <>
+          <h3 className="text-lg font-semibold mb-3">Float requests</h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            Today&apos;s requests and all pending (any date). You can only approve or reject requests assigned to you.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {[
+              { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
+              { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
+              { value: FLOAT_REQUEST_STATUS.RECEIVED, label: 'RECEIVED' },
+              { value: FLOAT_REQUEST_STATUS.REJECTED, label: 'REJECTED' },
+              { value: FLOAT_REQUEST_STATUS.CANCELLED, label: 'CANCELLED' },
+            ].map(({ value, label }) => (
+              <Button
+                key={value}
+                variant={statusFilter === value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
+              All statuses
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Requested by</TableHead>
+                  <TableHead>Assigned to</TableHead>
+                  <TableHead>Amount (LKR)</TableHead>
+                  <TableHead>Denominations</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requests.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      No requests found.
                     </TableCell>
                   </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                ) : (
+                  requests.map((fr) => {
+                    const isAssignedToMe = fr.bulkCashierId === bulkCashierId;
+                    return (
+                      <TableRow key={fr.id}>
+                        <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
+                        <TableCell>
+                          {fr.bulkCashier?.name ?? fr.bulkCashierId}
+                          {isAssignedToMe && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
+                        <TableCell>
+                          {fr.denominationsRequested
+                            .filter((d) => d.count > 0)
+                            .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+                            .join(', ') || '-'}
+                        </TableCell>
+                        <TableCell>{new Date(fr.createdAt).toLocaleString()}</TableCell>
+                        <TableCell>{floatRequestStatusLabel(fr.status)}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button size="sm" variant="ghost" onClick={() => setSummaryRequest(fr)}>
+                            <Eye className="h-4 w-4 mr-1" /> View
+                          </Button>
+                          {fr.status === FLOAT_REQUEST_STATUS.PENDING && isAssignedToMe && (
+                            <>
+                              <Button size="sm" variant="default" onClick={() => setApproveModal(fr)}>
+                                <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => setRejectModal(fr)}>
+                                <XCircle className="h-4 w-4 mr-1" /> Reject
+                              </Button>
+                            </>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </>
       )}
 
       {approveModal && (
         <ApproveModal
           request={approveModal}
-          cashAccounts={cashAccounts}
           bulkCashierId={bulkCashierId}
           onClose={() => { setApproveModal(null); loadRequests(); }}
           onError={(msg) => toast({ variant: 'destructive', title: msg })}
@@ -447,25 +554,30 @@ export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrin
 
 export function ApproveModal({
   request,
-  cashAccounts,
   bulkCashierId,
   onClose,
   onError,
   onSuccess,
 }: {
   request: FloatRequest;
-  cashAccounts: Account[];
   bulkCashierId: string;
   onClose: () => void;
   onError: (msg: string) => void;
   onSuccess: (msg: string, printData?: FloatRequestPrintData) => void;
 }) {
-  const [fromAccountId, setFromAccountId] = useState('');
   const [denoms, setDenoms] = useState<DenominationEntry[]>(
     () => LKR_DENOMINATIONS.map((v) => ({ value: v, count: 0 }))
   );
   const [reasonForLess, setReasonForLess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [balanceCents, setBalanceCents] = useState<number | null>(null);
+
+  useEffect(() => {
+    getBulkCashierFloatBalanceAction().then((res) => {
+      if (res.success) setBalanceCents(res.balanceCents);
+      else setBalanceCents(0);
+    });
+  }, [request?.id]);
 
   const matchDenom = (a: number, b: number) => (a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6);
 
@@ -473,11 +585,12 @@ export function ApproveModal({
   const totalCents = lkrToCents(totalLKR);
   const maxCents = request.amountRequested;
   const isGivingLess = totalCents > 0 && totalCents < maxCents;
+  const insufficientBalance = balanceCents !== null && totalCents > 0 && totalCents > balanceCents;
   const valid =
-    fromAccountId &&
     totalCents > 0 &&
     totalCents <= maxCents &&
-    (!isGivingLess || reasonForLess.trim().length > 0);
+    (!isGivingLess || reasonForLess.trim().length > 0) &&
+    !insufficientBalance;
 
   const matchRequest = () => {
     const initial = Array.isArray(request.denominationsRequested) && request.denominationsRequested.length > 0
@@ -508,7 +621,6 @@ export function ApproveModal({
     const res = await approveFloatRequestAction({
       floatRequestId: request.id,
       approvedBy: bulkCashierId,
-      fromAccountId,
       denominationsApproved,
       reasonForLessThanRequested: isGivingLess ? reasonForLess.trim() : null,
     });
@@ -523,10 +635,21 @@ export function ApproveModal({
         <DialogHeader>
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
-            Select the cash account to give float from. You can give up to the requested amount (or less). Cannot give more than requested.
+            Float will be taken from your float account. You can give up to the requested amount (or less). Cannot give more than requested.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {balanceCents !== null && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Your float balance: </span>
+              <span className="font-medium tabular-nums">{(balanceCents / 100).toFixed(2)} LKR</span>
+              {insufficientBalance && (
+                <p className="mt-1.5 text-destructive font-medium">
+                  Insufficient balance. You have {(balanceCents / 100).toFixed(2)} LKR, required {(totalCents / 100).toFixed(2)} LKR.
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <Label>Requested (what they asked for)</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -552,19 +675,6 @@ export function ApproveModal({
                 Match request
               </Button>
             </div>
-          </div>
-          <div>
-            <Label>From account (source cash)</Label>
-            <Select value={fromAccountId} onValueChange={setFromAccountId}>
-              <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-              <SelectContent>
-                {cashAccounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name} {a.code ?? ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-4">
             <div className="flex flex-col items-center">

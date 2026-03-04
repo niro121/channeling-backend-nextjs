@@ -6,6 +6,23 @@ import { AccountType } from '@prisma/client';
 import { getAccountBalance } from './balance-calc.service';
 import { mapAccount } from './map-account';
 
+// --- getCashAccountByUserId (bulk cashier float account check) ---
+export async function getCashAccountByUserId(userId: string): Promise<Account | null> {
+  const row = await prisma.account.findFirst({
+    where: {
+      type: 'CASH',
+      userId,
+      isActive: true,
+    },
+    include: {
+      location: { select: { id: true, name: true } },
+      doctor: { select: { id: true, name: true, code: true } },
+      agency: { select: { id: true, name: true, code: true } },
+    },
+  });
+  return row ? mapAccount(row) : null;
+}
+
 // --- getMainCashBookAccount ---
 export async function getMainCashBookAccount(): Promise<Account | null> {
   const row = await prisma.account.findFirst({

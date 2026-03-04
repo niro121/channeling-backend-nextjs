@@ -16,7 +16,8 @@ import {
   rejectFloatRequest,
   cancelFloatRequest,
 } from '@/services/float-request.service';
-import { getAllAccounts, getCashierFloatBalance } from '@/services/accounting.service';
+import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
+import { fetchServerSession } from '@/lib/session';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -58,7 +59,6 @@ const cancelFloatRequestSchema = z.object({
 const approveFloatRequestSchema = z.object({
   floatRequestId: z.string().min(1, 'Float request is required'),
   approvedBy: z.string().min(1, 'Approver is required'),
-  fromAccountId: z.string().min(1, 'From account is required'),
   denominationsApproved: z.array(denominationEntrySchema).min(1, 'At least one denomination with count > 0 is required'),
   reasonForLessThanRequested: z.string().optional().nullable(),
 });
@@ -78,6 +78,78 @@ const declineApprovedFloatRequestSchema = z.object({
   floatRequestId: z.string().min(1, 'Float request is required'),
   reason: z.string().min(1, 'Cancel reason is required'),
 });
+
+/** Whether the current user (bulk cashier) has an associated CASH float account. Used to gate Float requests section. */
+export async function hasBulkCashierFloatAccountAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, hasFloatAccount: false };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    return { success: true, hasFloatAccount: !!account };
+  } catch (e) {
+    console.error('hasBulkCashierFloatAccountAction error:', e);
+    return { success: true, hasFloatAccount: false };
+  }
+}
+
+/** Current user's (bulk cashier) float account balance in cents. 0 if no float account. For balance check/warning in Approve modal. */
+export async function getBulkCashierFloatBalanceAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, balanceCents: 0 };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    if (!account) return { success: true, balanceCents: 0 };
+    const balanceCents = await getAccountBalance(account.id);
+    return { success: true, balanceCents };
+  } catch (e) {
+    console.error('getBulkCashierFloatBalanceAction error:', e);
+    return { success: true, balanceCents: 0 };
+  }
+}
+
+/** Bulk cashier float account summary: balance and account id (for statement link). Used for top bar on Bulk Cashier page. */
+export async function getBulkCashierFloatSummaryAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0 };
+  try {
+    const account = await getCashAccountByUserId(userId);
+    if (!account) return { success: true, floatAccountId: null, balanceCents: 0 };
+    const balanceCents = await getAccountBalance(account.id);
+    return { success: true, floatAccountId: account.id, balanceCents };
+  } catch (e) {
+    console.error('getBulkCashierFloatSummaryAction error:', e);
+    return { success: true, floatAccountId: null, balanceCents: 0 };
+  }
+}
+
+/** Create a CASH float account for the current user (bulk cashier). Requires linked staff for account code. */
+export async function createBulkCashierFloatAccountAction() {
+  await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, error: 'You must be signed in to create a float account.' };
+  }
+  try {
+    const result = await getOrCreateAccount({
+      type: 'CASH',
+      userId,
+      name: 'Bulk Cashier Float',
+    });
+    if (!result.success) return { success: false, error: result.error };
+    revalidatePath('/bulk-cashier');
+    return { success: true, message: 'Float account created. You can now approve float requests.' };
+  } catch (e) {
+    console.error('createBulkCashierFloatAccountAction error:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to create float account.' };
+  }
+}
 
 /** Cash accounts for bulk cashier to select "from account" when approving float */
 export async function getCashAccountsForFloatAction() {

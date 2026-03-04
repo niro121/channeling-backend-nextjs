@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getFloatRequestsForBulkCashierPaginatedAction,
   approveFloatRequestAction,
   rejectFloatRequestAction,
-  getCashAccountsForFloatAction,
 } from '@/app/actions/float-request.actions';
 import type { FloatRequest, FloatRequestPrintData } from '@/types/float-request';
-import type { Account } from '@/types/accounting';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { getFloatTransferColumns } from './columns';
 import FloatTransfersFilterSection from './filter-section';
@@ -42,17 +40,8 @@ export function FloatTransfersContent({
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
   const [summaryRequest, setSummaryRequest] = useState<FloatRequest | null>(null);
   const [printSlipData, setPrintSlipData] = useState<FloatRequestPrintData | null>(null);
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const { toast } = useToast();
   const router = useRouter();
-
-  useEffect(() => {
-    if (approveModal) {
-      getCashAccountsForFloatAction().then((res) => {
-        if (res.success && res.data) setCashAccounts(res.data);
-      });
-    }
-  }, [approveModal]);
 
   const columns = getFloatTransferColumns({
     onApprove: setApproveModal,
@@ -101,7 +90,6 @@ export function FloatTransfersContent({
       {approveModal && (
         <ApproveModal
           request={approveModal}
-          cashAccounts={cashAccounts}
           bulkCashierId={bulkCashierId}
           onClose={handleCloseApprove}
           onError={(msg) => toast({ variant: 'destructive', title: msg })}
