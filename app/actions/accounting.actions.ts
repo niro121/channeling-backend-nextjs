@@ -1,5 +1,6 @@
 'use server';
 
+import { z } from 'zod';
 import {
   getAllAccounts,
   getAccountById as getAccountByIdService,
@@ -8,6 +9,7 @@ import {
   getMainCashBookAccount,
   getBranchCashBalance,
   getFullInstituteCashBalance,
+  createJournalEntry as createJournalEntryService,
   type GetAllAccountsParams,
 } from '@/services/accounting.service';
 import type { CreateAccountInput } from '@/types/accounting';
@@ -163,5 +165,101 @@ export async function getInstituteCashBalance() {
   } catch (error: unknown) {
     console.error('getInstituteCashBalance action error:', error);
     return { success: false, data: 0 };
+  }
+}
+
+const journalLineSchema = z.object({
+  accountId: z.string().min(1, 'Account is required'),
+  debitLKR: z.number().min(0).optional(),
+  creditLKR: z.number().min(0).optional(),
+}).refine(
+  (data) => {
+    const hasDebit = data.debitLKR != null && data.debitLKR > 0;
+    const hasCredit = data.creditLKR != null && data.creditLKR > 0;
+    return hasDebit !== hasCredit && (hasDebit || hasCredit);
+  },
+  { message: 'Each line must have either debit or credit (not both, not zero)' }
+);
+
+const createJournalEntrySchema = z.object({
+  date: z.string().min(1, 'Date is required'),
+  description: z.string().min(1, 'Description is required'),
+  locationId: z.string().nullable().optional(),
+  lines: z.array(journalLineSchema).min(2, 'At least two lines are required'),
+}).refine(
+  (data) => {
+    const totalDebit = data.lines.reduce((s, l) => s + (l.debitLKR ?? 0), 0);
+    const totalCredit = data.lines.reduce((s, l) => s + (l.creditLKR ?? 0), 0);
+    return Math.abs(totalDebit - totalCredit) < 0.01;
+  },
+  { message: 'Total debits must equal total credits' }
+);
+
+export type CreateJournalEntryActionInput = z.infer<typeof createJournalEntrySchema>;
+
+export async function createJournalEntryAction(input: unknown) {
+  await requirePermission('accounting', 'add');
+
+  const parsed = createJournalEntrySchema.safeParse(input);
+  if (!parsed.success) {
+    const flat = parsed.error.flatten();
+    const message = flat.formErrors[0] ?? Object.values(flat.fieldErrors).flat().filter(Boolean)[0] ?? 'Validation failed';
+    return {
+      success: false as const,
+      error: message,
+      errorCode: 'VALIDATION_ERROR',
+      issues: flat.fieldErrors,
+    };
+  }
+
+  const { date, description, locationId, lines } = parsed.data;
+  const amountCents = (lkr: number) => Math.round(lkr * 100);
+
+  const journalLines = lines.map((l) => ({
+    accountId: l.accountId,
+    debitAmount: amountCents(l.debitLKR ?? 0),
+    creditAmount: amountCents(l.creditLKR ?? 0),
+    memo: null as string | null,
+  }));
+
+  const { fetchServerSession } = await import('@/lib/session');
+  const session = await fetchServerSession();
+  const createdBy = session?.user?.id ?? null;
+
+  try {
+    const result = await createJournalEntryService({
+      date: new Date(date),
+      description: description.trim(),
+      referenceType: 'Manual',
+      referenceId: null,
+      locationId: locationId ?? null,
+      createdBy,
+      lines: journalLines,
+    });
+
+    if (!result.success) {
+      return {
+        success: false as const,
+        error: result.error,
+        errorCode: result.errorCode,
+        issues: undefined,
+      };
+    }
+
+    revalidatePath('/accounting');
+    revalidatePath('/accounting/entries');
+    return {
+      success: true as const,
+      data: { journalId: result.journalId },
+      message: 'Journal entry created',
+    };
+  } catch (error: unknown) {
+    console.error('createJournalEntryAction error:', error);
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'Failed to create journal entry',
+      errorCode: 'SERVER_ERROR',
+      issues: undefined,
+    };
   }
 }

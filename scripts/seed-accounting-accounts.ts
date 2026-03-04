@@ -5,8 +5,9 @@
  * - One Payable account per Agency (agent accounts), linked to Agency
  * - One Payable account per Doctor (doctor accounts), linked to Doctor
  *
- * Only published entities (status === 1) are processed. Safe to run multiple times:
- * existing accounts (matched by type + locationId/agencyId/doctorId) are skipped.
+ * When run as a fresh seed, first removes all accounts and their journal entries
+ * (FloatRequest → JournalLine → Journal → Account), then creates accounts from scratch.
+ * Only published entities (status === 1) are processed.
  *
  * Run: npx tsx scripts/seed-accounting-accounts.ts
  */
@@ -18,6 +19,20 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding accounting accounts...\n");
+
+  // --- 0. Fresh seed: remove all accounting data (order respects FKs) ---
+  console.log("Removing existing accounting data...");
+  const deletedRequests = await prisma.floatRequest.deleteMany({});
+  console.log("  Deleted", deletedRequests.count, "float request(s).");
+  const deletedLines = await prisma.journalLine.deleteMany({});
+  console.log("  Deleted", deletedLines.count, "journal line(s).");
+  const deletedJournals = await prisma.journal.deleteMany({});
+  console.log("  Deleted", deletedJournals.count, "journal(s).");
+  // Clear parent link so Account self-relation doesn't block deleteMany
+  await prisma.account.updateMany({ data: { parentAccountId: null } });
+  const deletedAccounts = await prisma.account.deleteMany({});
+  console.log("  Deleted", deletedAccounts.count, "account(s).");
+  console.log("");
 
   // --- 1. Main Cash Book ---
   let mainCash = await prisma.account.findFirst({
