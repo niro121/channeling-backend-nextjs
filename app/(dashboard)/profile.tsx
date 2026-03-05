@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import SignOutButton from '@/components/common/signout-btn';
+import { dispatchSignOutRequested } from '@/app/(dashboard)/signout-shift-reminder';
 import { useSession } from 'next-auth/react';
 import { CustomDialog } from '@/components/common/custom-dialog';
 import { Profile2FADialogContent } from '@/app/_account/profile-2fa-dialog';
@@ -55,8 +55,8 @@ export function Profile() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user ? (
-            <DropdownMenuItem>
-              <SignOutButton />
+            <DropdownMenuItem onSelect={() => dispatchSignOutRequested()}>
+              Sign Out
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem asChild>
