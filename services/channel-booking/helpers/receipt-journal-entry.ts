@@ -83,7 +83,7 @@ export function buildReceiptJournalEntryInput(
         description: `Channel payment (agent)${descSuffix}`,
         referenceType: REFERENCE_TYPES.Receipt,
         referenceId: receipt.id,
-        locationId: receipt.locationId ?? null,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
@@ -97,10 +97,122 @@ export function buildReceiptJournalEntryInput(
       description: `Channel refund (agent)${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
-      locationId: receipt.locationId ?? null,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Branch Income (8) - cash in
+  if (receipt.method === RECEIPT_METHOD.BRANCH_INCOME && accounts.cashierAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Branch income (cash)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Branch Expense (9) - cash out
+  if (receipt.method === RECEIPT_METHOD.BRANCH_EXPENSE && accounts.cashierAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Branch expense (cash)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Agency Debit Note (2) - increase agency liability
+  if (receipt.method === RECEIPT_METHOD.DEBIT_NOTE && accounts.agentAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Agency debit note${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Agency Credit Note (3) - decrease agency liability
+  if (receipt.method === RECEIPT_METHOD.CREDIT_NOTE && accounts.agentAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Agency credit note${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Agency Deposit (6) - agency pays in (cash: use cashier; card/slip: branch only)
+  if (receipt.method === RECEIPT_METHOD.AGENCY_DEPOSIT && accounts.agentAccountId) {
+    const isAgencyDepositCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
+    if (isAgencyDepositCash && accounts.cashierAccountId) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Agency deposit (cash)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0 },
+          { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    // Card/slip: Dr Branch, Cr Agent (no cashier float)
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Agency deposit${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Ledger: Agency Withdraw (7) - agency takes out
+  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Agency withdraw${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
         { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };

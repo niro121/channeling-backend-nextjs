@@ -821,8 +821,8 @@ model Receipt {
   whd             Int     @default(0)
   whdPercentage   Float   @default(0)
 
-  bookingId      String    @db.ObjectId
-  booking        Booking   @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId      String?   @db.ObjectId
+  booking        Booking?  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
   agencyId       String?   @db.ObjectId
   agency         Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
   createdBy      String?   @db.ObjectId
@@ -988,4 +988,43 @@ model SmsLog {
   phone       String
   template    String
   createdAt   DateTime @default(now())
+}
+
+// Receipt templates: header/footer designed separately; main template has body + printer/size settings. Placeholders: {{name}}
+model ReceiptHeaderTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  content   String   // Text with placeholders: {{company_name}}, {{location_name}}, {{tel}}, {{email}}, {{web}}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  receipts  ReceiptTemplate[]
+}
+
+model ReceiptFooterTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  content   String   // Text with placeholders: {{generated_by}}, {{generated_at}}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  receipts  ReceiptTemplate[]
+}
+
+model ReceiptTemplate {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  name             String   // e.g. "Ledger Receipt - Slip"
+  type             String   // ledger, agent_receipt, expenses_note, debit_note
+  variant          String   // slip_printer | custom_size
+  headerTemplateId String?  @db.ObjectId
+  footerTemplateId String?  @db.ObjectId
+  bodyContent      String   // Main body with placeholders
+  paperWidthMm     Int?     // For slip_printer or custom_size (mm)
+  paperHeightMm    Int?     // Optional; null = continuous roll for slip
+  status           Int      @default(1) // 0 = inactive, 1 = active. One active per (type, variant) used at runtime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  headerTemplate ReceiptHeaderTemplate? @relation(fields: [headerTemplateId], references: [id], onDelete: SetNull)
+  footerTemplate ReceiptFooterTemplate? @relation(fields: [footerTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([type, variant, status])
 }

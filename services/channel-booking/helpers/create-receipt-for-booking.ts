@@ -41,6 +41,76 @@ export type CreateReceiptAndUpdateBookingResult =
 /** Transaction client (receipt + booking). */
 type Tx = Pick<PrismaClient, "receipt" | "booking">
 
+/** Params for creating a ledger receipt (no booking). */
+export type CreateReceiptWithoutBookingParams = {
+  paymentMethod: number
+  amount: number
+  bank?: string
+  bankId?: string | null
+  cardReference?: string
+  slipReference?: string
+  remarks: string
+  /** 0 CREDIT, 1 DEBIT */
+  type: number
+  /** 2 DEBIT_NOTE, 3 CREDIT_NOTE, 6 AGENCY_DEPOSIT, 7 AGENCY_WITHDRAW, 8 BRANCH_INCOME, 9 BRANCH_EXPENSE */
+  method: number
+  agencyId?: string | null
+  createdBy?: string | null
+  /** Branch/location for the transaction; used as locationId for branch types, userLocationId for agency ledger. */
+  locationId: string | null
+  /** For agency ledger methods (2,3,6,7), same as branch; passed to getReceiptSequenceInfo as userLocationId. */
+  userLocationId?: string | null
+}
+
+export type CreateReceiptWithoutBookingResult =
+  | { success: true; receipt: CreatedReceipt }
+  | { success: false; errorCode: string; message: string }
+
+/**
+ * Create a receipt without a booking (ledger transactions). Sequence is acquired then receipt created in tx.
+ */
+export async function createReceiptWithoutBooking(
+  tx: Pick<PrismaClient, "receipt">,
+  params: CreateReceiptWithoutBookingParams
+): Promise<CreateReceiptWithoutBookingResult> {
+  const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
+    params.locationId,
+    params.method,
+    params.userLocationId
+  )
+  const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
+  if (!seqResult.success) {
+    return { success: false, errorCode: "server_error", message: "Failed to get receipt number." }
+  }
+  const receiptNo = seqResult.value
+  const receiptNoString = formatReceiptNoString(receiptNo)
+
+  const receipt = await tx.receipt.create({
+    data: {
+      receiptNo,
+      receiptNoString,
+      paymentMethod: params.paymentMethod,
+      amount: params.amount,
+      bank: params.bank ?? "",
+      bankId: params.bankId ?? null,
+      cardReference: params.cardReference ?? "",
+      slipReference: params.slipReference ?? "",
+      remarks: params.remarks,
+      type: params.type,
+      method: params.method,
+      whd: 0,
+      whdPercentage: 0,
+      bookingId: null,
+      agencyId: params.agencyId ?? null,
+      createdBy: params.createdBy ?? null,
+      locationId: params.locationId ?? null,
+      userLocationId: params.userLocationId ?? params.locationId ?? null,
+    },
+  })
+
+  return { success: true, receipt }
+}
+
 /**
  * Get next receipt number, create receipt, and update booking in one transaction.
  * Sequence is acquired in its own transaction; receipt create + booking update run in the passed-in tx.

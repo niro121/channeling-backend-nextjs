@@ -88,6 +88,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   },
   { id: "float-transfers", name: "Float Transfers" },
   { id: "accounting", name: "Accounting" },
+  { id: "ledger", name: "Ledger" },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [

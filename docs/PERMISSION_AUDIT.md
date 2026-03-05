@@ -51,7 +51,18 @@ This document lists all components and their permission check status.
      - `createJournalEntryAction` – add
    - ✅ UI: "Add journal entry" and "Add account" toolbar buttons only shown when user has `accounting` **add** (via `AccountingToolbarActions` client component using `usePermissions`)
 
-5. **Shifts** (`/shifts`)
+5. **Ledger** (`/ledger`)
+   - ✅ Page: Has `checkRouteAccess("/ledger")` check; redirects to unauthorized if no view
+   - ✅ Add transaction (dialog): Requires `checkPermission("ledger", "add")`; add button disabled if no add
+   - ✅ View receipt (`/ledger/[id]/edit`): Has `checkRouteAccess("/ledger")` (view)
+   - ✅ Add page (`/ledger/add`): Requires `checkRouteAccess("/ledger")` + `checkPermission("ledger", "add")`; redirects if no add
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `listLedgerTransactions` – view
+     - `getLedgerReceipt` – view
+     - `addLedgerTransaction` – add
+   - ✅ UI: Sidebar link gated by `hasAccess('/ledger')`. "Add transaction" toolbar button only shown when user has `ledger` **add** (via `LedgerToolbarWithAddDialog` with `canAdd` prop).
+
+6. **Shifts** (`/shifts`)
    - ✅ Page: Has `checkRouteAccess("/shifts")` check; redirects to unauthorized if no view
    - ✅ Detail (`/shifts/[id]`): Has `checkRouteAccess("/shifts")` (view)
    - ✅ Server Actions: All shifts-manager actions have `requirePermission` checks
@@ -129,7 +140,7 @@ This document lists all components and their permission check status.
 ## Summary
 
 - **Total Components:** 17
-- **With Permission Checks:** 4 (Users, Channel Booking, Accounting, Shifts)
+- **With Permission Checks:** 5 (Users, Channel Booking, Accounting, Ledger, Shifts)
 - **Without Permission Checks:** 13
 
 ## Action Required
@@ -160,6 +171,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ agencies
 - ✅ discounts
 - ✅ accounting (view / add / edit / delete)
+- ✅ ledger (view / add / edit / delete – ledger transactions and receipts)
 - ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
 - ✅ shifts (view only – manager list and detail)
 
