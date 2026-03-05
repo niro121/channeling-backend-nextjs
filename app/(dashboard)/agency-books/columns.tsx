@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { AgencyBook } from '@/types/agencybook';
 import AgencyBookRecordActions from './record-actions';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import moment from 'moment';
 
 export const AgencyBookColumns: ColumnDef<AgencyBook>[] = [
   {
@@ -76,6 +77,36 @@ export const AgencyBookColumns: ColumnDef<AgencyBook>[] = [
         </Badge>
       );
     }
+  },
+  {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const name = (row.original as { updatedUser?: { name?: string | null } }).updatedUser?.name ?? '—';
+      const date = (row.original as { updatedAt?: Date }).updatedAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const name = (row.original as { createdUser?: { name?: string | null } }).createdUser?.name ?? '—';
+      const date = (row.original as { createdAt?: Date }).createdAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
   },
   {
     id: 'actions',

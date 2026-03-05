@@ -1,14 +1,14 @@
-'use client'
+'use client';
 
-import { ColumnDef } from '@tanstack/react-table'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { Staff } from '@/types/staff'
-import StaffRecordActions from './record-actions'
-import { CheckCircle2, XCircle } from 'lucide-react'
-import moment from 'moment'
+import { ColumnDef } from '@tanstack/react-table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import type { CreditCustomer } from '@/types/credit-customer';
+import CreditCustomerRecordActions from './record-actions';
+import { CheckCircle2, XCircle } from 'lucide-react';
+import moment from 'moment';
 
-export const staffColumns: ColumnDef<Staff>[] = [
+export const CreditCustomerColumns: ColumnDef<CreditCustomer>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -31,47 +31,54 @@ export const staffColumns: ColumnDef<Staff>[] = [
       />
     ),
     enableSorting: false,
-    enableHiding: false
+    enableHiding: false,
   },
   {
     accessorKey: 'code',
     header: 'Code',
     cell: ({ row }) => {
-      const code = row.getValue('code') as string
-      return code || <span className="text-muted-foreground">-</span>
-    }
+      const code = row.getValue('code') as string | null | undefined;
+      return code ? <span>{code}</span> : <span className="text-muted-foreground">-</span>;
+    },
   },
   {
     accessorKey: 'name',
     header: 'Name',
-    cell: ({ row }) => {
-      const title = row.original.title
-      const name = row.getValue('name') as string
-      return (
-        <span>
-          {title ? `${title} ` : ''}{name}
-        </span>
-      )
-    }
   },
   {
-    accessorKey: 'nic',
-    header: 'NIC',
-    cell: ({ row }) => {
-      const nic = row.getValue('nic') as string
-      return nic || <span className="text-muted-foreground">-</span>
-    }
+    accessorKey: 'contactPersonName',
+    header: 'Contact Person',
   },
   {
-    accessorKey: 'contactMobile',
-    header: 'Contact'
+    accessorKey: 'email',
+    header: 'Email',
+    cell: ({ row }) => {
+      const email = row.getValue('email') as string | null | undefined;
+      return email ? <span>{email}</span> : <span className="text-muted-foreground">-</span>;
+    },
+  },
+  {
+    accessorKey: 'phone',
+    header: 'Phone',
+    cell: ({ row }) => {
+      const phone = row.getValue('phone') as string | null | undefined;
+      return phone ? <span>{phone}</span> : <span className="text-muted-foreground">-</span>;
+    },
+  },
+  {
+    accessorKey: 'balance',
+    header: 'Balance',
+    cell: ({ row }) => {
+      const balance = row.getValue('balance') as number | undefined;
+      return <span>{balance != null ? Number(balance).toFixed(2) : '0.00'}</span>;
+    },
   },
   {
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = row.getValue('status') as number
-      const isActive = status === 1
+      const status = row.getValue('status') as number | undefined;
+      const isActive = status === 1;
       return (
         <Badge
           variant={isActive ? 'default' : 'secondary'}
@@ -81,21 +88,26 @@ export const staffColumns: ColumnDef<Staff>[] = [
               : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
           }
         >
-          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isActive ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <XCircle className="h-4 w-4" />
+          )}
           {isActive ? 'Published' : 'Unpublished'}
         </Badge>
-      )
-    }
+      );
+    },
   },
   {
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => {
+      const name = (row.original as { updatedUser?: { name?: string | null } }).updatedUser?.name ?? '—';
       const date = (row.original as { updatedAt?: Date }).updatedAt;
       const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
       return (
         <div className="flex flex-col gap-0.5 text-xs">
-          <span className="text-muted-foreground">—</span>
+          <span>{name}</span>
           <span className="text-muted-foreground">{formatted}</span>
         </div>
       );
@@ -105,11 +117,12 @@ export const staffColumns: ColumnDef<Staff>[] = [
     id: 'created',
     header: 'Created',
     cell: ({ row }) => {
+      const name = (row.original as { createdUser?: { name?: string | null } }).createdUser?.name ?? '—';
       const date = (row.original as { createdAt?: Date }).createdAt;
       const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
       return (
         <div className="flex flex-col gap-0.5 text-xs">
-          <span className="text-muted-foreground">—</span>
+          <span>{name}</span>
           <span className="text-muted-foreground">{formatted}</span>
         </div>
       );
@@ -118,6 +131,6 @@ export const staffColumns: ColumnDef<Staff>[] = [
   {
     id: 'actions',
     header: () => <div className="text-right">Actions</div>,
-    cell: ({ row }) => <StaffRecordActions row={row} />
-  }
-]
+    cell: ({ row }) => <CreditCustomerRecordActions row={row} />,
+  },
+];

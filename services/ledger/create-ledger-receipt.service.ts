@@ -124,7 +124,7 @@ export async function createLedgerReceipt(
     locationId: input.branchId,
     createdBy: input.createdBy,
     agencyId: input.agencyId ?? null,
-    isCash: needCashierAccount,
+    needTill: needCashierAccount,
   })
   if (!accounts) {
     return {
@@ -139,9 +139,9 @@ export async function createLedgerReceipt(
       locationId: input.branchId,
       createdBy: input.createdBy,
       agencyId: input.agencyId ?? null,
-      isCash: needCashierAccount,
+      needTill: needCashierAccount,
     },
-    { isCash: needCashierAccount, isAgent: isAgency }
+    { needTill: needCashierAccount, isAgent: isAgency }
   )
   if (!reqResult.success) {
     return { success: false, errorCode: reqResult.errorCode, message: reqResult.error }

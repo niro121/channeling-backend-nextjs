@@ -168,7 +168,9 @@ export const getDoctorLeavesService = async ({
         include: {
           doctor: {
             select: { id: true, name: true, code: true }
-          }
+          },
+          createdUser: { select: { id: true, name: true } },
+          updatedUser: { select: { id: true, name: true } }
         }
       }),
       prisma.doctorLeave.count({

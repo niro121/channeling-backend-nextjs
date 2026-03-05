@@ -83,20 +83,34 @@ export function EditLedgerTransactionDialog({
     if (!receipt) return
     const placeholders = buildPlaceholdersForLedger(receipt)
     const html = buildReceiptPrintHtml(receipt, placeholders, dbTemplate)
-    const printWin = window.open("", "_blank", "noopener,noreferrer")
-    if (!printWin) {
-      alert("Please allow pop-ups to print the receipt.")
+    const iframe = document.createElement("iframe")
+    iframe.setAttribute("style", "position:absolute;width:0;height:0;border:0;visibility:hidden")
+    document.body.appendChild(iframe)
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
+    if (!doc) {
+      document.body.removeChild(iframe)
       return
     }
-    printWin.document.write(html)
-    printWin.document.close()
-    printWin.focus()
-    const doPrint = () => {
-      printWin.print()
-      printWin.onafterprint = () => printWin.close()
+    doc.open()
+    doc.write(html)
+    doc.close()
+    const win = iframe.contentWindow
+    if (!win) {
+      document.body.removeChild(iframe)
+      return
     }
-    if (printWin.document.readyState === "complete") doPrint()
-    else printWin.onload = doPrint
+    const runPrint = () => {
+      win.focus()
+      win.print()
+      setTimeout(() => {
+        if (iframe.parentNode) document.body.removeChild(iframe)
+      }, 500)
+    }
+    if (doc.readyState === "complete") {
+      setTimeout(runPrint, 100)
+    } else {
+      iframe.onload = () => setTimeout(runPrint, 100)
+    }
   }
 
   return (

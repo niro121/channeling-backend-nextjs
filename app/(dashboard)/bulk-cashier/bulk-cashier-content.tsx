@@ -163,7 +163,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         </div>
         {floatSummary?.floatAccountId && (
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/accounting/accounts/${floatSummary.floatAccountId}/statement`}>
+            <Link href={`/accounting/${floatSummary.floatAccountId}/statement`}>
               <FileText className="h-4 w-4 mr-2" />
               Statement
             </Link>

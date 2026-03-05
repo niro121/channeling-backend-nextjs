@@ -25,6 +25,7 @@ export const RECEIPT_PAYMENT_METHOD = {
   CHECK: 3,
   AGENT: 4,
   CREDIT: 5,
+  E_WALLET: 6,
 } as const;
 
 export const PAYMENT_METHOD_NAMES: Record<number, string> = {
@@ -33,7 +34,8 @@ export const PAYMENT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_PAYMENT_METHOD.SLIP]: 'Slip',
   [RECEIPT_PAYMENT_METHOD.CHECK]: 'Cheque',
   [RECEIPT_PAYMENT_METHOD.AGENT]: 'Agent',
-  [RECEIPT_PAYMENT_METHOD.CREDIT]: 'Credit',
+  [RECEIPT_PAYMENT_METHOD.CREDIT]: 'Credit Customer',
+  [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'E-Wallet',
 };
 
 export const RECEIPT_METHOD_NAMES: Record<number, string> = {

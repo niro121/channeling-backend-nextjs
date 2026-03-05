@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,7 +15,7 @@ import SignOutButton from '@/components/common/signout-btn';
 import { useSession } from 'next-auth/react';
 import { CustomDialog } from '@/components/common/custom-dialog';
 import { Profile2FADialogContent } from '@/app/_account/profile-2fa-dialog';
-import { UserCircle } from 'lucide-react';
+import { UserCircle, Wallet } from 'lucide-react';
 
 function getInitial(name?: string | null, email?: string | null): string {
   if (name?.trim()) return name.trim().charAt(0).toUpperCase();
@@ -52,6 +53,12 @@ export function Profile() {
           >
             <UserCircle className="h-4 w-4" />
             Profile & 2FA
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/my-till" className="gap-2 cursor-pointer">
+              <Wallet className="h-4 w-4" />
+              My Till
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {user ? (

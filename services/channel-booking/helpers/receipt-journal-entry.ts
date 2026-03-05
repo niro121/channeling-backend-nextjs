@@ -44,7 +44,7 @@ export function buildReceiptJournalEntryInput(
   const hasAgent =
     receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT && Boolean(accounts.agentAccountId);
 
-  // Cash: affect cashier float
+  // Till: cash — affect cashier till with paymentMethod 0
   if (isCash && accounts.cashierAccountId) {
     if (isPayment) {
       return {
@@ -55,12 +55,11 @@ export function buildReceiptJournalEntryInput(
         locationId: receipt.locationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0 },
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
           { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
         ],
       };
     }
-    // Refund
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (cash)${descSuffix}`,
@@ -70,7 +69,162 @@ export function buildReceiptJournalEntryInput(
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
+      ],
+    };
+  }
+
+  // Till: card — channel payment/refund
+  const isCard = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD;
+  if (isCard && accounts.cashierAccountId) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (card)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT_CARD },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (card)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT_CARD },
+      ],
+    };
+  }
+
+  // Till: slip — channel payment/refund
+  const isSlip = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP;
+  if (isSlip && accounts.cashierAccountId) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (slip)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.SLIP },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (slip)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.SLIP },
+      ],
+    };
+  }
+
+  // Till: check — channel payment/refund
+  const isCheck = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK;
+  if (isCheck && accounts.cashierAccountId) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (check)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CHECK },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (check)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CHECK },
+      ],
+    };
+  }
+
+  // Till: credit (credit customer) — channel payment/refund
+  const isCredit = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT;
+  if (isCredit && accounts.cashierAccountId) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (credit)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (credit)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT },
+      ],
+    };
+  }
+
+  // Till: e-wallet — channel payment/refund
+  const isEWallet = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET;
+  if (isEWallet && accounts.cashierAccountId) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (e-wallet)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.E_WALLET },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (e-wallet)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.E_WALLET },
       ],
     };
   }
@@ -106,7 +260,7 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Branch Income (8) - cash in
+  // Ledger: Branch Income (8) - cash in (till)
   if (receipt.method === RECEIPT_METHOD.BRANCH_INCOME && accounts.cashierAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
@@ -116,13 +270,13 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
         { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
 
-  // Ledger: Branch Expense (9) - cash out
+  // Ledger: Branch Expense (9) - cash out (till)
   if (receipt.method === RECEIPT_METHOD.BRANCH_EXPENSE && accounts.cashierAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
@@ -133,7 +287,7 @@ export function buildReceiptJournalEntryInput(
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
       ],
     };
   }
@@ -182,7 +336,7 @@ export function buildReceiptJournalEntryInput(
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0 },
+          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
           { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
         ],
       };
@@ -230,8 +384,8 @@ export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
   createdBy: string | null;
   agencyId: string | null;
-  /** True if receipt is cash (paymentMethod 0); then we need cashier account. */
-  isCash: boolean;
+  /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
+  needTill: boolean;
 }): Promise<ReceiptJournalAccounts | null> {
   const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
     '@/services/accounting.service'
@@ -243,11 +397,11 @@ export async function resolveReceiptJournalAccounts(params: {
   if (!branchAccount) return null;
 
   let cashierAccountId: string | null = null;
-  if (params.isCash && params.createdBy) {
+  if (params.needTill && params.createdBy) {
     const res = await getOrCreateAccount({
       type: 'CASH',
       userId: params.createdBy,
-      name: `Float - Cashier`,
+      name: `Till - Cashier`,
       minBalanceAllowed: 0,
     });
     if (res.success) cashierAccountId = res.account.id;
@@ -274,7 +428,7 @@ export type RequireReceiptJournalAccountsResult =
   | { success: false; error: string; errorCode: string };
 
 /**
- * When the receipt will require a journal (cash or agent), resolve accounts and validate.
+ * When the receipt will require a journal (till/cash/card/slip or agent), resolve accounts and validate.
  * Call before starting the transaction. If validation fails, return error so booking/settlement/refund is not completed.
  */
 export async function requireReceiptJournalAccounts(
@@ -282,9 +436,9 @@ export async function requireReceiptJournalAccounts(
     locationId: string | null;
     createdBy: string | null;
     agencyId: string | null;
-    isCash: boolean;
+    needTill: boolean;
   },
-  options: { isCash: boolean; isAgent: boolean }
+  options: { needTill: boolean; isAgent: boolean }
 ): Promise<RequireReceiptJournalAccountsResult> {
   const accounts = await resolveReceiptJournalAccounts(params);
   if (!accounts) {
@@ -295,10 +449,10 @@ export async function requireReceiptJournalAccounts(
       errorCode: 'CASH_BOOK_NOT_FOUND',
     };
   }
-  if (options.isCash && !accounts.cashierAccountId) {
+  if (options.needTill && !accounts.cashierAccountId) {
     return {
       success: false,
-      error: 'Cashier float account could not be created. Cannot complete cash payment.',
+      error: 'Till account could not be created. Cannot complete payment or refund.',
       errorCode: 'CASHIER_ACCOUNT_ERROR',
     };
   }

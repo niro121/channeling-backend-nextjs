@@ -13,6 +13,7 @@ import {
   Tags,
   MapPinned,
   Landmark,
+  CreditCard,
   BookOpen,
   Users,
   FileText,
@@ -135,10 +136,11 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
           <SidebarGroup label="Agency & billing">
             {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
             {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
+            {hasAccess("/credit-customers") && <NavLink href="/credit-customers" label="Credit Customers" icon={<CreditCard className="h-5 w-5" />} />}
             {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
             {hasAccess("/accounting") && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
             {hasAccess("/ledger") && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}

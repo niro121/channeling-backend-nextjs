@@ -56,6 +56,10 @@ model User {
   createdVoucherCodes     VoucherCode[]                  @relation("UserCreatedVouchers")
   updatedVoucherCodes     VoucherCode[]                  @relation("UserUpdatedVouchers")
   agencies                Agency[]                       @relation("AgencyUser")
+  createdAgencies         Agency[]                       @relation("UserCreatedAgencies")
+  updatedAgencies         Agency[]                       @relation("UserUpdatedAgencies")
+  createdCreditCustomers  CreditCustomer[]              @relation("UserCreatedCreditCustomers")
+  updatedCreditCustomers  CreditCustomer[]              @relation("UserUpdatedCreditCustomers")
   createdSessions         Session[]                      @relation("UserCreatedSessions")
   updatedSessions         Session[]                      @relation("UserUpdatedSessions")
   createdLogs             Log[]                          @relation("UserCreatedLogs")
@@ -725,10 +729,47 @@ model Agency {
   accounts      Account[]    @relation("AgencyToAccount")
 
   // ==== AUDIT FIELDS ==== //
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdUser User?    @relation("UserCreatedAgencies", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedAgencies", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+/// Credit customers (companies) for payment method Credit — basic details; balance via linked RECEIVABLE account.
+model CreditCustomer {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  code String? @unique
+
+  // ==== CONTACT ==== //
+  phone  String?
+  mobile String?
+  email  String?
+
+  // ==== ADDRESS ==== //
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+
+  // ==== CONTACT PERSON ==== //
+  contactPersonName   String
+  contactPersonPhone  String?
+  contactPersonEmail  String?
+
+  // ==== SETTINGS ==== //
+  status Int? @default(1) // 0 = Unpublished, 1 = Published
+
+  // ==== AUDIT ==== //
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?   @db.ObjectId
+  updatedBy   String?   @db.ObjectId
+  createdUser User?     @relation("UserCreatedCreditCustomers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?     @relation("UserUpdatedCreditCustomers", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  accounts Account[] @relation("CreditCustomerToAccount")
 }
 
 model Booking {
@@ -856,6 +897,8 @@ model Account {
   doctor              Doctor?      @relation("DoctorToAccount", fields: [doctorId], references: [id], onDelete: SetNull)
   agencyId            String?      @db.ObjectId
   agency              Agency?      @relation("AgencyToAccount", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId    String?      @db.ObjectId
+  creditCustomer      CreditCustomer? @relation("CreditCustomerToAccount", fields: [creditCustomerId], references: [id], onDelete: SetNull)
   userId              String?      @db.ObjectId
   user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
   minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
@@ -893,6 +936,8 @@ model JournalLine {
   debitAmount   Int      @default(0) // In smallest unit (e.g. cents)
   creditAmount  Int      @default(0)
   memo          String?  @default("")
+  /// Till breakdown: 0 = cash, 1 = card, 2 = slip (null = not a till line or legacy)
+  paymentMethod Int?
 
   @@index([journalId])
   @@index([accountId])

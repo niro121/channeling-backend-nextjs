@@ -13,17 +13,20 @@ export {
   getCashAccountByUserId,
   getOrCreateAccount,
   createAccount,
+  updateAccount,
   getAccountById,
   getAllAccounts,
   type GetOrCreateAccountParams,
   type GetAllAccountsParams,
 } from './account.service';
 
-// Balance (branch / cashier / institute)
+// Balance (branch / cashier / institute / till)
 export {
   getBranchCashBalance,
   getCashierFloatBalance,
   getFullInstituteCashBalance,
+  getTillBalanceBreakdown,
+  type TillBalanceBreakdown,
 } from './balance.service';
 
 // Journals

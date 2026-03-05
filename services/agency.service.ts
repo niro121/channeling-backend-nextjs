@@ -12,6 +12,8 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
+import { createAccount } from '@/services/accounting/account.service';
+import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
 // ==== AGENCY: VALIDATION SCHEMA ==== //
 const agencySchema = z.object({
@@ -166,13 +168,19 @@ export const getAllAgenciesService = async ({
       whereClause.parentAgencyId = parentAgencyId;
     }
 
-    const records = await prisma.agency.findMany({
+    const rows = await prisma.agency.findMany({
       skip: skip,
       take: validLimit,
       where: whereClause,
       include: {
         parentAgency: true,
-        user: true
+        user: true,
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } },
+        accounts: {
+          where: { type: 'PAYABLE', isActive: true },
+          take: 1
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -182,6 +190,21 @@ export const getAllAgenciesService = async ({
     const totalRecords = await prisma.agency.count({
       where: whereClause
     });
+
+    const records = await Promise.all(
+      rows.map(async (row) => {
+        const acc = row.accounts?.[0];
+        const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const { accounts: _a, ...rest } = row;
+        return {
+          ...rest,
+          balance: balanceCents / 100,
+          accountId: acc?.id ?? null,
+          accountName: acc?.name ?? null,
+          accountCode: acc?.code ?? null
+        };
+      })
+    );
 
     return {
       success: true,
@@ -277,7 +300,11 @@ export const getAgencyByIdService = async (
       where: { id: id },
       include: {
         parentAgency: true,
-        user: true
+        user: true,
+        accounts: {
+          where: { type: 'PAYABLE', isActive: true },
+          take: 1
+        }
       }
     });
 
@@ -290,9 +317,20 @@ export const getAgencyByIdService = async (
       };
     }
 
+    const acc = agency.accounts?.[0];
+    const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+    const { accounts: _accounts, ...rest } = agency;
+    const data = {
+      ...rest,
+      balance: balanceCents / 100,
+      accountId: acc?.id ?? null,
+      accountName: acc?.name ?? null,
+      accountCode: acc?.code ?? null
+    };
+
     return {
       success: true,
-      data: agency,
+      data,
       message: 'Agency fetched successfully'
     };
   } catch (error: any) {
@@ -403,6 +441,21 @@ export const createAgencyService = async (
         user: true
       }
     });
+
+    const accountResult = await createAccount({
+      name: `Agency - ${agency.name}`,
+      type: 'PAYABLE',
+      agencyId: agency.id
+    });
+    if (!accountResult.success) {
+      await prisma.agency.delete({ where: { id: agency.id } }).catch(() => {});
+      return {
+        success: false,
+        error: {
+          message: accountResult.error ?? 'Failed to create accounting account for agency'
+        }
+      };
+    }
 
     return {
       success: true,

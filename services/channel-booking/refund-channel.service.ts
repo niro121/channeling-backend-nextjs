@@ -59,9 +59,9 @@ export async function refundChannelService(
     if (booking.status === 1) {
       // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
-      const isCash = refundTo === 0
+      const needTill = [0, 1, 2, 3, 5, 6].includes(refundTo) // cash, card, slip, check, credit, e-wallet
       const isAgent = refundTo === 4
-      const needJournal = isCash || isAgent
+      const needJournal = needTill || isAgent
       let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
       if (needJournal) {
         const reqResult = await requireReceiptJournalAccounts(
@@ -69,9 +69,9 @@ export async function refundChannelService(
             locationId: booking.locationId ?? null,
             createdBy: userId,
             agencyId: booking.agencyId ?? null,
-            isCash,
+            needTill,
           },
-          { isCash, isAgent }
+          { needTill, isAgent }
         )
         if (!reqResult.success) {
           return {
@@ -86,7 +86,7 @@ export async function refundChannelService(
           locationId: booking.locationId ?? null,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
-          isCash,
+          needTill,
         })
       }
       const journalNumberResult = accounts
@@ -132,7 +132,7 @@ export async function refundChannelService(
       if (!result.success) {
         return { success: false, errorCode: result.errorCode, message: result.message }
       }
-      if (refundTo === 0 && userId) {
+      if (needTill && userId) {
         const io = getIO()
         if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
       }
@@ -157,9 +157,9 @@ export async function refundChannelService(
     else if (input.hospital_fee > 0) refundType = 2
     else if (input.professional_fee > 0) refundType = 1
 
-    const isCash = refundTo === 0
+    const needTill = [0, 1, 2, 3, 5, 6].includes(refundTo) // cash, card, slip, check, credit, e-wallet
     const isAgent = refundTo === 4
-    const needJournal = isCash || isAgent
+    const needJournal = needTill || isAgent
     let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
     if (needJournal) {
       const reqResult = await requireReceiptJournalAccounts(
@@ -167,9 +167,9 @@ export async function refundChannelService(
           locationId: booking.locationId ?? null,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
-          isCash,
+          needTill,
         },
-        { isCash, isAgent }
+        { needTill, isAgent }
       )
       if (!reqResult.success) {
         return {
@@ -184,7 +184,7 @@ export async function refundChannelService(
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
-        isCash,
+        needTill,
       })
     }
     const journalNumberResult = accounts
@@ -227,7 +227,7 @@ export async function refundChannelService(
     if (!result.success) {
       return { success: false, errorCode: result.errorCode, message: result.message }
     }
-    if (refundTo === 0 && userId) {
+    if (needTill && userId) {
       const io = getIO()
       if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
     }

@@ -18,6 +18,8 @@ export {
   getBranchCashBalance,
   getCashierFloatBalance,
   getFullInstituteCashBalance,
+  getTillBalanceBreakdown,
+  type TillBalanceBreakdown,
   createJournalEntry,
   createJournalEntryInTransaction,
   getAccountStatement,

@@ -11,11 +11,14 @@ import * as Yup from 'yup';
 import {
   createAgency,
   updateAgency,
-  createAgencyLogin
+  createAgencyLogin,
+  createAgencyAccount
 } from '@/app/actions/agency.actions';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
+import { BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
@@ -66,6 +69,7 @@ const AgencyForm = ({
   };
 
   const [loading, setLoading] = useState<boolean>(false);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [tab, setTab] = useState('agencyDetails');
   const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
@@ -283,6 +287,92 @@ const AgencyForm = ({
               </TabsList>
 
               <TabsContent value="agencyDetails">
+                {isEditPage && agency && (
+                  <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-6 mb-6">
+                    <h3 className="text-lg font-semibold">Balance</h3>
+                    {agency.accountId ? (
+                      <>
+                        <div className={styleClasses.parentDiv}>
+                          <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
+                          <div className={styleClasses.inputClassName}>
+                            <span className="font-medium tabular-nums">
+                              {Number(agency.balance ?? 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className={styleClasses.parentDiv}>
+                          <Label className={styleClasses.labelClassName}>Linked account</Label>
+                          <div className={styleClasses.inputClassName}>
+                            <span className="text-muted-foreground">
+                              {agency.accountName ?? agency.accountCode ?? '—'}
+                              {agency.accountCode && agency.accountName
+                                ? ` (${agency.accountCode})`
+                                : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            asChild
+                          >
+                            <Link href={`/accounting/${agency.accountId}/statement`}>
+                              <BookOpen className="h-4 w-4" />
+                              Statement
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            asChild
+                          >
+                            <Link href={`/accounting/${agency.accountId}/statement`} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                              Open account
+                            </Link>
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-muted-foreground text-sm">No GL account linked. Create one to track balance and view statement.</p>
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          disabled={creatingAccount}
+                          onClick={async () => {
+                            if (!agency.id) return;
+                            setCreatingAccount(true);
+                            try {
+                              const res = await createAgencyAccount(agency.id);
+                              if (res.success) {
+                                toast({
+                                  variant: 'success',
+                                  title: 'Success',
+                                  description: res.message ?? 'GL account created.',
+                                });
+                                router.refresh();
+                              } else {
+                                toast({
+                                  variant: 'destructive',
+                                  title: 'Error',
+                                  description: res.message ?? 'Failed to create GL account.',
+                                });
+                              }
+                            } finally {
+                              setCreatingAccount(false);
+                            }
+                          }}
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                          {creatingAccount ? 'Creating…' : 'Create GL account'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="grid gap-4 border rounded-lg p-6">
                   {/* Name */}
                   <CustomFormField

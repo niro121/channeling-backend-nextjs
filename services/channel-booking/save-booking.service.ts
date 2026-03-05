@@ -310,7 +310,8 @@ export async function saveBookingService(
         input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
       const isCash = input.payment_type === 0
       const isAgent = input.payment_type === 4
-      const needJournal = isCash || isAgent
+      const needTill = [0, 1, 2, 3, 5, 6].includes(input.payment_type) // cash, card, slip, check, credit, e-wallet (not agent)
+      const needJournal = needTill || isAgent
       try {
         let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
         if (needJournal) {
@@ -319,9 +320,9 @@ export async function saveBookingService(
               locationId: booking.locationId ?? null,
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
-              isCash,
+              needTill,
             },
-            { isCash, isAgent }
+            { needTill, isAgent }
           )
           if (!reqResult.success) {
             return {
@@ -336,7 +337,7 @@ export async function saveBookingService(
             locationId: booking.locationId ?? null,
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
-            isCash,
+            needTill,
           })
         }
         const journalNumberResult = accounts
@@ -382,7 +383,7 @@ export async function saveBookingService(
           }
           return receipt
         })
-        if (input.payment_type === 0 && userId) {
+        if (needTill && userId) {
           const io = getIO()
           if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
         }

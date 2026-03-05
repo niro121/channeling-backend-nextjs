@@ -135,8 +135,8 @@ export async function settleBookingService(
 
   const amount = booking.amount - discount
 
-  const isCash = input.settle_method === 0
-  const needJournal = isCash
+  const needTill = [0, 1, 2, 3, 5, 6].includes(input.settle_method) // cash, card, slip, check, credit, e-wallet
+  const needJournal = needTill
   let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
   if (needJournal) {
     const reqResult = await requireReceiptJournalAccounts(
@@ -144,9 +144,9 @@ export async function settleBookingService(
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
-        isCash,
+        needTill,
       },
-      { isCash, isAgent: false }
+      { needTill, isAgent: false }
     )
     if (!reqResult.success) {
       return {
@@ -161,7 +161,7 @@ export async function settleBookingService(
       locationId: booking.locationId ?? null,
       createdBy: userId,
       agencyId: booking.agencyId ?? null,
-      isCash,
+      needTill,
     })
   }
   const journalNumberResult = accounts
@@ -216,7 +216,7 @@ export async function settleBookingService(
     return { success: false, errorCode: result.errorCode, message: result.message }
   }
 
-  if (input.settle_method === 0 && userId) {
+  if (needTill && userId) {
     const io = getIO()
     if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
   }

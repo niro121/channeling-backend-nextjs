@@ -3,8 +3,8 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Account } from '@/types/accounting';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { FileText } from 'lucide-react';
+import moment from 'moment';
+import { AccountRecordActions } from './account-record-actions';
 
 type AccountWithBalance = Account & { balance?: number };
 
@@ -20,6 +20,19 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
   {
     accessorKey: 'name',
     header: 'Name',
+    cell: ({ row }) => {
+      const id = row.original.id;
+      const name = row.getValue('name') as string;
+      if (!id) return name;
+      return (
+        <Link
+          href={`/accounting/${id}/edit`}
+          className="font-medium text-primary hover:underline"
+        >
+          {name}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: 'type',
@@ -31,12 +44,13 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
   },
   {
     id: 'entity',
-    header: 'Location / Doctor / Agency',
+    header: 'Location / Doctor / Agency / Credit Customer',
     cell: ({ row }) => {
       const acc = row.original;
       if (acc.location) return <span>{acc.location.name}</span>;
       if (acc.doctor) return <span>{acc.doctor.name} ({acc.doctor.code})</span>;
       if (acc.agency) return <span>{acc.agency.name} ({acc.agency.code ?? '-'})</span>;
+      if (acc.creditCustomer) return <span>{acc.creditCustomer.name} ({acc.creditCustomer.code ?? '-'})</span>;
       return <span className="text-muted-foreground">-</span>;
     },
   },
@@ -59,16 +73,39 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
     },
   },
   {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const date = row.original.updatedAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const date = row.original.createdAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
     id: 'actions',
     header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => (
       <div className="text-right">
-        <Link href={`/accounting/accounts/${row.original.id}/statement`}>
-          <Button variant="ghost" size="sm" className="gap-1">
-            <FileText className="h-4 w-4" />
-            Statement
-          </Button>
-        </Link>
+        <AccountRecordActions row={row} />
       </div>
     ),
   },
