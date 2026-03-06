@@ -24,6 +24,7 @@ import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
 import prisma from '@/lib/prisma';
 import { requirePermission } from '@/lib/server-permissions';
+import { getOrCreateAccount } from '@/services/accounting/account.service';
 
 // ==== GET ALL AGENCIES ==== //
 export const getAllAgencies = async (params: GetAgenciesParams) => {
@@ -96,6 +97,7 @@ export const getAgencyById = async (
   message?: string;
   error?: { message?: string };
 }> => {
+  await requirePermission('agencies', 'view');
   try {
     const result = await getAgencyByIdService(id);
 
@@ -124,6 +126,36 @@ export const getAgencyById = async (
     };
   }
 };
+
+// ==== CREATE GL ACCOUNT FOR AGENCY (when missing on edit) ==== //
+export async function createAgencyAccount(agencyId: string) {
+  await requirePermission('accounting', 'edit');
+  try {
+    const agency = await prisma.agency.findUnique({
+      where: { id: agencyId },
+      select: { id: true, name: true },
+    });
+    if (!agency) {
+      return { success: false, message: 'Agency not found' };
+    }
+    const result = await getOrCreateAccount({
+      type: 'PAYABLE',
+      agencyId: agency.id,
+      name: `Agency - ${agency.name}`,
+    });
+    if (!result.success) {
+      return { success: false, message: result.error ?? 'Failed to create GL account' };
+    }
+    revalidatePath('/agencies');
+    revalidatePath(`/agencies/${agencyId}/edit`);
+    return { success: true, message: 'GL account created', accountId: result.account.id };
+  } catch (e: unknown) {
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : 'Failed to create GL account',
+    };
+  }
+}
 
 // ==== CREATE AGENCY ==== //
 export const createAgency = async (

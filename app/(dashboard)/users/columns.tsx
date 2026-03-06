@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { User } from "@/types/user"
 import UserRecordActions from "./record-actions"
 import { CheckCircle2, XCircle } from "lucide-react"
+import moment from "moment"
 
 export const userColumns: ColumnDef<User>[] = [
     {
@@ -63,6 +64,34 @@ export const userColumns: ColumnDef<User>[] = [
                     {isActive ? "Published" : "Unpublished"}
                 </Badge>
             )
+        },
+    },
+    {
+        id: "updated",
+        header: "Updated",
+        cell: ({ row }) => {
+            const date = row.original.updatedAt;
+            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">{formatted}</span>
+                </div>
+            );
+        },
+    },
+    {
+        id: "created",
+        header: "Created",
+        cell: ({ row }) => {
+            const date = row.original.createdAt;
+            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">{formatted}</span>
+                </div>
+            );
         },
     },
     {

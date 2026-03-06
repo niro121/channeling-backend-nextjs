@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Patient } from '@/types/patient';
 import PatientRecordActions from './record-actions';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import moment from 'moment';
 
 export const patientColumns: ColumnDef<Patient>[] = [
   {
@@ -81,6 +82,34 @@ export const patientColumns: ColumnDef<Patient>[] = [
         </Badge>
       );
     }
+  },
+  {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const date = (row.original as { updatedAt?: Date }).updatedAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const date = (row.original as { createdAt?: Date }).createdAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
   },
   {
     id: 'actions',

@@ -80,6 +80,7 @@ export async function createJournalEntry(
       debitAmount: l.debitAmount,
       creditAmount: l.creditAmount,
       memo: l.memo ?? '',
+      paymentMethod: l.paymentMethod ?? null,
     })),
   });
 
@@ -157,6 +158,7 @@ export async function createJournalEntryInTransaction(
       debitAmount: l.debitAmount,
       creditAmount: l.creditAmount,
       memo: l.memo ?? '',
+      paymentMethod: l.paymentMethod ?? null,
     })),
   });
 

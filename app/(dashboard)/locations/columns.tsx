@@ -4,8 +4,14 @@ import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Location, LOCATION_OPTIONS } from '@/types/location';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
 import { LocationRecordActions } from './record-actions';
 
@@ -90,6 +96,35 @@ export const LocationColumns: ColumnDef<Location>[] = [
         </div>
       );
     }
+  },
+  {
+    id: 'account',
+    header: 'Account',
+    cell: ({ row }) => {
+      const accountId = row.original.accountId;
+      const hasLinkedAccount = !!accountId;
+      if (hasLinkedAccount) {
+        return (
+          <span className="inline-flex items-center gap-1 text-muted-foreground" title="GL account linked">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          </span>
+        );
+      }
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-help items-center gap-1 text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>No GL account linked. Create from edit page.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
   },
   {
     id: 'updated',

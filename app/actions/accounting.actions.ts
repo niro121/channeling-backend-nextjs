@@ -5,6 +5,7 @@ import {
   getAllAccounts,
   getAccountById as getAccountByIdService,
   createAccount as createAccountService,
+  updateAccount as updateAccountService,
   getAccountStatement as getAccountStatementService,
   getMainCashBookAccount,
   getBranchCashBalance,
@@ -12,7 +13,7 @@ import {
   createJournalEntry as createJournalEntryService,
   type GetAllAccountsParams,
 } from '@/services/accounting.service';
-import type { CreateAccountInput } from '@/types/accounting';
+import type { CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 
@@ -107,6 +108,36 @@ export async function createAccount(payload: CreateAccountInput) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create account',
+      data: null,
+    };
+  }
+}
+
+export async function updateAccount(id: string, payload: UpdateAccountInput) {
+  await requirePermission('accounting', 'edit');
+
+  try {
+    const result = await updateAccountService(id, payload);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error,
+        data: null,
+      };
+    }
+    revalidatePath('/accounting');
+    revalidatePath(`/accounting/${id}/edit`);
+    revalidatePath(`/accounting/${id}/statement`);
+    return {
+      success: true,
+      data: result.account,
+      message: 'Account updated successfully',
+    };
+  } catch (error: unknown) {
+    console.error('updateAccount action error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update account',
       data: null,
     };
   }

@@ -102,7 +102,9 @@ export const getAllAgencyBooksService = async ({
             id: true,
             name: true
           }
-        }
+        },
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } }
       },
       orderBy: {
         createdAt: 'desc'

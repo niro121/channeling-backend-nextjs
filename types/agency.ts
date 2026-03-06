@@ -35,6 +35,10 @@ export type Agency = {
   user?: any | null;
   locationId?: string | null;
   location?: { id: string; name: string } | null;
+  /** Linked GL account (PAYABLE) for balance/statement */
+  accountId?: string | null;
+  accountName?: string | null;
+  accountCode?: string | null;
 };
 
 export type AgencyFormValues = {

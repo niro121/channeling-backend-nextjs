@@ -190,6 +190,15 @@ export async function saveBookingService(
   }
   const amountToUse = expectedAmount
 
+  // Credit Customer booking: require credit customer to be selected.
+  if (input.payment_type === 5 && !input.credit_customer?.id) {
+    return {
+      success: false,
+      errorCode: "invalid_input",
+      message: "Credit Customer is required for this payment type.",
+    }
+  }
+
   // Agent booking: verify agency ref and that agency credit limit is not exceeded.
   if (input.agency?.id) {
     const ref = (input.agency_ref ?? "").toUpperCase().trim()
@@ -275,6 +284,7 @@ export async function saveBookingService(
         refundAmount: 0,
         agencyRef: (input.agency_ref ?? "").toUpperCase(),
         agencyId: input.agency?.id ?? null,
+        creditCustomerId: input.credit_customer?.id ?? null,
         staffId: input.staff?.id ?? null,
         discountDivision,
         hospitalFeeDiscount,
@@ -303,14 +313,22 @@ export async function saveBookingService(
       data: { appointmentNo },
     })
 
-    // POS and Agent create a receipt and mark booking as paid (status 1); OnCall does not.
+    // POS and Agent create a receipt and mark booking as paid (status 1); Credit Customer and E-wallet also create receipt (booked).
     if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
       const receiptAmount = amountToUse
       const remarks =
-        input.payment_method === 0 ? "POS PAYMENT" : "AGENT PAYMENT"
+        input.payment_type === 4
+          ? "AGENT PAYMENT"
+          : input.payment_type === 5
+            ? "CREDIT CUSTOMER PAYMENT"
+            : input.payment_type === 6
+              ? "E-WALLET PAYMENT"
+              : "POS PAYMENT"
       const isCash = input.payment_type === 0
       const isAgent = input.payment_type === 4
-      const needJournal = isCash || isAgent
+      const isCreditCustomer = input.payment_type === 5
+      const needTill = [0, 1, 2, 3, 6].includes(input.payment_type) // cash, card, slip, check, e-wallet (not agent, not credit customer)
+      const needJournal = needTill || isAgent || isCreditCustomer
       try {
         let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
         if (needJournal) {
@@ -319,9 +337,10 @@ export async function saveBookingService(
               locationId: booking.locationId ?? null,
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
-              isCash,
+              creditCustomerId: input.credit_customer?.id ?? null,
+              needTill,
             },
-            { isCash, isAgent }
+            { needTill, isAgent, isCreditCustomer }
           )
           if (!reqResult.success) {
             return {
@@ -336,7 +355,8 @@ export async function saveBookingService(
             locationId: booking.locationId ?? null,
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
-            isCash,
+            creditCustomerId: input.credit_customer?.id ?? null,
+            needTill,
           })
         }
         const journalNumberResult = accounts
@@ -359,6 +379,7 @@ export async function saveBookingService(
             type: 1,
             method: 1,
             agencyId: input.agency?.id ?? null,
+            creditCustomerId: input.credit_customer?.id ?? null,
             createdBy: userId,
             userLocationId: null,
             getBookingUpdate: (receipt) => ({
@@ -375,6 +396,14 @@ export async function saveBookingService(
           const receipt = r.receipt
           if (accounts && journalNumber > 0) {
             const journalInput = buildReceiptJournalEntryInput(receipt, accounts)
+            // Agent and Credit Customer require a journal (receivable must be updated); fail the transaction if none produced
+            if ((isAgent || isCreditCustomer) && !journalInput) {
+              throw new Error(
+                isCreditCustomer
+                  ? "Credit customer account or journal setup failed. Cannot complete booking."
+                  : "Agent account or journal setup failed. Cannot complete booking."
+              )
+            }
             if (journalInput) {
               const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
               if (!jResult.success) throw new Error(jResult.error)
@@ -382,7 +411,7 @@ export async function saveBookingService(
           }
           return receipt
         })
-        if (input.payment_type === 0 && userId) {
+        if (needTill && userId) {
           const io = getIO()
           if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
         }

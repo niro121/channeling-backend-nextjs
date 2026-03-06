@@ -25,16 +25,17 @@ export function SearchInput({ name, placeholder, className }: SearchInputProps) 
     const value = formData.get(name) as string;
 
     const params = new URLSearchParams();
-
-    if (searchParams && searchParams.keys()) {
-      params.set('page', '0');
-      params.set('limit', '10');
+    if (searchParams) {
+      Array.from(searchParams.entries()).forEach(([key, val]) => {
+        if (key !== name) params.set(key, val);
+      });
     }
+    params.set('page', '0');
+    params.set('limit', params.get('limit') || '10');
     if (value) {
       params.set(name, value);
-    }
-    else {
-      params.delete(name)
+    } else {
+      params.delete(name);
     }
 
     startTransition(() => {

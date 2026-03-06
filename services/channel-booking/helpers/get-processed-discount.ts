@@ -14,13 +14,15 @@ const PAYMENT_METHOD_TO_ENUM: Record<number, DiscountMethod> = {
   4: DiscountMethod.API,
 }
 
-/** Spec payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent -> Prisma PaymentType (no Agent, use CASH) */
+/** Spec payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet -> Prisma PaymentType (Agent/Credit/E-wallet use CASH for discount) */
 const PAYMENT_TYPE_TO_ENUM: Record<number, PaymentType> = {
   0: PaymentType.CASH,
   1: PaymentType.CREDIT_CARD,
   2: PaymentType.SLIP,
   3: PaymentType.CHEQUE,
   4: PaymentType.CASH,
+  5: PaymentType.CASH,
+  6: PaymentType.CASH,
 }
 
 export type ProcessedDiscountResult = {

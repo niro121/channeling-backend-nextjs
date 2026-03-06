@@ -12,6 +12,8 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
+import { createAccount } from '@/services/accounting/account.service';
+import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
 // ==== AGENCY: VALIDATION SCHEMA ==== //
 const agencySchema = z.object({
@@ -166,13 +168,19 @@ export const getAllAgenciesService = async ({
       whereClause.parentAgencyId = parentAgencyId;
     }
 
-    const records = await prisma.agency.findMany({
+    const rows = await prisma.agency.findMany({
       skip: skip,
       take: validLimit,
       where: whereClause,
       include: {
         parentAgency: true,
-        user: true
+        user: true,
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } },
+        accounts: {
+          where: { type: 'PAYABLE', isActive: true },
+          take: 1
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -182,6 +190,21 @@ export const getAllAgenciesService = async ({
     const totalRecords = await prisma.agency.count({
       where: whereClause
     });
+
+    const records = await Promise.all(
+      rows.map(async (row) => {
+        const acc = row.accounts?.[0];
+        const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const { accounts: _a, ...rest } = row;
+        return {
+          ...rest,
+          balance: balanceCents / 100,
+          accountId: acc?.id ?? null,
+          accountName: acc?.name ?? null,
+          accountCode: acc?.code ?? null
+        };
+      })
+    );
 
     return {
       success: true,
@@ -277,7 +300,11 @@ export const getAgencyByIdService = async (
       where: { id: id },
       include: {
         parentAgency: true,
-        user: true
+        user: true,
+        accounts: {
+          where: { type: 'PAYABLE', isActive: true },
+          take: 1
+        }
       }
     });
 
@@ -290,9 +317,20 @@ export const getAgencyByIdService = async (
       };
     }
 
+    const acc = agency.accounts?.[0];
+    const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+    const { accounts: _accounts, ...rest } = agency;
+    const data = {
+      ...rest,
+      balance: balanceCents / 100,
+      accountId: acc?.id ?? null,
+      accountName: acc?.name ?? null,
+      accountCode: acc?.code ?? null
+    };
+
     return {
       success: true,
-      data: agency,
+      data,
       message: 'Agency fetched successfully'
     };
   } catch (error: any) {
@@ -361,13 +399,6 @@ export const createAgencyService = async (
 
     const data = parsed.data;
 
-    const parentAgencyRelation = data.parentAgencyId
-      ? { connect: { id: data.parentAgencyId } }
-      : undefined;
-    const locationRelation = data.locationId
-      ? { connect: { id: data.locationId } }
-      : undefined;
-
     const agencyCode = await getNextAgencyCode();
 
     const agency = await prisma.agency.create({
@@ -393,8 +424,8 @@ export const createAgencyService = async (
         contactPersonEmail: data.contactPersonEmail || null,
         sendSms: data.sendSms,
         status: data.status,
-        parentAgency: parentAgencyRelation,
-        location: locationRelation,
+        parentAgencyId: data.parentAgencyId || null,
+        locationId: data.locationId || null,
         createdBy: user?.id || null,
         updatedBy: user?.id || null
       },
@@ -403,6 +434,21 @@ export const createAgencyService = async (
         user: true
       }
     });
+
+    const accountResult = await createAccount({
+      name: `Agency - ${agency.name}`,
+      type: 'PAYABLE',
+      agencyId: agency.id,
+      code: agency.code ?? undefined,
+    });
+    if (!accountResult.success) {
+      const accountError = accountResult.error ?? 'Unknown error';
+      return {
+        success: true,
+        data: agency,
+        message: `Agency created successfully. The linked GL account could not be created: ${accountError}. Please create it manually from the Accounting section or the agency edit page.`
+      };
+    }
 
     return {
       success: true,
@@ -463,19 +509,6 @@ export const updateAgencyService = async (
 
     const data = parsed.data;
 
-    const parentAgencyRelation =
-      data.parentAgencyId !== undefined
-        ? data.parentAgencyId
-          ? { connect: { id: data.parentAgencyId } }
-          : { disconnect: true }
-        : undefined;
-    const locationRelation =
-      data.locationId !== undefined
-        ? data.locationId
-          ? { connect: { id: data.locationId } }
-          : { disconnect: true }
-        : undefined;
-
     const agency = await prisma.agency.update({
       where: { id },
       data: {
@@ -517,8 +550,12 @@ export const updateAgencyService = async (
         }),
         ...(data.sendSms !== undefined && { sendSms: data.sendSms }),
         ...(data.status !== undefined && { status: data.status }),
-        ...(parentAgencyRelation && { parentAgency: parentAgencyRelation }),
-        ...(locationRelation && { location: locationRelation }),
+        ...(data.parentAgencyId !== undefined && {
+          parentAgencyId: data.parentAgencyId || null
+        }),
+        ...(data.locationId !== undefined && {
+          locationId: data.locationId || null
+        }),
         updatedBy: user?.id || null,
         updatedAt: new Date()
       },

@@ -69,6 +69,7 @@ export async function getAccountStatement(
       debitAmount: line.debitAmount,
       creditAmount: line.creditAmount,
       runningBalance: running,
+      paymentMethod: line.paymentMethod ?? undefined,
     };
   });
 

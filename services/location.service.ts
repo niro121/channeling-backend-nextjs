@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma';
 import { getLocationQuery, Location, LocationFormValues } from '@/types/location';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { createAccount } from '@/services/accounting/account.service';
+import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
 // ==== LOCATION: VALIDATION SCHEMA ==== //
 const locationSchema = z.object({
@@ -93,7 +95,7 @@ export const getAllLocationsService = async ({
 
     const skip = page * limit;
 
-    const [records, totalRecords] = await Promise.all([
+    const [rawRecords, totalRecords] = await Promise.all([
       prisma.location.findMany({
         skip,
         take: limit,
@@ -101,15 +103,30 @@ export const getAllLocationsService = async ({
         ...(whereClause != null && { where: whereClause }),
         include: {
           createdUser: true,
-          updatedUser: true
-        }
+          updatedUser: true,
+          accounts: {
+            where: { type: 'CASH', isActive: true },
+            take: 1,
+          },
+        },
       }),
       prisma.location.count(...(whereClause != null ? [{ where: whereClause }] : []))
     ]);
 
+    const records: Location[] = rawRecords.map((loc) => {
+      const acc = loc.accounts?.[0];
+      const { accounts: _acc, ...rest } = loc;
+      return {
+        ...rest,
+        accountId: acc?.id ?? null,
+        accountName: acc?.name ?? null,
+        accountCode: acc?.code ?? null,
+      } as Location;
+    });
+
     return {
       success: true,
-      data: records as Location[],
+      data: records,
       totalRecords
     };
   } catch (error: any) {
@@ -184,6 +201,21 @@ export const createLocationService = async (
         updatedUser: userRelation
       }
     });
+
+    const accountResult = await createAccount({
+      name: `Cash Book - ${location.name}`,
+      type: 'CASH',
+      locationId: location.id,
+      code: `CB-${location.code}`,
+    });
+    if (!accountResult.success) {
+      const accountError = accountResult.error ?? 'Unknown error';
+      return {
+        success: true,
+        data: location,
+        message: `Location created successfully. The linked GL account could not be created: ${accountError}. Please create it manually from the Accounting section or the location edit page.`,
+      };
+    }
 
     return {
       success: true,
@@ -346,17 +378,36 @@ export const getLocationByIdService = async (
       };
     }
 
-    const result = await prisma.location.findUnique({
+    const loc = await prisma.location.findUnique({
       where: { id },
       include: {
         createdUser: true,
-        updatedUser: true
-      }
+        updatedUser: true,
+        accounts: {
+          where: { type: 'CASH', isActive: true },
+          take: 1,
+        },
+      },
     });
+
+    if (!loc) {
+      return { success: true, data: null };
+    }
+
+    const acc = loc.accounts?.[0];
+    const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+    const { accounts: _acc, ...rest } = loc;
+    const data: Location = {
+      ...rest,
+      balance: balanceCents / 100,
+      accountId: acc?.id ?? null,
+      accountName: acc?.name ?? null,
+      accountCode: acc?.code ?? null,
+    } as Location;
 
     return {
       success: true,
-      data: result as Location | null
+      data
     };
   } catch (error: any) {
     console.error('getLocationByIdService error:', error);
