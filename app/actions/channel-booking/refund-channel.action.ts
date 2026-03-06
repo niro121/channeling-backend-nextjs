@@ -11,7 +11,10 @@ const refundChannelSchema = z.object({
   professional_fee: z.number().min(0),
   hospital_fee: z.number().min(0),
   refund_to: z.number().int().min(0).optional(),
-  remarks: z.string().optional(),
+  remarks: z
+    .string()
+    .min(1, "Remarks are required")
+    .refine((s) => s.trim().length > 0, "Remarks are required"),
 })
 
 export type RefundChannelActionInput = z.infer<typeof refundChannelSchema>

@@ -47,6 +47,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     if (!selectedBooking?.id) {
       setDetails(null)
       setError(null)
+      setRemarks("")
       return
     }
     setLoading(true)
@@ -57,6 +58,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           setDetails(res.data)
           setError(null)
           setRefundTo(0)
+          setRemarks("")
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -115,6 +117,10 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
 
   async function handleCancel() {
     if (!selectedBooking) return
+    if (!remarks.trim()) {
+      toast({ title: "Remarks required", description: "Please enter a reason for cancellation.", variant: "destructive" })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await refundChannelAction({
@@ -123,7 +129,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         professional_fee: 0,
         hospital_fee: 0,
         refund_to: refundTo,
-        remarks: remarks.trim() || undefined,
+        remarks: remarks.trim(),
       })
       if (result.success) {
         toast({ title: "Canceled", description: "Booking has been canceled." })
@@ -150,12 +156,13 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-xs">Cancel Remarks</Label>
+        <Label className="text-xs">Cancel Remarks <span className="text-destructive">*</span></Label>
         <Textarea
           className="min-h-[80px] text-xs resize-y"
           placeholder="Reason for cancellation…"
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
+          required
         />
       </div>
       {isPaid && (
@@ -181,7 +188,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={handleCancel}
-        disabled={submitting}
+        disabled={submitting || !remarks.trim()}
       >
         {submitting ? "Canceling…" : isPaid ? `Cancel Booking - ${formatRs(refundAmount)}` : "Cancel Booking"}
       </Button>

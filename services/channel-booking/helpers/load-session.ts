@@ -4,7 +4,7 @@ import type { Session } from "@/types/booking.dashboard"
 
 /**
  * Load session by id for save-booking. Returns session in same shape as get-sessions.
- * Caller must check: if !session then not found; if isPast then session start is before start of today (server time).
+ * Caller must check: if !session then not found; if isPast then session date is a previous day (or before today).
  */
 export async function loadSessionForSaveBooking(
   sessionId: string
@@ -55,8 +55,10 @@ export async function loadSessionForSaveBooking(
     room: r.room ?? undefined,
   }
 
-  const sessionStart = normalizeSessionTime(r.startTime as Date | number, sessionDate)
-  const isPast = sessionStart.getTime() < Date.now()
+  const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const isPast = sessionDay.getTime() < today.getTime()
 
   return { session, isPast }
 }
