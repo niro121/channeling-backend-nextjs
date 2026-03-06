@@ -3,9 +3,16 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Agency } from '@/types/agency';
 import AgencyRecordActions from './record-actions';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import moment from 'moment';
 
 export const AgencyColumns: ColumnDef<Agency>[] = [
   {
@@ -85,6 +92,35 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
     }
   },
   {
+    id: 'account',
+    header: 'Account',
+    cell: ({ row }) => {
+      const accountId = row.original.accountId;
+      const hasLinkedAccount = !!accountId;
+      if (hasLinkedAccount) {
+        return (
+          <span className="inline-flex items-center gap-1 text-muted-foreground" title="GL account linked">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          </span>
+        );
+      }
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-help items-center gap-1 text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>No GL account linked. Create from edit page.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+  },
+  {
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
@@ -104,6 +140,36 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
         </Badge>
       );
     }
+  },
+  {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const name = (row.original as { updatedUser?: { name?: string | null } }).updatedUser?.name ?? '—';
+      const date = row.original.updatedAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const name = (row.original as { createdUser?: { name?: string | null } }).createdUser?.name ?? '—';
+      const date = row.original.createdAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
   },
   {
     id: 'actions',

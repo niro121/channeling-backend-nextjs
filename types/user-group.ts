@@ -71,6 +71,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "locations", name: "Locations" },
   { id: "agency-books", name: "Agency Books" },
   { id: "agencies", name: "Agencies" },
+  { id: "credit-customers", name: "Credit Customers" },
   { id: "discounts", name: "Discounts" },
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
@@ -88,6 +89,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   },
   { id: "float-transfers", name: "Float Transfers" },
   { id: "accounting", name: "Accounting" },
+  { id: "ledger", name: "Ledger" },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [

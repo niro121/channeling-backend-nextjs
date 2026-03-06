@@ -12,6 +12,7 @@ export function mapAccount(
     locationId: string | null;
     doctorId: string | null;
     agencyId: string | null;
+    creditCustomerId?: string | null;
     userId: string | null;
     minBalanceAllowed: number | null;
     isActive: boolean;
@@ -20,6 +21,7 @@ export function mapAccount(
     location?: { id: string; name: string } | null;
     doctor?: { id: string; name: string; code: string } | null;
     agency?: { id: string; name: string; code: string | null } | null;
+    creditCustomer?: { id: string; name: string; code: string | null } | null;
     parentAccount?: { id: string; name: string; code: string | null } | null;
   }
 ): Account {
@@ -32,6 +34,7 @@ export function mapAccount(
     locationId: row.locationId,
     doctorId: row.doctorId,
     agencyId: row.agencyId,
+    creditCustomerId: row.creditCustomerId ?? null,
     userId: row.userId,
     minBalanceAllowed: row.minBalanceAllowed,
     isActive: row.isActive,
@@ -40,5 +43,6 @@ export function mapAccount(
     location: row.location ?? null,
     doctor: row.doctor ?? null,
     agency: row.agency ?? null,
+    creditCustomer: row.creditCustomer ?? null,
   };
 }

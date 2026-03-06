@@ -1,6 +1,7 @@
 "use server"
 
 import { getAllAgenciesOptionsService } from "@/services/agency.service"
+import { getAllCreditCustomersOptionsService } from "@/services/credit-customer.service"
 import { getSpecialitiesForChannelBookingService } from "./reference/get-specialities.service"
 import { getDoctorsForChannelBookingService } from "./reference/get-doctors.service"
 import { getLocationsForChannelBookingService } from "./reference/get-locations.service"
@@ -17,6 +18,7 @@ import type { ChannelBookingBankOption } from "./reference/get-banks.service"
 import type { ChannelBookingStaffOption } from "./reference/get-staff-options.service"
 
 export type ChannelBookingAgencyOption = { id: string; name: string; code?: string | null }
+export type ChannelBookingCreditCustomerOption = { id: string; name: string; code: string | null }
 
 export type ChannelBookingInitialData = {
   specialities: ChannelBookingSpecialityOption[]
@@ -25,9 +27,10 @@ export type ChannelBookingInitialData = {
   areas: ChannelBookingAreaOption[]
   discounts: GetDiscountsForBookingPayload
   agencies: ChannelBookingAgencyOption[]
+  creditCustomers: ChannelBookingCreditCustomerOption[]
   banks: ChannelBookingBankOption[]
   staffOptions: ChannelBookingStaffOption[]
-  /** Current user's default preferred booking method (0–5) or null. Used to pre-select payment in New Booking Details. */
+  /** Current user's default preferred booking method (0–7) or null. Used to pre-select payment in New Booking Details. */
   defaultBookingMethod: number | null
   /** Current user's allowed booking location ids (from User Booking Locations). Empty = no restriction. */
   userBookingLocationIds: string[]
@@ -66,7 +69,7 @@ export async function getChannelBookingInitialDataService(
           bookingLocations: { select: { locationId: true } },
         },
       })
-      if (u?.defaultBookingMethod != null && u.defaultBookingMethod >= 0 && u.defaultBookingMethod <= 5) {
+      if (u?.defaultBookingMethod != null && u.defaultBookingMethod >= 0 && u.defaultBookingMethod <= 7) {
         defaultBookingMethod = u.defaultBookingMethod
       }
       const allowedIds = (u?.bookingLocations ?? []).map((b) => b.locationId).filter(Boolean)
@@ -108,6 +111,18 @@ export async function getChannelBookingInitialDataService(
       // agencies optional; leave empty on failure
     }
 
+    let creditCustomers: ChannelBookingCreditCustomerOption[] = []
+    try {
+      const ccRes = await getAllCreditCustomersOptionsService()
+      creditCustomers = (ccRes.data ?? []).map((c: { id: string; name: string; code: string | null }) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code ?? null,
+      }))
+    } catch {
+      // credit customers optional; leave empty on failure
+    }
+
     const data: ChannelBookingInitialData = {
       specialities: specialitiesRes.success && specialitiesRes.data ? specialitiesRes.data : [],
       doctors: doctorsRes.success && doctorsRes.data ? doctorsRes.data : [],
@@ -115,6 +130,7 @@ export async function getChannelBookingInitialDataService(
       areas: areasRes.success && areasRes.data ? areasRes.data : [],
       discounts: discountsPayload ?? { manual: [], auto: [] },
       agencies,
+      creditCustomers,
       banks: banksRes.success && banksRes.data ? banksRes.data : [],
       staffOptions: staffRes.success && staffRes.data ? staffRes.data : [],
       defaultBookingMethod,

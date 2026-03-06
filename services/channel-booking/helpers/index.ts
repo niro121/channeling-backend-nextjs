@@ -26,9 +26,12 @@ export {
 export { getReceiptSequenceInfo } from "./get-receipt-sequence"
 export {
   createReceiptAndUpdateBooking,
+  createReceiptWithoutBooking,
   type CreateReceiptAndUpdateBookingParams,
   type CreateReceiptAndUpdateBookingResult,
   type CreateReceiptForBookingReceiptParams,
+  type CreateReceiptWithoutBookingParams,
+  type CreateReceiptWithoutBookingResult,
   type CreatedReceipt,
 } from "./create-receipt-for-booking"
 export { getBookingSequenceInfo } from "./get-booking-sequence"

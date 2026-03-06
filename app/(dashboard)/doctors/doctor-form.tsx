@@ -6,11 +6,12 @@ import * as Yup from 'yup';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Doctor, DoctorFormValues, TITLE_OPTIONS, normalizeTitleForSelect } from '@/types/doctor';
-import { createDoctor, updateOneDoctor } from '@/app/actions/doctor.actions';
+import { createDoctor, updateOneDoctor, createDoctorAccount } from '@/app/actions/doctor.actions';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { Ban, Save } from 'lucide-react';
+import { Ban, Save, BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
+import Link from 'next/link';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -29,9 +30,11 @@ type DoctorFormProps = {
 export default function DoctorForm({
   doctor,
   specialities,
+  isEditPage = false,
   user
 }: DoctorFormProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [creatingAccount, setCreatingAccount] = React.useState<boolean>(false);
   const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -183,6 +186,83 @@ export default function DoctorForm({
 
         return (
           <Form className="w-full">
+            {isEditPage && doctor && (
+              <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-6 mb-6">
+                <h3 className="text-lg font-semibold">Balance</h3>
+                {doctor.accountId ? (
+                  <>
+                    <div className={styleClasses.parentDiv}>
+                      <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
+                      <div className={styleClasses.inputClassName}>
+                        <span className="font-medium tabular-nums">
+                          {Number(doctor.balance ?? 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={styleClasses.parentDiv}>
+                      <Label className={styleClasses.labelClassName}>Linked account</Label>
+                      <div className={styleClasses.inputClassName}>
+                        <span className="text-muted-foreground">
+                          {doctor.accountName ?? doctor.accountCode ?? '—'}
+                          {doctor.accountCode && doctor.accountName
+                            ? ` (${doctor.accountCode})`
+                            : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                        <Link href={`/accounting/${doctor.accountId}/statement`}>
+                          <BookOpen className="h-4 w-4" />
+                          Statement
+                        </Link>
+                      </Button>
+                      <Button size="sm" className="gap-1.5" asChild>
+                        <Link href={`/accounting/${doctor.accountId}/statement`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                          Open account
+                        </Link>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground text-sm">No GL account linked. Create one to track balance and view statement.</p>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={creatingAccount}
+                      onClick={async () => {
+                        if (!doctor.id) return;
+                        setCreatingAccount(true);
+                        try {
+                          const res = await createDoctorAccount(doctor.id);
+                          if (res.success) {
+                            toast({
+                              variant: 'success',
+                              title: 'Success',
+                              description: res.message ?? 'GL account created.',
+                            });
+                            router.refresh();
+                          } else {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Error',
+                              description: res.message ?? 'Failed to create GL account.',
+                            });
+                          }
+                        } finally {
+                          setCreatingAccount(false);
+                        }
+                      }}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      {creatingAccount ? 'Creating…' : 'Create GL account'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
             <div className="grid gap-4 border rounded-lg p-6">
               <CustomSelectField
                 id="title"

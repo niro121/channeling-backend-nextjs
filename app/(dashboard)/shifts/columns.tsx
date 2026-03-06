@@ -100,4 +100,33 @@ export const ShiftColumns: ColumnDef<ShiftListRow>[] = [
       return endedAt ? moment(endedAt).format('DD/MM/YYYY HH:mm') : '—';
     },
   },
+  {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => {
+      const date = (row.original as { updatedAt?: Date }).updatedAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => {
+      const name = (row.original as { createdByUser?: { name?: string | null } }).createdByUser?.name ?? '—';
+      const date = row.original.createdAt;
+      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
+      return (
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span>{name}</span>
+          <span className="text-muted-foreground">{formatted}</span>
+        </div>
+      );
+    },
+  },
 ];

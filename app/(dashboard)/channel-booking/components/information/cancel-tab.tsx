@@ -18,11 +18,16 @@ import {
 import { Ban } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
 
-/** refund_to: 0 Cash, 1 Card */
-const REFUND_TO_OPTIONS = [
-  { value: 0, label: "Refund as CASH" },
-  { value: 1, label: "Refund as CREDIT CARD" },
-] as const
+/** refund_to: 0 Cash, 1 Card, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
+function getRefundToOptionsForCancel(paymentMethod: number | undefined): { value: number; label: string }[] {
+  const cash = { value: 0, label: "Refund as CASH" }
+  if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
+  if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
+  if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
+  if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
+  // Cash (0), Slip (2), Cheque (3): only Cash refund
+  return [cash]
+}
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -51,6 +56,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         if (res.success && res.data) {
           setDetails(res.data)
           setError(null)
+          setRefundTo(0)
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -155,12 +161,15 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       {isPaid && (
         <div className="space-y-1.5">
           <Label className="text-xs">Refund method</Label>
-          <Select value={String(refundTo)} onValueChange={(v) => setRefundTo(Number(v))}>
+          <Select
+            value={String(refundTo)}
+            onValueChange={(v) => setRefundTo(Number(v))}
+          >
             <SelectTrigger className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REFUND_TO_OPTIONS.map((opt) => (
+              {getRefundToOptionsForCancel(details.settlement?.paymentMethod).map((opt) => (
                 <SelectItem key={opt.value} value={String(opt.value)} className="text-xs">
                   {opt.label}
                 </SelectItem>

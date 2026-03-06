@@ -93,6 +93,7 @@ export async function getShifts(params: GetShiftsParams) {
       include: {
         user: { select: { id: true, name: true, email: true } },
         location: { select: { id: true, name: true } },
+        createdByUser: { select: { id: true, name: true } },
       },
     }),
     shiftModel.count({ where }),

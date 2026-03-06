@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 import { padCode } from '@/lib/utils';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
+import { createAccount } from '@/services/accounting/account.service';
+import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
 // ==== PREFIX ==== //
 const PREFIX = 'DR';
@@ -203,6 +205,21 @@ export const createDoctorService = async (
         updatedUser: userRelation
       }
     });
+
+    const accountResult = await createAccount({
+      name: `Doctor Payable - ${doctor.name}`,
+      type: 'PAYABLE',
+      doctorId: doctor.id,
+      code: `DOC-${doctor.code}`,
+    });
+    if (!accountResult.success) {
+      const accountError = accountResult.error ?? 'Unknown error';
+      return {
+        success: true,
+        data: doctor,
+        message: `Doctor created successfully. The linked GL account could not be created: ${accountError}. Please create it manually from the Accounting section or the doctor edit page.`,
+      };
+    }
 
     return {
       success: true,
@@ -469,7 +486,7 @@ export const getAllDoctorsService = async ({
         : undefined;
 
   try {
-    // Fetch doctors with user relations first
+    // Fetch doctors with user relations and linked PAYABLE account
     const records = await prisma.doctor.findMany({
       skip,
       take: limit,
@@ -477,8 +494,12 @@ export const getAllDoctorsService = async ({
       orderBy: { createdAt: 'desc' },
       include: {
         createdUser: true,
-        updatedUser: true
-      }
+        updatedUser: true,
+        accounts: {
+          where: { type: 'PAYABLE', isActive: true },
+          take: 1,
+        },
+      },
     });
 
     // Fetch specialities for doctors that have valid specialityIds
@@ -505,11 +526,18 @@ export const getAllDoctorsService = async ({
       }
     }
 
-    // Map speciality to each doctor
-    const recordsWithSpeciality = records.map(doctor => ({
-      ...doctor,
-      speciality: doctor.specialityId ? (specialitiesMap.get(doctor.specialityId) || null) : null
-    }));
+    // Map speciality and linked account to each doctor
+    const recordsWithSpeciality = records.map(doctor => {
+      const acc = doctor.accounts?.[0];
+      const { accounts: _acc, ...rest } = doctor;
+      return {
+        ...rest,
+        speciality: doctor.specialityId ? (specialitiesMap.get(doctor.specialityId) || null) : null,
+        accountId: acc?.id ?? null,
+        accountName: acc?.name ?? null,
+        accountCode: acc?.code ?? null,
+      };
+    });
 
     const totalRecords = await prisma.doctor.count({
       where: whereClause
@@ -564,20 +592,28 @@ export const getDoctorByIdService = async (
         include: {
           createdUser: true,
           updatedUser: true,
-          speciality: true
-        }
+          speciality: true,
+          accounts: {
+            where: { type: 'PAYABLE', isActive: true },
+            take: 1,
+          },
+        },
       });
     } catch (relationError: any) {
       // If speciality relation fails (e.g., invalid specialityId), fetch without it
-      if (relationError.message?.includes('Inconsistent query result') || 
+      if (relationError.message?.includes('Inconsistent query result') ||
           relationError.message?.includes('speciality')) {
         console.warn(`Doctor ${id} has invalid speciality relation, fetching without it`);
         doctor = await prisma.doctor.findUnique({
           where: { id },
           include: {
             createdUser: true,
-            updatedUser: true
-          }
+            updatedUser: true,
+            accounts: {
+              where: { type: 'PAYABLE', isActive: true },
+              take: 1,
+            },
+          },
         });
         // Manually set speciality to null if it wasn't included
         if (doctor) {
@@ -595,9 +631,20 @@ export const getDoctorByIdService = async (
       };
     }
 
+    const acc = doctor.accounts?.[0];
+    const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+    const { accounts: _acc, ...rest } = doctor;
+    const data = {
+      ...rest,
+      balance: balanceCents / 100,
+      accountId: acc?.id ?? null,
+      accountName: acc?.name ?? null,
+      accountCode: acc?.code ?? null,
+    };
+
     return {
       success: true,
-      data: doctor,
+      data,
       message: 'Doctor fetched successfully'
     };
   } catch (error: any) {

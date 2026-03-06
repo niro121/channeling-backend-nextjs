@@ -24,6 +24,8 @@ import {
 import { revalidatePath } from 'next/cache';
 import { Speciality } from '@/types/speciality';
 import { requirePermission } from '@/lib/server-permissions';
+import { getOrCreateAccount } from '@/services/accounting/account.service';
+import prisma from '@/lib/prisma';
 
 // ==== CREATE DOCTOR ==== //
 export const createDoctor = async (
@@ -263,6 +265,37 @@ export const getDoctorById = async (
     };
   }
 };
+
+// ==== CREATE GL ACCOUNT FOR DOCTOR (when missing on edit) ==== //
+export async function createDoctorAccount(doctorId: string) {
+  await requirePermission('accounting', 'edit');
+  try {
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { id: true, name: true, code: true },
+    });
+    if (!doctor) {
+      return { success: false, message: 'Doctor not found' };
+    }
+    const result = await getOrCreateAccount({
+      type: 'PAYABLE',
+      doctorId: doctor.id,
+      name: `Doctor Payable - ${doctor.name}`,
+      code: doctor.code ? `DOC-${doctor.code}` : null,
+    });
+    if (!result.success) {
+      return { success: false, message: result.error ?? 'Failed to create GL account' };
+    }
+    revalidatePath('/doctors');
+    revalidatePath(`/doctors/${doctorId}/edit`);
+    return { success: true, message: 'GL account created', accountId: result.account.id };
+  } catch (e: unknown) {
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : 'Failed to create GL account',
+    };
+  }
+}
 
 // ==== GET SPECIALITY OPTIONS ==== //
 export const getAllSpecialityOptions = async () => {

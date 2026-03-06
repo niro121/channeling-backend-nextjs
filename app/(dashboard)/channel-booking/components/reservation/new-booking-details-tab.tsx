@@ -26,7 +26,9 @@ import {
   Phone,
   Receipt,
   User,
+  UserCircle,
   Users,
+  Wallet,
   X,
 } from "lucide-react"
 import {
@@ -68,13 +70,15 @@ const PAYMENT_METHOD_TO_ENUM: Record<number, string> = {
   3: "STAFF",
   4: "API",
 }
-/** Map spec payment_type (0–4) to Prisma PaymentType enum value for client-side filter */
+/** Map spec payment_type (0–6) to Prisma PaymentType enum value for client-side filter */
 const PAYMENT_TYPE_TO_ENUM: Record<number, string> = {
   0: "CASH",
   1: "CREDIT_CARD",
   2: "SLIP",
   3: "CHEQUE",
   4: "CASH",
+  5: "CASH",
+  6: "CASH",
 }
 
 const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
@@ -84,6 +88,8 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
   Users,
   CreditCard,
   Receipt,
+  UserCircle,
+  Wallet,
 }
 
 /**
@@ -110,10 +116,11 @@ export function NewBookingDetailsTab() {
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  // Booking-type–specific fields (Agent=2, Staff=3, Card=4, Slip=5)
+  // Booking-type–specific fields (Agent=2, Staff=3, Card=4, Slip=5, Credit Customer=6, E-wallet=7)
   const [agencyId, setAgencyId] = useState<string>("")
   const [agencyBookId, setAgencyBookId] = useState<string>("")
   const [agencyRef, setAgencyRef] = useState("")
+  const [creditCustomerId, setCreditCustomerId] = useState<string>("")
   const [staffId, setStaffId] = useState<string>("")
   const [bankId, setBankId] = useState<string>("")
   const [cardLast4, setCardLast4] = useState("")
@@ -122,6 +129,7 @@ export function NewBookingDetailsTab() {
   const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
   const areas: ChannelBookingAreaOption[] = initialData?.areas ?? []
   const agencies = initialData?.agencies ?? []
+  const creditCustomers = initialData?.creditCustomers ?? []
   const banks = initialData?.banks ?? []
   const staffOptions = initialData?.staffOptions ?? []
   const allDiscounts = initialData?.discounts?.manual ?? []
@@ -146,6 +154,7 @@ export function NewBookingDetailsTab() {
   const agencyError = !!invalidFields.agency
   const agencyBookError = !!invalidFields.agency_book
   const agencyRefError = !!invalidFields.agency_ref
+  const creditCustomerError = !!invalidFields.credit_customer
   const staffError = !!invalidFields.staff
   const bankError = !!invalidFields.bank
   const cardError = !!invalidFields.card
@@ -157,8 +166,11 @@ export function NewBookingDetailsTab() {
   const isStaff = paymentMethodId === "3"
   const isCard = paymentMethodId === "4"
   const isSlip = paymentMethodId === "5"
+  const isCreditCustomer = paymentMethodId === "6"
+  const isEWallet = paymentMethodId === "7"
   const selectedAgency = agencies.find((a) => a.id === agencyId)
   const selectedAgencyBook = agencyBooks.find((b) => b.id === agencyBookId)
+  const selectedCreditCustomer = creditCustomers.find((c) => c.id === creditCustomerId)
   const selectedBank = banks.find((b) => b.id === bankId)
   const selectedStaff = staffOptions.find((s) => s.id === staffId)
 
@@ -215,7 +227,7 @@ export function NewBookingDetailsTab() {
   useEffect(() => {
     if (initialDataLoading || appliedDefaultBookingMethod.current) return
     const defaultId = initialData?.defaultBookingMethod
-    if (defaultId != null && defaultId >= 0 && defaultId <= 5) {
+    if (defaultId != null && defaultId >= 0 && defaultId <= 7) {
       setPaymentMethodId(String(defaultId))
       appliedDefaultBookingMethod.current = true
     }
@@ -225,7 +237,7 @@ export function NewBookingDetailsTab() {
   useEffect(() => {
     const defaultId = initialData?.defaultBookingMethod
     setPaymentMethodId(
-      defaultId != null && defaultId >= 0 && defaultId <= 5
+      defaultId != null && defaultId >= 0 && defaultId <= 7
         ? String(defaultId)
         : "0"
     )
@@ -244,6 +256,7 @@ export function NewBookingDetailsTab() {
     setAgencyId("")
     setAgencyBookId("")
     setAgencyRef("")
+    setCreditCustomerId("")
     setStaffId("")
     setBankId("")
     setCardLast4("")
@@ -261,6 +274,7 @@ export function NewBookingDetailsTab() {
     setAgencyId("")
     setAgencyBookId("")
     setAgencyRef("")
+    setCreditCustomerId("")
     setStaffId("")
     setBankId("")
     setCardLast4("")
@@ -331,6 +345,7 @@ export function NewBookingDetailsTab() {
       if (!agencyBookId || !selectedAgencyBook) typeErrors.agency_book = true
       if (!agencyRef.trim()) typeErrors.agency_ref = true
     }
+    if (isCreditCustomer && (!creditCustomerId || !selectedCreditCustomer)) typeErrors.credit_customer = true
     if (isStaff && !staffId) typeErrors.staff = true
     if (isCard) {
       const digits = cardLast4.replace(/\D/g, "")
@@ -356,11 +371,13 @@ export function NewBookingDetailsTab() {
         title: "Booking type required",
         description: isAgent
           ? "Please select Agency, select a Book, and enter REF NO. (2 digits)."
-          : isStaff
-            ? "Please select Staff Member."
-            : isCard
-              ? "Please enter Last 4 Digits and select Bank."
-              : "Please enter Bank Reference and select Bank.",
+          : isCreditCustomer
+            ? "Please select Credit Customer."
+            : isStaff
+              ? "Please select Staff Member."
+              : isCard
+                ? "Please enter Last 4 Digits and select Bank."
+                : "Please enter Bank Reference and select Bank.",
         variant: "destructive",
       })
       return
@@ -396,6 +413,7 @@ export function NewBookingDetailsTab() {
         agency_ref: isAgent
           ? (selectedAgencyBook?.bookNumber ?? "") + agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
           : undefined,
+        credit_customer: isCreditCustomer && selectedCreditCustomer ? { id: selectedCreditCustomer.id } : undefined,
         staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
@@ -423,6 +441,7 @@ export function NewBookingDetailsTab() {
         setAgencyId("")
         setAgencyBookId("")
         setAgencyRef("")
+        setCreditCustomerId("")
         setStaffId("")
         setBankId("")
         setCardLast4("")
@@ -691,6 +710,27 @@ export function NewBookingDetailsTab() {
               }}
             />
           </div>
+        </div>
+      )}
+      {isCreditCustomer && (
+        <div className="space-y-0.5">
+          <Select
+            value={creditCustomerId || undefined}
+            onValueChange={setCreditCustomerId}
+          >
+            <SelectTrigger
+              className={`${fieldClass} ${creditCustomerError ? errorClass : ""} ${!creditCustomerId ? "text-placeholder" : ""}`}
+            >
+              <SelectValue placeholder="Select Credit Customer" />
+            </SelectTrigger>
+            <SelectContent>
+              {creditCustomers.map((c) => (
+                <SelectItem key={c.id} value={c.id} className="text-xs">
+                  {c.code ? `${c.name} (${c.code})` : c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
       {isStaff && (
