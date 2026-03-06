@@ -11,7 +11,7 @@ const ACCOUNT_TYPES = ['CASH', 'PAYABLE', 'RECEIVABLE'] as const;
 
 const createAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name must be at most 200 characters').trim(),
-  type: z.enum(ACCOUNT_TYPES, { required_error: 'Type is required', invalid_type_error: 'Type must be CASH, PAYABLE, or RECEIVABLE' }),
+  type: z.enum(ACCOUNT_TYPES, { message: 'Type is required and must be CASH, PAYABLE, or RECEIVABLE' }),
   code: z.string().max(50).optional().nullable().transform((v) => (v === '' ? null : v ?? null)),
   parentAccountId: z.string().optional().nullable(),
   locationId: z.string().optional().nullable(),
@@ -92,13 +92,14 @@ export type GetOrCreateAccountParams = {
   creditCustomerId?: string | null;
   userId?: string | null;
   name?: string;
+  code?: string | null;
   minBalanceAllowed?: number | null;
 };
 
 export async function getOrCreateAccount(
   params: GetOrCreateAccountParams
 ): Promise<{ success: true; account: Account } | { success: false; error: string }> {
-  const { type, locationId, doctorId, agencyId, creditCustomerId, userId, name, minBalanceAllowed } =
+  const { type, locationId, doctorId, agencyId, creditCustomerId, userId, name, code, minBalanceAllowed } =
     params;
 
   const existing = await prisma.account.findFirst({
@@ -139,6 +140,7 @@ export async function getOrCreateAccount(
   const createInput: CreateAccountInput = {
     name: name?.trim() || defaultName,
     type,
+    code: code ?? null,
     parentAccountId: parentId ?? null,
     locationId: locationId ?? null,
     doctorId: doctorId ?? null,
@@ -170,7 +172,7 @@ export async function getOrCreateAccount(
 }
 
 function formatZodError(err: z.ZodError): string {
-  const first = err.errors[0];
+  const first = err.issues[0];
   return first ? `${first.path.join('.')}: ${first.message}` : 'Validation failed';
 }
 

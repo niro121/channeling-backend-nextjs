@@ -50,6 +50,7 @@ export default function CreditCustomerForm({
   const [loading, setLoading] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
   const saveAndCloseRef = React.useRef<boolean>(false);
+  const submittingRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -79,9 +80,11 @@ export default function CreditCustomerForm({
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={async (values) => {
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+        setLoading(true);
         try {
           await validationSchema.validate(values, { abortEarly: false });
-          setLoading(true);
           const payload: CreditCustomerFormValues = {
             ...values,
             code: values.code?.trim() || undefined,
@@ -89,16 +92,10 @@ export default function CreditCustomerForm({
           const respond = isEditPage && creditCustomer?.id
             ? await updateCreditCustomer(creditCustomer.id, payload)
             : await createCreditCustomer(payload);
-          setLoading(false);
 
           if (respond.isError) {
-            const err = respond.errors;
+            const err = respond.errors as { message?: string; issues?: unknown } | undefined;
             if (err?.issues && typeof err.issues === 'object') {
-              const fieldErrors: Record<string, string> = {};
-              Object.entries(err.issues).forEach(([key, val]) => {
-                const arr = Array.isArray(val) ? val : [val];
-                if (arr.length) fieldErrors[key] = String(arr[0]);
-              });
               toast({
                 variant: 'destructive',
                 title: 'Validation Error',
@@ -111,15 +108,26 @@ export default function CreditCustomerForm({
               title: 'Error',
               description: err?.message ?? 'Save failed.',
             });
+            if (!isEditPage) {
+              router.push('/credit-customers');
+            }
             return;
           }
 
+          const serverMessage = (respond as { message?: string }).message;
           toast({
             variant: 'success',
             title: 'Success',
-            description: isEditPage ? 'Credit customer updated successfully' : 'Credit customer created successfully',
+            description: serverMessage ?? (isEditPage ? 'Credit customer updated successfully' : 'Credit customer created successfully'),
           });
           const closeAfterSave = saveAndCloseRef.current;
+          const nextRoute = closeAfterSave
+            ? '/credit-customers'
+            : isEditPage
+              ? '(refresh)'
+              : (respond as { data?: { id?: string } })?.data?.id
+                ? `/credit-customers/${(respond as { data?: { id?: string } }).data!.id}/edit`
+                : '/credit-customers';
           if (closeAfterSave) {
             router.push('/credit-customers');
           } else if (isEditPage) {
@@ -130,13 +138,7 @@ export default function CreditCustomerForm({
             else router.push('/credit-customers');
           }
         } catch (err: unknown) {
-          setLoading(false);
           if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ValidationError') {
-            const yupErr = err as { inner?: { path?: string; message?: string }[] };
-            const errors = (yupErr.inner ?? []).reduce((acc: Record<string, string>, e) => {
-              if (e.path) acc[e.path] = e.message ?? '';
-              return acc;
-            }, {});
             toast({
               variant: 'destructive',
               title: 'Validation Error',
@@ -149,6 +151,9 @@ export default function CreditCustomerForm({
             title: 'Error',
             description: err instanceof Error ? err.message : 'Save failed.',
           });
+        } finally {
+          submittingRef.current = false;
+          setLoading(false);
         }
       }}
       enableReinitialize
@@ -273,6 +278,7 @@ export default function CreditCustomerForm({
                   value={String(formik.values.status)}
                   onChange={(v) => formik.setFieldValue('status', v === '1' ? 1 : 0)}
                   options={STATUS_OPTIONS}
+                  required={false}
                   styleClasses={{ ...styleClasses, parentDiv: '', inputClassName: '', labelClassName: 'hidden' }}
                 />
               </div>

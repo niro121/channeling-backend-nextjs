@@ -3,9 +3,15 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { CreditCustomer } from '@/types/credit-customer';
 import CreditCustomerRecordActions from './record-actions';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
 
 export const CreditCustomerColumns: ColumnDef<CreditCustomer>[] = [
@@ -71,6 +77,35 @@ export const CreditCustomerColumns: ColumnDef<CreditCustomer>[] = [
     cell: ({ row }) => {
       const balance = row.getValue('balance') as number | undefined;
       return <span>{balance != null ? Number(balance).toFixed(2) : '0.00'}</span>;
+    },
+  },
+  {
+    id: 'account',
+    header: 'Account',
+    cell: ({ row }) => {
+      const accountId = (row.original as CreditCustomer).accountId;
+      const hasLinkedAccount = !!accountId;
+      if (hasLinkedAccount) {
+        return (
+          <span className="inline-flex items-center gap-1 text-muted-foreground" title="GL account linked">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          </span>
+        );
+      }
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-help items-center gap-1 text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>No GL account linked. Create from edit page.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
     },
   },
   {

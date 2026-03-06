@@ -399,13 +399,6 @@ export const createAgencyService = async (
 
     const data = parsed.data;
 
-    const parentAgencyRelation = data.parentAgencyId
-      ? { connect: { id: data.parentAgencyId } }
-      : undefined;
-    const locationRelation = data.locationId
-      ? { connect: { id: data.locationId } }
-      : undefined;
-
     const agencyCode = await getNextAgencyCode();
 
     const agency = await prisma.agency.create({
@@ -431,8 +424,8 @@ export const createAgencyService = async (
         contactPersonEmail: data.contactPersonEmail || null,
         sendSms: data.sendSms,
         status: data.status,
-        parentAgency: parentAgencyRelation,
-        location: locationRelation,
+        parentAgencyId: data.parentAgencyId || null,
+        locationId: data.locationId || null,
         createdBy: user?.id || null,
         updatedBy: user?.id || null
       },
@@ -445,15 +438,15 @@ export const createAgencyService = async (
     const accountResult = await createAccount({
       name: `Agency - ${agency.name}`,
       type: 'PAYABLE',
-      agencyId: agency.id
+      agencyId: agency.id,
+      code: agency.code ?? undefined,
     });
     if (!accountResult.success) {
-      await prisma.agency.delete({ where: { id: agency.id } }).catch(() => {});
+      const accountError = accountResult.error ?? 'Unknown error';
       return {
-        success: false,
-        error: {
-          message: accountResult.error ?? 'Failed to create accounting account for agency'
-        }
+        success: true,
+        data: agency,
+        message: `Agency created successfully. The linked GL account could not be created: ${accountError}. Please create it manually from the Accounting section or the agency edit page.`
       };
     }
 
@@ -516,19 +509,6 @@ export const updateAgencyService = async (
 
     const data = parsed.data;
 
-    const parentAgencyRelation =
-      data.parentAgencyId !== undefined
-        ? data.parentAgencyId
-          ? { connect: { id: data.parentAgencyId } }
-          : { disconnect: true }
-        : undefined;
-    const locationRelation =
-      data.locationId !== undefined
-        ? data.locationId
-          ? { connect: { id: data.locationId } }
-          : { disconnect: true }
-        : undefined;
-
     const agency = await prisma.agency.update({
       where: { id },
       data: {
@@ -570,8 +550,12 @@ export const updateAgencyService = async (
         }),
         ...(data.sendSms !== undefined && { sendSms: data.sendSms }),
         ...(data.status !== undefined && { status: data.status }),
-        ...(parentAgencyRelation && { parentAgency: parentAgencyRelation }),
-        ...(locationRelation && { location: locationRelation }),
+        ...(data.parentAgencyId !== undefined && {
+          parentAgencyId: data.parentAgencyId || null
+        }),
+        ...(data.locationId !== undefined && {
+          locationId: data.locationId || null
+        }),
         updatedBy: user?.id || null,
         updatedAt: new Date()
       },

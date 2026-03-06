@@ -10,15 +10,17 @@ export const SAVE_BOOKING_METHOD_AGENT = 2
 export const SAVE_BOOKING_METHOD_STAFF = 3
 export const SAVE_BOOKING_METHOD_API = 4
 
-/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent */
+/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet */
 export const SAVE_PAYMENT_TYPE_CASH = 0
 export const SAVE_PAYMENT_TYPE_CREDIT_CARD = 1
 export const SAVE_PAYMENT_TYPE_SLIP = 2
 export const SAVE_PAYMENT_TYPE_CHEQUE = 3
 export const SAVE_PAYMENT_TYPE_AGENT = 4
+export const SAVE_PAYMENT_TYPE_CREDIT = 5
+export const SAVE_PAYMENT_TYPE_E_WALLET = 6
 
 /**
- * Maps UI payment dropdown id (PAYMENT_METHODS 0–5: Cash, OnCall, Agent, Staff, Card, Slip)
+ * Maps UI payment dropdown id (PAYMENT_METHODS 0–7: Cash, OnCall, Agent, Staff, Card, Slip, Credit Customer, E-wallet)
  * to spec payment_method and payment_type.
  */
 export function getPaymentMethodAndType(uiPaymentId: number): {
@@ -32,6 +34,8 @@ export function getPaymentMethodAndType(uiPaymentId: number): {
     3: { payment_method: SAVE_BOOKING_METHOD_STAFF, payment_type: SAVE_PAYMENT_TYPE_CASH },
     4: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CREDIT_CARD },
     5: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_SLIP },
+    6: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CREDIT },
+    7: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_E_WALLET },
   }
   return map[uiPaymentId] ?? { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CASH }
 }
@@ -51,11 +55,13 @@ export type SaveBookingErrorCode =
   | "CASH_BOOK_NOT_FOUND"
   | "CASHIER_ACCOUNT_ERROR"
   | "AGENT_ACCOUNT_NOT_FOUND"
+  | "CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND"
 
 export type SaveBookingAreaRef = { id: string; name: string }
 export type SaveBookingSessionRef = { id: string }
 export type SaveBookingDoctorRef = { id: string; title?: string; name?: string }
 export type SaveBookingAgencyRef = { id: string }
+export type SaveBookingCreditCustomerRef = { id: string }
 export type SaveBookingBankRef = { id: string; name?: string }
 export type SaveBookingStaffRef = { id: string; working_department?: string }
 export type SaveBookingReferredRef = { id: string }
@@ -75,6 +81,7 @@ export type SaveBookingInput = {
   payment_type: number
   agency?: SaveBookingAgencyRef | null
   agency_ref?: string
+  credit_customer?: SaveBookingCreditCustomerRef | null
   bank?: SaveBookingBankRef | null
   slip_ref?: string
   card?: string

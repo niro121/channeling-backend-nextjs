@@ -22,6 +22,8 @@ export type ReceiptJournalAccounts = {
   cashierAccountId?: string | null;
   /** Agent RECEIVABLE account (required for agent receipt/refund). */
   agentAccountId?: string | null;
+  /** Credit Customer RECEIVABLE account (required for credit customer receipt/refund). */
+  creditCustomerAccountId?: string | null;
 };
 
 /**
@@ -167,7 +169,39 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Till: credit (credit customer) — channel payment/refund
+  // Credit Customer (receivable) — channel payment/refund (like Agent; deduct from credit customer balance)
+  const hasCreditCustomer =
+    receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT && Boolean(accounts.creditCustomerAccountId);
+  if (hasCreditCustomer) {
+    if (isPayment) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment (credit customer)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+          { accountId: accounts.creditCustomerAccountId!, debitAmount: 0, creditAmount: amountCents },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund (credit customer)${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.creditCustomerAccountId!, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
+  // Till: credit (generic) — channel payment/refund when no credit customer account
   const isCredit = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT;
   if (isCredit && accounts.cashierAccountId) {
     if (isPayment) {
@@ -384,6 +418,7 @@ export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
   createdBy: string | null;
   agencyId: string | null;
+  creditCustomerId?: string | null;
   /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
   needTill: boolean;
 }): Promise<ReceiptJournalAccounts | null> {
@@ -416,10 +451,20 @@ export async function resolveReceiptJournalAccounts(params: {
     if (res.success) agentAccountId = res.account.id;
   }
 
+  let creditCustomerAccountId: string | null = null;
+  if (params.creditCustomerId) {
+    const res = await getOrCreateAccount({
+      type: 'RECEIVABLE',
+      creditCustomerId: params.creditCustomerId,
+    });
+    if (res.success) creditCustomerAccountId = res.account.id;
+  }
+
   return {
     branchAccountId: branchAccount.id,
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
+    creditCustomerAccountId: creditCustomerAccountId ?? undefined,
   };
 }
 
@@ -428,7 +473,7 @@ export type RequireReceiptJournalAccountsResult =
   | { success: false; error: string; errorCode: string };
 
 /**
- * When the receipt will require a journal (till/cash/card/slip or agent), resolve accounts and validate.
+ * When the receipt will require a journal (till/cash/card/slip, agent, or credit customer), resolve accounts and validate.
  * Call before starting the transaction. If validation fails, return error so booking/settlement/refund is not completed.
  */
 export async function requireReceiptJournalAccounts(
@@ -436,9 +481,10 @@ export async function requireReceiptJournalAccounts(
     locationId: string | null;
     createdBy: string | null;
     agencyId: string | null;
+    creditCustomerId?: string | null;
     needTill: boolean;
   },
-  options: { needTill: boolean; isAgent: boolean }
+  options: { needTill: boolean; isAgent: boolean; isCreditCustomer?: boolean }
 ): Promise<RequireReceiptJournalAccountsResult> {
   const accounts = await resolveReceiptJournalAccounts(params);
   if (!accounts) {
@@ -461,6 +507,13 @@ export async function requireReceiptJournalAccounts(
       success: false,
       error: 'Agent account could not be found or created. Cannot complete agent payment or refund.',
       errorCode: 'AGENT_ACCOUNT_NOT_FOUND',
+    };
+  }
+  if (options.isCreditCustomer && !accounts.creditCustomerAccountId) {
+    return {
+      success: false,
+      error: 'Credit customer account could not be found or created. Cannot complete credit customer payment or refund.',
+      errorCode: 'CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND',
     };
   }
   return { success: true, accounts };

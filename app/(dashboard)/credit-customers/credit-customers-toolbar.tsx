@@ -6,11 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { ExportWrapper } from '../export-wrapper';
 
-type ExportServerData = () => Promise<{ success: boolean; data?: unknown[]; message?: string }>;
+/** Shape of one row in the credit customers export (mapped in page handleExport). */
+type CreditCustomerExportRow = {
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  contactPerson: string;
+  balance: string;
+};
 
 type CreditCustomersToolbarProps = {
   canAdd: boolean;
-  serverData: ExportServerData;
+  serverData: () => Promise<{ success: boolean; data?: CreditCustomerExportRow[]; message?: string }>;
 };
 
 export function CreditCustomersToolbar({
@@ -19,7 +27,7 @@ export function CreditCustomersToolbar({
 }: CreditCustomersToolbarProps) {
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <ExportWrapper
+      <ExportWrapper<CreditCustomerExportRow>
         serverData={serverData}
         columns={['Code', 'Name', 'Email', 'Phone', 'Contact Person', 'Balance']}
         keys={['code', 'name', 'email', 'phone', 'contactPerson', 'balance']}

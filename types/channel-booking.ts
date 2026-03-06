@@ -23,6 +23,8 @@ export type PaymentMethodIconKey =
   | "Users"
   | "CreditCard"
   | "Receipt"
+  | "UserCircle"
+  | "Wallet"
 
 export type PaymentMethodOption = {
   id: number
@@ -38,6 +40,8 @@ export const PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: 3, name: "Staff", icon: "Users" },
   { id: 4, name: "Card", icon: "CreditCard" },
   { id: 5, name: "Slip", icon: "Receipt" },
+  { id: 6, name: "Credit Customer", icon: "UserCircle" },
+  { id: 7, name: "E-wallet", icon: "Wallet" },
 ]
 
 /** Title options: use TITLE_OPTIONS from @/types/title (shared with doctor, patient). */

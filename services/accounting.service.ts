@@ -11,6 +11,7 @@ export {
   getCashAccountByUserId,
   getOrCreateAccount,
   createAccount,
+  updateAccount,
   getAccountById,
   getAllAccounts,
   type GetOrCreateAccountParams,

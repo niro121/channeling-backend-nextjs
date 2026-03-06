@@ -42,14 +42,34 @@ const creditCustomerSchema = z.object({
     .optional()
     .refine((val) => !val || val.trim() === '' || sriLankaPhoneRegex.test(val), 'Invalid phone'),
   contactPersonEmail: z.string().email('Invalid email').optional().nullable().or(z.literal('')),
-  status: z.number().int().refine((v) => v === 0 || v === 1, { message: 'Status must be 0 or 1' }),
+  status: z.union([
+    z.number().int().refine((v) => v === 0 || v === 1, { message: 'Status must be 0 or 1' }),
+    z.string().transform((v) => (v === '0' ? 0 : 1)),
+  ]),
 });
 
-// ==== GET NEXT CODE (CC-00001, CC-00002, ...) ==== //
-async function getNextCreditCustomerCode(): Promise<string> {
-  const result = await getNextSequenceNumber(CREDIT_CUSTOMER_SCOPE, { startFrom: 1 });
-  if (!result.success) throw new Error('Unable to generate credit customer code');
-  return `CC-${String(result.value).padStart(5, '0')}`;
+// ==== GET NEXT CODE (CC-00001, CC-00002, ...) — same pattern as doctor ==== //
+async function getNextCreditCustomerCode(): Promise<{
+  success: boolean;
+  data?: string;
+  message?: string;
+}> {
+  try {
+    const result = await getNextSequenceNumber(CREDIT_CUSTOMER_SCOPE, { startFrom: 1 });
+    if (!result.success) {
+      console.debug('[CC] getNextCreditCustomerCode: sequence failed', result);
+      return { success: false, message: 'Unable to generate credit customer code' };
+    }
+    const code = `CC-${String(result.value).padStart(5, '0')}`;
+    console.debug('[CC] getNextCreditCustomerCode: sequence returned', { value: result.value, code });
+    return { success: true, data: code };
+  } catch (e) {
+    console.debug('[CC] getNextCreditCustomerCode: exception', e);
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : 'Getting code error',
+    };
+  }
 }
 
 // ==== LIST ==== //
@@ -102,6 +122,9 @@ export async function getAllCreditCustomersService(
         return {
           ...rest,
           balance: balanceCents / 100,
+          accountId: acc?.id ?? null,
+          accountName: acc?.name ?? null,
+          accountCode: acc?.code ?? null,
         } as CreditCustomer;
       })
     );
@@ -166,6 +189,7 @@ export async function createCreditCustomerService(
   message?: string;
   error?: { message?: string; issues?: unknown };
 }> {
+  let attemptedCode: string | undefined;
   try {
     const parsed = creditCustomerSchema.safeParse({
       ...payload,
@@ -181,7 +205,22 @@ export async function createCreditCustomerService(
       };
     }
     const data = parsed.data;
-    const code = data.code?.trim() ? data.code.trim() : await getNextCreditCustomerCode();
+
+    let code: string;
+    if (data.code?.trim()) {
+      code = data.code.trim();
+    } else {
+      const codeResult = await getNextCreditCustomerCode();
+      if (!codeResult.success || !codeResult.data) {
+        return {
+          success: false,
+          error: { message: codeResult.message ?? 'Failed to generate credit customer code' },
+        };
+      }
+      code = codeResult.data;
+    }
+    attemptedCode = code;
+    console.debug('[CC] Service: create attempt', { code, name: data.name });
 
     const created = await prisma.creditCustomer.create({
       data: {
@@ -206,12 +245,14 @@ export async function createCreditCustomerService(
       name: `Credit - ${created.name}`,
       type: 'RECEIVABLE',
       creditCustomerId: created.id,
+      code: created.code,
     });
     if (!accountResult.success) {
-      await prisma.creditCustomer.delete({ where: { id: created.id } }).catch(() => {});
+      const accountError = accountResult.error ?? 'Unknown error';
       return {
-        success: false,
-        error: { message: accountResult.error ?? 'Failed to create accounting account for credit customer' },
+        success: true,
+        data: { ...created, balance: 0 } as CreditCustomer,
+        message: `Credit customer created successfully. The linked GL account could not be created: ${accountError}. Please create it manually from the Accounting section or the credit customer edit page.`,
       };
     }
 
@@ -222,9 +263,16 @@ export async function createCreditCustomerService(
     };
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002') {
-      return { success: false, error: { message: 'Code already in use' } };
+      const meta = (e as { meta?: { modelName?: string } }).meta;
+      const isAccountConflict = meta?.modelName === 'Account';
+      console.warn('[CC] Service: P2002', { attemptedCode, meta });
+      const message = isAccountConflict && attemptedCode
+        ? `The linked accounting account could not be created (code "${attemptedCode}" is already in use). The credit customer was not saved. Please try again or check the Accounting list.`
+        : 'Code already in use. The credit customer was not saved. Please try again.';
+      return { success: false, error: { message } };
     }
     const message = e instanceof Error ? e.message : 'Failed to create credit customer';
+    console.debug('[CC] Service: create error', { message, attemptedCode });
     return { success: false, error: { message } };
   }
 }

@@ -39,7 +39,8 @@ function CreditCustomerRecordActions<TData extends CreditCustomer>({
       setLoading(true);
       const result = await deleteCreditCustomer(creditCustomer.id);
       if (result.isError) {
-        throw new Error(result.errors?.message ?? 'Failed to delete credit customer');
+        const err = result.errors as { message?: string } | undefined;
+        throw new Error(err?.message ?? 'Failed to delete credit customer');
       }
       toast({
         variant: 'success',

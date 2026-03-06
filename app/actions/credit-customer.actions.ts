@@ -96,17 +96,25 @@ export async function getCreditCustomerById(id: string) {
 
 // ==== CREATE ==== //
 export async function createCreditCustomer(payload: CreditCustomerFormValues) {
+  console.debug('[CC] Action: createCreditCustomer called', {
+    name: payload.name,
+    codeProvided: !!payload.code?.trim(),
+    code: payload.code?.trim() || '(auto)',
+  });
   await requirePermission('credit-customers', 'add');
   try {
     const result = await createCreditCustomerService(payload);
     if (!result.success) {
+      const errMsg = result.error?.message ?? result.message ?? 'Creation failed';
+      console.error('[CC] Action: service returned error', errMsg, result.error?.issues ?? '');
       return {
         success: false,
         isError: true,
-        errors: result.error ?? { message: result.message ?? 'Creation failed' },
+        errors: result.error ?? { message: errMsg },
         data: null,
       };
     }
+    console.debug('[CC] Action: service success', { id: result.data?.id, code: (result.data as { code?: string })?.code });
     revalidatePath('/credit-customers');
     return {
       success: true,
@@ -116,11 +124,13 @@ export async function createCreditCustomer(payload: CreditCustomerFormValues) {
       errors: {},
     };
   } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unexpected error';
+    console.error('[CC] Action: exception', message, e);
     return {
       success: false,
       isError: true,
       data: null,
-      errors: { message: e instanceof Error ? e.message : 'Unexpected error' },
+      errors: { message },
     };
   }
 }

@@ -17,6 +17,7 @@ export type CreateReceiptForBookingReceiptParams = {
   method: number
   bookingId: string
   agencyId?: string | null
+  creditCustomerId?: string | null
   createdBy?: string | null
   locationId?: string | null
   userLocationId?: string | null
@@ -147,6 +148,7 @@ export async function createReceiptAndUpdateBooking(
       whdPercentage: 0,
       bookingId: params.bookingId,
       agencyId: params.agencyId ?? null,
+      creditCustomerId: params.creditCustomerId ?? null,
       createdBy: params.createdBy ?? null,
       locationId: params.locationId ?? null,
       userLocationId: params.userLocationId ?? null,

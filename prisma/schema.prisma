@@ -769,7 +769,9 @@ model CreditCustomer {
   createdUser User?     @relation("UserCreatedCreditCustomers", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?     @relation("UserUpdatedCreditCustomers", fields: [updatedBy], references: [id], onDelete: SetNull)
 
-  accounts Account[] @relation("CreditCustomerToAccount")
+  accounts   Account[]  @relation("CreditCustomerToAccount")
+  bookings   Booking[]  @relation("CreditCustomerToBooking")
+  receipts   Receipt[]  @relation("CreditCustomerToReceipt")
 }
 
 model Booking {
@@ -805,6 +807,8 @@ model Booking {
   agencyRef               String?  @default("")
   agencyId                String?  @db.ObjectId
   agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId        String?  @db.ObjectId
+  creditCustomer          CreditCustomer? @relation("CreditCustomerToBooking", fields: [creditCustomerId], references: [id], onDelete: SetNull)
   staffId                 String?  @db.ObjectId
   staff                   Staff?   @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
   discountDivision        Json?
@@ -862,11 +866,13 @@ model Receipt {
   whd             Int     @default(0)
   whdPercentage   Float   @default(0)
 
-  bookingId      String?   @db.ObjectId
-  booking        Booking?  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
-  agencyId       String?   @db.ObjectId
-  agency         Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
-  createdBy      String?   @db.ObjectId
+  bookingId         String?   @db.ObjectId
+  booking           Booking?  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
+  agencyId          String?   @db.ObjectId
+  agency            Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId  String?   @db.ObjectId
+  creditCustomer    CreditCustomer? @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  createdBy         String?   @db.ObjectId
   locationId     String?   @db.ObjectId
   location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
   userLocationId String?   @db.ObjectId
