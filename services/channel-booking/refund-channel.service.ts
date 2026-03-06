@@ -47,6 +47,15 @@ export async function refundChannelService(
     return { success: false, errorCode: "not_found", message: "Booking not found." }
   }
 
+  const sessionRefundable = booking.session?.refundable ?? 1
+  if (sessionRefundable === 0) {
+    return {
+      success: false,
+      errorCode: "non_refundable_session",
+      message: "This is a non-refundable session.",
+    }
+  }
+
   // Refund field: 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Reject if already refunded.
   const bookingRefund = booking.refund ?? 0
   if (bookingRefund !== 0) {
