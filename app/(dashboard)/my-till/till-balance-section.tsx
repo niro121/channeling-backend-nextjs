@@ -12,7 +12,6 @@ import {
   Receipt,
   Smartphone,
   Pencil,
-  ExternalLink,
   Link2,
   CircleDollarSign,
 } from 'lucide-react';
@@ -90,20 +89,12 @@ export async function TillBalanceSection() {
                 <span className="ml-1 font-normal text-muted-foreground">({balance.tillAccountCode})</span>
               ) : null}
             </span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/accounting/${balance.tillAccountId}/edit`} className="gap-1.5">
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit account
-                </Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={`/accounting/${balance.tillAccountId}/statement`} className="gap-1.5">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Statement
-                </Link>
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/accounting/${balance.tillAccountId}/edit`} className="gap-1.5">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit account
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       )}

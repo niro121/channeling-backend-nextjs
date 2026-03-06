@@ -46,8 +46,12 @@ export function buildReceiptJournalEntryInput(
   const hasAgent =
     receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT && Boolean(accounts.agentAccountId);
 
-  // Till: cash — affect cashier till with paymentMethod 0
-  if (isCash && accounts.cashierAccountId) {
+  // Only channel payment/refund use the till-by-payment-method blocks below; ledger methods are handled later
+  const isChannelPaymentOrRefund =
+    receipt.method === RECEIPT_METHOD.PAYMENT || receipt.method === RECEIPT_METHOD.REFUND;
+
+  // Till: cash — affect cashier till with paymentMethod 0 (channel payment/refund only)
+  if (isCash && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
       return {
         date: receipt.createdAt ?? new Date(),
@@ -76,9 +80,9 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Till: card — channel payment/refund
+  // Till: card — channel payment/refund only
   const isCard = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD;
-  if (isCard && accounts.cashierAccountId) {
+  if (isCard && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
       return {
         date: receipt.createdAt ?? new Date(),
@@ -107,9 +111,9 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Till: slip — channel payment/refund
+  // Till: slip — channel payment/refund only
   const isSlip = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP;
-  if (isSlip && accounts.cashierAccountId) {
+  if (isSlip && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
       return {
         date: receipt.createdAt ?? new Date(),
@@ -391,18 +395,23 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Withdraw (7) - agency takes out
-  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId) {
+  // Ledger: Agency Withdraw (7) - agency takes out (reverse of deposit: Dr Agent, Cr Till). Till only; no branch fallback.
+  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId && accounts.cashierAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
-      description: `Agency withdraw${descSuffix}`,
+      description: `Agency withdraw (cash)${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        {
+          accountId: accounts.cashierAccountId,
+          debitAmount: 0,
+          creditAmount: amountCents,
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        },
       ],
     };
   }

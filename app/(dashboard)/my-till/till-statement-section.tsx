@@ -64,12 +64,12 @@ export async function TillStatementSection({ from, to }: Props) {
           <BookOpen className="h-3.5 w-3.5" />
           {statement
             ? (
-              <>
-                Opening <span className="font-medium tabular-nums text-foreground">{formatCents(statement.openingBalance)}</span> LKR
-                {' → '}
-                Closing <span className="font-medium tabular-nums text-foreground">{formatCents(statement.closingBalance)}</span> LKR
-              </>
-            )
+                <>
+                  Opening <span className="font-medium tabular-nums text-foreground">{formatCents(statement.openingBalance)}</span> LKR
+                  {' → '}
+                  Closing <span className="font-medium tabular-nums text-foreground">{formatCents(statement.closingBalance)}</span> LKR
+                </>
+              )
             : 'No till account yet. Your till is created when you receive float or record a payment.'}
         </p>
       </CardHeader>

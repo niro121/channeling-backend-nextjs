@@ -7,7 +7,7 @@ import {
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
-import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { createJournalEntryInTransaction, getAccountBalance } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
@@ -149,6 +149,21 @@ export async function refundChannelService(
           needTill,
         })
       }
+      // Refund that pays out from till: till must have sufficient balance
+      if (needTill && accounts?.cashierAccountId) {
+        const refundAmountCents = Math.round(Math.abs(refundAmount) * 100)
+        const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+        if (tillBalanceCents < refundAmountCents) {
+          return {
+            success: false,
+            errorCode: "INSUFFICIENT_TILL_BALANCE",
+            message:
+              tillBalanceCents <= 0
+                ? "Till has no balance. Cannot refund until the till has sufficient cash."
+                : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(refundAmountCents / 100).toFixed(2)} LKR.`,
+          }
+        }
+      }
       const journalNumberResult = accounts
         ? await getNextSequenceNumber("journal", { startFrom: 1 })
         : null
@@ -257,6 +272,21 @@ export async function refundChannelService(
         creditCustomerId: bookingCreditCustomerId,
         needTill,
       })
+    }
+    // Refund that pays out from till: till must have sufficient balance
+    if (needTill && accounts?.cashierAccountId) {
+      const refundAmountCents = Math.round(totalRefund * 100)
+      const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+      if (tillBalanceCents < refundAmountCents) {
+        return {
+          success: false,
+          errorCode: "INSUFFICIENT_TILL_BALANCE",
+          message:
+            tillBalanceCents <= 0
+              ? "Till has no balance. Cannot refund until the till has sufficient cash."
+              : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(refundAmountCents / 100).toFixed(2)} LKR.`,
+        }
+      }
     }
     const journalNumberResult = accounts
       ? await getNextSequenceNumber("journal", { startFrom: 1 })

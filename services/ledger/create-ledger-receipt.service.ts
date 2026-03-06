@@ -1,5 +1,8 @@
 import prisma from "@/lib/prisma"
-import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import {
+  createJournalEntryInTransaction,
+  getAccountBalance,
+} from "@/services/accounting.service"
 import {
   createReceiptWithoutBooking,
   type CreateReceiptWithoutBookingParams,
@@ -10,6 +13,7 @@ import {
   resolveReceiptJournalAccounts,
 } from "@/services/channel-booking/helpers/receipt-journal-entry"
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence"
+import { getAgentBalance } from "@/services/channel-booking/helpers/get-agent-balance"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
 import {
   RECEIPT_METHOD,
@@ -105,6 +109,22 @@ export async function createLedgerReceipt(
     }
   }
 
+  // Agency withdraw: ensure the agent has sufficient balance (cannot withdraw more than they have with us)
+  if (input.transactionType === "AGENCY_WITHDRAW" && input.agencyId) {
+    const agentBalanceCents = await getAgentBalance(input.agencyId)
+    const withdrawAmountCents = Math.round(input.amount * 100)
+    if (agentBalanceCents < withdrawAmountCents) {
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_AGENCY_BALANCE",
+        message:
+          agentBalanceCents <= 0
+            ? "This agency has no balance to withdraw. They must deposit first."
+            : `Insufficient agency balance. Available: ${(agentBalanceCents / 100).toFixed(2)} LKR, requested: ${(withdrawAmountCents / 100).toFixed(2)} LKR.`,
+      }
+    }
+  }
+
   const { method, type, paymentMethod: defaultPaymentMethod } = mapToReceiptMethodAndType(
     input.transactionType
   )
@@ -118,7 +138,8 @@ export async function createLedgerReceipt(
   const needCashierAccount =
     method === RECEIPT_METHOD.BRANCH_INCOME ||
     method === RECEIPT_METHOD.BRANCH_EXPENSE ||
-    (method === RECEIPT_METHOD.AGENCY_DEPOSIT && isCash)
+    (method === RECEIPT_METHOD.AGENCY_DEPOSIT && isCash) ||
+    method === RECEIPT_METHOD.AGENCY_WITHDRAW
 
   let accounts = await resolveReceiptJournalAccounts({
     locationId: input.branchId,
@@ -147,6 +168,24 @@ export async function createLedgerReceipt(
     return { success: false, errorCode: reqResult.errorCode, message: reqResult.error }
   }
   accounts = reqResult.accounts
+
+  // Transactions that pay out from the till: till must have sufficient balance
+  const amountCents = Math.round(input.amount * 100)
+  const paysOutFromTill =
+    input.transactionType === "AGENCY_WITHDRAW" || input.transactionType === "BRANCH_EXPENSE"
+  if (paysOutFromTill && accounts.cashierAccountId) {
+    const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+    if (tillBalanceCents < amountCents) {
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_TILL_BALANCE",
+        message:
+          tillBalanceCents <= 0
+            ? "Till has no balance. Cannot complete this transaction until the till has sufficient cash."
+            : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(amountCents / 100).toFixed(2)} LKR.`,
+      }
+    }
+  }
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, {
     startFrom: 1,

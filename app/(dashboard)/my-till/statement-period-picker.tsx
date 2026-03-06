@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,11 @@ export function StatementPeriodPicker() {
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFrom(fromParam);
+    setTo(toParam);
+  }, [fromParam, toParam]);
 
   const apply = useCallback(() => {
     const fromDate = new Date(from);
@@ -44,6 +49,7 @@ export function StatementPeriodPicker() {
     params.set('from', from);
     params.set('to', to);
     router.push(`/my-till?${params.toString()}`);
+    router.refresh();
   }, [from, to, router]);
 
   return (

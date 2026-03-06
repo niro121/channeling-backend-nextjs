@@ -70,12 +70,10 @@ export default async function MyTillPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Balance + linked account: loads separately */}
       <Suspense fallback={<BalanceSectionFallback />}>
         <TillBalanceSection />
       </Suspense>
 
-      {/* Statement: loads separately (depends on date period) */}
       <Suspense fallback={<StatementSectionFallback />}>
         <TillStatementSection from={from} to={to} />
       </Suspense>

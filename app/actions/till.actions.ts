@@ -3,123 +3,79 @@
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getTillBalanceBreakdown, getAccountStatement } from '@/services/accounting.service';
-import { getOrCreateAccount } from '@/services/accounting.service';
+import { getTillBalanceBreakdown, getAccountStatement, getOrCreateAccount } from '@/services/accounting.service';
 
-export type MyTillData = {
-  balance: {
-    totalCents: number;
-    cashCents: number;
-    cardCents: number;
-    slipCents: number;
-    checkCents: number;
-    creditCents: number;
-    eWalletCents: number;
-    tillAccountId: string | null;
-    tillAccountName: string | null;
-    tillAccountCode: string | null;
-  };
-  statement: {
-    lines: Array<{
-      id: string;
-      date: Date;
-      journalNumber: number | null;
-      description: string;
-      debitAmount: number;
-      creditAmount: number;
-      runningBalance: number;
-      paymentMethod?: number | null;
-    }>;
-    openingBalance: number;
-    closingBalance: number;
-  } | null;
+export type MyTillBalance = {
+  totalCents: number;
+  cashCents: number;
+  cardCents: number;
+  slipCents: number;
+  checkCents: number;
+  creditCents: number;
+  eWalletCents: number;
+  tillAccountId: string | null;
+  tillAccountName: string | null;
+  tillAccountCode: string | null;
 };
 
 const STATEMENT_MAX_DAYS = 31;
 
-function toStartOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setHours(0, 0, 0, 0);
-  return out;
+/** Parse YYYY-MM-DD to start/end of that day in server local time (matches journal dates created with new Date()). */
+function parseLocalDay(dateStr: string): { start: Date; end: Date } {
+  const [y, m, d] = dateStr.trim().split('-').map(Number);
+  const year = Number(y);
+  const month = Number(m) - 1;
+  const day = Number(d);
+  const start = new Date(year, month, day, 0, 0, 0, 0);
+  const end = new Date(year, month, day, 23, 59, 59, 999);
+  return { start, end };
 }
 
-function toEndOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setHours(23, 59, 59, 999);
-  return out;
-}
-
-/** Parse YYYY-MM-DD or Date; default to today. Enforce max 31 days range. */
+/** Parse from/to strings; default to today (server local). Clamp range to STATEMENT_MAX_DAYS. */
 function parseStatementPeriod(
   fromStr?: string | null,
   toStr?: string | null
 ): { from: Date; to: Date } {
-  const today = new Date();
-  const fromDefault = toStartOfDay(today);
-  const toDefault = toEndOfDay(today);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
   if (!fromStr?.trim() && !toStr?.trim()) {
-    return { from: fromDefault, to: toDefault };
+    return { from: todayStart, to: todayEnd };
   }
 
-  const from = fromStr?.trim()
-    ? toStartOfDay(new Date(fromStr))
-    : fromDefault;
-  const to = toStr?.trim()
-    ? toEndOfDay(new Date(toStr))
-    : toDefault;
+  const fromParsed = fromStr?.trim() ? parseLocalDay(fromStr) : null;
+  const toParsed = toStr?.trim() ? parseLocalDay(toStr) : null;
+  const from = fromParsed ? fromParsed.start : todayStart;
+  const to = toParsed ? toParsed.end : todayEnd;
 
   const daysDiff = Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
   if (daysDiff > STATEMENT_MAX_DAYS) {
-    const toClamped = new Date(from);
+    const toClamped = new Date(from.getTime());
     toClamped.setDate(toClamped.getDate() + STATEMENT_MAX_DAYS);
-    return { from, to: toEndOfDay(toClamped) };
+    toClamped.setHours(23, 59, 59, 999);
+    return { from, to: toClamped };
   }
   if (from.getTime() > to.getTime()) {
-    return { from: fromDefault, to: toDefault };
+    return { from: todayStart, to: todayEnd };
   }
   return { from, to };
 }
 
-export type MyTillBalance = MyTillData['balance'];
-
-export async function getMyTillBalance(): Promise<{
-  success: boolean;
-  data?: MyTillBalance;
-  message?: string;
-}> {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
-  if (!userId) {
-    return { success: false, message: 'Not signed in.' };
-  }
-  try {
-    const balance = await getTillBalanceBreakdown(userId);
-    return {
-      success: true,
-      data: {
-        totalCents: balance.totalCents,
-        cashCents: balance.cashCents,
-        cardCents: balance.cardCents,
-        slipCents: balance.slipCents,
-        checkCents: balance.checkCents,
-        creditCents: balance.creditCents,
-        eWalletCents: balance.eWalletCents,
-        tillAccountId: balance.tillAccountId,
-        tillAccountName: balance.tillAccountName,
-        tillAccountCode: balance.tillAccountCode,
-      },
-    };
-  } catch (error) {
-    console.error('getMyTillBalance error:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to load till balance.',
-    };
-  }
-}
-
-export type MyTillStatement = NonNullable<MyTillData['statement']>;
+export type MyTillStatement = {
+  lines: Array<{
+    id: string;
+    date: Date;
+    journalNumber: number | null;
+    description: string;
+    debitAmount: number;
+    creditAmount: number;
+    runningBalance: number;
+    paymentMethod?: number | null;
+  }>;
+  openingBalance: number;
+  closingBalance: number;
+};
 
 export async function getMyTillStatement(
   fromDate?: string | null,
@@ -153,6 +109,16 @@ export async function getMyTillStatement(
       return { success: true, data: null };
     }
     const st = await getAccountStatement(balance.tillAccountId, from, to);
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[getMyTillStatement]', {
+        fromStr: fromStr ?? '(today)',
+        toStr: toStr ?? '(today)',
+        from: from.toISOString(),
+        to: to.toISOString(),
+        tillAccountId: balance.tillAccountId,
+        lineCount: st?.lines?.length ?? 0,
+      });
+    }
     if (!st) {
       return { success: true, data: null };
     }
@@ -180,9 +146,9 @@ export async function getMyTillStatement(
   }
 }
 
-export async function getMyTillData(fromDate?: string | Date, toDate?: string | null): Promise<{
+export async function getMyTillBalance(): Promise<{
   success: boolean;
-  data?: MyTillData;
+  data?: MyTillBalance;
   message?: string;
 }> {
   const session = await getServerSession(authOptions);
@@ -190,67 +156,28 @@ export async function getMyTillData(fromDate?: string | Date, toDate?: string | 
   if (!userId) {
     return { success: false, message: 'Not signed in.' };
   }
-
-  const fromStr =
-    fromDate == null
-      ? undefined
-      : typeof fromDate === 'string'
-        ? fromDate
-        : (fromDate as Date).toISOString().slice(0, 10);
-  const toStr =
-    toDate == null
-      ? undefined
-      : typeof toDate === 'string'
-        ? toDate
-        : (toDate as Date).toISOString().slice(0, 10);
-  const { from, to } = parseStatementPeriod(fromStr, toStr);
-
   try {
     const balance = await getTillBalanceBreakdown(userId);
-    let statement: MyTillData['statement'] = null;
-    if (balance.tillAccountId) {
-      const st = await getAccountStatement(balance.tillAccountId, from, to);
-      if (st) {
-        statement = {
-          lines: st.lines.map((l) => ({
-            id: l.id,
-            date: l.date,
-            journalNumber: l.journalNumber,
-            description: l.description,
-            debitAmount: l.debitAmount,
-            creditAmount: l.creditAmount,
-            runningBalance: l.runningBalance,
-            paymentMethod: l.paymentMethod,
-          })),
-          openingBalance: st.openingBalance,
-          closingBalance: st.closingBalance,
-        };
-      }
-    }
-
     return {
       success: true,
       data: {
-        balance: {
-          totalCents: balance.totalCents,
-          cashCents: balance.cashCents,
-          cardCents: balance.cardCents,
-          slipCents: balance.slipCents,
-          checkCents: balance.checkCents,
-          creditCents: balance.creditCents,
-          eWalletCents: balance.eWalletCents,
-          tillAccountId: balance.tillAccountId,
-          tillAccountName: balance.tillAccountName,
-          tillAccountCode: balance.tillAccountCode,
-        },
-        statement,
+        totalCents: balance.totalCents,
+        cashCents: balance.cashCents,
+        cardCents: balance.cardCents,
+        slipCents: balance.slipCents,
+        checkCents: balance.checkCents,
+        creditCents: balance.creditCents,
+        eWalletCents: balance.eWalletCents,
+        tillAccountId: balance.tillAccountId,
+        tillAccountName: balance.tillAccountName,
+        tillAccountCode: balance.tillAccountCode,
       },
     };
   } catch (error) {
-    console.error('getMyTillData error:', error);
+    console.error('getMyTillBalance error:', error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to load till.',
+      message: error instanceof Error ? error.message : 'Failed to load till balance.',
     };
   }
 }

@@ -5,23 +5,23 @@ import { ChannelBookingProvider } from "../context/channel-booking-context"
 import { ChannelBookingEffects } from "./channel-booking-effects"
 
 const DoctorSelection = dynamic(
-  () => import("./doctor-selection").then((m) => ({ default: m.DoctorSelection })),
+  () => import("./doctor-selection").then((m) => ({ default: m.DoctorSelection ?? (() => null) })),
   { ssr: false, loading: () => <CardSkeleton className="min-h-[320px]" /> }
 )
 const SessionsSelection = dynamic(
-  () => import("./sessions-selection").then((m) => ({ default: m.SessionsSelection })),
+  () => import("./sessions-selection").then((m) => ({ default: m.SessionsSelection ?? (() => null) })),
   { ssr: false, loading: () => <CardSkeleton className="min-h-[320px]" /> }
 )
 const Bookings = dynamic(
-  () => import("./bookings").then((m) => ({ default: m.Bookings })),
+  () => import("./bookings").then((m) => ({ default: m.Bookings ?? (() => null) })),
   { ssr: false, loading: () => <CardSkeleton className="min-h-[320px]" /> }
 )
 const Reservation = dynamic(
-  () => import("./reservation").then((m) => ({ default: m.Reservation })),
+  () => import("./reservation").then((m) => ({ default: m.Reservation ?? (() => null) })),
   { ssr: false, loading: () => <CardSkeleton className="min-h-[360px]" /> }
 )
 const Information = dynamic(
-  () => import("./information").then((m) => ({ default: m.Information })),
+  () => import("./information").then((m) => ({ default: m.Information ?? (() => null) })),
   { ssr: false, loading: () => <CardSkeleton className="min-h-[360px]" /> }
 )
 
