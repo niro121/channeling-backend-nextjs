@@ -1,25 +1,44 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { usePathname } from "next/navigation"
+import { io, type Socket } from "socket.io-client"
 import {
   getCurrentShiftAction,
   pauseShiftAction,
   resumeShiftAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
+import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { SHIFT_STATUS } from "@/types/shift"
+import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RequestFloatDialog } from "./request-float-dialog"
+import { formatDenomLabel } from "@/types/float-request"
 
 type ShiftRecord = {
   id: string
@@ -48,12 +67,70 @@ export function ChannelBookingShiftBar() {
   const pathname = usePathname()
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
+  const hasFloatRequestPermission = hasPermission("bulk-cashier", "float-request")
   const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH)
   const [shift, setShift] = useState<ShiftRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [floatBalanceCents, setFloatBalanceCents] = useState<number | null>(null)
+  const [pendingFloatRequest, setPendingFloatRequest] = useState<FloatRequest | null>(null)
+  const [approvedFloatRequest, setApprovedFloatRequest] = useState<FloatRequest | null>(null)
+  const [requestFloatOpen, setRequestFloatOpen] = useState(false)
+  const [receiveFloatOpen, setReceiveFloatOpen] = useState(false)
+  const [requestFloatShiftIdOverride, setRequestFloatShiftIdOverride] = useState<string | null>(null)
+  const [cancelFloatOpen, setCancelFloatOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
+  const hadPendingFloatRef = useRef(false)
+  const floatRequestSocketUserIdRef = useRef<string | null>(null)
+  const floatBalanceUserIdRef = useRef<string | null>(null)
   const { toast } = useToast()
+
+  const refreshFloatBalance = useCallback(() => {
+    setFloatBalanceRefreshing(true)
+    getMyFloatBalanceAction()
+      .then((res) => {
+        if (res.success && res.balanceCents !== undefined) setFloatBalanceCents(res.balanceCents)
+      })
+      .finally(() => setFloatBalanceRefreshing(false))
+  }, [])
+
+  const refreshPendingFloatRequest = useCallback(() => {
+    getMyPendingFloatRequestAction().then((res) => {
+      if (res.success && res.data) setPendingFloatRequest(res.data)
+      else setPendingFloatRequest(null)
+    })
+  }, [])
+
+  const refreshApprovedFloatRequest = useCallback(() => {
+    getMyApprovedFloatRequestAction().then((res) => {
+      if (res.success && res.data) setApprovedFloatRequest(res.data)
+      else setApprovedFloatRequest(null)
+    })
+  }, [])
+
+  async function handleCancelFloatRequest() {
+    if (!pendingFloatRequest || !cancelReason.trim()) return
+    setCancelLoading(true)
+    try {
+      const res = await cancelFloatRequestAction({
+        floatRequestId: pendingFloatRequest.id,
+        reason: cancelReason.trim(),
+      })
+      if (res.success) {
+        setCancelFloatOpen(false)
+        setCancelReason("")
+        refreshPendingFloatRequest()
+        toast({ title: res.message ?? "Float request cancelled" })
+      } else {
+        toast({ title: "Error", description: res.error ?? "Failed to cancel", variant: "destructive" })
+      }
+    } finally {
+      setCancelLoading(false)
+    }
+  }
 
   // Live-updating clock when shift is active (tick every second)
   useEffect(() => {
@@ -86,10 +163,146 @@ export function ChannelBookingShiftBar() {
 
   useEffect(() => {
     if (!isChannelBooking) return
-    const onShiftStarted = () => refresh()
+    const onShiftStarted = () => {
+      refresh()
+      if (hasFloatRequestPermission) {
+        refreshFloatBalance()
+        refreshPendingFloatRequest()
+        refreshApprovedFloatRequest()
+      }
+    }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
-  }, [isChannelBooking])
+  }, [isChannelBooking, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
+
+  useEffect(() => {
+    if (shift && hasFloatRequestPermission) {
+      refreshFloatBalance()
+      refreshPendingFloatRequest()
+      refreshApprovedFloatRequest()
+    } else {
+      if (!hasFloatRequestPermission) setFloatBalanceCents(null)
+      setPendingFloatRequest(null)
+      setApprovedFloatRequest(null)
+    }
+  }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
+
+  // Socket: when shift active + float permission, subscribe to float-balance (ledger updates) and optionally float-request (approval/reject)
+  const socketRef = useRef<Socket | null>(null)
+  useEffect(() => {
+    if (typeof window === "undefined" || !shift || !hasFloatRequestPermission) {
+      if (socketRef.current) {
+        if (floatBalanceUserIdRef.current) {
+          socketRef.current.emit("float-balance:unsubscribe", { userId: floatBalanceUserIdRef.current })
+          floatBalanceUserIdRef.current = null
+        }
+        if (floatRequestSocketUserIdRef.current) {
+          socketRef.current.emit("float-request:unsubscribe", { userId: floatRequestSocketUserIdRef.current })
+          floatRequestSocketUserIdRef.current = null
+        }
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+      if (!shift) hadPendingFloatRef.current = false
+      return
+    }
+    if (pendingFloatRequest) hadPendingFloatRef.current = true
+    const userId = shift.userId
+    floatBalanceUserIdRef.current = userId
+    const requestId = pendingFloatRequest?.id ?? null
+    const socket = io(window.location.origin, { path: "/socket.io", addTrailingSlash: false })
+    socketRef.current = socket
+
+    const doSubscribe = () => {
+      socket.emit("float-balance:subscribe", { userId })
+      if (pendingFloatRequest) {
+        floatRequestSocketUserIdRef.current = userId
+        socket.emit("float-request:subscribe", { userId })
+      }
+    }
+    if (socket.connected) doSubscribe()
+    else socket.once("connect", doSubscribe)
+
+    const onFloatBalanceUpdate = () => {
+      refreshFloatBalance()
+    }
+    socket.on("float-balance-update", onFloatBalanceUpdate)
+
+    const onFloatRequestUpdate = (data: { floatRequestId: string; status: number }) => {
+      if (requestId && data?.floatRequestId !== requestId) return
+      if (data.status === FLOAT_REQUEST_STATUS.APPROVED) {
+        Promise.all([getMyPendingFloatRequestAction(), getMyApprovedFloatRequestAction()]).then(
+          ([pendingRes, approvedRes]) => {
+            setPendingFloatRequest(pendingRes.success ? pendingRes.data ?? null : null)
+            const approved = approvedRes.success ? approvedRes.data : null
+            setApprovedFloatRequest(approved ?? null)
+            if (approved) {
+              hadPendingFloatRef.current = false
+              setReceiveFloatOpen(true)
+              toast({ title: "Your float request was approved. Enter the code to receive it." })
+            }
+          }
+        )
+      } else if (data.status === FLOAT_REQUEST_STATUS.REJECTED) {
+        refreshPendingFloatRequest()
+        setApprovedFloatRequest(null)
+        hadPendingFloatRef.current = false
+        toast({ title: "Your float request was rejected.", variant: "destructive" })
+      }
+    }
+    socket.on("float-request-update", onFloatRequestUpdate)
+
+    return () => {
+      socket.emit("float-balance:unsubscribe", { userId })
+      floatBalanceUserIdRef.current = null
+      if (floatRequestSocketUserIdRef.current) {
+        socket.emit("float-request:unsubscribe", { userId: floatRequestSocketUserIdRef.current })
+        floatRequestSocketUserIdRef.current = null
+      }
+      socket.off("float-balance-update", onFloatBalanceUpdate)
+      socket.off("float-request-update", onFloatRequestUpdate)
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [shift?.id, shift?.userId, hasFloatRequestPermission, pendingFloatRequest?.id, pendingFloatRequest?.requestedById, refreshFloatBalance, refreshPendingFloatRequest, toast])
+
+  // Fallback polling when socket is not used (e.g. next:dev without custom server) or as backup
+  useEffect(() => {
+    if (!shift || !hasFloatRequestPermission || !pendingFloatRequest) {
+      if (!pendingFloatRequest) hadPendingFloatRef.current = false
+      return
+    }
+    hadPendingFloatRef.current = true
+    const POLL_MS = 8000
+    const interval = setInterval(() => {
+      Promise.all([
+        getMyPendingFloatRequestAction(),
+        getMyApprovedFloatRequestAction(),
+      ]).then(([pendingRes, approvedRes]) => {
+        const pending = pendingRes.success ? pendingRes.data : null
+        const approved = approvedRes.success ? approvedRes.data : null
+        setPendingFloatRequest(pending ?? null)
+        setApprovedFloatRequest(approved ?? null)
+        if (hadPendingFloatRef.current && !pending && approved) {
+          hadPendingFloatRef.current = false
+          setReceiveFloatOpen(true)
+          toast({ title: "Your float request was approved. Enter the code to receive it." })
+        }
+      })
+    }, POLL_MS)
+    return () => clearInterval(interval)
+  }, [shift?.id, hasFloatRequestPermission, pendingFloatRequest?.id, toast])
+
+  useEffect(() => {
+    if (!isChannelBooking || !hasFloatRequestPermission) return
+    const openRequestFloat = (e: Event) => {
+      const shiftId = (e as CustomEvent<{ shiftId?: string | null }>)?.detail?.shiftId ?? null
+      setRequestFloatShiftIdOverride(shiftId ?? null)
+      setRequestFloatOpen(true)
+    }
+    window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
+    return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
+  }, [isChannelBooking, hasFloatRequestPermission])
 
   if (!isChannelBooking || !hasShiftPermission) return null
   if (loading) return null
@@ -98,14 +311,27 @@ export function ChannelBookingShiftBar() {
 
   if (!shift) {
     return (
-      <Button
-        size="sm"
-        className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground gap-2 rounded-md font-medium"
-        onClick={() => window.dispatchEvent(new CustomEvent(SHOW_START_SHIFT_DIALOG_EVENT))}
-      >
-        <PlayCircle className="h-4 w-4 shrink-0" />
-        Start a shift
-      </Button>
+      <>
+        <Button
+          size="sm"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground gap-2 rounded-md font-medium"
+          onClick={() => window.dispatchEvent(new CustomEvent(SHOW_START_SHIFT_DIALOG_EVENT))}
+        >
+          <PlayCircle className="h-4 w-4 shrink-0" />
+          Start a shift
+        </Button>
+        {hasFloatRequestPermission && (
+          <RequestFloatDialog
+            open={requestFloatOpen}
+            onOpenChange={(open) => {
+              setRequestFloatOpen(open)
+              if (!open) setRequestFloatShiftIdOverride(null)
+            }}
+            shiftId={requestFloatShiftIdOverride}
+            onSuccess={refreshFloatBalance}
+          />
+        )}
+      </>
     )
   }
 
@@ -161,53 +387,345 @@ export function ChannelBookingShiftBar() {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          disabled={!!actionLoading}
-          className={cn(
-            "gap-2 rounded-md font-medium",
-            isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
-            isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
-          )}
-        >
-          {actionLoading ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          ) : (
-            <CircleDot className="h-4 w-4 shrink-0" />
-          )}
-          <span className="flex items-center gap-1.5">
-            {isActive ? "Shift active" : "Shift paused"}
-            <span className="opacity-90 tabular-nums">
-              {elapsed}
-            </span>
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {isActive && (
-          <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
-            <Pause className="h-4 w-4 mr-2" />
-            Pause
-          </DropdownMenuItem>
+    <>
+      <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              disabled={!!actionLoading}
+              className={cn(
+                "gap-2 rounded-md font-medium",
+                isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
+              )}
+            >
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <CircleDot className="h-4 w-4 shrink-0" />
+              )}
+              <span className="flex items-center gap-1.5">
+                {isActive ? "Shift active" : "Shift paused"}
+                <span className="opacity-90 tabular-nums">
+                  {elapsed}
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isActive && (
+              <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
+                <Pause className="h-4 w-4 mr-2" />
+                Pause
+              </DropdownMenuItem>
+            )}
+            {isPaused && (
+              <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
+                <Play className="h-4 w-4 mr-2" />
+                Resume
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onClick={handleEnd}
+              disabled={!!actionLoading}
+              className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
+            >
+              <Square className="h-4 w-4 mr-2" />
+              End shift
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {hasFloatRequestPermission && (
+          <>
+            {pendingFloatRequest ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 rounded-md font-medium text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 bg-background hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/30 dark:hover:text-amber-300 focus-visible:ring-amber-500/50 focus-visible:ring-offset-background"
+                  >
+                    <Banknote className="h-4 w-4 shrink-0" />
+                    Float request is pending
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
+                    <p className="tabular-nums">
+                      Amount: LKR {(pendingFloatRequest.amountRequested / 100).toFixed(2)}
+                    </p>
+                    {pendingFloatRequest.bulkCashier?.name && (
+                      <p>Bulk cashier: {pendingFloatRequest.bulkCashier.name}</p>
+                    )}
+                    <p>
+                      Requested:{" "}
+                      {typeof pendingFloatRequest.createdAt === "string"
+                        ? new Date(pendingFloatRequest.createdAt).toLocaleString()
+                        : pendingFloatRequest.createdAt.toLocaleString()}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setCancelFloatOpen(true)}
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  >
+                    <Ban className="h-4 w-4 mr-2" />
+                    Cancel request
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : approvedFloatRequest ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-md font-medium text-green-600 dark:text-green-400 border-green-200 dark:border-green-800"
+                onClick={() => setReceiveFloatOpen(true)}
+              >
+                <CheckCircle className="h-4 w-4 shrink-0" />
+                Receive float
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 rounded-md font-medium"
+                onClick={() => {
+                  setRequestFloatShiftIdOverride(null)
+                  setRequestFloatOpen(true)
+                }}
+              >
+                <Banknote className="h-4 w-4 shrink-0" />
+                Request float
+              </Button>
+            )}
+            {floatBalanceCents !== null && (
+              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+                Float: LKR {(floatBalanceCents / 100).toFixed(2)}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={refreshFloatBalance}
+                  disabled={floatBalanceRefreshing}
+                  title="Refresh balance"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", floatBalanceRefreshing && "animate-spin")} />
+                </Button>
+              </span>
+            )}
+          </>
         )}
-        {isPaused && (
-          <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
-            <Play className="h-4 w-4 mr-2" />
-            Resume
-          </DropdownMenuItem>
+      </div>
+      {hasFloatRequestPermission && (
+        <RequestFloatDialog
+          open={requestFloatOpen}
+          onOpenChange={(open) => {
+            setRequestFloatOpen(open)
+            if (!open) setRequestFloatShiftIdOverride(null)
+          }}
+          shiftId={requestFloatShiftIdOverride ?? shift?.id ?? null}
+          onSuccess={() => {
+            refreshFloatBalance()
+            refreshPendingFloatRequest()
+          }}
+        />
+      )}
+      {approvedFloatRequest && (
+        <Dialog open={receiveFloatOpen} onOpenChange={setReceiveFloatOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Receive float</DialogTitle>
+              <DialogDescription>
+                Enter the 4-digit code from your handover slip to confirm receipt. Your float balance will be updated.
+              </DialogDescription>
+            </DialogHeader>
+            <ReceiveFloatForm
+              request={approvedFloatRequest}
+              onSuccess={() => {
+                setReceiveFloatOpen(false)
+                refreshFloatBalance()
+                refreshApprovedFloatRequest()
+                toast({ title: "Float received. Your balance has been updated." })
+              }}
+              onDecline={() => {
+                setReceiveFloatOpen(false)
+                refreshApprovedFloatRequest()
+                toast({ title: "Float request declined. No balance change." })
+              }}
+              onError={(msg) => toast({ title: "Error", description: msg, variant: "destructive" })}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={cancelFloatOpen} onOpenChange={setCancelFloatOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel float request</DialogTitle>
+            <DialogDescription>
+              Provide a reason for cancelling this request. Only pending requests can be cancelled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="cancel-reason">Cancel reason (required)</Label>
+            <Textarea
+              id="cancel-reason"
+              placeholder="e.g. No longer needed"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelFloatOpen(false)} disabled={cancelLoading}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelFloatRequest}
+              disabled={!cancelReason.trim() || cancelLoading}
+            >
+              {cancelLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Cancel request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function ReceiveFloatForm({
+  request,
+  onSuccess,
+  onDecline,
+  onError,
+}: {
+  request: FloatRequest
+  onSuccess: () => void
+  onDecline: () => void
+  onError: (msg: string) => void
+}) {
+  const [code, setCode] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [rejectMode, setRejectMode] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejectLoading, setRejectLoading] = useState(false)
+  const denoms = (request.denominationsApproved ?? []).filter((d) => d.count > 0)
+  const totalLKR = denoms.reduce((s, d) => s + d.value * d.count, 0)
+
+  async function handleSubmit() {
+    const trimmed = code.trim()
+    if (!trimmed) {
+      onError("Enter the 4-digit code from your slip.")
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await receiveFloatRequestAction({
+        floatRequestId: request.id,
+        receiveCode: trimmed,
+      })
+      if (res.success) onSuccess()
+      else onError(res.error ?? "Failed to receive float")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDecline() {
+    const reason = rejectReason.trim()
+    if (!reason) {
+      onError("Please provide a reason for rejecting the float.")
+      return
+    }
+    setRejectLoading(true)
+    try {
+      const res = await declineApprovedFloatRequestAction({
+        floatRequestId: request.id,
+        reason,
+      })
+      if (res.success) onDecline()
+      else onError(res.error ?? "Failed to decline")
+    } finally {
+      setRejectLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        <p className="font-medium tabular-nums">Amount: LKR {totalLKR.toFixed(2)}</p>
+        {denoms.length > 0 && (
+          <p className="text-muted-foreground mt-1">
+            {denoms.map((d) => `${formatDenomLabel(d.value)}×${d.count}`).join(", ")}
+          </p>
         )}
-        <DropdownMenuItem
-          onClick={handleEnd}
-          disabled={!!actionLoading}
-          className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
-        >
-          <Square className="h-4 w-4 mr-2" />
-          End shift
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+      {!rejectMode ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="receive-code">4-digit code</Label>
+            <Input
+              id="receive-code"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="e.g. 1234"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              className="font-mono text-lg tracking-widest"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mr-auto text-destructive hover:text-destructive hover:bg-destructive/10 text-xs h-7 px-2"
+              onClick={() => setRejectMode(true)}
+              disabled={loading || rejectLoading}
+            >
+              Reject (cancel float)
+            </Button>
+            <Button onClick={handleSubmit} disabled={!code.trim() || loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Confirm receipt
+            </Button>
+          </DialogFooter>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason">Reason for rejecting (required)</Label>
+            <Textarea
+              id="reject-reason"
+              placeholder="e.g. Wrong amount prepared, will request again"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { setRejectMode(false); setRejectReason(""); }} disabled={rejectLoading}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDecline}
+              disabled={!rejectReason.trim() || rejectLoading}
+            >
+              {rejectLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
+              Confirm reject
+            </Button>
+          </DialogFooter>
+        </>
+      )}
+    </div>
   )
 }

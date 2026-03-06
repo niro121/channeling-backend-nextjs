@@ -56,6 +56,10 @@ model User {
   createdVoucherCodes     VoucherCode[]                  @relation("UserCreatedVouchers")
   updatedVoucherCodes     VoucherCode[]                  @relation("UserUpdatedVouchers")
   agencies                Agency[]                       @relation("AgencyUser")
+  createdAgencies         Agency[]                       @relation("UserCreatedAgencies")
+  updatedAgencies         Agency[]                       @relation("UserUpdatedAgencies")
+  createdCreditCustomers  CreditCustomer[]              @relation("UserCreatedCreditCustomers")
+  updatedCreditCustomers  CreditCustomer[]              @relation("UserUpdatedCreditCustomers")
   createdSessions         Session[]                      @relation("UserCreatedSessions")
   updatedSessions         Session[]                      @relation("UserUpdatedSessions")
   createdLogs             Log[]                          @relation("UserCreatedLogs")
@@ -86,6 +90,10 @@ model User {
   staffId                 String?                        @db.ObjectId
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
+  accounts                Account[]                     @relation("UserToAccount")
+  floatRequestsRequested  FloatRequest[]                @relation("FloatRequestRequestedBy")
+  floatRequestsAsBulkCashier FloatRequest[]             @relation("FloatRequestBulkCashier")
+  floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
 }
 
 model UserGroup {
@@ -194,6 +202,7 @@ model Doctor {
   doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+  accounts       Account[]       @relation("DoctorToAccount")
 }
 
 model DoctorSession {
@@ -379,6 +388,9 @@ model Location {
   bookingUsers         UserBookingLocation[]
   createdUser          User?                 @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?                 @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
+  accounts             Account[]             @relation("LocationToAccount")
+  journals             Journal[]             @relation("LocationToJournal")
+  shifts               Shift[]               @relation("ShiftToLocation")
 }
 
 model Room {
@@ -418,6 +430,8 @@ model Shift {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   userId        String    @db.ObjectId
   user          User      @relation("UserShifts", fields: [userId], references: [id], onDelete: Cascade)
+  locationId    String?   @db.ObjectId
+  location      Location? @relation("ShiftToLocation", fields: [locationId], references: [id], onDelete: SetNull)
   startedAt     DateTime  @default(now())
   endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS
   status        Int // 0 = paused, 1 = active, 3 = ended
@@ -432,7 +446,51 @@ model Shift {
   endedByUser   User?     @relation("ShiftEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
   updatedAt     DateTime  @updatedAt
 
+  floatRequests FloatRequest[]
+
   @@index([userId, status])
+  @@index([locationId])
+}
+
+// Float request: cashier requests float at shift start; bulk cashier approves/rejects
+// status: 0 = PENDING, 1 = APPROVED, 2 = RECEIVED, 3 = REJECTED, 4 = CANCELLED (aligned with rest of schema)
+model FloatRequest {
+  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
+  requestedById          String             @db.ObjectId
+  requestedBy            User               @relation("FloatRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  bulkCashierId          String             @db.ObjectId
+  bulkCashier            User               @relation("FloatRequestBulkCashier", fields: [bulkCashierId], references: [id], onDelete: Cascade)
+  status                Int                 @default(0) // 0=PENDING, 1=APPROVED, 2=RECEIVED, 3=REJECTED, 4=CANCELLED
+  amountRequested       Int                 // In smallest unit (e.g. cents)
+  denominationsRequested Json               // [{ "value": 5000, "count": 10 }, ...] LKR
+  denominationsApproved Json?              // Set on approve; bulk cashier can change (cannot give less total)
+  fromAccountId         String?             @db.ObjectId
+  fromAccount           Account?            @relation("FloatRequestFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  toAccountId           String?             @db.ObjectId
+  toAccount             Account?            @relation("FloatRequestToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
+  shiftId               String?             @db.ObjectId
+  shift                 Shift?              @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  approvedAt             DateTime?
+  approvedBy             String?             @db.ObjectId
+  rejectedAt             DateTime?
+  rejectedBy             String?             @db.ObjectId
+  cancelledAt            DateTime?
+  cancelledBy            String?             @db.ObjectId
+  rejectReason           String?
+  cancelReason           String?
+  reasonForLessThanRequested String?         // Required when approved amount < requested
+  receiveCode            String?             // 4-digit code for cashier to confirm receipt; set on approve
+  receivedAt             DateTime?
+  receivedById           String?             @db.ObjectId
+  receivedBy             User?               @relation("FloatRequestReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  journalId              String?             @db.ObjectId
+  journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@index([bulkCashierId, status])
+  @@index([requestedById])
+  @@index([status])
 }
 
 model ActivityLog {
@@ -668,12 +726,52 @@ model Agency {
   history       Log[]        @relation("AgencyToLog")
   bookings      Booking[]    @relation("AgencyToBooking")
   receipts      Receipt[]    @relation("AgencyToReceipt")
+  accounts      Account[]    @relation("AgencyToAccount")
 
   // ==== AUDIT FIELDS ==== //
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdUser User?    @relation("UserCreatedAgencies", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedAgencies", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+/// Credit customers (companies) for payment method Credit — basic details; balance via linked RECEIVABLE account.
+model CreditCustomer {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+  code String? @unique
+
+  // ==== CONTACT ==== //
+  phone  String?
+  mobile String?
+  email  String?
+
+  // ==== ADDRESS ==== //
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+
+  // ==== CONTACT PERSON ==== //
+  contactPersonName   String
+  contactPersonPhone  String?
+  contactPersonEmail  String?
+
+  // ==== SETTINGS ==== //
+  status Int? @default(1) // 0 = Unpublished, 1 = Published
+
+  // ==== AUDIT ==== //
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?   @db.ObjectId
+  updatedBy   String?   @db.ObjectId
+  createdUser User?     @relation("UserCreatedCreditCustomers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?     @relation("UserUpdatedCreditCustomers", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  accounts   Account[]  @relation("CreditCustomerToAccount")
+  bookings   Booking[]  @relation("CreditCustomerToBooking")
+  receipts   Receipt[]  @relation("CreditCustomerToReceipt")
 }
 
 model Booking {
@@ -709,6 +807,8 @@ model Booking {
   agencyRef               String?  @default("")
   agencyId                String?  @db.ObjectId
   agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId        String?  @db.ObjectId
+  creditCustomer          CreditCustomer? @relation("CreditCustomerToBooking", fields: [creditCustomerId], references: [id], onDelete: SetNull)
   staffId                 String?  @db.ObjectId
   staff                   Staff?   @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
   discountDivision        Json?
@@ -766,11 +866,13 @@ model Receipt {
   whd             Int     @default(0)
   whdPercentage   Float   @default(0)
 
-  bookingId      String    @db.ObjectId
-  booking        Booking   @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: Cascade)
-  agencyId       String?   @db.ObjectId
-  agency         Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
-  createdBy      String?   @db.ObjectId
+  bookingId         String?   @db.ObjectId
+  booking           Booking?  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
+  agencyId          String?   @db.ObjectId
+  agency            Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId  String?   @db.ObjectId
+  creditCustomer    CreditCustomer? @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  createdBy         String?   @db.ObjectId
   locationId     String?   @db.ObjectId
   location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
   userLocationId String?   @db.ObjectId
@@ -778,6 +880,73 @@ model Receipt {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ==== DOUBLE-ENTRY ACCOUNTING ==== //
+enum AccountType {
+  CASH
+  PAYABLE
+  RECEIVABLE
+}
+
+model Account {
+  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+  code                String?      @unique
+  name                String
+  type                AccountType
+  parentAccountId     String?      @db.ObjectId
+  parentAccount       Account?     @relation("AccountParent", fields: [parentAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childAccounts       Account[]    @relation("AccountParent")
+  locationId          String?      @db.ObjectId
+  location            Location?    @relation("LocationToAccount", fields: [locationId], references: [id], onDelete: SetNull)
+  doctorId            String?      @db.ObjectId
+  doctor              Doctor?      @relation("DoctorToAccount", fields: [doctorId], references: [id], onDelete: SetNull)
+  agencyId            String?      @db.ObjectId
+  agency              Agency?      @relation("AgencyToAccount", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId    String?      @db.ObjectId
+  creditCustomer      CreditCustomer? @relation("CreditCustomerToAccount", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  userId              String?      @db.ObjectId
+  user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
+  minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  journalLines    JournalLine[]
+  floatRequestsFrom FloatRequest[] @relation("FloatRequestFromAccount")
+  floatRequestsTo   FloatRequest[] @relation("FloatRequestToAccount")
+}
+
+model Journal {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  journalNumber  Int?       // Optional display number from sequence
+  date          DateTime
+  description   String     @default("")
+  referenceType String?    // e.g. Receipt, Booking, Manual
+  referenceId    String?    @db.ObjectId
+  locationId     String?   @db.ObjectId
+  location       Location? @relation("LocationToJournal", fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy      String?   @db.ObjectId
+  createdAt      DateTime  @default(now())
+
+  journalLines   JournalLine[]
+  floatRequests FloatRequest[]
+}
+
+model JournalLine {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  journalId     String   @db.ObjectId
+  journal       Journal  @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  accountId     String   @db.ObjectId
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debitAmount   Int      @default(0) // In smallest unit (e.g. cents)
+  creditAmount  Int      @default(0)
+  memo          String?  @default("")
+  /// Till breakdown: 0 = cash, 1 = card, 2 = slip (null = not a till line or legacy)
+  paymentMethod Int?
+
+  @@index([journalId])
+  @@index([accountId])
 }
 
 model Log {
@@ -870,4 +1039,43 @@ model SmsLog {
   phone       String
   template    String
   createdAt   DateTime @default(now())
+}
+
+// Receipt templates: header/footer designed separately; main template has body + printer/size settings. Placeholders: {{name}}
+model ReceiptHeaderTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  content   String   // Text with placeholders: {{company_name}}, {{location_name}}, {{tel}}, {{email}}, {{web}}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  receipts  ReceiptTemplate[]
+}
+
+model ReceiptFooterTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  content   String   // Text with placeholders: {{generated_by}}, {{generated_at}}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  receipts  ReceiptTemplate[]
+}
+
+model ReceiptTemplate {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  name             String   // e.g. "Ledger Receipt - Slip"
+  type             String   // ledger, agent_receipt, expenses_note, debit_note
+  variant          String   // slip_printer | custom_size
+  headerTemplateId String?  @db.ObjectId
+  footerTemplateId String?  @db.ObjectId
+  bodyContent      String   // Main body with placeholders
+  paperWidthMm     Int?     // For slip_printer or custom_size (mm)
+  paperHeightMm    Int?     // Optional; null = continuous roll for slip
+  status           Int      @default(1) // 0 = inactive, 1 = active. One active per (type, variant) used at runtime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  headerTemplate ReceiptHeaderTemplate? @relation(fields: [headerTemplateId], references: [id], onDelete: SetNull)
+  footerTemplate ReceiptFooterTemplate? @relation(fields: [footerTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([type, variant, status])
 }

@@ -19,6 +19,8 @@ import {
 } from '@/types/location';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { getOrCreateAccount } from '@/services/accounting/account.service';
+import prisma from '@/lib/prisma';
 
 type CreateLocationPayload = LocationFormValues & {
   createdBy?: string;
@@ -68,6 +70,37 @@ export const getAllLocations = async (sort: getLocationParam) => {
     };
   }
 };
+
+// ==== CREATE GL ACCOUNT FOR LOCATION (when missing on edit) ==== //
+export async function createLocationAccount(locationId: string) {
+  await requirePermission('accounting', 'edit');
+  try {
+    const location = await prisma.location.findUnique({
+      where: { id: locationId },
+      select: { id: true, name: true, code: true },
+    });
+    if (!location) {
+      return { success: false, message: 'Location not found' };
+    }
+    const result = await getOrCreateAccount({
+      type: 'CASH',
+      locationId: location.id,
+      name: `Cash Book - ${location.name}`,
+      code: location.code ? `CB-${location.code}` : null,
+    });
+    if (!result.success) {
+      return { success: false, message: result.error ?? 'Failed to create GL account' };
+    }
+    revalidatePath('/locations');
+    revalidatePath(`/locations/${locationId}/edit`);
+    return { success: true, message: 'GL account created', accountId: result.account.id };
+  } catch (e: unknown) {
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : 'Failed to create GL account',
+    };
+  }
+}
 
 // ==== GET ONE LOCATION ==== //
 export const getLocationById = async (id: string) => {

@@ -2,12 +2,8 @@
 
 export type PermissionAction = "view" | "add" | "edit" | "delete";
 
-export type ResourcePermissions = {
-  view: boolean;
-  add: boolean;
-  edit: boolean;
-  delete: boolean;
-};
+/** Standard resources use view/add/edit/delete; resources with customActions use their own action ids */
+export type ResourcePermissions = Record<string, boolean>;
 
 export type Permissions = {
   [resource: string]: ResourcePermissions;
@@ -53,6 +49,8 @@ export type ResourceWithOptionalActions = {
   actions?: readonly PermissionAction[]
   /** Custom labels for actions (e.g. view → "Change Date"). */
   actionLabels?: Partial<Record<PermissionAction, string>>
+  /** Resource-specific permission actions (e.g. Bulk Cashier: Float View, Float Approve, etc.). When set, these replace view/add/edit/delete for this resource. */
+  customActions?: { id: string; name: string }[]
 }
 
 // Available resources in the system
@@ -61,6 +59,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "channel-booking", name: "Channel Booking" },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   { id: "shift", name: "Shift (Channel Booking)" },
+  { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
   { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
@@ -72,11 +71,25 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "locations", name: "Locations" },
   { id: "agency-books", name: "Agency Books" },
   { id: "agencies", name: "Agencies" },
+  { id: "credit-customers", name: "Credit Customers" },
   { id: "discounts", name: "Discounts" },
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
   { id: "reports", name: "Reports" },
   { id: "api-clients", name: "API Clients" },
+  {
+    id: "bulk-cashier",
+    name: "Bulk Cashier",
+    customActions: [
+      { id: "float-view", name: "Float View" },
+      { id: "float-approve", name: "Float Approve" },
+      { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+      { id: "float-request", name: "Float Request" },
+    ],
+  },
+  { id: "float-transfers", name: "Float Transfers" },
+  { id: "accounting", name: "Accounting" },
+  { id: "ledger", name: "Ledger" },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [
@@ -84,4 +97,12 @@ export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; descripti
   { id: "add", name: "Add", description: "Add new" },
   { id: "edit", name: "Edit", description: "Edit existing" },
   { id: "delete", name: "Delete", description: "Delete" },
+] as const;
+
+/** Extended permission actions specific to Bulk Cashier (use with customActions). */
+export const BULK_CASHIER_ACTIONS = [
+  { id: "float-view", name: "Float View" },
+  { id: "float-approve", name: "Float Approve" },
+  { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+  { id: "float-request", name: "Float Request" },
 ] as const;

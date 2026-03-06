@@ -2,7 +2,13 @@ import prisma from "@/lib/prisma"
 import {
   createReceiptAndUpdateBooking,
   getBookingForSaveBooking,
+  getNextSequenceNumber,
+  buildReceiptJournalEntryInput,
+  resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
 } from "./helpers"
+import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -10,7 +16,7 @@ export type RefundChannelInput = {
   refund_type: number
   professional_fee: number
   hospital_fee: number
-  /** 0 Cash, 1 Card, 4 Agent */
+  /** 0 Cash, 1 Card, 2 Slip, 3 Cheque, 4 Agent, 5 Credit Customer, 6 E-wallet */
   refund_to?: number
   remarks?: string
 }
@@ -41,8 +47,56 @@ export async function refundChannelService(
     return { success: false, errorCode: "not_found", message: "Booking not found." }
   }
 
+  // Refund field: 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Reject if already refunded.
+  const bookingRefund = booking.refund ?? 0
+  if (bookingRefund !== 0) {
+    return {
+      success: false,
+      errorCode: "already_refunded",
+      message: "This booking has already been refunded and cannot be refunded again.",
+    }
+  }
+
+  const bookingAgencyId = booking.agencyId ?? null
+  const bookingCreditCustomerId = (booking as { creditCustomerId?: string | null }).creditCustomerId ?? null
+  const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
   const refundTo = input.refund_to ?? REFUND_TO_DEFAULT
-  let remarks = (input.remarks ?? "STANDARD REFUND").trim()
+
+  // Cash (0), Slip (2), Cheque (3): only Cash refund allowed
+  if (receiptPaymentMethod !== null && [0, 2, 3].includes(receiptPaymentMethod) && refundTo !== 0) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "Bookings paid by Cash, Slip, or Cheque can only be refunded as Cash.",
+    }
+  }
+
+  // Refund destination must match booking type when Agent or Credit Customer (refund goes back to same party)
+  if (refundTo === 4 && !bookingAgencyId) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "This booking was not paid by Agent. Refund to Agent is only allowed for Agent bookings.",
+    }
+  }
+  if (refundTo === 5 && !bookingCreditCustomerId) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "This booking was not paid by Credit Customer. Refund to Credit is only allowed for Credit Customer bookings.",
+    }
+  }
+
+  const remarksTrimmed = (input.remarks ?? "").trim()
+  if (!remarksTrimmed) {
+    return {
+      success: false,
+      errorCode: "remarks_required",
+      message: input.refund_type === 0 ? "Cancel remarks are required." : "Refund remarks are required.",
+    }
+  }
+
+  let remarks = remarksTrimmed
   const paidReceipt = booking.receipts?.[0]
   if (paidReceipt) {
     remarks = `${remarks} - Ref Bill No. : ${paidReceipt.receiptNoString}`
@@ -53,8 +107,46 @@ export async function refundChannelService(
     if (booking.status === 1) {
       // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
       const refundAmount = booking.amount - booking.discount
-      const result = await prisma.$transaction(async (tx) =>
-        createReceiptAndUpdateBooking(tx, {
+      const isAgent = refundTo === 4
+      const isCreditCustomer = refundTo === 5
+      const needTill = [0, 1, 2, 3, 6].includes(refundTo) // cash, card, slip, check, e-wallet (not agent, not credit customer)
+      const needJournal = needTill || isAgent || isCreditCustomer
+      let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+      if (needJournal) {
+        const reqResult = await requireReceiptJournalAccounts(
+          {
+            locationId: booking.locationId ?? null,
+            createdBy: userId,
+            agencyId: booking.agencyId ?? null,
+            creditCustomerId: bookingCreditCustomerId,
+            needTill,
+          },
+          { needTill, isAgent, isCreditCustomer }
+        )
+        if (!reqResult.success) {
+          return {
+            success: false,
+            errorCode: reqResult.errorCode,
+            message: reqResult.error,
+          }
+        }
+        accounts = reqResult.accounts
+      } else {
+        accounts = await resolveReceiptJournalAccounts({
+          locationId: booking.locationId ?? null,
+          createdBy: userId,
+          agencyId: booking.agencyId ?? null,
+          creditCustomerId: bookingCreditCustomerId,
+          needTill,
+        })
+      }
+      const journalNumberResult = accounts
+        ? await getNextSequenceNumber("journal", { startFrom: 1 })
+        : null
+      const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
+      const result = await prisma.$transaction(async (tx) => {
+        const r = await createReceiptAndUpdateBooking(tx, {
           bookingId: booking.id,
           locationId: booking.locationId ?? null,
           receiptSequenceMethod: 0, // REFUND RECEIPTS
@@ -68,6 +160,7 @@ export async function refundChannelService(
           type: 0,
           method: 0,
           agencyId: booking.agencyId ?? null,
+          creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
           createdBy: userId,
           userLocationId: null,
           getBookingUpdate: (receipt) => ({
@@ -78,9 +171,29 @@ export async function refundChannelService(
             refundReceiptCreatedAt: receipt.createdAt,
           }),
         })
-      )
+        if (!r.success) return r
+        if (accounts && journalNumber > 0) {
+          const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+          if ((isAgent || isCreditCustomer) && !journalInput) {
+            throw new Error(
+              isCreditCustomer
+                ? "Credit customer account or journal setup failed. Cannot complete refund."
+                : "Agent account or journal setup failed. Cannot complete refund."
+            )
+          }
+          if (journalInput) {
+            const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+            if (!jResult.success) throw new Error(jResult.error)
+          }
+        }
+        return r
+      })
       if (!result.success) {
         return { success: false, errorCode: result.errorCode, message: result.message }
+      }
+      if (needTill && userId) {
+        const io = getIO()
+        if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
       }
     } else if (booking.status === 0) {
       // Pending: just cancel, no receipt
@@ -103,8 +216,46 @@ export async function refundChannelService(
     else if (input.hospital_fee > 0) refundType = 2
     else if (input.professional_fee > 0) refundType = 1
 
-    const result = await prisma.$transaction(async (tx) =>
-      createReceiptAndUpdateBooking(tx, {
+    const isAgent = refundTo === 4
+    const isCreditCustomer = refundTo === 5
+    const needTill = [0, 1, 2, 3, 6].includes(refundTo) // cash, card, slip, check, e-wallet (not agent, not credit customer)
+    const needJournal = needTill || isAgent || isCreditCustomer
+    let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+    if (needJournal) {
+      const reqResult = await requireReceiptJournalAccounts(
+        {
+          locationId: booking.locationId ?? null,
+          createdBy: userId,
+          agencyId: booking.agencyId ?? null,
+          creditCustomerId: bookingCreditCustomerId,
+          needTill,
+        },
+        { needTill, isAgent, isCreditCustomer }
+      )
+      if (!reqResult.success) {
+        return {
+          success: false,
+          errorCode: reqResult.errorCode,
+          message: reqResult.error,
+        }
+      }
+      accounts = reqResult.accounts
+    } else {
+      accounts = await resolveReceiptJournalAccounts({
+        locationId: booking.locationId ?? null,
+        createdBy: userId,
+        agencyId: booking.agencyId ?? null,
+        creditCustomerId: bookingCreditCustomerId,
+        needTill,
+      })
+    }
+    const journalNumberResult = accounts
+      ? await getNextSequenceNumber("journal", { startFrom: 1 })
+      : null
+    const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await createReceiptAndUpdateBooking(tx, {
         bookingId: booking.id,
         locationId: booking.locationId ?? null,
         receiptSequenceMethod: 0, // REFUND RECEIPTS
@@ -118,6 +269,7 @@ export async function refundChannelService(
         type: 0,
         method: 0,
         agencyId: booking.agencyId ?? null,
+        creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
         createdBy: userId,
         userLocationId: null,
         getBookingUpdate: (receipt) => ({
@@ -125,9 +277,29 @@ export async function refundChannelService(
           refundAmount: receipt.amount,
         }),
       })
-    )
+      if (!r.success) return r
+      if (accounts && journalNumber > 0) {
+        const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+        if ((isAgent || isCreditCustomer) && !journalInput) {
+          throw new Error(
+            isCreditCustomer
+              ? "Credit customer account or journal setup failed. Cannot complete refund."
+              : "Agent account or journal setup failed. Cannot complete refund."
+          )
+        }
+        if (journalInput) {
+          const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+          if (!jResult.success) throw new Error(jResult.error)
+        }
+      }
+      return r
+    })
     if (!result.success) {
       return { success: false, errorCode: result.errorCode, message: result.message }
+    }
+    if (needTill && userId) {
+      const io = getIO()
+      if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
     }
   } else {
     return {

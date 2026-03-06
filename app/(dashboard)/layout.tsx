@@ -30,6 +30,10 @@ import {
   Activity,
   MessageCircle,
   Key,
+  Calculator,
+  Banknote,
+  ArrowRightLeft,
+  Receipt,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -127,13 +131,18 @@ async function MobileNav({ session }: { session: Session | null }) {
               </div>
             </div>
           )}
-          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts")) && (
+          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
               <div className="space-y-0.5">
                 {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
                 {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
                 {hasAccess('/discounts') && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
+                {hasAccess('/accounting') && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
+                {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+                {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
+                {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
+                {hasAccess('/float-transfers') && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
               </div>
             </div>
           )}

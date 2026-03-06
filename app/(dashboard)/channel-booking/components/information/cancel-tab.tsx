@@ -18,11 +18,16 @@ import {
 import { Ban } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
 
-/** refund_to: 0 Cash, 1 Card */
-const REFUND_TO_OPTIONS = [
-  { value: 0, label: "Refund as CASH" },
-  { value: 1, label: "Refund as CREDIT CARD" },
-] as const
+/** refund_to: 0 Cash, 1 Card, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
+function getRefundToOptionsForCancel(paymentMethod: number | undefined): { value: number; label: string }[] {
+  const cash = { value: 0, label: "Refund as CASH" }
+  if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
+  if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
+  if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
+  if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
+  // Cash (0), Slip (2), Cheque (3): only Cash refund
+  return [cash]
+}
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -42,6 +47,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     if (!selectedBooking?.id) {
       setDetails(null)
       setError(null)
+      setRemarks("")
       return
     }
     setLoading(true)
@@ -51,6 +57,8 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         if (res.success && res.data) {
           setDetails(res.data)
           setError(null)
+          setRefundTo(0)
+          setRemarks("")
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -109,6 +117,10 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
 
   async function handleCancel() {
     if (!selectedBooking) return
+    if (!remarks.trim()) {
+      toast({ title: "Remarks required", description: "Please enter a reason for cancellation.", variant: "destructive" })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await refundChannelAction({
@@ -117,7 +129,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         professional_fee: 0,
         hospital_fee: 0,
         refund_to: refundTo,
-        remarks: remarks.trim() || undefined,
+        remarks: remarks.trim(),
       })
       if (result.success) {
         toast({ title: "Canceled", description: "Booking has been canceled." })
@@ -144,23 +156,27 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-xs">Cancel Remarks</Label>
+        <Label className="text-xs">Cancel Remarks <span className="text-destructive">*</span></Label>
         <Textarea
           className="min-h-[80px] text-xs resize-y"
           placeholder="Reason for cancellation…"
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
+          required
         />
       </div>
       {isPaid && (
         <div className="space-y-1.5">
           <Label className="text-xs">Refund method</Label>
-          <Select value={String(refundTo)} onValueChange={(v) => setRefundTo(Number(v))}>
+          <Select
+            value={String(refundTo)}
+            onValueChange={(v) => setRefundTo(Number(v))}
+          >
             <SelectTrigger className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REFUND_TO_OPTIONS.map((opt) => (
+              {getRefundToOptionsForCancel(details.settlement?.paymentMethod).map((opt) => (
                 <SelectItem key={opt.value} value={String(opt.value)} className="text-xs">
                   {opt.label}
                 </SelectItem>
@@ -172,7 +188,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={handleCancel}
-        disabled={submitting}
+        disabled={submitting || !remarks.trim()}
       >
         {submitting ? "Canceling…" : isPaid ? `Cancel Booking - ${formatRs(refundAmount)}` : "Cancel Booking"}
       </Button>

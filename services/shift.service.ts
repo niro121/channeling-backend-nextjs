@@ -11,6 +11,7 @@ const SHIFT_MAX_HOURS =
 // ==== SHIFT: VALIDATION SCHEMAS ==== //
 const startShiftSchema = z.object({
   userId: z.string().min(1, "User is required").trim(),
+  locationId: z.string().trim().optional().nullable(),
 })
 
 const shiftActionSchema = z.object({
@@ -54,8 +55,110 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
-export async function startShift(userId: string) {
-  const { userId: validUserId } = startShiftSchema.parse({ userId })
+export type GetShiftsParams = {
+  page?: number
+  limit?: number
+  dateFrom?: string | null
+  dateTo?: string | null
+  userId?: string | null
+}
+
+/** List shifts for manager view: filter by date range and/or user; server-side pagination. */
+export async function getShifts(params: GetShiftsParams) {
+  const page = params.page ?? 0
+  const limit = Math.min(Math.max(params.limit ?? 10, 1), 100)
+  const where: { userId?: string; startedAt?: { gte?: Date; lte?: Date } } = {}
+  if (params.userId && params.userId.trim()) {
+    where.userId = params.userId.trim()
+  }
+  if (params.dateFrom || params.dateTo) {
+    where.startedAt = {}
+    if (params.dateFrom) {
+      const from = new Date(params.dateFrom)
+      from.setHours(0, 0, 0, 0)
+      where.startedAt.gte = from
+    }
+    if (params.dateTo) {
+      const to = new Date(params.dateTo)
+      to.setHours(23, 59, 59, 999)
+      where.startedAt.lte = to
+    }
+  }
+  const [data, total] = await Promise.all([
+    shiftModel.findMany({
+      where,
+      skip: page * limit,
+      take: limit,
+      orderBy: { startedAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        location: { select: { id: true, name: true } },
+        createdByUser: { select: { id: true, name: true } },
+      },
+    }),
+    shiftModel.count({ where }),
+  ])
+  return { data, totalRecords: total }
+}
+
+/** Get one shift by id with full detail for manager view. */
+export async function getShiftById(id: string) {
+  const shift = await shiftModel.findUnique({
+    where: { id },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      location: { select: { id: true, name: true } },
+      createdByUser: { select: { id: true, name: true } },
+      pausedByUser: { select: { id: true, name: true } },
+      endedByUser: { select: { id: true, name: true } },
+      floatRequests: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          amountRequested: true,
+          requestedById: true,
+          bulkCashierId: true,
+          approvedAt: true,
+          receivedAt: true,
+          createdAt: true,
+        },
+      },
+    },
+  })
+  return shift
+}
+
+/** Users who have at least one shift (for filter dropdown). Optionally all active users. */
+export async function getShiftUserOptions() {
+  const users = await prisma.user.findMany({
+    where: { status: 1 },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+    take: 500,
+  })
+  return users.map((u) => ({ id: u.id, name: u.name || u.id }))
+}
+
+/** All active shifts (status=ACTIVE, endsAt>now) with user and location for bulk cashier dashboard. */
+export async function getActiveShiftsWithUserAndLocation() {
+  const now = new Date()
+  const shifts = await shiftModel.findMany({
+    where: {
+      status: SHIFT_STATUS.ACTIVE,
+      endsAt: { gt: now },
+    },
+    orderBy: { startedAt: "desc" },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      location: { select: { id: true, name: true } },
+    },
+  })
+  return shifts
+}
+
+export async function startShift(userId: string, locationId?: string | null) {
+  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
   const existing = await getCurrentShift(validUserId)
   if (existing) {
     throw new Error(
@@ -68,6 +171,7 @@ export async function startShift(userId: string) {
   const shift = await shiftModel.create({
     data: {
       userId: validUserId,
+      locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
       startedAt,
       endsAt,
       status: SHIFT_STATUS.ACTIVE,

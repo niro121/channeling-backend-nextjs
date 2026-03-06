@@ -24,6 +24,12 @@ export type Doctor = {
   updatedUser?: User | null
   createdAt?: Date | undefined;
   updatedAt?: Date | undefined;
+  /** Linked GL account (PAYABLE) for balance/statement */
+  accountId?: string | null;
+  accountName?: string | null;
+  accountCode?: string | null;
+  /** Balance from linked account (display units) */
+  balance?: number | null;
 };
 
 export type DoctorFormValues = {

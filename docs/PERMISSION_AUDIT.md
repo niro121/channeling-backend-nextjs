@@ -1,6 +1,8 @@
 # Permission System Audit
 
-This document lists all components and their permission check status.
+This document lists all components and their **permission** check status (route guards, action `requirePermission`, and UI gating).
+
+For the full component structure (list page, add/edit routes, form with Formik + Yup, server-side Zod validation, URL-driven search/pagination, file skeleton), see **[COMPONENT_AUDIT_SKELETON.md](./COMPONENT_AUDIT_SKELETON.md)**. When building or auditing a list+CRUD component, use that skeleton first; this doc covers the permission subset.
 
 ## Components List
 
@@ -35,66 +37,118 @@ This document lists all components and their permission check status.
    - ✅ UI: Shift bar and start/skip dialog only on channel-booking route; sidebar link gated by `hasAccess('/channel-booking')`. Grant **Shift (Channel Booking)** view to allow shift creation and controls.
    - ✅ **Channel Booking – Change Date** (resource **channel-booking-date**): When **view** is ticked, user can change the session date in the channeling page. If not granted, date is fixed to today and shown as read-only.
 
+4. **Accounting** (`/accounting`)
+   - ✅ Page: Has `checkRouteAccess("/accounting")` check; redirects to unauthorized if no view
+   - ✅ Add account (`/accounting/add`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Add journal entry (`/accounting/entries/new`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Account statement (`/accounting/[id]/statement`): Has `checkRouteAccess("/accounting")` (view)
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAccounts` – view
+     - `getAccountById` – view
+     - `createAccount` – add
+     - `getAccountStatement` – view
+     - `getMainCashBook` – view
+     - `getBranchBalance` – view
+     - `getInstituteCashBalance` – view
+     - `createJournalEntryAction` – add
+   - ✅ UI: "Add journal entry" and "Add account" toolbar buttons only shown when user has `accounting` **add** (via `AccountingToolbarActions` client component using `usePermissions`)
+
+5. **Ledger** (`/ledger`)
+   - ✅ Page: Has `checkRouteAccess("/ledger")` check; redirects to unauthorized if no view
+   - ✅ Add transaction (dialog): Requires `checkPermission("ledger", "add")`; add button disabled if no add
+   - ✅ View receipt (`/ledger/[id]/edit`): Has `checkRouteAccess("/ledger")` (view)
+   - ✅ Add page (`/ledger/add`): Requires `checkRouteAccess("/ledger")` + `checkPermission("ledger", "add")`; redirects if no add
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `listLedgerTransactions` – view
+     - `getLedgerReceipt` – view
+     - `addLedgerTransaction` – add
+   - ✅ UI: Sidebar link gated by `hasAccess('/ledger')`. "Add transaction" toolbar button only shown when user has `ledger` **add** (via `LedgerToolbarWithAddDialog` with `canAdd` prop).
+
+6. **Shifts** (`/shifts`)
+   - ✅ Page: Has `checkRouteAccess("/shifts")` check; redirects to unauthorized if no view
+   - ✅ Detail (`/shifts/[id]`): Has `checkRouteAccess("/shifts")` (view)
+   - ✅ Server Actions: All shifts-manager actions have `requirePermission` checks
+     - `getShiftsAction` – requirePermission("shifts", "view")
+     - `getShiftByIdAction` – requirePermission("shifts", "view")
+     - `getShiftUserOptionsAction` – requirePermission("shifts", "view")
+   - ✅ UI: Sidebar link gated by `hasAccess('/shifts')`. View-only (list + detail); no add/edit/delete or record actions.
+
+7. **Credit Customers** (`/credit-customers`)
+   - ✅ Page: Has `checkRouteAccess("/credit-customers")` check; redirects to unauthorized if no view
+   - ✅ Add page (`/credit-customers/add`): Requires `checkRouteAccess` + `checkPermission("credit-customers", "add")`; redirects if no add
+   - ✅ Edit page (`/credit-customers/[id]/edit`): Has `checkRouteAccess("/credit-customers")` (view)
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAllCreditCustomers` – view
+     - `getAllCreditCustomersOptions` – view
+     - `getCreditCustomerById` – view
+     - `createCreditCustomer` – add
+     - `updateCreditCustomer` – edit
+     - `deleteCreditCustomer` – delete
+     - `bulkDeleteCreditCustomers` – delete
+     - `getCreditCustomersExport` – view
+   - ✅ Record Actions: Has `usePermissions` hook checks – Edit and Delete buttons protected by `has('credit-customers', 'edit')` and `has('credit-customers', 'delete')`
+   - ✅ UI: Sidebar link gated by `hasAccess('/credit-customers')`. "Add New" button only shown when user has `credit-customers` **add** (via `CreditCustomersToolbar` with `canAdd` prop from server).
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
 
-4. **Agencies** (`/agencies`)
+8. **Agencies** (`/agencies`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-5. **Agency Books** (`/agency-books`)
+9. **Agency Books** (`/agency-books`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-6. **Departments** (`/departments`)
+10. **Departments** (`/departments`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-7. **Doctors** (`/doctors`)
+11. **Doctors** (`/doctors`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-8. **Patients** (`/patients`)
+12. **Patients** (`/patients`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-9. **Specialities** (`/specialities`)
+13. **Specialities** (`/specialities`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
 
-10. **Locations** (`/locations`)
+14. **Locations** (`/locations`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-11. **Rooms** (`/rooms`)
+15. **Rooms** (`/rooms`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-12. **Zones** (`/zones`)
+16. **Zones** (`/zones`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-13. **Tags** (`/tags`)
+17. **Tags** (`/tags`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-14. **Rosters** (`/rosters`)
+18. **Rosters** (`/rosters`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
 
-15. **Discounts** (`/discounts`)
+19. **Discounts** (`/discounts`)
     - ❌ Page: NO permission check
     - ❌ Server Actions: NO permission checks
     - ❌ Record Actions: NO permission checks
@@ -103,9 +157,9 @@ This document lists all components and their permission check status.
 
 ## Summary
 
-- **Total Components:** 15
-- **With Permission Checks:** 2 (Users, Channel Booking) – 13%
-- **Without Permission Checks:** 13 (87%)
+- **Total Components:** 18
+- **With Permission Checks:** 6 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers)
+- **Without Permission Checks:** 12
 
 ## Action Required
 
@@ -134,6 +188,11 @@ All these resources are already in `types/user-group.ts`:
 - ✅ agency-books
 - ✅ agencies
 - ✅ discounts
+- ✅ accounting (view / add / edit / delete)
+- ✅ ledger (view / add / edit / delete – ledger transactions and receipts)
+- ✅ credit-customers (view / add / edit / delete – credit customer companies)
+- ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
+- ✅ shifts (view only – manager list and detail)
 
 All routes are already mapped in `lib/permissions.ts`.
 
@@ -145,3 +204,5 @@ All routes are already mapped in `lib/permissions.ts`.
 2. Add permission checks to all server actions
 3. Add permission checks to all record actions
 4. Add permission checks to add/edit buttons in UI
+
+When auditing a **new or existing component** for full compliance (list, add/edit, form, validation, pagination, and permissions), use the checklist in **[COMPONENT_AUDIT_SKELETON.md](./COMPONENT_AUDIT_SKELETON.md)** (sections 3–9); this document covers the permission subset (skeleton section 7).

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { UserGroup } from "@/types/user-group"
 import UserGroupRecordActions from "./record-actions"
 import { CheckCircle2, XCircle } from "lucide-react"
+import moment from "moment"
 
 // DEFINE THE COLUMNS OF THE USER GROUP TABLE
 export const userGroupColumns: ColumnDef<UserGroup>[] = [
@@ -68,6 +69,34 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
                     {isActive ? "Published" : "Unpublished"}
                 </Badge>
             )
+        },
+    },
+    {
+        id: "updated",
+        header: "Updated",
+        cell: ({ row }) => {
+            const date = row.original.updatedAt;
+            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">{formatted}</span>
+                </div>
+            );
+        },
+    },
+    {
+        id: "created",
+        header: "Created",
+        cell: ({ row }) => {
+            const date = row.original.createdAt;
+            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            return (
+                <div className="flex flex-col gap-0.5 text-xs">
+                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">{formatted}</span>
+                </div>
+            );
         },
     },
     {

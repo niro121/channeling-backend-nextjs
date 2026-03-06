@@ -3,7 +3,13 @@ import {
   createReceiptAndUpdateBooking,
   getProcessedDiscount,
   getBookingForSaveBooking,
+  getNextSequenceNumber,
+  buildReceiptJournalEntryInput,
+  resolveReceiptJournalAccounts,
+  requireReceiptJournalAccounts,
 } from "./helpers"
+import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
@@ -129,8 +135,42 @@ export async function settleBookingService(
 
   const amount = booking.amount - discount
 
-  const result = await prisma.$transaction(async (tx) =>
-    createReceiptAndUpdateBooking(tx, {
+  const needTill = [0, 1, 2, 3, 5, 6].includes(input.settle_method) // cash, card, slip, check, credit, e-wallet
+  const needJournal = needTill
+  let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
+  if (needJournal) {
+    const reqResult = await requireReceiptJournalAccounts(
+      {
+        locationId: booking.locationId ?? null,
+        createdBy: userId,
+        agencyId: booking.agencyId ?? null,
+        needTill,
+      },
+      { needTill, isAgent: false }
+    )
+    if (!reqResult.success) {
+      return {
+        success: false,
+        errorCode: reqResult.errorCode,
+        message: reqResult.error,
+      }
+    }
+    accounts = reqResult.accounts
+  } else {
+    accounts = await resolveReceiptJournalAccounts({
+      locationId: booking.locationId ?? null,
+      createdBy: userId,
+      agencyId: booking.agencyId ?? null,
+      needTill,
+    })
+  }
+  const journalNumberResult = accounts
+    ? await getNextSequenceNumber("journal", { startFrom: 1 })
+    : null
+  const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
+
+  const result = await prisma.$transaction(async (tx) => {
+    const r = await createReceiptAndUpdateBooking(tx, {
       bookingId: booking.id,
       locationId: booking.locationId ?? null,
       receiptSequenceMethod: 1, // PAYMENT RECEIPTS
@@ -161,10 +201,24 @@ export async function settleBookingService(
         updatedBy: userId,
       }),
     })
-  )
+    if (!r.success) return r
+    if (accounts && journalNumber > 0) {
+      const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+      if (journalInput) {
+        const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+        if (!jResult.success) throw new Error(jResult.error)
+      }
+    }
+    return r
+  })
 
   if (!result.success) {
     return { success: false, errorCode: result.errorCode, message: result.message }
+  }
+
+  if (needTill && userId) {
+    const io = getIO()
+    if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
   }
 
   const fullBooking = await getBookingForSaveBooking(input.booking_id)

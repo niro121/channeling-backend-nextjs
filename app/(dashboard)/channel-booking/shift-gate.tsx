@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getCurrentShiftAction } from "@/app/actions/shift.actions"
+import { getCurrentShiftAction, getMyDefaultLocationForShiftAction } from "@/app/actions/shift.actions"
 import { StartShiftDialog } from "./start-shift-dialog"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
 type ShiftRecord = { id: string; userId: string; startedAt: Date | string; endsAt: Date | string; status: number }
+type LocationForShift = { locationId: string; locationName: string } | null
 
 type ShiftGateProps = {
   shiftMaxHours: number
@@ -19,6 +20,7 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(null)
+  const [shiftLocation, setShiftLocation] = useState<LocationForShift>(null)
   const [skipped, setSkipped] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showStartDialogRequested, setShowStartDialogRequested] = useState(false)
@@ -62,6 +64,11 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
   const showDialog =
     hasShiftPermission && ((!loading && !currentShift && !skipped) || showStartDialogRequested)
 
+  useEffect(() => {
+    if (!showDialog || !hasShiftPermission) return
+    getMyDefaultLocationForShiftAction().then(setShiftLocation)
+  }, [showDialog, hasShiftPermission])
+
   const handleStarted = () => {
     setShowStartDialogRequested(false)
     getCurrentShiftAction()
@@ -92,12 +99,13 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
   return (
     <>
       {hasShiftPermission && (
-      <StartShiftDialog
-        open={showDialog}
-        shiftMaxHours={shiftMaxHours}
-        onStarted={handleStarted}
-        onSkipped={handleSkipped}
-      />
+        <StartShiftDialog
+          open={showDialog}
+          shiftMaxHours={shiftMaxHours}
+          location={shiftLocation}
+          onStarted={handleStarted}
+          onSkipped={handleSkipped}
+        />
       )}
       {children}
     </>

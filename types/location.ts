@@ -14,6 +14,12 @@ export type Location = {
   updatedUser?: User | null;
   createdAt?: Date | undefined;
   updatedAt?: Date | undefined;
+  /** Linked GL account (CASH / branch cash book) */
+  accountId?: string | null;
+  accountName?: string | null;
+  accountCode?: string | null;
+  /** Balance from linked account (display units) */
+  balance?: number | null;
 };
 
 export type LocationFormValues = {
