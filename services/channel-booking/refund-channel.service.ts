@@ -87,7 +87,16 @@ export async function refundChannelService(
     }
   }
 
-  let remarks = (input.remarks ?? "STANDARD REFUND").trim()
+  const remarksTrimmed = (input.remarks ?? "").trim()
+  if (!remarksTrimmed) {
+    return {
+      success: false,
+      errorCode: "remarks_required",
+      message: input.refund_type === 0 ? "Cancel remarks are required." : "Refund remarks are required.",
+    }
+  }
+
+  let remarks = remarksTrimmed
   const paidReceipt = booking.receipts?.[0]
   if (paidReceipt) {
     remarks = `${remarks} - Ref Bill No. : ${paidReceipt.receiptNoString}`

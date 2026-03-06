@@ -54,6 +54,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
     if (!selectedBooking?.id) {
       setDetails(null)
       setError(null)
+      setRemarks("")
       return
     }
     setLoading(true)
@@ -65,6 +66,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
           setProfessionalChecked(false)
           setHospitalChecked(false)
           setRefundTo(0)
+          setRemarks("")
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -146,6 +148,10 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
       toast({ title: "Select items", description: "Select at least one refundable item.", variant: "destructive" })
       return
     }
+    if (!remarks.trim()) {
+      toast({ title: "Remarks required", description: "Please enter a reason for refund.", variant: "destructive" })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await refundChannelAction({
@@ -154,7 +160,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         professional_fee: professionalChecked ? professionalRefundable : 0,
         hospital_fee: hospitalChecked ? hospitalRefundable : 0,
         refund_to: refundTo,
-        remarks: remarks.trim() || undefined,
+        remarks: remarks.trim(),
       })
       if (result.success) {
         toast({ title: "Refunded", description: "Refund has been recorded." })
@@ -230,12 +236,13 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs">Refund Remarks</Label>
+        <Label className="text-xs">Refund Remarks <span className="text-destructive">*</span></Label>
         <Textarea
           className="min-h-[60px] text-xs resize-y"
           placeholder="Reason for refund…"
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
+          required
         />
       </div>
 
@@ -261,7 +268,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={handleRefund}
-        disabled={submitting || totalRefund <= 0}
+        disabled={submitting || totalRefund <= 0 || !remarks.trim()}
       >
         {submitting ? "Refunding…" : `Refund ${formatRs(totalRefund)}`}
       </Button>
