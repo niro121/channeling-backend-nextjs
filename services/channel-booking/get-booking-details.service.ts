@@ -135,6 +135,8 @@ export type BookingDetailsView = {
   movedFrom: string | null
   /** Session status (1 = ACTIVE, 0 = on leave). Used by Settle tab to block when doctor on leave. */
   sessionStatus?: number
+  /** Session refundable: 0 = non-refundable, 1 = refundable. Used by Cancel/Refund tabs. */
+  sessionRefundable?: number
   /** Session date YYYY-MM-DD for Settle tab (past date = cannot settle). */
   sessionDateForSettle?: string
   /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
@@ -383,6 +385,7 @@ export async function getBookingDetailsService(
       movedFrom: movedFrom ?? null,
       movedFromSession,
       sessionStatus: b.session?.status,
+      sessionRefundable: b.session?.refundable,
       sessionDateForSettle: b.session?.date
         ? new Date(b.session.date).toISOString().slice(0, 10)
         : undefined,

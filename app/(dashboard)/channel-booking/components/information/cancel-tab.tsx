@@ -112,6 +112,14 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     )
   }
 
+  if (details.sessionRefundable === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
+        This is a non-refundable session.
+      </div>
+    )
+  }
+
   const isPaid = details.status === 1
   const refundAmount = isPaid ? details.billTotal : 0
 
