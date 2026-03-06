@@ -9,6 +9,14 @@ import { mapAccount } from './map-account';
 
 const ACCOUNT_TYPES = ['CASH', 'PAYABLE', 'RECEIVABLE'] as const;
 
+/** Till minimum balance allowed (cents). From env TILL_MIN_BALANCE_ALLOWED only; no default. When not set, till has no minimum. */
+function getTillMinBalanceAllowed(): number | null {
+  const raw = process.env.TILL_MIN_BALANCE_ALLOWED;
+  if (raw === undefined || raw === '') return null;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 const createAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name must be at most 200 characters').trim(),
   type: z.enum(ACCOUNT_TYPES, { message: 'Type is required and must be CASH, PAYABLE, or RECEIVABLE' }),
@@ -150,11 +158,11 @@ export async function getOrCreateAccount(
     minBalanceAllowed: minBalanceAllowed ?? null,
   };
 
-  // User (cashier) accounts require a linked staff; use staff code as account code. Do not create without it.
+  // User (cashier) till accounts: require linked staff for code, consistent name, and env-driven minimum balance.
   if (userId) {
     const userWithStaff = await prisma.user.findUnique({
       where: { id: userId },
-      select: { staff: { select: { code: true } } },
+      select: { name: true, staff: { select: { code: true } } },
     });
     const staffCode = userWithStaff?.staff?.code;
     if (!staffCode) {
@@ -163,7 +171,11 @@ export async function getOrCreateAccount(
         error: 'User must have a linked staff account to create a cashier float account.',
       };
     }
-    createInput.code = staffCode;
+    createInput.code = `STF-${staffCode.trim()}`;
+    const displayName = userWithStaff?.name?.trim() || 'Cashier';
+    createInput.name = `Till - ${displayName} (${staffCode})`;
+    const tillMin = getTillMinBalanceAllowed();
+    if (tillMin !== null) createInput.minBalanceAllowed = tillMin;
   }
 
   const result = await createAccount(createInput);

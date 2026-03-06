@@ -101,7 +101,7 @@ async function main() {
 
   console.log(`Locations: ${locationCreated} created, ${locationSkipped} already had accounts.\n`);
 
-  // --- 3. Agent accounts (one Payable per published agency) ---
+  // --- 3. Agent accounts (one Receivable per published agency; agency is debtor) ---
   const agencies = await prisma.agency.findMany({
     where: { status: 1 },
     select: { id: true, name: true, code: true },
@@ -113,7 +113,7 @@ async function main() {
 
   for (const ag of agencies) {
     const existing = await prisma.account.findFirst({
-      where: { type: "PAYABLE", agencyId: ag.id, isActive: true },
+      where: { type: "RECEIVABLE", agencyId: ag.id, isActive: true },
     });
     if (existing) {
       agencySkipped++;
@@ -125,7 +125,7 @@ async function main() {
       data: {
         name: `Agent - ${ag.name}`,
         code,
-        type: "PAYABLE",
+        type: "RECEIVABLE",
         parentAccountId: null,
         locationId: null,
         doctorId: null,

@@ -110,9 +110,7 @@ export type ExportAgentDetailData = {
   contactPerson: string;
   contactPhone: string;
   contactPersonEmail: string;
-  standardCreditLimit: string;
   allowedCreditLimit: string;
-  allowedMaximinCreditLimit: string;
   balance: string;
 };
 

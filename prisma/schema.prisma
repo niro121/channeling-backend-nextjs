@@ -686,10 +686,8 @@ model Agency {
   parentAgencyId     String? @db.ObjectId
 
   // ==== CREDIT FIELDS ==== //
-  creditLimit        Float @default(0)
-  allowedCreditLimit Float @default(0)
-  maxCreditLimit     Float @default(0)
-  balance            Float @default(0)
+  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is account minBalanceAllowed
+  // balance is derived from linked PAYABLE account (getAccountBalance)
 
   // ==== CONTACT FIELDS ==== //
   phone   String?

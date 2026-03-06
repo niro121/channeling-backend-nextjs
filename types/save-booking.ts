@@ -52,6 +52,7 @@ export type SaveBookingErrorCode =
   | "limitexceeded"
   | "agencyCreditExceed"
   | "agencyRefError"
+  | "agencyNoLinkedAccount"
   | "CASH_BOOK_NOT_FOUND"
   | "CASHIER_ACCOUNT_ERROR"
   | "AGENT_ACCOUNT_NOT_FOUND"

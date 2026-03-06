@@ -121,27 +121,11 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     }
   },
   {
-    accessorKey: 'creditLimit',
-    header: 'Standard Credit Limit',
-    cell: ({ row }) => {
-      const creditLimit = row.getValue<number>('creditLimit');
-      return creditLimit?.toFixed(2) || '0.00';
-    }
-  },
-  {
     accessorKey: 'allowedCreditLimit',
     header: 'Allowed Credit Limit',
     cell: ({ row }) => {
       const allowedCreditLimit = row.getValue<number>('allowedCreditLimit');
       return allowedCreditLimit?.toFixed(2) || '0.00';
-    }
-  },
-  {
-    accessorKey: 'maxCreditLimit',
-    header: 'Allowed Maximin Credit Limit',
-    cell: ({ row }) => {
-      const maxCreditLimit = row.getValue<number>('maxCreditLimit');
-      return maxCreditLimit?.toFixed(2) || '0.00';
     }
   },
   {

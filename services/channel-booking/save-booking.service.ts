@@ -199,7 +199,7 @@ export async function saveBookingService(
     }
   }
 
-  // Agent booking: verify agency ref and that agency credit limit is not exceeded.
+  // Agent booking: verify agency ref, ensure linked account exists for balance check, and that credit limit is not exceeded.
   if (input.agency?.id) {
     const ref = (input.agency_ref ?? "").toUpperCase().trim()
     const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
@@ -212,11 +212,27 @@ export async function saveBookingService(
     }
     const agency = await prisma.agency.findUnique({
       where: { id: input.agency.id },
-      select: { allowedCreditLimit: true },
+      select: {
+        allowedCreditLimit: true,
+        accounts: {
+          where: { type: "RECEIVABLE", isActive: true },
+          take: 1,
+          select: { id: true },
+        },
+      },
     })
-    const creditLimit = agency?.allowedCreditLimit ?? 0
+    const hasLinkedAccount = agency?.accounts?.[0] != null
+    if (!hasLinkedAccount) {
+      return {
+        success: false,
+        errorCode: "agencyNoLinkedAccount",
+        message:
+          "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a RECEIVABLE account to the agency.",
+      }
+    }
+    const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
     const balance = await getAgentBalance(input.agency.id)
-    if (creditLimit + balance < amountToUse) {
+    if (allowedCreditLimit + balance < amountToUse) {
       return {
         success: false,
         errorCode: "agencyCreditExceed",

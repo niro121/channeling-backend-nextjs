@@ -74,9 +74,7 @@ export const exportAgentDetailReportData = async (
         contactPerson: agency.contactPersonName || '-',
         contactPhone: agency.contactPersonPhone || '-',
         contactPersonEmail: agency.contactPersonEmail || '-',
-        standardCreditLimit: agency.creditLimit?.toFixed(2) || '0.00',
         allowedCreditLimit: agency.allowedCreditLimit?.toFixed(2) || '0.00',
-        allowedMaximinCreditLimit: agency.maxCreditLimit?.toFixed(2) || '0.00',
         balance: agency.balance?.toFixed(2) || '0.00',
       };
     });

@@ -4,8 +4,8 @@
  *
  * - Cash payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.CASH): increase cashier float — Dr Cashier CASH, Cr Branch Cash Book.
  * - Cash refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.CASH): decrease cashier float — Cr Cashier CASH, Dr Branch Cash Book.
- * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): deduct agent balance — Dr Branch Cash Book, Cr Agent RECEIVABLE.
- * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse agent balance — Dr Agent RECEIVABLE, Cr Branch Cash Book.
+ * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): increase receivable (agency owes us) — Dr Agent RECEIVABLE, Cr Branch Cash Book.
+ * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse — Cr Agent RECEIVABLE, Dr Branch Cash Book.
  *
  * Receipt.amount is in rupees; journal lines use cents.
  */
@@ -263,9 +263,10 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Agent: affect agent receivable
+  // Agent: one RECEIVABLE account — debit = they owe more (booking), credit = they owe less (deposit/refund)
   if (hasAgent) {
     if (isPayment) {
+      // Channel booking made with agent: increase receivable (agency owes us)
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (agent)${descSuffix}`,
@@ -274,12 +275,12 @@ export function buildReceiptJournalEntryInput(
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-          { accountId: accounts.agentAccountId!, debitAmount: 0, creditAmount: amountCents },
+          { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
+          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
         ],
       };
     }
-    // Refund
+    // Refund: decrease receivable (reverse the booking)
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (agent)${descSuffix}`,
@@ -288,8 +289,8 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.agentAccountId!, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
@@ -437,7 +438,6 @@ export async function resolveReceiptJournalAccounts(params: {
       type: 'CASH',
       userId: params.createdBy,
       name: `Till - Cashier`,
-      minBalanceAllowed: 0,
     });
     if (res.success) cashierAccountId = res.account.id;
   }

@@ -302,7 +302,6 @@ export async function approveFloatRequest(
     type: 'CASH',
     userId: fr.requestedById,
     name: `Float - ${fr.requestedBy.name}`,
-    minBalanceAllowed: 0,
   });
   if (!cashierAccountResult.success) {
     return { success: false, error: cashierAccountResult.error };
@@ -398,7 +397,6 @@ export async function receiveFloatRequest(
     type: 'CASH',
     userId: fr.requestedById,
     name: `Float - ${fr.requestedBy.name}`,
-    minBalanceAllowed: 0,
   });
   if (!cashierAccountResult.success) {
     return { success: false, error: cashierAccountResult.error, errorCode: 'CASHIER_ACCOUNT_ERROR' };
