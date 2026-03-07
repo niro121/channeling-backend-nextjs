@@ -1,6 +1,10 @@
 import React from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getAccountStatement, getAccountById } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
+import { formatCents } from '@/lib/format-money';
 import { redirect, notFound } from 'next/navigation';
 import { BackButton } from '@/components/common/back-button';
 import {
@@ -38,6 +42,17 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
   if (!account) {
     notFound();
   }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: 'accounting.statement.viewed',
+      entityType: 'Account',
+      entityId: id,
+      importance: 'low',
+      metadata: { fromDate: fromDate ?? undefined, toDate: toDate ?? undefined },
+    });
+  }
 
   const openingBalance = statement?.openingBalance ?? 0;
   const closingBalance = statement?.closingBalance ?? 0;
@@ -68,10 +83,10 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
         <CardContent>
           <div className="flex gap-6 text-sm">
             <span>
-              Opening balance: <strong>{(openingBalance / 100).toFixed(2)}</strong>
+              Opening balance: <strong className="tabular-nums">{formatCents(openingBalance)}</strong>
             </span>
             <span>
-              Closing balance: <strong>{(closingBalance / 100).toFixed(2)}</strong>
+              Closing balance: <strong className="tabular-nums">{formatCents(closingBalance)}</strong>
             </span>
           </div>
         </CardContent>
@@ -116,14 +131,14 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
                         ? `${line.referenceType}:${String(line.referenceId).slice(-6)}`
                         : '-'}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {line.debitAmount > 0 ? (line.debitAmount / 100).toFixed(2) : '-'}
+                    <TableCell className="text-right tabular-nums">
+                      {line.debitAmount > 0 ? formatCents(line.debitAmount) : '-'}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {line.creditAmount > 0 ? (line.creditAmount / 100).toFixed(2) : '-'}
+                    <TableCell className="text-right tabular-nums">
+                      {line.creditAmount > 0 ? formatCents(line.creditAmount) : '-'}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {(line.runningBalance / 100).toFixed(2)}
+                    <TableCell className="text-right tabular-nums">
+                      {formatCents(line.runningBalance)}
                     </TableCell>
                   </TableRow>
                 ))}

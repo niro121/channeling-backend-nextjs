@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { CreditCustomerColumns } from './columns';
@@ -10,6 +12,7 @@ import {
   getCreditCustomersExport,
 } from '@/app/actions/credit-customer.actions';
 import { checkRouteAccess, checkPermission } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -20,6 +23,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/credit-customers');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: 'credit-customers.visited',
+      entityType: 'CreditCustomers',
+      importance: 'low',
+    });
   }
 
   const canAdd = await checkPermission('credit-customers', 'add');

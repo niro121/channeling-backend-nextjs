@@ -1,7 +1,10 @@
 "use server"
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 import {
   getActiveReceiptTemplate,
   listReceiptHeaderTemplates,
@@ -67,7 +70,19 @@ export async function updateReceiptHeaderTemplateAction(
 export async function deleteReceiptHeaderTemplateAction(id: string) {
   await requirePermission("ledger", "edit")
   const result = await deleteReceiptHeaderTemplate(id)
-  if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
+  if (result.success) {
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "admin.receipt-templates.header.deleted",
+        entityType: "ReceiptHeaderTemplate",
+        entityId: id,
+        importance: "high",
+      })
+    }
+    revalidatePath(RECEIPT_TEMPLATES_PATH)
+  }
   return result
 }
 
@@ -105,7 +120,19 @@ export async function updateReceiptFooterTemplateAction(
 export async function deleteReceiptFooterTemplateAction(id: string) {
   await requirePermission("ledger", "edit")
   const result = await deleteReceiptFooterTemplate(id)
-  if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
+  if (result.success) {
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "admin.receipt-templates.footer.deleted",
+        entityType: "ReceiptFooterTemplate",
+        entityId: id,
+        importance: "high",
+      })
+    }
+    revalidatePath(RECEIPT_TEMPLATES_PATH)
+  }
   return result
 }
 
@@ -133,7 +160,19 @@ export async function createReceiptTemplateAction(payload: {
 }) {
   await requirePermission("ledger", "edit")
   const result = await createReceiptTemplate(payload)
-  if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
+  if (result.success) {
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "admin.receipt-templates.template.created",
+        entityType: "ReceiptTemplate",
+        entityId: result.data?.id ?? undefined,
+        importance: "high",
+      })
+    }
+    revalidatePath(RECEIPT_TEMPLATES_PATH)
+  }
   return result
 }
 
@@ -153,13 +192,37 @@ export async function updateReceiptTemplateAction(
 ) {
   await requirePermission("ledger", "edit")
   const result = await updateReceiptTemplate(id, payload)
-  if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
+  if (result.success) {
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "admin.receipt-templates.template.updated",
+        entityType: "ReceiptTemplate",
+        entityId: id,
+        importance: "high",
+      })
+    }
+    revalidatePath(RECEIPT_TEMPLATES_PATH)
+  }
   return result
 }
 
 export async function deleteReceiptTemplateAction(id: string) {
   await requirePermission("ledger", "edit")
   const result = await deleteReceiptTemplate(id)
-  if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
+  if (result.success) {
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "admin.receipt-templates.template.deleted",
+        entityType: "ReceiptTemplate",
+        entityId: id,
+        importance: "high",
+      })
+    }
+    revalidatePath(RECEIPT_TEMPLATES_PATH)
+  }
   return result
 }

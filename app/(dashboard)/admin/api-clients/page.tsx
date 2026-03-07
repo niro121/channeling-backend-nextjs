@@ -1,4 +1,6 @@
 import React, { Suspense } from "react"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus, Play } from "lucide-react"
@@ -8,6 +10,7 @@ import { ApiClientColumns } from "./columns"
 import { getApiClients } from "@/app/actions/api-client.actions"
 import Loading from "../../loading"
 import { checkRouteAccess } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 
 type SearchParams = {
@@ -18,6 +21,15 @@ export default async function AdminApiClientsPage({ searchParams }: SearchParams
   const canView = await checkRouteAccess("/admin/api-clients")
   if (!canView) {
     redirect("/unauthorized-access")
+  }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: "admin.api-clients.visited",
+      entityType: "ApiClients",
+      importance: "low",
+    })
   }
 
   const params = await searchParams

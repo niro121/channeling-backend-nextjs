@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getAllAgenciesService,
   getAgencyByIdService,
@@ -24,6 +26,7 @@ import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
 import prisma from '@/lib/prisma';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 
 // ==== GET ALL AGENCIES ==== //
@@ -238,7 +241,17 @@ export const createAgency = async (
         console.error('Failed to send Agency Welcome SMS:', smsError);
       }
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'agencies.agency.created',
+        entityType: 'Agency',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined,
+      });
+    }
     revalidatePath('/agencies');
 
     return {
@@ -292,7 +305,17 @@ export const updateAgency = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'agencies.agency.updated',
+        entityType: 'Agency',
+        entityId: id,
+        importance: 'high',
+        metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined,
+      });
+    }
     revalidatePath('/agencies');
 
     return {
@@ -400,7 +423,16 @@ export const deleteAgency = async (id: string) => {
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'agencies.agency.deleted',
+        entityType: 'Agency',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/agencies');
 
     return {
@@ -433,7 +465,16 @@ export const bulkDeleteAgencies = async (ids: string[]) => {
     if (!result.success) {
       throw new Error(result.error?.message || 'Failed to delete agencies');
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'agencies.agencies.bulkDeleted',
+        entityType: 'Agency',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/agencies');
 
     return true;
@@ -460,7 +501,16 @@ export const getAgenciesExport = async (filters: {
         message: 'No available agencies in the database'
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'agencies.exported',
+        entityType: 'Agency',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data,

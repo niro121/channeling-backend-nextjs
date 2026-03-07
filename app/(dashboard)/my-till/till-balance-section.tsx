@@ -15,6 +15,7 @@ import {
   Link2,
   CircleDollarSign,
 } from 'lucide-react';
+import { formatCents } from '@/lib/format-money';
 import { CreateTillButton } from './create-till-button';
 import type { MyTillBalance as Balance } from '@/app/actions/till.actions';
 
@@ -34,10 +35,6 @@ const BALANCE_ITEMS: Array<{
   { key: 'eWalletCents', label: 'E-Wallet', icon: Smartphone },
   { key: 'totalCents', label: 'Total', icon: CircleDollarSign },
 ];
-
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export async function TillBalanceSection() {
   const res = await getMyTillBalance();

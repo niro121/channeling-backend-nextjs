@@ -1,10 +1,13 @@
 "use server"
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { getPatientById, getPatients, createPatient, updatePatient, deletePatient, deletePatients } from "@/services/patient.service"
 import { GetPatientsParams, Patient } from "@/types/patient"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
     try {
@@ -120,7 +123,16 @@ export const createPatientAction = async (data: Patient) => {
                 data: {}
             }
         }
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "patients.patient.created",
+                entityType: "Patient",
+                entityId: result.data?.id ?? undefined,
+                importance: "high",
+            })
+        }
         revalidatePath("/patients")
         return {
             isError: false,
@@ -172,7 +184,16 @@ export const updatePatientAction = async (id: string, data: Partial<Patient>) =>
                 data: {}
             }
         }
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "patients.patient.updated",
+                entityType: "Patient",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath("/patients")
         return {
             isError: false,
@@ -202,7 +223,16 @@ export const deletePatientAction = async (id: string) => {
         if (!result.success) {
             throw new Error(result.error?.message ?? "Error deleting data. please try again later")
         }
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "patients.patient.deleted",
+                entityType: "Patient",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath("/patients")
         return {
             isError: false,
@@ -278,7 +308,16 @@ export const getPatientsExport = async (params: { keyword?: string }) => {
                 message: result.success ? 'No patients found' : result.error?.message || 'Error getting data'
             }
         }
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "patients.exported",
+                entityType: "Patient",
+                importance: "medium",
+                metadata: { count: result.data?.records?.length ?? 0 },
+            })
+        }
         return {
             success: true,
             data: result.data.records

@@ -18,6 +18,7 @@ import {
 } from '@/services/float-request.service';
 import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
 import { fetchServerSession } from '@/lib/session';
+import { logActivity } from '@/lib/activity-log';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -340,6 +341,15 @@ export async function approveFloatRequestAction(input: unknown) {
     });
     if (!result.success) {
       return { success: false, error: result.error, errorCode: result.errorCode, data: null, printData: undefined };
+    }
+    if (currentUserId) {
+      await logActivity({
+        userId: currentUserId,
+        action: 'float-transfers.floatRequest.approved',
+        entityType: 'FloatRequest',
+        entityId: result.floatRequest?.id ?? parsed.data.floatRequestId,
+        importance: 'high',
+      });
     }
     revalidatePath('/bulk-cashier');
     revalidatePath('/float-transfers');

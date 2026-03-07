@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AccountingColumns } from './columns';
@@ -6,6 +8,7 @@ import { AccountingToolbarActions } from './accounting-toolbar-actions';
 import Loading from '../loading';
 import { getAccounts } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -22,6 +25,15 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/accounting');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: 'accounting.visited',
+      entityType: 'Accounting',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { getFloatRequestsForBulkCashierPaginatedAction } from '@/app/actions/float-request.actions';
@@ -21,6 +22,12 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
   const session = await fetchServerSession();
   const bulkCashierId = session?.user?.id;
   if (!bulkCashierId) redirect('/unauthorized-access');
+  await logActivity({
+    userId: bulkCashierId,
+    action: 'float-transfers.visited',
+    entityType: 'FloatTransfers',
+    importance: 'low',
+  });
 
   const params = await searchParams;
   const page = params?.page ? parseInt(params.page, 10) : 0;

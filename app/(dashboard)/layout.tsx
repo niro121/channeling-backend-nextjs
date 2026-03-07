@@ -34,6 +34,7 @@ import {
   Banknote,
   ArrowRightLeft,
   Receipt,
+  Wallet,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -131,7 +132,7 @@ async function MobileNav({ session }: { session: Session | null }) {
               </div>
             </div>
           )}
-          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
               <div className="space-y-0.5">
@@ -140,6 +141,7 @@ async function MobileNav({ session }: { session: Session | null }) {
                 {hasAccess('/discounts') && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
                 {hasAccess('/accounting') && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+                {hasAccess('/my-till') && <NavLink href="/my-till" label="My Till" icon={<Wallet className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
                 {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
                 {hasAccess('/float-transfers') && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}

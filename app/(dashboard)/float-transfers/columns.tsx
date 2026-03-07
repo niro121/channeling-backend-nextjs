@@ -3,6 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { formatCents } from '@/lib/format-money';
 import type { FloatRequest } from '@/types/float-request';
 import { floatRequestStatusLabel, formatDenomLabel } from '@/types/float-request';
 import { FLOAT_REQUEST_STATUS } from '@/types/float-request';
@@ -47,7 +48,7 @@ export function getFloatTransferColumns(callbacks: FloatTransferColumnCallbacks)
     {
       accessorKey: 'amountRequested',
       header: 'Amount (LKR)',
-      cell: ({ row }) => (row.original.amountRequested / 100).toFixed(2),
+      cell: ({ row }) => <span className="tabular-nums">{formatCents(row.original.amountRequested)}</span>,
     },
     {
       id: 'denominations',

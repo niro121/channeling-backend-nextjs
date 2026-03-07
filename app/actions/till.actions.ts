@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { logActivity } from '@/lib/activity-log';
 import { getTillBalanceBreakdown, getAccountStatement, getOrCreateAccount } from '@/services/accounting.service';
 
 export type MyTillBalance = {
@@ -103,20 +104,30 @@ export async function getMyTillStatement(
         ? toDate
         : (toDate as Date).toISOString().slice(0, 10);
   const { from, to } = parseStatementPeriod(fromStr, toStr);
+  const DEBUG_STATEMENT = process.env.NODE_ENV === 'development' || process.env.DEBUG_TILL_STATEMENT === '1';
   try {
     const balance = await getTillBalanceBreakdown(userId);
     if (!balance.tillAccountId) {
+      if (DEBUG_STATEMENT) {
+        console.debug('[getMyTillStatement] No till account for userId', userId);
+      }
       return { success: true, data: null };
     }
     const st = await getAccountStatement(balance.tillAccountId, from, to);
-    if (process.env.NODE_ENV === 'development') {
+    if (DEBUG_STATEMENT) {
       console.debug('[getMyTillStatement]', {
+        userId,
         fromStr: fromStr ?? '(today)',
         toStr: toStr ?? '(today)',
         from: from.toISOString(),
         to: to.toISOString(),
         tillAccountId: balance.tillAccountId,
-        lineCount: st?.lines?.length ?? 0,
+        tillTotalCents: balance.totalCents,
+        statementLineCount: st?.lines?.length ?? 0,
+        openingBalance: st?.openingBalance,
+        closingBalance: st?.closingBalance,
+        firstJournalDate: st?.lines?.[0] ? new Date(st.lines[0].date).toISOString() : null,
+        lastJournalDate: st?.lines?.length ? new Date(st.lines[st.lines.length - 1].date).toISOString() : null,
       });
     }
     if (!st) {
@@ -136,6 +147,13 @@ export async function getMyTillStatement(
       openingBalance: st.openingBalance,
       closingBalance: st.closingBalance,
     };
+    await logActivity({
+      userId,
+      action: 'till.statement.viewed',
+      entityType: 'MyTill',
+      importance: 'low',
+      metadata: { from: fromStr ?? undefined, to: toStr ?? undefined },
+    });
     return { success: true, data: statement };
   } catch (error) {
     console.error('getMyTillStatement error:', error);

@@ -1,5 +1,7 @@
 "use server"
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import {
   getApiClientsService,
   getApiClientByIdService,
@@ -9,6 +11,7 @@ import {
 } from "@/services/api-client.service"
 import type { GetApiClientsParams, ApiClientFormValues } from "@/types/api-client"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 
 const DEFAULT_LIMIT = 10
 
@@ -62,7 +65,16 @@ export async function createApiClient(payload: { name: string }) {
       },
     }
   }
-
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: "admin.api-clients.client.created",
+      entityType: "ApiClient",
+      entityId: result.data?.id ?? undefined,
+      importance: "high",
+    })
+  }
   return {
     success: true,
     data: result.data,
@@ -86,7 +98,16 @@ export async function updateApiClient(id: string, payload: Partial<ApiClientForm
       },
     }
   }
-
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: "admin.api-clients.client.updated",
+      entityType: "ApiClient",
+      entityId: id,
+      importance: "high",
+    })
+  }
   return {
     success: true,
     data: result.data,

@@ -17,18 +17,28 @@ export async function getAccountBalance(
   });
   if (!account) return 0;
 
-  const where: { accountId: string; journal?: { date?: { lte?: Date } } } = {
-    accountId,
-  };
+  // MongoDB: avoid relation filter on journal.date; use two-step when filtering by date.
+  let lines: { debitAmount: number; creditAmount: number }[];
   if (asOfDate) {
-    where.journal = { date: { lte: asOfDate } };
+    const journalIds = await prisma.journal
+      .findMany({
+        where: { date: { lte: asOfDate } },
+        select: { id: true },
+      })
+      .then((rows) => rows.map((r) => r.id));
+    lines = await prisma.journalLine.findMany({
+      where: {
+        accountId,
+        ...(journalIds.length > 0 ? { journalId: { in: journalIds } } : { journalId: { in: [] } }),
+      },
+      select: { debitAmount: true, creditAmount: true },
+    });
+  } else {
+    lines = await prisma.journalLine.findMany({
+      where: { accountId },
+      select: { debitAmount: true, creditAmount: true },
+    });
   }
-
-  const lines = await prisma.journalLine.findMany({
-    where,
-    select: { debitAmount: true, creditAmount: true },
-    orderBy: { journal: { date: 'asc' } },
-  });
 
   let balance = 0;
   for (const line of lines) {

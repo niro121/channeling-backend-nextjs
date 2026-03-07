@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { getAgencyDetailsForChannelBooking } from "@/app/actions/channel-booking"
 import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
+import { formatLKR } from "@/lib/format-money"
 import { useChannelBooking } from "../../context/channel-booking-context"
 
 export function AgentBookTab() {
@@ -115,11 +116,11 @@ export function AgentBookTab() {
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Allowed Credit Limit</span>
-            <span className="text-foreground font-medium">{details.allowedCreditLimit.toLocaleString()}</span>
+            <span className="text-foreground font-medium">{formatLKR(details.allowedCreditLimit)}</span>
           </div>
           <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Balance</span>
-            <span className="text-foreground font-medium">{details.balance.toLocaleString()}</span>
+            <span className="text-foreground font-medium">{formatLKR(details.balance)}</span>
           </div>
         </div>
       </div>

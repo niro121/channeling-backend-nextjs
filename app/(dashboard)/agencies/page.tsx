@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
@@ -13,6 +15,7 @@ import {
 } from '@/app/actions/agency.actions';
 import { ExportWrapper } from '../export-wrapper';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -27,6 +30,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/agencies');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: 'agencies.visited',
+      entityType: 'Agencies',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

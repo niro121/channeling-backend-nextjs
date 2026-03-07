@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   createSpecialityService,
   getAllSpecialitiesService,
@@ -22,6 +24,7 @@ import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
@@ -167,7 +170,17 @@ export const createSpeciality = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'specialities.speciality.created',
+        entityType: 'Speciality',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
@@ -216,7 +229,17 @@ export const updateOneSpeciality = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'specialities.speciality.updated',
+        entityType: 'Speciality',
+        entityId: id,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
@@ -251,7 +274,16 @@ export const deleteSpeciality = async (id: string) => {
         error: result.error
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'specialities.speciality.deleted',
+        entityType: 'Speciality',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
@@ -282,7 +314,16 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
     if (!result.success) {
       return false;
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'specialities.specialities.bulkDeleted',
+        entityType: 'Speciality',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/specialities');
     revalidatePath('/doctors');
 
@@ -312,7 +353,16 @@ export const getSpecialitiesExport = async (
         message: response.message || 'No specialities available'
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'specialities.exported',
+        entityType: 'Speciality',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data,

@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
@@ -14,6 +16,7 @@ import { SelectorFilter } from '@/components/common/selector-filter';
 import { DISCOUNT_TYPE_OPTIONS } from '@/types/discount';
 import { DisCountColumns } from './columns';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import { ExportWrapper } from '../export-wrapper';
 import { BulkDeleteButton } from '@/components/common/custom-data-table';
@@ -31,6 +34,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/discounts');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await logActivity({
+      userId: session.user.id,
+      action: 'discounts.visited',
+      entityType: 'Discounts',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

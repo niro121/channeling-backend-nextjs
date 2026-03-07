@@ -15,6 +15,7 @@ import {
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence"
 import { getAgentBalance } from "@/services/channel-booking/helpers/get-agent-balance"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
+import { formatCents } from "@/lib/format-money"
 import {
   RECEIPT_METHOD,
   RECEIPT_PAYMENT_METHOD,
@@ -120,7 +121,7 @@ export async function createLedgerReceipt(
         message:
           agentBalanceCents <= 0
             ? "This agency has no balance to withdraw. They must deposit first."
-            : `Insufficient agency balance. Available: ${(agentBalanceCents / 100).toFixed(2)} LKR, requested: ${(withdrawAmountCents / 100).toFixed(2)} LKR.`,
+            : `Insufficient agency balance. Available: ${formatCents(agentBalanceCents)} LKR, requested: ${formatCents(withdrawAmountCents)} LKR.`,
       }
     }
   }
@@ -182,7 +183,7 @@ export async function createLedgerReceipt(
         message:
           tillBalanceCents <= 0
             ? "Till has no balance. Cannot complete this transaction until the till has sufficient cash."
-            : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(amountCents / 100).toFixed(2)} LKR.`,
+            : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
       }
     }
   }

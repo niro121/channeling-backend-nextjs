@@ -5,6 +5,7 @@ import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
@@ -42,8 +43,17 @@ export const bulkDeleteUsers = async (ids: string[]) => {
     await requirePermission("users", "delete")
 
     try {
-
         await deleteUsers(ids)
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "users.users.bulkDeleted",
+                entityType: "User",
+                importance: "high",
+                metadata: { count: ids.length },
+            })
+        }
         revalidatePath('/users')
         return true
 
@@ -59,6 +69,16 @@ export const deleteUser = async (id: string) => {
     
     try {
         const response = await deleteOneUser(id)
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "users.user.deleted",
+                entityType: "User",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/users')
         return true
 
@@ -103,7 +123,16 @@ export const createNewUser = async (payload: User) => {
                 data: {}
             };
         }
-
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "users.user.created",
+                entityType: "User",
+                entityId: result.data?.id ?? undefined,
+                importance: "high",
+            })
+        }
         revalidatePath('/users')
         return {
             isError: false,
@@ -184,7 +213,16 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
                 data: {}
             };
         }
-
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "users.user.updated",
+                entityType: "User",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/users')
         return {
             isError: false,
@@ -389,7 +427,16 @@ export const getUsersExport = async (params: { keyword?: string; userType?: stri
         message: response.success ? 'No users found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await fetchServerSession()
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "users.exported",
+        entityType: "User",
+        importance: "medium",
+        metadata: { count: response.data?.length ?? 0 },
+      })
+    }
     return {
       success: true,
       data: response.data

@@ -16,6 +16,7 @@ import {
 } from '@/app/actions/agency.actions';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
@@ -290,7 +291,7 @@ const AgencyForm = ({
                           <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
                           <div className={styleClasses.inputClassName}>
                             <span className="font-medium tabular-nums">
-                              {Number(agency.balance ?? 0).toFixed(2)}
+                              {formatLKR(Number(agency.balance ?? 0))}
                             </span>
                           </div>
                         </div>

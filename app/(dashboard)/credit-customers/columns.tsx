@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { CreditCustomer } from '@/types/credit-customer';
+import { formatLKR } from '@/lib/format-money';
 import CreditCustomerRecordActions from './record-actions';
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
@@ -76,7 +77,7 @@ export const CreditCustomerColumns: ColumnDef<CreditCustomer>[] = [
     header: 'Balance',
     cell: ({ row }) => {
       const balance = row.getValue('balance') as number | undefined;
-      return <span>{balance != null ? Number(balance).toFixed(2) : '0.00'}</span>;
+      return <span className="tabular-nums">{balance != null ? formatLKR(Number(balance)) : '0.00'}</span>;
     },
   },
   {

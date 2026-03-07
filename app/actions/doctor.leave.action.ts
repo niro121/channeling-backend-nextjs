@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getDoctorLeavesService,
   getActiveSessionsService,
@@ -13,6 +15,7 @@ import {
   bulkDeleteDoctorLeavesService
 } from '@/services/doctor.leave.service';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import {
   GetActiveSession,
   GetDoctorLeavesParams,
@@ -305,7 +308,16 @@ export const createDoctorLeave = async (
         error: result.error ?? { message: 'Doctor leave creation failed' }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'doctor-leaves.leave.created',
+        entityType: 'DoctorLeave',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+      });
+    }
     revalidatePath('/doctor-leaves');
 
     return {
@@ -344,7 +356,16 @@ export const updateDoctorLeave = async (
         error: result.error ?? { message: 'Doctor leave update failed' }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'doctor-leaves.leave.updated',
+        entityType: 'DoctorLeave',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/doctor-leaves');
 
     return {
@@ -381,7 +402,16 @@ export const deleteOneDoctorLeave = async (
         error: result.error ?? { message: 'Doctor leave deletion failed' }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'doctor-leaves.leave.deleted',
+        entityType: 'DoctorLeave',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/doctor-leaves');
 
     return {
@@ -417,7 +447,16 @@ export const bulkDeleteDoctorLeaves = async (
         error: result.error ?? { message: 'Bulk delete failed' }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'doctor-leaves.leaves.bulkDeleted',
+        entityType: 'DoctorLeave',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/doctor-leaves');
 
     return {

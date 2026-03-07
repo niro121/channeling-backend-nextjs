@@ -4,6 +4,7 @@ import { GetZonesParams, GetZonesQuery, Zone } from "@/types/zone"
 import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById, checkZoneHasLinkedRecordsService, checkZonesHaveLinkedRecordsService } from "@/services/zone.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllZones = async (filter: GetZonesParams) => {
@@ -55,7 +56,16 @@ export const bulkDeleteZones = async (ids: string[]) => {
         if (!result.success) {
             throw new Error(result.error?.message || "Failed to delete zones");
         }
-
+        const session = await fetchServerSession();
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "zones.zones.bulkDeleted",
+                entityType: "Zone",
+                importance: "high",
+                metadata: { count: ids.length },
+            });
+        }
         revalidatePath('/zones');
         return true;
     } catch (error: any) {
@@ -79,7 +89,16 @@ export const deleteZone = async (id: string) => {
                 }
             };
         }
-
+        const session = await fetchServerSession();
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "zones.zone.deleted",
+                entityType: "Zone",
+                entityId: id,
+                importance: "high",
+            });
+        }
         revalidatePath('/zones');
 
         return {
@@ -138,7 +157,16 @@ export const createNewZone = async (payload: Zone): Promise<{
                 }
             };
         }
-
+        if (user) {
+            await logActivity({
+                userId: user.id,
+                action: "zones.zone.created",
+                entityType: "Zone",
+                entityId: result.data?.id ?? undefined,
+                importance: "high",
+                metadata: result.data ? { name: result.data.name } : undefined,
+            })
+        }
         revalidatePath('/zones');
 
         return {
@@ -196,7 +224,15 @@ export const updateZone = async (
                 }
             };
         }
-
+        if (user) {
+            await logActivity({
+                userId: user.id,
+                action: "zones.zone.updated",
+                entityType: "Zone",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/zones');
         revalidatePath(`/zones/${id}/edit`);
 
@@ -284,7 +320,16 @@ export const getZonesExport = async (params: { keyword?: string; locationId?: st
         message: response.success ? 'No zones found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await fetchServerSession();
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "zones.exported",
+        entityType: "Zone",
+        importance: "medium",
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data

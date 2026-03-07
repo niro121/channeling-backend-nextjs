@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   createLocationService,
   getAllLocationsService,
@@ -19,6 +21,7 @@ import {
 } from '@/types/location';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivity } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 import prisma from '@/lib/prisma';
 
@@ -156,7 +159,17 @@ export const createLocation = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'locations.location.created',
+        entityType: 'Location',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
@@ -206,7 +219,17 @@ export const updateOneLocation = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'locations.location.updated',
+        entityType: 'Location',
+        entityId: id,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
@@ -244,7 +267,16 @@ export const deleteLocation = async (id: string) => {
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'locations.location.deleted',
+        entityType: 'Location',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
@@ -276,7 +308,16 @@ export const bulkDeleteLocations = async (ids: string[]) => {
     if (!result.success) {
       throw new Error(result.error?.message || 'Failed to delete locations');
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'locations.locations.bulkDeleted',
+        entityType: 'Location',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/locations');
     revalidatePath('/zones');
     revalidatePath('/rooms');
@@ -304,7 +345,16 @@ export const getLocationsExport = async (params: { keyword?: string; locationId?
         message: response.success ? 'No locations found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: 'locations.exported',
+        entityType: 'Location',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data

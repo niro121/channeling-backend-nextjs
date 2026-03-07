@@ -8,6 +8,7 @@ import {
   requireReceiptJournalAccounts,
 } from "./helpers"
 import { createJournalEntryInTransaction, getAccountBalance } from "@/services/accounting.service"
+import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
@@ -160,7 +161,7 @@ export async function refundChannelService(
             message:
               tillBalanceCents <= 0
                 ? "Till has no balance. Cannot refund until the till has sufficient cash."
-                : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(refundAmountCents / 100).toFixed(2)} LKR.`,
+                : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
           }
         }
       }
@@ -284,7 +285,7 @@ export async function refundChannelService(
           message:
             tillBalanceCents <= 0
               ? "Till has no balance. Cannot refund until the till has sufficient cash."
-              : `Insufficient till balance. Available: ${(tillBalanceCents / 100).toFixed(2)} LKR, required: ${(refundAmountCents / 100).toFixed(2)} LKR.`,
+              : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
         }
       }
     }

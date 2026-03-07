@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, ListOrdered } from 'lucide-react';
+import { formatCents } from '@/lib/format-money';
 import { StatementPeriodPicker } from './statement-period-picker';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 
@@ -22,10 +23,6 @@ const PAYMENT_METHOD_LABEL: Record<number, string> = {
   [RECEIPT_PAYMENT_METHOD.CREDIT]: 'Credit',
   [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'E-Wallet',
 };
-
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 type Props = {
   from?: string;

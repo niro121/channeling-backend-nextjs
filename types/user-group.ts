@@ -85,6 +85,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "float-approve", name: "Float Approve" },
       { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
       { id: "float-request", name: "Float Request" },
+      { id: "my-till", name: "My Till" },
     ],
   },
   { id: "float-transfers", name: "Float Transfers" },
@@ -105,4 +106,5 @@ export const BULK_CASHIER_ACTIONS = [
   { id: "float-approve", name: "Float Approve" },
   { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
   { id: "float-request", name: "Float Request" },
+  { id: "my-till", name: "My Till" },
 ] as const;

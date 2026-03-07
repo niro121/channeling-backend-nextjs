@@ -4,6 +4,7 @@ import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/d
 import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById, checkDepartmentHasLinkedRecordsService, checkDepartmentsHaveLinkedRecordsService } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivity } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
@@ -54,7 +55,16 @@ export const bulkDeleteDepartments = async (ids: string[]) => {
         if (!result.success) {
             throw new Error(result.error?.message ?? "Error deleting records. please try again later")
         }
-
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "departments.departments.bulkDeleted",
+                entityType: "Department",
+                importance: "high",
+                metadata: { count: ids.length },
+            })
+        }
         revalidatePath('/departments')
         return true
     } catch (error: any) {
@@ -73,7 +83,16 @@ export const deleteDepartment = async (id: string) => {
         if (!result.success) {
             throw new Error(result.error?.message ?? "Error deleting data. please try again later")
         }
-
+        const session = await fetchServerSession()
+        if (session?.user?.id) {
+            await logActivity({
+                userId: session.user.id,
+                action: "departments.department.deleted",
+                entityType: "Department",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/departments')
         return true
     } catch (error: any) {
@@ -116,7 +135,16 @@ export const createNewDepartment = async (payload: Department) => {
                 data: {}
             }
         }
-
+        if (user) {
+            await logActivity({
+                userId: user.id,
+                action: "departments.department.created",
+                entityType: "Department",
+                entityId: result.data?.id ?? undefined,
+                importance: "high",
+                metadata: result.data ? { name: result.data.name } : undefined,
+            })
+        }
         revalidatePath('/departments')
 
         return {
@@ -168,7 +196,15 @@ export const updateDepartment = async (id: string, payload: Department) => {
                 data: {}
             }
         }
-
+        if (user) {
+            await logActivity({
+                userId: user.id,
+                action: "departments.department.updated",
+                entityType: "Department",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/departments')
         revalidatePath(`/departments/${id}/edit`)
         return {
@@ -216,13 +252,23 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
       page: "0",
       limit: "10000", // Get all records
       keyword: params.keyword ?? ""
-    });    if (!response.success || !response.data?.length) {
+    });
+    if (!response.success || !response.data?.length) {
       return {
         success: false,
         message: response.success ? 'No departments found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await fetchServerSession()
+    if (session?.user?.id) {
+      await logActivity({
+        userId: session.user.id,
+        action: "departments.exported",
+        entityType: "Department",
+        importance: "medium",
+        metadata: { count: response.data?.length ?? 0 },
+      })
+    }
     return {
       success: true,
       data: response.data
