@@ -5,7 +5,7 @@ import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
@@ -46,7 +46,7 @@ export const bulkDeleteUsers = async (ids: string[]) => {
         await deleteUsers(ids)
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "users.users.bulkDeleted",
                 entityType: "User",
@@ -71,7 +71,7 @@ export const deleteUser = async (id: string) => {
         const response = await deleteOneUser(id)
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "users.user.deleted",
                 entityType: "User",
@@ -125,7 +125,7 @@ export const createNewUser = async (payload: User) => {
         }
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "users.user.created",
                 entityType: "User",
@@ -215,7 +215,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         }
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "users.user.updated",
                 entityType: "User",
@@ -429,7 +429,7 @@ export const getUsersExport = async (params: { keyword?: string; userType?: stri
     }
     const session = await fetchServerSession()
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "users.exported",
         entityType: "User",

@@ -51,6 +51,14 @@ This document lists all user activities recorded in the application’s activity
 
 ---
 
+## Doctor Payments
+
+| Action | Importance | When |
+|--------|------------|------|
+| `doctor-payment.batch.paid` | High | User processes a batch doctor payment (receipt created, bookings updated) |
+
+---
+
 ## Sessions
 
 | Action | Importance | When |

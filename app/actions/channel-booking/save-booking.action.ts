@@ -3,7 +3,7 @@
 import { z } from "zod"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { saveBookingService } from "@/services/channel-booking/save-booking.service"
 import type { SaveBookingInput, SaveBookingResult } from "@/types/save-booking"
 
@@ -96,14 +96,15 @@ export async function saveBookingAction(
 
   if (result.success) {
     if (userId) {
-      const bookingId = result.data?.id ?? result.data?.bookingId
-      await logActivity({
+      const data = result.data as { id?: string; bookingId?: string; sessionId?: string } | undefined
+      const bookingId = data?.id ?? data?.bookingId
+      logActivityNonBlocking({
         userId,
         action: "channel-booking.booking.created",
         entityType: "Booking",
         entityId: typeof bookingId === "string" ? bookingId : undefined,
         importance: "high",
-        metadata: result.data ? { sessionId: (result.data as { sessionId?: string }).sessionId } : undefined,
+        metadata: data ? { sessionId: data.sessionId } : undefined,
       })
     }
     return { success: true, data: result.data }

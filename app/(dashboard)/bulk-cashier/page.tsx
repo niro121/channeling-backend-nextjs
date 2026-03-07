@@ -1,5 +1,5 @@
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { BulkCashierContent } from './bulk-cashier-content';
@@ -15,7 +15,7 @@ export default async function BulkCashierPage() {
   if (!bulkCashierId) {
     redirect('/unauthorized-access');
   }
-  await logActivity({
+  logActivityNonBlocking({
     userId: bulkCashierId,
     action: 'bulk-cashier.visited',
     entityType: 'BulkCashier',

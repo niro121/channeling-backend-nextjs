@@ -4,7 +4,7 @@ import { GetTagsParams, GetTagsQuery, Tag } from "@/types/tag"
 import { deleteOneTag, deleteTags, getTags, saveTag, updateOneTag, getTagById, getAllTagsDownloadService } from "@/services/tag.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllTags = async (filter: GetTagsParams) => {
@@ -59,7 +59,7 @@ export const bulkDeleteTags = async (ids: string[]) => {
         }
         const session = await fetchServerSession();
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "tags.tags.bulkDeleted",
                 entityType: "Tag",
@@ -92,7 +92,7 @@ export const deleteTag = async (id: string) => {
         }
         const session = await fetchServerSession();
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "tags.tag.deleted",
                 entityType: "Tag",
@@ -160,7 +160,7 @@ export const createNewTag = async (payload: Tag): Promise<{
             };
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "tags.tag.created",
                 entityType: "Tag",
@@ -227,7 +227,7 @@ export const updateTag = async (
             };
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "tags.tag.updated",
                 entityType: "Tag",
@@ -330,7 +330,7 @@ export const getTagsExport = async (filters: {
         }
         const session = await fetchServerSession();
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "tags.exported",
                 entityType: "Tag",

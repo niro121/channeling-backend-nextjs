@@ -22,7 +22,7 @@ import type {
 } from '@/types/credit-customer';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // ==== GET ALL ==== //
 export async function getAllCreditCustomers(params: GetCreditCustomersParams) {
@@ -119,7 +119,7 @@ export async function createCreditCustomer(payload: CreditCustomerFormValues) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'credit-customers.creditCustomer.created',
         entityType: 'CreditCustomer',
@@ -163,7 +163,7 @@ export async function updateCreditCustomer(id: string, payload: UpdateCreditCust
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'credit-customers.creditCustomer.updated',
         entityType: 'CreditCustomer',
@@ -204,7 +204,7 @@ export async function deleteCreditCustomer(id: string) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'credit-customers.creditCustomer.deleted',
         entityType: 'CreditCustomer',
@@ -231,7 +231,7 @@ export async function bulkDeleteCreditCustomers(ids: string[]) {
     if (!result.success) throw new Error(result.error?.message ?? 'Bulk delete failed');
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'credit-customers.creditCustomers.bulkDeleted',
         entityType: 'CreditCustomer',
@@ -259,7 +259,7 @@ export async function getCreditCustomersExport(filters: { keyword?: string }) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'credit-customers.exported',
         entityType: 'CreditCustomer',

@@ -23,7 +23,7 @@ import {
   UpdateDoctorSessionPayload
 } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // ==== CREATE DOCTOR SESSION ==== //
 export const createDoctorSession = async (
@@ -52,7 +52,7 @@ export const createDoctorSession = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-sessions.session.created',
         entityType: 'DoctorSession',
@@ -113,7 +113,7 @@ export const updateOneDoctorSession = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-sessions.session.updated',
         entityType: 'DoctorSession',
@@ -248,7 +248,7 @@ export const deleteDoctorSession = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-sessions.session.deleted',
         entityType: 'DoctorSession',
@@ -287,7 +287,7 @@ export const bulkDeleteDoctorSessions = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-sessions.sessions.bulkDeleted',
         entityType: 'DoctorSession',

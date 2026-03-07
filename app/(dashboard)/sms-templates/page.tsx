@@ -14,7 +14,7 @@ import {
 import { SmsTemplateColumns } from "./columns"
 import FilterSection from "./filter-section"
 import { checkRouteAccess } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { BulkDeleteButton } from "@/components/common/custom-data-table"
 
@@ -35,7 +35,7 @@ export default async function Page({ searchParams }: SearchParams) {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "sms-templates.visited",
       entityType: "SmsTemplates",

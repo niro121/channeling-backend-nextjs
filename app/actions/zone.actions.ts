@@ -4,7 +4,7 @@ import { GetZonesParams, GetZonesQuery, Zone } from "@/types/zone"
 import { deleteOneZone, deleteZones, getZones, saveZone, updateOneZone, getZoneById, checkZoneHasLinkedRecordsService, checkZonesHaveLinkedRecordsService } from "@/services/zone.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllZones = async (filter: GetZonesParams) => {
@@ -58,7 +58,7 @@ export const bulkDeleteZones = async (ids: string[]) => {
         }
         const session = await fetchServerSession();
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "zones.zones.bulkDeleted",
                 entityType: "Zone",
@@ -91,7 +91,7 @@ export const deleteZone = async (id: string) => {
         }
         const session = await fetchServerSession();
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "zones.zone.deleted",
                 entityType: "Zone",
@@ -158,7 +158,7 @@ export const createNewZone = async (payload: Zone): Promise<{
             };
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "zones.zone.created",
                 entityType: "Zone",
@@ -225,7 +225,7 @@ export const updateZone = async (
             };
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "zones.zone.updated",
                 entityType: "Zone",
@@ -322,7 +322,7 @@ export const getZonesExport = async (params: { keyword?: string; locationId?: st
     }
     const session = await fetchServerSession();
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "zones.exported",
         entityType: "Zone",

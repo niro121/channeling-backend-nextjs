@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Wallet } from 'lucide-react';
 import { TillBalanceSection } from './till-balance-section';
@@ -54,7 +54,7 @@ export default async function MyTillPage({ searchParams }: PageProps) {
   if (!canView) {
     redirect('/unauthorized-access');
   }
-  await logActivity({
+  logActivityNonBlocking({
     userId: session.user.id,
     action: 'till.visited',
     entityType: 'MyTill',

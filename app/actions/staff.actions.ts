@@ -14,7 +14,7 @@ import {
 import { GetStaffParams, Staff } from "@/types/staff"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export async function getStaffOptionsAction(): Promise<{
   isError: boolean
@@ -113,7 +113,7 @@ export async function createStaffAction(data: Staff) {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "staff.staff.created",
         entityType: "Staff",
@@ -157,7 +157,7 @@ export async function updateStaffAction(id: string, data: Partial<Staff>) {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "staff.staff.updated",
         entityType: "Staff",
@@ -190,7 +190,7 @@ export async function deleteStaffAction(id: string) {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "staff.staff.deleted",
         entityType: "Staff",
@@ -219,7 +219,7 @@ export async function bulkDeleteStaffAction(ids: string[]) {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "staff.staff.bulkDeleted",
         entityType: "Staff",
@@ -254,7 +254,7 @@ export const getStaffExport = async (params: { keyword?: string }) => {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "staff.exported",
         entityType: "Staff",

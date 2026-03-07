@@ -26,7 +26,7 @@ import { VoucherFormValues } from '@/types/voucher';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 type createDiscountPayload = DiscountFormValues & {
   createdBy?: string;
@@ -178,7 +178,7 @@ export const createDiscount = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'discounts.discount.created',
         entityType: 'Discount',
@@ -312,7 +312,7 @@ export const updateOneDiscount = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'discounts.discount.updated',
         entityType: 'Discount',
@@ -424,7 +424,7 @@ export const deleteDiscount = async (id: string) => {
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'discounts.discount.deleted',
         entityType: 'Discount',
@@ -459,7 +459,7 @@ export const bulkDeleteDiscounts = async (ids: string[]) => {
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'discounts.discounts.bulkDeleted',
         entityType: 'Discount',
@@ -494,7 +494,7 @@ export const getDiscountsExport = async (params: { keyword?: string; discountTyp
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'discounts.exported',
         entityType: 'Discount',

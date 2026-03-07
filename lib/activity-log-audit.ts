@@ -12,11 +12,7 @@ export type AuditSection = {
   actions: AuditAction[];
 };
 
-/**
- * Read docs/ACTIVITY_LOG_AUDIT.md and return sections with actions.
- * Uses fs.readFileSync + string split/regex only (no markdown parser).
- * Used for "View all tracked actions" in User Activity report.
- */
+/** Parse ACTIVITY_LOG_AUDIT.md and return sections with actions. Used for "View all tracked actions" in User Activity report. */
 export function getActivityLogAuditSections(): AuditSection[] {
   const docPath = path.join(process.cwd(), 'docs', 'ACTIVITY_LOG_AUDIT.md');
   let content: string;
@@ -28,7 +24,6 @@ export function getActivityLogAuditSections(): AuditSection[] {
 
   const sections: AuditSection[] = [];
   const sectionBlocks = content.split(/\n## /);
-
   for (let i = 0; i < sectionBlocks.length; i++) {
     const block = sectionBlocks[i];
     const lines = block.split('\n');

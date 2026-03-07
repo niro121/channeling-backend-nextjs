@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
 import DoctorLeavesList from './doctor-leaves-list';
 import Loading from '../loading';
@@ -23,7 +23,7 @@ export default async function DoctorLeavesPage({ searchParams }: SearchParams) {
   if (!canView) redirect('/unauthorized-access');
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'doctor-leaves.visited',
       entityType: 'DoctorLeaves',

@@ -37,6 +37,9 @@ async function getClientIp(): Promise<string | null> {
 /**
  * Universal activity logger. Writes to DB only when ACTIVITY_LOG_ENABLED is "1", "true", or "yes".
  * Captures client IP from headers when available. Safe to call from any server code; logs errors without throwing.
+ *
+ * For non-blocking (fire-and-forget) usage, call without await: void logActivity(...)
+ * or use logActivityNonBlocking(params) which never blocks the response.
  */
 export async function logActivity(params: LogActivityParams): Promise<void> {
   if (!ACTIVITY_LOG_ENABLED) return
@@ -61,4 +64,11 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
   } catch (err) {
     console.error("[ActivityLog] Failed to write activity:", err)
   }
+}
+
+/** Fire-and-forget: schedules activity log without blocking. Use this so responses are not delayed by the DB write. */
+export function logActivityNonBlocking(params: LogActivityParams): void {
+  void logActivity(params).catch((err) => {
+    console.error("[ActivityLog] Non-blocking write failed:", err)
+  })
 }

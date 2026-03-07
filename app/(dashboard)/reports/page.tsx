@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { reportColumns, type ReportListItem } from './columns';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
 
 const reportsData: ReportListItem[] = [
@@ -54,7 +54,7 @@ const reportsData: ReportListItem[] = [
 export default async function ReportsPage() {
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'reports.visited',
       entityType: 'Reports',

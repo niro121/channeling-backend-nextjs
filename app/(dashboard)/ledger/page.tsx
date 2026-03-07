@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { checkRouteAccess, checkPermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
@@ -48,7 +48,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
     userLocationName = user?.userLocation?.name ?? null
   }
   if (userId) {
-    await logActivity({
+    logActivityNonBlocking({
       userId,
       action: "ledger.visited",
       entityType: "Ledger",

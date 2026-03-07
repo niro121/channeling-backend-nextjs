@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import type { Account, CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
-import { AccountType } from '@prisma/client';
+import { AccountType, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { getAccountBalance } from './balance-calc.service';
 import { mapAccount } from './map-account';
@@ -210,29 +210,39 @@ export async function createAccount(
     data.parentAccountId = main.id;
   }
 
-  const created = await prisma.account.create({
-    data: {
-      code: data.code ?? null,
-      name: data.name,
-      type: data.type,
-      parentAccountId: data.parentAccountId ?? null,
-      locationId: data.locationId ?? null,
-      doctorId: data.doctorId ?? null,
-      agencyId: data.agencyId ?? null,
-      creditCustomerId: data.creditCustomerId ?? null,
-      userId: data.userId ?? null,
-      minBalanceAllowed: data.minBalanceAllowed ?? null,
-      isActive: true,
-    },
-    include: {
-      location: { select: { id: true, name: true } },
-      doctor: { select: { id: true, name: true, code: true } },
-      agency: { select: { id: true, name: true, code: true } },
-      creditCustomer: { select: { id: true, name: true, code: true } },
-    },
-  });
+  try {
+    const created = await prisma.account.create({
+      data: {
+        code: data.code ?? null,
+        name: data.name,
+        type: data.type,
+        parentAccountId: data.parentAccountId ?? null,
+        locationId: data.locationId ?? null,
+        doctorId: data.doctorId ?? null,
+        agencyId: data.agencyId ?? null,
+        creditCustomerId: data.creditCustomerId ?? null,
+        userId: data.userId ?? null,
+        minBalanceAllowed: data.minBalanceAllowed ?? null,
+        isActive: true,
+      },
+      include: {
+        location: { select: { id: true, name: true } },
+        doctor: { select: { id: true, name: true, code: true } },
+        agency: { select: { id: true, name: true, code: true } },
+        creditCustomer: { select: { id: true, name: true, code: true } },
+      },
+    });
 
-  return { success: true, account: mapAccount(created) };
+    return { success: true, account: mapAccount(created) };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      return {
+        success: false,
+        error: 'An account with this code already exists. Please check Accounting setup or use the existing account.',
+      };
+    }
+    throw e;
+  }
 }
 
 // --- updateAccount ---

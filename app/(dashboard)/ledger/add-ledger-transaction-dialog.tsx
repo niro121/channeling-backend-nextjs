@@ -50,7 +50,7 @@ export function AddLedgerTransactionDialog({
     ])
     if (!receiptRes.success || !receiptRes.data) return
     const receipt = receiptRes.data
-    const dbTemplate = templateRes.success ? templateRes.data : null
+    const dbTemplate = templateRes.success && templateRes.data != null ? templateRes.data : null
     const placeholders = buildPlaceholdersForLedger(receipt)
     const html = buildReceiptPrintHtml(receipt, placeholders, dbTemplate)
     const iframe = document.createElement("iframe")

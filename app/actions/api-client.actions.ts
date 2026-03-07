@@ -11,7 +11,7 @@ import {
 } from "@/services/api-client.service"
 import type { GetApiClientsParams, ApiClientFormValues } from "@/types/api-client"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 const DEFAULT_LIMIT = 10
 
@@ -67,7 +67,7 @@ export async function createApiClient(payload: { name: string }) {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "admin.api-clients.client.created",
       entityType: "ApiClient",
@@ -100,7 +100,7 @@ export async function updateApiClient(id: string, payload: Partial<ApiClientForm
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "admin.api-clients.client.updated",
       entityType: "ApiClient",

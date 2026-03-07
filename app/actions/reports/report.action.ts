@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService, getDoctorArrivalsReportDataService } from '@/services/reports/report.service';
 import { 
   DoctorReportQuery, 
@@ -101,7 +101,7 @@ export const exportDoctorReportData = async (
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'reports.doctors.exported',
         entityType: 'Report',
@@ -239,7 +239,7 @@ export const exportChannelAgentReferenceBookReportData = async (
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'reports.channel-agent-reference-book.exported',
         entityType: 'Report',
@@ -297,7 +297,7 @@ export const exportDoctorArrivalsReportData = async (
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'reports.doctor-arrivals.exported',
         entityType: 'Report',

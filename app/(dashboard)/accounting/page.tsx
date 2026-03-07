@@ -8,7 +8,7 @@ import { AccountingToolbarActions } from './accounting-toolbar-actions';
 import Loading from '../loading';
 import { getAccounts } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -28,7 +28,7 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
   }
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'accounting.visited',
       entityType: 'Accounting',

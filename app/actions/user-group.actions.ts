@@ -6,7 +6,7 @@ import { GetUserGroupsParams, GetUserGroupsQuery, UserGroup } from "@/types/user
 import { deleteOneUserGroup, deleteUserGroups, getUserGroups, saveUserGroup, updateOneUserGroup, getUserGroupById, getAllUserGroupsOptionsService } from "@/services/user-group.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export const getAllUserGroups = async (filter: GetUserGroupsParams) => {
     // Check view permission (user groups use "users" resource)
@@ -73,7 +73,7 @@ export const createNewUserGroup = async (payload: UserGroup) => {
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
             const createdId = result?.id ?? (result as { data?: { id?: string } })?.data?.id
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "user-groups.userGroup.created",
                 entityType: "UserGroup",
@@ -113,7 +113,7 @@ export const updateUserGroup = async (id: string, payload: UserGroup) => {
         let result = await updateOneUserGroup(id, payload)
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "user-groups.userGroup.updated",
                 entityType: "UserGroup",

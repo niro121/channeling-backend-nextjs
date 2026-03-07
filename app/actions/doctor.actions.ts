@@ -26,7 +26,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { Speciality } from '@/types/speciality';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 import prisma from '@/lib/prisma';
 
@@ -59,7 +59,7 @@ export const createDoctor = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctors.doctor.created',
         entityType: 'Doctor',
@@ -117,7 +117,7 @@ export const updateOneDoctor = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctors.doctor.updated',
         entityType: 'Doctor',
@@ -161,7 +161,7 @@ export const deleteDoctor = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctors.doctor.deleted',
         entityType: 'Doctor',
@@ -200,7 +200,7 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctors.doctors.bulkDeleted',
         entityType: 'Doctor',
@@ -377,7 +377,7 @@ export const getDoctorsExport = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctors.exported',
         entityType: 'Doctor',

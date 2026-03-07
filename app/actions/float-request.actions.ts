@@ -18,7 +18,7 @@ import {
 } from '@/services/float-request.service';
 import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
 import { fetchServerSession } from '@/lib/session';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -343,7 +343,7 @@ export async function approveFloatRequestAction(input: unknown) {
       return { success: false, error: result.error, errorCode: result.errorCode, data: null, printData: undefined };
     }
     if (currentUserId) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: currentUserId,
         action: 'float-transfers.floatRequest.approved',
         entityType: 'FloatRequest',

@@ -24,7 +24,7 @@ import { revalidatePath } from 'next/cache';
 import { padCode } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
 
 type CreateSpecialityPayload = SpecialityFormValues & {
@@ -172,7 +172,7 @@ export const createSpeciality = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'specialities.speciality.created',
         entityType: 'Speciality',
@@ -231,7 +231,7 @@ export const updateOneSpeciality = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'specialities.speciality.updated',
         entityType: 'Speciality',
@@ -276,7 +276,7 @@ export const deleteSpeciality = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'specialities.speciality.deleted',
         entityType: 'Speciality',
@@ -316,7 +316,7 @@ export const bulkDeleteSpecialities = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'specialities.specialities.bulkDeleted',
         entityType: 'Speciality',
@@ -355,7 +355,7 @@ export const getSpecialitiesExport = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'specialities.exported',
         entityType: 'Speciality',

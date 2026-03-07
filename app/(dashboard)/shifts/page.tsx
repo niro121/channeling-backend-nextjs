@@ -7,7 +7,7 @@ import ShiftsFilterSection from './filter-section';
 import Loading from '../loading';
 import { getShiftsAction, getShiftUserOptionsAction } from '@/app/actions/shift.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -25,7 +25,7 @@ export default async function ShiftsPage({ searchParams }: SearchParams) {
   if (!canView) redirect('/unauthorized-access');
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'shifts.visited',
       entityType: 'Shifts',

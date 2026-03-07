@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { createLedgerReceipt } from "@/services/ledger/create-ledger-receipt.service"
 import {
   type LedgerTransactionType,
@@ -105,7 +105,7 @@ export async function addLedgerTransaction(
     if (!result.success) {
       return { success: false, message: result.message, errorCode: result.errorCode }
     }
-    await logActivity({
+    logActivityNonBlocking({
       userId,
       action: "ledger.receipt.created",
       entityType: "LedgerReceipt",

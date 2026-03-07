@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { getFloatRequestsForBulkCashierPaginatedAction } from '@/app/actions/float-request.actions';
@@ -22,7 +22,7 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
   const session = await fetchServerSession();
   const bulkCashierId = session?.user?.id;
   if (!bulkCashierId) redirect('/unauthorized-access');
-  await logActivity({
+  logActivityNonBlocking({
     userId: bulkCashierId,
     action: 'float-transfers.visited',
     entityType: 'FloatTransfers',

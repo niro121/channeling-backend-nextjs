@@ -2,7 +2,7 @@ import React from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkRouteAccess } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { ReceiptTemplatesContent } from "./receipt-templates-content"
 import {
@@ -18,7 +18,7 @@ export default async function AdminReceiptTemplatesPage() {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "admin.receipt-templates.visited",
       entityType: "ReceiptTemplates",

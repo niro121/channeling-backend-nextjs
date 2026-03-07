@@ -21,7 +21,7 @@ import {
 } from '@/types/location';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 import prisma from '@/lib/prisma';
 
@@ -161,7 +161,7 @@ export const createLocation = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'locations.location.created',
         entityType: 'Location',
@@ -221,7 +221,7 @@ export const updateOneLocation = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'locations.location.updated',
         entityType: 'Location',
@@ -269,7 +269,7 @@ export const deleteLocation = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'locations.location.deleted',
         entityType: 'Location',
@@ -310,7 +310,7 @@ export const bulkDeleteLocations = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'locations.locations.bulkDeleted',
         entityType: 'Location',
@@ -347,7 +347,7 @@ export const getLocationsExport = async (params: { keyword?: string; locationId?
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'locations.exported',
         entityType: 'Location',

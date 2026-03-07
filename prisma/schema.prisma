@@ -838,6 +838,12 @@ model Booking {
   receiptNoId             String?  @db.ObjectId
   receipts                Receipt[] @relation("ReceiptToBooking")
 
+  // Doctor payment: batch receipt and date when doctor was paid for this booking
+  doctorPayment           Boolean   @default(false)
+  doctorPaymentAt         DateTime?
+  doctorPaymentReceiptId  String?   @db.ObjectId
+  doctorPaymentReceiptString String?
+
   // Transfer: when booking was moved to another session/doctor
   movedFromSessionId        String?   @db.ObjectId
   movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)

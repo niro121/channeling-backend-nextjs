@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAccountStatement, getAccountById } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
 import { redirect, notFound } from 'next/navigation';
 import { BackButton } from '@/components/common/back-button';
@@ -44,7 +44,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
   }
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'accounting.statement.viewed',
       entityType: 'Account',

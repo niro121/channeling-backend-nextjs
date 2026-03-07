@@ -15,7 +15,7 @@ import {
   bulkDeleteDoctorLeavesService
 } from '@/services/doctor.leave.service';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   GetActiveSession,
   GetDoctorLeavesParams,
@@ -310,7 +310,7 @@ export const createDoctorLeave = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-leaves.leave.created',
         entityType: 'DoctorLeave',
@@ -358,7 +358,7 @@ export const updateDoctorLeave = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-leaves.leave.updated',
         entityType: 'DoctorLeave',
@@ -404,7 +404,7 @@ export const deleteOneDoctorLeave = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-leaves.leave.deleted',
         entityType: 'DoctorLeave',
@@ -449,7 +449,7 @@ export const bulkDeleteDoctorLeaves = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'doctor-leaves.leaves.bulkDeleted',
         entityType: 'DoctorLeave',

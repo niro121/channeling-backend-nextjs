@@ -41,16 +41,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import type { AuditSection } from '@/lib/activity-log-audit';
+import { ACTIVITY_ACTIONS_AUDIT } from '@/lib/activity-actions-audit';
 
 type UserActivityContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
-  auditSections: AuditSection[];
 };
 
 export default function UserActivityContent({
   initialUserOptions,
-  auditSections,
 }: UserActivityContentProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -237,36 +235,29 @@ export default function UserActivityContent({
               </Button>
             </div>
           </div>
-          {auditSections.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-1.5 h-8">
-                    <List className="h-4 w-4" />
-                    View all tracked actions
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[520px] max-h-[420px] overflow-y-auto" align="start">
-                  <p className="text-xs text-muted-foreground mb-3">From docs/ACTIVITY_LOG_AUDIT.md (read from file, no parser). Type in the Action field above to filter (partial match).</p>
-                  <div className="space-y-4">
-                    {auditSections.map((section) => (
-                      <div key={section.title}>
-                        <h4 className="text-sm font-semibold mb-1.5">{section.title}</h4>
-                        <ul className="space-y-1.5 text-xs">
-                          {section.actions.map((a) => (
-                            <li key={a.action} className="flex flex-col gap-0.5 py-0.5 border-b border-border/50 last:border-0">
-                              <span className="font-mono text-foreground">{a.action}</span>
-                              <span className="text-muted-foreground"><span className="font-medium text-foreground/80">{a.importance}</span> — {a.when}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1.5 h-8">
+                  <List className="h-4 w-4" />
+                  View all tracked actions
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[520px] max-h-[420px] overflow-y-auto" align="start">
+                <p className="text-xs text-muted-foreground mb-3">Tracked actions (from ACTIVITY_LOG_AUDIT). Type in the Action field above to filter (partial match).</p>
+                <ul className="space-y-2 text-xs">
+                  {ACTIVITY_ACTIONS_AUDIT.map((a) => (
+                    <li key={a.action} className="flex flex-col gap-0.5 py-1 border-b border-border/50 last:border-0">
+                      <span className="font-mono text-foreground">{a.action}</span>
+                      <span className="text-muted-foreground">
+                        <span className="font-medium text-foreground/80">{a.importance}</span> — {a.when}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
         </CardContent>
       </Card>
 

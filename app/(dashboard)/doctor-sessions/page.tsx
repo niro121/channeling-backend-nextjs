@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
 import DoctorSessionsContent from './doctor-sessions-content';
 import {
@@ -26,7 +26,7 @@ export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'doctor-sessions.visited',
       entityType: 'DoctorSessions',

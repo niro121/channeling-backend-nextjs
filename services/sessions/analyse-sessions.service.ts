@@ -5,7 +5,7 @@ import { normalizeSessionTime, parseSessionDateTime } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 import orderBy from 'lodash/orderBy';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
 import { Fee, SessionInputData } from '@/types/sessions';
 

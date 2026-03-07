@@ -12,7 +12,7 @@ import {
   getCreditCustomersExport,
 } from '@/app/actions/credit-customer.actions';
 import { checkRouteAccess, checkPermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -26,7 +26,7 @@ export default async function Page({ searchParams }: SearchParams) {
   }
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: 'credit-customers.visited',
       entityType: 'CreditCustomers',

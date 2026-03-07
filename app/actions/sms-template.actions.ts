@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import {
   getAllSmsTemplatesService,
   getSmsTemplateByIdService,
@@ -74,7 +74,7 @@ export async function createSmsTemplate(payload: SmsTemplateFormValues) {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "sms-templates.template.created",
       entityType: "SmsTemplate",
@@ -99,7 +99,7 @@ export async function updateSmsTemplate(id: string, payload: Partial<SmsTemplate
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "sms-templates.template.updated",
       entityType: "SmsTemplate",
@@ -120,7 +120,7 @@ export async function deleteSmsTemplate(id: string) {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "sms-templates.template.deleted",
       entityType: "SmsTemplate",
@@ -143,7 +143,7 @@ export async function bulkDeleteSmsTemplates(ids: string[]) {
   }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
-    await logActivity({
+    logActivityNonBlocking({
       userId: session.user.id,
       action: "sms-templates.templates.bulkDeleted",
       entityType: "SmsTemplate",

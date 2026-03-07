@@ -26,7 +26,7 @@ import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
 import prisma from '@/lib/prisma';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 
 // ==== GET ALL AGENCIES ==== //
@@ -243,7 +243,7 @@ export const createAgency = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agencies.agency.created',
         entityType: 'Agency',
@@ -307,7 +307,7 @@ export const updateAgency = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agencies.agency.updated',
         entityType: 'Agency',
@@ -425,7 +425,7 @@ export const deleteAgency = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agencies.agency.deleted',
         entityType: 'Agency',
@@ -467,7 +467,7 @@ export const bulkDeleteAgencies = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agencies.agencies.bulkDeleted',
         entityType: 'Agency',
@@ -503,7 +503,7 @@ export const getAgenciesExport = async (filters: {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agencies.exported',
         entityType: 'Agency',

@@ -18,7 +18,7 @@ import {
 import type { CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 export type GetAccountsParams = {
   page?: string | number;
@@ -101,7 +101,7 @@ export async function createAccount(payload: CreateAccountInput) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'accounting.account.created',
         entityType: 'Account',
@@ -140,7 +140,7 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'accounting.account.updated',
         entityType: 'Account',

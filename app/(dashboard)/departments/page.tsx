@@ -10,7 +10,7 @@ import { bulkDeleteDepartments, getAllDepartments, getDepartmentsExport, checkDe
 import Loading from "../loading"
 import Link from "next/link"
 import { checkRouteAccess } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { ExportWrapper } from "../export-wrapper"
 import { BulkDeleteButton } from "@/components/common/custom-data-table"
@@ -31,7 +31,7 @@ export default async function Page({ searchParams }: SearchParams) {
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-        await logActivity({
+        logActivityNonBlocking({
             userId: session.user.id,
             action: "departments.visited",
             entityType: "Departments",

@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import prisma from '@/lib/prisma';
 import { getActivityLogsForReport } from '@/services/reports/user-activity.service';
 import type {
@@ -145,7 +145,7 @@ export async function exportUserActivityReportData(
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'reports.user-activity.exported',
         entityType: 'Report',

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import {
   getActiveReceiptTemplate,
   listReceiptHeaderTemplates,
@@ -73,7 +73,7 @@ export async function deleteReceiptHeaderTemplateAction(id: string) {
   if (result.success) {
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "admin.receipt-templates.header.deleted",
         entityType: "ReceiptHeaderTemplate",
@@ -123,7 +123,7 @@ export async function deleteReceiptFooterTemplateAction(id: string) {
   if (result.success) {
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "admin.receipt-templates.footer.deleted",
         entityType: "ReceiptFooterTemplate",
@@ -163,7 +163,7 @@ export async function createReceiptTemplateAction(payload: {
   if (result.success) {
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "admin.receipt-templates.template.created",
         entityType: "ReceiptTemplate",
@@ -195,7 +195,7 @@ export async function updateReceiptTemplateAction(
   if (result.success) {
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "admin.receipt-templates.template.updated",
         entityType: "ReceiptTemplate",
@@ -214,7 +214,7 @@ export async function deleteReceiptTemplateAction(id: string) {
   if (result.success) {
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "admin.receipt-templates.template.deleted",
         entityType: "ReceiptTemplate",

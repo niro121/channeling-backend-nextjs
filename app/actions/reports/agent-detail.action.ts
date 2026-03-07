@@ -9,7 +9,7 @@ import {
   ExportAgentDetailData
 } from '@/types/report';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { Agency } from '@/types/agency';
 import moment from 'moment';
 
@@ -84,7 +84,7 @@ export const exportAgentDetailReportData = async (
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'reports.agent-detail.exported',
         entityType: 'Report',

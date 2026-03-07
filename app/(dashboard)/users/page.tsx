@@ -9,7 +9,7 @@ import { fetchServerSession } from "@/lib/session"
 import Loading from "../loading"
 import { getAllUserGroupsOptions } from "@/app/actions/user-group.actions"
 import { checkRouteAccess } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { UsersExport } from "./users-export"
 import { BulkDeleteButton } from "@/components/common/custom-data-table"
@@ -30,7 +30,7 @@ export default async function Page({ searchParams }: SearchParams) {
     }
     const session = await fetchServerSession()
     if (session?.user?.id) {
-        await logActivity({
+        logActivityNonBlocking({
             userId: session.user.id,
             action: "users.visited",
             entityType: "Users",

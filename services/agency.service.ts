@@ -252,15 +252,34 @@ export const getAllAgenciesExportService = async ({
       whereClause.parentAgencyId = parentAgencyId;
     }
 
-    const records = await prisma.agency.findMany({
+    const rows = await prisma.agency.findMany({
       where: whereClause,
       include: {
-        parentAgency: true
+        parentAgency: true,
+        accounts: {
+          where: { type: 'RECEIVABLE', isActive: true },
+          take: 1
+        }
       },
       orderBy: {
         createdAt: 'desc'
       }
     });
+
+    const records: Agency[] = await Promise.all(
+      rows.map(async (row) => {
+        const acc = row.accounts?.[0];
+        const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const { accounts: _a, ...rest } = row;
+        return {
+          ...rest,
+          balance: balanceCents / 100,
+          accountId: acc?.id ?? null,
+          accountName: acc?.name ?? null,
+          accountCode: acc?.code ?? null
+        } as Agency;
+      })
+    );
 
     return {
       data: records,

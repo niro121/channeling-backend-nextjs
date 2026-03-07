@@ -23,7 +23,7 @@ import {
 } from '@/types/room';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 type CreateRoomPayload = RoomFormValues & {
   createdBy?: string;
@@ -130,7 +130,7 @@ export const createRoom = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'rooms.room.created',
         entityType: 'Room',
@@ -188,7 +188,7 @@ export const updateOneRoom = async (
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'rooms.room.updated',
         entityType: 'Room',
@@ -233,7 +233,7 @@ export const deleteRoom = async (id: string) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'rooms.room.deleted',
         entityType: 'Room',
@@ -272,7 +272,7 @@ export const bulkDeleteRooms = async (ids: string[]) => {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'rooms.rooms.bulkDeleted',
         entityType: 'Room',
@@ -346,7 +346,7 @@ export const getRoomsExport = async (params: { keyword?: string; locationId?: st
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'rooms.exported',
         entityType: 'Room',

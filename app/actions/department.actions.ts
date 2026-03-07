@@ -4,7 +4,7 @@ import { GetDepartmentsParams, GetDepartmentsQuery, Department } from "@/types/d
 import { deleteOneDepartment, deleteDepartments, getDepartments, saveDepartment, updateOneDepartment, getDepartmentById, checkDepartmentHasLinkedRecordsService, checkDepartmentsHaveLinkedRecordsService } from "@/services/department.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllDepartments = async (filter: GetDepartmentsParams) => {
@@ -57,7 +57,7 @@ export const bulkDeleteDepartments = async (ids: string[]) => {
         }
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "departments.departments.bulkDeleted",
                 entityType: "Department",
@@ -85,7 +85,7 @@ export const deleteDepartment = async (id: string) => {
         }
         const session = await fetchServerSession()
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "departments.department.deleted",
                 entityType: "Department",
@@ -136,7 +136,7 @@ export const createNewDepartment = async (payload: Department) => {
             }
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "departments.department.created",
                 entityType: "Department",
@@ -197,7 +197,7 @@ export const updateDepartment = async (id: string, payload: Department) => {
             }
         }
         if (user) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: user.id,
                 action: "departments.department.updated",
                 entityType: "Department",
@@ -261,7 +261,7 @@ export const getDepartmentsExport = async (params: { keyword?: string }) => {
     }
     const session = await fetchServerSession()
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: "departments.exported",
         entityType: "Department",

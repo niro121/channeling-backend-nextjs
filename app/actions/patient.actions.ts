@@ -7,7 +7,7 @@ import { GetPatientsParams, Patient } from "@/types/patient"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
     try {
@@ -125,7 +125,7 @@ export const createPatientAction = async (data: Patient) => {
         }
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "patients.patient.created",
                 entityType: "Patient",
@@ -186,7 +186,7 @@ export const updatePatientAction = async (id: string, data: Partial<Patient>) =>
         }
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "patients.patient.updated",
                 entityType: "Patient",
@@ -225,7 +225,7 @@ export const deletePatientAction = async (id: string) => {
         }
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "patients.patient.deleted",
                 entityType: "Patient",
@@ -310,7 +310,7 @@ export const getPatientsExport = async (params: { keyword?: string }) => {
         }
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
-            await logActivity({
+            logActivityNonBlocking({
                 userId: session.user.id,
                 action: "patients.exported",
                 entityType: "Patient",

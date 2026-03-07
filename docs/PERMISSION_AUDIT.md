@@ -89,6 +89,18 @@ For the full component structure (list page, add/edit routes, form with Formik +
    - ✅ Record Actions: Has `usePermissions` hook checks – Edit and Delete buttons protected by `has('credit-customers', 'edit')` and `has('credit-customers', 'delete')`
    - ✅ UI: Sidebar link gated by `hasAccess('/credit-customers')`. "Add New" button only shown when user has `credit-customers` **add** (via `CreditCustomersToolbar` with `canAdd` prop from server).
 
+8. **Doctor Payments** (`/doctor-payments`)
+   - ✅ Page: Has `checkRouteAccess("/doctor-payments")` check; redirects to unauthorized if no view
+   - ✅ Make payment page (`/doctor-payments/make`): Requires `checkRouteAccess` + `checkPermission("doctor-payments", "add")`; redirects if no add
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getEligibleDoctorPaymentBookings` – view
+     - `getDoctorPaymentBookingDetails` – view
+     - `processDoctorPaymentAction` – add
+     - `getDoctorPaymentList` – view
+     - `getDoctorPaymentReceiptForPrint` – view
+   - ✅ Record Actions: Print and Cancel (Cancel disabled until cancel flow implemented) gated by `usePermissions` (view for Print, add for Cancel)
+   - ✅ UI: Sidebar link gated by `hasAccess('/doctor-payments')`. "Make Doctor Payment" button only shown when user has `doctor-payments` **add**.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
@@ -157,8 +169,8 @@ For the full component structure (list page, add/edit routes, form with Formik +
 
 ## Summary
 
-- **Total Components:** 18
-- **With Permission Checks:** 6 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers)
+- **Total Components:** 19
+- **With Permission Checks:** 7 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments)
 - **Without Permission Checks:** 12
 
 ## Action Required
@@ -193,6 +205,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ credit-customers (view / add / edit / delete – credit customer companies)
 - ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
 - ✅ shifts (view only – manager list and detail)
+- ✅ doctor-payments (view / add – list, make payment, print)
 
 All routes are already mapped in `lib/permissions.ts`.
 

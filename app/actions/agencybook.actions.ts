@@ -17,7 +17,7 @@ import {
 } from '@/types/agencybook';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 
 // ==== GET ALL AGENCY BOOKS ==== //
@@ -136,7 +136,7 @@ export const createAgencyBook = async (
       };
     }
     if (user) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: user.id,
         action: 'agency-books.agencyBook.created',
         entityType: 'AgencyBook',
@@ -203,7 +203,7 @@ export const updateAgencyBook = async (
       };
     }
     if (user) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: user.id,
         action: 'agency-books.agencyBook.updated',
         entityType: 'AgencyBook',
@@ -251,7 +251,7 @@ export const deleteAgencyBook = async (id: string) => {
     }
     const session = await fetchServerSession();
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agency-books.agencyBook.deleted',
         entityType: 'AgencyBook',
@@ -319,7 +319,7 @@ export const getAgencyBooksExport = async (params: { keyword?: string; agencyId?
     }
     const session = await fetchServerSession();
     if (session?.user?.id) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: session.user.id,
         action: 'agency-books.exported',
         entityType: 'AgencyBook',

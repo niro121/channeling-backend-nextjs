@@ -24,6 +24,8 @@ export type ReceiptJournalAccounts = {
   agentAccountId?: string | null;
   /** Credit Customer RECEIVABLE account (required for credit customer receipt/refund). */
   creditCustomerAccountId?: string | null;
+  /** Doctor PAYABLE account (required for doctor payment method 4). */
+  doctorAccountId?: string | null;
 };
 
 /**
@@ -416,6 +418,46 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
+  // Doctor Payment (4): Dr Doctor PAYABLE (reduce liability), Cr Branch/Cashier (cash out). Use net amount (gross - WHT) in cents.
+  if (receipt.method === RECEIPT_METHOD.DOCTOR_PAYMENT && accounts.doctorAccountId) {
+    const grossCents = Math.round(Math.abs(receipt.amount) * 100);
+    const whdCents = Math.round((receipt.whd ?? 0) * 100);
+    const netCents = Math.max(0, grossCents - whdCents);
+    if (netCents <= 0) return null;
+    const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
+    if (isCash && accounts.cashierAccountId) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Doctor payment (cash)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
+          {
+            accountId: accounts.cashierAccountId,
+            debitAmount: 0,
+            creditAmount: netCents,
+            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+          },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Doctor payment${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: netCents },
+      ],
+    };
+  }
+
   return null;
   
 }
@@ -526,4 +568,50 @@ export async function requireReceiptJournalAccounts(
     };
   }
   return { success: true, accounts };
+}
+
+/**
+ * Resolve accounts for doctor payment (method 4): branch, optional cashier till, and doctor PAYABLE.
+ * Returns accounts or an error object with a user-friendly message.
+ */
+export async function resolveDoctorPaymentAccounts(params: {
+  doctorId: string;
+  locationId: string | null;
+  createdBy: string | null;
+  paymentMethod: number;
+}): Promise<ReceiptJournalAccounts | { error: string }> {
+  const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
+    '@/services/accounting.service'
+  );
+  const { RECEIPT_PAYMENT_METHOD } = await import('@/types/receipt');
+
+  const branchAccount = params.locationId
+    ? await getCashBookAccountForBranch(params.locationId)
+    : await getMainCashBookAccount();
+  if (!branchAccount) {
+    return { error: 'Branch cash book account not found. Please check Accounting setup.' };
+  }
+
+  let cashierAccountId: string | null = null;
+  if (params.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH && params.createdBy) {
+    const res = await getOrCreateAccount({
+      type: 'CASH',
+      userId: params.createdBy,
+      name: 'Till - Cashier',
+    });
+    if (!res.success) return { error: res.error };
+    cashierAccountId = res.account.id;
+  }
+
+  const doctorRes = await getOrCreateAccount({
+    type: 'PAYABLE',
+    doctorId: params.doctorId,
+  });
+  if (!doctorRes.success) return { error: doctorRes.error };
+
+  return {
+    branchAccountId: branchAccount.id,
+    cashierAccountId: cashierAccountId ?? undefined,
+    doctorAccountId: doctorRes.account.id,
+  };
 }
