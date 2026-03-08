@@ -101,6 +101,16 @@ For the full component structure (list page, add/edit routes, form with Formik +
    - ✅ Record Actions: Print and Cancel (Cancel disabled until cancel flow implemented) gated by `usePermissions` (view for Print, add for Cancel)
    - ✅ UI: Sidebar link gated by `hasAccess('/doctor-payments')`. "Make Doctor Payment" button only shown when user has `doctor-payments` **add**.
 
+9. **Receipt Manager** (`/receipt-manager`)
+   - ✅ Page: Has `checkRouteAccess("/receipt-manager")` check; redirects to unauthorized if no view
+   - ✅ Detail page (`/receipt-manager/[id]`): Has `checkRouteAccess("/receipt-manager")` (view)
+   - ✅ Resource: Own resource **receipt-manager** (view only); route mapped in `lib/permissions.ts` as `"/receipt-manager": "receipt-manager"`
+   - ✅ Server Actions: All actions have `requirePermission("receipt-manager", "view")` checks
+     - `getReceiptListAction` – view
+     - `getReceiptDetailAction` – view
+   - ✅ Record Actions: View button links to detail; no add/edit/delete (view-only module)
+   - ✅ UI: Sidebar link gated by `hasAccess('/receipt-manager')`. View-only (list + view receipt and linked double-entry journal).
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
@@ -170,7 +180,7 @@ For the full component structure (list page, add/edit routes, form with Formik +
 ## Summary
 
 - **Total Components:** 19
-- **With Permission Checks:** 7 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments)
+- **With Permission Checks:** 8 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments, Receipt Manager)
 - **Without Permission Checks:** 12
 
 ## Action Required
@@ -206,6 +216,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
 - ✅ shifts (view only – manager list and detail)
 - ✅ doctor-payments (view / add – list, make payment, print)
+- ✅ receipt-manager (view only – list receipts, view receipt and linked double-entry journal)
 
 All routes are already mapped in `lib/permissions.ts`.
 

@@ -28,16 +28,34 @@ export type ReceiptJournalAccounts = {
   doctorAccountId?: string | null;
 };
 
+/** When provided for channel PAYMENT (save/settle booking), journal credits branch with hospital fee and doctor payable with professional fee. */
+export type ChannelPaymentFeeSplit = {
+  hospitalFeeCents: number;
+  professionalFeeCents: number;
+};
+
 /**
  * Build journal entry input for a receipt, or null if no ledger entry is needed
  * (e.g. card/slip only with no cash or agent).
+ * For channel PAYMENT (method 1), pass channelPaymentFeeSplit and doctorAccountId so branch is credited only hospital fee and doctor payable is credited professional fee.
  */
 export function buildReceiptJournalEntryInput(
   receipt: CreatedReceipt,
-  accounts: ReceiptJournalAccounts
+  accounts: ReceiptJournalAccounts,
+  channelPaymentFeeSplit?: ChannelPaymentFeeSplit
 ): CreateJournalEntryInput | null {
   const amountCents = Math.round(Math.abs(receipt.amount) * 100);
   if (amountCents <= 0) return null;
+
+  const useFeeSplit =
+    channelPaymentFeeSplit &&
+    accounts.doctorAccountId &&
+    receipt.method === RECEIPT_METHOD.PAYMENT &&
+    channelPaymentFeeSplit.hospitalFeeCents >= 0 &&
+    channelPaymentFeeSplit.professionalFeeCents >= 0 &&
+    channelPaymentFeeSplit.hospitalFeeCents + channelPaymentFeeSplit.professionalFeeCents === amountCents;
+  const hospitalFeeCents = useFeeSplit ? channelPaymentFeeSplit!.hospitalFeeCents : 0;
+  const professionalFeeCents = useFeeSplit ? channelPaymentFeeSplit!.professionalFeeCents : 0;
 
   const descSuffix = receipt.receiptNoString
     ? ` - Receipt ${receipt.receiptNoString}`
@@ -55,6 +73,12 @@ export function buildReceiptJournalEntryInput(
   // Till: cash — affect cashier till with paymentMethod 0 (channel payment/refund only)
   if (isCash && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (cash)${descSuffix}`,
@@ -64,7 +88,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -86,6 +110,12 @@ export function buildReceiptJournalEntryInput(
   const isCard = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD;
   if (isCard && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (card)${descSuffix}`,
@@ -95,7 +125,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT_CARD },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -117,6 +147,12 @@ export function buildReceiptJournalEntryInput(
   const isSlip = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP;
   if (isSlip && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (slip)${descSuffix}`,
@@ -126,7 +162,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.SLIP },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -148,6 +184,12 @@ export function buildReceiptJournalEntryInput(
   const isCheck = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK;
   if (isCheck && accounts.cashierAccountId) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (check)${descSuffix}`,
@@ -157,7 +199,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CHECK },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -242,6 +284,12 @@ export function buildReceiptJournalEntryInput(
   const isEWallet = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET;
   if (isEWallet && accounts.cashierAccountId) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (e-wallet)${descSuffix}`,
@@ -251,7 +299,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.E_WALLET },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -272,7 +320,12 @@ export function buildReceiptJournalEntryInput(
   // Agent: one RECEIVABLE account — debit = they owe more (booking), credit = they owe less (deposit/refund)
   if (hasAgent) {
     if (isPayment) {
-      // Channel booking made with agent: increase receivable (agency owes us)
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (agent)${descSuffix}`,
@@ -282,7 +335,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -471,6 +524,8 @@ export async function resolveReceiptJournalAccounts(params: {
   createdBy: string | null;
   agencyId: string | null;
   creditCustomerId?: string | null;
+  /** When provided (e.g. channel payment with booking), resolve doctor PAYABLE for fee-split journal: branch = hospital fee, doctor = professional fee. */
+  doctorId?: string | null;
   /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
   needTill: boolean;
 }): Promise<ReceiptJournalAccounts | null> {
@@ -511,11 +566,21 @@ export async function resolveReceiptJournalAccounts(params: {
     if (res.success) creditCustomerAccountId = res.account.id;
   }
 
+  let doctorAccountId: string | null = null;
+  if (params.doctorId) {
+    const res = await getOrCreateAccount({
+      type: 'PAYABLE',
+      doctorId: params.doctorId,
+    });
+    if (res.success) doctorAccountId = res.account.id;
+  }
+
   return {
     branchAccountId: branchAccount.id,
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
     creditCustomerAccountId: creditCustomerAccountId ?? undefined,
+    doctorAccountId: doctorAccountId ?? undefined,
   };
 }
 
@@ -533,6 +598,8 @@ export async function requireReceiptJournalAccounts(
     createdBy: string | null;
     agencyId: string | null;
     creditCustomerId?: string | null;
+    /** For channel payment fee-split journal (branch = hospital fee, doctor = professional fee). */
+    doctorId?: string | null;
     needTill: boolean;
   },
   options: { needTill: boolean; isAgent: boolean; isCreditCustomer?: boolean }
@@ -565,6 +632,15 @@ export async function requireReceiptJournalAccounts(
       success: false,
       error: 'Credit customer account could not be found or created. Cannot complete credit customer payment or refund.',
       errorCode: 'CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND',
+    };
+  }
+  // Channel payment fee-split: branch = hospital fee, doctor payable = professional fee. Require doctor PAYABLE when doctorId was provided.
+  if (params.doctorId && !accounts.doctorAccountId) {
+    return {
+      success: false,
+      error:
+        'Doctor payable account could not be found or created. Please check Accounting setup. Cannot complete booking with correct double entry (hospital fee → branch, professional fee → doctor).',
+      errorCode: 'DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND',
     };
   }
   return { success: true, accounts };

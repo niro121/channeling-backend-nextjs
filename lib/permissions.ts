@@ -33,6 +33,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/float-transfers": "float-transfers",
   "/shifts": "shifts",
   "/doctor-payments": "doctor-payments",
+  "/receipt-manager": "receipt-manager",
 }
 
 /** When set, route access requires this action instead of "view" (e.g. bulk-cashier uses "bulk-cashier-dashboard") */

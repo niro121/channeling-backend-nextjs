@@ -354,6 +354,7 @@ export async function saveBookingService(
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
               creditCustomerId: input.credit_customer?.id ?? null,
+              doctorId: input.doctor?.id ?? null,
               needTill,
             },
             { needTill, isAgent, isCreditCustomer }
@@ -372,6 +373,7 @@ export async function saveBookingService(
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
             creditCustomerId: input.credit_customer?.id ?? null,
+            doctorId: input.doctor?.id ?? null,
             needTill,
           })
         }
@@ -411,7 +413,20 @@ export async function saveBookingService(
           if (!r.success) throw new Error(r.message)
           const receipt = r.receipt
           if (accounts && journalNumber > 0) {
-            const journalInput = buildReceiptJournalEntryInput(receipt, accounts)
+            const amountCents = Math.round(receiptAmount * 100)
+            const hospitalFeeAfterDiscount = Math.max(0, hospital_fee - hospitalFeeDiscount)
+            const professionalFeeAfterDiscount = Math.max(0, professional_fee - professionsalFeeDiscount)
+            const channelPaymentFeeSplit =
+              accounts.doctorAccountId && amountCents > 0
+                ? {
+                    hospitalFeeCents: Math.min(Math.round(hospitalFeeAfterDiscount * 100), amountCents),
+                    professionalFeeCents: 0,
+                  }
+                : undefined
+            if (channelPaymentFeeSplit) {
+              channelPaymentFeeSplit.professionalFeeCents = amountCents - channelPaymentFeeSplit.hospitalFeeCents
+            }
+            const journalInput = buildReceiptJournalEntryInput(receipt, accounts, channelPaymentFeeSplit)
             // Agent and Credit Customer require a journal (receivable must be updated); fail the transaction if none produced
             if ((isAgent || isCreditCustomer) && !journalInput) {
               throw new Error(

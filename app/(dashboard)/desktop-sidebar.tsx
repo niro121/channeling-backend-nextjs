@@ -136,7 +136,7 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/doctor-payments") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/receipt-manager") || hasAccess("/doctor-payments") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
           <SidebarGroup label="Agency & billing">
             {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
             {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
@@ -144,6 +144,7 @@ export function DesktopSidebar({
             {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
             {hasAccess("/accounting") && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
             {hasAccess("/ledger") && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+            {hasAccess("/receipt-manager") && <NavLink href="/receipt-manager" label="Receipt Manager" icon={<Receipt className="h-5 w-5" />} />}
             {hasAccess("/doctor-payments") && <NavLink href="/doctor-payments" label="Doctor Payments" icon={<DollarSign className="h-5 w-5" />} />}
             {hasAccess("/ledger") && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
             {hasAccess("/bulk-cashier") && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}

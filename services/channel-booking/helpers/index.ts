@@ -45,4 +45,5 @@ export {
   requireReceiptJournalAccounts,
   type ReceiptJournalAccounts,
   type RequireReceiptJournalAccountsResult,
+  type ChannelPaymentFeeSplit,
 } from "./receipt-journal-entry"

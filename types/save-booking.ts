@@ -57,6 +57,7 @@ export type SaveBookingErrorCode =
   | "CASHIER_ACCOUNT_ERROR"
   | "AGENT_ACCOUNT_NOT_FOUND"
   | "CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND"
+  | "DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND"
 
 export type SaveBookingAreaRef = { id: string; name: string }
 export type SaveBookingSessionRef = { id: string }
