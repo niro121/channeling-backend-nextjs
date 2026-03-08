@@ -34,6 +34,15 @@ export type ChannelPaymentFeeSplit = {
   professionalFeeCents: number;
 };
 
+/** Returned by resolveReceiptJournalAccounts when doctor PAYABLE resolution fails (so the real error from getOrCreateAccount can be shown). */
+export type ResolveReceiptJournalAccountsError = { error: string; errorCode: string };
+
+export function isResolveReceiptJournalAccountsError(
+  r: ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError
+): r is ResolveReceiptJournalAccountsError {
+  return r != null && typeof r === 'object' && 'error' in r && typeof (r as ResolveReceiptJournalAccountsError).error === 'string';
+}
+
 /**
  * Build journal entry input for a receipt, or null if no ledger entry is needed
  * (e.g. card/slip only with no cash or agent).
@@ -517,7 +526,8 @@ export function buildReceiptJournalEntryInput(
 
 /**
  * Resolve account IDs needed for receipt journal (call before transaction).
- * Returns null if branch cash book not found (locationId present but no branch cash book, or no main cash book).
+ * Returns null if branch cash book not found.
+ * Returns { error, errorCode } if doctorId was provided but doctor PAYABLE could not be found/created (so callers can show the real error from getOrCreateAccount).
  */
 export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
@@ -528,7 +538,7 @@ export async function resolveReceiptJournalAccounts(params: {
   doctorId?: string | null;
   /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
   needTill: boolean;
-}): Promise<ReceiptJournalAccounts | null> {
+}): Promise<ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError> {
   const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
     '@/services/accounting.service'
   );
@@ -566,13 +576,19 @@ export async function resolveReceiptJournalAccounts(params: {
     if (res.success) creditCustomerAccountId = res.account.id;
   }
 
+  // Doctor PAYABLE: use the session/booking doctor id so we find the existing seeded account (type=PAYABLE, doctorId, isActive=true).
   let doctorAccountId: string | null = null;
   if (params.doctorId) {
     const res = await getOrCreateAccount({
       type: 'PAYABLE',
       doctorId: params.doctorId,
     });
-    if (res.success) doctorAccountId = res.account.id;
+    if (res.success) {
+      doctorAccountId = res.account.id;
+    } else {
+      // Surface the real error (e.g. duplicate code, validation) so the user sees it instead of a generic message.
+      return { error: res.error, errorCode: 'DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND' };
+    }
   }
 
   return {
@@ -604,8 +620,8 @@ export async function requireReceiptJournalAccounts(
   },
   options: { needTill: boolean; isAgent: boolean; isCreditCustomer?: boolean }
 ): Promise<RequireReceiptJournalAccountsResult> {
-  const accounts = await resolveReceiptJournalAccounts(params);
-  if (!accounts) {
+  const result = await resolveReceiptJournalAccounts(params);
+  if (result === null) {
     return {
       success: false,
       error:
@@ -613,6 +629,10 @@ export async function requireReceiptJournalAccounts(
       errorCode: 'CASH_BOOK_NOT_FOUND',
     };
   }
+  if (isResolveReceiptJournalAccountsError(result)) {
+    return { success: false, error: result.error, errorCode: result.errorCode };
+  }
+  const accounts = result;
   if (options.needTill && !accounts.cashierAccountId) {
     return {
       success: false,
@@ -635,6 +655,7 @@ export async function requireReceiptJournalAccounts(
     };
   }
   // Channel payment fee-split: branch = hospital fee, doctor payable = professional fee. Require doctor PAYABLE when doctorId was provided.
+  // (If resolveReceiptJournalAccounts failed for doctor it already returned an error object above, so we only reach here when result was accounts and doctorId was set but doctorAccountId missing from a different code path.)
   if (params.doctorId && !accounts.doctorAccountId) {
     return {
       success: false,

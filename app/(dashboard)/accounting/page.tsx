@@ -5,6 +5,7 @@ import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { AccountingColumns } from './columns';
 import { AccountingToolbarActions } from './accounting-toolbar-actions';
+import { AccountingFilterSection } from './accounting-filter-section';
 import Loading from '../loading';
 import { getAccounts } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
@@ -38,11 +39,15 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
 
   const params = await searchParams;
 
+  const typeParam = params?.type;
+  const type =
+    typeParam && typeParam !== "__all__" ? typeParam : null;
+
   const { data, totalRecords } = await getAccounts({
     page: params?.page,
     limit: params?.limit,
     keyword: params?.keyword,
-    type: params?.type ?? null,
+    type,
     locationId: params?.locationId ?? null,
   });
 
@@ -58,12 +63,15 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
           haveBulkDelete={false}
           page={params?.page}
           toolbarLeft={
-            <div className="relative w-full sm:max-w-sm">
-              <SearchInput
-                name="keyword"
-                placeholder="Search by name or code"
-                className="pl-8 w-full h-9"
-              />
+            <div className="flex flex-wrap items-center gap-3 w-full sm:max-w-full">
+              <div className="relative w-full sm:max-w-sm">
+                <SearchInput
+                  name="keyword"
+                  placeholder="Search by name or code"
+                  className="pl-8 w-full h-9"
+                />
+              </div>
+              <AccountingFilterSection type={params?.type} />
             </div>
           }
           toolbarRight={<AccountingToolbarActions />}

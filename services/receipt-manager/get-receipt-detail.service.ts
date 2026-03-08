@@ -6,6 +6,7 @@ import { REFERENCE_TYPES } from "@/types/accounting";
 export type ReceiptDetailJournalLine = {
   accountId: string;
   accountName: string;
+  accountCode: string | null;
   accountType: string;
   debitAmount: number;
   creditAmount: number;
@@ -87,7 +88,7 @@ export async function getReceiptDetailService(
     include: {
       journalLines: {
         include: {
-          account: { select: { id: true, name: true, type: true } },
+          account: { select: { id: true, name: true, code: true, type: true } },
         },
       },
       location: { select: { name: true } },
@@ -107,6 +108,7 @@ export async function getReceiptDetailService(
         lines: journal.journalLines.map((l) => ({
           accountId: l.accountId,
           accountName: l.account.name,
+          accountCode: l.account.code ?? null,
           accountType: l.account.type,
           debitAmount: l.debitAmount,
           creditAmount: l.creditAmount,

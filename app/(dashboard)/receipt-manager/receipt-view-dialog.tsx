@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import { getReceiptMethodLabel } from "@/services/receipt-manager/receipt-method
 import { formatLKR } from "@/lib/format-money";
 import { format } from "date-fns";
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt";
-import { Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import type { ReceiptDetail } from "@/services/receipt-manager/get-receipt-detail.service";
 
 type ReceiptViewDialogProps = {
@@ -142,7 +143,24 @@ export function ReceiptViewDialog({
                     <tbody>
                       {data.journal.lines.map((line) => (
                         <tr key={line.accountId} className="border-b last:border-0">
-                          <td className="p-2">{line.accountName}</td>
+                          <td className="p-2">
+                            <span className="font-medium">
+                              {line.accountName}
+                              {line.accountCode ? (
+                                <span className="text-muted-foreground font-normal">
+                                  {" "}
+                                  ({line.accountCode})
+                                </span>
+                              ) : null}
+                            </span>
+                            <Link
+                              href={`/accounting/${line.accountId}/statement`}
+                              className="ml-2 inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+                            >
+                              Statement
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </td>
                           <td className="p-2 text-muted-foreground">{line.accountType}</td>
                           <td className="p-2 text-right tabular-nums">
                             {line.debitAmount > 0 ? (line.debitAmount / 100).toFixed(2) : "—"}

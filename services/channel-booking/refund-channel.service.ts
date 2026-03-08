@@ -4,6 +4,7 @@ import {
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
@@ -142,13 +143,21 @@ export async function refundChannelService(
         }
         accounts = reqResult.accounts
       } else {
-        accounts = await resolveReceiptJournalAccounts({
+        const resolveResult = await resolveReceiptJournalAccounts({
           locationId: booking.locationId ?? null,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
           needTill,
         })
+        if (isResolveReceiptJournalAccountsError(resolveResult)) {
+          return {
+            success: false,
+            errorCode: resolveResult.errorCode,
+            message: resolveResult.error,
+          }
+        }
+        accounts = resolveResult
       }
       // Refund that pays out from till: till must have sufficient balance
       if (needTill && accounts?.cashierAccountId) {
@@ -266,13 +275,21 @@ export async function refundChannelService(
       }
       accounts = reqResult.accounts
     } else {
-      accounts = await resolveReceiptJournalAccounts({
+      const resolveResult = await resolveReceiptJournalAccounts({
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         creditCustomerId: bookingCreditCustomerId,
         needTill,
       })
+      if (isResolveReceiptJournalAccountsError(resolveResult)) {
+        return {
+          success: false,
+          errorCode: resolveResult.errorCode,
+          message: resolveResult.error,
+        }
+      }
+      accounts = resolveResult
     }
     // Refund that pays out from till: till must have sufficient balance
     if (needTill && accounts?.cashierAccountId) {

@@ -18,6 +18,7 @@ import {
   validateVoucherForDiscount,
   getBookingSequenceInfo,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
@@ -354,7 +355,7 @@ export async function saveBookingService(
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
               creditCustomerId: input.credit_customer?.id ?? null,
-              doctorId: input.doctor?.id ?? null,
+              doctorId: session.doctorId ?? input.doctor?.id ?? null,
               needTill,
             },
             { needTill, isAgent, isCreditCustomer }
@@ -368,14 +369,22 @@ export async function saveBookingService(
           }
           accounts = reqResult.accounts
         } else {
-          accounts = await resolveReceiptJournalAccounts({
+          const resolveResult = await resolveReceiptJournalAccounts({
             locationId: booking.locationId ?? null,
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
             creditCustomerId: input.credit_customer?.id ?? null,
-            doctorId: input.doctor?.id ?? null,
+            doctorId: session.doctorId ?? input.doctor?.id ?? null,
             needTill,
           })
+          if (isResolveReceiptJournalAccountsError(resolveResult)) {
+            return {
+              success: false,
+              errorCode: resolveResult.errorCode as SaveBookingErrorCode,
+              message: resolveResult.error,
+            }
+          }
+          accounts = resolveResult
         }
         const journalNumberResult = accounts
           ? await getNextSequenceNumber("journal", { startFrom: 1 })

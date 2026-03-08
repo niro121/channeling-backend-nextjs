@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -108,7 +108,24 @@ export default async function ReceiptManagerDetailPage({ params }: Props) {
                 <tbody>
                   {data.journal.lines.map((line) => (
                     <tr key={line.accountId} className="border-b last:border-0">
-                      <td className="p-3">{line.accountName}</td>
+                      <td className="p-3">
+                        <span className="font-medium">
+                          {line.accountName}
+                          {line.accountCode ? (
+                            <span className="text-muted-foreground font-normal">
+                              {" "}
+                              ({line.accountCode})
+                            </span>
+                          ) : null}
+                        </span>
+                        <Link
+                          href={`/accounting/${line.accountId}/statement`}
+                          className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          Statement
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </td>
                       <td className="p-3 text-muted-foreground">{line.accountType}</td>
                       <td className="p-3 text-right tabular-nums">
                         {line.debitAmount > 0 ? (line.debitAmount / 100).toFixed(2) : "—"}

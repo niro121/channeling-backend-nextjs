@@ -5,6 +5,7 @@ import {
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
@@ -158,13 +159,21 @@ export async function settleBookingService(
     }
     accounts = reqResult.accounts
   } else {
-    accounts = await resolveReceiptJournalAccounts({
+    const resolveResult = await resolveReceiptJournalAccounts({
       locationId: booking.locationId ?? null,
       createdBy: userId,
       agencyId: booking.agencyId ?? null,
       doctorId: booking.doctorId ?? null,
       needTill,
     })
+    if (isResolveReceiptJournalAccountsError(resolveResult)) {
+      return {
+        success: false,
+        errorCode: resolveResult.errorCode,
+        message: resolveResult.error,
+      }
+    }
+    accounts = resolveResult
   }
   const journalNumberResult = accounts
     ? await getNextSequenceNumber("journal", { startFrom: 1 })

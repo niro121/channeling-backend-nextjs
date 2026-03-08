@@ -33,6 +33,7 @@ import {
   Timer,
   ArrowRightLeft,
   Receipt,
+  Play,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -58,9 +59,11 @@ function SidebarGroup({
 
 export function DesktopSidebar({
   session,
+  e2eRunEnabled = false,
   className,
 }: {
   session: Session | null;
+  e2eRunEnabled?: boolean;
   className?: string;
 }) {
   const userType = session?.user?.userType;
@@ -165,6 +168,9 @@ export function DesktopSidebar({
           <SidebarGroup label="Admin">
             <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
             <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
+            {e2eRunEnabled && (
+              <NavLink href="/admin/run-e2e" label="Run E2E tests" icon={<Play className="h-5 w-5" />} />
+            )}
             <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
           </SidebarGroup>
         )}
