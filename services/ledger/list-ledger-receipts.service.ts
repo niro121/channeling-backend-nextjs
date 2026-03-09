@@ -29,6 +29,10 @@ export type LedgerReceiptListItem = {
   agencyId: string | null
   agencyName: string | null
   agencyCode: string | null
+  canceledAt: Date | null
+  cancelReason: string | null
+  reverseReceiptId: string | null
+  reversedReceiptId: string | null
 }
 
 export type ListLedgerReceiptsParams = {
@@ -121,6 +125,10 @@ export async function listLedgerReceiptsService(
       agencyId: r.agencyId,
       agencyName: r.agency?.name ?? null,
       agencyCode: r.agency?.code ?? null,
+      canceledAt: r.canceledAt ?? null,
+      cancelReason: r.cancelReason ?? null,
+      reverseReceiptId: r.reverseReceiptId ?? null,
+      reversedReceiptId: r.reversedReceiptId ?? null,
     }))
 
     return { success: true, data, totalRecords }

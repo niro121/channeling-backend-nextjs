@@ -193,11 +193,18 @@ export async function createLedgerReceipt(
   })
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0
 
+  // Outflow types: store amount as negative (same convention as refund, doctor payment) so reports/print show minus.
+  const isOutflow =
+    input.transactionType === "BRANCH_EXPENSE" ||
+    input.transactionType === "AGENCY_CREDIT_NOTE" ||
+    input.transactionType === "AGENCY_WITHDRAW";
+  const receiptAmount = isOutflow ? -1 * Math.round(input.amount) : Math.round(input.amount);
+
   // Branch is always saved in locationId. For sequence: branch income/expense use locationId;
   // agency types (debit/credit note, deposit, withdraw) use userLocationId (same branch).
   const receiptParams: CreateReceiptWithoutBookingParams = {
     paymentMethod,
-    amount: Math.round(input.amount),
+    amount: receiptAmount,
     bank: input.bank ?? "",
     bankId: input.bankId ?? null,
     cardReference: input.cardReference ?? "",

@@ -375,3 +375,45 @@ export type ExportAllDoctorViewData = {
   total: string;
   doctorSessionTime: string;
 };
+
+// Cashier Summary (Userwise Cashier Detail - Channel) Report Types
+export type CashierSummaryReportQuery = {
+  userId?: string; // __all__ or specific user id
+  dateFrom: string;
+  dateTo: string;
+  format: 'summary' | 'detail';
+};
+
+export type CashierSummaryPaymentAmounts = {
+  cash: number;
+  creditCard: number;
+  slip: number;
+  cheque: number;
+  agent: number;
+  agentCredit: number;
+};
+
+export type CashierSummaryReportLineItem = {
+  txCreated: Date;
+  sessionDateTime: string | null;
+  billId: string | null;
+  receiptId: string;
+  patient: string | null;
+  consultant: string | null;
+  name?: string | null; // for Income/Expense
+  type?: string | null; // for Income/Expense: "Income" | "Expense"
+} & CashierSummaryPaymentAmounts;
+
+export type CashierSummaryReportSection = {
+  key: string;
+  title: string;
+  rows: CashierSummaryReportLineItem[];
+  totals: CashierSummaryPaymentAmounts;
+};
+
+export type CashierSummaryReportResponse = {
+  success: boolean;
+  sections: CashierSummaryReportSection[];
+  grandTotals: CashierSummaryPaymentAmounts;
+  message?: string;
+};

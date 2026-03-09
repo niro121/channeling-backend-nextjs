@@ -1,5 +1,7 @@
 "use server";
 
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { requirePermission } from "@/lib/server-permissions";
 import { getEligibleBookingsService } from "@/services/doctor-payment/get-eligible-bookings.service";
 import { getDoctorPaymentBookingDetailsService } from "@/services/doctor-payment/get-doctor-payment-booking-details.service";
@@ -12,6 +14,10 @@ import {
   type GetDoctorPaymentListParams,
 } from "@/services/doctor-payment/get-doctor-payment-list.service";
 import { getDoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
+import {
+  cancelDoctorPaymentService,
+  type CancelDoctorPaymentResult,
+} from "@/services/doctor-payment/cancel-doctor-payment.service";
 
 export async function getEligibleDoctorPaymentBookings(doctorId: string, dateFrom: string, dateTo: string) {
   await requirePermission("doctor-payments", "view");
@@ -36,4 +42,23 @@ export async function getDoctorPaymentList(params: GetDoctorPaymentListParams) {
 export async function getDoctorPaymentReceiptForPrint(receiptId: string) {
   await requirePermission("doctor-payments", "view");
   return getDoctorPaymentReceiptDetail(receiptId);
+}
+
+export async function cancelDoctorPaymentAction(
+  receiptId: string,
+  cancelReason: string
+): Promise<CancelDoctorPaymentResult> {
+  await requirePermission("doctor-payments", "add");
+
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id ?? null;
+  if (!userId) {
+    return { success: false, errorCode: "UNAUTHORIZED", message: "You must be logged in to cancel a doctor payment." };
+  }
+
+  return cancelDoctorPaymentService({
+    receiptId,
+    canceledBy: userId,
+    cancelReason: cancelReason.trim(),
+  });
 }
