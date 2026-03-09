@@ -33,6 +33,7 @@ export {
 export {
   createJournalEntry,
   createJournalEntryInTransaction,
+  checkJournalEntryBalance,
 } from './journal.service';
 
 // Statement

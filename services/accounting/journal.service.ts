@@ -88,6 +88,60 @@ export async function createJournalEntry(
 }
 
 /**
+ * Check if posting the given journal entry would violate any account's minBalanceAllowed.
+ * Use before creating a booking/receipt to fail fast with a clear error (e.g. agent/credit customer limit).
+ */
+export async function checkJournalEntryBalance(
+  input: CreateJournalEntryInput
+): Promise<
+  | { allowed: true }
+  | { allowed: false; error: string; errorCode: string; accountId?: string }
+> {
+  const validation = validateJournalLines(input.lines);
+  if (!validation.valid) {
+    return { allowed: false, error: validation.error, errorCode: 'VALIDATION_ERROR' };
+  }
+
+  const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+  const accounts = await prisma.account.findMany({
+    where: { id: { in: accountIds } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      minBalanceAllowed: true,
+    },
+  });
+
+  for (const acc of accounts) {
+    if (acc.minBalanceAllowed === null) continue;
+
+    const netEffect = input.lines
+      .filter((l) => l.accountId === acc.id)
+      .reduce(
+        (sum, l) =>
+          sum + netEffectForAccountType(l.debitAmount, l.creditAmount, acc.type),
+        0
+      );
+
+    const currentBalance = await getAccountBalance(acc.id);
+    const newBalance = currentBalance + netEffect;
+
+    if (newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
+      return {
+        allowed: false,
+        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
  * Create a journal entry inside an existing transaction. Use when receipt and journal must be atomic.
  * Call getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 }) before the transaction and pass the value.
  */
@@ -130,9 +184,10 @@ export async function createJournalEntryInTransaction(
     const newBalance = currentBalance + netEffect;
 
     if (newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would go below allowed minimum (${acc.minBalanceAllowed})`,
+        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
