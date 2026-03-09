@@ -5,12 +5,8 @@ import prisma from "@/lib/prisma"
 import { checkRouteAccess, checkPermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
-import { SearchInput } from "@/components/common/search"
-import { CustomDataTable } from "@/components/common/custom-data-table"
-import { LedgerColumns } from "./columns"
-import LedgerFilterSection from "./filter-section"
-import { LedgerToolbarWithAddDialog } from "./ledger-toolbar-with-add-dialog"
 import Loading from "../loading"
+import { LedgerTableClient } from "./ledger-table-client"
 import { getLedgerTransactions } from "@/app/actions/ledger/list-ledger-transactions.action"
 import { getReferenceData } from "@/app/actions/reference/get-reference-data.action"
 import { getBanksForChannelBooking } from "@/app/actions/channel-booking/get-banks.action"
@@ -81,43 +77,20 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
-          heading="Ledger"
-          subHeading="Branch income/expense and agency debit note, credit note, deposit, withdraw."
-          columns={LedgerColumns}
+        <LedgerTableClient
           data={data}
-          rowCount={totalRecords}
-          haveBulkDelete={false}
+          totalRecords={totalRecords}
+          canAdd={canAdd}
           page={params?.page}
           limit={params?.limit}
-          toolbarLeft={
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative w-full sm:max-w-sm">
-                <SearchInput
-                  name="keyword"
-                  placeholder="Search by receipt no or remarks"
-                  className="pl-8 w-full h-9"
-                />
-              </div>
-              <LedgerFilterSection
-                branchId={params?.branchId}
-                agencyId={params?.agencyId}
-                method={params?.method}
-                locations={locations}
-                agencies={agencies}
-              />
-            </div>
-          }
-          toolbarRight={
-            <LedgerToolbarWithAddDialog
-              canAdd={canAdd}
-              locations={locations}
-              agencies={agencies}
-              banks={banks}
-              userLocationId={userLocationId}
-              userLocationName={userLocationName}
-            />
-          }
+          branchId={params?.branchId}
+          agencyId={params?.agencyId}
+          method={params?.method}
+          locations={locations}
+          agencies={agencies}
+          banks={banks}
+          userLocationId={userLocationId}
+          userLocationName={userLocationName}
         />
       </Suspense>
     </div>

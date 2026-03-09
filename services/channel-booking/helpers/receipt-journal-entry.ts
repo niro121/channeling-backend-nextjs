@@ -520,6 +520,46 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
+  // Doctor Cancel (5): reversal of doctor payment — Cr Doctor PAYABLE (restore liability), Dr Branch/Cashier.
+  if (receipt.method === RECEIPT_METHOD.DOCTOR_CANCEL && accounts.doctorAccountId) {
+    const grossCents = Math.round(Math.abs(receipt.amount) * 100);
+    const whdCents = Math.round((receipt.whd ?? 0) * 100);
+    const netCents = Math.max(0, grossCents - whdCents);
+    if (netCents <= 0) return null;
+    const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
+    if (isCash && accounts.cashierAccountId) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Doctor payment cancel (cash)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.doctorAccountId, debitAmount: 0, creditAmount: netCents },
+          {
+            accountId: accounts.cashierAccountId,
+            debitAmount: netCents,
+            creditAmount: 0,
+            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+          },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Doctor payment cancel${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.doctorAccountId, debitAmount: 0, creditAmount: netCents },
+        { accountId: accounts.branchAccountId, debitAmount: netCents, creditAmount: 0 },
+      ],
+    };
+  }
+
   return null;
   
 }
