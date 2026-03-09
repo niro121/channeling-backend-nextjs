@@ -143,6 +143,9 @@ export async function getDoctorPaymentListService(
         createdAt: true,
         createdBy: true,
         location: { select: { name: true } },
+        canceledAt: true,
+        cancelReason: true,
+        reverseReceiptId: true,
       },
     }),
   ]);
@@ -176,6 +179,16 @@ export async function getDoctorPaymentListService(
     createdByNames = new Map(users.map((u) => [u.id, u.name ?? ""]));
   }
 
+  const reverseReceiptIds = [...new Set(receipts.map((r) => r.reverseReceiptId).filter(Boolean))] as string[];
+  let reverseReceiptNoById: Map<string, string> = new Map();
+  if (reverseReceiptIds.length > 0) {
+    const reverseReceipts = await prisma.receipt.findMany({
+      where: { id: { in: reverseReceiptIds } },
+      select: { id: true, receiptNoString: true },
+    });
+    reverseReceiptNoById = new Map(reverseReceipts.map((r) => [r.id, r.receiptNoString]));
+  }
+
   const data: DoctorPaymentListItem[] = receipts.map((r) => {
     const gross = Math.abs(r.amount);
     const whd = r.whd ?? 0;
@@ -198,10 +211,10 @@ export async function getDoctorPaymentListService(
       createdAt: r.createdAt,
       createdBy: r.createdBy,
       createdByName: r.createdBy ? createdByNames.get(r.createdBy) ?? null : null,
-      cancelReceiptId: null,
-      cancelReceiptNoString: null,
-      cancelReason: null,
-      canceledAt: null,
+      cancelReceiptId: r.reverseReceiptId ?? null,
+      cancelReceiptNoString: r.reverseReceiptId ? (reverseReceiptNoById.get(r.reverseReceiptId) ?? null) : null,
+      cancelReason: r.cancelReason ?? null,
+      canceledAt: r.canceledAt ?? null,
     };
   });
 
