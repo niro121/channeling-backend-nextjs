@@ -231,6 +231,12 @@ export function buildReceiptJournalEntryInput(
     receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT && Boolean(accounts.creditCustomerAccountId);
   if (hasCreditCustomer) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (credit customer)${descSuffix}`,
@@ -239,8 +245,8 @@ export function buildReceiptJournalEntryInput(
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-          { accountId: accounts.creditCustomerAccountId!, debitAmount: 0, creditAmount: amountCents },
+          { accountId: accounts.creditCustomerAccountId!, debitAmount: amountCents, creditAmount: 0 },
+          ...creditLines,
         ],
       };
     }

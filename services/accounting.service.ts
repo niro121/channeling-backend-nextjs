@@ -23,5 +23,6 @@ export {
   type TillBalanceBreakdown,
   createJournalEntry,
   createJournalEntryInTransaction,
+  checkJournalEntryBalance,
   getAccountStatement,
 } from './accounting';

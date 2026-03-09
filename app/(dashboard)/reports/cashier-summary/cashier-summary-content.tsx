@@ -54,7 +54,7 @@ const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string 
   { key: 'agentCredit', label: 'Agent Credit' },
 ];
 
-/** Default from = today 00:00, to = today 12:00 (noon) in YYYY-MM-DDTHH:mm for datetime-local */
+/** Default from = today 00:00, to = today 23:59 (end of day / midnight) in YYYY-MM-DDTHH:mm for datetime-local */
 function getDefaultDateTimeRange(): { from: string; to: string } {
   const now = new Date();
   const y = now.getFullYear();
@@ -62,7 +62,7 @@ function getDefaultDateTimeRange(): { from: string; to: string } {
   const d = String(now.getDate()).padStart(2, '0');
   return {
     from: `${y}-${m}-${d}T00:00`,
-    to: `${y}-${m}-${d}T12:00`,
+    to: `${y}-${m}-${d}T23:59`,
   };
 }
 
