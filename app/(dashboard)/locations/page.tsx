@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
@@ -10,6 +12,7 @@ import { bulkDeleteLocations, getAllLocations, getLocationsExport, checkLocation
 import { LOCATION_OPTIONS } from '@/types/location';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import { ExportWrapper } from '../export-wrapper';
 import { BulkDeleteButton } from '@/components/common/custom-data-table';
@@ -27,6 +30,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/locations');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'locations.visited',
+      entityType: 'Locations',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

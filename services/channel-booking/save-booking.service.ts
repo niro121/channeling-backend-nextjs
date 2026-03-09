@@ -18,6 +18,7 @@ import {
   validateVoucherForDiscount,
   getBookingSequenceInfo,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
@@ -199,7 +200,7 @@ export async function saveBookingService(
     }
   }
 
-  // Agent booking: verify agency ref and that agency credit limit is not exceeded.
+  // Agent booking: verify agency ref, ensure linked account exists for balance check, and that credit limit is not exceeded.
   if (input.agency?.id) {
     const ref = (input.agency_ref ?? "").toUpperCase().trim()
     const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
@@ -212,11 +213,27 @@ export async function saveBookingService(
     }
     const agency = await prisma.agency.findUnique({
       where: { id: input.agency.id },
-      select: { allowedCreditLimit: true },
+      select: {
+        allowedCreditLimit: true,
+        accounts: {
+          where: { type: "RECEIVABLE", isActive: true },
+          take: 1,
+          select: { id: true },
+        },
+      },
     })
-    const creditLimit = agency?.allowedCreditLimit ?? 0
+    const hasLinkedAccount = agency?.accounts?.[0] != null
+    if (!hasLinkedAccount) {
+      return {
+        success: false,
+        errorCode: "agencyNoLinkedAccount",
+        message:
+          "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a RECEIVABLE account to the agency.",
+      }
+    }
+    const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
     const balance = await getAgentBalance(input.agency.id)
-    if (creditLimit + balance < amountToUse) {
+    if (allowedCreditLimit + balance < amountToUse) {
       return {
         success: false,
         errorCode: "agencyCreditExceed",
@@ -338,6 +355,7 @@ export async function saveBookingService(
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
               creditCustomerId: input.credit_customer?.id ?? null,
+              doctorId: session.doctorId ?? input.doctor?.id ?? null,
               needTill,
             },
             { needTill, isAgent, isCreditCustomer }
@@ -351,13 +369,22 @@ export async function saveBookingService(
           }
           accounts = reqResult.accounts
         } else {
-          accounts = await resolveReceiptJournalAccounts({
+          const resolveResult = await resolveReceiptJournalAccounts({
             locationId: booking.locationId ?? null,
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
             creditCustomerId: input.credit_customer?.id ?? null,
+            doctorId: session.doctorId ?? input.doctor?.id ?? null,
             needTill,
           })
+          if (isResolveReceiptJournalAccountsError(resolveResult)) {
+            return {
+              success: false,
+              errorCode: resolveResult.errorCode as SaveBookingErrorCode,
+              message: resolveResult.error,
+            }
+          }
+          accounts = resolveResult
         }
         const journalNumberResult = accounts
           ? await getNextSequenceNumber("journal", { startFrom: 1 })
@@ -395,7 +422,20 @@ export async function saveBookingService(
           if (!r.success) throw new Error(r.message)
           const receipt = r.receipt
           if (accounts && journalNumber > 0) {
-            const journalInput = buildReceiptJournalEntryInput(receipt, accounts)
+            const amountCents = Math.round(receiptAmount * 100)
+            const hospitalFeeAfterDiscount = Math.max(0, hospital_fee - hospitalFeeDiscount)
+            const professionalFeeAfterDiscount = Math.max(0, professional_fee - professionsalFeeDiscount)
+            const channelPaymentFeeSplit =
+              accounts.doctorAccountId && amountCents > 0
+                ? {
+                    hospitalFeeCents: Math.min(Math.round(hospitalFeeAfterDiscount * 100), amountCents),
+                    professionalFeeCents: 0,
+                  }
+                : undefined
+            if (channelPaymentFeeSplit) {
+              channelPaymentFeeSplit.professionalFeeCents = amountCents - channelPaymentFeeSplit.hospitalFeeCents
+            }
+            const journalInput = buildReceiptJournalEntryInput(receipt, accounts, channelPaymentFeeSplit)
             // Agent and Credit Customer require a journal (receivable must be updated); fail the transaction if none produced
             if ((isAgent || isCreditCustomer) && !journalInput) {
               throw new Error(

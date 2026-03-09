@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useRef, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { useToast } from "@/components/hooks/use-toast"
@@ -145,6 +145,8 @@ type LedgerTransactionFormProps = {
   userLocationName?: string | null
   /** Called after a transaction is successfully added (e.g. to close dialog and refresh) */
   onSuccess?: () => void
+  /** If provided, called with receiptId when user submitted via "Add transaction and print" (after onSuccess). Use to open print view. */
+  onSuccessWithReceiptId?: (receiptId: string) => void | Promise<void>
 }
 
 export function LedgerTransactionForm({
@@ -154,9 +156,11 @@ export function LedgerTransactionForm({
   userLocationId = null,
   userLocationName = null,
   onSuccess,
+  onSuccessWithReceiptId,
 }: LedgerTransactionFormProps) {
   const { toast } = useToast()
   const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
+  const printAfterSubmitRef = useRef(false)
 
   const initialValues: LedgerFormValues = {
     transactionType: "BRANCH_INCOME",
@@ -230,6 +234,10 @@ export function LedgerTransactionForm({
           bankId: "",
         })
         onSuccess?.()
+        if (printAfterSubmitRef.current && result.receiptId) {
+          printAfterSubmitRef.current = false
+          await onSuccessWithReceiptId?.(result.receiptId)
+        }
         setSubmitting(false)
         return
       }
@@ -476,9 +484,24 @@ export function LedgerTransactionForm({
               </p>
             )}
 
-            <Button type="submit" disabled={formik.isSubmitting}>
-              {formik.isSubmitting ? "Saving…" : "Add transaction"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={formik.isSubmitting}>
+                {formik.isSubmitting ? "Saving…" : "Add transaction"}
+              </Button>
+              {onSuccessWithReceiptId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={formik.isSubmitting}
+                  onClick={() => {
+                    printAfterSubmitRef.current = true
+                    formik.submitForm()
+                  }}
+                >
+                  {formik.isSubmitting ? "Saving…" : "Add transaction and print"}
+                </Button>
+              )}
+            </div>
           </Form>
         )
       }}

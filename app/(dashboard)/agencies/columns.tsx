@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Agency } from '@/types/agency';
+import { formatLKR } from '@/lib/format-money';
 import AgencyRecordActions from './record-actions';
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
@@ -88,7 +89,7 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
     header: 'Balance',
     cell: ({ row }) => {
       const balance = row.getValue('balance') as number;
-      return <span>{balance?.toFixed(2) || '0.00'}</span>;
+      return <span className="tabular-nums">{balance != null ? formatLKR(balance) : '0.00'}</span>;
     }
   },
   {

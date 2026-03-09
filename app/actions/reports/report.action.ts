@@ -1,5 +1,8 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService, getDoctorArrivalsReportDataService } from '@/services/reports/report.service';
 import { 
   DoctorReportQuery, 
@@ -96,6 +99,16 @@ export const exportDoctorReportData = async (
       published: d.status === 1 ? 'Yes' : 'No'
     }));
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'reports.doctors.exported',
+        entityType: 'Report',
+        importance: 'medium',
+        metadata: { count: mappedDoctors.length },
+      });
+    }
     return {
       success: true,
       data: mappedDoctors
@@ -224,6 +237,16 @@ export const exportChannelAgentReferenceBookReportData = async (
       };
     });
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'reports.channel-agent-reference-book.exported',
+        entityType: 'Report',
+        importance: 'medium',
+        metadata: { count: mappedBooks.length },
+      });
+    }
     return {
       success: true,
       data: mappedBooks,
@@ -272,6 +295,16 @@ export const exportDoctorArrivalsReportData = async (
       };
     });
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'reports.doctor-arrivals.exported',
+        entityType: 'Report',
+        importance: 'medium',
+        metadata: { count: mappedSessions.length },
+      });
+    }
     return {
       success: true,
       data: mappedSessions

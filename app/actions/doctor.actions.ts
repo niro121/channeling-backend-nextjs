@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   bulkDeleteDoctorsByIdsService,
   createDoctorService,
@@ -24,6 +26,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { Speciality } from '@/types/speciality';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 import prisma from '@/lib/prisma';
 
@@ -54,7 +57,17 @@ export const createDoctor = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctors.doctor.created',
+        entityType: 'Doctor',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/doctors');
 
     return {
@@ -102,7 +115,17 @@ export const updateOneDoctor = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctors.doctor.updated',
+        entityType: 'Doctor',
+        entityId: id,
+        importance: 'high',
+        metadata: result.data ? { code: result.data.code, name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/doctors');
 
     return {
@@ -136,7 +159,16 @@ export const deleteDoctor = async (id: string) => {
         error: result.error
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctors.doctor.deleted',
+        entityType: 'Doctor',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/doctors');
 
     return {
@@ -166,7 +198,16 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
     if (!result.success) {
       return false;
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctors.doctors.bulkDeleted',
+        entityType: 'Doctor',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/doctors');
 
     return true;
@@ -333,6 +374,16 @@ export const getDoctorsExport = async (
         success: false,
         message: 'No available doctors in the database'
       };
+    }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctors.exported',
+        entityType: 'Doctor',
+        importance: 'medium',
+        metadata: { count: response.doctors?.length ?? 0 },
+      });
     }
 
     // Transform doctors to match Doctor type: convert null speciality to undefined

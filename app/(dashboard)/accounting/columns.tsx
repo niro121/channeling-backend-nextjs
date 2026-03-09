@@ -4,6 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Account } from '@/types/accounting';
 import Link from 'next/link';
 import moment from 'moment';
+import { formatCents } from '@/lib/format-money';
 import { AccountRecordActions } from './account-record-actions';
 
 type AccountWithBalance = Account & { balance?: number };
@@ -60,7 +61,7 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
     cell: ({ row }) => {
       const v = row.original.minBalanceAllowed;
       if (v === null || v === undefined) return <span className="text-muted-foreground">-</span>;
-      return <span>{(v / 100).toFixed(2)}</span>;
+      return <span className="tabular-nums">{formatCents(v)}</span>;
     },
   },
   {
@@ -69,7 +70,7 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
     cell: ({ row }) => {
       const balance = (row.original as AccountWithBalance).balance;
       const num = typeof balance === 'number' ? balance : 0;
-      return <span>{(num / 100).toFixed(2)}</span>;
+      return <span className="tabular-nums">{formatCents(num)}</span>;
     },
   },
   {

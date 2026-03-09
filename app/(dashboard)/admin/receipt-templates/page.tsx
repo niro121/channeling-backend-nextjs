@@ -1,5 +1,8 @@
 import React from "react"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { checkRouteAccess } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { ReceiptTemplatesContent } from "./receipt-templates-content"
 import {
@@ -12,6 +15,15 @@ export default async function AdminReceiptTemplatesPage() {
   const canView = await checkRouteAccess("/admin/receipt-templates")
   if (!canView) {
     redirect("/unauthorized-access")
+  }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: "admin.receipt-templates.visited",
+      entityType: "ReceiptTemplates",
+      importance: "low",
+    })
   }
 
   const [templatesRes, headersRes, footersRes] = await Promise.all([

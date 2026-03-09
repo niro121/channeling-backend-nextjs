@@ -1,10 +1,13 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { ShiftColumns, type ShiftListRow } from './columns';
 import ShiftsFilterSection from './filter-section';
 import Loading from '../loading';
 import { getShiftsAction, getShiftUserOptionsAction } from '@/app/actions/shift.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 
 type SearchParams = {
@@ -20,6 +23,15 @@ type SearchParams = {
 export default async function ShiftsPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/shifts');
   if (!canView) redirect('/unauthorized-access');
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'shifts.visited',
+      entityType: 'Shifts',
+      importance: 'low',
+    });
+  }
 
   const params = await searchParams;
   const userIdParam = params?.userId && params.userId !== '__all__' ? params.userId : undefined;

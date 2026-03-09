@@ -33,13 +33,15 @@ export type TillBalanceBreakdown = {
   eWalletCents: number;
   /** Till account id if found */
   tillAccountId: string | null;
+  tillAccountName: string | null;
+  tillAccountCode: string | null;
 };
 
 // --- getTillBalanceBreakdown: cashier till balance by payment method ---
 export async function getTillBalanceBreakdown(userId: string): Promise<TillBalanceBreakdown> {
   const acc = await prisma.account.findFirst({
     where: { type: 'CASH', userId, isActive: true },
-    select: { id: true },
+    select: { id: true, name: true, code: true },
   });
   if (!acc) {
     return {
@@ -51,6 +53,8 @@ export async function getTillBalanceBreakdown(userId: string): Promise<TillBalan
       creditCents: 0,
       eWalletCents: 0,
       tillAccountId: null,
+      tillAccountName: null,
+      tillAccountCode: null,
     };
   }
 
@@ -95,6 +99,8 @@ export async function getTillBalanceBreakdown(userId: string): Promise<TillBalan
     creditCents,
     eWalletCents,
     tillAccountId: acc.id,
+    tillAccountName: acc.name ?? null,
+    tillAccountCode: acc.code ?? null,
   };
 }
 

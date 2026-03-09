@@ -12,9 +12,11 @@ const CHANNEL_BOOKING_PATH = "/channel-booking";
 
 export function ChannelBookingLayoutClient({
   session,
+  e2eRunEnabled = false,
   children,
 }: {
   session: Session | null;
+  e2eRunEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -35,6 +37,7 @@ export function ChannelBookingLayoutClient({
       {/* Sidebar: on channel-booking, slide off-screen when closed */}
       <DesktopSidebar
         session={session}
+        e2eRunEnabled={e2eRunEnabled}
         className={cn(
           "hidden sm:flex transition-transform duration-200 ease-out",
           isChannelBooking && !sidebarOpen && "-translate-x-full"

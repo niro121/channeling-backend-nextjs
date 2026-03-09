@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import type { LedgerReceiptListItem } from "@/services/ledger/list-ledger-receipts.service"
 import { format } from "date-fns"
+import { formatLKR } from "@/lib/format-money"
 import { ReceiptNoCell } from "./receipt-no-cell"
 import { LedgerRecordActions } from "./ledger-record-actions"
 
@@ -52,7 +53,7 @@ export const LedgerColumns: ColumnDef<LedgerReceiptListItem>[] = [
     cell: ({ row }) => {
       const v = row.original.amount
       const num = typeof v === "number" ? v : 0
-      return <span className="tabular-nums">{(num / 1).toLocaleString()}</span>
+      return <span className="tabular-nums">{formatLKR(num)}</span>
     },
   },
   {

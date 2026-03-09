@@ -6,9 +6,9 @@ import {
   getRoomsForArrival,
   setDoctorArrivalAction,
   getSessionsForChannelBooking,
-  type SessionArrivalState,
   type RoomOption,
 } from "@/app/actions/channel-booking"
+import type { SessionArrivalState } from "@/services/channel-booking/get-session-arrival-state.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { Button } from "@/components/ui/button"

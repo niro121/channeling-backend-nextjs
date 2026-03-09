@@ -4,10 +4,12 @@ import {
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
-import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { createJournalEntryInTransaction, getAccountBalance } from "@/services/accounting.service"
+import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
@@ -141,13 +143,36 @@ export async function refundChannelService(
         }
         accounts = reqResult.accounts
       } else {
-        accounts = await resolveReceiptJournalAccounts({
+        const resolveResult = await resolveReceiptJournalAccounts({
           locationId: booking.locationId ?? null,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
           needTill,
         })
+        if (isResolveReceiptJournalAccountsError(resolveResult)) {
+          return {
+            success: false,
+            errorCode: resolveResult.errorCode,
+            message: resolveResult.error,
+          }
+        }
+        accounts = resolveResult
+      }
+      // Refund that pays out from till: till must have sufficient balance
+      if (needTill && accounts?.cashierAccountId) {
+        const refundAmountCents = Math.round(Math.abs(refundAmount) * 100)
+        const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+        if (tillBalanceCents < refundAmountCents) {
+          return {
+            success: false,
+            errorCode: "INSUFFICIENT_TILL_BALANCE",
+            message:
+              tillBalanceCents <= 0
+                ? "Till has no balance. Cannot refund until the till has sufficient cash."
+                : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+          }
+        }
       }
       const journalNumberResult = accounts
         ? await getNextSequenceNumber("journal", { startFrom: 1 })
@@ -250,13 +275,36 @@ export async function refundChannelService(
       }
       accounts = reqResult.accounts
     } else {
-      accounts = await resolveReceiptJournalAccounts({
+      const resolveResult = await resolveReceiptJournalAccounts({
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         creditCustomerId: bookingCreditCustomerId,
         needTill,
       })
+      if (isResolveReceiptJournalAccountsError(resolveResult)) {
+        return {
+          success: false,
+          errorCode: resolveResult.errorCode,
+          message: resolveResult.error,
+        }
+      }
+      accounts = resolveResult
+    }
+    // Refund that pays out from till: till must have sufficient balance
+    if (needTill && accounts?.cashierAccountId) {
+      const refundAmountCents = Math.round(totalRefund * 100)
+      const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+      if (tillBalanceCents < refundAmountCents) {
+        return {
+          success: false,
+          errorCode: "INSUFFICIENT_TILL_BALANCE",
+          message:
+            tillBalanceCents <= 0
+              ? "Till has no balance. Cannot refund until the till has sufficient cash."
+              : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+        }
+      }
     }
     const journalNumberResult = accounts
       ? await getNextSequenceNumber("journal", { startFrom: 1 })

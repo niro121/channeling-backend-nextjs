@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getAgentDetailReportDataService } from '@/services/reports/agent-detail.service';
 import { 
   AgentDetailReportQuery, 
@@ -7,6 +9,7 @@ import {
   ExportAgentDetailData
 } from '@/types/report';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { Agency } from '@/types/agency';
 import moment from 'moment';
 
@@ -74,13 +77,21 @@ export const exportAgentDetailReportData = async (
         contactPerson: agency.contactPersonName || '-',
         contactPhone: agency.contactPersonPhone || '-',
         contactPersonEmail: agency.contactPersonEmail || '-',
-        standardCreditLimit: agency.creditLimit?.toFixed(2) || '0.00',
         allowedCreditLimit: agency.allowedCreditLimit?.toFixed(2) || '0.00',
-        allowedMaximinCreditLimit: agency.maxCreditLimit?.toFixed(2) || '0.00',
         balance: agency.balance?.toFixed(2) || '0.00',
       };
     });
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'reports.agent-detail.exported',
+        entityType: 'Report',
+        importance: 'medium',
+        metadata: { count: mappedAgencies.length },
+      });
+    }
     return {
       success: true,
       data: mappedAgencies,

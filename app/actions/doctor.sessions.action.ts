@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getDoctorOptionsService,
   getLocationOptionsService,
@@ -21,6 +23,7 @@ import {
   UpdateDoctorSessionPayload
 } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // ==== CREATE DOCTOR SESSION ==== //
 export const createDoctorSession = async (
@@ -47,7 +50,17 @@ export const createDoctorSession = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctor-sessions.session.created',
+        entityType: 'DoctorSession',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: doctorId ? { doctorId } : undefined,
+      });
+    }
     revalidatePath('/doctor-sessions');
 
     return {
@@ -98,7 +111,17 @@ export const updateOneDoctorSession = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctor-sessions.session.updated',
+        entityType: 'DoctorSession',
+        entityId: id,
+        importance: 'high',
+        metadata: doctorId ? { doctorId } : undefined,
+      });
+    }
     revalidatePath('/doctor-sessions');
 
     return {
@@ -223,7 +246,16 @@ export const deleteDoctorSession = async (id: string) => {
         error: result.error
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctor-sessions.session.deleted',
+        entityType: 'DoctorSession',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/doctor-sessions');
     revalidatePath('/doctors');
     revalidatePath('/locations');
@@ -253,7 +285,16 @@ export const bulkDeleteDoctorSessions = async (ids: string[]) => {
     if (!result.success) {
       return false;
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'doctor-sessions.sessions.bulkDeleted',
+        entityType: 'DoctorSession',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/doctor-sessions');
     revalidatePath('/doctors');
     revalidatePath('/locations');

@@ -4,6 +4,7 @@ import { GetTagsParams, GetTagsQuery, Tag } from "@/types/tag"
 import { deleteOneTag, deleteTags, getTags, saveTag, updateOneTag, getTagById, getAllTagsDownloadService } from "@/services/tag.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
 
 export const getAllTags = async (filter: GetTagsParams) => {
@@ -56,7 +57,16 @@ export const bulkDeleteTags = async (ids: string[]) => {
         if (!result.success) {
             throw new Error(result.error?.message || "Failed to delete tags");
         }
-
+        const session = await fetchServerSession();
+        if (session?.user?.id) {
+            logActivityNonBlocking({
+                userId: session.user.id,
+                action: "tags.tags.bulkDeleted",
+                entityType: "Tag",
+                importance: "high",
+                metadata: { count: ids.length },
+            });
+        }
         revalidatePath('/tags');
         return true;
     } catch (error: any) {
@@ -80,7 +90,16 @@ export const deleteTag = async (id: string) => {
                 }
             };
         }
-
+        const session = await fetchServerSession();
+        if (session?.user?.id) {
+            logActivityNonBlocking({
+                userId: session.user.id,
+                action: "tags.tag.deleted",
+                entityType: "Tag",
+                entityId: id,
+                importance: "high",
+            });
+        }
         revalidatePath('/tags');
 
         return {
@@ -140,7 +159,15 @@ export const createNewTag = async (payload: Tag): Promise<{
                 }
             };
         }
-
+        if (user) {
+            logActivityNonBlocking({
+                userId: user.id,
+                action: "tags.tag.created",
+                entityType: "Tag",
+                entityId: result.data?.id ?? undefined,
+                importance: "high",
+            })
+        }
         revalidatePath('/tags');
 
         return {
@@ -199,7 +226,15 @@ export const updateTag = async (
                 }
             };
         }
-
+        if (user) {
+            logActivityNonBlocking({
+                userId: user.id,
+                action: "tags.tag.updated",
+                entityType: "Tag",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/tags');
         revalidatePath(`/tags/${id}/edit`);
 
@@ -293,7 +328,16 @@ export const getTagsExport = async (filters: {
                 message: "No available tags in the database"
             };
         }
-
+        const session = await fetchServerSession();
+        if (session?.user?.id) {
+            logActivityNonBlocking({
+                userId: session.user.id,
+                action: "tags.exported",
+                entityType: "Tag",
+                importance: "medium",
+                metadata: { count: response.tags?.length ?? 0 },
+            });
+        }
         return {
             success: true,
             data: response.tags,

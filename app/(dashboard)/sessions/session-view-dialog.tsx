@@ -13,11 +13,12 @@ import moment from 'moment';
 import { History, Loader2 } from 'lucide-react';
 import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { getSessionActivity, type SessionActivityEntry } from '@/app/actions/sessions.action';
+import { formatLKR } from '@/lib/format-money';
 import type { SessionListItem } from './columns';
 
 function formatFee(value: number | null | undefined): string {
   if (value == null) return '—';
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatLKR(value);
 }
 
 /** Format session start/end for display in Sri Lanka (DB stores UTC). */

@@ -5,6 +5,7 @@ import {
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
@@ -144,6 +145,7 @@ export async function settleBookingService(
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
+        doctorId: booking.doctorId ?? null,
         needTill,
       },
       { needTill, isAgent: false }
@@ -157,12 +159,21 @@ export async function settleBookingService(
     }
     accounts = reqResult.accounts
   } else {
-    accounts = await resolveReceiptJournalAccounts({
+    const resolveResult = await resolveReceiptJournalAccounts({
       locationId: booking.locationId ?? null,
       createdBy: userId,
       agencyId: booking.agencyId ?? null,
+      doctorId: booking.doctorId ?? null,
       needTill,
     })
+    if (isResolveReceiptJournalAccountsError(resolveResult)) {
+      return {
+        success: false,
+        errorCode: resolveResult.errorCode,
+        message: resolveResult.error,
+      }
+    }
+    accounts = resolveResult
   }
   const journalNumberResult = accounts
     ? await getNextSequenceNumber("journal", { startFrom: 1 })
@@ -203,7 +214,14 @@ export async function settleBookingService(
     })
     if (!r.success) return r
     if (accounts && journalNumber > 0) {
-      const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+      const amountCents = Math.round(amount * 100)
+      const hospitalFeeAfterDiscount = Math.max(0, (booking.hospitalFee ?? 0) - discountDivision.hospital_fee_discount)
+      const hospitalFeeCents = Math.min(Math.round(hospitalFeeAfterDiscount * 100), amountCents)
+      const channelPaymentFeeSplit =
+        accounts.doctorAccountId && amountCents > 0
+          ? { hospitalFeeCents, professionalFeeCents: amountCents - hospitalFeeCents }
+          : undefined
+      const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts, channelPaymentFeeSplit)
       if (journalInput) {
         const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
         if (!jResult.success) throw new Error(jResult.error)

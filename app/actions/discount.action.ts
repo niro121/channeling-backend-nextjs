@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   createDiscountService,
   getAllDiscountsService,
@@ -24,6 +26,7 @@ import { VoucherFormValues } from '@/types/voucher';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 type createDiscountPayload = DiscountFormValues & {
   createdBy?: string;
@@ -173,7 +176,16 @@ export const createDiscount = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'discounts.discount.created',
+        entityType: 'Discount',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+      });
+    }
     revalidatePath('/discounts');
 
     return {
@@ -298,7 +310,16 @@ export const updateOneDiscount = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'discounts.discount.updated',
+        entityType: 'Discount',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/discounts');
 
     return {
@@ -401,6 +422,16 @@ export const deleteDiscount = async (id: string) => {
   try {
     const result = await deleteDiscountByIdService(id);
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'discounts.discount.deleted',
+        entityType: 'Discount',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/discounts');
 
     return {
@@ -426,6 +457,16 @@ export const bulkDeleteDiscounts = async (ids: string[]) => {
   try {
     const result = await bulkDeleteDiscountsByIdsService(ids);
 
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'discounts.discounts.bulkDeleted',
+        entityType: 'Discount',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/discounts');
 
     return true;
@@ -451,7 +492,16 @@ export const getDiscountsExport = async (params: { keyword?: string; discountTyp
         message: response.success ? 'No discounts found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'discounts.exported',
+        entityType: 'Discount',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data

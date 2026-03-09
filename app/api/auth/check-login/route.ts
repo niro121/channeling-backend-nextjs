@@ -13,7 +13,12 @@ import * as argon2 from "argon2";
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: { email?: string; password?: string };
+    try {
+      body = (await request.json()) as { email?: string; password?: string };
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
     const identifier = typeof body?.email === "string" ? body.email.trim() : "";
     const password = typeof body?.password === "string" ? body.password : "";
 

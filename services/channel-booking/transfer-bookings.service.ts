@@ -2,10 +2,9 @@
 
 import prisma from "@/lib/prisma"
 import moment from "moment"
-import { RECEIPT_METHOD } from "@/types/receipt"
 import { getNextSequenceNumber, getPreviousSessionTransferStatus } from "./helpers"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export type TransferBookingsInput = {
   bookingIds: string[]
@@ -55,7 +54,7 @@ export async function transferBookingsService(
   }
 
   // Load target session and doctor for updates and SMS
-  const [targetSession, currentSession, doctorPaymentReceipts, bookingObjs] = await Promise.all([
+  const [targetSession, currentSession, bookingObjs] = await Promise.all([
     prisma.session.findUnique({
       where: { id: sessionId },
       include: { doctor: { select: { id: true, title: true, name: true } } },
@@ -63,10 +62,6 @@ export async function transferBookingsService(
     prisma.session.findUnique({
       where: { id: currentSessionId },
       include: { doctor: { select: { title: true, name: true } } },
-    }),
-    prisma.receipt.findMany({
-      where: { bookingId: { in: bookingIds }, method: RECEIPT_METHOD.DOCTOR_PAYMENT },
-      select: { id: true },
     }),
     prisma.booking.findMany({
       where: { id: { in: bookingIds } },
@@ -81,6 +76,7 @@ export async function transferBookingsService(
         name: true,
         status: true,
         refund: true,
+        doctorPayment: true,
       },
     }),
   ])
@@ -99,7 +95,8 @@ export async function transferBookingsService(
   if (!currentSession) {
     return { success: false, errorCode: "invalid_session", message: "Current session not found." }
   }
-  if (doctorPaymentReceipts.length > 0) {
+  const alreadyPaidCount = bookingObjs.filter((b) => b.doctorPayment === true).length
+  if (alreadyPaidCount > 0) {
     return {
       success: false,
       errorCode: "doctor_paid",
@@ -245,7 +242,7 @@ export async function transferBookingsService(
         toDoctorId: doctorId,
         newAppointmentNo,
       }
-      await logActivity({
+      logActivityNonBlocking({
         userId,
         action: "booking.transferred",
         entityType: "Booking",
@@ -253,7 +250,7 @@ export async function transferBookingsService(
         metadata: transferMetadata,
       })
       // Log to outgoing session so History for this session shows "booking left"
-      await logActivity({
+      logActivityNonBlocking({
         userId,
         action: "booking.transferred",
         entityType: "Session",
@@ -261,7 +258,7 @@ export async function transferBookingsService(
         metadata: { ...transferMetadata, direction: "outgoing" },
       })
       // Log to incoming session so History for target session shows "booking arrived"
-      await logActivity({
+      logActivityNonBlocking({
         userId,
         action: "booking.transferred",
         entityType: "Session",

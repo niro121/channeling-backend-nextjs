@@ -33,6 +33,7 @@ import {
   Timer,
   ArrowRightLeft,
   Receipt,
+  Play,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -58,9 +59,11 @@ function SidebarGroup({
 
 export function DesktopSidebar({
   session,
+  e2eRunEnabled = false,
   className,
 }: {
   session: Session | null;
+  e2eRunEnabled?: boolean;
   className?: string;
 }) {
   const userType = session?.user?.userType;
@@ -136,7 +139,7 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/receipt-manager") || hasAccess("/doctor-payments") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
           <SidebarGroup label="Agency & billing">
             {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
             {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
@@ -144,6 +147,8 @@ export function DesktopSidebar({
             {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
             {hasAccess("/accounting") && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
             {hasAccess("/ledger") && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+            {hasAccess("/receipt-manager") && <NavLink href="/receipt-manager" label="Receipt Manager" icon={<Receipt className="h-5 w-5" />} />}
+            {hasAccess("/doctor-payments") && <NavLink href="/doctor-payments" label="Doctor Payments" icon={<DollarSign className="h-5 w-5" />} />}
             {hasAccess("/ledger") && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
             {hasAccess("/bulk-cashier") && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
             {hasAccess("/float-transfers") && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
@@ -163,6 +168,9 @@ export function DesktopSidebar({
           <SidebarGroup label="Admin">
             <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
             <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
+            {e2eRunEnabled && (
+              <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />
+            )}
             <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
           </SidebarGroup>
         )}

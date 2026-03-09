@@ -163,9 +163,7 @@ export default function AgentDetailReportContent({
     'Contact Person',
     'Contact Phone',
     'Contact Person E-mail',
-    'Standard Credit Limit',
     'Allowed Credit Limit',
-    'Allowed Maximin Credit Limit',
     'Balance'
   ];
 
@@ -181,9 +179,7 @@ export default function AgentDetailReportContent({
     'contactPerson',
     'contactPhone',
     'contactPersonEmail',
-    'standardCreditLimit',
     'allowedCreditLimit',
-    'allowedMaximinCreditLimit',
     'balance'
   ];
 

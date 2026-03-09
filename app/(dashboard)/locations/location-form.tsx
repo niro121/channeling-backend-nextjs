@@ -9,6 +9,7 @@ import { Location, LocationFormValues } from '@/types/location';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
+import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 import { Ban, Save, BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -191,7 +192,7 @@ export default function LocationForm({
                       <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
                       <div className={styleClasses.inputClassName}>
                         <span className="font-medium tabular-nums">
-                          {Number(location.balance ?? 0).toFixed(2)}
+                          {formatLKR(Number(location.balance ?? 0))}
                         </span>
                       </div>
                     </div>

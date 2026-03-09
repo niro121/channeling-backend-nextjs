@@ -28,14 +28,18 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/admin/receipt-templates": "ledger",
   "/accounting": "accounting",
   "/ledger": "ledger",
+  "/my-till": "bulk-cashier",
   "/bulk-cashier": "bulk-cashier",
   "/float-transfers": "float-transfers",
   "/shifts": "shifts",
+  "/doctor-payments": "doctor-payments",
+  "/receipt-manager": "receipt-manager",
 }
 
 /** When set, route access requires this action instead of "view" (e.g. bulk-cashier uses "bulk-cashier-dashboard") */
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {
   "/bulk-cashier": "bulk-cashier-dashboard",
+  "/my-till": "my-till",
 }
 
 // Map HTTP methods to permission actions

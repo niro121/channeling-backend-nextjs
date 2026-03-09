@@ -11,6 +11,7 @@ import {
 } from "@/app/actions/shift.actions"
 import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
+import { formatCents, formatLKR } from "@/lib/format-money"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -456,7 +457,7 @@ export function ChannelBookingShiftBar() {
                   <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
                   <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
                     <p className="tabular-nums">
-                      Amount: LKR {(pendingFloatRequest.amountRequested / 100).toFixed(2)}
+                      Amount: LKR {formatCents(pendingFloatRequest.amountRequested)}
                     </p>
                     {pendingFloatRequest.bulkCashier?.name && (
                       <p>Bulk cashier: {pendingFloatRequest.bulkCashier.name}</p>
@@ -504,7 +505,7 @@ export function ChannelBookingShiftBar() {
             )}
             {floatBalanceCents !== null && (
               <span className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
-                Float: LKR {(floatBalanceCents / 100).toFixed(2)}
+                Float: LKR {formatCents(floatBalanceCents)}
                 <Button
                   type="button"
                   variant="ghost"
@@ -660,7 +661,7 @@ function ReceiveFloatForm({
   return (
     <div className="space-y-4 pt-2">
       <div className="rounded-md border bg-muted/40 p-3 text-sm">
-        <p className="font-medium tabular-nums">Amount: LKR {totalLKR.toFixed(2)}</p>
+        <p className="font-medium tabular-nums">Amount: LKR {formatLKR(totalLKR)}</p>
         {denoms.length > 0 && (
           <p className="text-muted-foreground mt-1">
             {denoms.map((d) => `${formatDenomLabel(d.value)}×${d.count}`).join(", ")}
