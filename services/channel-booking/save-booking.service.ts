@@ -22,7 +22,10 @@ import {
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
-import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import {
+  createJournalEntryInTransaction,
+  checkJournalEntryBalance,
+} from "@/services/accounting.service"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -62,14 +65,14 @@ export async function saveBookingService(
   if (!session) {
     return {
       success: false,
-      errorCode: "invalid_session",
+      errorCode: "INVALID_SESSION",
       message: "Session not found.",
     }
   }
   if (isPast) {
     return {
       success: false,
-      errorCode: "server_error",
+      errorCode: "SERVER_ERROR",
       message: "Cannot Book Past Sessions.",
     }
   }
@@ -80,7 +83,7 @@ export async function saveBookingService(
     if (!previousFull) {
       return {
         success: false,
-        errorCode: "previousessionfill",
+        errorCode: "PREVIOUS_SESSION_FILL",
         message: "Previous session must be filled first before booking here.",
       }
     }
@@ -103,7 +106,7 @@ export async function saveBookingService(
     if (!result.status) {
       return {
         success: false,
-        errorCode: "discountError",
+        errorCode: "DISCOUNT_ERROR",
         message: result.message ?? "Auto discount error.",
       }
     }
@@ -124,7 +127,7 @@ export async function saveBookingService(
       if (!voucherCode) {
         return {
           success: false,
-          errorCode: "discountError",
+          errorCode: "DISCOUNT_ERROR",
           message: "Voucher code is required for this discount scheme.",
         }
       }
@@ -135,7 +138,7 @@ export async function saveBookingService(
       if (!voucherValidation.valid) {
         return {
           success: false,
-          errorCode: "discountError",
+          errorCode: "DISCOUNT_ERROR",
           message: voucherValidation.message ?? "Invalid voucher code.",
         }
       }
@@ -150,7 +153,7 @@ export async function saveBookingService(
     if (!result.status) {
       return {
         success: false,
-        errorCode: "discountError",
+        errorCode: "DISCOUNT_ERROR",
         message: result.message ?? "Discount error.",
       }
     }
@@ -164,7 +167,7 @@ export async function saveBookingService(
   if (input.discount !== totalDiscount) {
     return {
       success: false,
-      errorCode: "discountError",
+      errorCode: "DISCOUNT_ERROR",
       message: "Error on front-end Discounts while Processing.",
     }
   }
@@ -185,7 +188,7 @@ export async function saveBookingService(
     }
     return {
       success: false,
-      errorCode: "amountError",
+      errorCode: "AMOUNT_ERROR",
       message: msg,
     }
   }
@@ -195,7 +198,7 @@ export async function saveBookingService(
   if (input.payment_type === 5 && !input.credit_customer?.id) {
     return {
       success: false,
-      errorCode: "invalid_input",
+      errorCode: "INVALID_INPUT",
       message: "Credit Customer is required for this payment type.",
     }
   }
@@ -207,7 +210,7 @@ export async function saveBookingService(
     if (!refResult.valid) {
       return {
         success: false,
-        errorCode: "agencyRefError",
+        errorCode: "AGENCY_REF_ERROR",
         message: refResult.reason ?? "Agency Reference Error.",
       }
     }
@@ -226,7 +229,7 @@ export async function saveBookingService(
     if (!hasLinkedAccount) {
       return {
         success: false,
-        errorCode: "agencyNoLinkedAccount",
+        errorCode: "AGENCY_NO_LINKED_ACCOUNT",
         message:
           "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a RECEIVABLE account to the agency.",
       }
@@ -236,7 +239,7 @@ export async function saveBookingService(
     if (allowedCreditLimit + balance < amountToUse) {
       return {
         success: false,
-        errorCode: "agencyCreditExceed",
+        errorCode: "AGENCY_CREDIT_EXCEED",
         message: "Exceed Agency Credit Limit.",
       }
     }
@@ -253,7 +256,7 @@ export async function saveBookingService(
   if (!appointmentResult.success) {
     return {
       success: false,
-      errorCode: "limitexceeded",
+      errorCode: "LIMIT_EXCEEDED",
       message: "Appointment Limit Exceed.",
     }
   }
@@ -278,6 +281,71 @@ export async function saveBookingService(
   const bookingid = bookingSeqResult.success ? bookingSeqResult.value : null
   const bookingid_string =
     bookingid != null ? formatBookingIdString(bookingid) : null
+
+  // Pre-check: agent/credit customer — ensure posting the receipt would not exceed account minBalanceAllowed (credit limit).
+  // Fail before creating the booking so we don't create a pending booking that cannot be completed.
+  if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+    const isAgent = input.payment_type === 4
+    const isCreditCustomer = input.payment_type === 5
+    if (isAgent || isCreditCustomer) {
+      const receiptAmount = amountToUse
+      const needTill = false
+      const reqResult = await requireReceiptJournalAccounts(
+        {
+          locationId,
+          createdBy: userId,
+          agencyId: input.agency?.id ?? null,
+          creditCustomerId: input.credit_customer?.id ?? null,
+          doctorId: session.doctorId ?? input.doctor?.id ?? null,
+          needTill,
+        },
+        { needTill, isAgent, isCreditCustomer }
+      )
+      if (!reqResult.success) {
+        return {
+          success: false,
+          errorCode: reqResult.errorCode as SaveBookingErrorCode,
+          message: reqResult.error,
+        }
+      }
+      const accounts = reqResult.accounts
+      const amountCents = Math.round(receiptAmount * 100)
+      const hospitalFeeAfterDiscount = Math.max(0, hospital_fee - hospitalFeeDiscount)
+      const professionalFeeAfterDiscount = Math.max(0, professional_fee - professionsalFeeDiscount)
+      const channelPaymentFeeSplit =
+        accounts.doctorAccountId && amountCents > 0
+          ? {
+              hospitalFeeCents: Math.min(Math.round(hospitalFeeAfterDiscount * 100), amountCents),
+              professionalFeeCents: 0,
+            }
+          : undefined
+      if (channelPaymentFeeSplit) {
+        channelPaymentFeeSplit.professionalFeeCents = amountCents - channelPaymentFeeSplit.hospitalFeeCents
+      }
+      const dummyReceipt = {
+        amount: receiptAmount,
+        method: 1,
+        paymentMethod: input.payment_type,
+        id: '',
+        createdAt: new Date(),
+        receiptNoString: '',
+        locationId,
+        userLocationId: null,
+        createdBy: userId,
+      } as Parameters<typeof buildReceiptJournalEntryInput>[0]
+      const journalInput = buildReceiptJournalEntryInput(dummyReceipt, accounts, channelPaymentFeeSplit)
+      if (journalInput) {
+        const balanceCheck = await checkJournalEntryBalance(journalInput)
+        if (!balanceCheck.allowed) {
+          return {
+            success: false,
+            errorCode: 'INSUFFICIENT_BALANCE' as SaveBookingErrorCode,
+            message: balanceCheck.error,
+          }
+        }
+      }
+    }
+  }
 
   try {
     const booking = await prisma.booking.create({
@@ -446,7 +514,11 @@ export async function saveBookingService(
             }
             if (journalInput) {
               const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
-              if (!jResult.success) throw new Error(jResult.error)
+              if (!jResult.success) {
+                const err = new Error(jResult.error) as Error & { errorCode?: string }
+                err.errorCode = jResult.errorCode ?? 'INSUFFICIENT_BALANCE'
+                throw err
+              }
             }
           }
           return receipt
@@ -489,7 +561,20 @@ export async function saveBookingService(
           }
         } catch (receiptErr) {
           console.error("saveBookingService receipt create error", receiptErr)
-          // Booking remains status 0 (pending); user can settle later.
+          const err = receiptErr as Error & { errorCode?: string }
+          if (err?.errorCode === 'INSUFFICIENT_BALANCE') {
+            return {
+              success: false,
+              errorCode: 'INSUFFICIENT_BALANCE' as SaveBookingErrorCode,
+              message: err.message ?? 'Credit limit exceeded. This booking would exceed the allowed limit for this account.',
+            }
+          }
+          return {
+            success: false,
+            errorCode: "SERVER_ERROR",
+            message:
+              err?.message ?? 'Failed to create receipt. The booking was created as pending; you can try settling it later.',
+          }
         }
     }
 
@@ -533,7 +618,7 @@ export async function saveBookingService(
     // Return generic message; actual failure may be DB, sequence, or other.
     return {
       success: false,
-      errorCode: "limitexceeded",
+      errorCode: "LIMIT_EXCEEDED",
       message: "Appointment Limit Exceed.",
     }
   }

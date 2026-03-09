@@ -73,36 +73,36 @@ Execute in this order; any step that throws should abort and return the appropri
 3. **Consecutive session rule**  
    - If `session.previous_doctor_session` is set:  
      - Call **checkConsecutiveSessionFull(session.id)**.  
-     - If it returns `false` (previous session not full), return error **previousessionfill**: `"Previous Consecutive Sessions is not Full."`
+     - If it returns `false` (previous session not full), return error **PREVIOUS_SESSION_FILL**: `"Previous Consecutive Sessions is not Full."`
 
 4. **Auto discount**  
    - If `inputs.auto_discount_type` is present:  
      - Call **getProcessedDiscount**(auto_discount_type, payment_method, payment_type, session, foriegner).  
-     - If `status` is false, return **discountError** with `autodiscount.message`.  
+     - If `status` is false, return **DISCOUNT_ERROR** with `autodiscount.message`.  
      - Otherwise add returned `discount_value` and `hospital_fee_discount`, `professionsal_fee_discount`, `other_discount` to running totals.
 
 5. **Manual discount**  
    - If `inputs.discount_type` is present:  
      - Call **getProcessedDiscount**(discount_type, payment_method, payment_type, session, foriegner).  
-     - Same validation and accumulation as auto discount; on failure return **discountError**.
+     - Same validation and accumulation as auto discount; on failure return **DISCOUNT_ERROR**.
 
 6. **Discount consistency**  
-   - If `inputs.discount !== total_calculated_discount`, return **discountError**: `"Error on front-end Discounts while Processing."`
+   - If `inputs.discount !== total_calculated_discount`, return **DISCOUNT_ERROR**: `"Error on front-end Discounts while Processing."`
 
 7. **Fee types for refund**  
    - Call **getRefundFeeTypes**(session.fees, foriegner) and keep `{ professional_fee, hospital_fee }` for the booking record.
 
 8. **Agency checks** (only if `inputs.agency` is present)  
    - Call **verifyAgencyReference**(agency_ref.toUpperCase(), agency.id).  
-     - If it returns `true` (reference invalid/duplicate), return **agencyRefError**: `"Agency Reference Error."`  
+     - If it returns `true` (reference invalid/duplicate), return **AGENCY_REF_ERROR**: `"Agency Reference Error."`  
    - Load agency by `inputs.agency.id`.  
    - Call **getAgentBalance**(agency.id) (no `to_date` = use current agency balance).  
-   - If `(agency.allowed_credit_limit ?? 0) + credit_balance < inputs.amount`, return **agencyCreditExceed**: `"Exceed Agency Credit Limit."`
+   - If `(agency.allowed_credit_limit ?? 0) + credit_balance < inputs.amount`, return **AGENCY_CREDIT_EXCEED**: `"Exceed Agency Credit Limit."`
 
 9. **Create booking**  
    - Build `discount_division`: `{ hospital_fee_discount, professionsal_fee_discount, other_discount }` from steps 4–5.  
    - Insert booking with fields as in § 4 (Booking create payload).  
-   - Handle **LIMIT_EXCEED** (e.g. appointment limit): return **limitexceeded**: `"Appointment Limit Exceed."`  
+   - Handle **LIMIT_EXCEEDED** (e.g. appointment limit): return **LIMIT_EXCEEDED**: `"Appointment Limit Exceed."`  
    - If your DB uses sequences/counters for `bookingid`, `bookingid_string`, `appointment_no`, implement equivalent logic (see § 8).
 
 10. **Receipt (POS or Agent only)**  
@@ -177,7 +177,7 @@ Fields to set when creating the booking (map from inputs + computed values):
   - Load previous session where `doctor_session_id === session.previous_doctor_session` and `date === session.date`; need `appointment_no`, `max_patient_number`.  
   - If `previous_session.appointment_no < previous_session.max_patient_number` return `false` (not full).  
   - Else return `true` (full).  
-- **Used in:** Step 3; throw **previousessionfill** when this returns `false`.
+- **Used in:** Step 3; throw **PREVIOUS_SESSION_FILL** when this returns `false`.
 
 ---
 
@@ -195,7 +195,7 @@ Fields to set when creating the booking (map from inputs + computed values):
   - **Return:**  
     `{ status, message, discount_value, other_discount, professionsal_fee_discount, hospital_fee_discount }`  
     (discount_value is the main amount; divide into hospital/professional/other as applicable).  
-- **Used in:** Steps 4 and 5; throw **discountError** when status is false.
+- **Used in:** Steps 4 and 5; throw **DISCOUNT_ERROR** when status is false.
 
 ---
 
@@ -215,7 +215,7 @@ Fields to set when creating the booking (map from inputs + computed values):
   - If a booking exists with `agency_ref === ref` and `status` in [0, 1], and `ref.length > 4` → **invalid** (true).  
   - Else: `refbook = ref.substring(0, ref.length - 2)`, `leaf = ref.slice(-2)`. If `leaf` is numeric and > 0, look up Agencybook with `book_number === refbook`, `status === 1`, `agency === agency_id`. If found → valid (false); else invalid (true). If leaf not numeric or 0 → invalid (true).  
 - **Return:** boolean — **true means error** (reference invalid or duplicate).  
-- **Used in:** Step 8; throw **agencyRefError** when true.
+- **Used in:** Step 8; throw **AGENCY_REF_ERROR** when true.
 
 ---
 
@@ -282,11 +282,11 @@ Map these to appropriate HTTP status and body in Next.js:
 | Exit | HTTP suggestion | Response body / message |
 |------|------------------|--------------------------|
 | forbidden | 403 | Permission denied |
-| discountError | 4xx/422 | `{ discountError: message }` |
-| limitexceeded | 4xx/422 | `{ limitexceeded: "Appointment Limit Exceed." }` |
-| agencyCreditExceed | 4xx/422 | `{ agencyCreditExceed: "Exceed Agency Credit Limit." }` |
-| agencyRefError | 4xx/422 | `{ agencyRefError: "Agency Reference Error." }` |
-| previousessionfill | 4xx/422 | `{ previousessionfill: "Previous Consecutive Sessions is not Full." }` |
+| DISCOUNT_ERROR | 4xx/422 | `{ DISCOUNT_ERROR: message }` |
+| LIMIT_EXCEEDED | 4xx/422 | `{ LIMIT_EXCEEDED: "Appointment Limit Exceed." }` |
+| AGENCY_CREDIT_EXCEED | 4xx/422 | `{ AGENCY_CREDIT_EXCEED: "Exceed Agency Credit Limit." }` |
+| AGENCY_REF_ERROR | 4xx/422 | `{ AGENCY_REF_ERROR: "Agency Reference Error." }` |
+| PREVIOUS_SESSION_FILL | 4xx/422 | `{ PREVIOUS_SESSION_FILL: "Previous Consecutive Sessions is not Full." }` |
 | serverError (past booking) | 500 | - |
 
 Use a consistent error response shape (e.g. `{ errorCode, message }`) if you prefer.

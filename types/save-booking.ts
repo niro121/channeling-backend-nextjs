@@ -40,24 +40,27 @@ export function getPaymentMethodAndType(uiPaymentId: number): {
   return map[uiPaymentId] ?? { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CASH }
 }
 
-/** Error codes returned by save-booking action (spec §7). */
+/** Error codes returned by save-booking action (spec §7). All SCREAMING_SNAKE_CASE. */
 export type SaveBookingErrorCode =
-  | "forbidden"
-  | "invalid_input"
-  | "invalid_session"
-  | "server_error"
-  | "previousessionfill"
-  | "discountError"
-  | "amountError"
-  | "limitexceeded"
-  | "agencyCreditExceed"
-  | "agencyRefError"
-  | "agencyNoLinkedAccount"
+  | "FORBIDDEN"
+  | "INVALID_INPUT"
+  | "INVALID_SESSION"
+  | "SERVER_ERROR"
+  | "PREVIOUS_SESSION_FILL"
+  | "DISCOUNT_ERROR"
+  | "AMOUNT_ERROR"
+  | "LIMIT_EXCEEDED"
+  /** Soft limit: Agency.allowedCreditLimit + current balance < booking amount (agent only). */
+  | "AGENCY_CREDIT_EXCEED"
+  | "AGENCY_REF_ERROR"
+  | "AGENCY_NO_LINKED_ACCOUNT"
   | "CASH_BOOK_NOT_FOUND"
   | "CASHIER_ACCOUNT_ERROR"
   | "AGENT_ACCOUNT_NOT_FOUND"
   | "CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND"
   | "DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND"
+  /** Hard limit: Account.minBalanceAllowed would be violated when posting the journal (agent or credit customer). */
+  | "INSUFFICIENT_BALANCE"
 
 export type SaveBookingAreaRef = { id: string; name: string }
 export type SaveBookingSessionRef = { id: string }
