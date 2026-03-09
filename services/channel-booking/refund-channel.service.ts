@@ -130,6 +130,7 @@ export async function refundChannelService(
             createdBy: userId,
             agencyId: booking.agencyId ?? null,
             creditCustomerId: bookingCreditCustomerId,
+            doctorId: booking.doctorId ?? null,
             needTill,
           },
           { needTill, isAgent, isCreditCustomer }
@@ -148,6 +149,7 @@ export async function refundChannelService(
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
+          doctorId: booking.doctorId ?? null,
           needTill,
         })
         if (isResolveReceiptJournalAccountsError(resolveResult)) {
@@ -174,6 +176,30 @@ export async function refundChannelService(
           }
         }
       }
+      const refundAmountCentsForJournal = Math.round(Math.abs(refundAmount) * 100)
+      const hospitalFeeAfterDiscount = Math.max(
+        0,
+        (booking.hospitalFee ?? 0) - (booking.hospitalFeeDiscount ?? 0)
+      )
+      const professionalFeeAfterDiscount = Math.max(
+        0,
+        (booking.professionalFee ?? 0) - (booking.professionsalFeeDiscount ?? 0)
+      )
+      const channelPaymentFeeSplitCancel =
+        accounts?.doctorAccountId && refundAmountCentsForJournal > 0
+          ? {
+              hospitalFeeCents: Math.min(
+                Math.round(hospitalFeeAfterDiscount * 100),
+                refundAmountCentsForJournal
+              ),
+              professionalFeeCents: 0 as number,
+            }
+          : undefined
+      if (channelPaymentFeeSplitCancel) {
+        channelPaymentFeeSplitCancel.professionalFeeCents =
+          refundAmountCentsForJournal - channelPaymentFeeSplitCancel.hospitalFeeCents
+      }
+
       const journalNumberResult = accounts
         ? await getNextSequenceNumber("journal", { startFrom: 1 })
         : null
@@ -207,7 +233,11 @@ export async function refundChannelService(
         })
         if (!r.success) return r
         if (accounts && journalNumber > 0) {
-          const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
+          const journalInput = buildReceiptJournalEntryInput(
+            r.receipt,
+            accounts,
+            channelPaymentFeeSplitCancel ?? undefined
+          )
           if ((isAgent || isCreditCustomer) && !journalInput) {
             throw new Error(
               isCreditCustomer
@@ -262,6 +292,7 @@ export async function refundChannelService(
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
+          doctorId: booking.doctorId ?? null,
           needTill,
         },
         { needTill, isAgent, isCreditCustomer }
@@ -280,6 +311,7 @@ export async function refundChannelService(
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         creditCustomerId: bookingCreditCustomerId,
+        doctorId: booking.doctorId ?? null,
         needTill,
       })
       if (isResolveReceiptJournalAccountsError(resolveResult)) {
@@ -291,9 +323,24 @@ export async function refundChannelService(
       }
       accounts = resolveResult
     }
+    const totalRefundCents = Math.round(totalRefund * 100)
+    const channelPaymentFeeSplitPartial =
+      accounts?.doctorAccountId && totalRefundCents > 0
+        ? {
+            hospitalFeeCents: Math.min(
+              Math.round(input.hospital_fee * 100),
+              totalRefundCents
+            ),
+            professionalFeeCents: 0 as number,
+          }
+        : undefined
+    if (channelPaymentFeeSplitPartial) {
+      channelPaymentFeeSplitPartial.professionalFeeCents =
+        totalRefundCents - channelPaymentFeeSplitPartial.hospitalFeeCents
+    }
     // Refund that pays out from till: till must have sufficient balance
     if (needTill && accounts?.cashierAccountId) {
-      const refundAmountCents = Math.round(totalRefund * 100)
+      const refundAmountCents = totalRefundCents
       const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
       if (tillBalanceCents < refundAmountCents) {
         return {
@@ -334,23 +381,27 @@ export async function refundChannelService(
           refundAmount: receipt.amount,
         }),
       })
-      if (!r.success) return r
-      if (accounts && journalNumber > 0) {
-        const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts)
-        if ((isAgent || isCreditCustomer) && !journalInput) {
-          throw new Error(
-            isCreditCustomer
-              ? "Credit customer account or journal setup failed. Cannot complete refund."
-              : "Agent account or journal setup failed. Cannot complete refund."
+        if (!r.success) return r
+        if (accounts && journalNumber > 0) {
+          const journalInput = buildReceiptJournalEntryInput(
+            r.receipt,
+            accounts,
+            channelPaymentFeeSplitPartial ?? undefined
           )
+          if ((isAgent || isCreditCustomer) && !journalInput) {
+            throw new Error(
+              isCreditCustomer
+                ? "Credit customer account or journal setup failed. Cannot complete refund."
+                : "Agent account or journal setup failed. Cannot complete refund."
+            )
+          }
+          if (journalInput) {
+            const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
+            if (!jResult.success) throw new Error(jResult.error)
+          }
         }
-        if (journalInput) {
-          const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
-          if (!jResult.success) throw new Error(jResult.error)
-        }
-      }
-      return r
-    })
+        return r
+      })
     if (!result.success) {
       return { success: false, errorCode: result.errorCode, message: result.message }
     }

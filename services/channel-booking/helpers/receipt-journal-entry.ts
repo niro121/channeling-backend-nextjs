@@ -47,6 +47,7 @@ export function isResolveReceiptJournalAccountsError(
  * Build journal entry input for a receipt, or null if no ledger entry is needed
  * (e.g. card/slip only with no cash or agent).
  * For channel PAYMENT (method 1), pass channelPaymentFeeSplit and doctorAccountId so branch is credited only hospital fee and doctor payable is credited professional fee.
+ * For channel REFUND (method 0), pass channelPaymentFeeSplit and doctorAccountId so branch is debited hospital fee and doctor payable is debited professional fee (reversing the payment).
  */
 export function buildReceiptJournalEntryInput(
   receipt: CreatedReceipt,
@@ -59,7 +60,7 @@ export function buildReceiptJournalEntryInput(
   const useFeeSplit =
     channelPaymentFeeSplit &&
     accounts.doctorAccountId &&
-    receipt.method === RECEIPT_METHOD.PAYMENT &&
+    (receipt.method === RECEIPT_METHOD.PAYMENT || receipt.method === RECEIPT_METHOD.REFUND) &&
     channelPaymentFeeSplit.hospitalFeeCents >= 0 &&
     channelPaymentFeeSplit.professionalFeeCents >= 0 &&
     channelPaymentFeeSplit.hospitalFeeCents + channelPaymentFeeSplit.professionalFeeCents === amountCents;
@@ -101,6 +102,13 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    // Refund (cash): reverse payment — Dr Branch (hospital), Dr Doctor Payable (professional), Cr Cashier
+    const refundDebitLines = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (cash)${descSuffix}`,
@@ -109,7 +117,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLines,
         { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
       ],
     };
@@ -138,6 +146,12 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    const refundDebitLinesCard = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (card)${descSuffix}`,
@@ -146,7 +160,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLinesCard,
         { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT_CARD },
       ],
     };
@@ -175,6 +189,12 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    const refundDebitLinesSlip = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (slip)${descSuffix}`,
@@ -183,7 +203,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLinesSlip,
         { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.SLIP },
       ],
     };
@@ -212,6 +232,12 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    const refundDebitLinesCheck = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (check)${descSuffix}`,
@@ -220,7 +246,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLinesCheck,
         { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.CHECK },
       ],
     };
@@ -250,6 +276,12 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    const refundDebitLinesCreditCustomer = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (credit customer)${descSuffix}`,
@@ -258,8 +290,8 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.creditCustomerAccountId!, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        ...refundDebitLinesCreditCustomer,
+        { accountId: accounts.creditCustomerAccountId!, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
@@ -318,6 +350,12 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
+    const refundDebitLinesEWallet = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (e-wallet)${descSuffix}`,
@@ -326,7 +364,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLinesEWallet,
         { accountId: accounts.cashierAccountId, debitAmount: 0, creditAmount: amountCents, paymentMethod: RECEIPT_PAYMENT_METHOD.E_WALLET },
       ],
     };
@@ -354,7 +392,13 @@ export function buildReceiptJournalEntryInput(
         ],
       };
     }
-    // Refund: decrease receivable (reverse the booking)
+    // Refund: Dr Branch (hospital), Dr Doctor Payable (professional), Cr Agent
+    const refundDebitLinesAgent = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (agent)${descSuffix}`,
@@ -363,7 +407,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        ...refundDebitLinesAgent,
         { accountId: accounts.agentAccountId!, debitAmount: 0, creditAmount: amountCents },
       ],
     };
