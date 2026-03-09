@@ -11,7 +11,6 @@ const smsActivitySchema = z.object({
 })
 
 export type SmsActivityActionInput = z.infer<typeof smsActivitySchema>
-export type { SmsActivityResult } from "@/services/reports/sms-activity.service"
 
 export async function getSmsActivityAction(
   raw: unknown
