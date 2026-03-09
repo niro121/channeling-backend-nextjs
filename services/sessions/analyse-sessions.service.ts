@@ -259,7 +259,7 @@ export async function analyseSessionsService(
           });
 
           if (inputs.userId) {
-            await logActivity({
+            logActivityNonBlocking({
               userId: inputs.userId,
               action: 'session.created.bulk',
               entityType: 'Session',
@@ -312,7 +312,7 @@ export async function analyseSessionsService(
 
             if (session) {
               if (inputs.userId) {
-                await logActivity({
+                logActivityNonBlocking({
                   userId: inputs.userId,
                   action: 'session.updated',
                   entityType: 'Session',

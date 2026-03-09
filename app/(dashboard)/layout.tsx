@@ -176,7 +176,7 @@ async function MobileNav({
                 <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
                 <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
                 {e2eRunEnabled && (
-                  <NavLink href="/admin/run-e2e" label="Run E2E tests" icon={<Play className="h-5 w-5" />} />
+                  <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />
                 )}
                 <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
               </div>

@@ -1089,3 +1089,27 @@ model ReceiptTemplate {
 
   @@index([type, variant, status])
 }
+
+/// E2E test scenarios: container for ordered steps (each step = one test, e.g. booking).
+model E2EScenario {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  paymentMethods  String?  // Legacy: JSON array; use steps instead for new scenarios
+  bookingExtras   String?  // Legacy: JSON object; use steps instead
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  steps           E2EScenarioStep[]
+}
+
+/// One step in a scenario (e.g. "booking" test). Steps run sequentially.
+model E2EScenarioStep {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  scenarioId  String       @db.ObjectId
+  order       Int          // 0-based; run in this order
+  type        String       // "booking" | future types
+  config      String       // JSON: for booking { paymentMethods, bookingExtras }
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  scenario    E2EScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  @@index([scenarioId])
+}

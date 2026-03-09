@@ -5,8 +5,10 @@ import { userTypes } from "@/lib/roles";
 import { spawn } from "child_process";
 
 const E2E_RUN_ENABLED = process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
+const E2E_USER_EMAIL = "developer@archmage.lk";
+const E2E_USER_PASSWORD = "Arch321#";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     if (!E2E_RUN_ENABLED) {
       return NextResponse.json(
@@ -24,18 +26,49 @@ export async function POST() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    let patientName: string | undefined;
+    let patientPhone: string | undefined;
+    let paymentMethods: string[] | undefined;
+    let bookingExtras: Record<string, string> | undefined;
+    try {
+      const body = await request.json().catch(() => ({}));
+      if (body && typeof body === "object") {
+        patientName = typeof body.patientName === "string" ? body.patientName.trim() || undefined : undefined;
+        patientPhone = typeof body.patientPhone === "string" ? body.patientPhone.trim() || undefined : undefined;
+        if (Array.isArray(body.paymentMethods) && body.paymentMethods.length > 0) {
+          paymentMethods = body.paymentMethods.filter((m: unknown) => typeof m === "string" && m.trim()).map((m: string) => m.trim());
+        }
+        if (body.bookingExtras && typeof body.bookingExtras === "object" && !Array.isArray(body.bookingExtras)) {
+          const extras: Record<string, string> = {};
+          for (const [k, v] of Object.entries(body.bookingExtras)) {
+            if (typeof v === "string" && v.trim()) extras[k] = v.trim();
+          }
+          if (Object.keys(extras).length > 0) bookingExtras = extras;
+        }
+      }
+    } catch {
+      // no body or invalid JSON
+    }
+
     const projectRoot = process.cwd();
     const stdoutChunks: string[] = [];
     const stderrChunks: string[] = [];
 
-    const child = spawn("npx", ["playwright", "test", "--reporter=line"], {
+    const runEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      CI: "1",
+      E2E_USER_EMAIL,
+      E2E_USER_PASSWORD,
+      ...(patientName !== undefined && { E2E_PATIENT_NAME: patientName }),
+      ...(patientPhone !== undefined && { E2E_PATIENT_PHONE: patientPhone }),
+      ...(paymentMethods && paymentMethods.length > 0 && { E2E_PAYMENT_METHODS: paymentMethods.join(",") }),
+      ...(bookingExtras && Object.keys(bookingExtras).length > 0 && { E2E_BOOKING_EXTRAS: JSON.stringify(bookingExtras) }),
+    };
+
+    const args = ["playwright", "test", "cash-booking-recorded", "--reporter=line"];
+    const child = spawn("npx", args, {
       cwd: projectRoot,
-      env: {
-        ...process.env,
-        CI: "1",
-        ...(process.env.E2E_USER_EMAIL && { E2E_USER_EMAIL: process.env.E2E_USER_EMAIL }),
-        ...(process.env.E2E_USER_PASSWORD && { E2E_USER_PASSWORD: process.env.E2E_USER_PASSWORD }),
-      },
+      env: runEnv,
       shell: true,
     });
 
