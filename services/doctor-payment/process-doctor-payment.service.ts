@@ -129,12 +129,12 @@ export async function processDoctorPaymentService(
 
   const receiptParams: CreateReceiptWithoutBookingParams = {
     paymentMethod,
-    amount: Math.round(amount),
+    amount: -1 * Math.round(amount), // Outflow: store as negative (same convention as refund)
     bank: "",
     cardReference: "",
     slipReference: slip_ref,
     remarks,
-    type: 1, // DEBIT
+    type: 0, // CREDIT (outflow)
     method: RECEIPT_METHOD.DOCTOR_PAYMENT,
     createdBy: userId ?? undefined,
     locationId,
