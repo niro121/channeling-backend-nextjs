@@ -461,7 +461,8 @@ export async function saveBookingService(
           : null
         const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(
+          async (tx) => {
           const r = await createReceiptAndUpdateBooking(tx, {
             bookingId: booking.id,
             locationId: booking.locationId ?? null,
@@ -524,7 +525,9 @@ export async function saveBookingService(
             }
           }
           return receipt
-        })
+        },
+          { timeout: 15000 }
+        )
         if (needTill && userId) {
           const io = getIO()
           if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
