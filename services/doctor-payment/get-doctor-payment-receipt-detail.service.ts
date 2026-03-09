@@ -69,7 +69,12 @@ export async function getDoctorPaymentReceiptDetail(
         : "—";
     const professionalFee = b.professionalFee ?? 0;
     const discount = b.professionsalFeeDiscount ?? 0;
-    const refunds = b.refundAmount ?? 0;
+    const refunds = getProfessionalRefundAmount(
+      b.refund ?? 0,
+      b.refundAmount ?? 0,
+      professionalFee,
+      discount
+    );
     const amountRs = Math.max(0, professionalFee - discount + refunds);
     const patientName = [b.title, b.name].filter(Boolean).join(" ").trim() || "—";
     lineItems.push({
@@ -119,6 +124,18 @@ export async function getDoctorPaymentReceiptDetail(
   };
 
   return { success: true, data };
+}
+
+/** Refund: 0 none, 1 prof only, 2 hosp only, 3 full. For doctor payment we only count refund when professional was refunded. */
+function getProfessionalRefundAmount(
+  refund: number,
+  refundAmount: number,
+  professionalFee: number,
+  professionalDiscount: number
+): number {
+  if (refund === 1) return refundAmount;
+  if (refund === 3) return Math.max(0, professionalFee - professionalDiscount);
+  return 0;
 }
 
 function formatTime(t: Date | number): string {

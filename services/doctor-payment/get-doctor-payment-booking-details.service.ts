@@ -23,6 +23,18 @@ function formatAppointmentDate(d: Date): string {
   return x.toISOString().slice(0, 10);
 }
 
+/** Refund: 0 none, 1 prof only, 2 hosp only, 3 full. For doctor payment we only use refund amount when professional was refunded. */
+function getProfessionalRefundAmount(
+  refund: number,
+  refundAmount: number,
+  professionalFee: number,
+  professionalDiscount: number
+): number {
+  if (refund === 1) return refundAmount; // professional only
+  if (refund === 3) return Math.max(0, professionalFee - professionalDiscount); // full refund: professional portion
+  return 0; // 0 none, 2 hosp only
+}
+
 /**
  * Get table rows for selected booking IDs: Bill Id, App No., Patient, Appointment Date, Professional Fee, Discount, Refunds, Payment (Rs.).
  */
@@ -46,7 +58,8 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       : new Date();
     const professionalFee = b.professionalFee ?? 0;
     const discount = b.professionsalFeeDiscount ?? 0;
-    const refunds = b.refundAmount ?? 0;
+    // For doctor payment, only count refund when professional fee was refunded (refund 1 = prof only, 3 = full)
+    const refunds = getProfessionalRefundAmount(b.refund ?? 0, b.refundAmount ?? 0, professionalFee, discount);
     const paymentRs = Math.max(0, professionalFee - discount + refunds);
     totalDue += paymentRs;
     const patient = [b.title, b.name].filter(Boolean).join(" ").trim() || "—";
@@ -58,7 +71,7 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       appointmentDate: formatAppointmentDate(sessionDate),
       professionalFee,
       discount,
-      refunds: b.refundAmount ?? 0,
+      refunds,
       paymentRs,
     });
   }
