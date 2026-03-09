@@ -6,9 +6,7 @@ export type Agency = {
   code?: string | null;
   chequePrintingName: string;
   parentAgencyId?: string | null;
-  creditLimit: number;
   allowedCreditLimit: number;
-  maxCreditLimit: number;
   balance: number;
   phone?: string | null;
   mobile?: string | null;
@@ -46,9 +44,7 @@ export type AgencyFormValues = {
   code?: string;
   chequePrintingName: string;
   parentAgencyId?: string;
-  creditLimit: number;
   allowedCreditLimit: number;
-  maxCreditLimit: number;
   phone?: string;
   mobile?: string;
   fax?: string;
@@ -77,9 +73,7 @@ export type UpdateAgencyPayload = Partial<{
   code?: string;
   chequePrintingName: string;
   parentAgencyId?: string;
-  creditLimit: number;
   allowedCreditLimit: number;
-  maxCreditLimit: number;
   phone?: string;
   mobile?: string;
   fax?: string;

@@ -47,6 +47,7 @@ import {
 import Link from 'next/link';
 import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye, Wallet, FileText } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatCents, formatLKR } from '@/lib/format-money';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
 
 type BulkCashierContentProps = { bulkCashierId: string };
@@ -157,7 +158,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </span>
             ) : (
-              `${(floatSummary.balanceCents / 100).toFixed(2)} LKR`
+              `${formatCents(floatSummary.balanceCents)} LKR`
             )}
           </span>
         </div>
@@ -218,7 +219,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                     <TableCell className="text-right tabular-nums font-medium">
                       <span className="flex items-center justify-end gap-1">
                         <Banknote className="h-4 w-4 text-muted-foreground" />
-                        {(s.floatBalanceCents / 100).toFixed(2)}
+                        {formatCents(s.floatBalanceCents)}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -334,7 +335,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                             <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
                           )}
                         </TableCell>
-                        <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
+                        <TableCell className="tabular-nums">{formatCents(fr.amountRequested)}</TableCell>
                         <TableCell>
                           {fr.denominationsRequested
                             .filter((d) => d.count > 0)
@@ -448,7 +449,7 @@ export function FloatRequestSummaryDialog({
         </DialogHeader>
         <div className="space-y-3 text-sm">
           <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
-          <p><strong>Amount:</strong> {(request.amountRequested / 100).toFixed(2)} LKR</p>
+          <p><strong>Amount:</strong> {formatCents(request.amountRequested)} LKR</p>
           <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
           <p><strong>Bulk cashier:</strong> {request.bulkCashier?.name ?? '—'}</p>
           <p><strong>Requested at:</strong> {new Date(request.createdAt).toLocaleString()}</p>
@@ -513,7 +514,7 @@ export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrin
             </div>
           </div>
           <div className="text-sm space-y-1">
-            <p><strong>Amount:</strong> {data.amountLKR.toFixed(2)} LKR</p>
+            <p><strong>Amount:</strong> {formatLKR(data.amountLKR)} LKR</p>
             <p><strong>Requested by:</strong> {data.requestedByName}</p>
             <p><strong>Approved by:</strong> {data.bulkCashierName}</p>
             <p><strong>Date:</strong> {new Date(data.approvedAt).toLocaleString()}</p>
@@ -642,10 +643,10 @@ export function ApproveModal({
           {balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
               <span className="text-muted-foreground">Your float balance: </span>
-              <span className="font-medium tabular-nums">{(balanceCents / 100).toFixed(2)} LKR</span>
+              <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
               {insufficientBalance && (
                 <p className="mt-1.5 text-destructive font-medium">
-                  Insufficient balance. You have {(balanceCents / 100).toFixed(2)} LKR, required {(totalCents / 100).toFixed(2)} LKR.
+                  Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.
                 </p>
               )}
             </div>
@@ -668,7 +669,7 @@ export function ApproveModal({
                 <span className="text-muted-foreground">—</span>
               )}
               <span className="tabular-nums font-medium">
-                = {(request.amountRequested / 100).toFixed(2)} LKR
+                = {formatCents(request.amountRequested)} LKR
               </span>
               <Button type="button" variant="outline" size="sm" className="ml-auto h-8 gap-1" onClick={matchRequest}>
                 <Copy className="h-3.5 w-3.5" />
@@ -679,7 +680,7 @@ export function ApproveModal({
           <div className="space-y-4">
             <div className="flex flex-col items-center">
               <Label className="text-sm font-medium self-start">
-                Approved denominations (LKR) – total must be ≤ {(maxCents / 100).toFixed(2)} (requested), you can give less
+                Approved denominations (LKR) – total must be ≤ {formatCents(maxCents)} (requested), you can give less
               </Label>
               <div className="grid grid-cols-2 gap-x-20 gap-y-4 mt-3 w-full max-w-md">
                 {LKR_DENOMINATIONS_RUPEES.map((v) => {
@@ -763,10 +764,10 @@ export function ApproveModal({
             </div>
             <div className="border-t pt-3 mt-1 w-full">
               <p className="text-center text-lg font-semibold tabular-nums">
-                Total: {totalLKR.toFixed(2)} LKR
+                Total: {formatLKR(totalLKR)} LKR
               </p>
               {totalCents > maxCents && (
-                <p className="text-sm text-destructive text-center mt-1">Cannot give more than requested (max {(maxCents / 100).toFixed(2)} LKR)</p>
+                <p className="text-sm text-destructive text-center mt-1">Cannot give more than requested (max {formatCents(maxCents)} LKR)</p>
               )}
               {totalCents > 0 && totalCents <= maxCents && !isGivingLess && (
                 <p className="text-sm text-muted-foreground text-center mt-0.5">Within limit</p>
@@ -796,7 +797,7 @@ export function ApproveModal({
           <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!valid || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Approve — {totalLKR.toFixed(2)} LKR
+            Approve — {formatLKR(totalLKR)} LKR
           </Button>
         </DialogFooter>
       </DialogContent>

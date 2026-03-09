@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
+import { formatLKR } from '@/lib/format-money';
 import { DoctorSessionRecordActions } from './record-actions';
 import Link from 'next/link';
 
@@ -17,7 +18,7 @@ function formatSessionFee(value: number | string | null | undefined): string {
   if (value == null || value === '') return '-';
   const n = Number(value);
   if (Number.isNaN(n)) return '-';
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatLKR(n);
 }
 
 export const DoctorSessionColumns: ColumnDef<DoctorSession>[] = [

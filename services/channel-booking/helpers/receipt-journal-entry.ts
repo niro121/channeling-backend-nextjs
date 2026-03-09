@@ -4,8 +4,8 @@
  *
  * - Cash payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.CASH): increase cashier float — Dr Cashier CASH, Cr Branch Cash Book.
  * - Cash refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.CASH): decrease cashier float — Cr Cashier CASH, Dr Branch Cash Book.
- * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): deduct agent balance — Dr Branch Cash Book, Cr Agent RECEIVABLE.
- * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse agent balance — Dr Agent RECEIVABLE, Cr Branch Cash Book.
+ * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): increase receivable (agency owes us) — Dr Agent RECEIVABLE, Cr Branch Cash Book.
+ * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse — Cr Agent RECEIVABLE, Dr Branch Cash Book.
  *
  * Receipt.amount is in rupees; journal lines use cents.
  */
@@ -24,18 +24,47 @@ export type ReceiptJournalAccounts = {
   agentAccountId?: string | null;
   /** Credit Customer RECEIVABLE account (required for credit customer receipt/refund). */
   creditCustomerAccountId?: string | null;
+  /** Doctor PAYABLE account (required for doctor payment method 4). */
+  doctorAccountId?: string | null;
 };
+
+/** When provided for channel PAYMENT (save/settle booking), journal credits branch with hospital fee and doctor payable with professional fee. */
+export type ChannelPaymentFeeSplit = {
+  hospitalFeeCents: number;
+  professionalFeeCents: number;
+};
+
+/** Returned by resolveReceiptJournalAccounts when doctor PAYABLE resolution fails (so the real error from getOrCreateAccount can be shown). */
+export type ResolveReceiptJournalAccountsError = { error: string; errorCode: string };
+
+export function isResolveReceiptJournalAccountsError(
+  r: ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError
+): r is ResolveReceiptJournalAccountsError {
+  return r != null && typeof r === 'object' && 'error' in r && typeof (r as ResolveReceiptJournalAccountsError).error === 'string';
+}
 
 /**
  * Build journal entry input for a receipt, or null if no ledger entry is needed
  * (e.g. card/slip only with no cash or agent).
+ * For channel PAYMENT (method 1), pass channelPaymentFeeSplit and doctorAccountId so branch is credited only hospital fee and doctor payable is credited professional fee.
  */
 export function buildReceiptJournalEntryInput(
   receipt: CreatedReceipt,
-  accounts: ReceiptJournalAccounts
+  accounts: ReceiptJournalAccounts,
+  channelPaymentFeeSplit?: ChannelPaymentFeeSplit
 ): CreateJournalEntryInput | null {
   const amountCents = Math.round(Math.abs(receipt.amount) * 100);
   if (amountCents <= 0) return null;
+
+  const useFeeSplit =
+    channelPaymentFeeSplit &&
+    accounts.doctorAccountId &&
+    receipt.method === RECEIPT_METHOD.PAYMENT &&
+    channelPaymentFeeSplit.hospitalFeeCents >= 0 &&
+    channelPaymentFeeSplit.professionalFeeCents >= 0 &&
+    channelPaymentFeeSplit.hospitalFeeCents + channelPaymentFeeSplit.professionalFeeCents === amountCents;
+  const hospitalFeeCents = useFeeSplit ? channelPaymentFeeSplit!.hospitalFeeCents : 0;
+  const professionalFeeCents = useFeeSplit ? channelPaymentFeeSplit!.professionalFeeCents : 0;
 
   const descSuffix = receipt.receiptNoString
     ? ` - Receipt ${receipt.receiptNoString}`
@@ -46,9 +75,19 @@ export function buildReceiptJournalEntryInput(
   const hasAgent =
     receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT && Boolean(accounts.agentAccountId);
 
-  // Till: cash — affect cashier till with paymentMethod 0
-  if (isCash && accounts.cashierAccountId) {
+  // Only channel payment/refund use the till-by-payment-method blocks below; ledger methods are handled later
+  const isChannelPaymentOrRefund =
+    receipt.method === RECEIPT_METHOD.PAYMENT || receipt.method === RECEIPT_METHOD.REFUND;
+
+  // Till: cash — affect cashier till with paymentMethod 0 (channel payment/refund only)
+  if (isCash && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (cash)${descSuffix}`,
@@ -58,7 +97,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -76,10 +115,16 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Till: card — channel payment/refund
+  // Till: card — channel payment/refund only
   const isCard = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD;
-  if (isCard && accounts.cashierAccountId) {
+  if (isCard && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (card)${descSuffix}`,
@@ -89,7 +134,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CREDIT_CARD },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -107,10 +152,16 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Till: slip — channel payment/refund
+  // Till: slip — channel payment/refund only
   const isSlip = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP;
-  if (isSlip && accounts.cashierAccountId) {
+  if (isSlip && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (slip)${descSuffix}`,
@@ -120,7 +171,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.SLIP },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -142,6 +193,12 @@ export function buildReceiptJournalEntryInput(
   const isCheck = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK;
   if (isCheck && accounts.cashierAccountId) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (check)${descSuffix}`,
@@ -151,7 +208,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CHECK },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -236,6 +293,12 @@ export function buildReceiptJournalEntryInput(
   const isEWallet = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET;
   if (isEWallet && accounts.cashierAccountId) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (e-wallet)${descSuffix}`,
@@ -245,7 +308,7 @@ export function buildReceiptJournalEntryInput(
         createdBy: receipt.createdBy ?? null,
         lines: [
           { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.E_WALLET },
-          { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+          ...creditLines,
         ],
       };
     }
@@ -263,9 +326,15 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Agent: affect agent receivable
+  // Agent: one RECEIVABLE account — debit = they owe more (booking), credit = they owe less (deposit/refund)
   if (hasAgent) {
     if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents }];
       return {
         date: receipt.createdAt ?? new Date(),
         description: `Channel payment (agent)${descSuffix}`,
@@ -274,12 +343,12 @@ export function buildReceiptJournalEntryInput(
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-          { accountId: accounts.agentAccountId!, debitAmount: 0, creditAmount: amountCents },
+          { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
+          ...creditLines,
         ],
       };
     }
-    // Refund
+    // Refund: decrease receivable (reverse the booking)
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Channel refund (agent)${descSuffix}`,
@@ -288,8 +357,8 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.agentAccountId!, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.agentAccountId!, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
@@ -390,18 +459,63 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Withdraw (7) - agency takes out
-  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId) {
+  // Ledger: Agency Withdraw (7) - agency takes out (reverse of deposit: Dr Agent, Cr Till). Till only; no branch fallback.
+  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId && accounts.cashierAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
-      description: `Agency withdraw${descSuffix}`,
+      description: `Agency withdraw (cash)${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        {
+          accountId: accounts.cashierAccountId,
+          debitAmount: 0,
+          creditAmount: amountCents,
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        },
+      ],
+    };
+  }
+
+  // Doctor Payment (4): Dr Doctor PAYABLE (reduce liability), Cr Branch/Cashier (cash out). Use net amount (gross - WHT) in cents.
+  if (receipt.method === RECEIPT_METHOD.DOCTOR_PAYMENT && accounts.doctorAccountId) {
+    const grossCents = Math.round(Math.abs(receipt.amount) * 100);
+    const whdCents = Math.round((receipt.whd ?? 0) * 100);
+    const netCents = Math.max(0, grossCents - whdCents);
+    if (netCents <= 0) return null;
+    const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
+    if (isCash && accounts.cashierAccountId) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Doctor payment (cash)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
+          {
+            accountId: accounts.cashierAccountId,
+            debitAmount: 0,
+            creditAmount: netCents,
+            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+          },
+        ],
+      };
+    }
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Doctor payment${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: netCents },
       ],
     };
   }
@@ -412,16 +526,19 @@ export function buildReceiptJournalEntryInput(
 
 /**
  * Resolve account IDs needed for receipt journal (call before transaction).
- * Returns null if branch cash book not found (locationId present but no branch cash book, or no main cash book).
+ * Returns null if branch cash book not found.
+ * Returns { error, errorCode } if doctorId was provided but doctor PAYABLE could not be found/created (so callers can show the real error from getOrCreateAccount).
  */
 export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
   createdBy: string | null;
   agencyId: string | null;
   creditCustomerId?: string | null;
+  /** When provided (e.g. channel payment with booking), resolve doctor PAYABLE for fee-split journal: branch = hospital fee, doctor = professional fee. */
+  doctorId?: string | null;
   /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
   needTill: boolean;
-}): Promise<ReceiptJournalAccounts | null> {
+}): Promise<ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError> {
   const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
     '@/services/accounting.service'
   );
@@ -437,7 +554,6 @@ export async function resolveReceiptJournalAccounts(params: {
       type: 'CASH',
       userId: params.createdBy,
       name: `Till - Cashier`,
-      minBalanceAllowed: 0,
     });
     if (res.success) cashierAccountId = res.account.id;
   }
@@ -460,11 +576,27 @@ export async function resolveReceiptJournalAccounts(params: {
     if (res.success) creditCustomerAccountId = res.account.id;
   }
 
+  // Doctor PAYABLE: use the session/booking doctor id so we find the existing seeded account (type=PAYABLE, doctorId, isActive=true).
+  let doctorAccountId: string | null = null;
+  if (params.doctorId) {
+    const res = await getOrCreateAccount({
+      type: 'PAYABLE',
+      doctorId: params.doctorId,
+    });
+    if (res.success) {
+      doctorAccountId = res.account.id;
+    } else {
+      // Surface the real error (e.g. duplicate code, validation) so the user sees it instead of a generic message.
+      return { error: res.error, errorCode: 'DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND' };
+    }
+  }
+
   return {
     branchAccountId: branchAccount.id,
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
     creditCustomerAccountId: creditCustomerAccountId ?? undefined,
+    doctorAccountId: doctorAccountId ?? undefined,
   };
 }
 
@@ -482,12 +614,14 @@ export async function requireReceiptJournalAccounts(
     createdBy: string | null;
     agencyId: string | null;
     creditCustomerId?: string | null;
+    /** For channel payment fee-split journal (branch = hospital fee, doctor = professional fee). */
+    doctorId?: string | null;
     needTill: boolean;
   },
   options: { needTill: boolean; isAgent: boolean; isCreditCustomer?: boolean }
 ): Promise<RequireReceiptJournalAccountsResult> {
-  const accounts = await resolveReceiptJournalAccounts(params);
-  if (!accounts) {
+  const result = await resolveReceiptJournalAccounts(params);
+  if (result === null) {
     return {
       success: false,
       error:
@@ -495,6 +629,10 @@ export async function requireReceiptJournalAccounts(
       errorCode: 'CASH_BOOK_NOT_FOUND',
     };
   }
+  if (isResolveReceiptJournalAccountsError(result)) {
+    return { success: false, error: result.error, errorCode: result.errorCode };
+  }
+  const accounts = result;
   if (options.needTill && !accounts.cashierAccountId) {
     return {
       success: false,
@@ -516,5 +654,61 @@ export async function requireReceiptJournalAccounts(
       errorCode: 'CREDIT_CUSTOMER_ACCOUNT_NOT_FOUND',
     };
   }
+  // Channel payment fee-split: branch = hospital fee, doctor payable = professional fee. Require doctor PAYABLE when doctorId was provided.
+  // (If resolveReceiptJournalAccounts failed for doctor it already returned an error object above, so we only reach here when result was accounts and doctorId was set but doctorAccountId missing from a different code path.)
+  if (params.doctorId && !accounts.doctorAccountId) {
+    return {
+      success: false,
+      error:
+        'Doctor payable account could not be found or created. Please check Accounting setup. Cannot complete booking with correct double entry (hospital fee → branch, professional fee → doctor).',
+      errorCode: 'DOCTOR_PAYABLE_ACCOUNT_NOT_FOUND',
+    };
+  }
   return { success: true, accounts };
+}
+
+/**
+ * Resolve accounts for doctor payment (method 4): branch, optional cashier till, and doctor PAYABLE.
+ * Returns accounts or an error object with a user-friendly message.
+ */
+export async function resolveDoctorPaymentAccounts(params: {
+  doctorId: string;
+  locationId: string | null;
+  createdBy: string | null;
+  paymentMethod: number;
+}): Promise<ReceiptJournalAccounts | { error: string }> {
+  const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
+    '@/services/accounting.service'
+  );
+  const { RECEIPT_PAYMENT_METHOD } = await import('@/types/receipt');
+
+  const branchAccount = params.locationId
+    ? await getCashBookAccountForBranch(params.locationId)
+    : await getMainCashBookAccount();
+  if (!branchAccount) {
+    return { error: 'Branch cash book account not found. Please check Accounting setup.' };
+  }
+
+  let cashierAccountId: string | null = null;
+  if (params.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH && params.createdBy) {
+    const res = await getOrCreateAccount({
+      type: 'CASH',
+      userId: params.createdBy,
+      name: 'Till - Cashier',
+    });
+    if (!res.success) return { error: res.error };
+    cashierAccountId = res.account.id;
+  }
+
+  const doctorRes = await getOrCreateAccount({
+    type: 'PAYABLE',
+    doctorId: params.doctorId,
+  });
+  if (!doctorRes.success) return { error: doctorRes.error };
+
+  return {
+    branchAccountId: branchAccount.id,
+    cashierAccountId: cashierAccountId ?? undefined,
+    doctorAccountId: doctorRes.account.id,
+  };
 }

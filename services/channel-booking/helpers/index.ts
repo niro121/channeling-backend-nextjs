@@ -41,8 +41,11 @@ export {
 } from "./validate-voucher"
 export {
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
   type ReceiptJournalAccounts,
   type RequireReceiptJournalAccountsResult,
+  type ResolveReceiptJournalAccountsError,
+  type ChannelPaymentFeeSplit,
 } from "./receipt-journal-entry"

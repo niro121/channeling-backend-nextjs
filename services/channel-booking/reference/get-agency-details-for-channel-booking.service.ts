@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 
 export type AgencyBookForChannelBooking = {
   id: string
@@ -11,9 +12,9 @@ export type AgencyDetailsForChannelBooking = {
   id: string
   name: string
   code: string | null
-  creditLimit: number
+  /** Soft limit for bookings (user-editable on agency). Hard limit is account minBalanceAllowed. */
   allowedCreditLimit: number
-  maxCreditLimit: number
+  /** Balance from linked RECEIVABLE account (rupees for display); fallback to agency.balance when no account. */
   balance: number
   books: AgencyBookForChannelBooking[]
 }
@@ -32,15 +33,21 @@ export async function getAgencyDetailsForChannelBookingService(
         id: true,
         name: true,
         code: true,
-        creditLimit: true,
         allowedCreditLimit: true,
-        maxCreditLimit: true,
-        balance: true,
+        accounts: {
+          where: { type: "RECEIVABLE", isActive: true },
+          take: 1,
+          select: { id: true },
+        },
       },
     })
     if (!agency) {
       return { success: false, message: "Agency not found." }
     }
+
+    const account = agency.accounts?.[0]
+    const balanceCents = account ? await getAccountBalance(account.id) : 0
+    const balanceRupees = balanceCents / 100
 
     const books = await prisma.agencyBook.findMany({
       where: { agencyId, status: 1 },
@@ -57,10 +64,8 @@ export async function getAgencyDetailsForChannelBookingService(
       id: agency.id,
       name: agency.name,
       code: agency.code ?? null,
-      creditLimit: Number(agency.creditLimit),
       allowedCreditLimit: Number(agency.allowedCreditLimit),
-      maxCreditLimit: Number(agency.maxCreditLimit),
-      balance: Number(agency.balance),
+      balance: balanceRupees,
       books: books.map((b) => ({
         id: b.id,
         bookNumber: b.bookNumber,

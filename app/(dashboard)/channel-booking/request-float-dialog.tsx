@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { createFloatRequestAction, getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import { Loader2, Minus, Plus } from "lucide-react"
+import { formatLKR } from "@/lib/format-money"
 import { lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from "@/types/float-request"
 import type { DenominationEntry } from "@/types/float-request"
 
@@ -220,7 +221,7 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
             </div>
             <div className="border-t pt-3 mt-1 w-full">
               <p className="text-center text-lg font-semibold tabular-nums">
-                Total: {totalLKR.toFixed(2)} LKR
+                Total: {formatLKR(totalLKR)} LKR
               </p>
             </div>
           </div>
@@ -229,7 +230,7 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!valid || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Submit request — {totalLKR.toFixed(2)} LKR
+            Submit request — {formatLKR(totalLKR)} LKR
           </Button>
         </DialogFooter>
       </DialogContent>

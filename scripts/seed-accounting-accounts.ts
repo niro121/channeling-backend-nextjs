@@ -14,12 +14,19 @@
  * so the next created entity gets the correct next code (avoids "code already in use").
  *
  * Run: npx tsx scripts/seed-accounting-accounts.ts
+ * Optional: pass a doctor code to create only that doctor's payable account (e.g. DR0478).
+ *   npx tsx scripts/seed-accounting-accounts.ts DR0478
+ *   Or set env: DOCTOR_CODE=DR0478
  */
 
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+/** Optional doctor code: only create payable account for this doctor. From argv[2] or env DOCTOR_CODE. */
+const doctorCodeFilter =
+  process.argv[2]?.trim() || process.env.DOCTOR_CODE?.trim() || null;
 
 async function main() {
   console.log("Seeding accounting accounts...\n");
@@ -101,7 +108,7 @@ async function main() {
 
   console.log(`Locations: ${locationCreated} created, ${locationSkipped} already had accounts.\n`);
 
-  // --- 3. Agent accounts (one Payable per published agency) ---
+  // --- 3. Agent accounts (one Receivable per published agency; agency is debtor) ---
   const agencies = await prisma.agency.findMany({
     where: { status: 1 },
     select: { id: true, name: true, code: true },
@@ -113,7 +120,7 @@ async function main() {
 
   for (const ag of agencies) {
     const existing = await prisma.account.findFirst({
-      where: { type: "PAYABLE", agencyId: ag.id, isActive: true },
+      where: { type: "RECEIVABLE", agencyId: ag.id, isActive: true },
     });
     if (existing) {
       agencySkipped++;
@@ -125,7 +132,7 @@ async function main() {
       data: {
         name: `Agent - ${ag.name}`,
         code,
-        type: "PAYABLE",
+        type: "RECEIVABLE",
         parentAccountId: null,
         locationId: null,
         doctorId: null,
@@ -141,9 +148,14 @@ async function main() {
 
   console.log(`Agencies: ${agencyCreated} created, ${agencySkipped} already had accounts.\n`);
 
-  // --- 4. Doctor accounts (one Payable per published doctor) ---
+  // --- 4. Doctor accounts (one Payable per published doctor, or only the doctor matching DOCTOR_CODE) ---
+  const doctorWhere: { status: number; code?: string } = { status: 1 };
+  if (doctorCodeFilter) {
+    doctorWhere.code = doctorCodeFilter;
+    console.log(`Doctor filter: only code "${doctorCodeFilter}"\n`);
+  }
   const doctors = await prisma.doctor.findMany({
-    where: { status: 1 },
+    where: doctorWhere,
     select: { id: true, name: true, code: true },
     orderBy: { name: "asc" },
   });
@@ -161,7 +173,7 @@ async function main() {
     }
     await prisma.account.create({
       data: {
-        name: `Doctor Payable - ${doc.name}`,
+        name: doc.name,
         code: `DOC-${doc.code}`,
         type: "PAYABLE",
         parentAccountId: null,

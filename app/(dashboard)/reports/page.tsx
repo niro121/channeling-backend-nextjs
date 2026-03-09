@@ -1,22 +1,12 @@
-import React from 'react';
-import Link from 'next/link';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent
-} from '@/components/ui/card';
+import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { CustomDataTable } from '@/components/common/custom-data-table';
+import { reportColumns, type ReportListItem } from './columns';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import Loading from '../loading';
 
-const reportsData = [
+const reportsData: ReportListItem[] = [
   {
     id: '1',
     masterData: 'All Doctors List',
@@ -52,47 +42,37 @@ const reportsData = [
     masterData: 'SMS Activity',
     description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
     route: '/reports/sms-activity'
+  },
+  {
+    id: '7',
+    masterData: 'User Activity',
+    description: 'Audit log of user actions by user and date range (display capped at 10,000; export as PDF/CSV)',
+    route: '/reports/user-activity'
   }
 ];
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'reports.visited',
+      entityType: 'Reports',
+      importance: 'low',
+    });
+  }
   return (
-    <div className="container mx-auto py-6">
-      <div className="w-full">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">Reports</CardTitle>
-            <CardDescription>
-              Access various master data reports and analytics
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[300px]">Master Data</TableHead>
-                  <TableHead>Description</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportsData.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell>
-                      <Link
-                        href={report.route}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >
-                        {report.masterData}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{report.description}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="overflow-hidden">
+      <Suspense fallback={<Loading />}>
+        <CustomDataTable<ReportListItem, unknown>
+          heading="Reports"
+          subHeading="Access various reports and analytics."
+          columns={reportColumns}
+          data={reportsData}
+          rowCount={reportsData.length}
+          haveBulkDelete={false}
+        />
+      </Suspense>
     </div>
   );
 }

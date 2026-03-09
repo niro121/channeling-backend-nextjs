@@ -110,10 +110,45 @@ export type ExportAgentDetailData = {
   contactPerson: string;
   contactPhone: string;
   contactPersonEmail: string;
-  standardCreditLimit: string;
   allowedCreditLimit: string;
-  allowedMaximinCreditLimit: string;
   balance: string;
+};
+
+// User Activity Report Types
+export type UserActivityReportQuery = {
+  userId?: string; // __all__ or specific id
+  action?: string; // __all__ or specific action string
+  dateFrom: string;
+  dateTo: string;
+};
+
+export type UserActivityReportResponse = {
+  success: boolean;
+  data: Array<{
+    id: string;
+    userId: string;
+    userName: string | null;
+    action: string;
+    entityType: string;
+    entityId: string | null;
+    metadata: Record<string, unknown> | null;
+    ipAddress: string | null;
+    importance: string | null;
+    createdAt: Date;
+  }>;
+  totalReturned: number;
+  hasMore: boolean;
+  message?: string;
+};
+
+export type ExportUserActivityData = {
+  createdAt: string;
+  userName: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  ipAddress: string;
+  importance: string;
 };
 
 // Nurse View Report Types

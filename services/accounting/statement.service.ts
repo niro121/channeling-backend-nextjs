@@ -6,12 +6,43 @@ import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { getAccountBalance } from './balance-calc.service';
 import { mapAccount } from './map-account';
 
+const DEFAULT_STATEMENT_MAX_JOURNALS = 10000;
+
+/** Max journals in one statement request (env: STATEMENT_MAX_JOURNALS). Avoids huge $in and memory. */
+function getStatementMaxJournals(): number {
+  const raw = process.env.STATEMENT_MAX_JOURNALS;
+  if (raw == null || raw === '') return DEFAULT_STATEMENT_MAX_JOURNALS;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_STATEMENT_MAX_JOURNALS;
+  return n;
+}
+
+const journalLineSelect = {
+  id: true,
+  journalId: true,
+  debitAmount: true,
+  creditAmount: true,
+  paymentMethod: true,
+  journal: {
+    select: {
+      date: true,
+      journalNumber: true,
+      description: true,
+      referenceType: true,
+      referenceId: true,
+      createdAt: true,
+    },
+  },
+} as const;
+
 // --- getAccountStatement ---
 export async function getAccountStatement(
   accountId: string,
   fromDate?: Date,
   toDate?: Date
 ): Promise<AccountStatementResult | null> {
+  const DEBUG = process.env.NODE_ENV === 'development' || process.env.DEBUG_TILL_STATEMENT === '1';
+
   const account = await prisma.account.findUnique({
     where: { id: accountId },
     include: {
@@ -22,21 +53,61 @@ export async function getAccountStatement(
   });
   if (!account) return null;
 
-  const journalWhere: { date?: { gte?: Date; lte?: Date } } = {};
-  if (fromDate) journalWhere.date = { ...journalWhere.date, gte: fromDate };
-  if (toDate) journalWhere.date = { ...journalWhere.date, lte: toDate };
+  // MongoDB: Prisma relation filters (journal: { date: { gte, lte } }) can fail to match.
+  // Use a two-step query: find journal IDs in date range (capped), then lines for those journals.
+  let lines;
+  if (fromDate || toDate) {
+    const journalDateFilter: { gte?: Date; lte?: Date } = {};
+    if (fromDate) journalDateFilter.gte = fromDate;
+    if (toDate) journalDateFilter.lte = toDate;
+    const maxJournals = getStatementMaxJournals();
+    const journalsInRange = await prisma.journal.findMany({
+      where: { date: journalDateFilter },
+      select: { id: true },
+      orderBy: { date: 'asc' },
+      take: maxJournals + 1,
+    });
+    if (journalsInRange.length > maxJournals) {
+      throw new Error(
+        `Too many transactions in this date range (max ${maxJournals.toLocaleString()}). Please choose a shorter period.`
+      );
+    }
+    const journalIds = journalsInRange.map((j) => j.id);
+    lines = await prisma.journalLine.findMany({
+      where: {
+        accountId,
+        ...(journalIds.length > 0 ? { journalId: { in: journalIds } } : { journalId: { in: [] } }),
+      },
+      select: journalLineSelect,
+    });
+  } else {
+    lines = await prisma.journalLine.findMany({
+      where: { accountId },
+      select: journalLineSelect,
+    });
+  }
 
-  const lines = await prisma.journalLine.findMany({
-    where: {
+  if (DEBUG) {
+    const totalLinesNoFilter = await prisma.journalLine.count({ where: { accountId } });
+    const journalsSample = await prisma.journalLine.findMany({
+      where: { accountId },
+      take: 5,
+      orderBy: { journal: { date: 'desc' } },
+      include: { journal: { select: { date: true, description: true } } },
+    });
+    console.debug('[getAccountStatement]', {
       accountId,
-      ...(Object.keys(journalWhere).length
-        ? { journal: journalWhere }
-        : {}),
-    },
-    include: {
-      journal: true,
-    },
-  });
+      accountName: account.name,
+      fromDate: fromDate?.toISOString(),
+      toDate: toDate?.toISOString(),
+      totalJournalLinesForAccount: totalLinesNoFilter,
+      filteredLineCount: lines.length,
+      sampleJournalDates: journalsSample.map((l) => ({
+        date: l.journal.date.toISOString(),
+        description: l.journal.description?.slice(0, 40),
+      })),
+    });
+  }
 
   lines.sort((a, b) => {
     const d = a.journal.date.getTime() - b.journal.date.getTime();

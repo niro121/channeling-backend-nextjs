@@ -1,172 +1,94 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getMyTillData } from '@/app/actions/till.actions';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Wallet } from 'lucide-react';
+import { TillBalanceSection } from './till-balance-section';
+import { TillStatementSection } from './till-statement-section';
 
-const PAYMENT_METHOD_LABEL: Record<number, string> = {
-  [RECEIPT_PAYMENT_METHOD.CASH]: 'Cash',
-  [RECEIPT_PAYMENT_METHOD.CREDIT_CARD]: 'Card',
-  [RECEIPT_PAYMENT_METHOD.SLIP]: 'Slip',
-  [RECEIPT_PAYMENT_METHOD.CHECK]: 'Cheque',
-  [RECEIPT_PAYMENT_METHOD.CREDIT]: 'Credit',
-  [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'E-Wallet',
-};
-
-function formatCents(cents: number): string {
-  return (cents / 100).toFixed(2);
+function BalanceSectionFallback() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      <div className="h-24 rounded-lg bg-muted/50" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="pt-6">
+              <div className="h-8 w-20 rounded bg-muted" />
+              <div className="mt-2 h-6 w-16 rounded bg-muted" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-export default async function MyTillPage() {
+function StatementSectionFallback() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader>
+        <div className="h-6 w-24 rounded bg-muted" />
+        <div className="h-9 w-64 rounded bg-muted mt-2" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-64 rounded-lg bg-muted/50" />
+      </CardContent>
+    </Card>
+  );
+}
+
+type PageProps = {
+  searchParams?: Promise<{ from?: string; to?: string }>;
+};
+
+export default async function MyTillPage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     redirect('/login');
   }
-
-  const res = await getMyTillData();
-  if (!res.success || !res.data) {
-    return (
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <h2 className="text-3xl font-bold tracking-tight">My Till</h2>
-        <p className="text-muted-foreground">{res.message ?? 'Unable to load till.'}</p>
-      </div>
-    );
+  const canView = await checkRouteAccess('/my-till');
+  if (!canView) {
+    redirect('/unauthorized-access');
   }
+  logActivityNonBlocking({
+    userId: session.user.id,
+    action: 'till.visited',
+    entityType: 'MyTill',
+    importance: 'low',
+  });
 
-  const { balance, statement } = res.data;
-  const hasTill = balance.tillAccountId != null;
+  const params = await searchParams;
+  const from = params?.from ?? undefined;
+  const to = params?.to ?? undefined;
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <h2 className="text-3xl font-bold tracking-tight">My Till</h2>
-      <p className="text-muted-foreground">
-        Your till balance and statement. All payment types are tracked separately.
-      </p>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Cash</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.cashCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Card</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.cardCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Slip</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.slipCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Cheque</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.checkCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Credit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.creditCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">E-Wallet</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.eWalletCents)} LKR</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatCents(balance.totalCents)} LKR</p>
-          </CardContent>
-        </Card>
+    <div className="flex-1 space-y-6 p-8 pt-6">
+      {/* Page header */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">My Till</h2>
+            <p className="text-sm text-muted-foreground">
+              Your till balance and statement. All payment types are tracked separately.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Statement</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {statement
-              ? `Opening: ${formatCents(statement.openingBalance)} LKR → Closing: ${formatCents(statement.closingBalance)} LKR`
-              : 'No till account yet. Your till is created when you receive float or record a payment.'}
-          </p>
-        </CardHeader>
-        <CardContent>
-          {statement && statement.lines.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Journal #</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {statement.lines.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{new Date(line.date).toLocaleString()}</TableCell>
-                    <TableCell>{line.journalNumber ?? '-'}</TableCell>
-                    <TableCell>{line.description}</TableCell>
-                    <TableCell>
-                      {line.paymentMethod != null && PAYMENT_METHOD_LABEL[line.paymentMethod] != null ? (
-                        <Badge variant="secondary">{PAYMENT_METHOD_LABEL[line.paymentMethod]}</Badge>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {line.debitAmount > 0 ? formatCents(line.debitAmount) : '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {line.creditAmount > 0 ? formatCents(line.creditAmount) : '-'}
-                    </TableCell>
-                    <TableCell className="text-right">{formatCents(line.runningBalance)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-muted-foreground py-4">
-              {hasTill ? 'No transactions yet.' : 'Your till will appear here once you have activity.'}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <Suspense fallback={<BalanceSectionFallback />}>
+        <TillBalanceSection />
+      </Suspense>
+
+      <Suspense fallback={<StatementSectionFallback />}>
+        <TillStatementSection from={from} to={to} />
+      </Suspense>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { getShiftByIdAction } from '@/app/actions/shift.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import { SHIFT_STATUS } from '@/types/shift';
+import { formatCents } from '@/lib/format-money';
 import { floatRequestStatusLabel } from '@/types/float-request';
 import moment from 'moment';
 
@@ -122,7 +123,7 @@ export default async function ShiftDetailPage({ params }: PageProps) {
                           {floatRequestStatusLabel(fr.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{(fr.amountRequested / 100).toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCents(fr.amountRequested)}</TableCell>
                       <TableCell>
                         {moment(fr.createdAt).format('DD/MM/YYYY HH:mm')}
                       </TableCell>

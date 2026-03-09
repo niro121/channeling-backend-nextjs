@@ -2,6 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Agency } from '@/types/agency';
+import { formatLKR } from '@/lib/format-money';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
@@ -121,27 +122,11 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     }
   },
   {
-    accessorKey: 'creditLimit',
-    header: 'Standard Credit Limit',
-    cell: ({ row }) => {
-      const creditLimit = row.getValue<number>('creditLimit');
-      return creditLimit?.toFixed(2) || '0.00';
-    }
-  },
-  {
     accessorKey: 'allowedCreditLimit',
     header: 'Allowed Credit Limit',
     cell: ({ row }) => {
       const allowedCreditLimit = row.getValue<number>('allowedCreditLimit');
-      return allowedCreditLimit?.toFixed(2) || '0.00';
-    }
-  },
-  {
-    accessorKey: 'maxCreditLimit',
-    header: 'Allowed Maximin Credit Limit',
-    cell: ({ row }) => {
-      const maxCreditLimit = row.getValue<number>('maxCreditLimit');
-      return maxCreditLimit?.toFixed(2) || '0.00';
+      return (allowedCreditLimit != null ? formatLKR(allowedCreditLimit) : '0.00');
     }
   },
   {
@@ -149,7 +134,7 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     header: 'Balance',
     cell: ({ row }) => {
       const balance = row.getValue<number>('balance');
-      return balance?.toFixed(2) || '0.00';
+      return (balance != null ? formatLKR(balance) : '0.00');
     }
   }
 ];

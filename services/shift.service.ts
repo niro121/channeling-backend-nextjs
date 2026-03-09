@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import { SHIFT_STATUS } from "@/types/shift"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { z } from "zod"
 
 const SHIFT_MAX_HOURS =
@@ -178,7 +178,7 @@ export async function startShift(userId: string, locationId?: string | null) {
       createdBy: validUserId,
     },
   })
-  await logActivity({
+  logActivityNonBlocking({
     userId: validUserId,
     action: "shift.started",
     entityType: "Shift",
@@ -199,7 +199,7 @@ export async function pauseShift(shiftId: string, userId: string) {
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.PAUSED, pausedAt: now, pausedBy: validUserId, updatedAt: now },
   })
-  await logActivity({
+  logActivityNonBlocking({
     userId: validUserId,
     action: "shift.paused",
     entityType: "Shift",
@@ -221,7 +221,7 @@ export async function resumeShift(shiftId: string, userId: string) {
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.ACTIVE, updatedAt: now },
   })
-  await logActivity({
+  logActivityNonBlocking({
     userId: validUserId,
     action: "shift.resumed",
     entityType: "Shift",
@@ -246,7 +246,7 @@ export async function endShift(shiftId: string, userId: string) {
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.ENDED, endedAt: now, endedBy: validUserId, updatedAt: now },
   })
-  await logActivity({
+  logActivityNonBlocking({
     userId: validUserId,
     action: "shift.ended",
     entityType: "Shift",

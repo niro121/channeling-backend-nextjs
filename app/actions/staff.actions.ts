@@ -1,5 +1,7 @@
 "use server"
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import {
   getStaff,
   getStaffById,
@@ -12,6 +14,7 @@ import {
 import { GetStaffParams, Staff } from "@/types/staff"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export async function getStaffOptionsAction(): Promise<{
   isError: boolean
@@ -108,6 +111,16 @@ export async function createStaffAction(data: Staff) {
         data: {},
       }
     }
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: "staff.staff.created",
+        entityType: "Staff",
+        entityId: result.data?.id ?? undefined,
+        importance: "high",
+      })
+    }
     revalidatePath("/staff")
     return {
       isError: false,
@@ -142,6 +155,16 @@ export async function updateStaffAction(id: string, data: Partial<Staff>) {
         data: {},
       }
     }
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: "staff.staff.updated",
+        entityType: "Staff",
+        entityId: id,
+        importance: "high",
+      })
+    }
     revalidatePath("/staff")
     return {
       isError: false,
@@ -165,6 +188,16 @@ export async function deleteStaffAction(id: string) {
     if (!result.success) {
       throw new Error(result.error?.message ?? "Error deleting data. Please try again later")
     }
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: "staff.staff.deleted",
+        entityType: "Staff",
+        entityId: id,
+        importance: "high",
+      })
+    }
     revalidatePath("/staff")
     return { isError: false, data: null, errors: {} }
   } catch (error: any) {
@@ -183,6 +216,16 @@ export async function bulkDeleteStaffAction(ids: string[]) {
     const result = await deleteStaffs(ids)
     if (!result.success) {
       throw new Error(result.error?.message ?? "Error deleting records. Please try again later")
+    }
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: "staff.staff.bulkDeleted",
+        entityType: "Staff",
+        importance: "high",
+        metadata: { count: ids.length },
+      })
     }
     revalidatePath("/staff")
     return true
@@ -209,7 +252,16 @@ export const getStaffExport = async (params: { keyword?: string }) => {
           : 'No staff found'
       };
     }
-
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: "staff.exported",
+        entityType: "Staff",
+        importance: "medium",
+        metadata: { count: response.data?.data?.length ?? 0 },
+      })
+    }
     return {
       success: true,
       data: response.data.data

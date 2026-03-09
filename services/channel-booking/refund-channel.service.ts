@@ -4,10 +4,12 @@ import {
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
+  isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
-import { createJournalEntryInTransaction } from "@/services/accounting.service"
+import { createJournalEntryInTransaction, getAccountBalance } from "@/services/accounting.service"
+import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
@@ -45,6 +47,15 @@ export async function refundChannelService(
 
   if (!booking) {
     return { success: false, errorCode: "not_found", message: "Booking not found." }
+  }
+
+  const sessionRefundable = booking.session?.refundable ?? 1
+  if (sessionRefundable === 0) {
+    return {
+      success: false,
+      errorCode: "non_refundable_session",
+      message: "This is a non-refundable session.",
+    }
   }
 
   // Refund field: 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Reject if already refunded.
@@ -132,13 +143,36 @@ export async function refundChannelService(
         }
         accounts = reqResult.accounts
       } else {
-        accounts = await resolveReceiptJournalAccounts({
+        const resolveResult = await resolveReceiptJournalAccounts({
           locationId: booking.locationId ?? null,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
           needTill,
         })
+        if (isResolveReceiptJournalAccountsError(resolveResult)) {
+          return {
+            success: false,
+            errorCode: resolveResult.errorCode,
+            message: resolveResult.error,
+          }
+        }
+        accounts = resolveResult
+      }
+      // Refund that pays out from till: till must have sufficient balance
+      if (needTill && accounts?.cashierAccountId) {
+        const refundAmountCents = Math.round(Math.abs(refundAmount) * 100)
+        const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+        if (tillBalanceCents < refundAmountCents) {
+          return {
+            success: false,
+            errorCode: "INSUFFICIENT_TILL_BALANCE",
+            message:
+              tillBalanceCents <= 0
+                ? "Till has no balance. Cannot refund until the till has sufficient cash."
+                : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+          }
+        }
       }
       const journalNumberResult = accounts
         ? await getNextSequenceNumber("journal", { startFrom: 1 })
@@ -241,13 +275,36 @@ export async function refundChannelService(
       }
       accounts = reqResult.accounts
     } else {
-      accounts = await resolveReceiptJournalAccounts({
+      const resolveResult = await resolveReceiptJournalAccounts({
         locationId: booking.locationId ?? null,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         creditCustomerId: bookingCreditCustomerId,
         needTill,
       })
+      if (isResolveReceiptJournalAccountsError(resolveResult)) {
+        return {
+          success: false,
+          errorCode: resolveResult.errorCode,
+          message: resolveResult.error,
+        }
+      }
+      accounts = resolveResult
+    }
+    // Refund that pays out from till: till must have sufficient balance
+    if (needTill && accounts?.cashierAccountId) {
+      const refundAmountCents = Math.round(totalRefund * 100)
+      const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+      if (tillBalanceCents < refundAmountCents) {
+        return {
+          success: false,
+          errorCode: "INSUFFICIENT_TILL_BALANCE",
+          message:
+            tillBalanceCents <= 0
+              ? "Till has no balance. Cannot refund until the till has sufficient cash."
+              : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+        }
+      }
     }
     const journalNumberResult = accounts
       ? await getNextSequenceNumber("journal", { startFrom: 1 })

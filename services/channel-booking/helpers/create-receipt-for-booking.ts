@@ -53,7 +53,7 @@ export type CreateReceiptWithoutBookingParams = {
   remarks: string
   /** 0 CREDIT, 1 DEBIT */
   type: number
-  /** 2 DEBIT_NOTE, 3 CREDIT_NOTE, 6 AGENCY_DEPOSIT, 7 AGENCY_WITHDRAW, 8 BRANCH_INCOME, 9 BRANCH_EXPENSE */
+  /** 2 DEBIT_NOTE, 3 CREDIT_NOTE, 4 DOCTOR_PAYMENT, 5 DOCTOR_CANCEL, 6 AGENCY_DEPOSIT, 7 AGENCY_WITHDRAW, 8 BRANCH_INCOME, 9 BRANCH_EXPENSE */
   method: number
   agencyId?: string | null
   createdBy?: string | null
@@ -61,6 +61,10 @@ export type CreateReceiptWithoutBookingParams = {
   locationId: string | null
   /** For agency ledger methods (2,3,6,7), same as branch; passed to getReceiptSequenceInfo as userLocationId. */
   userLocationId?: string | null
+  /** For method 4 (doctor payment): WHT amount in rupees. */
+  whd?: number
+  /** For method 4 (doctor payment): WHT percentage. */
+  whdPercentage?: number
 }
 
 export type CreateReceiptWithoutBookingResult =
@@ -99,8 +103,8 @@ export async function createReceiptWithoutBooking(
       remarks: params.remarks,
       type: params.type,
       method: params.method,
-      whd: 0,
-      whdPercentage: 0,
+      whd: params.whd ?? 0,
+      whdPercentage: params.whdPercentage ?? 0,
       bookingId: null,
       agencyId: params.agencyId ?? null,
       createdBy: params.createdBy ?? null,

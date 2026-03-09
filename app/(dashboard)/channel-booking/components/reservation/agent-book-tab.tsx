@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { getAgencyDetailsForChannelBooking } from "@/app/actions/channel-booking"
 import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
+import { formatLKR } from "@/lib/format-money"
 import { useChannelBooking } from "../../context/channel-booking-context"
 
 export function AgentBookTab() {
@@ -107,27 +108,19 @@ export function AgentBookTab() {
         )}
       </div>
 
-      {/* Financial Details */}
+      {/* Financial Details: balance from linked account; soft limit = Allowed Credit Limit; hard limit = account minBalanceAllowed */}
       <div className="rounded-md border border-border/60 bg-green-50/80 dark:bg-green-950/20 p-2 space-y-1.5">
         <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Financial
         </h3>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <div className="flex justify-between gap-2 py-1">
-            <span className="text-muted-foreground">Credit Limit</span>
-            <span className="text-foreground font-medium">{details.creditLimit.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Allowed Credit Limit</span>
-            <span className="text-foreground font-medium">{details.allowedCreditLimit.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between gap-2 py-1">
-            <span className="text-muted-foreground">Max Credit Limit</span>
-            <span className="text-foreground font-medium">{details.maxCreditLimit.toLocaleString()}</span>
+            <span className="text-foreground font-medium">{formatLKR(details.allowedCreditLimit)}</span>
           </div>
           <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Balance</span>
-            <span className="text-foreground font-medium">{details.balance.toLocaleString()}</span>
+            <span className="text-foreground font-medium">{formatLKR(details.balance)}</span>
           </div>
         </div>
       </div>
