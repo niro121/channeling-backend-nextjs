@@ -689,7 +689,7 @@ model Agency {
   parentAgencyId     String? @db.ObjectId
 
   // ==== CREDIT FIELDS ==== //
-  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is account minBalanceAllowed
+  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is linked RECEIVABLE account maxBalanceAllowed
   // balance is derived from linked PAYABLE account (getAccountBalance)
 
   // ==== CONTACT FIELDS ==== //
@@ -922,6 +922,7 @@ model Account {
   userId              String?      @db.ObjectId
   user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
   minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
+  maxBalanceAllowed   Int?         // When set, posting rejected if balance would go above this (e.g. RECEIVABLE: hard credit limit in cents)
   isActive            Boolean      @default(true)
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt

@@ -15,6 +15,7 @@ export function mapAccount(
     creditCustomerId?: string | null;
     userId: string | null;
     minBalanceAllowed: number | null;
+    maxBalanceAllowed: number | null;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -37,6 +38,7 @@ export function mapAccount(
     creditCustomerId: row.creditCustomerId ?? null,
     userId: row.userId,
     minBalanceAllowed: row.minBalanceAllowed,
+    maxBalanceAllowed: row.maxBalanceAllowed ?? null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -10,9 +10,13 @@ import {
   buildReceiptJournalEntryInput,
   resolveDoctorPaymentAccounts,
 } from "@/services/channel-booking/helpers/receipt-journal-entry";
-import { createJournalEntryInTransaction } from "@/services/accounting.service";
+import {
+  createJournalEntryInTransaction,
+  getAccountBalance,
+} from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
+import { formatCents } from "@/lib/format-money";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -122,6 +126,25 @@ export async function processDoctorPaymentService(
     };
   }
   const accounts = accountsResult;
+
+  // When paying from till (cash), ensure till has enough balance before creating receipt/journal
+  if (
+    paymentMethod === RECEIPT_PAYMENT_METHOD.CASH &&
+    accounts.cashierAccountId
+  ) {
+    const netAmountCents = Math.round(netAmount * 100);
+    const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId);
+    if (tillBalanceCents < netAmountCents) {
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_TILL_BALANCE",
+        message:
+          tillBalanceCents <= 0
+            ? "Till has no balance. Cannot complete doctor payment until the till has sufficient cash."
+            : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(netAmountCents)} LKR.`,
+      };
+    }
+  }
 
   const remarks = handed_staff.trim()
     ? `DOCTOR PAYMENT Handed: ${handed_staff.trim()}`
