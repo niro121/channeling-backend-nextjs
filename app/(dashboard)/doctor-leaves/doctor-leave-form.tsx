@@ -350,6 +350,26 @@ export default function DoctorLeaveForm({
           setSessionsTab('selected');
         };
 
+        const handleSelectAll = () => {
+          const current = formik.values.sesssions;
+          const toAdd = activeSessions.filter((s) => !selectedIds.has(s.id));
+          if (toAdd.length === 0) return;
+          formik.setFieldValue('sesssions', [...current, ...toAdd]);
+          setRemovedSessions((prev) =>
+            prev.filter((s) => !toAdd.some((a) => a.id === s.id))
+          );
+          setSessionsTab('selected');
+        };
+
+        const handleRemoveAll = () => {
+          const toRemove = selectedSessions;
+          formik.setFieldValue('sesssions', []);
+          setRemovedSessions((prev) =>
+            [...prev, ...toRemove].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+          );
+          setSessionsTab('active');
+        };
+
         // Active tab: only sessions that are not selected and not locked by another leave
         const activeSessions = [
           ...activeSessionsFromAPI.filter(
@@ -469,6 +489,20 @@ export default function DoctorLeaveForm({
                           </span>
                         )}
                       </p>
+                      {!sessionsLoading && activeSessions.length > 0 && (
+                        <div className="flex justify-end mb-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleSelectAll}
+                            className="gap-1.5"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Select All
+                          </Button>
+                        </div>
+                      )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
                         {sessionsLoading && (
                           <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
@@ -498,6 +532,20 @@ export default function DoctorLeaveForm({
                       <p className="text-sm text-muted-foreground mb-2">
                         Sessions selected for this leave. On save, Session status will match the leave status: Active = available, Cancel = unavailable. Remove to exclude from this leave.
                       </p>
+                      {selectedSessions.length > 0 && (
+                        <div className="flex justify-end mb-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleRemoveAll}
+                            className="gap-1.5"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Remove All
+                          </Button>
+                        </div>
+                      )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
                         {selectedSessions.length === 0 && (
                           <p className="text-muted-foreground text-center text-sm w-full py-4">
