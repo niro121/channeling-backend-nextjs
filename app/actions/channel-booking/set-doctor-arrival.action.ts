@@ -8,8 +8,6 @@ import {
   type SetDoctorArrivalResult,
 } from "@/services/channel-booking/set-doctor-arrival.service"
 
-export type { SetDoctorArrivalResult }
-
 export async function setDoctorArrivalAction(
   input: SetDoctorArrivalInput
 ): Promise<SetDoctorArrivalResult> {

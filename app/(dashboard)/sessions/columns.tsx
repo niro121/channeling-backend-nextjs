@@ -5,6 +5,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import moment from 'moment';
 import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
+import { formatLKR } from '@/lib/format-money';
 import { SessionRecordActions } from './record-actions';
 import { SessionViewDialog } from './session-view-dialog';
 
@@ -29,7 +30,7 @@ function SessionIdCell({ row }: { row: { original: SessionListItem } }) {
 
 function formatSessionFee(value: number | null | undefined): string {
   if (value == null) return '—';
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatLKR(value);
 }
 
 /** Format session time for display in Sri Lanka (DB stores UTC). */

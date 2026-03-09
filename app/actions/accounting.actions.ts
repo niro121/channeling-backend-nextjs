@@ -1,6 +1,8 @@
 'use server';
 
 import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getAllAccounts,
   getAccountById as getAccountByIdService,
@@ -16,6 +18,7 @@ import {
 import type { CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 export type GetAccountsParams = {
   page?: string | number;
@@ -96,7 +99,17 @@ export async function createAccount(payload: CreateAccountInput) {
         data: null,
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'accounting.account.created',
+        entityType: 'Account',
+        entityId: result.account?.id ?? undefined,
+        importance: 'high',
+        metadata: result.account ? { code: result.account.code, name: result.account.name } : undefined,
+      });
+    }
     revalidatePath('/accounting');
     return {
       success: true,
@@ -124,6 +137,17 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
         error: result.error,
         data: null,
       };
+    }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'accounting.account.updated',
+        entityType: 'Account',
+        entityId: id,
+        importance: 'high',
+        metadata: result.account ? { code: result.account.code, name: result.account.name } : undefined,
+      });
     }
     revalidatePath('/accounting');
     revalidatePath(`/accounting/${id}/edit`);

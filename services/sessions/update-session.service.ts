@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 
 export interface UpdateSessionInput {
@@ -44,7 +44,7 @@ export async function updateSessionService(
     });
 
     if (data.updatedBy) {
-      await logActivity({
+      logActivityNonBlocking({
         userId: data.updatedBy,
         action: 'session.updated',
         entityType: 'Session',

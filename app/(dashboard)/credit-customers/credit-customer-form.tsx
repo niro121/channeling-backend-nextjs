@@ -16,6 +16,7 @@ import {
 } from '@/app/actions/credit-customer.actions';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 
 type CreditCustomerFormProps = {
@@ -169,7 +170,7 @@ export default function CreditCustomerForm({
                     <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
                     <div className={styleClasses.inputClassName}>
                       <span className="font-medium tabular-nums">
-                        {Number(creditCustomer.balance ?? 0).toFixed(2)}
+                        {formatLKR(Number(creditCustomer.balance ?? 0))}
                       </span>
                     </div>
                   </div>

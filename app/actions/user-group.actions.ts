@@ -1,9 +1,12 @@
 'use server'
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { GetUserGroupsParams, GetUserGroupsQuery, UserGroup } from "@/types/user-group"
 import { deleteOneUserGroup, deleteUserGroups, getUserGroups, saveUserGroup, updateOneUserGroup, getUserGroupById, getAllUserGroupsOptionsService } from "@/services/user-group.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export const getAllUserGroups = async (filter: GetUserGroupsParams) => {
     // Check view permission (user groups use "users" resource)
@@ -67,7 +70,17 @@ export const createNewUserGroup = async (payload: UserGroup) => {
         delete payload.updatedAt
 
         const result = await saveUserGroup(payload)
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            const createdId = result?.id ?? (result as { data?: { id?: string } })?.data?.id
+            logActivityNonBlocking({
+                userId: session.user.id,
+                action: "user-groups.userGroup.created",
+                entityType: "UserGroup",
+                entityId: typeof createdId === "string" ? createdId : undefined,
+                importance: "high",
+            })
+        }
         revalidatePath('/user-groups')
         return {
             isError: false,
@@ -98,7 +111,16 @@ export const updateUserGroup = async (id: string, payload: UserGroup) => {
         delete payload.updatedAt
 
         let result = await updateOneUserGroup(id, payload)
-
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+            logActivityNonBlocking({
+                userId: session.user.id,
+                action: "user-groups.userGroup.updated",
+                entityType: "UserGroup",
+                entityId: id,
+                importance: "high",
+            })
+        }
         revalidatePath('/user-groups')
         return {
             isError: false,

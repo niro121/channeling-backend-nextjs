@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import moment from 'moment';
+import { formatLKR } from '@/lib/format-money';
 import { DoctorSessionRecordActions } from './record-actions';
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
 import { useToast } from '@/components/hooks/use-toast';
@@ -121,7 +122,7 @@ function formatFee(value: number | string | null | undefined): string {
   if (value == null || value === '') return '-';
   const n = Number(value);
   if (Number.isNaN(n)) return '-';
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatLKR(n);
 }
 
 export default function DoctorSessionsGroupedList({

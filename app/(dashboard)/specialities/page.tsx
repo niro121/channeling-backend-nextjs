@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
@@ -8,6 +10,7 @@ import Loading from '../loading';
 import Link from 'next/link';
 import { bulkDeleteSpecialities, getAllSpecialities, getSpecialitiesExport, getTotalDoctorCountBySpecialityIds } from '@/app/actions/speciality.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import { ExportWrapper } from '../export-wrapper';
 import moment from 'moment';
@@ -26,6 +29,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/specialities');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'specialities.visited',
+      entityType: 'Specialities',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getAllCreditCustomersService,
   getCreditCustomerByIdService,
@@ -20,6 +22,7 @@ import type {
 } from '@/types/credit-customer';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // ==== GET ALL ==== //
 export async function getAllCreditCustomers(params: GetCreditCustomersParams) {
@@ -114,6 +117,16 @@ export async function createCreditCustomer(payload: CreditCustomerFormValues) {
         data: null,
       };
     }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'credit-customers.creditCustomer.created',
+        entityType: 'CreditCustomer',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+      });
+    }
     console.debug('[CC] Action: service success', { id: result.data?.id, code: (result.data as { code?: string })?.code });
     revalidatePath('/credit-customers');
     return {
@@ -148,6 +161,16 @@ export async function updateCreditCustomer(id: string, payload: UpdateCreditCust
         data: null,
       };
     }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'credit-customers.creditCustomer.updated',
+        entityType: 'CreditCustomer',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/credit-customers');
     revalidatePath(`/credit-customers/${id}/edit`);
     return {
@@ -179,6 +202,16 @@ export async function deleteCreditCustomer(id: string) {
         errors: result.error ?? { message: result.message ?? 'Delete failed' },
       };
     }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'credit-customers.creditCustomer.deleted',
+        entityType: 'CreditCustomer',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/credit-customers');
     return { success: true, message: result.message, isError: false, errors: {} };
   } catch (e: unknown) {
@@ -196,6 +229,16 @@ export async function bulkDeleteCreditCustomers(ids: string[]) {
   try {
     const result = await bulkDeleteCreditCustomersService(ids);
     if (!result.success) throw new Error(result.error?.message ?? 'Bulk delete failed');
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'credit-customers.creditCustomers.bulkDeleted',
+        entityType: 'CreditCustomer',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/credit-customers');
     return true;
   } catch (e: unknown) {
@@ -213,6 +256,16 @@ export async function getCreditCustomersExport(filters: { keyword?: string }) {
         success: false,
         message: response.success ? 'No credit customers found' : response.error?.message,
       };
+    }
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'credit-customers.exported',
+        entityType: 'CreditCustomer',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
     }
     return {
       success: true,

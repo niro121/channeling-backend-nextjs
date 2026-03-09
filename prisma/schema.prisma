@@ -501,11 +501,14 @@ model ActivityLog {
   entityType String // e.g. "Shift", "Patient"
   entityId   String?  @db.ObjectId
   metadata   Json? // optional extra details
+  ipAddress  String? // client IP from x-forwarded-for or x-real-ip when available
+  importance String? // "low" | "medium" | "high" for retention trimming
   createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([action])
   @@index([entityType, entityId])
+  @@index([importance, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -686,10 +689,8 @@ model Agency {
   parentAgencyId     String? @db.ObjectId
 
   // ==== CREDIT FIELDS ==== //
-  creditLimit        Float @default(0)
-  allowedCreditLimit Float @default(0)
-  maxCreditLimit     Float @default(0)
-  balance            Float @default(0)
+  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is account minBalanceAllowed
+  // balance is derived from linked PAYABLE account (getAccountBalance)
 
   // ==== CONTACT FIELDS ==== //
   phone   String?
@@ -837,6 +838,12 @@ model Booking {
   receiptNoId             String?  @db.ObjectId
   receipts                Receipt[] @relation("ReceiptToBooking")
 
+  // Doctor payment: batch receipt and date when doctor was paid for this booking
+  doctorPayment           Boolean   @default(false)
+  doctorPaymentAt         DateTime?
+  doctorPaymentReceiptId  String?   @db.ObjectId
+  doctorPaymentReceiptString String?
+
   // Transfer: when booking was moved to another session/doctor
   movedFromSessionId        String?   @db.ObjectId
   movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)
@@ -931,6 +938,8 @@ model Journal {
 
   journalLines   JournalLine[]
   floatRequests FloatRequest[]
+
+  @@index([date])
 }
 
 model JournalLine {
@@ -947,6 +956,7 @@ model JournalLine {
 
   @@index([journalId])
   @@index([accountId])
+  @@index([accountId, journalId])
 }
 
 model Log {
@@ -1078,4 +1088,28 @@ model ReceiptTemplate {
   footerTemplate ReceiptFooterTemplate? @relation(fields: [footerTemplateId], references: [id], onDelete: SetNull)
 
   @@index([type, variant, status])
+}
+
+/// E2E test scenarios: container for ordered steps (each step = one test, e.g. booking).
+model E2EScenario {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  paymentMethods  String?  // Legacy: JSON array; use steps instead for new scenarios
+  bookingExtras   String?  // Legacy: JSON object; use steps instead
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  steps           E2EScenarioStep[]
+}
+
+/// One step in a scenario (e.g. "booking" test). Steps run sequentially.
+model E2EScenarioStep {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  scenarioId  String       @db.ObjectId
+  order       Int          // 0-based; run in this order
+  type        String       // "booking" | future types
+  config      String       // JSON: for booking { paymentMethods, bookingExtras }
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  scenario    E2EScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  @@index([scenarioId])
 }

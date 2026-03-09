@@ -1,6 +1,9 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
 import DoctorLeavesList from './doctor-leaves-list';
 import Loading from '../loading';
@@ -18,6 +21,15 @@ type SearchParams = {
 export default async function DoctorLeavesPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/doctor-leaves');
   if (!canView) redirect('/unauthorized-access');
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'doctor-leaves.visited',
+      entityType: 'DoctorLeaves',
+      importance: 'low',
+    });
+  }
 
   const params = await searchParams;
   const doctorOptions = await getDoctorOptions();

@@ -1,5 +1,7 @@
 'use server';
 
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import {
   getAllRoomsService,
   getRoomByIdService,
@@ -21,6 +23,7 @@ import {
 } from '@/types/room';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 type CreateRoomPayload = RoomFormValues & {
   createdBy?: string;
@@ -125,7 +128,17 @@ export const createRoom = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.room.created',
+        entityType: 'Room',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+        metadata: result.data ? { name: result.data.name } : undefined,
+      });
+    }
     revalidatePath('/rooms');
 
     return {
@@ -173,7 +186,16 @@ export const updateOneRoom = async (
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.room.updated',
+        entityType: 'Room',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/rooms');
 
     return {
@@ -209,7 +231,16 @@ export const deleteRoom = async (id: string) => {
         }
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.room.deleted',
+        entityType: 'Room',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/rooms');
 
     return {
@@ -239,7 +270,16 @@ export const bulkDeleteRooms = async (ids: string[]) => {
     if (!result.success) {
       throw new Error(result.error?.message || 'Failed to delete rooms');
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.rooms.bulkDeleted',
+        entityType: 'Room',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/rooms');
     return true;
   } catch (error: any) {
@@ -304,7 +344,16 @@ export const getRoomsExport = async (params: { keyword?: string; locationId?: st
         message: response.success ? 'No rooms found' : response.message || 'Error getting data'
       };
     }
-
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.exported',
+        entityType: 'Room',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
     return {
       success: true,
       data: response.data

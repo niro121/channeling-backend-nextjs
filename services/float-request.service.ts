@@ -18,6 +18,7 @@ import {
   lkrToCents,
 } from '@/types/float-request';
 import { getOrCreateAccount, getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
+import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
 
@@ -293,7 +294,7 @@ export async function approveFloatRequest(
   if (fromBalanceCents < approvedTotalCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${(fromBalanceCents / 100).toFixed(2)} LKR, required: ${(approvedTotalCents / 100).toFixed(2)} LKR.`,
+      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -302,7 +303,6 @@ export async function approveFloatRequest(
     type: 'CASH',
     userId: fr.requestedById,
     name: `Float - ${fr.requestedBy.name}`,
-    minBalanceAllowed: 0,
   });
   if (!cashierAccountResult.success) {
     return { success: false, error: cashierAccountResult.error };
@@ -398,7 +398,6 @@ export async function receiveFloatRequest(
     type: 'CASH',
     userId: fr.requestedById,
     name: `Float - ${fr.requestedBy.name}`,
-    minBalanceAllowed: 0,
   });
   if (!cashierAccountResult.success) {
     return { success: false, error: cashierAccountResult.error, errorCode: 'CASHIER_ACCOUNT_ERROR' };
@@ -414,7 +413,7 @@ export async function receiveFloatRequest(
   if (fromBalanceCents < amountCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${(fromBalanceCents / 100).toFixed(2)} LKR.`,
+      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }

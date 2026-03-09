@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/hooks/use-toast';
+import { formatCents } from '@/lib/format-money';
 import { Ban, Save } from 'lucide-react';
 
 type AccountFormProps = {
@@ -201,7 +202,7 @@ export default function AccountForm({
             placeholder="e.g. 0 = no negative; -50 = allowed to -50"
             defaultValue={
               account?.minBalanceAllowed != null
-                ? (account.minBalanceAllowed / 100).toFixed(2)
+                ? formatCents(account.minBalanceAllowed)
                 : ''
             }
           />

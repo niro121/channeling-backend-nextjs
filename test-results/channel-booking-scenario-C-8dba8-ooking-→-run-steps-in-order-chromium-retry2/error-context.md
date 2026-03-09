@@ -1,0 +1,580 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - link "Ruhunu Hospital Channeling" [ref=e5] [cursor=pointer]:
+        - /url: /welcome
+        - img [ref=e7]
+        - generic [ref=e11]:
+          - generic [ref=e12]: Ruhunu Hospital
+          - generic [ref=e13]: Channeling
+      - navigation [ref=e14]:
+        - generic [ref=e15]:
+          - paragraph [ref=e16]: Channeling
+          - generic [ref=e17]:
+            - link "Channel Booking" [ref=e18] [cursor=pointer]:
+              - /url: /channel-booking
+              - img [ref=e19]
+              - generic [ref=e22]: Channel Booking
+            - link "Sessions" [ref=e23] [cursor=pointer]:
+              - /url: /sessions
+              - img [ref=e24]
+              - generic [ref=e27]: Sessions
+            - link "Shifts" [ref=e28] [cursor=pointer]:
+              - /url: /shifts
+              - img [ref=e29]
+              - generic [ref=e32]: Shifts
+        - generic [ref=e33]:
+          - paragraph [ref=e34]: Consultants
+          - generic [ref=e35]:
+            - link "Doctor" [ref=e36] [cursor=pointer]:
+              - /url: /doctors
+              - img [ref=e37]
+              - generic [ref=e41]: Doctor
+            - link "Doctor Session" [ref=e42] [cursor=pointer]:
+              - /url: /doctor-sessions
+              - img [ref=e43]
+              - generic [ref=e46]: Doctor Session
+            - link "Bulk Price Change" [ref=e47] [cursor=pointer]:
+              - /url: /doctor-sessions/bulk-price-change
+              - img [ref=e48]
+              - generic [ref=e50]: Bulk Price Change
+            - link "Speciality" [ref=e51] [cursor=pointer]:
+              - /url: /specialities
+              - img [ref=e52]
+              - generic [ref=e54]: Speciality
+            - link "Doctor Leave" [ref=e55] [cursor=pointer]:
+              - /url: /doctor-leaves
+              - img [ref=e56]
+              - generic [ref=e61]: Doctor Leave
+        - generic [ref=e62]:
+          - paragraph [ref=e63]: Organization
+          - generic [ref=e64]:
+            - link "Department" [ref=e65] [cursor=pointer]:
+              - /url: /departments
+              - img [ref=e66]
+              - generic [ref=e70]: Department
+            - link "Zones" [ref=e71] [cursor=pointer]:
+              - /url: /zones
+              - img [ref=e72]
+              - generic [ref=e76]: Zones
+            - link "Rooms" [ref=e77] [cursor=pointer]:
+              - /url: /rooms
+              - img [ref=e78]
+              - generic [ref=e81]: Rooms
+            - link "Location" [ref=e82] [cursor=pointer]:
+              - /url: /locations
+              - img [ref=e83]
+              - generic [ref=e86]: Location
+        - generic [ref=e87]:
+          - paragraph [ref=e88]: People
+          - generic [ref=e89]:
+            - link "Patients" [ref=e90] [cursor=pointer]:
+              - /url: /patients
+              - img [ref=e91]
+              - generic [ref=e94]: Patients
+            - link "Staff" [ref=e95] [cursor=pointer]:
+              - /url: /staff
+              - img [ref=e96]
+              - generic [ref=e100]: Staff
+            - link "Users" [ref=e101] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e102]
+              - generic [ref=e104]: Users
+            - link "User Groups" [ref=e105] [cursor=pointer]:
+              - /url: /user-groups
+              - img [ref=e106]
+              - generic [ref=e111]: User Groups
+        - generic [ref=e112]:
+          - paragraph [ref=e113]: Agency & billing
+          - generic [ref=e114]:
+            - link "Agency Books" [ref=e115] [cursor=pointer]:
+              - /url: /agency-books
+              - img [ref=e116]
+              - generic [ref=e118]: Agency Books
+            - link "Agency" [ref=e119] [cursor=pointer]:
+              - /url: /agencies
+              - img [ref=e120]
+              - generic [ref=e122]: Agency
+            - link "Credit Customers" [ref=e123] [cursor=pointer]:
+              - /url: /credit-customers
+              - img [ref=e124]
+              - generic [ref=e126]: Credit Customers
+            - link "Discount" [ref=e127] [cursor=pointer]:
+              - /url: /discounts
+              - img [ref=e128]
+              - generic [ref=e130]: Discount
+            - link "Accounting" [ref=e131] [cursor=pointer]:
+              - /url: /accounting
+              - img [ref=e132]
+              - generic [ref=e134]: Accounting
+            - link "Ledger" [ref=e135] [cursor=pointer]:
+              - /url: /ledger
+              - img [ref=e136]
+              - generic [ref=e139]: Ledger
+            - link "Receipt Manager" [ref=e140] [cursor=pointer]:
+              - /url: /receipt-manager
+              - img [ref=e141]
+              - generic [ref=e144]: Receipt Manager
+            - link "Doctor Payments" [ref=e145] [cursor=pointer]:
+              - /url: /doctor-payments
+              - img [ref=e146]
+              - generic [ref=e148]: Doctor Payments
+            - link "Receipt templates" [ref=e149] [cursor=pointer]:
+              - /url: /admin/receipt-templates
+              - img [ref=e150]
+              - generic [ref=e153]: Receipt templates
+            - link "Bulk Cashier" [ref=e154] [cursor=pointer]:
+              - /url: /bulk-cashier
+              - img [ref=e155]
+              - generic [ref=e158]: Bulk Cashier
+            - link "Float Transfers" [ref=e159] [cursor=pointer]:
+              - /url: /float-transfers
+              - img [ref=e160]
+              - generic [ref=e163]: Float Transfers
+        - generic [ref=e164]:
+          - paragraph [ref=e165]: Other
+          - generic [ref=e166]:
+            - link "Tags" [ref=e167] [cursor=pointer]:
+              - /url: /tags
+              - img [ref=e168]
+              - generic [ref=e172]: Tags
+            - link "SMS Playground" [ref=e173] [cursor=pointer]:
+              - /url: /sms-playground
+              - img [ref=e174]
+              - generic [ref=e176]: SMS Playground
+            - link "SMS Templates" [ref=e177] [cursor=pointer]:
+              - /url: /sms-templates
+              - img [ref=e178]
+              - generic [ref=e180]: SMS Templates
+            - link "Reports" [ref=e181] [cursor=pointer]:
+              - /url: /reports
+              - img [ref=e182]
+              - generic [ref=e185]: Reports
+        - generic [ref=e186]:
+          - paragraph [ref=e187]: Admin
+          - generic [ref=e188]:
+            - link "Server Monitor" [ref=e189] [cursor=pointer]:
+              - /url: /admin/monitor
+              - img [ref=e190]
+              - generic [ref=e192]: Server Monitor
+            - link "API Clients" [ref=e193] [cursor=pointer]:
+              - /url: /admin/api-clients
+              - img [ref=e194]
+              - generic [ref=e198]: API Clients
+            - link "Run end-to-end (E2E) tests" [ref=e199] [cursor=pointer]:
+              - /url: /admin/run-e2e
+              - img [ref=e200]
+              - generic [ref=e202]: Run end-to-end (E2E) tests
+            - link "SMS Activity" [ref=e203] [cursor=pointer]:
+              - /url: /reports/sms-activity
+              - img [ref=e204]
+              - generic [ref=e206]: SMS Activity
+      - paragraph [ref=e208]: 1.0.0
+    - generic [ref=e209]:
+      - banner [ref=e210]:
+        - generic [ref=e211]:
+          - navigation "breadcrumb" [ref=e212]:
+            - list [ref=e213]:
+              - listitem [ref=e214]:
+                - link "Dashboard" [ref=e215] [cursor=pointer]:
+                  - /url: /welcome
+              - listitem [ref=e216]:
+                - img [ref=e217]
+              - listitem [ref=e219]:
+                - link "Channel Booking" [disabled] [ref=e220]
+          - generic [ref=e221]:
+            - button "Shift active 07:21:05" [ref=e222] [cursor=pointer]:
+              - img [ref=e223]
+              - generic [ref=e226]:
+                - text: Shift active
+                - generic [ref=e227]: 07:21:05
+              - img [ref=e228]
+            - button "Request float" [ref=e230] [cursor=pointer]:
+              - img [ref=e231]
+              - text: Request float
+            - generic [ref=e234]:
+              - text: "Float: LKR 3,080.00"
+              - button "Refresh balance" [disabled]:
+                - img
+        - button "A" [ref=e236] [cursor=pointer]:
+          - generic [ref=e238]: A
+      - main [ref=e239]:
+        - generic [ref=e240]:
+          - generic [ref=e241]:
+            - generic [ref=e242]:
+              - generic [ref=e244]:
+                - textbox "Specialty" [ref=e245]
+                - generic [ref=e247]:
+                  - generic [ref=e248] [cursor=pointer]: Allergy Immunology & Molecular Medicine
+                  - generic [ref=e249] [cursor=pointer]: Andrologist
+                  - generic [ref=e250] [cursor=pointer]: Ayurvedic
+                  - generic [ref=e251] [cursor=pointer]: Ayurvedic Surgeon
+                  - generic [ref=e252] [cursor=pointer]: COVID19
+                  - generic [ref=e253] [cursor=pointer]: Cardiac Electrophysiologist
+                  - generic [ref=e254] [cursor=pointer]: Cardio Thoracic
+                  - generic [ref=e255] [cursor=pointer]: Cardiologist
+                  - generic [ref=e256] [cursor=pointer]: Chest Physician
+                  - generic [ref=e257] [cursor=pointer]: Clinical Psychologist
+                  - generic [ref=e258] [cursor=pointer]: Clinical Geneticist & Genetic Counselor
+                  - generic [ref=e259] [cursor=pointer]: Consultant Geriatrician
+                  - generic [ref=e260] [cursor=pointer]: Consultant Gynecologist & Reproductive Medicine
+                  - generic [ref=e261] [cursor=pointer]: Consultant Rheumatology Pain Management
+                  - generic [ref=e262] [cursor=pointer]: Counselor
+                  - generic [ref=e263] [cursor=pointer]: Counselor & Therapy
+                  - generic [ref=e264] [cursor=pointer]: Dental Surgeon
+                  - generic [ref=e265] [cursor=pointer]: Dermatologist
+                  - generic [ref=e266] [cursor=pointer]: E N T Surgeon
+                  - generic [ref=e267] [cursor=pointer]: Educational Psychologsit
+                  - generic [ref=e268] [cursor=pointer]: Embryologist
+                  - generic [ref=e269] [cursor=pointer]: Endocrinologist
+                  - generic [ref=e270] [cursor=pointer]: Eye Surgeon
+                  - generic [ref=e271] [cursor=pointer]: Eye Technician
+                  - generic [ref=e272] [cursor=pointer]: Family Planning/Reproductive & Sexual Health
+                  - generic [ref=e273] [cursor=pointer]: Fertility Specialist & Gynecologist
+                  - generic [ref=e274] [cursor=pointer]: Gastroenterologist & Hepatologist
+                  - generic [ref=e275] [cursor=pointer]: Gastrointestinal Surgeon
+                  - generic [ref=e276] [cursor=pointer]: Genito Urinary Surgeon
+                  - generic [ref=e277] [cursor=pointer]: Gynecological Cancer Surgeon
+                  - generic [ref=e278] [cursor=pointer]: Hematologist
+                  - generic [ref=e279] [cursor=pointer]: Homeopathy
+                  - generic [ref=e280] [cursor=pointer]: JMO
+                  - generic [ref=e281] [cursor=pointer]: Lactation Management
+                  - generic [ref=e282] [cursor=pointer]: Medical Nutritionist
+                  - generic [ref=e283] [cursor=pointer]: Medical Virologist
+                  - generic [ref=e284] [cursor=pointer]: Microbiologist
+                  - generic [ref=e285] [cursor=pointer]: Neonatologist
+                  - generic [ref=e286] [cursor=pointer]: Nephrologist
+                  - generic [ref=e287] [cursor=pointer]: Neuralgic Pain Management
+                  - generic [ref=e288] [cursor=pointer]: Neuro Surgeon
+                  - generic [ref=e289] [cursor=pointer]: Neurologist
+                  - generic [ref=e290] [cursor=pointer]: Neurophysiologist
+                  - generic [ref=e291] [cursor=pointer]: Nutrition Physician
+                  - generic [ref=e292] [cursor=pointer]: Nutritionist
+                  - generic [ref=e293] [cursor=pointer]: O B S & Gynecologist
+                  - generic [ref=e294] [cursor=pointer]: Occupational Therapy
+                  - generic [ref=e295] [cursor=pointer]: Oncological Surgeon
+                  - generic [ref=e296] [cursor=pointer]: Oncologist
+                  - generic [ref=e297] [cursor=pointer]: Oral Maxillofacial Surgeon
+                  - generic [ref=e298] [cursor=pointer]: Orthodontics
+                  - generic [ref=e299] [cursor=pointer]: Orthopedic Surgeon
+                  - generic [ref=e300] [cursor=pointer]: Pathologist
+                  - generic [ref=e301] [cursor=pointer]: Pediatric Cardiologist
+                  - generic [ref=e302] [cursor=pointer]: Pediatric Chest Physician
+                  - generic [ref=e303] [cursor=pointer]: Pediatric Endocrinologist
+                  - generic [ref=e304] [cursor=pointer]: Pediatric Eye Surgeon
+                  - generic [ref=e305] [cursor=pointer]: Pediatric Nephrologist
+                  - generic [ref=e306] [cursor=pointer]: Pediatric Neurologist
+                  - generic [ref=e307] [cursor=pointer]: Pediatric Surgeon
+                  - generic [ref=e308] [cursor=pointer]: Pediatrician
+                  - generic [ref=e309] [cursor=pointer]: Physician
+                  - generic [ref=e310] [cursor=pointer]: Physiotherapy
+                  - generic [ref=e311] [cursor=pointer]: Plastic & Cosmetic Surgeon
+                  - generic [ref=e312] [cursor=pointer]: Psychiatrist
+                  - generic [ref=e313] [cursor=pointer]: Psychiatrist (Forensic)
+                  - generic [ref=e314] [cursor=pointer]: Psychological Counselor
+                  - generic [ref=e315] [cursor=pointer]: Radiologist
+                  - generic [ref=e316] [cursor=pointer]: Rehabilitation Physician
+                  - generic [ref=e317] [cursor=pointer]: Reproductive Medicine
+                  - generic [ref=e318] [cursor=pointer]: Restorative Dentistry
+                  - generic [ref=e319] [cursor=pointer]: Rheumatologist
+                  - generic [ref=e320] [cursor=pointer]: Speech Therapist
+                  - generic [ref=e321] [cursor=pointer]: Sports & Exercise Medicine Physician
+                  - generic [ref=e322] [cursor=pointer]: Sports Medicine
+                  - generic [ref=e323] [cursor=pointer]: Surgeon
+                  - generic [ref=e324] [cursor=pointer]: Test
+                  - generic [ref=e325] [cursor=pointer]: Test 2
+                  - generic [ref=e326] [cursor=pointer]: USS Scanning
+                  - generic [ref=e327] [cursor=pointer]: Vascular Surgeon
+                  - generic [ref=e328] [cursor=pointer]: Venereologist
+              - generic [ref=e330]:
+                - textbox "Consultant" [ref=e331]: Test Doctor
+                - generic [ref=e334] [cursor=pointer]: MR. TEST DOCTOR
+            - generic [ref=e336]:
+              - generic [ref=e337]:
+                - button "March 8th, 2026" [ref=e338] [cursor=pointer]:
+                  - img [ref=e339]
+                  - text: March 8th, 2026
+                - combobox [ref=e341]:
+                  - generic: Ruhunu Hospital
+                  - img [ref=e342]
+              - list [ref=e345]:
+                - listitem [ref=e346]:
+                  - 'button "Mon Mar/9/26 1:00 PM 200 4(100) #05 **0**" [ref=e347] [cursor=pointer]':
+                    - generic [ref=e348]: Mon
+                    - generic [ref=e349]: Mar/9/26
+                    - generic [ref=e350]: 1:00 PM
+                    - generic [ref=e351]: "200"
+                    - generic [ref=e352]: 4(100)
+                    - generic [ref=e353]: "#05"
+                    - generic [ref=e354]: "**0**"
+                - listitem [ref=e355]:
+                  - 'button "Mon Mar/9/26 3:00 PM 200 0(4) #02 **0**" [ref=e356] [cursor=pointer]':
+                    - generic [ref=e357]: Mon
+                    - generic [ref=e358]: Mar/9/26
+                    - generic [ref=e359]: 3:00 PM
+                    - generic [ref=e360]: "200"
+                    - generic [ref=e361]: 0(4)
+                    - generic [ref=e362]: "#02"
+                    - generic [ref=e363]: "**0**"
+                - listitem [ref=e364]:
+                  - 'button "Mon Mar/9/26 3:30 PM 200 0(100) #01 **0**" [ref=e365] [cursor=pointer]':
+                    - generic [ref=e366]: Mon
+                    - generic [ref=e367]: Mar/9/26
+                    - generic [ref=e368]: 3:30 PM
+                    - generic [ref=e369]: "200"
+                    - generic [ref=e370]: 0(100)
+                    - generic [ref=e371]: "#01"
+                    - generic [ref=e372]: "**0**"
+                - listitem [ref=e373]:
+                  - 'button "Sat Mar/14/26 8:00 AM 2,190 0(100) #01 **0**" [ref=e374] [cursor=pointer]':
+                    - generic [ref=e375]: Sat
+                    - generic [ref=e376]: Mar/14/26
+                    - generic [ref=e377]: 8:00 AM
+                    - generic [ref=e378]: 2,190
+                    - generic [ref=e379]: 0(100)
+                    - generic [ref=e380]: "#01"
+                    - generic [ref=e381]: "**0**"
+                - listitem [ref=e382]:
+                  - 'button "Mon Mar/16/26 1:00 PM 200 0(100) #01 **0**" [ref=e383] [cursor=pointer]':
+                    - generic [ref=e384]: Mon
+                    - generic [ref=e385]: Mar/16/26
+                    - generic [ref=e386]: 1:00 PM
+                    - generic [ref=e387]: "200"
+                    - generic [ref=e388]: 0(100)
+                    - generic [ref=e389]: "#01"
+                    - generic [ref=e390]: "**0**"
+                - listitem [ref=e391]:
+                  - 'button "Mon Mar/16/26 3:00 PM 200 0(4) #02 **0**" [ref=e392] [cursor=pointer]':
+                    - generic [ref=e393]: Mon
+                    - generic [ref=e394]: Mar/16/26
+                    - generic [ref=e395]: 3:00 PM
+                    - generic [ref=e396]: "200"
+                    - generic [ref=e397]: 0(4)
+                    - generic [ref=e398]: "#02"
+                    - generic [ref=e399]: "**0**"
+                - listitem [ref=e400]:
+                  - 'button "Mon Mar/16/26 3:30 PM 200 0(100) #01 **0**" [ref=e401] [cursor=pointer]':
+                    - generic [ref=e402]: Mon
+                    - generic [ref=e403]: Mar/16/26
+                    - generic [ref=e404]: 3:30 PM
+                    - generic [ref=e405]: "200"
+                    - generic [ref=e406]: 0(100)
+                    - generic [ref=e407]: "#01"
+                    - generic [ref=e408]: "**0**"
+                - listitem [ref=e409]:
+                  - 'button "Sat Mar/21/26 8:00 AM 2,190 0(100) #01 **0**" [ref=e410] [cursor=pointer]':
+                    - generic [ref=e411]: Sat
+                    - generic [ref=e412]: Mar/21/26
+                    - generic [ref=e413]: 8:00 AM
+                    - generic [ref=e414]: 2,190
+                    - generic [ref=e415]: 0(100)
+                    - generic [ref=e416]: "#01"
+                    - generic [ref=e417]: "**0**"
+                - listitem [ref=e418]:
+                  - 'button "Mon Mar/23/26 1:00 PM 200 1(100) #02 **0**" [ref=e419] [cursor=pointer]':
+                    - generic [ref=e420]: Mon
+                    - generic [ref=e421]: Mar/23/26
+                    - generic [ref=e422]: 1:00 PM
+                    - generic [ref=e423]: "200"
+                    - generic [ref=e424]: 1(100)
+                    - generic [ref=e425]: "#02"
+                    - generic [ref=e426]: "**0**"
+                - listitem [ref=e427]:
+                  - 'button "Mon Mar/23/26 3:00 PM 200 1(4) #03 **0**" [ref=e428] [cursor=pointer]':
+                    - generic [ref=e429]: Mon
+                    - generic [ref=e430]: Mar/23/26
+                    - generic [ref=e431]: 3:00 PM
+                    - generic [ref=e432]: "200"
+                    - generic [ref=e433]: 1(4)
+                    - generic [ref=e434]: "#03"
+                    - generic [ref=e435]: "**0**"
+                - listitem [ref=e436]:
+                  - 'button "Mon Mar/23/26 3:30 PM 200 0(100) #01 **0**" [ref=e437] [cursor=pointer]':
+                    - generic [ref=e438]: Mon
+                    - generic [ref=e439]: Mar/23/26
+                    - generic [ref=e440]: 3:30 PM
+                    - generic [ref=e441]: "200"
+                    - generic [ref=e442]: 0(100)
+                    - generic [ref=e443]: "#01"
+                    - generic [ref=e444]: "**0**"
+                - listitem [ref=e445]:
+                  - 'button "Sat Mar/28/26 8:00 AM 2,190 0(100) #01 **0**" [ref=e446] [cursor=pointer]':
+                    - generic [ref=e447]: Sat
+                    - generic [ref=e448]: Mar/28/26
+                    - generic [ref=e449]: 8:00 AM
+                    - generic [ref=e450]: 2,190
+                    - generic [ref=e451]: 0(100)
+                    - generic [ref=e452]: "#01"
+                    - generic [ref=e453]: "**0**"
+                - listitem [ref=e454]:
+                  - 'button "Mon Mar/30/26 1:00 PM 200 0(100) #01 **0**" [ref=e455] [cursor=pointer]':
+                    - generic [ref=e456]: Mon
+                    - generic [ref=e457]: Mar/30/26
+                    - generic [ref=e458]: 1:00 PM
+                    - generic [ref=e459]: "200"
+                    - generic [ref=e460]: 0(100)
+                    - generic [ref=e461]: "#01"
+                    - generic [ref=e462]: "**0**"
+                - listitem [ref=e463]:
+                  - 'button "Mon Mar/30/26 3:00 PM 200 0(4) #02 **0**" [ref=e464] [cursor=pointer]':
+                    - generic [ref=e465]: Mon
+                    - generic [ref=e466]: Mar/30/26
+                    - generic [ref=e467]: 3:00 PM
+                    - generic [ref=e468]: "200"
+                    - generic [ref=e469]: 0(4)
+                    - generic [ref=e470]: "#02"
+                    - generic [ref=e471]: "**0**"
+                - listitem [ref=e472]:
+                  - 'button "Mon Mar/30/26 3:30 PM 200 0(100) #01 **0**" [ref=e473] [cursor=pointer]':
+                    - generic [ref=e474]: Mon
+                    - generic [ref=e475]: Mar/30/26
+                    - generic [ref=e476]: 3:30 PM
+                    - generic [ref=e477]: "200"
+                    - generic [ref=e478]: 0(100)
+                    - generic [ref=e479]: "#01"
+                    - generic [ref=e480]: "**0**"
+            - generic [ref=e482]:
+              - generic [ref=e483]:
+                - heading "Bookings" [level=3] [ref=e484]
+                - generic [ref=e485]:
+                  - button "Session history" [ref=e486]:
+                    - img [ref=e487]
+                  - button "Send SMS to session" [ref=e492]:
+                    - img [ref=e493]
+              - table [ref=e497]:
+                - rowgroup [ref=e498]:
+                  - row "Select all for transfer No Name Paid Agent/Staff" [ref=e499]:
+                    - columnheader "Select all for transfer" [ref=e500]:
+                      - checkbox "Select all for transfer" [ref=e501]
+                    - columnheader "No" [ref=e502]
+                    - columnheader "Name" [ref=e503]
+                    - columnheader "Paid" [ref=e504]
+                    - columnheader "Agent/Staff" [ref=e505]
+                - rowgroup [ref=e506]:
+                  - row "Transfer MR. TEST USER ( STEP1 ) 4 MR. TEST USER ( STEP1 ) Paid - POS —" [ref=e507] [cursor=pointer]:
+                    - cell "Transfer MR. TEST USER ( STEP1 )" [ref=e508]:
+                      - checkbox "Transfer MR. TEST USER ( STEP1 )"
+                    - cell "4" [ref=e509]
+                    - cell "MR. TEST USER ( STEP1 )" [ref=e510]:
+                      - generic "MR. TEST USER ( STEP1 )" [ref=e512]
+                    - cell "Paid - POS" [ref=e513]
+                    - cell "—" [ref=e514]
+                  - row "Transfer MR. TEST USER ( STEP1 ) 3 MR. TEST USER ( STEP1 ) Paid - POS —" [ref=e515] [cursor=pointer]:
+                    - cell "Transfer MR. TEST USER ( STEP1 )" [ref=e516]:
+                      - checkbox "Transfer MR. TEST USER ( STEP1 )"
+                    - cell "3" [ref=e517]
+                    - cell "MR. TEST USER ( STEP1 )" [ref=e518]:
+                      - generic "MR. TEST USER ( STEP1 )" [ref=e520]
+                    - cell "Paid - POS" [ref=e521]
+                    - cell "—" [ref=e522]
+                  - row "Transfer MR. TEST USER ( STEP1 ) 2 MR. TEST USER ( STEP1 ) Paid - POS —" [ref=e523] [cursor=pointer]:
+                    - cell "Transfer MR. TEST USER ( STEP1 )" [ref=e524]:
+                      - checkbox "Transfer MR. TEST USER ( STEP1 )"
+                    - cell "2" [ref=e525]
+                    - cell "MR. TEST USER ( STEP1 )" [ref=e526]:
+                      - generic "MR. TEST USER ( STEP1 )" [ref=e528]
+                    - cell "Paid - POS" [ref=e529]
+                    - cell "—" [ref=e530]
+                  - row "Transfer MR. TEST 1 MR. TEST Paid - POS —" [ref=e531] [cursor=pointer]:
+                    - cell "Transfer MR. TEST" [ref=e532]:
+                      - checkbox "Transfer MR. TEST"
+                    - cell "1" [ref=e533]
+                    - cell "MR. TEST" [ref=e534]:
+                      - generic "MR. TEST" [ref=e536]
+                    - cell "Paid - POS" [ref=e537]
+                    - cell "—" [ref=e538]
+          - generic [ref=e539]:
+            - generic [ref=e542]:
+              - tablist [ref=e543]:
+                - tab "New Booking Details" [selected] [ref=e544]
+                - tab "Agent Book" [ref=e545]
+                - tab "Referred" [ref=e546]
+              - tabpanel "New Booking Details" [ref=e547]:
+                - generic [ref=e549]:
+                  - generic [ref=e550]:
+                    - combobox [ref=e551]:
+                      - generic [ref=e552]:
+                        - generic:
+                          - generic:
+                            - img
+                            - text: Cash
+                      - img [ref=e553]
+                    - combobox [ref=e556]:
+                      - generic: Select Discount Scheme
+                      - img [ref=e557]
+                  - generic [ref=e559]:
+                    - checkbox [ref=e560]
+                    - generic [ref=e561] [cursor=pointer]: Foreigner
+                  - generic [ref=e562]:
+                    - combobox [ref=e564]:
+                      - generic: Title
+                      - img [ref=e565]
+                    - generic [ref=e568]:
+                      - img
+                      - textbox "PATIENT NAME" [ref=e569]
+                  - generic [ref=e570]:
+                    - combobox [ref=e572]:
+                      - generic: Sex
+                      - img [ref=e573]
+                    - generic [ref=e576]:
+                      - img
+                      - textbox "Phone Number (07XXXXXXXX)" [ref=e577]
+                  - generic [ref=e578]:
+                    - generic [ref=e579]:
+                      - img
+                      - textbox "Remarks" [ref=e580]
+                    - generic [ref=e582]:
+                      - generic:
+                        - img
+                      - combobox [ref=e583] [cursor=pointer]:
+                        - text: Select Area
+                        - img [ref=e584]
+                  - generic [ref=e587]:
+                    - generic [ref=e588]:
+                      - generic [ref=e589]: "Discount : 90.00"
+                      - generic [ref=e590]: "Auto: Auto Cash Discount"
+                    - button "Book Now ( Rs.110.00 )" [disabled]:
+                      - img
+                      - text: Book Now ( Rs.110.00 )
+            - generic [ref=e593]:
+              - tablist [ref=e594]:
+                - tab "Booking" [ref=e595]:
+                  - generic [ref=e596]: Booking
+                - tab "Transfer" [ref=e598]
+                - tab "Cancel" [selected] [ref=e599]
+                - tab "Refund" [ref=e600]
+                - tab "Settle" [ref=e601]
+                - tab "Change" [ref=e602]
+                - tab "Search" [ref=e603]
+                - tab "Views" [ref=e604]
+                - tab "Arrival" [ref=e605]
+                - tab "Payment" [ref=e606]
+              - tabpanel "Cancel" [ref=e607]:
+                - generic [ref=e609]:
+                  - generic [ref=e610]:
+                    - generic [ref=e611]: Cancel Remarks *
+                    - textbox "Reason for cancellation…" [ref=e612]: E2E cancel test
+                  - generic [ref=e613]:
+                    - text: Refund method
+                    - combobox [ref=e614]:
+                      - generic: Refund as CASH
+                      - img [ref=e615]
+                  - button "Canceling…" [disabled]
+    - button "Show sidebar" [ref=e617] [cursor=pointer]:
+      - img [ref=e618]
+  - region "Notifications (F8)":
+    - list [ref=e621]:
+      - listitem [ref=e622]:
+        - generic [ref=e623]:
+          - generic [ref=e624]: Canceled
+          - generic [ref=e625]: Booking has been canceled.
+        - button [ref=e626] [cursor=pointer]:
+          - img [ref=e627]
+  - button "Open Next.js Dev Tools" [ref=e636] [cursor=pointer]:
+    - img [ref=e637]
+  - alert [ref=e640]
+  - status [ref=e641]: Notification CanceledBooking has been canceled.
+```

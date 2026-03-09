@@ -95,14 +95,8 @@ export {
   getBookingActivityForChannelBooking,
   type BookingActivityEntry,
 } from "./get-booking-activity.action"
-export {
-  setDoctorArrivalAction,
-  type SetDoctorArrivalResult,
-} from "./set-doctor-arrival.action"
-export {
-  getSessionArrivalState,
-  type SessionArrivalState,
-} from "./get-session-arrival-state.action"
+export { setDoctorArrivalAction } from "./set-doctor-arrival.action"
+export { getSessionArrivalState } from "./get-session-arrival-state.action"
 export {
   getRoomsForArrival,
   type RoomOption,

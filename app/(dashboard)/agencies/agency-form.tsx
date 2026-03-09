@@ -16,6 +16,7 @@ import {
 } from '@/app/actions/agency.actions';
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
@@ -42,9 +43,7 @@ const AgencyForm = ({
     code: agency?.code || '',
     chequePrintingName: agency?.chequePrintingName || '',
     parentAgencyId: agency?.parentAgencyId || '',
-    creditLimit: agency?.creditLimit || 0,
     allowedCreditLimit: agency?.allowedCreditLimit || 0,
-    maxCreditLimit: agency?.maxCreditLimit || 0,
     phone: agency?.phone || '',
     mobile: agency?.mobile || '',
     fax: agency?.fax || '',
@@ -88,12 +87,8 @@ const AgencyForm = ({
     chequePrintingName: Yup.string()
       .required('Cheque printing name is required')
       .max(100, 'Must be less than 100 characters'),
-    creditLimit: Yup.number().min(0, 'Must be 0 or greater'),
     allowedCreditLimit: Yup.number()
       .required('Allowed credit limit is required')
-      .min(0, 'Must be 0 or greater'),
-    maxCreditLimit: Yup.number()
-      .required('Max credit limit is required')
       .min(0, 'Must be 0 or greater'),
     contactPersonName: Yup.string()
       .required('Contact person name is required')
@@ -296,7 +291,7 @@ const AgencyForm = ({
                           <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
                           <div className={styleClasses.inputClassName}>
                             <span className="font-medium tabular-nums">
-                              {Number(agency.balance ?? 0).toFixed(2)}
+                              {formatLKR(Number(agency.balance ?? 0))}
                             </span>
                           </div>
                         </div>
@@ -438,34 +433,12 @@ const AgencyForm = ({
                     styleClasses={styleClasses}
                   />
 
-                  {/* Credit Limits */}
-                  <CustomFormField
-                    type="number"
-                    id="creditLimit"
-                    placeholder="Standard Credit Limit"
-                    value={formik.values.creditLimit}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required
-                    styleClasses={styleClasses}
-                  />
-
+                  {/* Allowed Credit Limit: soft limit for bookings; hard limit is account minBalanceAllowed */}
                   <CustomFormField
                     type="number"
                     id="allowedCreditLimit"
                     placeholder="Allowed Credit Limit"
                     value={formik.values.allowedCreditLimit}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required
-                    styleClasses={styleClasses}
-                  />
-
-                  <CustomFormField
-                    type="number"
-                    id="maxCreditLimit"
-                    placeholder="Allowed Maximum Credit Limit"
-                    value={formik.values.maxCreditLimit}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required

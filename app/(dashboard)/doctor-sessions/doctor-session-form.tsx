@@ -32,6 +32,7 @@ import {
 } from '@/lib/utils';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
 import { Loader } from 'lucide-react';
+import { formatLKR } from '@/lib/format-money';
 import { DoctorSessionFeeColumns } from './session-fee-columns';
 import CustomTable from '@/components/common/custom-table';
 import { FeeTotals } from './fee-total';
@@ -714,8 +715,8 @@ export default function DoctorSessionForm({
                       footerCells={[
                         'TOTAL',
                         '',
-                        <span key="local" className="text-right tabular-nums block w-full">{formik.values.fees.reduce((s: number, f: { localFee?: number }) => s + Number(f.localFee || 0), 0).toFixed(2)}</span>,
-                        <span key="foreign" className="text-right tabular-nums block w-full">{formik.values.fees.reduce((s: number, f: { foreignFee?: number }) => s + Number(f.foreignFee || 0), 0).toFixed(2)}</span>
+                        <span key="local" className="text-right tabular-nums block w-full">{formatLKR(formik.values.fees.reduce((s: number, f: { localFee?: number }) => s + Number(f.localFee || 0), 0))}</span>,
+                        <span key="foreign" className="text-right tabular-nums block w-full">{formatLKR(formik.values.fees.reduce((s: number, f: { foreignFee?: number }) => s + Number(f.foreignFee || 0), 0))}</span>
                       ]}
                     />
                     <FeeTotals formik={formik} />

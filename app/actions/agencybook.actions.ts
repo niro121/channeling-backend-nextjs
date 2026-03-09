@@ -17,6 +17,7 @@ import {
 } from '@/types/agencybook';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 
 // ==== GET ALL AGENCY BOOKS ==== //
@@ -134,7 +135,15 @@ export const createAgencyBook = async (
         }
       };
     }
-
+    if (user) {
+      logActivityNonBlocking({
+        userId: user.id,
+        action: 'agency-books.agencyBook.created',
+        entityType: 'AgencyBook',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high',
+      });
+    }
     revalidatePath('/agency-books');
 
     return {
@@ -193,7 +202,15 @@ export const updateAgencyBook = async (
         }
       };
     }
-
+    if (user) {
+      logActivityNonBlocking({
+        userId: user.id,
+        action: 'agency-books.agencyBook.updated',
+        entityType: 'AgencyBook',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/agency-books');
 
     return {
@@ -232,7 +249,16 @@ export const deleteAgencyBook = async (id: string) => {
         errors: result.error
       };
     }
-
+    const session = await fetchServerSession();
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'agency-books.agencyBook.deleted',
+        entityType: 'AgencyBook',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/agency-books');
 
     return {
@@ -290,7 +316,18 @@ export const getAgencyBooksExport = async (params: { keyword?: string; agencyId?
         success: false,
         message: response.success ? 'No agency books found' : response.message || 'Error getting data'
       };
-    }    return {
+    }
+    const session = await fetchServerSession();
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'agency-books.exported',
+        entityType: 'AgencyBook',
+        importance: 'medium',
+        metadata: { count: response.data?.length ?? 0 },
+      });
+    }
+    return {
       success: true,
       data: response.data
     };

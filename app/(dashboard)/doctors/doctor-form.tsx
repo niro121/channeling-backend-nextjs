@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Ban, Save, BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
+import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ErrorMessage } from 'formik';
@@ -195,7 +196,7 @@ export default function DoctorForm({
                       <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
                       <div className={styleClasses.inputClassName}>
                         <span className="font-medium tabular-nums">
-                          {Number(doctor.balance ?? 0).toFixed(2)}
+                          {formatLKR(Number(doctor.balance ?? 0))}
                         </span>
                       </div>
                     </div>

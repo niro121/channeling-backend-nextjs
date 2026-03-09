@@ -34,6 +34,8 @@ import {
   Banknote,
   ArrowRightLeft,
   Receipt,
+  Wallet,
+  Play,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -43,7 +45,16 @@ import { ChannelBookingShiftBar } from "./channel-booking/shift-bar";
 import { SignOutShiftReminder } from "./signout-shift-reminder";
 import { NavigationLoadingWrapper } from "./navigation-loading-wrapper";
 
-async function MobileNav({ session }: { session: Session | null }) {
+const E2E_RUN_ENABLED =
+  process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
+
+async function MobileNav({
+  session,
+  e2eRunEnabled,
+}: {
+  session: Session | null;
+  e2eRunEnabled: boolean;
+}) {
   const userType = session?.user?.userType;
   const permissions = session?.user?.permissions;
 
@@ -131,7 +142,7 @@ async function MobileNav({ session }: { session: Session | null }) {
               </div>
             </div>
           )}
-          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
               <div className="space-y-0.5">
@@ -140,6 +151,7 @@ async function MobileNav({ session }: { session: Session | null }) {
                 {hasAccess('/discounts') && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
                 {hasAccess('/accounting') && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+                {hasAccess('/my-till') && <NavLink href="/my-till" label="My Till" icon={<Wallet className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
                 {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
                 {hasAccess('/float-transfers') && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
@@ -163,6 +175,9 @@ async function MobileNav({ session }: { session: Session | null }) {
               <div className="space-y-0.5">
                 <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
                 <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
+                {e2eRunEnabled && (
+                  <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />
+                )}
                 <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
               </div>
             </div>
@@ -190,9 +205,9 @@ export default async function DashboardLayout({
       <NavigationLoadingWrapper>
         <SignOutShiftReminder />
         <div className="flex min-h-screen w-full flex-col bg-background">
-          <ChannelBookingLayoutClient session={session}>
+          <ChannelBookingLayoutClient session={session} e2eRunEnabled={E2E_RUN_ENABLED}>
             <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
-              <MobileNav session={session} />
+              <MobileNav session={session} e2eRunEnabled={E2E_RUN_ENABLED} />
               <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
                 <DashboardBreadcrumb />
                 <ChannelBookingShiftBar />

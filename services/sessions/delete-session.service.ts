@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 export async function deleteSessionService(
   sessionId: string,
@@ -18,7 +18,7 @@ export async function deleteSessionService(
     }
 
     if (userId) {
-      await logActivity({
+      logActivityNonBlocking({
         userId,
         action: 'session.deleted',
         entityType: 'Session',

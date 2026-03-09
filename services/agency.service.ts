@@ -25,15 +25,10 @@ const agencySchema = z.object({
     .string()
     .min(1, 'This field is mandatory')
     .max(100, 'Must be less than 100 characters'),
-  creditLimit: z.number().min(0, 'Must be 0 or greater'),
   allowedCreditLimit: z
     .number()
     .min(0, 'Must be 0 or greater')
     .refine((val) => val >= 0, 'Allowed credit limit must be 0 or greater'),
-  maxCreditLimit: z
-    .number()
-    .min(0, 'Must be 0 or greater')
-    .refine((val) => val >= 0, 'Max credit limit must be 0 or greater'),
   contactPersonName: z
     .string()
     .min(1, 'This field is mandatory')
@@ -178,7 +173,7 @@ export const getAllAgenciesService = async ({
         createdUser: { select: { id: true, name: true } },
         updatedUser: { select: { id: true, name: true } },
         accounts: {
-          where: { type: 'PAYABLE', isActive: true },
+          where: { type: 'RECEIVABLE', isActive: true },
           take: 1
         }
       },
@@ -257,15 +252,34 @@ export const getAllAgenciesExportService = async ({
       whereClause.parentAgencyId = parentAgencyId;
     }
 
-    const records = await prisma.agency.findMany({
+    const rows = await prisma.agency.findMany({
       where: whereClause,
       include: {
-        parentAgency: true
+        parentAgency: true,
+        accounts: {
+          where: { type: 'RECEIVABLE', isActive: true },
+          take: 1
+        }
       },
       orderBy: {
         createdAt: 'desc'
       }
     });
+
+    const records: Agency[] = await Promise.all(
+      rows.map(async (row) => {
+        const acc = row.accounts?.[0];
+        const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const { accounts: _a, ...rest } = row;
+        return {
+          ...rest,
+          balance: balanceCents / 100,
+          accountId: acc?.id ?? null,
+          accountName: acc?.name ?? null,
+          accountCode: acc?.code ?? null
+        } as Agency;
+      })
+    );
 
     return {
       data: records,
@@ -302,7 +316,7 @@ export const getAgencyByIdService = async (
         parentAgency: true,
         user: true,
         accounts: {
-          where: { type: 'PAYABLE', isActive: true },
+          where: { type: 'RECEIVABLE', isActive: true },
           take: 1
         }
       }
@@ -406,9 +420,7 @@ export const createAgencyService = async (
         name: data.name,
         code: agencyCode,
         chequePrintingName: data.chequePrintingName,
-        creditLimit: data.creditLimit,
         allowedCreditLimit: data.allowedCreditLimit,
-        maxCreditLimit: data.maxCreditLimit,
         phone: data.phone || null,
         mobile: data.mobile || null,
         fax: data.fax || null,
@@ -437,7 +449,7 @@ export const createAgencyService = async (
 
     const accountResult = await createAccount({
       name: `Agency - ${agency.name}`,
-      type: 'PAYABLE',
+      type: 'RECEIVABLE',
       agencyId: agency.id,
       code: agency.code ?? undefined,
     });
@@ -516,12 +528,8 @@ export const updateAgencyService = async (
         ...(data.chequePrintingName !== undefined && {
           chequePrintingName: data.chequePrintingName
         }),
-        ...(data.creditLimit !== undefined && { creditLimit: data.creditLimit }),
         ...(data.allowedCreditLimit !== undefined && {
           allowedCreditLimit: data.allowedCreditLimit
-        }),
-        ...(data.maxCreditLimit !== undefined && {
-          maxCreditLimit: data.maxCreditLimit
         }),
         ...(data.phone !== undefined && { phone: data.phone || null }),
         ...(data.mobile !== undefined && { mobile: data.mobile || null }),

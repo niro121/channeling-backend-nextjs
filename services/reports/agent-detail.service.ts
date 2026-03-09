@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { AgentDetailReportQuery } from '@/types/report';
 import moment from 'moment';
 
@@ -49,8 +50,15 @@ export const getAgentDetailReportDataService = async ({
       whereClause.status = status === '1' ? 1 : 0;
     }
 
-    const records = await prisma.agency.findMany({
+    const rows = await prisma.agency.findMany({
       where: whereClause,
+      include: {
+        accounts: {
+          where: { type: 'RECEIVABLE', isActive: true },
+          take: 1,
+          select: { id: true },
+        },
+      },
       orderBy: {
         createdAt: 'desc'
       }
@@ -59,6 +67,18 @@ export const getAgentDetailReportDataService = async ({
     const totalRecords = await prisma.agency.count({
       where: whereClause
     });
+
+    const records = await Promise.all(
+      rows.map(async (row) => {
+        const acc = row.accounts?.[0];
+        const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const { accounts: _a, ...rest } = row;
+        return {
+          ...rest,
+          balance: balanceCents / 100,
+        };
+      })
+    );
 
     return {
       success: true,

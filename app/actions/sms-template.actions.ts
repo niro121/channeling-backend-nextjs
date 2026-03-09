@@ -1,7 +1,10 @@
 "use server"
 
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import {
   getAllSmsTemplatesService,
   getSmsTemplateByIdService,
@@ -69,6 +72,16 @@ export async function createSmsTemplate(payload: SmsTemplateFormValues) {
       data: null,
     }
   }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: "sms-templates.template.created",
+      entityType: "SmsTemplate",
+      entityId: response.data?.id ?? undefined,
+      importance: "high",
+    })
+  }
   revalidatePath("/sms-templates")
   return { success: true, data: response.data ?? null, message: response.message }
 }
@@ -84,6 +97,16 @@ export async function updateSmsTemplate(id: string, payload: Partial<SmsTemplate
       data: null,
     }
   }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: "sms-templates.template.updated",
+      entityType: "SmsTemplate",
+      entityId: id,
+      importance: "high",
+    })
+  }
   revalidatePath("/sms-templates")
   revalidatePath(`/sms-templates/${id}/edit`)
   return { success: true, data: response.data ?? null, message: response.message }
@@ -94,6 +117,16 @@ export async function deleteSmsTemplate(id: string) {
   const response = await deleteSmsTemplateByIdService(id)
   if (!response.success) {
     return { success: false, message: response.message }
+  }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: "sms-templates.template.deleted",
+      entityType: "SmsTemplate",
+      entityId: id,
+      importance: "high",
+    })
   }
   revalidatePath("/sms-templates")
   return { success: true, message: response.message }
@@ -107,6 +140,16 @@ export async function bulkDeleteSmsTemplates(ids: string[]) {
   const response = await bulkDeleteSmsTemplatesByIdsService(ids)
   if (!response.success) {
     return { success: false, message: response.message }
+  }
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: "sms-templates.templates.bulkDeleted",
+      entityType: "SmsTemplate",
+      importance: "high",
+      metadata: { count: ids.length },
+    })
   }
   revalidatePath("/sms-templates")
   return { success: true, message: response.message }

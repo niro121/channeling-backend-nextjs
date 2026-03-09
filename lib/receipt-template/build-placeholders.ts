@@ -1,6 +1,7 @@
 import { format } from "date-fns"
 import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { LedgerReceiptDetail } from "@/services/ledger/get-ledger-receipt.service"
+import type { DoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service"
 
 /**
  * Build placeholder map for ledger receipt (for DB template replacement).
@@ -61,5 +62,53 @@ export function buildPlaceholdersForLedger(
     bank: receipt.bank ?? "",
     card_reference: receipt.cardReference ?? "",
     slip_reference: receipt.slipReference ?? "",
+  }
+}
+
+/**
+ * Build placeholder map for doctor payment (Consultant Payment) receipt.
+ * Keys: consultant_name, document_status, invoice_no, line_items, sub_payable, wht, net_paid_amount,
+ * total_patient_count, paid_to, paid_by, paid_on, generated_by, duplicate_label, company_name, location_name, generated_at.
+ */
+export function buildPlaceholdersForDoctorPayment(
+  detail: DoctorPaymentReceiptDetail,
+  options: { companyName?: string; duplicateLabel?: string } = {}
+): ReceiptPlaceholderMap {
+  const locationName = detail.locationName ?? ""
+  const companyName = options.companyName ?? locationName ?? "Consultant Payment"
+  const generatedBy =
+    detail.createdByName && detail.createdById
+      ? `${detail.createdByName} (${detail.createdById})`
+      : detail.createdByName ?? ""
+  const generatedAt = format(new Date(), "dd/MM/yyyy HH.mm")
+  const paidOn = format(new Date(detail.createdAt), "dd MMM yyyy HH:mm")
+  const lineItemsText = detail.lineItems
+    .map(
+      (row) =>
+        `${row.date}\t${row.session}\t${row.noOfPatients}\t${row.receiptNo}\t${row.patientName}\t${row.amountRs.toFixed(2)}`
+    )
+    .join("\n")
+  const headerRow = "Date\tSession\tNo of Patients\tReceipt No\tPatient Name\tAmount (Rs.)"
+  const line_items = `${headerRow}\n${lineItemsText}`
+
+  return {
+    company_name: companyName,
+    location_name: locationName,
+    consultant_name: detail.consultantName,
+    document_status: detail.documentStatus,
+    invoice_no: detail.receiptNoString,
+    line_items,
+    sub_payable: detail.amount.toFixed(2),
+    wht: detail.whd.toFixed(2),
+    net_paid_amount: detail.netAmount.toFixed(2),
+    total_patient_count: String(detail.totalPatientCount),
+    paid_to: detail.consultantName,
+    paid_by: generatedBy,
+    paid_on: paidOn,
+    generated_by: generatedBy,
+    generated_at: generatedAt,
+    duplicate_label: options.duplicateLabel ?? "",
+    remarks: detail.remarks,
+    slip_reference: detail.slipReference,
   }
 }

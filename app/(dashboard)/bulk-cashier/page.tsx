@@ -1,4 +1,5 @@
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { BulkCashierContent } from './bulk-cashier-content';
@@ -14,6 +15,12 @@ export default async function BulkCashierPage() {
   if (!bulkCashierId) {
     redirect('/unauthorized-access');
   }
+  logActivityNonBlocking({
+    userId: bulkCashierId,
+    action: 'bulk-cashier.visited',
+    entityType: 'BulkCashier',
+    importance: 'low',
+  });
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">

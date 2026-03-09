@@ -1,4 +1,6 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
@@ -16,6 +18,7 @@ import { getDoctorsExport } from '@/app/actions/doctor.actions';
 import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import { BulkDeleteButton } from '@/components/common/custom-data-table';
 
@@ -33,6 +36,15 @@ export default async function Page({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/doctors');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'doctors.visited',
+      entityType: 'Doctors',
+      importance: 'low',
+    });
   }
 
   const params = await searchParams;

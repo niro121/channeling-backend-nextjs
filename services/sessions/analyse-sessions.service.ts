@@ -5,7 +5,7 @@ import { normalizeSessionTime, parseSessionDateTime } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 import orderBy from 'lodash/orderBy';
-import { logActivity } from '@/lib/activity-log';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
 import { Fee, SessionInputData } from '@/types/sessions';
 
@@ -259,7 +259,7 @@ export async function analyseSessionsService(
           });
 
           if (inputs.userId) {
-            await logActivity({
+            logActivityNonBlocking({
               userId: inputs.userId,
               action: 'session.created.bulk',
               entityType: 'Session',
@@ -312,7 +312,7 @@ export async function analyseSessionsService(
 
             if (session) {
               if (inputs.userId) {
-                await logActivity({
+                logActivityNonBlocking({
                   userId: inputs.userId,
                   action: 'session.updated',
                   entityType: 'Session',

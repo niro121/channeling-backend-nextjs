@@ -14,6 +14,7 @@ import type { DiscountForBookingOption } from "@/services/channel-booking/refere
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
 import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
+import { formatLKR } from "@/lib/format-money"
 import { getPaymentMethodAndType } from "@/types/save-booking"
 import {
   Banknote,
@@ -990,7 +991,7 @@ export function NewBookingDetailsTab() {
       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
         <div className="flex flex-col gap-0.5 text-xs">
           <span className="font-medium text-red-600">
-            Discount : {computedDiscountAmount.toFixed(2)}
+            Discount : {formatLKR(computedDiscountAmount)}
           </span>
           {firstAutoDiscount && (
             <span className="text-muted-foreground">
@@ -1026,7 +1027,7 @@ export function NewBookingDetailsTab() {
           ) : (
             <>
               <CalendarCheck className="h-3.5 w-3.5 shrink-0" />
-              Book Now ( Rs.{amountToPay.toFixed(2)} )
+              Book Now ( Rs.{formatLKR(amountToPay)} )
             </>
           )}
         </Button>

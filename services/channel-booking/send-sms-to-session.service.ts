@@ -1,7 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import { logActivity } from "@/lib/activity-log"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 
 export type SendSmsToSessionInput = {
@@ -64,7 +64,7 @@ export async function sendSmsToSessionService(
   }
 
   if (userId) {
-    await logActivity({
+    logActivityNonBlocking({
       userId,
       action: "session.sms_sent",
       entityType: "Session",

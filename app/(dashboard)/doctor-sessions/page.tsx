@@ -1,4 +1,7 @@
 import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
 import DoctorSessionsContent from './doctor-sessions-content';
 import {
@@ -21,6 +24,15 @@ const institutionOptions = INSTITUTION_OPTIONS;
 
 export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'doctor-sessions.visited',
+      entityType: 'DoctorSessions',
+      importance: 'low',
+    });
+  }
   const institutionId = params?.institutionId ?? '0';
   const doctorId = params?.doctorId;
 
