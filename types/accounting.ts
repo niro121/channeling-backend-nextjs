@@ -32,6 +32,7 @@ export type Account = {
   creditCustomerId: string | null;
   userId: string | null;
   minBalanceAllowed: number | null;
+  maxBalanceAllowed: number | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -80,6 +81,7 @@ export type CreateAccountInput = {
   creditCustomerId?: string | null;
   userId?: string | null;
   minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
 };
 
 /** For edit: type is fixed; other fields optional. */
@@ -92,6 +94,7 @@ export type UpdateAccountInput = {
   agencyId?: string | null;
   creditCustomerId?: string | null;
   minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
   isActive?: boolean;
 };
 

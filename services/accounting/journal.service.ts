@@ -29,12 +29,11 @@ export async function createJournalEntry(
       name: true,
       type: true,
       minBalanceAllowed: true,
+      maxBalanceAllowed: true,
     },
   });
 
   for (const acc of accounts) {
-    if (acc.minBalanceAllowed === null) continue;
-
     const netEffect = input.lines
       .filter((l) => l.accountId === acc.id)
       .reduce(
@@ -46,10 +45,20 @@ export async function createJournalEntry(
     const currentBalance = await getAccountBalance(acc.id);
     const newBalance = currentBalance + netEffect;
 
-    if (newBalance < acc.minBalanceAllowed) {
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would go below allowed minimum (${acc.minBalanceAllowed})`,
+        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay})`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay})`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -88,7 +97,7 @@ export async function createJournalEntry(
 }
 
 /**
- * Check if posting the given journal entry would violate any account's minBalanceAllowed.
+ * Check if posting the given journal entry would violate any account's minBalanceAllowed or maxBalanceAllowed.
  * Use before creating a booking/receipt to fail fast with a clear error (e.g. agent/credit customer limit).
  */
 export async function checkJournalEntryBalance(
@@ -110,12 +119,11 @@ export async function checkJournalEntryBalance(
       name: true,
       type: true,
       minBalanceAllowed: true,
+      maxBalanceAllowed: true,
     },
   });
 
   for (const acc of accounts) {
-    if (acc.minBalanceAllowed === null) continue;
-
     const netEffect = input.lines
       .filter((l) => l.accountId === acc.id)
       .reduce(
@@ -127,11 +135,20 @@ export async function checkJournalEntryBalance(
     const currentBalance = await getAccountBalance(acc.id);
     const newBalance = currentBalance + netEffect;
 
-    if (newBalance < acc.minBalanceAllowed) {
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
       const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         allowed: false,
         error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        allowed: false,
+        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay}). This booking would exceed the credit limit.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -166,12 +183,11 @@ export async function createJournalEntryInTransaction(
       name: true,
       type: true,
       minBalanceAllowed: true,
+      maxBalanceAllowed: true,
     },
   });
 
   for (const acc of accounts) {
-    if (acc.minBalanceAllowed === null) continue;
-
     const netEffect = input.lines
       .filter((l) => l.accountId === acc.id)
       .reduce(
@@ -183,11 +199,20 @@ export async function createJournalEntryInTransaction(
     const currentBalance = await getAccountBalanceWithTx(tx, acc.id);
     const newBalance = currentBalance + netEffect;
 
-    if (newBalance < acc.minBalanceAllowed) {
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
       const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
         error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay}). This booking would exceed the credit limit.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };

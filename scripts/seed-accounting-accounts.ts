@@ -62,6 +62,7 @@ async function main() {
         agencyId: null,
         userId: null,
         minBalanceAllowed: null,
+        maxBalanceAllowed: null,
         isActive: true,
       },
     });
@@ -99,6 +100,7 @@ async function main() {
         userId: null,
         creditCustomerId: null,
         minBalanceAllowed: null,
+        maxBalanceAllowed: null,
         isActive: true,
       })),
     });
@@ -137,6 +139,7 @@ async function main() {
         userId: null,
         creditCustomerId: null,
         minBalanceAllowed: null,
+        maxBalanceAllowed: null,
         isActive: true,
       })),
     });
@@ -180,6 +183,7 @@ async function main() {
         userId: null,
         creditCustomerId: null,
         minBalanceAllowed: null,
+        maxBalanceAllowed: null,
         isActive: true,
       })),
     });
@@ -218,6 +222,7 @@ async function main() {
         creditCustomerId: cc.id,
         userId: null,
         minBalanceAllowed: null,
+        maxBalanceAllowed: null,
         isActive: true,
       })),
     });

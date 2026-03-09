@@ -65,6 +65,15 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
     },
   },
   {
+    id: 'maxBalanceAllowed',
+    header: 'Max balance',
+    cell: ({ row }) => {
+      const v = row.original.maxBalanceAllowed;
+      if (v === null || v === undefined) return <span className="text-muted-foreground">-</span>;
+      return <span className="tabular-nums">{formatCents(v)}</span>;
+    },
+  },
+  {
     id: 'balance',
     header: 'Balance',
     cell: ({ row }) => {
