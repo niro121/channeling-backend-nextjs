@@ -191,8 +191,8 @@ export default function CashierSummaryContent({
           row.consultant ?? '',
           row.name ?? '',
           row.type ?? '',
-          ...PAYMENT_COLUMNS.map((c) => {
-            const n = Number(row[c]);
+          ...PAYMENT_COLUMNS.map((col) => {
+            const n = Number(row[col.key]);
             return String(Number.isFinite(n) ? n / 100 : 0);
           }),
         ];
@@ -209,10 +209,10 @@ export default function CashierSummaryContent({
         '',
         '',
         '',
-        ...PAYMENT_COLUMNS.map((c) => {
-          const n = Number(section.totals[c]);
-          return String(Number.isFinite(n) ? n / 100 : 0);
-        }),
+        ...PAYMENT_COLUMNS.map((col) => {
+            const n = Number(section.totals[col.key]);
+            return String(Number.isFinite(n) ? n / 100 : 0);
+          }),
       ];
       lines.push(totalCells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','));
       lines.push('');
@@ -231,8 +231,8 @@ export default function CashierSummaryContent({
           '',
           '',
           '',
-          ...PAYMENT_COLUMNS.map((c) => {
-            const n = Number(grandTotals[c]);
+          ...PAYMENT_COLUMNS.map((col) => {
+            const n = Number(grandTotals[col.key]);
             return String(Number.isFinite(n) ? n / 100 : 0);
           }),
         ]
@@ -251,7 +251,7 @@ export default function CashierSummaryContent({
     URL.revokeObjectURL(url);
   };
 
-  const hasData = sections.some((s) => s.rows.length > 0 || PAYMENT_COLUMNS.some((c) => s.totals[c] !== 0));
+  const hasData = sections.some((s) => s.rows.length > 0 || PAYMENT_COLUMNS.some((col) => s.totals[col.key] !== 0));
 
   return (
     <div className="container mx-auto py-4 space-y-4 print:py-2">
@@ -284,8 +284,8 @@ export default function CashierSummaryContent({
                 from={fromDateTime}
                 to={toDateTime}
                 onChange={({ from, to }) => {
-                  setFromDateTime(from);
-                  setToDateTime(to);
+                  setFromDateTime(from ?? '');
+                  setToDateTime(to ?? '');
                 }}
               />
             </div>
@@ -399,7 +399,7 @@ function SectionBlock({
   showRows: boolean;
 }) {
   const isIncomeExpense = section.key === 'incomeExpense';
-  const hasAnyTotal = PAYMENT_COLUMNS.some((c) => section.totals[c] !== 0);
+  const hasAnyTotal = PAYMENT_COLUMNS.some((col) => section.totals[col.key] !== 0);
 
   return (
     <div className="space-y-1.5">
@@ -453,9 +453,9 @@ function SectionBlock({
                       <TableCell className="py-1 text-xs">{row.consultant ?? '—'}</TableCell>
                     </>
                   )}
-                  {PAYMENT_COLUMNS.map((c) => (
-                    <TableCell key={c.key} className="text-right tabular-nums text-xs py-1">
-                      {formatAmount(row[c])}
+                  {PAYMENT_COLUMNS.map((col) => (
+                    <TableCell key={col.key} className="text-right tabular-nums text-xs py-1">
+                      {formatAmount(row[col.key])}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -464,9 +464,9 @@ function SectionBlock({
                 <TableCell colSpan={6} className="text-right text-xs py-1">
                   Total
                 </TableCell>
-                {PAYMENT_COLUMNS.map((c) => (
-                  <TableCell key={c.key} className="text-right tabular-nums text-xs py-1">
-                    {formatAmount(section.totals[c])}
+                {PAYMENT_COLUMNS.map((col) => (
+                  <TableCell key={col.key} className="text-right tabular-nums text-xs py-1">
+                    {formatAmount(section.totals[col.key])}
                   </TableCell>
                 ))}
               </TableRow>
@@ -489,9 +489,9 @@ function SectionBlock({
             <TableBody>
               <TableRow className="font-medium">
                 <TableCell className="py-1.5 text-xs">Total</TableCell>
-                {PAYMENT_COLUMNS.map((c) => (
-                  <TableCell key={c.key} className="text-right tabular-nums text-xs py-1.5">
-                    {formatAmount(section.totals[c])}
+                {PAYMENT_COLUMNS.map((col) => (
+                  <TableCell key={col.key} className="text-right tabular-nums text-xs py-1.5">
+                    {formatAmount(section.totals[col.key])}
                   </TableCell>
                 ))}
               </TableRow>

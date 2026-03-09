@@ -184,9 +184,12 @@ export async function cancelLedgerReceiptService(
   })
 
   if (!result.success) {
-    return typeof (result as { success: false }).errorCode !== "undefined"
-      ? (result as { success: false; errorCode: string; message: string })
-      : { success: false, errorCode: "SERVER", message: "Cancel failed." }
+    const failed = result as { success: false; errorCode?: string; message?: string };
+    return {
+      success: false,
+      errorCode: failed.errorCode ?? "SERVER",
+      message: failed.message ?? "Cancel failed.",
+    };
   }
 
   const receipt = (result as { success: true; receipt: { id: string; receiptNoString: string } }).receipt
