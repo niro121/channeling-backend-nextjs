@@ -235,8 +235,10 @@ export async function saveBookingService(
       }
     }
     const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
-    const balance = await getAgentBalance(input.agency.id)
-    if (allowedCreditLimit + balance < amountToUse) {
+    const balanceCents = await getAgentBalance(input.agency.id)
+    const balanceRupees = balanceCents / 100
+
+    if (allowedCreditLimit < amountToUse + balanceRupees) {
       return {
         success: false,
         errorCode: "AGENCY_CREDIT_EXCEED",
