@@ -48,6 +48,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'User Activity',
     description: 'Audit log of user actions by user and date range (display capped at 10,000; export as PDF/CSV)',
     route: '/reports/user-activity'
+  },
+  {
+    id: '8',
+    masterData: 'Userwise Cashier Detail - Channel',
+    description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
+    route: '/reports/cashier-summary'
   }
 ];
 

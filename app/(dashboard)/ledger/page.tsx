@@ -7,7 +7,7 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import { SearchInput } from "@/components/common/search"
 import { CustomDataTable } from "@/components/common/custom-data-table"
-import { LedgerColumns } from "./columns"
+import { getLedgerColumns } from "./columns"
 import LedgerFilterSection from "./filter-section"
 import { LedgerToolbarWithAddDialog } from "./ledger-toolbar-with-add-dialog"
 import Loading from "../loading"
@@ -84,7 +84,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
         <CustomDataTable
           heading="Ledger"
           subHeading="Branch income/expense and agency debit note, credit note, deposit, withdraw."
-          columns={LedgerColumns}
+          columns={getLedgerColumns(canAdd)}
           data={data}
           rowCount={totalRecords}
           haveBulkDelete={false}

@@ -76,20 +76,19 @@ async function main() {
     select: { id: true, name: true, code: true },
     orderBy: { name: "asc" },
   });
-
+  const locationIds = locations.map((l) => l.id);
+  const existingLocationAccounts = await prisma.account.findMany({
+    where: { type: "CASH", locationId: { in: locationIds }, isActive: true },
+    select: { locationId: true },
+  });
+  const existingLocationIds = new Set(
+    (existingLocationAccounts.map((a) => a.locationId).filter(Boolean) as string[])
+  );
+  const locationsToCreate = locations.filter((loc) => !existingLocationIds.has(loc.id));
   let locationCreated = 0;
-  let locationSkipped = 0;
-
-  for (const loc of locations) {
-    const existing = await prisma.account.findFirst({
-      where: { type: "CASH", locationId: loc.id, isActive: true },
-    });
-    if (existing) {
-      locationSkipped++;
-      continue;
-    }
-    await prisma.account.create({
-      data: {
+  if (locationsToCreate.length > 0) {
+    const result = await prisma.account.createMany({
+      data: locationsToCreate.map((loc) => ({
         name: `Cash Book - ${loc.name}`,
         code: `CB-${loc.code}`,
         type: "CASH",
@@ -98,14 +97,15 @@ async function main() {
         doctorId: null,
         agencyId: null,
         userId: null,
+        creditCustomerId: null,
         minBalanceAllowed: null,
         isActive: true,
-      },
+      })),
     });
-    locationCreated++;
-    console.log("  Created cash book for location:", loc.name);
+    locationCreated = result.count;
+    console.log("  Created", locationCreated, "location cash book(s).");
   }
-
+  const locationSkipped = locations.length - locationCreated;
   console.log(`Locations: ${locationCreated} created, ${locationSkipped} already had accounts.\n`);
 
   // --- 3. Agent accounts (one Receivable per published agency; agency is debtor) ---
@@ -114,38 +114,36 @@ async function main() {
     select: { id: true, name: true, code: true },
     orderBy: { name: "asc" },
   });
-
+  const agencyIds = agencies.map((a) => a.id);
+  const existingAgencyAccounts = await prisma.account.findMany({
+    where: { type: "RECEIVABLE", agencyId: { in: agencyIds }, isActive: true },
+    select: { agencyId: true },
+  });
+  const existingAgencyIds = new Set(
+    (existingAgencyAccounts.map((a) => a.agencyId).filter(Boolean) as string[])
+  );
+  const agenciesToCreate = agencies.filter((ag) => !existingAgencyIds.has(ag.id));
   let agencyCreated = 0;
-  let agencySkipped = 0;
-
-  for (const ag of agencies) {
-    const existing = await prisma.account.findFirst({
-      where: { type: "RECEIVABLE", agencyId: ag.id, isActive: true },
-    });
-    if (existing) {
-      agencySkipped++;
-      continue;
-    }
-    // code must be unique; use agency code or fall back to id (only one null allowed globally)
-    const code = ag.code ? `AGT-${ag.code}` : `AGT-${ag.id}`;
-    await prisma.account.create({
-      data: {
+  if (agenciesToCreate.length > 0) {
+    const result = await prisma.account.createMany({
+      data: agenciesToCreate.map((ag) => ({
         name: `Agent - ${ag.name}`,
-        code,
+        code: ag.code ? `AGT-${ag.code}` : `AGT-${ag.id}`,
         type: "RECEIVABLE",
         parentAccountId: null,
         locationId: null,
         doctorId: null,
         agencyId: ag.id,
         userId: null,
+        creditCustomerId: null,
         minBalanceAllowed: null,
         isActive: true,
-      },
+      })),
     });
-    agencyCreated++;
-    console.log("  Created agent account:", ag.name);
+    agencyCreated = result.count;
+    console.log("  Created", agencyCreated, "agent account(s).");
   }
-
+  const agencySkipped = agencies.length - agencyCreated;
   console.log(`Agencies: ${agencyCreated} created, ${agencySkipped} already had accounts.\n`);
 
   // --- 4. Doctor accounts (one Payable per published doctor, or only the doctor matching DOCTOR_CODE) ---
@@ -159,20 +157,19 @@ async function main() {
     select: { id: true, name: true, code: true },
     orderBy: { name: "asc" },
   });
-
+  const doctorIds = doctors.map((d) => d.id);
+  const existingDoctorAccounts = await prisma.account.findMany({
+    where: { type: "PAYABLE", doctorId: { in: doctorIds }, isActive: true },
+    select: { doctorId: true },
+  });
+  const existingDoctorIds = new Set(
+    (existingDoctorAccounts.map((a) => a.doctorId).filter(Boolean) as string[])
+  );
+  const doctorsToCreate = doctors.filter((doc) => !existingDoctorIds.has(doc.id));
   let doctorCreated = 0;
-  let doctorSkipped = 0;
-
-  for (const doc of doctors) {
-    const existing = await prisma.account.findFirst({
-      where: { type: "PAYABLE", doctorId: doc.id, isActive: true },
-    });
-    if (existing) {
-      doctorSkipped++;
-      continue;
-    }
-    await prisma.account.create({
-      data: {
+  if (doctorsToCreate.length > 0) {
+    const result = await prisma.account.createMany({
+      data: doctorsToCreate.map((doc) => ({
         name: doc.name,
         code: `DOC-${doc.code}`,
         type: "PAYABLE",
@@ -181,14 +178,15 @@ async function main() {
         doctorId: doc.id,
         agencyId: null,
         userId: null,
+        creditCustomerId: null,
         minBalanceAllowed: null,
         isActive: true,
-      },
+      })),
     });
-    doctorCreated++;
-    console.log("  Created doctor account:", doc.name);
+    doctorCreated = result.count;
+    console.log("  Created", doctorCreated, "doctor account(s).");
   }
-
+  const doctorSkipped = doctors.length - doctorCreated;
   console.log(`Doctors: ${doctorCreated} created, ${doctorSkipped} already had accounts.\n`);
 
   // --- 5. Credit Customer accounts (one Receivable per published credit customer) ---
@@ -197,23 +195,21 @@ async function main() {
     select: { id: true, name: true, code: true },
     orderBy: { name: "asc" },
   });
-
+  const ccIds = creditCustomers.map((c) => c.id);
+  const existingCcAccounts = await prisma.account.findMany({
+    where: { type: "RECEIVABLE", creditCustomerId: { in: ccIds }, isActive: true },
+    select: { creditCustomerId: true },
+  });
+  const existingCcIds = new Set(
+    (existingCcAccounts.map((a) => a.creditCustomerId).filter(Boolean) as string[])
+  );
+  const ccsToCreate = creditCustomers.filter((cc) => !existingCcIds.has(cc.id));
   let creditCustomerCreated = 0;
-  let creditCustomerSkipped = 0;
-
-  for (const cc of creditCustomers) {
-    const existing = await prisma.account.findFirst({
-      where: { type: "RECEIVABLE", creditCustomerId: cc.id, isActive: true },
-    });
-    if (existing) {
-      creditCustomerSkipped++;
-      continue;
-    }
-    const code = cc.code ?? `CC-${cc.id}`;
-    await prisma.account.create({
-      data: {
+  if (ccsToCreate.length > 0) {
+    const result = await prisma.account.createMany({
+      data: ccsToCreate.map((cc) => ({
         name: `Credit - ${cc.name}`,
-        code,
+        code: cc.code ?? `CC-${cc.id}`,
         type: "RECEIVABLE",
         parentAccountId: null,
         locationId: null,
@@ -223,12 +219,12 @@ async function main() {
         userId: null,
         minBalanceAllowed: null,
         isActive: true,
-      },
+      })),
     });
-    creditCustomerCreated++;
-    console.log("  Created credit customer account:", cc.name);
+    creditCustomerCreated = result.count;
+    console.log("  Created", creditCustomerCreated, "credit customer account(s).");
   }
-
+  const creditCustomerSkipped = creditCustomers.length - creditCustomerCreated;
   console.log(`Credit Customers: ${creditCustomerCreated} created, ${creditCustomerSkipped} already had accounts.\n`);
 
   // --- 6. Sync Sequence table so next created entity gets correct code ---
