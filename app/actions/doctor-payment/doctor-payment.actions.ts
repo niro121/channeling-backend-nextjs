@@ -13,7 +13,10 @@ import {
   getDoctorPaymentListService,
   type GetDoctorPaymentListParams,
 } from "@/services/doctor-payment/get-doctor-payment-list.service";
-import { getDoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
+import {
+  getDoctorPaymentReceiptDetail,
+  getDoctorCancelReceiptDetail,
+} from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
 import {
   cancelDoctorPaymentService,
   type CancelDoctorPaymentResult,
@@ -42,6 +45,14 @@ export async function getDoctorPaymentList(params: GetDoctorPaymentListParams) {
 export async function getDoctorPaymentReceiptForPrint(receiptId: string) {
   await requirePermission("doctor-payments", "view");
   return getDoctorPaymentReceiptDetail(receiptId);
+}
+
+export async function getDoctorCancelReceiptForPrint(
+  cancelReceiptId: string,
+  options: { doctorName?: string; originalReceiptNoString?: string } = {}
+) {
+  await requirePermission("doctor-payments", "view");
+  return getDoctorCancelReceiptDetail(cancelReceiptId, options);
 }
 
 export async function cancelDoctorPaymentAction(

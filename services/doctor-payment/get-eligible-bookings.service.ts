@@ -16,18 +16,6 @@ export type GetEligibleBookingsResult =
   | { success: true; sessions: EligibleSessionGroup[] }
   | { success: false; errorCode: string; message: string };
 
-/** Refund: 0 none, 1 prof only, 2 hosp only, 3 full. For doctor payment we only count refund when professional was refunded. */
-function getProfessionalRefundAmount(
-  refund: number,
-  refundAmount: number,
-  professionalFee: number,
-  professionalDiscount: number
-): number {
-  if (refund === 1) return refundAmount;
-  if (refund === 3) return Math.max(0, professionalFee - professionalDiscount);
-  return 0;
-}
-
 /**
  * Get sessions with pending doctor payment for a doctor in a date range.
  * Lightweight: only selects id and fee fields, returns session summaries with booking IDs (no full booking details).
@@ -66,8 +54,7 @@ export async function getEligibleBookingsService(params: {
       sessionId: true,
       professionalFee: true,
       professionsalFeeDiscount: true,
-      refund: true,
-      refundAmount: true,
+      refundAmountProfessionalFee: true,
       session: {
         select: {
           id: true,
@@ -91,13 +78,8 @@ export async function getEligibleBookingsService(params: {
     const endTime = typeof session.endTime === "number"
       ? session.endTime
       : (session.endTime instanceof Date ? Math.floor(session.endTime.getTime() / 1000) : 0);
-    const refunds = getProfessionalRefundAmount(
-      b.refund ?? 0,
-      b.refundAmount ?? 0,
-      b.professionalFee ?? 0,
-      b.professionsalFeeDiscount ?? 0
-    );
-    const paymentRs = Math.max(0, (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) + refunds);
+    const refunds = b.refundAmountProfessionalFee ?? 0;
+    const paymentRs = Math.max(0, (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) - refunds);
     const existing = bySession.get(session.id);
     if (existing) {
       existing.ids.push(b.id);
