@@ -800,6 +800,8 @@ model Booking {
   refund                  Int      @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
   refundAmount            Int      @default(0)
   refundReason            String?
+  refundAmountProfessionalFee Int  @default(0) // Amount refunded for professional fee (positive, in Rs)
+  refundAmountHospitalFee Int      @default(0) // Amount refunded for hospital fee (positive, in Rs)
   refundReceiptId         String?  @db.ObjectId
   refundReceiptNoString   String?
   refundReceiptCreatedAt  DateTime?

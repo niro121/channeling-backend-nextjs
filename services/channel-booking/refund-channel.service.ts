@@ -68,6 +68,15 @@ export async function refundChannelService(
     }
   }
 
+  // Block refund/cancel if doctor has already been paid for this booking.
+  if (booking.doctorPayment === true) {
+    return {
+      success: false,
+      errorCode: "doctor_already_paid",
+      message: "Refund and cancel are not allowed because the doctor has already been paid for this booking.",
+    }
+  }
+
   const bookingAgencyId = booking.agencyId ?? null
   const bookingCreditCustomerId = (booking as { creditCustomerId?: string | null }).creditCustomerId ?? null
   const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
@@ -117,7 +126,8 @@ export async function refundChannelService(
   if (input.refund_type === 0) {
     if (booking.status === 1) {
       // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
-      const refundAmount = booking.amount - booking.discount
+      // booking.amount is already net (does not include discount), so do not subtract discount again.
+      const refundAmount = booking.amount
       const isAgent = refundTo === 4
       const isCreditCustomer = refundTo === 5
       const needTill = [0, 1, 2, 3, 6].includes(refundTo) // cash, card, slip, check, e-wallet (not agent, not credit customer)
@@ -211,6 +221,7 @@ export async function refundChannelService(
           locationId: booking.locationId ?? null,
           receiptSequenceMethod: 0, // REFUND RECEIPTS
           paymentMethod: refundTo,
+          // Outflow: store as negative so receipt.amount and booking.refundAmount are negative (convention for refunds)
           amount: -1 * refundAmount,
           bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
           bankId: refundTo === 1 && paidReceipt ? paidReceipt.bankId : null,
@@ -225,7 +236,10 @@ export async function refundChannelService(
           userLocationId: null,
           getBookingUpdate: (receipt) => ({
             refund: 3,
-            refundAmount: receipt.amount,
+            refundAmount: receipt.amount, // same sign as receipt (negative)
+            refundReason: remarks,
+            refundAmountProfessionalFee: Math.round(professionalFeeAfterDiscount),
+            refundAmountHospitalFee: Math.round(hospitalFeeAfterDiscount),
             refundReceiptId: receipt.id,
             refundReceiptNoString: receipt.receiptNoString,
             refundReceiptCreatedAt: receipt.createdAt,
@@ -364,6 +378,7 @@ export async function refundChannelService(
         locationId: booking.locationId ?? null,
         receiptSequenceMethod: 0, // REFUND RECEIPTS
         paymentMethod: refundTo,
+        // Outflow: store as negative (same convention as cancel/refund)
         amount: -1 * totalRefund,
         bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
         bankId: refundTo === 1 && paidReceipt ? paidReceipt.bankId : null,
@@ -378,7 +393,10 @@ export async function refundChannelService(
         userLocationId: null,
         getBookingUpdate: (receipt) => ({
           refund: refundType,
-          refundAmount: receipt.amount,
+          refundAmount: receipt.amount, // same sign as receipt (negative)
+          refundReason: remarks,
+          refundAmountProfessionalFee: input.professional_fee,
+          refundAmountHospitalFee: input.hospital_fee,
         }),
       })
         if (!r.success) return r

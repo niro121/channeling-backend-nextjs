@@ -28,6 +28,7 @@ import {
   Activity,
   MessageCircle,
   Key,
+  Database,
   Calculator,
   Banknote,
   Timer,
@@ -167,6 +168,7 @@ export function DesktopSidebar({
         {userType === userTypes.admin && (
           <SidebarGroup label="Admin">
             <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
+            <NavLink href="/admin/seed" label="Database seeds" icon={<Database className="h-5 w-5" />} />
             <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
             {e2eRunEnabled && (
               <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />
