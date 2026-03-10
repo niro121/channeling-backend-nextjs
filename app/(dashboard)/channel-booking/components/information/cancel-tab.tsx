@@ -120,6 +120,14 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     )
   }
 
+  if (details.doctorPayment) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+        Cancel (refund) is not allowed because the doctor has already been paid for this booking.
+      </div>
+    )
+  }
+
   const isPaid = details.status === 1
   const refundAmount = isPaid ? details.billTotal : 0
 

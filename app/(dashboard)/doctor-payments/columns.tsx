@@ -7,21 +7,30 @@ import { formatLKR } from "@/lib/format-money";
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt";
 import { DoctorPaymentRecordActions } from "./record-actions";
 
+function isCanceled(row: DoctorPaymentListItem): boolean {
+  return row.cancelReceiptId != null;
+}
+
 export const DoctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
   {
     accessorKey: "receiptNoString",
     header: "Payment Receipt",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.original.receiptNoString || "—"}</span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={`font-medium ${canceled ? "text-destructive" : ""}`}>
+          {row.original.receiptNoString || "—"}
+        </span>
+      );
+    },
   },
   {
     id: "status",
     header: "Status",
     cell: ({ row }) => {
-      const canceled = row.original.cancelReceiptId != null;
+      const canceled = isCanceled(row.original);
       return (
-        <span className={canceled ? "text-muted-foreground" : ""}>
+        <span className={canceled ? "font-medium text-destructive" : ""}>
           {canceled ? "Canceled" : "Paid"}
         </span>
       );
@@ -30,57 +39,87 @@ export const DoctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
   {
     accessorKey: "doctorName",
     header: "Doctor",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.doctorName || "—"}</span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={canceled ? "text-destructive" : "text-muted-foreground"}>
+          {row.original.doctorName || "—"}
+        </span>
+      );
+    },
   },
   {
     id: "paymentMethod",
     header: "Payment Method",
-    cell: ({ row }) => (
-      <span className="text-muted-foreground text-sm">
-        {PAYMENT_METHOD_NAMES[row.original.paymentMethod] ?? row.original.paymentMethod ?? "—"}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={`text-sm ${canceled ? "text-destructive" : "text-muted-foreground"}`}>
+          {PAYMENT_METHOD_NAMES[row.original.paymentMethod] ?? row.original.paymentMethod ?? "—"}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "amount",
     header: "Amount",
-    cell: ({ row }) => (
-      <span className="tabular-nums">{formatLKR(row.original.amount)}</span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={`tabular-nums ${canceled ? "text-destructive" : ""}`}>
+          {formatLKR(row.original.amount)}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "whd",
     header: "WHT",
-    cell: ({ row }) => (
-      <span className="tabular-nums text-muted-foreground">{formatLKR(row.original.whd)}</span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={`tabular-nums ${canceled ? "text-destructive" : "text-muted-foreground"}`}>
+          {formatLKR(row.original.whd)}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "netAmount",
     header: "Net Amount",
-    cell: ({ row }) => (
-      <span className="tabular-nums">{formatLKR(row.original.netAmount)}</span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span className={`tabular-nums ${canceled ? "text-destructive" : ""}`}>
+          {formatLKR(row.original.netAmount)}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "remarks",
     header: "Remark",
-    cell: ({ row }) => (
-      <span className="max-w-[140px] truncate block text-muted-foreground text-sm" title={row.original.remarks || ""}>
-        {row.original.remarks || "—"}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const canceled = isCanceled(row.original);
+      return (
+        <span
+          className={`max-w-[140px] truncate block text-sm ${canceled ? "text-destructive" : "text-muted-foreground"}`}
+          title={row.original.remarks || ""}
+        >
+          {row.original.remarks || "—"}
+        </span>
+      );
+    },
   },
   {
     id: "cancelInfo",
     header: "Cancel Reason & Cancel Receipt",
     cell: ({ row }) => {
       const r = row.original;
+      const canceled = isCanceled(r);
       if (!r.cancelReceiptNoString && !r.cancelReason) return "—";
       return (
-        <span className="text-muted-foreground text-sm">
+        <span className={`text-sm ${canceled ? "text-destructive" : "text-muted-foreground"}`}>
           {r.cancelReason ?? ""} {r.cancelReceiptNoString ? `(${r.cancelReceiptNoString})` : ""}
         </span>
       );
@@ -91,12 +130,13 @@ export const DoctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
     header: "Created By Date",
     cell: ({ row }) => {
       const r = row.original;
+      const canceled = isCanceled(r);
       const by = r.createdByName ?? r.createdBy ?? "—";
       const d = r.createdAt;
       if (!d) return "—";
       try {
         return (
-          <span className="text-muted-foreground text-sm">
+          <span className={`text-sm ${canceled ? "text-destructive" : "text-muted-foreground"}`}>
             {by} · {format(new Date(d), "dd MMM yyyy HH:mm")}
           </span>
         );

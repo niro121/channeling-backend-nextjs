@@ -137,6 +137,8 @@ export type BookingDetailsView = {
   sessionStatus?: number
   /** Session refundable: 0 = non-refundable, 1 = refundable. Used by Cancel/Refund tabs. */
   sessionRefundable?: number
+  /** True when doctor has been paid for this booking; refund and cancel are not allowed. */
+  doctorPayment?: boolean
   /** Session date YYYY-MM-DD for Settle tab (past date = cannot settle). */
   sessionDateForSettle?: string
   /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
@@ -386,6 +388,7 @@ export async function getBookingDetailsService(
       movedFromSession,
       sessionStatus: b.session?.status,
       sessionRefundable: b.session?.refundable,
+      doctorPayment: b.doctorPayment ?? false,
       sessionDateForSettle: b.session?.date
         ? new Date(b.session.date).toISOString().slice(0, 10)
         : undefined,
