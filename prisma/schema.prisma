@@ -96,6 +96,7 @@ model User {
   floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
   handoversFrom          ShiftHandover[]                @relation("ShiftHandoverFrom")
   handoversTo            ShiftHandover[]                @relation("ShiftHandoverTo")
+  notifications          Notification[]                 @relation("UserNotifications")
 }
 
 model UserGroup {
@@ -393,6 +394,26 @@ model Location {
   accounts             Account[]             @relation("LocationToAccount")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
+  bankAccounts         BankAccount[]         @relation("LocationToBankAccount")
+}
+
+model BankAccount {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  accountNumber String
+  bankId        String   @db.ObjectId
+  bank          Tag      @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
+  locationId    String   @db.ObjectId
+  location      Location @relation("LocationToBankAccount", fields: [locationId], references: [id], onDelete: Restrict)
+  status        Int      @default(1) // 0 = inactive, 1 = active
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?  @db.ObjectId
+  updatedBy     String?  @db.ObjectId
+
+  @@index([bankId])
+  @@index([locationId])
+  @@index([status])
 }
 
 model Room {
@@ -534,6 +555,24 @@ model ShiftHandover {
   @@index([toUserId, status])
 }
 
+// In-app notification center: float/handover approvals and rejections (extensible)
+model Notification {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @db.ObjectId
+  user          User      @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type          String    // e.g. float_approved, float_rejected, handover_approved, handover_rejected
+  title         String
+  message       String?   // optional detail
+  referenceType String?   // e.g. FloatRequest, ShiftHandover
+  referenceId   String?   @db.ObjectId // id of the related entity for deep link
+  readAt        DateTime? // null = unread
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, readAt])
+  @@index([createdAt(sort: Desc)])
+}
+
 model ActivityLog {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   userId     String   @db.ObjectId
@@ -618,7 +657,8 @@ model Tag {
   status          Int?
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
 
-  patients Patient[] @relation("PatientArea")
+  patients     Patient[]     @relation("PatientArea")
+  bankAccounts BankAccount[] @relation("BankToTag")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

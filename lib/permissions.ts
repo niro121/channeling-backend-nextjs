@@ -28,6 +28,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/admin/receipt-templates": "ledger",
   "/accounting": "accounting",
   "/ledger": "ledger",
+  "/bank-accounts": "bank-accounts",
   "/my-till": "bulk-cashier",
   "/bulk-cashier": "bulk-cashier",
   "/float-transfers": "float-transfers",

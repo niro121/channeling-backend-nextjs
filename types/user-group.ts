@@ -93,6 +93,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-payments", name: "Doctor Payments" },
   { id: "accounting", name: "Accounting" },
   { id: "ledger", name: "Ledger" },
+  { id: "bank-accounts", name: "Bank Accounts" },
   { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
 ];
 

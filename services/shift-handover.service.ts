@@ -10,6 +10,8 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getOrCreateAccount, createJournalEntry } from "@/services/accounting.service"
+import { createNotification } from "@/services/notification.service"
+import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
 
 export type ShiftHandoverAmounts = {
@@ -310,7 +312,8 @@ export async function approveHandover(
     })
 
     if (!journalResult.success) {
-      return { success: false, error: journalResult.error ?? "Failed to create handover journal." }
+      const msg = journalResult.error ?? "Failed to create handover journal."
+      return { success: false, error: msg.startsWith("Approval") ? msg : `Approval failed: ${msg}` }
     }
     journalId = journalResult.journalId
   }
@@ -338,6 +341,16 @@ export async function approveHandover(
     entityType: "ShiftHandover",
     entityId: handoverId,
     metadata: { shiftId: handover.shiftId, fromUserId: handover.fromUserId, totalCents },
+  })
+
+  const toName = handover.toUser?.name ?? "Bulk cashier"
+  await createNotification({
+    userId: handover.fromUserId,
+    type: NOTIFICATION_TYPES.HandoverApproved,
+    title: "Handover approved and received",
+    message: `${toName} has approved and received your shift handover. Your shift has been ended.`,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
   })
 
   const io = getIO()
@@ -396,6 +409,15 @@ export async function rejectHandover(
     entityType: "ShiftHandover",
     entityId: handoverId,
     metadata: { shiftId: handover.shiftId, fromUserId: handover.fromUserId },
+  })
+
+  await createNotification({
+    userId: handover.fromUserId,
+    type: NOTIFICATION_TYPES.HandoverRejected,
+    title: "Handover rejected",
+    message: trimmed ? `Reason: ${trimmed}` : undefined,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
   })
 
   const io = getIO()

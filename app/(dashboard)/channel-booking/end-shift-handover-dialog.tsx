@@ -609,41 +609,55 @@ export function EndShiftHandoverDialog({
                                   </td>
                                 </tr>
                               ) : (
-                                entries.map((e) => (
-                                  <tr key={e.id} className="border-b last:border-b-0">
-                                    <td className="p-1">
-                                      <Input
-                                        placeholder="e.g. slip no."
-                                        className="h-9"
-                                        value={e.reference}
-                                        onChange={(ev) => updateEntry(key, e.id, "reference", ev.target.value)}
-                                      />
-                                    </td>
-                                    <td className="p-1 text-right">
-                                      <Input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        placeholder="0.00"
-                                        className="h-9 w-24 text-right tabular-nums ml-auto"
-                                        value={e.amount}
-                                        onChange={(ev) => updateEntry(key, e.id, "amount", ev.target.value)}
-                                      />
-                                    </td>
-                                    <td className="p-1">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeEntry(key, e.id)}
-                                        aria-label="Remove entry"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))
+                                entries.map((e) => {
+                                  const referenceError = !e.reference.trim()
+                                  const amountError = e.amount.trim() === ""
+                                  return (
+                                    <tr key={e.id} className="border-b last:border-b-0">
+                                      <td className="p-1 align-top">
+                                        <div className="space-y-0.5">
+                                          <Input
+                                            placeholder="e.g. slip no."
+                                            className={cn("h-9", referenceError && "border-destructive focus-visible:ring-destructive")}
+                                            value={e.reference}
+                                            onChange={(ev) => updateEntry(key, e.id, "reference", ev.target.value)}
+                                          />
+                                          {referenceError && (
+                                            <p className="text-xs text-destructive">Reference is required</p>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="p-1 text-right align-top">
+                                        <div className="space-y-0.5 flex flex-col items-end">
+                                          <Input
+                                            type="number"
+                                            min={0}
+                                            step={0.01}
+                                            placeholder="0.00"
+                                            className={cn("h-9 w-24 text-right tabular-nums ml-auto", amountError && "border-destructive focus-visible:ring-destructive")}
+                                            value={e.amount}
+                                            onChange={(ev) => updateEntry(key, e.id, "amount", ev.target.value)}
+                                          />
+                                          {amountError && (
+                                            <p className="text-xs text-destructive">Amount required (can be 0)</p>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="p-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                          onClick={() => removeEntry(key, e.id)}
+                                          aria-label="Remove entry"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  )
+                                })
                               )}
                             </tbody>
                           </table>
