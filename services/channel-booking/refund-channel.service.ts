@@ -8,9 +8,14 @@ import {
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
 } from "./helpers"
-import { createJournalEntryInTransaction, getAccountBalance } from "@/services/accounting.service"
+import {
+  createJournalEntryInTransaction,
+  getTillBalanceBreakdownForAccount,
+  getTillBalanceCentsByMethod,
+} from "@/services/accounting.service"
 import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
+import { requireActiveShift } from "@/services/shift.service"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -29,6 +34,18 @@ export type RefundChannelResult =
 
 const REFUND_TO_DEFAULT = 0
 
+/** Label for refund method used in insufficient-balance messages (0=cash, 1=card, 2=slip, 3=check, 6=e-wallet). */
+function getRefundMethodLabel(refundTo: number): string {
+  const labels: Record<number, string> = {
+    0: "cash",
+    1: "card",
+    2: "slip",
+    3: "cheque",
+    6: "e-wallet",
+  }
+  return labels[refundTo] ?? "cash"
+}
+
 /**
  * Refund channel: Cancel (refund_type 0) or partial Refund (refund_type 1).
  * Permission must be checked by caller.
@@ -37,6 +54,8 @@ export async function refundChannelService(
   input: RefundChannelInput,
   userId: string | null
 ): Promise<RefundChannelResult> {
+  if (userId) await requireActiveShift(userId)
+
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
     include: {
@@ -171,18 +190,20 @@ export async function refundChannelService(
         }
         accounts = resolveResult
       }
-      // Refund that pays out from till: till must have sufficient balance
+      // Refund that pays out from till: till must have sufficient balance for this payment method (cash, card, etc.)
       if (needTill && accounts?.cashierAccountId) {
         const refundAmountCents = Math.round(Math.abs(refundAmount) * 100)
-        const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+        const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+        const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, refundTo)
         if (tillBalanceCents < refundAmountCents) {
+          const methodLabel = getRefundMethodLabel(refundTo)
           return {
             success: false,
             errorCode: "INSUFFICIENT_TILL_BALANCE",
             message:
               tillBalanceCents <= 0
-                ? "Till has no balance. Cannot refund until the till has sufficient cash."
-                : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+                ? `Till has no ${methodLabel} balance. Cannot refund until the till has sufficient ${methodLabel}.`
+                : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
           }
         }
       }
@@ -352,18 +373,20 @@ export async function refundChannelService(
       channelPaymentFeeSplitPartial.professionalFeeCents =
         totalRefundCents - channelPaymentFeeSplitPartial.hospitalFeeCents
     }
-    // Refund that pays out from till: till must have sufficient balance
+    // Refund that pays out from till: till must have sufficient balance for this payment method (cash, card, etc.)
     if (needTill && accounts?.cashierAccountId) {
       const refundAmountCents = totalRefundCents
-      const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+      const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+      const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, refundTo)
       if (tillBalanceCents < refundAmountCents) {
+        const methodLabel = getRefundMethodLabel(refundTo)
         return {
           success: false,
           errorCode: "INSUFFICIENT_TILL_BALANCE",
           message:
             tillBalanceCents <= 0
-              ? "Till has no balance. Cannot refund until the till has sufficient cash."
-              : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+              ? `Till has no ${methodLabel} balance. Cannot refund until the till has sufficient ${methodLabel}.`
+              : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
         }
       }
     }

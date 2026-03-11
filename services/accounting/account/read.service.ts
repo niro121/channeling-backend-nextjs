@@ -121,11 +121,11 @@ export async function getAllAccounts(
     }),
   ]);
 
-  const accountsWithBalance: (Account & { balance: number })[] = [];
-  for (const row of rows) {
-    const balance = await getAccountBalance(row.id);
-    accountsWithBalance.push({ ...mapAccount(row), balance });
-  }
+  const balances = await Promise.all(rows.map((row) => getAccountBalance(row.id)));
+  const accountsWithBalance: (Account & { balance: number })[] = rows.map((row, i) => ({
+    ...mapAccount(row),
+    balance: balances[i] ?? 0,
+  }));
 
   return {
     success: true,
