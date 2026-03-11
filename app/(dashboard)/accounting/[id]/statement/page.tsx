@@ -38,6 +38,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
 
   const account = accountRes.data ?? null;
   const statement = statementRes.data;
+  const statementError = !statementRes.success ? statementRes.message : null;
 
   if (!account) {
     notFound();
@@ -57,6 +58,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
   const openingBalance = statement?.openingBalance ?? 0;
   const closingBalance = statement?.closingBalance ?? 0;
   const lines = statement?.lines ?? [];
+  const truncatedMessage = statement?.truncatedMessage;
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -64,6 +66,17 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
         <h2 className="text-3xl font-bold tracking-tight">Statement of account</h2>
         <BackButton href="/accounting" />
       </div>
+
+      {statementError && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="pt-6">
+            <p className="text-sm text-destructive">{statementError}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Use the date range in the URL (e.g. ?fromDate=2025-01-01&toDate=2025-01-31) or go back and open the statement with a date range.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -101,10 +114,15 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
               {toDate && ` To: ${toDate}`}
             </p>
           )}
+          {truncatedMessage && (
+            <p className="text-sm text-amber-600 dark:text-amber-400">{truncatedMessage}</p>
+          )}
         </CardHeader>
         <CardContent>
           {lines.length === 0 ? (
-            <p className="text-muted-foreground py-4">No transactions in this period.</p>
+            <p className="text-muted-foreground py-4">
+              {statementError ? 'Select a date range in the URL to load the statement.' : 'No transactions in this period.'}
+            </p>
           ) : (
             <Table>
               <TableHeader>

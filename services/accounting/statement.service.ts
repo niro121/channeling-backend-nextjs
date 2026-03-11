@@ -1,5 +1,6 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type { AccountStatementResult, AccountStatementLine } from '@/types/accounting';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
@@ -8,7 +9,7 @@ import { mapAccount } from './map-account';
 
 const DEFAULT_STATEMENT_MAX_JOURNALS = 10000;
 
-/** Max journals in one statement request (env: STATEMENT_MAX_JOURNALS). Avoids huge $in and memory. */
+/** Max journals (and max statement lines) per request (env: STATEMENT_MAX_JOURNALS). Avoids huge $in and memory. */
 function getStatementMaxJournals(): number {
   const raw = process.env.STATEMENT_MAX_JOURNALS;
   if (raw == null || raw === '') return DEFAULT_STATEMENT_MAX_JOURNALS;
@@ -53,9 +54,15 @@ export async function getAccountStatement(
   });
   if (!account) return null;
 
+  const maxLines = getStatementMaxJournals();
+
   // MongoDB: Prisma relation filters (journal: { date: { gte, lte } }) can fail to match.
   // Use a two-step query: find journal IDs in date range (capped), then lines for those journals.
-  let lines;
+  // Always cap lines and use DB orderBy to avoid loading/sorting millions of rows in memory.
+  const lineOrderBy = [{ journal: { date: 'asc' as const } }, { journal: { createdAt: 'asc' as const } }];
+  let lines: Prisma.JournalLineGetPayload<{ select: typeof journalLineSelect }>[];
+  let truncatedMessage: string | undefined;
+
   if (fromDate || toDate) {
     const journalDateFilter: { gte?: Date; lte?: Date } = {};
     if (fromDate) journalDateFilter.gte = fromDate;
@@ -79,36 +86,42 @@ export async function getAccountStatement(
         ...(journalIds.length > 0 ? { journalId: { in: journalIds } } : { journalId: { in: [] } }),
       },
       select: journalLineSelect,
+      orderBy: lineOrderBy,
+      take: maxLines + 1,
     });
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      truncatedMessage = `Showing first ${maxLines.toLocaleString()} transactions. Use a shorter date range to see all.`;
+    }
   } else {
+    const lineCount = await prisma.journalLine.count({ where: { accountId } });
+    if (lineCount > maxLines) {
+      throw new Error(
+        `This account has ${lineCount.toLocaleString()} transactions. Please select a date range to view the statement (max ${maxLines.toLocaleString()} lines per request).`
+      );
+    }
     lines = await prisma.journalLine.findMany({
       where: { accountId },
       select: journalLineSelect,
+      orderBy: lineOrderBy,
+      take: maxLines,
     });
   }
 
   if (DEBUG) {
     const totalLinesNoFilter = await prisma.journalLine.count({ where: { accountId } });
-    const journalsSample = await prisma.journalLine.findMany({
-      where: { accountId },
-      take: 5,
-      orderBy: { journal: { date: 'desc' } },
-      include: { journal: { select: { date: true, description: true } } },
-    });
     console.debug('[getAccountStatement]', {
       accountId,
       accountName: account.name,
       fromDate: fromDate?.toISOString(),
       toDate: toDate?.toISOString(),
       totalJournalLinesForAccount: totalLinesNoFilter,
-      filteredLineCount: lines.length,
-      sampleJournalDates: journalsSample.map((l) => ({
-        date: l.journal.date.toISOString(),
-        description: l.journal.description?.slice(0, 40),
-      })),
+      returnedLineCount: lines.length,
+      truncatedMessage: truncatedMessage ?? null,
     });
   }
 
+  // DB already ordered by journal.date asc, journal.createdAt asc; keep in-memory sort for tie-break consistency
   lines.sort((a, b) => {
     const d = a.journal.date.getTime() - b.journal.date.getTime();
     if (d !== 0) return d;
@@ -149,5 +162,6 @@ export async function getAccountStatement(
     lines: resultLines,
     openingBalance,
     closingBalance: running,
+    ...(truncatedMessage ? { truncatedMessage } : {}),
   };
 }

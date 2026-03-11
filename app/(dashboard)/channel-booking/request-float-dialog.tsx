@@ -12,15 +12,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { createFloatRequestAction, getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
+import { SearchableUserSelect } from "@/components/common/searchable-user-select"
 import { useToast } from "@/components/hooks/use-toast"
 import { Loader2, Minus, Plus } from "lucide-react"
 import { formatLKR } from "@/lib/format-money"
@@ -111,30 +104,21 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
         <div className="space-y-4">
           <div>
             <Label>Bulk cashier</Label>
-            <Select value={bulkCashierId} onValueChange={setBulkCashierId} disabled={loadingUsers}>
-              <SelectTrigger>
-                {loadingUsers ? (
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading…
-                  </span>
-                ) : (
-                  <SelectValue placeholder="Select bulk cashier" />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                {bulkCashiers.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    <span className="flex items-center gap-2">
-                      {u.name}
-                      {u.isBulkCashier && (
-                        <Badge variant="secondary" className="text-xs font-normal">Bulk Cashier</Badge>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {loadingUsers ? (
+              <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input px-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
+            ) : (
+              <SearchableUserSelect
+                label="bulk cashier"
+                options={bulkCashiers.map((u) => ({ id: u.id, name: u.name || u.email || u.id, isBulkCashier: u.isBulkCashier }))}
+                value={bulkCashierId}
+                onChange={setBulkCashierId}
+                placeholder="Select bulk cashier"
+                disabled={loadingUsers}
+              />
+            )}
           </div>
           <div className="space-y-4">
             <div className="flex flex-col items-center">

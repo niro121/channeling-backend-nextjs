@@ -19,6 +19,7 @@ import {
 import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { requireActiveShift } from '@/services/shift.service';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -229,6 +230,11 @@ export async function createFloatRequestAction(input: unknown) {
     return { success: false, error: 'Unauthorized', data: null };
   }
   try {
+    await requireActiveShift(requestedById);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to request a float.', data: null };
+  }
+  try {
     const result = await createFloatRequest({ ...parsed.data, requestedById });
     if (!result.success) return { success: false, error: result.error, data: null };
     revalidatePath('/channel-booking');
@@ -315,6 +321,11 @@ export async function approveFloatRequestAction(input: unknown) {
   const session = await import('@/lib/session').then((m) => m.fetchServerSession());
   const currentUserId = session?.user?.id;
   if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  try {
+    await requireActiveShift(currentUserId);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to approve a float request.', data: null, printData: undefined };
+  }
   if (parsed.data.approvedBy !== currentUserId) {
     return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
   }
@@ -398,6 +409,11 @@ export async function receiveFloatRequestAction(input: unknown) {
   const session = await import('@/lib/session').then((m) => m.fetchServerSession());
   const receivedById = session?.user?.id;
   if (!receivedById) return { success: false, error: 'Unauthorized', data: null };
+  try {
+    await requireActiveShift(receivedById);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to receive a float.', data: null };
+  }
 
   try {
     const result = await receiveFloatRequest({
@@ -433,6 +449,11 @@ export async function declineApprovedFloatRequestAction(input: unknown) {
   const session = await import('@/lib/session').then((m) => m.fetchServerSession());
   const declinedBy = session?.user?.id;
   if (!declinedBy) return { success: false, error: 'Unauthorized', data: null };
+  try {
+    await requireActiveShift(declinedBy);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to decline a float.', data: null };
+  }
 
   const fr = await getFloatRequestById(parsed.data.floatRequestId);
   if (!fr) return { success: false, error: 'Float request not found', data: null };
@@ -483,6 +504,11 @@ export async function rejectFloatRequestAction(input: unknown) {
   const session = await import('@/lib/session').then((m) => m.fetchServerSession());
   const currentUserId = session?.user?.id;
   if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
+  try {
+    await requireActiveShift(currentUserId);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to reject a float request.', data: null };
+  }
   if (parsed.data.rejectedBy !== currentUserId) {
     return { success: false, error: 'Only the bulk cashier assigned to this request can reject it.', data: null };
   }
