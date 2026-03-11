@@ -25,7 +25,7 @@ export default async function AccountingAddPage() {
     getAllLocations({ publishedOnly: true, limit: '500', page: '0' }),
     getAllDoctors({ page: '0', limit: '500' }),
     getAllAgenciesOptions(),
-    getAllCreditCustomersOptions(),
+    getAllCreditCustomersOptions().catch(() => ({ success: false as const, data: [] })),
   ]);
 
   const cashAccounts = (accountsRes.data ?? [])
@@ -53,11 +53,13 @@ export default async function AccountingAddPage() {
     })) ?? [];
 
   const creditCustomers =
-    creditCustomersRes?.data?.map((c) => ({
-      id: c.id,
-      name: c.name,
-      code: c.code ?? null,
-    })) ?? [];
+    Array.isArray(creditCustomersRes?.data)
+      ? creditCustomersRes.data.map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code ?? null,
+        }))
+      : [];
 
   const types: { value: AccountType; label: string }[] = [
     { value: 'CASH', label: 'Cash' },
@@ -67,10 +69,22 @@ export default async function AccountingAddPage() {
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Add account</h2>
-        <BackButton href="/accounting" />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold tracking-tight">Add Account</h2>
+          <BackButton href="/accounting" />
+        </div>
+
+        {/* Intro for add flow */}
+        <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground">
+            Create a new GL account. Set type, name, and optional code and minimum balance. For Cash
+            accounts you can link a parent cash book and location; for Payable or Receivable you can
+            link a doctor, agency or credit customer.
+          </p>
+        </div>
       </div>
+
       <div className="h-full flex-1 flex-col space-y-8">
         <AccountForm
           types={types}

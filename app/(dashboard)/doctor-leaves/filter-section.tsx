@@ -5,26 +5,34 @@ import { FilterWrapper } from '../filter-wrapper';
 import { Combobox } from '@/components/common/combobox';
 import { DoctorLeaveFilterOption } from '@/types/doctor.leave';
 
+type FilterValues = Record<string, string | undefined>;
+
 interface DoctorLeavesFilterSectionProps {
   doctorOptions: DoctorLeaveFilterOption[];
   doctorId?: string;
   fromDate?: string;
   toDate?: string;
+  onValuesChange?: (values: FilterValues) => void;
 }
 
 export default function DoctorLeavesFilterSection({
   doctorOptions,
   doctorId,
   fromDate,
-  toDate
+  toDate,
+  onValuesChange
 }: DoctorLeavesFilterSectionProps) {
+  const initialValues = {
+    doctorId: doctorId ?? '',
+    fromDate,
+    toDate
+  };
+
   return (
     <FilterWrapper
-      initialValues={{
-        doctorId: doctorId ?? '',
-        fromDate,
-        toDate
-      }}
+      key={[initialValues.doctorId, initialValues.fromDate, initialValues.toDate].join('|')}
+      initialValues={initialValues}
+      onValuesChange={onValuesChange}
     >
       {({ values, setValue }) => {
         const hasDoctorSelected = Boolean(

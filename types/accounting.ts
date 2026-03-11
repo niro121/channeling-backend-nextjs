@@ -16,6 +16,7 @@ export const REFERENCE_TYPES = {
   Booking: 'Booking',
   Manual: 'Manual',
   DoctorPayment: 'DoctorPayment',
+  ShiftHandover: 'ShiftHandover',
 } as const;
 
 export type ReferenceType = (typeof REFERENCE_TYPES)[keyof typeof REFERENCE_TYPES];
@@ -32,6 +33,7 @@ export type Account = {
   creditCustomerId: string | null;
   userId: string | null;
   minBalanceAllowed: number | null;
+  maxBalanceAllowed: number | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -80,6 +82,7 @@ export type CreateAccountInput = {
   creditCustomerId?: string | null;
   userId?: string | null;
   minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
 };
 
 /** For edit: type is fixed; other fields optional. */
@@ -92,6 +95,7 @@ export type UpdateAccountInput = {
   agencyId?: string | null;
   creditCustomerId?: string | null;
   minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
   isActive?: boolean;
 };
 
@@ -134,4 +138,6 @@ export type AccountStatementResult = {
   lines: AccountStatementLine[];
   openingBalance: number;
   closingBalance: number;
+  /** Shown when the statement was capped (e.g. date range too large or no date range with many lines). */
+  truncatedMessage?: string;
 };

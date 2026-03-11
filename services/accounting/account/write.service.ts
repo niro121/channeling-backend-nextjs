@@ -9,28 +9,116 @@ import { mapAccount } from '../map-account';
 
 const ACCOUNT_TYPES = ['CASH', 'PAYABLE', 'RECEIVABLE'] as const;
 
+const MIN_BALANCE_ALLOWED_MIN = -2147483648; // 32-bit signed int min (cents)
+const MIN_BALANCE_ALLOWED_MAX = 2147483647; // 32-bit signed int max (cents)
+
 const createAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name must be at most 200 characters').trim(),
   type: z.enum(ACCOUNT_TYPES, { message: 'Type is required and must be CASH, PAYABLE, or RECEIVABLE' }),
-  code: z.string().max(50).optional().nullable().transform((v) => (v === '' ? null : v ?? null)),
+  code: z
+    .string()
+    .max(50)
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
   parentAccountId: z.string().optional().nullable(),
   locationId: z.string().optional().nullable(),
   doctorId: z.string().optional().nullable(),
   agencyId: z.string().optional().nullable(),
   creditCustomerId: z.string().optional().nullable(),
   userId: z.string().optional().nullable(),
-  minBalanceAllowed: z.number().int().optional().nullable(),
+  minBalanceAllowed: z
+    .number()
+    .int('Minimum balance must be a whole number (in cents)')
+    .min(MIN_BALANCE_ALLOWED_MIN, `Minimum balance must be at least ${MIN_BALANCE_ALLOWED_MIN / 100} (in cents)`)
+    .max(MIN_BALANCE_ALLOWED_MAX, `Minimum balance must be at most ${MIN_BALANCE_ALLOWED_MAX / 100} (in cents)`)
+    .optional()
+    .nullable(),
+  maxBalanceAllowed: z
+    .number()
+    .int('Maximum balance must be a whole number (in cents)')
+    .min(MIN_BALANCE_ALLOWED_MIN, `Maximum balance must be at least ${MIN_BALANCE_ALLOWED_MIN / 100} (in cents)`)
+    .max(MIN_BALANCE_ALLOWED_MAX, `Maximum balance must be at most ${MIN_BALANCE_ALLOWED_MAX / 100} (in cents)`)
+    .optional()
+    .nullable(),
 });
 
 const updateAccountSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200, 'Name must be at most 200 characters').trim().optional(),
-  code: z.string().max(50).optional().nullable().transform((v) => (v === '' ? null : v)),
-  parentAccountId: z.string().optional().nullable(),
-  locationId: z.string().optional().nullable(),
-  doctorId: z.string().optional().nullable(),
-  agencyId: z.string().optional().nullable(),
-  creditCustomerId: z.string().optional().nullable(),
-  minBalanceAllowed: z.number().int().optional().nullable(),
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(200, 'Name must be at most 200 characters')
+    .trim()
+    .optional(),
+  code: z
+    .string()
+    .max(50)
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  parentAccountId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  locationId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  doctorId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  agencyId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  creditCustomerId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v == null || String(v).trim() === '' ? null : String(v).trim())),
+  minBalanceAllowed: z
+    .union([z.number(), z.string()])
+    .optional()
+    .nullable()
+    .transform((v) => {
+      if (v === undefined) return undefined; // key not sent: don't update
+      if (v === null || v === '') return null; // explicit clear
+      const n = typeof v === 'string' ? Number(String(v).replace(/,/g, '')) : v;
+      return Number.isFinite(n) ? Math.round(n) : null;
+    })
+    .pipe(
+      z
+        .number()
+        .int('Minimum balance must be a whole number (in cents)')
+        .min(MIN_BALANCE_ALLOWED_MIN, `Minimum balance must be at least ${MIN_BALANCE_ALLOWED_MIN / 100} (in cents)`)
+        .max(MIN_BALANCE_ALLOWED_MAX, `Minimum balance must be at most ${MIN_BALANCE_ALLOWED_MAX / 100} (in cents)`)
+        .optional()
+        .nullable()
+    ),
+  maxBalanceAllowed: z
+    .union([z.number(), z.string()])
+    .optional()
+    .nullable()
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      if (v === null || v === '') return null;
+      const n = typeof v === 'string' ? Number(String(v).replace(/,/g, '')) : v;
+      return Number.isFinite(n) ? Math.round(n) : null;
+    })
+    .pipe(
+      z
+        .number()
+        .int('Maximum balance must be a whole number (in cents)')
+        .min(MIN_BALANCE_ALLOWED_MIN, `Maximum balance must be at least ${MIN_BALANCE_ALLOWED_MIN / 100} (in cents)`)
+        .max(MIN_BALANCE_ALLOWED_MAX, `Maximum balance must be at most ${MIN_BALANCE_ALLOWED_MAX / 100} (in cents)`)
+        .optional()
+        .nullable()
+    ),
   isActive: z.boolean().optional(),
 });
 
@@ -74,6 +162,7 @@ export async function createAccount(
         creditCustomerId: data.creditCustomerId ?? null,
         userId: data.userId ?? null,
         minBalanceAllowed: data.minBalanceAllowed ?? null,
+        maxBalanceAllowed: data.maxBalanceAllowed ?? null,
         isActive: true,
       },
       include: {
@@ -112,6 +201,23 @@ export async function updateAccount(
   }
   data = parsed.data as UpdateAccountInput;
 
+  const updatableKeys = [
+    'name',
+    'code',
+    'parentAccountId',
+    'locationId',
+    'doctorId',
+    'agencyId',
+    'creditCustomerId',
+    'minBalanceAllowed',
+    'maxBalanceAllowed',
+    'isActive',
+  ] as const;
+  const hasAtLeastOneField = updatableKeys.some((key) => key in data && data[key] !== undefined);
+  if (!hasAtLeastOneField) {
+    return { success: false, error: 'At least one field is required to update the account.' };
+  }
+
   try {
     const updated = await prisma.account.update({
       where: { id },
@@ -123,7 +229,8 @@ export async function updateAccount(
         ...(data.doctorId !== undefined && { doctorId: data.doctorId ?? null }),
         ...(data.agencyId !== undefined && { agencyId: data.agencyId ?? null }),
         ...(data.creditCustomerId !== undefined && { creditCustomerId: data.creditCustomerId ?? null }),
-        ...(data.minBalanceAllowed !== undefined && { minBalanceAllowed: data.minBalanceAllowed ?? null }),
+        ...('minBalanceAllowed' in data && { minBalanceAllowed: data.minBalanceAllowed ?? null }),
+        ...('maxBalanceAllowed' in data && { maxBalanceAllowed: data.maxBalanceAllowed ?? null }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },
     });

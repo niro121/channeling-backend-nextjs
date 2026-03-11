@@ -30,21 +30,25 @@ import {
   Activity,
   MessageCircle,
   Key,
+  Database,
   Calculator,
   Banknote,
   ArrowRightLeft,
   Receipt,
   Wallet,
   Play,
+  Workflow,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
 import { userTypes } from "@/lib/roles";
 import { ChannelBookingLayoutClient } from "./channel-booking-layout-client";
 import { ChannelBookingShiftBar } from "./channel-booking/shift-bar";
+import { GlobalStartShiftDialog } from "./global-start-shift-dialog";
 import { SignOutShiftReminder } from "./signout-shift-reminder";
 import { NavigationLoadingWrapper } from "./navigation-loading-wrapper";
 
+const SHIFT_MAX_HOURS = Number(process.env.SHIFT_MAX_DURATION_HOURS) || 36;
 const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
 
@@ -99,11 +103,12 @@ async function MobileNav({
         </div>
         {/* Scrollable menu with groups – only show links the user has view permission for */}
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
-          {(hasAccess('/channel-booking') || hasAccess('/sessions')) && (
+          {(hasAccess('/channel-booking') || hasAccess('/sessions') || hasAccess('/handovers')) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channeling</p>
               <div className="space-y-0.5">
                 {hasAccess('/channel-booking') && <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />}
+                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
               </div>
             </div>
@@ -173,7 +178,9 @@ async function MobileNav({
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Admin</p>
               <div className="space-y-0.5">
+                <NavLink href="/admin/transaction-flow" label="Transaction flow diagram" icon={<Workflow className="h-5 w-5" />} />
                 <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
+                <NavLink href="/admin/seed" label="Database seeds" icon={<Database className="h-5 w-5" />} />
                 <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
                 {e2eRunEnabled && (
                   <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />
@@ -204,6 +211,7 @@ export default async function DashboardLayout({
     <Providers session={session}>
       <NavigationLoadingWrapper>
         <SignOutShiftReminder />
+        <GlobalStartShiftDialog shiftMaxHours={SHIFT_MAX_HOURS} />
         <div className="flex min-h-screen w-full flex-col bg-background">
           <ChannelBookingLayoutClient session={session} e2eRunEnabled={E2E_RUN_ENABLED}>
             <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">

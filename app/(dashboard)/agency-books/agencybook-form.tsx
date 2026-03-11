@@ -58,7 +58,9 @@ const AgencyBookForm = ({
     status: Yup.number()
       .required('Status is required')
       .oneOf([0, 1], 'Status must be either 0 or 1'),
-    agencyId: Yup.string().nullable()
+    agencyId: Yup.string()
+      .required('Agency is required')
+      .min(1, 'Agency is required')
   });
 
   const handleSubmit = async (
@@ -134,7 +136,7 @@ const AgencyBookForm = ({
               {/* Agency Name */}
               <div className={styleClasses.parentDiv}>
                 <Label className={styleClasses.labelClassName}>
-                  Agency Name
+                  Agency Name <span className="text-red-600">*</span>
                 </Label>
                 <div className={styleClasses.inputClassName}>
                   <CustomSelectField
@@ -144,7 +146,7 @@ const AgencyBookForm = ({
                     onChange={(value) => {
                       formik.setFieldValue('agencyId', value);
                     }}
-                    required={false}
+                    required
                     options={agencyOptions}
                     styleClasses={{
                       ...styleClasses,

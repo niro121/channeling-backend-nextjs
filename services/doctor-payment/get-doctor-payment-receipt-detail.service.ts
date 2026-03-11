@@ -69,8 +69,8 @@ export async function getDoctorPaymentReceiptDetail(
         : "—";
     const professionalFee = b.professionalFee ?? 0;
     const discount = b.professionsalFeeDiscount ?? 0;
-    const refunds = b.refundAmount ?? 0;
-    const amountRs = Math.max(0, professionalFee - discount + refunds);
+    const refunds = b.refundAmountProfessionalFee ?? 0;
+    const amountRs = Math.max(0, professionalFee - discount - refunds);
     const patientName = [b.title, b.name].filter(Boolean).join(" ").trim() || "—";
     lineItems.push({
       date: sessionDate ? sessionDate.toISOString().slice(0, 10) : "—",
@@ -128,4 +128,76 @@ function formatTime(t: Date | number): string {
   }
   const d = t instanceof Date ? t : new Date(t);
   return d.toTimeString().slice(0, 5);
+}
+
+/**
+ * Get receipt detail for the cancel/reversal receipt (method 5) for print/view.
+ * Builds a DoctorPaymentReceiptDetail-shaped object so the same template can be used.
+ */
+export async function getDoctorCancelReceiptDetail(
+  cancelReceiptId: string,
+  options: { doctorName?: string; originalReceiptNoString?: string } = {}
+): Promise<{ success: true; data: DoctorPaymentReceiptDetail } | { success: false; message: string }> {
+  const receipt = await prisma.receipt.findUnique({
+    where: { id: cancelReceiptId, method: RECEIPT_METHOD.DOCTOR_CANCEL },
+    include: { location: { select: { name: true } } },
+  });
+  if (!receipt) {
+    return { success: false, message: "Cancel receipt not found." };
+  }
+
+  let originalReceiptNoString = options.originalReceiptNoString ?? "";
+  if (!originalReceiptNoString && receipt.reversedReceiptId) {
+    const original = await prisma.receipt.findUnique({
+      where: { id: receipt.reversedReceiptId },
+      select: { receiptNoString: true },
+    });
+    originalReceiptNoString = original?.receiptNoString ?? "";
+  }
+
+  const gross = Math.abs(receipt.amount);
+  const whd = receipt.whd ?? 0;
+  const netAmount = Math.max(0, gross - whd);
+
+  let createdByName: string | null = null;
+  let createdById: string | null = null;
+  if (receipt.createdBy) {
+    const creator = await prisma.user.findUnique({
+      where: { id: receipt.createdBy },
+      select: { name: true, id: true },
+    });
+    createdByName = creator?.name ?? null;
+    createdById = creator?.id ?? null;
+  }
+
+  const consultantName = options.doctorName?.trim() ?? "—";
+  const reversalLine: DoctorPaymentLineItem = {
+    date: receipt.createdAt ? new Date(receipt.createdAt).toISOString().slice(0, 10) : "—",
+    session: "Reversal",
+    noOfPatients: 0,
+    receiptNo: receipt.receiptNoString,
+    patientName: originalReceiptNoString ? `Reversal of ${originalReceiptNoString}` : receipt.remarks ?? "Reversal",
+    amountRs: gross,
+  };
+
+  const data: DoctorPaymentReceiptDetail = {
+    id: receipt.id,
+    receiptNoString: receipt.receiptNoString,
+    consultantName,
+    documentStatus: "CANCELLED",
+    locationName: receipt.location?.name ?? null,
+    amount: gross,
+    whd,
+    whdPercentage: receipt.whdPercentage ?? 0,
+    netAmount,
+    totalPatientCount: 0,
+    lineItems: [reversalLine],
+    remarks: receipt.remarks ?? "",
+    slipReference: receipt.slipReference ?? "",
+    createdAt: receipt.createdAt,
+    createdByName,
+    createdById,
+  };
+
+  return { success: true, data };
 }

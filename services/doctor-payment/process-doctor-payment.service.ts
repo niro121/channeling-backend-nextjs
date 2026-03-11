@@ -10,9 +10,15 @@ import {
   buildReceiptJournalEntryInput,
   resolveDoctorPaymentAccounts,
 } from "@/services/channel-booking/helpers/receipt-journal-entry";
-import { createJournalEntryInTransaction } from "@/services/accounting.service";
+import {
+  createJournalEntryInTransaction,
+  getTillBalanceBreakdownForAccount,
+  getTillBalanceCentsByMethod,
+} from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
+import { formatCents } from "@/lib/format-money";
+import { requireActiveShift } from "@/services/shift.service";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -24,6 +30,20 @@ function getWhtPercentage(): number {
 }
 
 const VALID_PAYMENT_METHOD_CODES = [0, 1, 2, 3, 4, 5, 6] as const;
+
+/** Till payment methods: payment is withdrawn from cashier till (0=cash, 1=card, 2=slip, 3=check, 6=e-wallet). */
+const TILL_PAYMENT_METHODS = [0, 1, 2, 3, 6] as const;
+
+function getPaymentMethodLabel(pm: number): string {
+  const labels: Record<number, string> = {
+    0: "cash",
+    1: "card",
+    2: "slip",
+    3: "cheque",
+    6: "e-wallet",
+  };
+  return labels[pm] ?? "cash";
+}
 
 function getAllowedDoctorPaymentMethods(): number[] {
   const raw = process.env.DOCTOR_PAYMENT_METHODS;
@@ -67,6 +87,8 @@ export async function processDoctorPaymentService(
     locationId,
     userId,
   } = input;
+
+  if (userId) await requireActiveShift(userId);
 
   if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
     return { success: false, errorCode: "VALIDATION", message: "At least one booking is required." };
@@ -122,6 +144,25 @@ export async function processDoctorPaymentService(
     };
   }
   const accounts = accountsResult;
+
+  // When paying from till (cash, card, slip, check, e-wallet), ensure till has enough balance for that method
+  const needTill = (TILL_PAYMENT_METHODS as readonly number[]).includes(paymentMethod);
+  if (needTill && accounts.cashierAccountId) {
+    const netAmountCents = Math.round(netAmount * 100);
+    const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId);
+    const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, paymentMethod);
+    if (tillBalanceCents < netAmountCents) {
+      const methodLabel = getPaymentMethodLabel(paymentMethod);
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_TILL_BALANCE",
+        message:
+          tillBalanceCents <= 0
+            ? `Till has no ${methodLabel} balance. Cannot complete doctor payment until the till has sufficient ${methodLabel}.`
+            : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(netAmountCents)} LKR.`,
+      };
+    }
+  }
 
   const remarks = handed_staff.trim()
     ? `DOCTOR PAYMENT Handed: ${handed_staff.trim()}`

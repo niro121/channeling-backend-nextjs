@@ -54,7 +54,7 @@ export async function getEligibleBookingsService(params: {
       sessionId: true,
       professionalFee: true,
       professionsalFeeDiscount: true,
-      refundAmount: true,
+      refundAmountProfessionalFee: true,
       session: {
         select: {
           id: true,
@@ -78,8 +78,8 @@ export async function getEligibleBookingsService(params: {
     const endTime = typeof session.endTime === "number"
       ? session.endTime
       : (session.endTime instanceof Date ? Math.floor(session.endTime.getTime() / 1000) : 0);
-    const refunds = b.refundAmount ?? 0;
-    const paymentRs = Math.max(0, (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) + refunds);
+    const refunds = b.refundAmountProfessionalFee ?? 0;
+    const paymentRs = Math.max(0, (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) - refunds);
     const existing = bySession.get(session.id);
     if (existing) {
       existing.ids.push(b.id);

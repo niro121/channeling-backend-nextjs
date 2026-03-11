@@ -12,7 +12,8 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 // ==== AGENCY BOOK: VALIDATION SCHEMA ==== //
-const agencyBookSchema = z.object({
+/** Schema for creating an agency book: agency is required. */
+const agencyBookCreateSchema = z.object({
   bookNumber: z
     .string()
     .min(1, 'This field is mandatory')
@@ -31,14 +32,19 @@ const agencyBookSchema = z.object({
     .refine((val) => val === 0 || val === 1, {
       message: 'Status must be Inactive (0) or Active (1)'
     }),
-  agencyId: z.string().optional().nullable()
+  agencyId: z
+    .string()
+    .min(1, 'Agency is required')
+    .refine((id) => !id.startsWith('temp-'), { message: 'Please select a valid agency' })
 });
 
-const agencyBookUpdateSchema = agencyBookSchema.partial().extend({
-  id: z.string().min(1, 'Agency Book ID is required')
+/** Schema for update: all fields optional; if agencyId is provided it must be non-empty. */
+const agencyBookUpdateSchema = agencyBookCreateSchema.partial().extend({
+  id: z.string().min(1, 'Agency Book ID is required'),
+  agencyId: z.string().min(1, 'Agency is required').optional()
 });
 
-type agencyBookInput = z.infer<typeof agencyBookSchema>;
+type agencyBookCreateInput = z.infer<typeof agencyBookCreateSchema>;
 
 // ==== GET ALL AGENCY BOOKS ==== //
 export const getAllAgencyBooksService = async ({
@@ -204,13 +210,13 @@ export const createAgencyBookService = async (
   };
 }> => {
   try {
-    const parsed = agencyBookSchema.safeParse(payload);
+    const parsed = agencyBookCreateSchema.safeParse(payload);
 
     if (!parsed.success) {
       return {
         success: false,
         error: {
-          message: 'Validation failed',
+          message: parsed.error.issues?.[0]?.message ?? 'Validation failed',
           issues: parsed.error.flatten().fieldErrors
         }
       };
@@ -218,17 +224,34 @@ export const createAgencyBookService = async (
 
     const data = parsed.data;
 
-    // Validate agencyId if provided
-    const isValidObjectId = (id: string | undefined): boolean => {
-      if (!id || id === '' || id.startsWith('temp-')) {
-        return false;
-      }
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
+    const isValidObjectId = (id: string): boolean =>
+      /^[0-9a-fA-F]{24}$/.test(id);
 
-    const agencyRelation = data.agencyId && isValidObjectId(data.agencyId)
-      ? { connect: { id: data.agencyId } }
-      : undefined;
+    if (!isValidObjectId(data.agencyId)) {
+      return {
+        success: false,
+        error: {
+          message: 'Agency is required',
+          issues: { agencyId: ['Please select a valid agency'] }
+        }
+      };
+    }
+
+    const agencyExists = await prisma.agency.findUnique({
+      where: { id: data.agencyId },
+      select: { id: true }
+    });
+    if (!agencyExists) {
+      return {
+        success: false,
+        error: {
+          message: 'Selected agency does not exist',
+          issues: { agencyId: ['Please select a valid agency'] }
+        }
+      };
+    }
+
+    const agencyRelation = { connect: { id: data.agencyId } };
 
     // Use relation syntax for user connections (required when relations are defined)
     const createdUserRelation = user?.id && isValidObjectId(user.id)
@@ -320,20 +343,30 @@ export const updateAgencyBookService = async (
 
     const data = parsed.data;
 
-    // Validate agencyId if provided
-    const isValidObjectId = (id: string | undefined): boolean => {
-      if (!id || id === '' || id.startsWith('temp-')) {
-        return false;
-      }
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
+    const isValidObjectId = (id: string | undefined): boolean =>
+      !!id && id !== '' && !id.startsWith('temp-') && /^[0-9a-fA-F]{24}$/.test(id);
 
-    const agencyRelation =
-      data.agencyId !== undefined
-        ? data.agencyId && isValidObjectId(data.agencyId)
-          ? { connect: { id: data.agencyId } }
-          : { disconnect: true }
-        : undefined;
+    let agencyRelation: { connect: { id: string } } | { disconnect: true } | undefined;
+    if (data.agencyId !== undefined) {
+      if (data.agencyId && isValidObjectId(data.agencyId)) {
+        const agencyExists = await prisma.agency.findUnique({
+          where: { id: data.agencyId },
+          select: { id: true }
+        });
+        if (!agencyExists) {
+          return {
+            success: false,
+            error: {
+              message: 'Selected agency does not exist',
+              issues: { agencyId: ['Please select a valid agency'] }
+            }
+          };
+        }
+        agencyRelation = { connect: { id: data.agencyId } };
+      } else {
+        agencyRelation = { disconnect: true };
+      }
+    }
 
     // Use relation syntax for updatedUser (required when relations are defined)
     const updatedUserRelation = user?.id && isValidObjectId(user.id)

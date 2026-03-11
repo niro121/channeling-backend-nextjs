@@ -14,14 +14,21 @@ import AddDoctorLeaveDialog from './add-doctor-leave-dialog';
 type AddBtnSectionProps = {
   doctorId?: string | undefined;
   doctorName?: string | undefined;
+  /** When false, filters were changed but not applied - disable Add to avoid adding for wrong doctor */
+  filtersApplied?: boolean;
 };
 
 export default function AddBtnSection({
   doctorId,
-  doctorName
+  doctorName,
+  filtersApplied = true
 }: AddBtnSectionProps) {
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
-  const canAdd = doctorId !== undefined;
+  const canAdd =
+    doctorId !== undefined &&
+    doctorId !== '' &&
+    doctorId !== '__all__' &&
+    filtersApplied;
 
   const handleClick = () => {
     if (canAdd) setAddDialogOpen(true);
@@ -46,10 +53,12 @@ export default function AddBtnSection({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent className='text-white'>
             {canAdd
               ? 'Add new doctor leave'
-              : 'Select a doctor above to add leaves'}
+              : !filtersApplied
+                ? 'Click Apply to confirm the selected doctor'
+                : 'Select a doctor above to add leaves'}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

@@ -94,6 +94,8 @@ model User {
   floatRequestsRequested  FloatRequest[]                @relation("FloatRequestRequestedBy")
   floatRequestsAsBulkCashier FloatRequest[]             @relation("FloatRequestBulkCashier")
   floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
+  handoversFrom          ShiftHandover[]                @relation("ShiftHandoverFrom")
+  handoversTo            ShiftHandover[]                @relation("ShiftHandoverTo")
 }
 
 model UserGroup {
@@ -434,7 +436,7 @@ model Shift {
   location      Location? @relation("ShiftToLocation", fields: [locationId], references: [id], onDelete: SetNull)
   startedAt     DateTime  @default(now())
   endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS
-  status        Int // 0 = paused, 1 = active, 3 = ended
+  status        Int // 0 = paused, 1 = active, 2 = handover pending, 3 = ended
   createdAt     DateTime  @default(now())
   createdBy     String?   @db.ObjectId
   createdByUser User?     @relation("ShiftCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -447,6 +449,7 @@ model Shift {
   updatedAt     DateTime  @updatedAt
 
   floatRequests FloatRequest[]
+  handovers    ShiftHandover[]
 
   @@index([userId, status])
   @@index([locationId])
@@ -491,6 +494,44 @@ model FloatRequest {
   @@index([bulkCashierId, status])
   @@index([requestedById])
   @@index([status])
+}
+
+// Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
+// status: 0 = PENDING, 1 = APPROVED, 2 = REJECTED, 3 = CANCELLED
+model ShiftHandover {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  shiftId            String    @db.ObjectId
+  shift              Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  fromUserId         String    @db.ObjectId
+  fromUser           User      @relation("ShiftHandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId           String    @db.ObjectId
+  toUser             User      @relation("ShiftHandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status             Int       @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=CANCELLED
+  journalId          String?   @db.ObjectId
+  journal            Journal?  @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  cashCents          Int       @default(0)
+  cardCents          Int       @default(0)
+  slipCents          Int       @default(0)
+  checkCents         Int       @default(0)
+  creditCents        Int       @default(0)
+  eWalletCents       Int       @default(0)
+  totalCents         Int       @default(0)
+  discrepancyReason  String?   // Reason for discrepancy (required when there is a short or over > 100 cents)
+  enteredBreakdown   Json?     // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
+  approvedAt         DateTime?
+  approvedBy         String?   @db.ObjectId
+  approvalComments   String?   // Optional comments when bulk cashier approves and receives
+  rejectedAt         DateTime?
+  rejectedBy         String?   @db.ObjectId
+  rejectReason       String?
+  cancelledAt        DateTime?
+  cancelledBy        String?   @db.ObjectId
+  createdAt          DateTime  @default(now())
+
+  @@index([shiftId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([toUserId, status])
 }
 
 model ActivityLog {
@@ -689,7 +730,7 @@ model Agency {
   parentAgencyId     String? @db.ObjectId
 
   // ==== CREDIT FIELDS ==== //
-  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is account minBalanceAllowed
+  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is linked RECEIVABLE account maxBalanceAllowed
   // balance is derived from linked PAYABLE account (getAccountBalance)
 
   // ==== CONTACT FIELDS ==== //
@@ -800,6 +841,8 @@ model Booking {
   refund                  Int      @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
   refundAmount            Int      @default(0)
   refundReason            String?
+  refundAmountProfessionalFee Int  @default(0) // Amount refunded for professional fee (positive, in Rs)
+  refundAmountHospitalFee Int      @default(0) // Amount refunded for hospital fee (positive, in Rs)
   refundReceiptId         String?  @db.ObjectId
   refundReceiptNoString   String?
   refundReceiptCreatedAt  DateTime?
@@ -922,6 +965,7 @@ model Account {
   userId              String?      @db.ObjectId
   user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
   minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
+  maxBalanceAllowed   Int?         // When set, posting rejected if balance would go above this (e.g. RECEIVABLE: hard credit limit in cents)
   isActive            Boolean      @default(true)
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
@@ -945,6 +989,7 @@ model Journal {
 
   journalLines   JournalLine[]
   floatRequests FloatRequest[]
+  shiftHandovers ShiftHandover[]
 
   @@index([date])
 }

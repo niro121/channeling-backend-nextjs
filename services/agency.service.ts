@@ -26,6 +26,7 @@ const agencySchema = z.object({
     .min(1, 'This field is mandatory')
     .max(100, 'Must be less than 100 characters'),
   allowedCreditLimit: z
+    .coerce
     .number()
     .min(0, 'Must be 0 or greater')
     .refine((val) => val >= 0, 'Allowed credit limit must be 0 or greater'),
@@ -84,12 +85,14 @@ const agencySchema = z.object({
     .nullable()
     .or(z.literal('')), // Allows empty string for optional email
   sendSms: z
+    .coerce
     .number()
     .int()
     .refine((val) => val === 0 || val === 1, {
       message: 'Send SMS must be No (0) or Yes (1)'
     }),
   status: z
+    .coerce
     .number()
     .int()
     .refine((val) => val === 0 || val === 1, {

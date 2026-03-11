@@ -11,6 +11,7 @@ import {
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
+import { requireActiveShift } from "@/services/shift.service"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
@@ -51,6 +52,8 @@ export async function settleBookingService(
   input: SettleBookingInput,
   userId: string | null
 ): Promise<SettleBookingServiceResult> {
+  if (userId) await requireActiveShift(userId)
+
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
     include: { session: { include: { location: true, room: true, doctor: true } } },

@@ -88,6 +88,7 @@ const AgencyForm = ({
       .required('Cheque printing name is required')
       .max(100, 'Must be less than 100 characters'),
     allowedCreditLimit: Yup.number()
+      .transform((_, val) => (val === '' || val === null || val === undefined ? undefined : Number(val)))
       .required('Allowed credit limit is required')
       .min(0, 'Must be 0 or greater'),
     contactPersonName: Yup.string()
@@ -95,10 +96,17 @@ const AgencyForm = ({
       .max(100, 'Must be less than 100 characters'),
     sendSms: Yup.number().oneOf([0, 1], 'Invalid value'),
     status: Yup.number()
+      .transform((_, val) => (val === '' || val === null || val === undefined ? undefined : Number(val)))
       .required('Status is required')
       .oneOf([0, 1], 'Status must be either 0 or 1'),
-    email: Yup.string().email('Invalid email').nullable(),
-    contactPersonEmail: Yup.string().email('Invalid email').nullable()
+    email: Yup.string()
+      .transform((val) => (val === '' ? null : val))
+      .email('Invalid email')
+      .nullable(),
+    contactPersonEmail: Yup.string()
+      .transform((val) => (val === '' ? null : val))
+      .email('Invalid email')
+      .nullable()
   });
 
   const loginSchema = Yup.object({
@@ -124,18 +132,35 @@ const AgencyForm = ({
             // Validate agency details fields
             await agencyDetailsSchema.validate(formik.values, { abortEarly: false });
             
+            // Coerce values for server (Zod expects numbers; HTML inputs can send strings)
+            const payload = {
+              ...formik.values,
+              allowedCreditLimit: Number(formik.values.allowedCreditLimit),
+              status: Number(formik.values.status),
+              sendSms: Number(formik.values.sendSms)
+            };
+            
             setLoading(true);
             let respond: any;
 
             if (agency && agency.id) {
-              respond = await updateAgency(agency.id, formik.values);
+              respond = await updateAgency(agency.id, payload);
             } else {
-              respond = await createAgency(formik.values);
+              respond = await createAgency(payload);
             }
 
             setLoading(false);
             
             if (respond.isError) {
+              // Build user-friendly description from first field error for debugging
+              const firstIssue = respond.errors?.issues && typeof respond.errors.issues === 'object'
+                ? Object.entries(respond.errors.issues).find(
+                    ([_, arr]) => Array.isArray(arr) && arr.length > 0 && arr[0]
+                  ) as [string, string[]] | undefined
+                : undefined;
+              const firstErrorDesc = firstIssue
+                ? `${firstIssue[0]}: ${firstIssue[1][0]}`
+                : respond.errors?.message || 'Please check the form for errors.';
               // Handle server-side validation errors
               if (respond.errors?.issues) {
                 // Set field-level errors from server validation
@@ -153,7 +178,7 @@ const AgencyForm = ({
                 toast({
                   variant: 'destructive',
                   title: 'Validation Error',
-                  description: respond.errors.message || 'Please check the form for errors.'
+                  description: firstErrorDesc
                 });
               } else {
                 toast({
@@ -193,10 +218,14 @@ const AgencyForm = ({
               }, {});
               formik.setErrors(errors);
               formik.setTouched(touched);
+              const firstMsg = error.inner?.[0];
+              const description = firstMsg
+                ? `${firstMsg.path}: ${firstMsg.message}`
+                : 'Please check the Agency Details tab for errors.';
               toast({
                 variant: 'destructive',
                 title: 'Validation Error',
-                description: 'Please check the Agency Details tab for errors.'
+                description
               });
             } else {
               toast({

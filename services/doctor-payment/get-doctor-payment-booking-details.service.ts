@@ -25,6 +25,7 @@ function formatAppointmentDate(d: Date): string {
 
 /**
  * Get table rows for selected booking IDs: Bill Id, App No., Patient, Appointment Date, Professional Fee, Discount, Refunds, Payment (Rs.).
+ * Refunds and payment use refundAmountProfessionalFee (amount refunded for professional fee, positive Rs).
  */
 export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]): Promise<GetDoctorPaymentBookingDetailsResult> {
   if (!bookingIds.length) {
@@ -46,8 +47,8 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       : new Date();
     const professionalFee = b.professionalFee ?? 0;
     const discount = b.professionsalFeeDiscount ?? 0;
-    const refunds = b.refundAmount ?? 0;
-    const paymentRs = Math.max(0, professionalFee - discount + refunds);
+    const refunds = b.refundAmountProfessionalFee ?? 0;
+    const paymentRs = Math.max(0, professionalFee - discount - refunds);
     totalDue += paymentRs;
     const patient = [b.title, b.name].filter(Boolean).join(" ").trim() || "—";
     rows.push({
@@ -58,7 +59,7 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       appointmentDate: formatAppointmentDate(sessionDate),
       professionalFee,
       discount,
-      refunds: b.refundAmount ?? 0,
+      refunds,
       paymentRs,
     });
   }

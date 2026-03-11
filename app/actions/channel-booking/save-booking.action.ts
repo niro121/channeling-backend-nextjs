@@ -57,7 +57,7 @@ export async function saveBookingAction(
   } catch {
     return {
       success: false,
-      errorCode: "forbidden",
+      errorCode: "FORBIDDEN",
       message: "Permission denied",
     }
   }
@@ -73,7 +73,7 @@ export async function saveBookingAction(
       .join("; ") || "Invalid input"
     return {
       success: false,
-      errorCode: "invalid_input",
+      errorCode: "INVALID_INPUT",
       message: msg,
     }
   }

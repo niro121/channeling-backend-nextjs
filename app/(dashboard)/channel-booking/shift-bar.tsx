@@ -1,13 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { usePathname } from "next/navigation"
 import { io, type Socket } from "socket.io-client"
 import {
   getCurrentShiftAction,
   pauseShiftAction,
   resumeShiftAction,
-  endShiftAction,
+  cancelHandoverAction,
 } from "@/app/actions/shift.actions"
 import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
@@ -39,7 +38,17 @@ import { usePermissions } from "@/components/hooks/use-permissions"
 import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RequestFloatDialog } from "./request-float-dialog"
+import { EndShiftHandoverDialog } from "./end-shift-handover-dialog"
 import { formatDenomLabel } from "@/types/float-request"
+
+const HANDOVER_METHOD_LABELS: Record<string, string> = {
+  cashCents: "Cash",
+  cardCents: "Card",
+  slipCents: "Slips",
+  checkCents: "Cheques",
+  creditCents: "Credit",
+  eWalletCents: "E-Wallet",
+}
 
 type ShiftRecord = {
   id: string
@@ -48,9 +57,19 @@ type ShiftRecord = {
   endsAt: Date | string
   status: number
   pausedAt?: Date | string | null
+  handovers?: {
+    id: string
+    cashCents: number
+    cardCents: number
+    slipCents: number
+    checkCents: number
+    creditCents: number
+    eWalletCents: number
+    totalCents: number
+    discrepancyReason: string | null
+    toUser: { id: string; name: string | null }
+  }[]
 }
-
-const CHANNEL_BOOKING_PATH = "/channel-booking"
 
 /** Format elapsed as stopwatch-style HH:MM:SS (e.g. 00:05:05). */
 function formatElapsed(startedAt: Date | string, asOf: Date): string {
@@ -65,11 +84,9 @@ function formatElapsed(startedAt: Date | string, asOf: Date): string {
 }
 
 export function ChannelBookingShiftBar() {
-  const pathname = usePathname()
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
   const hasFloatRequestPermission = hasPermission("bulk-cashier", "float-request")
-  const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH)
   const [shift, setShift] = useState<ShiftRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -84,9 +101,12 @@ export function ChannelBookingShiftBar() {
   const [cancelReason, setCancelReason] = useState("")
   const [cancelLoading, setCancelLoading] = useState(false)
   const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
+  const [endShiftHandoverOpen, setEndShiftHandoverOpen] = useState(false)
+  const handoverDialogShiftRef = useRef<{ shiftId: string; fromUserId: string } | null>(null)
   const hadPendingFloatRef = useRef(false)
   const floatRequestSocketUserIdRef = useRef<string | null>(null)
   const floatBalanceUserIdRef = useRef<string | null>(null)
+  const shiftSocketUserIdRef = useRef<string | null>(null)
   const { toast } = useToast()
 
   const refreshFloatBalance = useCallback(() => {
@@ -141,8 +161,8 @@ export function ChannelBookingShiftBar() {
     return () => clearInterval(interval)
   }, [shift?.id, shift?.status])
 
-  const refresh = () => {
-    if (!isChannelBooking || !hasShiftPermission) return
+  const refresh = useCallback(() => {
+    if (!hasShiftPermission) return
     setLoading(true)
     getCurrentShiftAction()
       .then((s: ShiftRecord | null) => setShift(s))
@@ -156,14 +176,14 @@ export function ChannelBookingShiftBar() {
         })
       })
       .finally(() => setLoading(false))
-  }
+  }, [hasShiftPermission, toast])
 
   useEffect(() => {
     refresh()
-  }, [isChannelBooking, hasShiftPermission, pathname])
+  }, [hasShiftPermission, refresh])
 
   useEffect(() => {
-    if (!isChannelBooking) return
+    if (!hasShiftPermission) return
     const onShiftStarted = () => {
       refresh()
       if (hasFloatRequestPermission) {
@@ -174,7 +194,7 @@ export function ChannelBookingShiftBar() {
     }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
-  }, [isChannelBooking, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
+  }, [hasShiftPermission, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
 
   useEffect(() => {
     if (shift && hasFloatRequestPermission) {
@@ -188,11 +208,16 @@ export function ChannelBookingShiftBar() {
     }
   }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
 
-  // Socket: when shift active + float permission, subscribe to float-balance (ledger updates) and optionally float-request (approval/reject)
+  // Socket: when user has a shift, subscribe to shift-update (so other tabs refresh on handover/pause/resume); optionally float-balance and float-request
   const socketRef = useRef<Socket | null>(null)
   useEffect(() => {
-    if (typeof window === "undefined" || !shift || !hasFloatRequestPermission) {
+    if (typeof window === "undefined" || !shift) {
       if (socketRef.current) {
+        const uid = shiftSocketUserIdRef.current
+        if (uid) {
+          socketRef.current.emit("shift:unsubscribe", { userId: uid })
+          shiftSocketUserIdRef.current = null
+        }
         if (floatBalanceUserIdRef.current) {
           socketRef.current.emit("float-balance:unsubscribe", { userId: floatBalanceUserIdRef.current })
           floatBalanceUserIdRef.current = null
@@ -204,7 +229,7 @@ export function ChannelBookingShiftBar() {
         socketRef.current.disconnect()
         socketRef.current = null
       }
-      if (!shift) hadPendingFloatRef.current = false
+      hadPendingFloatRef.current = false
       return
     }
     if (pendingFloatRequest) hadPendingFloatRef.current = true
@@ -215,14 +240,23 @@ export function ChannelBookingShiftBar() {
     socketRef.current = socket
 
     const doSubscribe = () => {
-      socket.emit("float-balance:subscribe", { userId })
-      if (pendingFloatRequest) {
-        floatRequestSocketUserIdRef.current = userId
-        socket.emit("float-request:subscribe", { userId })
+      shiftSocketUserIdRef.current = userId
+      socket.emit("shift:subscribe", { userId })
+      if (hasFloatRequestPermission) {
+        socket.emit("float-balance:subscribe", { userId })
+        if (pendingFloatRequest) {
+          floatRequestSocketUserIdRef.current = userId
+          socket.emit("float-request:subscribe", { userId })
+        }
       }
     }
     if (socket.connected) doSubscribe()
     else socket.once("connect", doSubscribe)
+
+    const onShiftUpdate = () => {
+      refresh()
+    }
+    socket.on("shift-update", onShiftUpdate)
 
     const onFloatBalanceUpdate = () => {
       refreshFloatBalance()
@@ -254,18 +288,23 @@ export function ChannelBookingShiftBar() {
     socket.on("float-request-update", onFloatRequestUpdate)
 
     return () => {
-      socket.emit("float-balance:unsubscribe", { userId })
-      floatBalanceUserIdRef.current = null
+      socket.emit("shift:unsubscribe", { userId })
+      shiftSocketUserIdRef.current = null
+      if (floatBalanceUserIdRef.current) {
+        socket.emit("float-balance:unsubscribe", { userId })
+        floatBalanceUserIdRef.current = null
+      }
       if (floatRequestSocketUserIdRef.current) {
         socket.emit("float-request:unsubscribe", { userId: floatRequestSocketUserIdRef.current })
         floatRequestSocketUserIdRef.current = null
       }
+      socket.off("shift-update", onShiftUpdate)
       socket.off("float-balance-update", onFloatBalanceUpdate)
       socket.off("float-request-update", onFloatRequestUpdate)
       socket.disconnect()
       socketRef.current = null
     }
-  }, [shift?.id, shift?.userId, hasFloatRequestPermission, pendingFloatRequest?.id, pendingFloatRequest?.requestedById, refreshFloatBalance, refreshPendingFloatRequest, toast])
+  }, [shift?.id, shift?.userId, hasFloatRequestPermission, pendingFloatRequest?.id, pendingFloatRequest?.requestedById, refresh, refreshFloatBalance, refreshPendingFloatRequest, toast])
 
   // Fallback polling when socket is not used (e.g. next:dev without custom server) or as backup
   useEffect(() => {
@@ -295,7 +334,7 @@ export function ChannelBookingShiftBar() {
   }, [shift?.id, hasFloatRequestPermission, pendingFloatRequest?.id, toast])
 
   useEffect(() => {
-    if (!isChannelBooking || !hasFloatRequestPermission) return
+    if (!hasFloatRequestPermission) return
     const openRequestFloat = (e: Event) => {
       const shiftId = (e as CustomEvent<{ shiftId?: string | null }>)?.detail?.shiftId ?? null
       setRequestFloatShiftIdOverride(shiftId ?? null)
@@ -303,9 +342,9 @@ export function ChannelBookingShiftBar() {
     }
     window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
-  }, [isChannelBooking, hasFloatRequestPermission])
+  }, [hasFloatRequestPermission])
 
-  if (!isChannelBooking || !hasShiftPermission) return null
+  if (!hasShiftPermission) return null
   if (loading) return null
 
   const SHOW_START_SHIFT_DIALOG_EVENT = "channel-booking:show-start-shift-dialog"
@@ -338,6 +377,8 @@ export function ChannelBookingShiftBar() {
 
   const isActive = shift.status === SHIFT_STATUS.ACTIVE
   const isPaused = shift.status === SHIFT_STATUS.PAUSED
+  const isHandoverPending = shift.status === SHIFT_STATUS.HANDOVER_PENDING
+  const pendingHandover = shift.handovers?.[0]
   const asOf = isPaused && shift.pausedAt
     ? typeof shift.pausedAt === "string"
       ? new Date(shift.pausedAt)
@@ -373,15 +414,22 @@ export function ChannelBookingShiftBar() {
     }
   }
 
-  async function handleEnd() {
-    if (!shift) return
-    setActionLoading("end")
+  function openEndShiftHandover() {
+    if (shift) {
+      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
+      setEndShiftHandoverOpen(true)
+    }
+  }
+
+  async function handleCancelHandover() {
+    if (!pendingHandover) return
+    setActionLoading("cancel-handover")
     try {
-      await endShiftAction(shift.id)
+      await cancelHandoverAction(pendingHandover.id)
       refresh()
-      toast({ title: "Shift ended" })
+      toast({ title: "Handover cancelled. Shift is active again." })
     } catch (e) {
-      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to end shift", variant: "destructive" })
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to cancel handover", variant: "destructive" })
     } finally {
       setActionLoading(null)
     }
@@ -398,7 +446,8 @@ export function ChannelBookingShiftBar() {
               className={cn(
                 "gap-2 rounded-md font-medium",
                 isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
-                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
+                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
+                isHandoverPending && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
               )}
             >
               {actionLoading ? (
@@ -407,16 +456,65 @@ export function ChannelBookingShiftBar() {
                 <CircleDot className="h-4 w-4 shrink-0" />
               )}
               <span className="flex items-center gap-1.5">
-                {isActive ? "Shift active" : "Shift paused"}
-                <span className="opacity-90 tabular-nums">
-                  {elapsed}
-                </span>
+                {isHandoverPending
+                  ? "Handover pending"
+                  : isActive
+                    ? "Shift active"
+                    : "Shift paused"}
+                {!isHandoverPending && (
+                  <span className="opacity-90 tabular-nums">
+                    {elapsed}
+                  </span>
+                )}
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isActive && (
+            {isHandoverPending && pendingHandover && (
+              <>
+                {pendingHandover.toUser?.name && (
+                  <DropdownMenuLabel className="font-normal text-muted-foreground">
+                    Waiting for {pendingHandover.toUser.name} to approve
+                  </DropdownMenuLabel>
+                )}
+                <div className="px-2 py-1.5 text-sm space-y-1 border-b border-border">
+                  {shift && (
+                    <p className="text-muted-foreground text-xs">
+                      Started: {(typeof shift.startedAt === "string" ? new Date(shift.startedAt) : shift.startedAt).toLocaleString()}
+                      {" · "}
+                      Ends: {(typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt).toLocaleString()}
+                    </p>
+                  )}
+                  <p className="font-medium tabular-nums">Total: LKR {formatCents(pendingHandover.totalCents ?? 0)}</p>
+                  {(["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const).map(
+                    (key) => {
+                      const cents = pendingHandover[key] ?? 0
+                      if (cents === 0) return null
+                      return (
+                        <p key={key} className="text-muted-foreground tabular-nums text-xs">
+                          {HANDOVER_METHOD_LABELS[key]}: {formatCents(cents)}
+                        </p>
+                      )
+                    }
+                  )}
+                  {pendingHandover.discrepancyReason && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Discrepancy: {pendingHandover.discrepancyReason}
+                    </p>
+                  )}
+                </div>
+                <DropdownMenuItem
+                  onClick={handleCancelHandover}
+                  disabled={!!actionLoading}
+                  className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  Cancel handover
+                </DropdownMenuItem>
+              </>
+            )}
+            {isActive && !isHandoverPending && (
               <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
@@ -428,14 +526,16 @@ export function ChannelBookingShiftBar() {
                 Resume
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem
-              onClick={handleEnd}
-              disabled={!!actionLoading}
-              className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
-            >
-              <Square className="h-4 w-4 mr-2" />
-              End shift
-            </DropdownMenuItem>
+            {isActive && !isHandoverPending && (
+              <DropdownMenuItem
+                onClick={openEndShiftHandover}
+                disabled={!!actionLoading}
+                className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
+              >
+                <Square className="h-4 w-4 mr-2" />
+                End shift
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         {hasFloatRequestPermission && (
@@ -597,6 +697,26 @@ export function ChannelBookingShiftBar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {endShiftHandoverOpen && (shift?.id ?? handoverDialogShiftRef.current?.shiftId) && (shift?.userId ?? handoverDialogShiftRef.current?.fromUserId) ? (
+        <EndShiftHandoverDialog
+          open={endShiftHandoverOpen}
+          onOpenChange={(open) => {
+            if (!open) handoverDialogShiftRef.current = null
+            setEndShiftHandoverOpen(open)
+          }}
+          shiftId={shift?.id ?? handoverDialogShiftRef.current?.shiftId ?? ""}
+          fromUserId={shift?.userId ?? handoverDialogShiftRef.current?.fromUserId ?? ""}
+          onSuccess={() => {
+            handoverDialogShiftRef.current = null
+            refresh()
+            if (hasFloatRequestPermission) {
+              refreshFloatBalance()
+              refreshPendingFloatRequest()
+              refreshApprovedFloatRequest()
+            }
+          }}
+        />
+      ) : null}
     </>
   )
 }

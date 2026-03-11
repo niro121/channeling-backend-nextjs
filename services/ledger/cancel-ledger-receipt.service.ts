@@ -15,6 +15,7 @@ import {
   createJournalEntryInTransaction,
   type AccountingTx,
 } from "@/services/accounting.service"
+import { requireActiveShift } from "@/services/shift.service"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
@@ -61,6 +62,8 @@ export type CancelLedgerReceiptResult =
 export async function cancelLedgerReceiptService(
   input: CancelLedgerReceiptInput
 ): Promise<CancelLedgerReceiptResult> {
+  if (input.canceledBy) await requireActiveShift(input.canceledBy)
+
   const reason = input.cancelReason?.trim() ?? ""
   if (!reason) {
     return { success: false, errorCode: "VALIDATION", message: "Cancel reason is required." }

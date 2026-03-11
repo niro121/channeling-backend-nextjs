@@ -111,11 +111,21 @@ For the full component structure (list page, add/edit routes, form with Formik +
    - ✅ Record Actions: View button links to detail; no add/edit/delete (view-only module)
    - ✅ UI: Sidebar link gated by `hasAccess('/receipt-manager')`. View-only (list + view receipt and linked double-entry journal).
 
+8. **Handed over to me** (`/handovers`)
+   - ✅ Page: Has `checkRouteAccess("/handovers")` check (layout); redirects to unauthorized if no view
+   - ✅ Resource: Separate resource **handover** (view only); route mapped in `lib/permissions.ts` as `"/handovers": "handover"`
+   - ✅ Server Actions: Recipient-facing actions use `requirePermission("handover", "view")`
+     - `getHandoversToMeAction` – handover view
+     - `approveHandoverAction` – handover view
+     - `rejectHandoverAction` – handover view
+   - ✅ Sender-facing handover actions remain on **shift**: `submitShiftHandoverAction`, `cancelHandoverAction`, `getHandoverUserOptionsAction` use `requirePermission("shift", "view")`
+   - ✅ UI: Sidebar link "Handed over to me" gated by `hasAccess('/handovers')`. Grant **Handed over to me** view to allow users to see the list and approve/reject handovers.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
 
-8. **Agencies** (`/agencies`)
+9. **Agencies** (`/agencies`)
    - ❌ Page: NO permission check
    - ❌ Server Actions: NO permission checks
    - ❌ Record Actions: NO permission checks
@@ -217,6 +227,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ shifts (view only – manager list and detail)
 - ✅ doctor-payments (view / add – list, make payment, print)
 - ✅ receipt-manager (view only – list receipts, view receipt and linked double-entry journal)
+- ✅ handover (view only – "Handed over to me" list, approve/reject handovers; separate from shift)
 
 All routes are already mapped in `lib/permissions.ts`.
 

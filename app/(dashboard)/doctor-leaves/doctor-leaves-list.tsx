@@ -37,7 +37,13 @@ export default function DoctorLeavesList({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [filtersDirty, setFiltersDirty] = useState(false);
   const refetch = useCallback(() => setRefreshTrigger((t) => t + 1), []);
+
+  // Reset dirty when applied params change (user clicked Apply)
+  useEffect(() => {
+    setFiltersDirty(false);
+  }, [doctorId, fromDate, toDate]);
 
   useEffect(() => {
     if (!doctorId) {
@@ -119,11 +125,32 @@ export default function DoctorLeavesList({
               doctorId={doctorId}
               fromDate={fromDate}
               toDate={toDate}
+              onValuesChange={(values) => {
+                const applied = {
+                  doctorId: doctorId ?? '',
+                  fromDate: fromDate ?? '',
+                  toDate: toDate ?? ''
+                };
+                const current = {
+                  doctorId: values.doctorId ?? '',
+                  fromDate: values.fromDate ?? '',
+                  toDate: values.toDate ?? ''
+                };
+                setFiltersDirty(
+                  applied.doctorId !== current.doctorId ||
+                    applied.fromDate !== current.fromDate ||
+                    applied.toDate !== current.toDate
+                );
+              }}
             />
           </div>
         }
         toolbarRight={
-          <AddBtnSection doctorId={doctorId} doctorName={doctorName} />
+          <AddBtnSection
+            doctorId={doctorId}
+            doctorName={doctorName}
+            filtersApplied={!filtersDirty}
+          />
         }
       />
     </DoctorLeavesRefreshProvider>
