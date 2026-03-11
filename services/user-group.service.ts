@@ -40,6 +40,10 @@ export const getUserGroups = async ({
             orderBy: {
                 createdAt: "desc",
             },
+            include: {
+                createdUser: true,
+                updatedUser: true,
+            },
         })
 
         const totalRecords = await prisma.userGroup.count({
@@ -102,8 +106,13 @@ export const deleteOneUserGroup = async (id: string) => {
     }
 }
 
-export const saveUserGroup = async (userGroup: UserGroup) => {
+export const saveUserGroup = async (
+    userGroup: UserGroup,
+    user?: { id?: string; name?: string }
+) => {
     try {
+        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+
         const result = await prisma.userGroup.create({
             data: {
                 name: userGroup.name,
@@ -112,6 +121,8 @@ export const saveUserGroup = async (userGroup: UserGroup) => {
                 permissions: userGroup.permissions as any,
                 twoFactorEnabled: userGroup.twoFactorEnabled ?? false,
                 twoFactorMethods: Array.isArray(userGroup.twoFactorMethods) ? userGroup.twoFactorMethods : [],
+                createdUser: userRelation,
+                updatedUser: userRelation,
             },
         })
 
@@ -129,8 +140,14 @@ export const saveUserGroup = async (userGroup: UserGroup) => {
     }
 }
 
-export const updateOneUserGroup = async (id: string, payload: UserGroup) => {
+export const updateOneUserGroup = async (
+    id: string,
+    payload: UserGroup,
+    user?: { id?: string; name?: string }
+) => {
     try {
+        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+
         await prisma.userGroup.update({
             data: {
                 name: payload.name,
@@ -139,6 +156,8 @@ export const updateOneUserGroup = async (id: string, payload: UserGroup) => {
                 permissions: payload.permissions as any,
                 twoFactorEnabled: payload.twoFactorEnabled ?? false,
                 twoFactorMethods: Array.isArray(payload.twoFactorMethods) ? payload.twoFactorMethods : [],
+                ...(userRelation && { updatedUser: userRelation }),
+                updatedAt: new Date(),
             },
             where: {
                 id: id,
@@ -156,6 +175,10 @@ export const getUserGroupById = async (id: string) => {
     try {
         const result = await prisma.userGroup.findUnique({
             where: { id: id },
+            include: {
+                createdUser: true,
+                updatedUser: true,
+            },
         })
 
         return result
