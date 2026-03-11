@@ -38,6 +38,7 @@ export type TillBalanceBreakdown = {
 };
 
 // --- getTillBalanceBreakdown: cashier till balance by payment method ---
+// Uses DB aggregation (groupBy + _sum) so it stays fast with millions of lines.
 export async function getTillBalanceBreakdown(userId: string): Promise<TillBalanceBreakdown> {
   const acc = await prisma.account.findFirst({
     where: { type: 'CASH', userId, isActive: true },
@@ -58,10 +59,10 @@ export async function getTillBalanceBreakdown(userId: string): Promise<TillBalan
     };
   }
 
-  const lines = await prisma.journalLine.findMany({
+  const result = await prisma.journalLine.groupBy({
+    by: ['paymentMethod'],
     where: { accountId: acc.id },
-    select: { debitAmount: true, creditAmount: true, paymentMethod: true },
-    orderBy: { journal: { date: 'asc' } },
+    _sum: { debitAmount: true, creditAmount: true },
   });
 
   let cashCents = 0;
@@ -70,19 +71,94 @@ export async function getTillBalanceBreakdown(userId: string): Promise<TillBalan
   let checkCents = 0;
   let creditCents = 0;
   let eWalletCents = 0;
-  for (const line of lines) {
-    const net = netEffectForAccountType(line.debitAmount, line.creditAmount, 'CASH');
-    if (line.paymentMethod === TILL_PAYMENT_METHOD.CASH) {
+  for (const row of result) {
+    const sumDebit = row._sum?.debitAmount ?? 0;
+    const sumCredit = row._sum?.creditAmount ?? 0;
+    const net = netEffectForAccountType(sumDebit, sumCredit, 'CASH');
+    const pm = row.paymentMethod;
+    if (pm === TILL_PAYMENT_METHOD.CASH) {
       cashCents += net;
-    } else if (line.paymentMethod === TILL_PAYMENT_METHOD.CREDIT_CARD) {
+    } else if (pm === TILL_PAYMENT_METHOD.CREDIT_CARD) {
       cardCents += net;
-    } else if (line.paymentMethod === TILL_PAYMENT_METHOD.SLIP) {
+    } else if (pm === TILL_PAYMENT_METHOD.SLIP) {
       slipCents += net;
-    } else if (line.paymentMethod === TILL_PAYMENT_METHOD.CHECK) {
+    } else if (pm === TILL_PAYMENT_METHOD.CHECK) {
       checkCents += net;
-    } else if (line.paymentMethod === TILL_PAYMENT_METHOD.CREDIT) {
+    } else if (pm === TILL_PAYMENT_METHOD.CREDIT) {
       creditCents += net;
-    } else if (line.paymentMethod === TILL_PAYMENT_METHOD.E_WALLET) {
+    } else if (pm === TILL_PAYMENT_METHOD.E_WALLET) {
+      eWalletCents += net;
+    } else {
+      cashCents += net;
+    }
+  }
+  const totalCents =
+    cashCents + cardCents + slipCents + checkCents + creditCents + eWalletCents;
+  return {
+    totalCents,
+    cashCents,
+    cardCents,
+    slipCents,
+    checkCents,
+    creditCents,
+    eWalletCents,
+    tillAccountId: acc.id,
+    tillAccountName: acc.name ?? null,
+    tillAccountCode: acc.code ?? null,
+  };
+}
+
+/** Till balance by payment method for a given till account (e.g. for refund balance check by method). */
+export async function getTillBalanceBreakdownForAccount(
+  accountId: string
+): Promise<TillBalanceBreakdown> {
+  const acc = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { id: true, name: true, code: true },
+  });
+  if (!acc) {
+    return {
+      totalCents: 0,
+      cashCents: 0,
+      cardCents: 0,
+      slipCents: 0,
+      checkCents: 0,
+      creditCents: 0,
+      eWalletCents: 0,
+      tillAccountId: null,
+      tillAccountName: null,
+      tillAccountCode: null,
+    };
+  }
+
+  const result = await prisma.journalLine.groupBy({
+    by: ['paymentMethod'],
+    where: { accountId: acc.id },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+
+  let cashCents = 0;
+  let cardCents = 0;
+  let slipCents = 0;
+  let checkCents = 0;
+  let creditCents = 0;
+  let eWalletCents = 0;
+  for (const row of result) {
+    const sumDebit = row._sum?.debitAmount ?? 0;
+    const sumCredit = row._sum?.creditAmount ?? 0;
+    const net = netEffectForAccountType(sumDebit, sumCredit, 'CASH');
+    const pm = row.paymentMethod;
+    if (pm === TILL_PAYMENT_METHOD.CASH) {
+      cashCents += net;
+    } else if (pm === TILL_PAYMENT_METHOD.CREDIT_CARD) {
+      cardCents += net;
+    } else if (pm === TILL_PAYMENT_METHOD.SLIP) {
+      slipCents += net;
+    } else if (pm === TILL_PAYMENT_METHOD.CHECK) {
+      checkCents += net;
+    } else if (pm === TILL_PAYMENT_METHOD.CREDIT) {
+      creditCents += net;
+    } else if (pm === TILL_PAYMENT_METHOD.E_WALLET) {
       eWalletCents += net;
     } else {
       cashCents += net;

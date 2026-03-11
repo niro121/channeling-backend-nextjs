@@ -16,6 +16,7 @@ export const REFERENCE_TYPES = {
   Booking: 'Booking',
   Manual: 'Manual',
   DoctorPayment: 'DoctorPayment',
+  ShiftHandover: 'ShiftHandover',
 } as const;
 
 export type ReferenceType = (typeof REFERENCE_TYPES)[keyof typeof REFERENCE_TYPES];
@@ -137,4 +138,6 @@ export type AccountStatementResult = {
   lines: AccountStatementLine[];
   openingBalance: number;
   closingBalance: number;
+  /** Shown when the statement was capped (e.g. date range too large or no date range with many lines). */
+  truncatedMessage?: string;
 };

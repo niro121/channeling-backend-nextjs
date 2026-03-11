@@ -26,6 +26,7 @@ import {
   createJournalEntryInTransaction,
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
+import { requireActiveShift } from "@/services/shift.service"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -59,6 +60,8 @@ export async function saveBookingService(
   input: SaveBookingInput,
   userId: string | null
 ): Promise<SaveBookingServiceResult> {
+  if (userId) await requireActiveShift(userId)
+
   const sessionId = input.session.id
 
   const { session, isPast } = await loadSessionForSaveBooking(sessionId)

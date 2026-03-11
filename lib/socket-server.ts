@@ -28,3 +28,8 @@ export function floatRequestRoom(requestedById: string): string {
 export function floatBalanceRoom(userId: string): string {
   return `float-balance:${userId}`
 }
+
+/** Room name for shift status updates: per user (so all their tabs refresh when shift is handed over, approved, etc.). */
+export function shiftUpdateRoom(userId: string): string {
+  return `shift:${userId}`
+}

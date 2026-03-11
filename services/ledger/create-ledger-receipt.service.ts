@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma"
 import {
   createJournalEntryInTransaction,
-  getAccountBalance,
+  getTillBalanceBreakdownForAccount,
+  getTillBalanceCentsByMethod,
 } from "@/services/accounting.service"
 import {
   createReceiptWithoutBooking,
@@ -20,6 +21,7 @@ import {
   RECEIPT_METHOD,
   RECEIPT_PAYMENT_METHOD,
 } from "@/types/receipt"
+import { requireActiveShift } from "@/services/shift.service"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
 
@@ -66,6 +68,17 @@ export type CreateLedgerReceiptResult =
   | { success: true; receiptId: string; receiptNoString: string }
   | { success: false; errorCode: string; message: string }
 
+function getTillPaymentMethodLabel(pm: number): string {
+  const labels: Record<number, string> = {
+    0: "cash",
+    1: "card",
+    2: "slip",
+    3: "cheque",
+    6: "e-wallet",
+  }
+  return labels[pm] ?? "cash"
+}
+
 function mapToReceiptMethodAndType(
   transactionType: LedgerTransactionType
 ): { method: number; type: number; paymentMethod: number } {
@@ -94,6 +107,8 @@ function mapToReceiptMethodAndType(
 export async function createLedgerReceipt(
   input: CreateLedgerReceiptInput
 ): Promise<CreateLedgerReceiptResult> {
+  if (input.createdBy) await requireActiveShift(input.createdBy)
+
   if (!input.branchId?.trim()) {
     return { success: false, errorCode: "VALIDATION", message: "Branch is required." }
   }
@@ -170,20 +185,22 @@ export async function createLedgerReceipt(
   }
   accounts = reqResult.accounts
 
-  // Transactions that pay out from the till: till must have sufficient balance
+  // Transactions that pay out from the till: till must have sufficient balance for this payment method
   const amountCents = Math.round(input.amount * 100)
   const paysOutFromTill =
     input.transactionType === "AGENCY_WITHDRAW" || input.transactionType === "BRANCH_EXPENSE"
   if (paysOutFromTill && accounts.cashierAccountId) {
-    const tillBalanceCents = await getAccountBalance(accounts.cashierAccountId)
+    const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+    const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, paymentMethod)
     if (tillBalanceCents < amountCents) {
+      const methodLabel = getTillPaymentMethodLabel(paymentMethod)
       return {
         success: false,
         errorCode: "INSUFFICIENT_TILL_BALANCE",
         message:
           tillBalanceCents <= 0
-            ? "Till has no balance. Cannot complete this transaction until the till has sufficient cash."
-            : `Insufficient till balance. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
+            ? `Till has no ${methodLabel} balance. Cannot complete this transaction until the till has sufficient ${methodLabel}.`
+            : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
       }
     }
   }

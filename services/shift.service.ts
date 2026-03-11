@@ -2,7 +2,9 @@
 
 import prisma from "@/lib/prisma"
 import { SHIFT_STATUS } from "@/types/shift"
+import { HANDOVER_STATUS } from "@/types/handover"
 import { logActivityNonBlocking } from "@/lib/activity-log"
+import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { z } from "zod"
 
 const SHIFT_MAX_HOURS =
@@ -45,14 +47,46 @@ export async function getCurrentShift(userId: string) {
   const shift = await shiftModel.findFirst({
     where: {
       userId,
-      status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED] },
+      status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED, SHIFT_STATUS.HANDOVER_PENDING] },
     },
     orderBy: { startedAt: "desc" },
+    include: {
+      handovers: {
+        where: { status: HANDOVER_STATUS.PENDING },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          cashCents: true,
+          cardCents: true,
+          slipCents: true,
+          checkCents: true,
+          creditCents: true,
+          eWalletCents: true,
+          totalCents: true,
+          discrepancyReason: true,
+          toUser: { select: { id: true, name: true } },
+        },
+      },
+    },
   })
   if (!shift) return null
   const now = new Date()
   if (shift.endsAt <= now) return null
   return shift
+}
+
+/** Throws if the user does not have an ACTIVE shift. Use before creating till-related receipts. */
+export async function requireActiveShift(userId: string): Promise<void> {
+  const shift = await getCurrentShift(userId)
+  if (!shift) {
+    throw new Error("You must have an active shift to perform this action. Start or resume a shift from the top bar.")
+  }
+  if (shift.status !== SHIFT_STATUS.ACTIVE) {
+    throw new Error(
+      "Your shift is not active (paused or handover pending). Resume your shift or complete the handover to create receipts."
+    )
+  }
 }
 
 export type GetShiftsParams = {
@@ -94,6 +128,7 @@ export async function getShifts(params: GetShiftsParams) {
         user: { select: { id: true, name: true, email: true } },
         location: { select: { id: true, name: true } },
         createdByUser: { select: { id: true, name: true } },
+        handovers: { select: { id: true, discrepancyReason: true } },
       },
     }),
     shiftModel.count({ where }),
@@ -124,6 +159,13 @@ export async function getShiftById(id: string) {
           createdAt: true,
         },
       },
+      handovers: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          fromUser: { select: { id: true, name: true } },
+          toUser: { select: { id: true, name: true } },
+        },
+      },
     },
   })
   return shift
@@ -133,6 +175,17 @@ export async function getShiftById(id: string) {
 export async function getShiftUserOptions() {
   const users = await prisma.user.findMany({
     where: { status: 1 },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+    take: 500,
+  })
+  return users.map((u) => ({ id: u.id, name: u.name || u.id }))
+}
+
+/** Users who can receive a shift handover (active users, excluding the given user). */
+export async function getHandoverUserOptions(excludeUserId: string) {
+  const users = await prisma.user.findMany({
+    where: { status: 1, id: { not: excludeUserId } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
     take: 500,
@@ -161,9 +214,11 @@ export async function startShift(userId: string, locationId?: string | null) {
   const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
   const existing = await getCurrentShift(validUserId)
   if (existing) {
-    throw new Error(
-      "You already have an active or paused shift. Please end it or resume it from the top bar before starting a new one."
-    )
+    const msg =
+      existing.status === SHIFT_STATUS.HANDOVER_PENDING
+        ? "You have a handover pending. Cancel it from the top bar or wait for the recipient to approve before starting a new shift."
+        : "You already have an active or paused shift. Please end it or resume it from the top bar before starting a new one."
+    throw new Error(msg)
   }
   const now = new Date()
   const startedAt = now
@@ -206,6 +261,8 @@ export async function pauseShift(shiftId: string, userId: string) {
     entityId: validShiftId,
     metadata: { pausedAt: now.toISOString() },
   })
+  const io = getIO()
+  if (io) io.to(shiftUpdateRoom(validUserId)).emit("shift-update", {})
   return { success: true }
 }
 
@@ -228,6 +285,8 @@ export async function resumeShift(shiftId: string, userId: string) {
     entityId: validShiftId,
     metadata: { resumedAt: now.toISOString() },
   })
+  const io = getIO()
+  if (io) io.to(shiftUpdateRoom(validUserId)).emit("shift-update", {})
   return { success: true }
 }
 

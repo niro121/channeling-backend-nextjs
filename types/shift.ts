@@ -1,6 +1,7 @@
 export const SHIFT_STATUS = {
   PAUSED: 0,
   ACTIVE: 1,
+  HANDOVER_PENDING: 2,
   ENDED: 3,
 } as const
 

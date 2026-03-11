@@ -26,8 +26,10 @@ export {
   getCashierFloatBalance,
   getFullInstituteCashBalance,
   getTillBalanceBreakdown,
+  getTillBalanceBreakdownForAccount,
   type TillBalanceBreakdown,
 } from './balance.service';
+export { getTillBalanceCentsByMethod } from '@/lib/accounting/till-balance-by-method';
 
 // Journals
 export {
