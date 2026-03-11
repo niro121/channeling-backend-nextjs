@@ -38,7 +38,8 @@ export async function updateSessionService(
         endTime: data.endTime,
         durationMinutes: data.durationMinutes ?? null,
         maxPatientNumber: data.maxPatientNumber,
-        ...(data.updatedBy ? { updatedBy: data.updatedBy } : {}),
+        updatedAt: new Date(),
+        ...(data.updatedBy ? { updatedUser: { connect: { id: data.updatedBy } } } : {}),
       },
       include: { doctor: true, location: true },
     });
