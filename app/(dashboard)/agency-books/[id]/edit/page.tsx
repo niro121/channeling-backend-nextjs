@@ -20,7 +20,7 @@ export default async function Page({ params }: PageProps) {
   // ==== GET AGENCIES FOR DROPDOWN ==== //
   const agenciesRes = await getAllAgenciesOptions();
   const agencyOptions =
-    agenciesRes?.data?.map((a) => ({ id: a.id as string, name: a.name })) ??
+    agenciesRes?.data?.map((a) => ({ id: a.id as string, name: `${a.code} - ${a.name}` })) ??
     [];
 
   return (

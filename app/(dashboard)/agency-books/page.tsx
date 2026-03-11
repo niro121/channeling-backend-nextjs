@@ -56,7 +56,7 @@ export default async function Page({ searchParams }: SearchParams) {
 
   const agenciesRes = await getAllAgenciesOptions();
   const agencyOptions =
-    agenciesRes?.data?.map((a) => ({ id: a.id as string, name: a.name })) ??
+    agenciesRes?.data?.map((a) => ({ id: a.id as string, name: `${a.code} - ${a.name}` })) ??
     [];
 
   const handleExport = async () => {
@@ -76,12 +76,16 @@ export default async function Page({ searchParams }: SearchParams) {
       };
     }
 
-    const mappedAgencyBooks = agencyBookListResponse.data.map((ab: any) => ({
+    const mappedAgencyBooks = agencyBookListResponse.data.map((ab: any) => {
+      const isActive = ab.status === 1;
+
+      return {
       bookNumber: ab.bookNumber || '-',
       agency: ab.agency?.name || '-',
       startNumber: ab.startNumber || '-',
-      endNumber: ab.endNumber || '-'
-    }));
+      endNumber: ab.endNumber || '-',
+      status: isActive ? 'Published' : 'Unpublished'
+    }});
 
     return {
       success: true,
@@ -118,8 +122,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Book Number', 'Agency', 'Start Number', 'End Number']}
-                  keys={['bookNumber', 'agency', 'startNumber', 'endNumber']}
+                  columns={['Book Number', 'Agency', 'Start Number', 'End Number', 'Status']}
+                  keys={['bookNumber', 'agency', 'startNumber', 'endNumber', 'status']}
                   title="Agency Books List"
                   fileName="agency-books"
                 />
