@@ -5,6 +5,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { SHIFT_STATUS } from '@/types/shift';
 import moment from 'moment';
+import { AlertTriangle } from 'lucide-react';
 
 export type ShiftListRow = {
   id: string;
@@ -16,11 +17,13 @@ export type ShiftListRow = {
   endedAt: Date | null;
   user: { id: string; name: string; email: string | null };
   location: { id: string; name: string } | null;
+  handovers?: Array<{ id: string; discrepancyReason: string | null }>;
 };
 
 const statusLabel: Record<number, string> = {
   [SHIFT_STATUS.PAUSED]: 'Paused',
   [SHIFT_STATUS.ACTIVE]: 'Active',
+  [SHIFT_STATUS.HANDOVER_PENDING]: 'Handover pending',
   [SHIFT_STATUS.ENDED]: 'Ended',
 };
 
@@ -31,17 +34,28 @@ export const ShiftColumns: ColumnDef<ShiftListRow>[] = [
     cell: ({ row }) => {
       const id = row.original.id;
       const startedAt = row.original.startedAt;
+      const handovers = row.original.handovers ?? [];
+      const hasHandover = handovers.length > 0;
+      const hasShortReason = handovers.some((h) => h.discrepancyReason);
       const content = startedAt
         ? moment(startedAt).format('DD/MM/YYYY HH:mm')
         : '—';
       return (
-        <Link
-          href={`/shifts/${id}`}
-          className="text-primary hover:underline underline-offset-2 cursor-pointer"
-          title="View shift details"
-        >
-          {content}
-        </Link>
+        <div className="flex items-center gap-2">
+          {hasShortReason && (
+            <AlertTriangle
+              className="h-4 w-4 shrink-0 text-destructive"
+
+            />
+          )}
+          <Link
+            href={`/shifts/${id}`}
+            className="text-primary hover:underline underline-offset-2 cursor-pointer"
+            title="View shift details"
+          >
+            {content}
+          </Link>
+        </div>
       );
     },
   },
@@ -82,14 +96,27 @@ export const ShiftColumns: ColumnDef<ShiftListRow>[] = [
     header: 'Status',
     cell: ({ row }) => {
       const status = row.original.status as number;
+      const handovers = row.original.handovers ?? [];
+      const hasHandover = handovers.length > 0;
       const label = statusLabel[status] ?? String(status);
       const variant =
         status === SHIFT_STATUS.ACTIVE
           ? 'default'
           : status === SHIFT_STATUS.PAUSED
             ? 'secondary'
-            : 'outline';
-      return <Badge variant={variant}>{label}</Badge>;
+            : status === SHIFT_STATUS.HANDOVER_PENDING
+              ? 'secondary'
+              : 'outline';
+      return (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={variant}>{label}</Badge>
+          {hasHandover && (
+            <Badge variant="outline" className="text-muted-foreground font-normal">
+              Handed over
+            </Badge>
+          )}
+        </div>
+      );
     },
   },
   {

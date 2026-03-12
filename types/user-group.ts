@@ -61,6 +61,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "channel-booking", name: "Channel Booking" },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   { id: "shift", name: "Shift (Channel Booking)" },
+  { id: "handover", name: "Handed over to me", actions: ["view"] },
   { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
   { id: "doctor-sessions", name: "Doctor Sessions" },

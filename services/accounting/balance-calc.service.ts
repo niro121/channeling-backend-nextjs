@@ -7,6 +7,9 @@ import { netEffectForAccountType } from '@/lib/accounting/helpers';
 /** Transaction client with models needed for journal creation and balance read. */
 export type AccountingTx = Pick<PrismaClient, 'account' | 'journal' | 'journalLine'>;
 
+/**
+ * Balance for one account. Uses DB aggregation (SUM) so it stays fast with millions of lines.
+ */
 export async function getAccountBalance(
   accountId: string,
   asOfDate?: Date
@@ -17,8 +20,7 @@ export async function getAccountBalance(
   });
   if (!account) return 0;
 
-  // MongoDB: avoid relation filter on journal.date; use two-step when filtering by date.
-  let lines: { debitAmount: number; creditAmount: number }[];
+  const where: { accountId: string; journalId?: { in: string[] } } = { accountId };
   if (asOfDate) {
     const journalIds = await prisma.journal
       .findMany({
@@ -26,33 +28,26 @@ export async function getAccountBalance(
         select: { id: true },
       })
       .then((rows) => rows.map((r) => r.id));
-    lines = await prisma.journalLine.findMany({
-      where: {
-        accountId,
-        ...(journalIds.length > 0 ? { journalId: { in: journalIds } } : { journalId: { in: [] } }),
-      },
-      select: { debitAmount: true, creditAmount: true },
-    });
-  } else {
-    lines = await prisma.journalLine.findMany({
-      where: { accountId },
-      select: { debitAmount: true, creditAmount: true },
-    });
+    if (journalIds.length === 0) return 0;
+    where.journalId = { in: journalIds };
   }
 
-  let balance = 0;
-  for (const line of lines) {
-    const net = netEffectForAccountType(
-      line.debitAmount,
-      line.creditAmount,
-      account.type
-    );
-    balance += net;
-  }
-  return balance;
+  const result = await prisma.journalLine.groupBy({
+    by: ['accountId'],
+    where,
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+
+  const row = result[0];
+  const sumDebit = row?._sum?.debitAmount ?? 0;
+  const sumCredit = row?._sum?.creditAmount ?? 0;
+  return netEffectForAccountType(sumDebit, sumCredit, account.type as 'CASH' | 'PAYABLE' | 'RECEIVABLE');
 }
 
-/** Same as getAccountBalance but uses transaction client (for use inside $transaction). */
+/**
+ * Same as getAccountBalance but uses transaction client (for use inside $transaction).
+ * Uses DB aggregation so it stays fast with many lines.
+ */
 export async function getAccountBalanceWithTx(
   tx: AccountingTx,
   accountId: string
@@ -63,20 +58,14 @@ export async function getAccountBalanceWithTx(
   });
   if (!account) return 0;
 
-  const lines = await tx.journalLine.findMany({
+  const result = await tx.journalLine.groupBy({
+    by: ['accountId'],
     where: { accountId },
-    select: { debitAmount: true, creditAmount: true },
-    orderBy: { journal: { date: 'asc' } },
+    _sum: { debitAmount: true, creditAmount: true },
   });
 
-  let balance = 0;
-  for (const line of lines) {
-    const net = netEffectForAccountType(
-      line.debitAmount,
-      line.creditAmount,
-      account.type
-    );
-    balance += net;
-  }
-  return balance;
+  const row = result[0];
+  const sumDebit = row?._sum?.debitAmount ?? 0;
+  const sumCredit = row?._sum?.creditAmount ?? 0;
+  return netEffectForAccountType(sumDebit, sumCredit, account.type as 'CASH' | 'PAYABLE' | 'RECEIVABLE');
 }
