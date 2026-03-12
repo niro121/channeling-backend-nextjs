@@ -76,8 +76,11 @@ function DoctorLeaveReportContentInner({
           <Selector
             label="Institution"
             options={institutionOptions}
-            value={values.institutionId ?? '__all__'}
+            value={values.institutionId}
             onChange={(v) => setValue('institutionId', v)}
+            className={{
+              trigger: 'self-end!'
+            }}
           />
           <Combobox
             label="Branch"
