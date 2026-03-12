@@ -10,7 +10,7 @@ import {
   getDoctorLeaveReportData,
   exportDoctorLeaveReportData,
   DoctorLeaveReportExportRow
-} from '@/app/actions/reports/doctor-leave-report.action';
+} from '@/app/actions/reports/doctor.leave.report.action';
 import { DoctorLeaveReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 
