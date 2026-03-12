@@ -22,6 +22,8 @@ export type UserGroup = {
   twoFactorMethods?: TwoFactorMethodId[]; // e.g. ["1", "2", "3"]
   createdAt?: Date;
   updatedAt?: Date;
+  createdUser?: { name?: string } | null;
+  updatedUser?: { name?: string } | null;
 };
 
 export type GetUserGroupsParams = {

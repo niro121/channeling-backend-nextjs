@@ -99,8 +99,9 @@ export default function DoctorForm({
       .nullable()
       .optional(),
     mobile: Yup.string()
-      .nullable()
-      .optional(),
+      .transform((v) => (typeof v === 'string' ? v.trim().replace(/\s/g, '') : v))
+      .required('Mobile number is required')
+      .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
     registrationNumber: Yup.string().trim().nullable().optional(),
     qualification: Yup.string().trim().nullable().optional(),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').nullable().optional(),
@@ -111,7 +112,7 @@ export default function DoctorForm({
 
   const handleSubmit = async (
     values: DoctorFormValues,
-    { resetForm }: FormikHelpers<DoctorFormValues>
+    { resetForm, setFieldError }: FormikHelpers<DoctorFormValues>
   ) => {
     const closeAfterSave = saveAndCloseRef.current;
     try {
@@ -123,10 +124,13 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
+          if (respond?.error?.issues?.mobile) {
+            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
+          }
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: respond.error.message || 'Doctor update unsuccessful.'
+            description: respond.error?.message || 'Doctor update unsuccessful.'
           });
           return;
         }
@@ -143,10 +147,13 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
+          if (respond?.error?.issues?.mobile) {
+            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
+          }
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: respond.error.message || 'Doctor save unsuccessful.'
+            description: respond.error?.message || 'Doctor save unsuccessful.'
           });
           return;
         }
@@ -352,7 +359,7 @@ export default function DoctorForm({
 
               <div className={styleClasses.parentDiv}>
                 <Label htmlFor="mobile" className={styleClasses.labelClassName}>
-                  Mobile
+                  Mobile <span className="text-destructive">*</span>
                 </Label>
                 <div className={styleClasses.inputClassName}>
                   <Input

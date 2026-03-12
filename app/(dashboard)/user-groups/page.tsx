@@ -66,10 +66,15 @@ export default async function Page({ searchParams }: SearchParams) {
             };
         }
 
-        const mappedUserGroups = userGroupListResponse.data.map((ug: any) => ({
+        const mappedUserGroups = userGroupListResponse.data.map((ug: any) => {
+        const isActive = ug.status === 1;
+
+          return {
             name: ug.name || '-',
-            description: ug.description || '-'
-        }));
+            description: ug.description || '-',
+            status: isActive ? 'Published' : 'Unpublished'
+          };
+        });
 
         return {
             success: true,
@@ -102,8 +107,8 @@ export default async function Page({ searchParams }: SearchParams) {
                             <div className="flex items-center">
                                 <ExportWrapper
                                     serverData={handleExport}
-                                    columns={['Group Name', 'Description']}
-                                    keys={['name', 'description']}
+                                    columns={['Group Name', 'Description', 'status']}
+                                    keys={['name', 'description', 'status']}
                                     title="User Groups List"
                                     fileName="user-groups"
                                 />

@@ -38,11 +38,11 @@ const doctorSchema = z.object({
     ),
   mobile: z
     .string()
-    .optional()
-    .nullable()
-    .refine((val) => !val || val.trim() === '' || sriLankaMobileRegex.test(val), 'Mobile Number Ex: 07x xxxxxxx'),
+    .min(1, 'Mobile number is required')
+    .transform((val) => val?.trim().replace(/\s/g, '') ?? '')
+    .refine((val) => sriLankaMobileRegex.test(val), 'Mobile Number Ex: 07x xxxxxxx'),
   registrationNumber: z.string().trim().optional().nullable(),
-  qualification: z.string().trim().min(1, 'Qualification is required'),
+  qualification: z.string().trim().optional().nullable(),
   referralCharge: z.number().min(0, 'Must be 0 or greater'),
   sessionNoPrefix: z.string().optional().nullable(),
   fax: z.string().optional().nullable(),
@@ -60,6 +60,24 @@ const doctorSchema = z.object({
 const doctorUpdateSchema = doctorSchema.partial().extend({
   id: z.string().min(1, 'Doctor ID is required')
 });
+
+/** Normalize mobile for storage and uniqueness comparison (trim, remove spaces) */
+function normalizeMobile(mobile: string): string {
+  return (mobile ?? '').trim().replace(/\s/g, '') || '';
+}
+
+/** Check if another doctor already has this mobile (excluding doctorId if provided). Compares normalized values. */
+async function isDoctorMobileTaken(mobile: string, excludeDoctorId?: string): Promise<boolean> {
+  const normalized = normalizeMobile(mobile);
+  if (!normalized) return false;
+  const doctors = await prisma.doctor.findMany({
+    where: { mobile: { not: null } },
+    select: { id: true, mobile: true },
+  });
+  return doctors.some(
+    (d) => d.mobile && normalizeMobile(d.mobile) === normalized && d.id !== excludeDoctorId
+  );
+}
 
 type doctorInput = z.infer<typeof doctorSchema>;
 
@@ -168,6 +186,17 @@ export const createDoctorService = async (
 
     const data = parsed.data;
 
+    const mobileNormalized = normalizeMobile(data.mobile);
+    if (await isDoctorMobileTaken(mobileNormalized)) {
+      return {
+        success: false,
+        error: {
+          message: 'Mobile number is already in use by another doctor',
+          issues: { mobile: ['Mobile number is already in use by another doctor'] },
+        },
+      };
+    }
+
     const doctorCodeResult = await getNextDoctorCode();
 
     if (!doctorCodeResult.success || !doctorCodeResult.data) {
@@ -186,13 +215,13 @@ export const createDoctorService = async (
         code: doctorCodeResult.data,
         order: data.order,
         phone: data.phone ?? null,
-        mobile: data.mobile?.trim() || null,
+        mobile: mobileNormalized || null,
         fax: data.fax?.trim() || null,
         addressLine1: data.addressLine1 ?? null,
         addressLine2: data.addressLine2 ?? null,
         city: data.city ?? null,
         registrationNumber: data.registrationNumber?.trim() || null,
-        qualification: data.qualification,
+        qualification: data.qualification ?? '',
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,
@@ -280,7 +309,25 @@ export const updateOneDoctorService = async (
 
     const data = parsed.data;
 
+    if (data.mobile !== undefined && data.mobile !== null) {
+      const mobileNormalized = normalizeMobile(data.mobile);
+      if (await isDoctorMobileTaken(mobileNormalized, id)) {
+        return {
+          success: false,
+          error: {
+            message: 'Mobile number is already in use by another doctor',
+            issues: { mobile: ['Mobile number is already in use by another doctor'] },
+          },
+        };
+      }
+    }
+
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
+    const mobileValue =
+      data.mobile !== undefined
+        ? (normalizeMobile(data.mobile) || null)
+        : undefined;
 
     const doctor = await prisma.doctor.update({
       where: { id },
@@ -289,13 +336,13 @@ export const updateOneDoctorService = async (
         name: data.name,
         order: data.order,
         phone: data.phone ?? null,
-        mobile: data.mobile?.trim() || null,
+        ...(mobileValue !== undefined && { mobile: mobileValue }),
         fax: data.fax?.trim() || null,
         addressLine1: data.addressLine1 ?? null,
         addressLine2: data.addressLine2 ?? null,
         city: data.city ?? null,
         registrationNumber: data.registrationNumber?.trim() || null,
-        qualification: data.qualification,
+        qualification: data.qualification ?? '',
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,

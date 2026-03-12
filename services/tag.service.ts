@@ -252,15 +252,15 @@ export const saveTag = async (
             };
         }
 
+        const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
         const tag = await prisma.tag.create({
             data: {
                 name: data.name,
                 type: data.type,
                 status: data.status,
-                ...(user?.id ? {
-                    createdBy: user.id,
-                    updatedBy: user.id
-                } : {})
+                createdUser: userRelation,
+                updatedUser: userRelation
             }
         });
 
@@ -343,13 +343,12 @@ export const updateOneTag = async (
             }
         }
 
-        const updateData: Prisma.TagUncheckedUpdateInput = {
-            ...(user?.id ? { updatedBy: user.id } : {})
+        const updateData: Prisma.TagUpdateInput = {
+            ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {}),
+            ...(data.name !== undefined ? { name: data.name } : {}),
+            ...(data.type !== undefined ? { type: data.type } : {}),
+            ...(data.status !== undefined ? { status: data.status } : {})
         };
-
-        if (data.name !== undefined) updateData.name = data.name;
-        if (data.type !== undefined) updateData.type = data.type;
-        if (data.status !== undefined) updateData.status = data.status;
 
         const tag = await prisma.tag.update({
             where: { id },
@@ -414,6 +413,10 @@ export const getTagById = async (
 
         const result = await prisma.tag.findUnique({
             where: { id: id },
+            include: {
+                createdUser: { select: { id: true, name: true } },
+                updatedUser: { select: { id: true, name: true } },
+            },
         });
 
         return {

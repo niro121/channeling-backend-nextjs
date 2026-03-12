@@ -274,7 +274,8 @@ export const updateDoctorSessionService = async (
           ? { previousSession: { connect: { id: data.previousSessionId } } }
           : { previousSession: { disconnect: true } }),
 
-        updatedUser: userRelation
+        updatedUser: userRelation,
+        updatedAt: new Date()
       }
     });
 

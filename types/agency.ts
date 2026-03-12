@@ -37,6 +37,9 @@ export type Agency = {
   accountId?: string | null;
   accountName?: string | null;
   accountCode?: string | null;
+  // Audit user relations
+  createdUser?: { id?: string; name?: string } | null;
+  updatedUser?: { id?: string; name?: string } | null;
 };
 
 export type AgencyFormValues = {

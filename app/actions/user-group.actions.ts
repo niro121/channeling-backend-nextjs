@@ -1,7 +1,6 @@
 'use server'
 
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { fetchServerSession } from "@/lib/session"
 import { GetUserGroupsParams, GetUserGroupsQuery, UserGroup } from "@/types/user-group"
 import { deleteOneUserGroup, deleteUserGroups, getUserGroups, saveUserGroup, updateOneUserGroup, getUserGroupById, getAllUserGroupsOptionsService } from "@/services/user-group.service"
 import { revalidatePath } from "next/cache"
@@ -65,16 +64,24 @@ export const createNewUserGroup = async (payload: UserGroup) => {
     await requirePermission("users", "add")
 
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
-        const result = await saveUserGroup(payload)
-        const session = await getServerSession(authOptions)
-        if (session?.user?.id) {
+        const result = await saveUserGroup(payload, user)
+        if (user) {
             const createdId = result?.id ?? (result as { data?: { id?: string } })?.data?.id
             logActivityNonBlocking({
-                userId: session.user.id,
+                userId: user.id,
                 action: "user-groups.userGroup.created",
                 entityType: "UserGroup",
                 entityId: typeof createdId === "string" ? createdId : undefined,
@@ -106,15 +113,23 @@ export const updateUserGroup = async (id: string, payload: UserGroup) => {
     await requirePermission("users", "edit")
     
     try {
+        const session = await fetchServerSession()
+        const user = session?.user?.id
+            ? { id: session.user.id, name: session.user.name ?? undefined }
+            : undefined
+
         delete payload.id
         delete payload.createdAt
         delete payload.updatedAt
+        delete (payload as any).createdBy
+        delete (payload as any).updatedBy
+        delete (payload as any).createdUser
+        delete (payload as any).updatedUser
 
-        let result = await updateOneUserGroup(id, payload)
-        const session = await getServerSession(authOptions)
-        if (session?.user?.id) {
+        let result = await updateOneUserGroup(id, payload, user)
+        if (user) {
             logActivityNonBlocking({
-                userId: session.user.id,
+                userId: user.id,
                 action: "user-groups.userGroup.updated",
                 entityType: "UserGroup",
                 entityId: id,

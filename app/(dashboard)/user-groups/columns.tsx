@@ -75,12 +75,14 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
         id: "updated",
         header: "Updated",
         cell: ({ row }) => {
-            const date = row.original.updatedAt;
-            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            const name = row.original.updatedUser?.name ?? "—";
+            const date = row.original.updatedAt
+                ? moment(row.original.updatedAt).format("DD/MM/YYYY hh:mm A")
+                : "—";
             return (
                 <div className="flex flex-col gap-0.5 text-xs">
-                    <span className="text-muted-foreground">—</span>
-                    <span className="text-muted-foreground">{formatted}</span>
+                    <span>{name}</span>
+                    <span className="text-muted-foreground">{date}</span>
                 </div>
             );
         },
@@ -89,12 +91,14 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
         id: "created",
         header: "Created",
         cell: ({ row }) => {
-            const date = row.original.createdAt;
-            const formatted = date ? moment(date).format("DD/MM/YYYY hh:mm A") : "—";
+            const name = row.original.createdUser?.name ?? "—";
+            const date = row.original.createdAt
+                ? moment(row.original.createdAt).format("DD/MM/YYYY hh:mm A")
+                : "—";
             return (
                 <div className="flex flex-col gap-0.5 text-xs">
-                    <span className="text-muted-foreground">—</span>
-                    <span className="text-muted-foreground">{formatted}</span>
+                    <span>{name}</span>
+                    <span className="text-muted-foreground">{date}</span>
                 </div>
             );
         },

@@ -69,6 +69,14 @@ export function EditSessionDialog({
       });
       return;
     }
+    if (durationMinutes <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation',
+        description: 'End time must be after start time.',
+      });
+      return;
+    }
     setSaving(true);
     try {
       const result = await updateSession({
@@ -137,8 +145,11 @@ export function EditSessionDialog({
             <Input
               value={durationMinutes}
               readOnly
-              className="bg-muted"
+              className={durationMinutes <= 0 ? 'bg-destructive/10 border-destructive' : 'bg-muted'}
             />
+            {durationMinutes <= 0 && (
+              <p className="text-sm text-destructive">End time must be after start time.</p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="maxPatientNumber">
@@ -157,7 +168,7 @@ export function EditSessionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || durationMinutes <= 0}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </div>

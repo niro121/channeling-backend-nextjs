@@ -75,9 +75,9 @@ export const getDepartments = async ({
                 where: whereClause,
                 orderBy: { createdAt: "desc" },
                 include: {
-                    createdUser: { select: { name: true } },
-                    updatedUser: { select: { name: true } },
-                } as Prisma.DepartmentInclude,
+                    createdUser: true,
+                    updatedUser: true,
+                },
             }),
             prisma.department.count({ where: whereClause }),
         ])
@@ -228,14 +228,17 @@ export const saveDepartment = async (
 
         const data = parsed.data
 
+        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+
         const department = await prisma.department.create({
             data: {
                 name: data.name,
                 description: data.description ?? null,
                 institution: data.institution ?? null,
                 status: data.status,
-                ...(user?.id ? { createdBy: user.id, updatedBy: user.id } : {}),
-            } as unknown as Prisma.DepartmentUncheckedCreateInput,
+                createdUser: userRelation,
+                updatedUser: userRelation,
+            },
         })
 
         return {
@@ -296,8 +299,11 @@ export const updateOneDepartment = async (
 
         const data = parsed.data
 
+        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+
         const updateData: Prisma.DepartmentUpdateInput = {
-            ...(user?.id ? { updatedUser: { connect: { id: user.id } } } : {}),
+            ...(userRelation && { updatedUser: userRelation }),
+            updatedAt: new Date(),
             ...(data.name !== undefined && { name: data.name }),
             ...(data.description !== undefined && {
                 description: data.description ?? null,
@@ -368,6 +374,10 @@ export const getDepartmentById = async (
 
         const department = await prisma.department.findUnique({
             where: { id: id },
+            include: {
+                createdUser: true,
+                updatedUser: true,
+            },
         })
 
         if (!department) {

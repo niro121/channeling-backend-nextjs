@@ -11,6 +11,9 @@ import { createNewTag, updateTag } from "@/app/actions/tag.actions"
 import { useToast } from "@/components/hooks/use-toast"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { useRouter } from "next/navigation"
+import moment from "moment"
+import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
 
 type TagFormProps = {
     tag: Tag | null
@@ -230,6 +233,34 @@ const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
                                 ]}
                                 styleClasses={styleClasses}
                             />
+
+                            {/* Record (Created / Last updated) - Edit mode only */}
+                            {/* {isEditPage && tag && (
+                                <>
+                                    <Separator />
+                                    <h3 className="col-span-full text-lg font-semibold">Record</h3>
+                                    <div className={styleClasses.parentDiv}>
+                                        <Label className={styleClasses.labelClassName}>Created</Label>
+                                        <div className={styleClasses.inputClassName}>
+                                            <span className="text-muted-foreground text-sm">
+                                                {tag.createdAt
+                                                    ? `${tag.createdUser?.name ?? '—'}, ${moment(tag.createdAt).format('DD MMM YYYY [at] h:mm A')}`
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={styleClasses.parentDiv}>
+                                        <Label className={styleClasses.labelClassName}>Last updated</Label>
+                                        <div className={styleClasses.inputClassName}>
+                                            <span className="text-muted-foreground text-sm">
+                                                {tag.updatedAt
+                                                    ? `${tag.updatedUser?.name ?? '—'}, ${moment(tag.updatedAt).format('DD MMM YYYY [at] h:mm A')}`
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </>
+                            )} */}
 
                             <div className="flex flex-col sm:flex-row justify-end gap-3">
                                 <Button

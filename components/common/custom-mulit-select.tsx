@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger
 } from '@/components/ui/select';
-import { ErrorMessage } from 'formik';
+import { useFormikContext } from 'formik';
 import { X } from 'lucide-react';
 
 interface MultiSelectOption {
@@ -41,6 +41,12 @@ export function CustomMultiSelect({
   required,
   styleClasses
 }: MultiSelectProps) {
+  const formik = useFormikContext<Record<string, unknown>>();
+  const fieldName = id || '';
+  const error = fieldName ? formik.errors[fieldName] : undefined;
+  const touched = fieldName ? formik.touched[fieldName] : undefined;
+  const showError = !!error && (!!touched || (formik.submitCount ?? 0) > 0);
+
   const selectedOptions = options.filter((o) => value.includes(o.id));
 
   const availableOptions = options.filter((o) => !value.includes(o.id));
@@ -107,11 +113,11 @@ export function CustomMultiSelect({
             ))}
           </SelectContent>
         </Select>
-        <ErrorMessage
-          name={id || ''}
-          component="div"
-          className="invalid-feedback text-red-600 text-sm whitespace-nowrap pt-1 sm:pt-0"
-        />
+        {showError && (
+          <div className="invalid-feedback text-red-600 text-sm whitespace-nowrap pt-1 sm:pt-0">
+            {typeof error === 'string' ? error : Array.isArray(error) ? error[0] : String(error)}
+          </div>
+        )}
       </div>
     </div>
   );
