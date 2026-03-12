@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { downloadExcelUtil, downloadPdfUtil, formatExportFileName } from '@/lib/utils';
+import { downloadExcelUtil, downloadPdfUtil, formatExportFileName, printPdfUtil } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -12,6 +12,8 @@ export type ExportWrapperProps<T> = {
   keys: (keyof T)[];
   title?: string;
   fileName?: string;
+  /** When true, shows the Print button (optional; wrapper is used in other components) */
+  showPrintButton?: boolean;
 };
 
 export const ExportWrapper = <T,>({
@@ -21,13 +23,46 @@ export const ExportWrapper = <T,>({
   keys,
   title = 'Report',
   fileName = 'report',
+  showPrintButton = false,
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingExcel, setLoadingExcel] = useState(false);
+  const [loadingPrint, setLoadingPrint] = useState(false);
 
   // Format the file name with the standard suffix
   const formattedFileName = formatExportFileName(fileName);
+
+  const handlePrint = async () => {
+    try {
+      setLoadingPrint(true);
+      const response = await serverData();
+
+      if (!response.success || !response.data?.length) {
+        toast({
+          variant: 'destructive',
+          title: 'No data to print',
+          description: response.message || 'No data available for printing'
+        });
+        return;
+      }
+
+      printPdfUtil({
+        title,
+        data: response.data,
+        columns,
+        keys
+      });
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to print'
+      });
+    } finally {
+      setLoadingPrint(false);
+    }
+  };
 
   const handlePdfDownload = async () => {
     try {
@@ -99,8 +134,11 @@ export const ExportWrapper = <T,>({
     <ExportButtons
       onPdfExport={handlePdfDownload}
       onExcelExport={handleExcelDownload}
+      onPrintExport={handlePrint}
       loadingPdf={loadingPdf}
       loadingExcel={loadingExcel}
+      loadingPrint={loadingPrint}
+      showPrintButton={showPrintButton}
     />
   );
 };
