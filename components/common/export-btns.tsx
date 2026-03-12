@@ -6,9 +6,10 @@ import { FileText, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
 type ExportButtonsProps = {
   onPdfExport: () => Promise<void>;
   onExcelExport?: () => Promise<void>;
-  onPrintExport?: () => void;
+  onPrintExport?: () => void | Promise<void>;
   loadingPdf?: boolean;
   loadingExcel?: boolean;
+  loadingPrint?: boolean;
   /** When true, shows the Print button (optional for backwards compatibility) */
   showPrintButton?: boolean;
 };
@@ -19,6 +20,7 @@ export const ExportButtons = ({
   onPrintExport,
   loadingPdf = false,
   loadingExcel = false,
+  loadingPrint = false,
   showPrintButton = false
 }: ExportButtonsProps) => {
   return (
@@ -27,7 +29,7 @@ export const ExportButtons = ({
         variant="outline"
         size="sm"
         onClick={onPdfExport}
-        disabled={loadingPdf || loadingExcel}
+        disabled={loadingPdf || loadingExcel || loadingPrint}
         className="gap-2 cursor-pointer"
       >
         {loadingPdf ? (
@@ -42,7 +44,7 @@ export const ExportButtons = ({
         variant="outline"
         size="sm"
         onClick={onExcelExport}
-        disabled={loadingPdf || loadingExcel}
+        disabled={loadingPdf || loadingExcel || loadingPrint}
         className="gap-2 cursor-pointer"
       >
         {loadingExcel ? (
@@ -58,10 +60,14 @@ export const ExportButtons = ({
           variant="outline"
           size="sm"
           onClick={onPrintExport}
-          disabled={loadingPdf || loadingExcel}
+          disabled={loadingPdf || loadingExcel || loadingPrint}
           className="gap-2 cursor-pointer"
         >
-          <Printer size={16} />
+          {loadingPrint ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Printer size={16} />
+          )}
           Print
         </Button>
       )}

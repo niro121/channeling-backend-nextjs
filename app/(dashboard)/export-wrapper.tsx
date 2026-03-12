@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { downloadExcelUtil, downloadPdfUtil, formatExportFileName } from '@/lib/utils';
+import { downloadExcelUtil, downloadPdfUtil, formatExportFileName, printPdfUtil } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -28,12 +28,40 @@ export const ExportWrapper = <T,>({
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingExcel, setLoadingExcel] = useState(false);
+  const [loadingPrint, setLoadingPrint] = useState(false);
 
   // Format the file name with the standard suffix
   const formattedFileName = formatExportFileName(fileName);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    try {
+      setLoadingPrint(true);
+      const response = await serverData();
+
+      if (!response.success || !response.data?.length) {
+        toast({
+          variant: 'destructive',
+          title: 'No data to print',
+          description: response.message || 'No data available for printing'
+        });
+        return;
+      }
+
+      printPdfUtil({
+        title,
+        data: response.data,
+        columns,
+        keys
+      });
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to print'
+      });
+    } finally {
+      setLoadingPrint(false);
+    }
   };
 
   const handlePdfDownload = async () => {
@@ -109,6 +137,7 @@ export const ExportWrapper = <T,>({
       onPrintExport={handlePrint}
       loadingPdf={loadingPdf}
       loadingExcel={loadingExcel}
+      loadingPrint={loadingPrint}
       showPrintButton={showPrintButton}
     />
   );
