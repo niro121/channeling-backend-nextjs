@@ -56,7 +56,7 @@ function DoctorLeaveReportContentInner({
   });
 
   return (
-    <ReportTemplate<DoctorLeaveReportRow>
+    <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
       title="Doctor Leave Report"
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
@@ -76,7 +76,7 @@ function DoctorLeaveReportContentInner({
           <Selector
             label="Institution"
             options={institutionOptions}
-            value={values.institutionId}
+            value={values.institutionId ?? '__all__'}
             onChange={(v) => setValue('institutionId', v)}
             className={{
               trigger: 'self-end!'

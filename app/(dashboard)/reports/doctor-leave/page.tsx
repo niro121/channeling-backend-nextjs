@@ -73,7 +73,6 @@ export default async function DoctorLeaveReportPage() {
   return (
     <DoctorLeaveReportContent
       institutionOptions={[
-        { id: '__all__', name: 'All Institutions' },
         ...INSTITUTION_OPTIONS
       ]}
       locationOptions={locationOptions}

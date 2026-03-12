@@ -90,7 +90,9 @@ export const getDoctorLeaveReportService = async ({
             select: { doctorId: true },
             distinct: ['doctorId']
           });
-          doctorIds = sessions.map((s) => s.doctorId).filter(Boolean);
+          doctorIds = sessions
+            .map((s) => s.doctorId)
+            .filter((id): id is string => id != null);
         }
         if (hasDoctorFilter) {
           const doctors = await prisma.doctor.findMany({

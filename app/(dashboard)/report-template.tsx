@@ -25,7 +25,7 @@ import Loading from '@/app/(dashboard)/loading'
 
 type FilterValues = Record<string, string | undefined>;
 
-export interface ReportTemplateProps<T> {
+export interface ReportTemplateProps<T, E = T> {
   /** Report title */
   title: string;
   /** Report description */
@@ -46,10 +46,10 @@ export interface ReportTemplateProps<T> {
     totalRecords: number;
     message?: string;
   }>;
-  /** Export data for PDF/Excel */
+  /** Export data for PDF/Excel (can use different shape E for flattened export rows) */
   exportData: () => Promise<{
     success: boolean;
-    data?: T[];
+    data?: E[];
     message?: string;
   }>;
   /** TanStack Table column definitions */
@@ -57,7 +57,7 @@ export interface ReportTemplateProps<T> {
   /** Export column headers (for PDF/Excel) */
   exportColumns: string[];
   /** Export data keys (for PDF/Excel) */
-  exportKeys: (keyof T)[];
+  exportKeys: (keyof E)[];
   /** Export title (default: uses report title) */
   exportTitle?: string;
   /** Export file name base (default: slugified title) */
@@ -70,7 +70,7 @@ export interface ReportTemplateProps<T> {
   emptyMessage?: string;
 }
 
-function ReportTemplateContent<T>({
+function ReportTemplateContent<T, E = T>({
   title,
   description,
   filterContent,
@@ -85,7 +85,7 @@ function ReportTemplateContent<T>({
   getRowId,
   showPrintButton = true,
   emptyMessage = 'No data found'
-}: ReportTemplateProps<T>) {
+}: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -164,7 +164,7 @@ function ReportTemplateContent<T>({
                 <CardDescription>{description}</CardDescription>
               )}
             </div>
-            <ExportWrapper<T>
+            <ExportWrapper<E>
               serverData={exportData}
               columns={exportColumns}
               keys={exportKeys}
@@ -211,7 +211,7 @@ function ReportTemplateContent<T>({
                         const accKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
                         if (typeof column.header === 'function') {
                           try {
-                            header = column.header({
+                            const headerResult = column.header({
                               table: {
                                 getIsAllPageRowsSelected: () => false,
                                 getIsSomePageRowsSelected: () => false,
@@ -220,15 +220,29 @@ function ReportTemplateContent<T>({
                               column: {} as never,
                               header: {} as never
                             } as never);
+                            header = (headerResult != null && (typeof headerResult === 'string' || typeof headerResult === 'number' || typeof headerResult === 'boolean' || React.isValidElement(headerResult as React.ReactElement)))
+                              ? headerResult
+                              : '';
                           } catch {
-                            header = (column as { header?: unknown }).header ?? '';
+                            const raw = (column as { header?: unknown }).header;
+                            header = (raw !== null && raw !== undefined && (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean' || React.isValidElement(raw as React.ReactElement))
+                              ? (raw as React.ReactNode)
+                              : '') as React.ReactNode;
                           }
                         } else {
-                          header = column.header ?? '';
+                          const raw = column.header;
+                          header = (raw !== null && raw !== undefined && (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean' || React.isValidElement(raw as React.ReactElement)))
+                            ? (raw as React.ReactNode)
+                            : '';
                         }
+                        const safeHeader: React.ReactNode =
+                          header == null ||
+                          (typeof header === 'object' && !React.isValidElement(header as React.ReactElement))
+                            ? ''
+                            : header;
                         return (
                           <TableHead key={column.id ?? accKey ?? String(header)}>
-                            {header ?? ''}
+                            {safeHeader}
                           </TableHead>
                         );
                       })}
@@ -275,10 +289,10 @@ function ReportTemplateContent<T>({
   );
 }
 
-export function ReportTemplate<T>(props: ReportTemplateProps<T>) {
+export function ReportTemplate<T, E = T>(props: ReportTemplateProps<T, E>) {
   return (
     <Suspense fallback={<Loading />}>
-      <ReportTemplateContent<T> {...props} />
+      <ReportTemplateContent<T, E> {...props} />
     </Suspense>
   );
 }
