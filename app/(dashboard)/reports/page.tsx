@@ -54,6 +54,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Userwise Cashier Detail - Channel',
     description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
     route: '/reports/cashier-summary'
+  },
+  {
+    id: '9',
+    masterData: 'Doctor Leave Report',
+    description: 'View doctor leave records with date & time range, filter by institution, branch, department, speciality, and doctor',
+    route: '/reports/doctor-leave'
   }
 ];
 

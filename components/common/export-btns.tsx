@@ -1,20 +1,25 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FileText, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
 
 type ExportButtonsProps = {
   onPdfExport: () => Promise<void>;
   onExcelExport?: () => Promise<void>;
+  onPrintExport?: () => void;
   loadingPdf?: boolean;
   loadingExcel?: boolean;
+  /** When true, shows the Print button (optional for backwards compatibility) */
+  showPrintButton?: boolean;
 };
 
 export const ExportButtons = ({
   onPdfExport,
   onExcelExport,
+  onPrintExport,
   loadingPdf = false,
-  loadingExcel = false
+  loadingExcel = false,
+  showPrintButton = false
 }: ExportButtonsProps) => {
   return (
     <div className="flex gap-2">
@@ -47,6 +52,19 @@ export const ExportButtons = ({
         )}
         Excel
       </Button>
+
+      {showPrintButton && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onPrintExport}
+          disabled={loadingPdf || loadingExcel}
+          className="gap-2 cursor-pointer"
+        >
+          <Printer size={16} />
+          Print
+        </Button>
+      )}
     </div>
   );
 };

@@ -12,6 +12,8 @@ export type ExportWrapperProps<T> = {
   keys: (keyof T)[];
   title?: string;
   fileName?: string;
+  /** When true, shows the Print button (optional; wrapper is used in other components) */
+  showPrintButton?: boolean;
 };
 
 export const ExportWrapper = <T,>({
@@ -21,6 +23,7 @@ export const ExportWrapper = <T,>({
   keys,
   title = 'Report',
   fileName = 'report',
+  showPrintButton = false,
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -28,6 +31,10 @@ export const ExportWrapper = <T,>({
 
   // Format the file name with the standard suffix
   const formattedFileName = formatExportFileName(fileName);
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const handlePdfDownload = async () => {
     try {
@@ -99,8 +106,10 @@ export const ExportWrapper = <T,>({
     <ExportButtons
       onPdfExport={handlePdfDownload}
       onExcelExport={handleExcelDownload}
+      onPrintExport={handlePrint}
       loadingPdf={loadingPdf}
       loadingExcel={loadingExcel}
+      showPrintButton={showPrintButton}
     />
   );
 };
