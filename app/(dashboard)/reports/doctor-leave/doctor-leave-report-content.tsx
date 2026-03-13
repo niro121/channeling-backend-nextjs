@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
+import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
 import {
@@ -63,7 +63,7 @@ function DoctorLeaveReportContentInner({
       filterContent={({ values, setValue }) => (
         <>
           <div className="flex-shrink-0">
-            <DateTimeRangePicker
+            <DateAndTimeRangePicker
               label="Date & Time Range"
               from={values.fromDateTime}
               to={values.toDateTime}
@@ -73,43 +73,45 @@ function DoctorLeaveReportContentInner({
               }}
             />
           </div>
-          <Selector
-            label="Institution"
-            options={institutionOptions}
-            value={values.institutionId ?? '__all__'}
-            onChange={(v) => setValue('institutionId', v)}
-            className={{
-              trigger: 'self-end!'
-            }}
-          />
-          <Combobox
-            label="Branch"
-            options={locationOptions}
-            value={values.locationId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('locationId', v)}
-          />
-          <Combobox
-            label="Department"
-            options={departmentOptions}
-            value={values.departmentId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('departmentId', v)}
-          />
-          <Combobox
-            label="Speciality"
-            options={specialityOptions}
-            value={values.specialityId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('specialityId', v)}
-          />
-          <Combobox
-            label="Doctor"
-            options={doctorOptions}
-            value={values.doctorId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('doctorId', v)}
-          />
+          <div className='flex flex-wrap gap-3'>
+            <Combobox
+              label="Doctor"
+              options={doctorOptions}
+              value={values.doctorId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('doctorId', v)}
+            />
+            <Combobox
+              label="Speciality"
+              options={specialityOptions}
+              value={values.specialityId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('specialityId', v)}
+            />
+            <Selector
+              label="Institution"
+              options={institutionOptions}
+              value={values.institutionId ?? '__all__'}
+              onChange={(v) => setValue('institutionId', v)}
+              className={{
+                trigger: 'self-end!'
+              }}
+            />
+            <Combobox
+              label="Branch"
+              options={locationOptions}
+              value={values.locationId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('locationId', v)}
+            />
+            <Combobox
+              label="Department"
+              options={departmentOptions}
+              value={values.departmentId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('departmentId', v)}
+            />
+          </div>
         </>
       )}
       fetchData={async (params) => {

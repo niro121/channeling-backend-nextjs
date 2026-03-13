@@ -64,6 +64,12 @@ export function DateRangePicker({
           selected={selectedRange}
           onSelect={handleSelect}
           numberOfMonths={2}
+          captionLayout="dropdown"
+          hideNavigation
+          startMonth={new Date(1970, 0)}
+          endMonth={new Date(new Date().getFullYear() + 20, 11)}
+          fromMonth={new Date(1970, 0)}
+          toMonth={new Date(new Date().getFullYear() + 20, 11)}
         />
       </PopoverContent>
     </Popover>

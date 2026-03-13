@@ -36,7 +36,7 @@ export function Selector({
 
   return (
     <Select value={value ?? defaultValue} onValueChange={onChange}>
-      <SelectTrigger className={`w-60 ${className?.trigger || ""}`} disabled={options.length === 0}>
+      <SelectTrigger className={`w-60 font-semibold hover:bg-accent hover:text-accent-foreground cursor-pointer ${className?.trigger || ""}`} disabled={options.length === 0}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent className={`${className?.content || ""}`}>
