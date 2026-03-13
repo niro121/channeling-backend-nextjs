@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma';
 import {DoctorLeaveReportQuery} from '@/types/reports/doctor.leave'
 import { Prisma } from '@prisma/client';
-import { SRI_LANKA_TZ } from '@/lib/utils';
+import { SRI_LANKA_TZ, SL_OFFSET } from '@/lib/utils';
 
 /** Get minutes-from-midnight (0-1439) for a Date in a timezone */
 function getMinutesInTimezone(date: Date, timeZone: string): number {
@@ -66,7 +66,6 @@ export const getDoctorLeaveReportService = async ({
     let fromDate: Date | null = null;
     let toDate: Date | null = null;
 
-    const SL_OFFSET = '+05:30';
     if (hasDateFilter) {
       // Date-only (YYYY-MM-DD): use start of day for from, end of day for to
       // DateTime (YYYY-MM-DDTHH:mm): parse as Sri Lanka time for correct comparison with DB (UTC)
@@ -195,7 +194,7 @@ export const getDoctorLeaveReportService = async ({
     const [records, totalCount] = await Promise.all([
       prisma.doctorLeave.findMany({
         where: leaveWhere,
-        orderBy: { fromDate: 'desc' },
+        orderBy: [{ doctor: { code: 'asc' } }, { fromDate: 'desc' }],
         include: {
           doctor: { select: { id: true, name: true, code: true } },
           createdUser: { select: { id: true, name: true } },
@@ -225,9 +224,82 @@ export const getDoctorLeaveReportService = async ({
       });
     }
 
+    // Enrich leave records with session details (dd/mm/yyyy - Day (time range))
+    const allSessionIds = new Set<string>();
+    for (const rec of filteredRecords) {
+      const raw = rec.sessions;
+      if (Array.isArray(raw)) {
+        for (const item of raw) {
+          const id = typeof item === 'string' ? item : (item as { id?: string })?.id;
+          if (id) allSessionIds.add(id);
+        }
+      }
+    }
+
+    const sessionMap = new Map<string, { date: Date; startTime: Date; endTime: Date }>();
+    if (allSessionIds.size > 0) {
+      const sessions = await prisma.session.findMany({
+        where: { id: { in: Array.from(allSessionIds) } },
+        select: { id: true, date: true, startTime: true, endTime: true }
+      });
+      for (const s of sessions) {
+        sessionMap.set(s.id, {
+          date: s.date,
+          startTime: s.startTime,
+          endTime: s.endTime
+        });
+      }
+    }
+
+    const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const formatTime = (d: Date): string => {
+      const date = d instanceof Date ? d : new Date(d);
+      const h = date.getHours();
+      const m = date.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 || 12;
+      return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+    };
+    const formatSessionLine = (s: { date: Date; startTime: Date; endTime: Date }): string => {
+      const date = s.date instanceof Date ? s.date : new Date(s.date);
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yyyy = date.getFullYear();
+      const day = DAY_ABBR[date.getDay()] ?? '';
+      const range = `${formatTime(s.startTime)}-${formatTime(s.endTime)}`;
+      return `${dd}/${mm}/${yyyy} - ${day} (${range})`;
+    };
+
+    const enrichedRecords = filteredRecords.map((rec: any) => {
+      const raw = rec.sessions;
+      const ids: string[] = Array.isArray(raw)
+        ? raw.map((item: unknown) =>
+            typeof item === 'string' ? item : (item as { id?: string })?.id
+          ).filter((x): x is string => Boolean(x))
+        : [];
+      const lines = ids
+        .map((id) => sessionMap.get(id))
+        .filter(Boolean)
+        .map((s) => formatSessionLine(s!));
+      return {
+        ...rec,
+        leaveSessionsFormatted: lines.length > 0 ? lines.join('\n') : '-'
+      };
+    });
+
+    // Sort by doctor code then fromDate for grouping display
+    enrichedRecords.sort((a: any, b: any) => {
+      const codeA = a.doctor?.code ?? '';
+      const codeB = b.doctor?.code ?? '';
+      if (codeA !== codeB) return codeA.localeCompare(codeB);
+      const dateA = a.fromDate instanceof Date ? a.fromDate.getTime() : new Date(a.fromDate).getTime();
+      const dateB = b.fromDate instanceof Date ? b.fromDate.getTime() : new Date(b.fromDate).getTime();
+      return dateB - dateA; // desc within doctor
+    });
+
     return {
       success: true,
-      data: filteredRecords,
+      data: enrichedRecords,
       totalRecords: hasTimeInFilter ? filteredRecords.length : totalCount
     };
   } catch (error: any) {

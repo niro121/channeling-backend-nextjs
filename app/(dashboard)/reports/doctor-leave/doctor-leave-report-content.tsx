@@ -9,32 +9,10 @@ import { Combobox } from '@/components/common/combobox';
 import {
   getDoctorLeaveReportData,
   exportDoctorLeaveReportData,
-  DoctorLeaveReportExportRow
 } from '@/app/actions/reports/doctor.leave.report.action';
 import { DoctorLeaveReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
-
-type DoctorLeaveReportRow = {
-  id: string;
-  fromDate: Date;
-  toDate: Date;
-  status: number;
-  remarks: string | null;
-  doctor: { id: string; name: string; code: string };
-  sessions?: unknown[];
-  createdUser?: { id: string; name: string } | null;
-  updatedUser?: { id: string; name: string } | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-type DoctorLeaveReportContentProps = {
-  institutionOptions: Array<{ id: string; name: string }>;
-  locationOptions: Array<{ id: string; name: string }>;
-  departmentOptions: Array<{ id: string; name: string }>;
-  specialityOptions: Array<{ id: string; name: string }>;
-  doctorOptions: Array<{ id: string; name: string }>;
-};
+import {DoctorLeaveReportExportRow, DoctorLeaveReportContentProps, DoctorLeaveReportRow} from '@/types/reports/doctor.leave'
 
 function DoctorLeaveReportContentInner({
   institutionOptions,
@@ -131,29 +109,27 @@ function DoctorLeaveReportContentInner({
       exportColumns={[
         'Doctor Code',
         'Doctor Name',
-        'From Date',
-        'To Date',
-        'Status',
-        'Remarks',
-        'Session Count',
-        'Created By',
-        'Created At',
-        'Updated By',
-        'Updated At'
+        'Leave Date',
+        'Leave Sessions',
+        'Leave Remark',
+        'Leave Creator',
+        'Leave Create At',
+        'Leave Updater',
+        'Leave Update At',
+        'Status'
       ]}
       exportKeys={
         [
           'doctorCode',
           'doctorName',
-          'fromDate',
-          'toDate',
-          'status',
-          'remarks',
-          'sessionCount',
-          'createdBy',
-          'createdAt',
-          'updatedBy',
-          'updatedAt'
+          'leaveDate',
+          'leaveSessions',
+          'leaveRemark',
+          'leaveCreator',
+          'leaveCreatorAt',
+          'leaveUpdator',
+          'leaveUpdatorAt',
+          'status'
         ] as (keyof DoctorLeaveReportExportRow)[]
       }
       exportTitle="Doctor Leave Report"
@@ -162,6 +138,13 @@ function DoctorLeaveReportContentInner({
       showPrintButton={true}
       emptyMessage="No doctor leave records found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
+      groupBy={(row) => row.doctor?.id ?? ''}
+      renderGroupHeader={(_, rows) => {
+        const first = rows[0] as DoctorLeaveReportRow;
+        const code = first?.doctor?.code ?? '-';
+        const name = first?.doctor?.name ?? '-';
+        return `${code} – ${name}`;
+      }}
     />
   );
 }

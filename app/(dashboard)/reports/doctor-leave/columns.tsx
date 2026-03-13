@@ -4,20 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
-
-export type DoctorLeaveReportRow = {
-  id: string;
-  fromDate: Date;
-  toDate: Date;
-  status: number;
-  remarks: string | null;
-  doctor: { id: string; name: string; code: string };
-  sessions?: unknown[];
-  createdUser?: { id: string; name: string } | null;
-  updatedUser?: { id: string; name: string } | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import {DoctorLeaveReportRow} from '@/types/reports/doctor.leave'
 
 export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
   {
@@ -39,19 +26,68 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
   },
   {
     accessorKey: 'fromDate',
-    header: 'From Date',
+    header: 'Leave Date',
     cell: ({ row }) => {
       const date = row.getValue<Date>('fromDate');
       return date ? moment(date).format('DD/MM/YYYY') : '-';
     }
   },
   {
-    accessorKey: 'toDate',
-    header: 'To Date',
+    id: 'leaveSessions',
+    header: 'Leave Sessions',
     cell: ({ row }) => {
-      const date = row.getValue<Date>('toDate');
-      return date ? moment(date).format('DD/MM/YYYY') : '-';
+      const formatted = row.original.leaveSessionsFormatted;
+      if (!formatted) return '-';
+      return (
+        <div className="max-w-64 text-xs whitespace-nowrap" title={formatted}>
+          {formatted}
+        </div>
+      );
     }
+  },
+  {
+    accessorKey: 'remarks',
+    header: 'Leave Remark',
+    cell: ({ row }) => {
+      const remarks = row.getValue<string>('remarks');
+      return (
+        <div className="max-w-32 truncate" title={remarks ?? ''}>
+          {remarks ?? '-'}
+        </div>
+      );
+    }
+  },
+  {
+    id: 'leaveUpdator',
+    header: 'Leave Updater',
+    cell: ({ row }) => {
+          const name = row.original.updatedUser?.name ?? '—';
+          const date = row.original.updatedAt
+            ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
+            : '—';
+          return (
+            <div className="flex flex-col gap-0.5 text-xs">
+              <span>{name}</span>
+              <span className="text-muted-foreground">{date}</span>
+            </div>
+          );
+        }
+  },
+  {
+    id: 'leaveCreator',
+    header: 'Leave Creator',
+    cell: ({ row }) => {
+          const name = row.original.createdUser?.name ?? '—';
+          const date = row.original.createdAt
+            ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
+            : '—';
+          return (
+            <div className="flex flex-col gap-0.5 text-xs">
+              <span>{name}</span>
+              <span className="text-muted-foreground">{date}</span>
+            </div>
+          );
+        }
   },
   {
     accessorKey: 'status',
@@ -71,57 +107,6 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
           {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
           {isActive ? 'Active' : 'Cancel'}
         </Badge>
-      );
-    }
-  },
-  {
-    accessorKey: 'remarks',
-    header: 'Remarks',
-    cell: ({ row }) => {
-      const remarks = row.getValue<string>('remarks');
-      return (
-        <div className="max-w-32 truncate" title={remarks ?? ''}>
-          {remarks ?? '-'}
-        </div>
-      );
-    }
-  },
-  {
-    id: 'sessionCount',
-    header: 'Sessions',
-    cell: ({ row }) => {
-      const sessions = row.original.sessions;
-      const count = Array.isArray(sessions) ? sessions.length : 0;
-      return <span>{count}</span>;
-    }
-  },
-  {
-    id: 'created',
-    header: 'Created',
-    cell: ({ row }) => {
-      const name = row.original.createdUser?.name ?? '—';
-      const date = row.original.createdAt;
-      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
-      return (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span>{name}</span>
-          <span className="text-muted-foreground">{formatted}</span>
-        </div>
-      );
-    }
-  },
-  {
-    id: 'updated',
-    header: 'Updated',
-    cell: ({ row }) => {
-      const name = row.original.updatedUser?.name ?? '—';
-      const date = row.original.updatedAt;
-      const formatted = date ? moment(date).format('DD/MM/YYYY hh:mm A') : '—';
-      return (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span>{name}</span>
-          <span className="text-muted-foreground">{formatted}</span>
-        </div>
       );
     }
   }

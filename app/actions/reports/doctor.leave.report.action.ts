@@ -6,30 +6,7 @@ import { getDoctorLeaveReportService } from '@/services/reports/doctor.leave.rep
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
-
-export type DoctorLeaveReportQuery = {
-  fromDateTime?: string;
-  toDateTime?: string;
-  institutionId?: string;
-  locationId?: string;
-  departmentId?: string;
-  specialityId?: string;
-  doctorId?: string;
-};
-
-export type DoctorLeaveReportExportRow = {
-  doctorCode: string;
-  doctorName: string;
-  fromDate: string;
-  toDate: string;
-  status: string;
-  remarks: string;
-  sessionCount: string;
-  createdBy: string;
-  createdAt: string;
-  updatedBy: string;
-  updatedAt: string;
-};
+import {DoctorLeaveReportQuery, DoctorLeaveReportExportRow} from '@/types/reports/doctor.leave'
 
 export async function getDoctorLeaveReportData(query: DoctorLeaveReportQuery) {
   await requirePermission('reports', 'view');
@@ -61,22 +38,18 @@ export async function exportDoctorLeaveReportData(
     if (!result.success || !result.data?.length) {
       return { success: false, message: result.message ?? 'No data available' };
     }
-    const mapped: DoctorLeaveReportExportRow[] = result.data.map((row: any) => {
-      const sessions = Array.isArray(row.sessions) ? row.sessions : [];
-      return {
-        doctorCode: row.doctor?.code ?? '-',
-        doctorName: row.doctor?.name ?? '-',
-        fromDate: row.fromDate ? moment(row.fromDate).format('YYYY-MM-DD') : '-',
-        toDate: row.toDate ? moment(row.toDate).format('YYYY-MM-DD') : '-',
-        status: row.status === 1 ? 'Active' : 'Cancel',
-        remarks: row.remarks ?? '-',
-        sessionCount: String(sessions.length),
-        createdBy: row.createdUser?.name ?? '-',
-        createdAt: row.createdAt ? moment(row.createdAt).format('DD/MM/YYYY HH:mm') : '-',
-        updatedBy: row.updatedUser?.name ?? '-',
-        updatedAt: row.updatedAt ? moment(row.updatedAt).format('DD/MM/YYYY HH:mm') : '-',
-      };
-    });
+    const mapped: DoctorLeaveReportExportRow[] = result.data.map((row: any) => ({
+      doctorCode: row.doctor?.code ?? '-',
+      doctorName: row.doctor?.name ?? '-',
+      leaveDate: row.fromDate ? moment(row.fromDate).format('DD/MM/YYYY') : '-',
+      leaveSessions: row.leaveSessionsFormatted ?? '-',
+      leaveRemark: row.remarks ?? '-',
+      leaveCreator: row.createdUser?.name ?? '-',
+      leaveCreatorAt: row.createdAt ? moment(row.createdAt).format('DD/MM/YYYY hh:mm A') : '-',
+      leaveUpdator: row.updatedUser?.name ?? '-',
+      leaveUpdatorAt: row.updatedAt ? moment(row.updatedAt).format('DD/MM/YYYY hh:mm A') : '-',
+      status: row.status === 1 ? 'Active' : 'Cancel',
+    }));
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
       logActivityNonBlocking({
