@@ -417,3 +417,58 @@ export type CashierSummaryReportResponse = {
   grandTotals: CashierSummaryPaymentAmounts;
   message?: string;
 };
+
+// Consultant Payments Report Types
+export type ConsultantPaymentsReportQuery = {
+  fromDateTime?: string; // YYYY-MM-DD or YYYY-MM-DDTHH:mm
+  toDateTime?: string;
+  institutionId?: string;
+  locationId?: string;
+  departmentId?: string;
+  specialityId?: string;
+  doctorId?: string;
+  status?: string; // '__all__' | '0' | '1' (0 = Due Pay, 1 = Paid)
+};
+
+export type ConsultantPaymentsReportRow = {
+  id: string;
+  sNo: number;
+  branch: string;
+  consultant: string;
+  consultantCode: string;
+  paymentReceipt: string;
+  channelReceipt: string;
+  consultationSession: string;
+  patientName: string;
+  modeOfPay: string;
+  discountAmount: number;
+  netAmount: number;
+  paymentStatus: string;
+  paidBy: string;
+  paidDate: Date | null;
+  handedBy: string;
+};
+
+export type ConsultantPaymentsReportTotals = {
+  totalAmount: number;
+  totalDiscount: number;
+  netAmount: number;
+};
+
+export type ConsultantPaymentsReportExportRow = {
+  sNo: string;
+  branch: string;
+  consultant: string;
+  consultantCode: string;
+  paymentReceipt: string;
+  channelReceipt: string;
+  consultationSession: string;
+  patientName: string;
+  modeOfPay: string;
+  discountAmount: string;
+  netAmount: string;
+  paymentStatus: string;
+  paidBy: string;
+  paidDate: string;
+  handedBy: string;
+};
