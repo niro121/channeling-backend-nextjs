@@ -77,12 +77,15 @@ export default async function Page({ searchParams }: SearchParams) {
       2: 'Free Service'
     };
 
-    const mappedDiscounts = discountListResponse.data.map((d: any) => ({
+    const mappedDiscounts = discountListResponse.data.map((d: any) => {
+      const isActive = d.status === 1;
+      return {
       name: d.name || '-',
       discountType: discountTypeMap[d.discountType] || '-',
       discountValue: d.discountValue || '-',
-      discountValueForeign: d.discountValueForeign || '-'
-    }));
+      discountValueForeign: d.discountValueForeign || '-',
+      status: isActive ? 'Published' : 'Unpublished'
+    }});
 
     return {
       success: true,
@@ -122,8 +125,8 @@ export default async function Page({ searchParams }: SearchParams) {
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['Discount Name', 'Discount Type', 'Discount Value', 'Discount Foreign Value']}
-                  keys={['name', 'discountType', 'discountValue', 'discountValueForeign']}
+                  columns={['Discount Name', 'Discount Type', 'Discount Value', 'Discount Foreign Value', 'Status']}
+                  keys={['name', 'discountType', 'discountValue', 'discountValueForeign', 'status']}
                   title="Discounts List"
                   fileName="discounts"
                 />

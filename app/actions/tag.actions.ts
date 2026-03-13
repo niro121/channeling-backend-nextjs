@@ -143,6 +143,8 @@ export const createNewTag = async (payload: Tag): Promise<{
         delete cleanPayload.updatedAt;
         delete cleanPayload.createdBy;
         delete cleanPayload.updatedBy;
+        delete (cleanPayload as Record<string, unknown>).createdUser;
+        delete (cleanPayload as Record<string, unknown>).updatedUser;
 
         // Set default status if not provided (Active)
         if (cleanPayload.status === undefined || cleanPayload.status === null) {
@@ -215,6 +217,8 @@ export const updateTag = async (
         delete cleanPayload.updatedAt;
         delete cleanPayload.createdBy;
         delete cleanPayload.updatedBy;
+        delete (cleanPayload as Record<string, unknown>).createdUser;
+        delete (cleanPayload as Record<string, unknown>).updatedUser;
 
         const result = await updateOneTag(id, cleanPayload, user);
 

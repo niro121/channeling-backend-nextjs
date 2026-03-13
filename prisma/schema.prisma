@@ -74,8 +74,10 @@ model User {
   updatedZones            Zone[]                         @relation("UserUpdatedZones")
   createdDepartments      Department[]                   @relation("UserCreatedDepartments")
   updatedDepartments      Department[]                   @relation("UserUpdatedDepartments")
+  createdUserGroups       UserGroup[]                    @relation("UserCreatedUserGroups")
+  updatedUserGroups       UserGroup[]                    @relation("UserUpdatedUserGroups")
   userGroupId             String?                        @db.ObjectId
-  userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: SetNull)
+  userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   shifts                  Shift[]                        @relation("UserShifts")
   shiftsCreatedBy         Shift[]                        @relation("ShiftCreatedBy")
   shiftsPausedBy          Shift[]                        @relation("ShiftPausedBy")
@@ -106,13 +108,17 @@ model UserGroup {
   permissions Json // Store permissions as JSON: { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
 
   // == 2FA CONFIG == //
   twoFactorEnabled Boolean @default(false)
   twoFactorMethods String[] // == 1: AUTH-APP, 2: "SMS", 3: "EMAIL" == //
 
   // ==== RELATIONS ==== //
-  users User[] @relation("UserToUserGroup")
+  users       User[] @relation("UserToUserGroup")
+  createdUser User?  @relation("UserCreatedUserGroups", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?  @relation("UserUpdatedUserGroups", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model UserBookingLocation {

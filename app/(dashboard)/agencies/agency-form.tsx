@@ -24,19 +24,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import CustomCheckedField from '@/components/common/custom-checked-field';
+// import moment from 'moment';
 
 type AgencyFormProps = {
   agency?: Agency | null;
   parentAgencies?: { id: string; name: string }[];
   locations?: { id: string; name: string }[];
   isEditPage?: boolean;
+  user?: { id?: string; name?: string };
 };
 
 const AgencyForm = ({
   agency,
   parentAgencies = [],
   locations = [],
-  isEditPage = false
+  isEditPage = false,
+  user
 }: AgencyFormProps) => {
   const initialValues: AgencyFormValues = {
     name: agency?.name || '',
@@ -144,9 +147,9 @@ const AgencyForm = ({
             let respond: any;
 
             if (agency && agency.id) {
-              respond = await updateAgency(agency.id, payload);
+              respond = await updateAgency(agency.id, payload, user);
             } else {
-              respond = await createAgency(payload);
+              respond = await createAgency(payload, user);
             }
 
             setLoading(false);
@@ -682,6 +685,34 @@ const AgencyForm = ({
                       />
                     </div>
                   </div>
+
+                  {/* Record (Created / Last updated) - Edit mode only */}
+                  {/* {isEditPage && agency && (
+                    <>
+                      <Separator />
+                      <h3 className="col-span-full text-lg font-semibold">Record</h3>
+                      <div className={styleClasses.parentDiv}>
+                        <Label className={styleClasses.labelClassName}>Created</Label>
+                        <div className={styleClasses.inputClassName}>
+                          <span className="text-muted-foreground text-sm">
+                            {agency.createdAt
+                              ? `${agency.createdUser?.name ?? '—'}, ${moment(agency.createdAt).format('DD MMM YYYY [at] h:mm A')}`
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styleClasses.parentDiv}>
+                        <Label className={styleClasses.labelClassName}>Last updated</Label>
+                        <div className={styleClasses.inputClassName}>
+                          <span className="text-muted-foreground text-sm">
+                            {agency.updatedAt
+                              ? `${agency.updatedUser?.name ?? '—'}, ${moment(agency.updatedAt).format('DD MMM YYYY [at] h:mm A')}`
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )} */}
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">

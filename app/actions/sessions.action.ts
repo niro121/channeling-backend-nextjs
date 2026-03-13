@@ -284,6 +284,9 @@ export const updateSession = async (payload: {
     const endTimeStr24 = `${Math.floor(endMins / 60).toString().padStart(2, '0')}:${(endMins % 60).toString().padStart(2, '0')}`;
     const startTime = parseSessionDateTime(dateStr, startTimeStr24);
     const endTime = parseSessionDateTime(dateStr, endTimeStr24);
+    if (startTime.getTime() >= endTime.getTime()) {
+      return { success: false, message: 'End time must be after start time.' };
+    }
     const durationMinutes = calculateDurationMinutes(startTimeValue, startMeridiem, endTimeValue, endMeridiem);
     const result = await updateSessionService(sessionId, {
       startTime,

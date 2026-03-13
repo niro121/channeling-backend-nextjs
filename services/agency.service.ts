@@ -318,6 +318,8 @@ export const getAgencyByIdService = async (
       include: {
         parentAgency: true,
         user: true,
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } },
         accounts: {
           where: { type: 'RECEIVABLE', isActive: true },
           take: 1
@@ -567,7 +569,7 @@ export const updateAgencyService = async (
         ...(data.locationId !== undefined && {
           locationId: data.locationId || null
         }),
-        updatedBy: user?.id || null,
+        ...(user?.id && { updatedBy: user.id }),
         updatedAt: new Date()
       },
       include: {

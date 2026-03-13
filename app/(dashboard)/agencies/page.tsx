@@ -65,15 +65,18 @@ export default async function Page({ searchParams }: SearchParams) {
       };
     }
 
-    const mappedAgencies = agencyListResponse.data.map((a) => ({
+    const mappedAgencies = agencyListResponse.data.map((a) => {
+      const isActive = a.status === 1;
+      return {
       code: a.code || '-',
       name: a.name,
       chequePrintingName: a.chequePrintingName,
       parentAgency: a.parentAgency?.name || '-',
       email: a.email || '-',
       phone: a.phone || '-',
-      balance: a.balance?.toFixed(2) || '0.00'
-    }));
+      balance: a.balance?.toFixed(2) || '0.00',
+      status: isActive ? 'Published' : 'Unpublished'
+    }});
 
     return {
       success: true,
@@ -112,7 +115,8 @@ export default async function Page({ searchParams }: SearchParams) {
                   'Parent Agency',
                   'Email',
                   'Phone',
-                  'Balance'
+                  'Balance',
+                  'Status'
                 ]}
                 keys={[
                   'code',
@@ -121,7 +125,8 @@ export default async function Page({ searchParams }: SearchParams) {
                   'parentAgency',
                   'email',
                   'phone',
-                  'balance'
+                  'balance',
+                  'status'
                 ]}
                 title="Agencies List"
                 fileName="agencies"

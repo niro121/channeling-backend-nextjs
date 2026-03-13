@@ -62,28 +62,38 @@ export const DisCountColumns: ColumnDef<Discount>[] = [
     accessorKey: 'discountValueForeign',
     header: 'Discount Foreign Value'
   },
-  /* {
-    accessorKey: 'updatedUser.name',
-    header: 'Updated By'
-  },
   {
-    accessorKey: 'updatedAt',
-    header: 'Updated Date',
-    cell: ({ row }) => {
-      return moment(row.getValue('updatedAt')).format('DD/MM/YYYY');
-    }
-  },
-  {
-    accessorKey: 'createdUser.name',
-    header: 'Created By'
-  },
-  {
-    accessorKey: 'createdAt',
-    header: 'Created Date',
-    cell: ({ row }) => {
-      return moment(row.getValue('createdAt')).format('DD/MM/YYYY');
-    }
-  }, */
+      id: 'updated',
+      header: 'Updated',
+      cell: ({ row }) => {
+        const name = row.original.updatedUser?.name ?? '—';
+        const date = row.original.updatedAt
+          ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
+          : '—';
+        return (
+          <div className="flex flex-col gap-0.5 text-xs">
+            <span>{name}</span>
+            <span className="text-muted-foreground">{date}</span>
+          </div>
+        );
+      }
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      cell: ({ row }) => {
+        const name = row.original.createdUser?.name ?? '—';
+        const date = row.original.createdAt
+          ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
+          : '—';
+        return (
+          <div className="flex flex-col gap-0.5 text-xs">
+            <span>{name}</span>
+            <span className="text-muted-foreground">{date}</span>
+          </div>
+        );
+      }
+    },
   {
     accessorKey: 'status',
     header: 'Published',

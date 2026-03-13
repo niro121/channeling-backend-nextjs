@@ -36,7 +36,7 @@ export const SpecialityColumns: ColumnDef<Speciality>[] = [
   },
   {
     accessorKey: 'code',
-    header: 'Speciality Code',
+    header: () => <span className="whitespace-nowrap">Speciality Code</span>,
     cell: ({ row }) => {
       const code = row.getValue<string>('code');
       const id = row.original.id;

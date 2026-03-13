@@ -107,8 +107,26 @@ export default function DiscountForm({
     discountType: Yup.number()
       .oneOf([0, 1], 'Select at least one discount type')
       .required('This field is mandatory'),
-    discountValue: Yup.number().required('This field is mandatory'),
-    discountValueForeign: Yup.number().required('This field is mandatory'),
+    discountValue: Yup.number()
+      .required('This field is mandatory')
+      .when('discountType', {
+        is: 0,
+        then: (schema) =>
+          schema
+            .min(0, 'Must be at least 0')
+            .max(100, 'Must be between 0 and 100 for percentage'),
+        otherwise: (schema) => schema.min(0, 'Must be at least 0')
+      }),
+    discountValueForeign: Yup.number()
+      .required('This field is mandatory')
+      .when('discountType', {
+        is: 0,
+        then: (schema) =>
+          schema
+            .min(0, 'Must be at least 0')
+            .max(100, 'Must be between 0 and 100 for percentage'),
+        otherwise: (schema) => schema.min(0, 'Must be at least 0')
+      }),
     fromDate: Yup.date().required('This field is mandatory'),
     toDate: Yup.date().required('This field is mandatory'),
     status: Yup.number()
@@ -418,6 +436,8 @@ export default function DiscountForm({
                       onBlur={formik.handleBlur}
                       required
                       styleClasses={styleClasses}
+                      min={formik.values.discountType === 0 ? 0 : undefined}
+                      max={formik.values.discountType === 0 ? 100 : undefined}
                     />
 
                     <CustomFormField
@@ -429,6 +449,8 @@ export default function DiscountForm({
                       onBlur={formik.handleBlur}
                       required
                       styleClasses={styleClasses}
+                      min={formik.values.discountType === 0 ? 0 : undefined}
+                      max={formik.values.discountType === 0 ? 100 : undefined}
                     />
 
                     <CustomDatePickerField
@@ -441,6 +463,8 @@ export default function DiscountForm({
                       }
                       onBlur={formik.handleBlur}
                       styleClasses={styleClasses}
+                      fromYear={new Date().getFullYear() - 20}
+                      toYear={new Date().getFullYear() + 20}
                     />
 
                     <CustomDatePickerField
@@ -453,6 +477,8 @@ export default function DiscountForm({
                       }
                       onBlur={formik.handleBlur}
                       styleClasses={styleClasses}
+                      fromYear={new Date().getFullYear() - 20}
+                      toYear={new Date().getFullYear() + 20}
                     />
 
                     <CustomSelectField
