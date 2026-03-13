@@ -60,6 +60,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Doctor Leave Report',
     description: 'View doctor leave records with date & time range, filter by institution, branch, department, speciality, and doctor',
     route: '/reports/doctor-leave'
+  },
+  {
+    id: '10',
+    masterData: 'Consultant Payments Report',
+    description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
+    route: '/reports/consultant-payments'
   }
 ];
 
