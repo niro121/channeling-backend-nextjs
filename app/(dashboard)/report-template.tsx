@@ -141,6 +141,9 @@ function ReportTemplateContent<T, E = T>({
 
   useEffect(() => {
     if (skipFetchWhenNoParams && !searchParams.toString()) {
+      setLoading(false);
+      setData([]);
+      setTotalRecords(0);
       return;
     }
     fetchReportData();

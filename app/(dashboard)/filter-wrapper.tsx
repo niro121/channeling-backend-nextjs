@@ -114,7 +114,8 @@ export function FilterWrapper({
         searchInput.value = '';
       }
     }
-    onApplyClick?.();
+    // Don't call onApplyClick when clearing - it sets loading state for fetch, but we're not fetching after clear.
+    // The report-template will handle clearing data/loading via useEffect when searchParams become empty.
     startTransition(() => {
       router.push(pathname);
     });
