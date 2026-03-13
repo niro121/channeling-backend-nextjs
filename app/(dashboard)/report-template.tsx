@@ -68,6 +68,8 @@ export interface ReportTemplateProps<T, E = T> {
   showPrintButton?: boolean;
   /** Empty state message */
   emptyMessage?: string;
+  /** When true, do not fetch data on initial load when URL has no filter params. Fetch only after user applies filters. */
+  skipFetchWhenNoParams?: boolean;
 }
 
 function ReportTemplateContent<T, E = T>({
@@ -84,7 +86,8 @@ function ReportTemplateContent<T, E = T>({
   exportFileName,
   getRowId,
   showPrintButton = true,
-  emptyMessage = 'No data found'
+  emptyMessage = 'No data found',
+  skipFetchWhenNoParams = false
 }: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -131,8 +134,11 @@ function ReportTemplateContent<T, E = T>({
   };
 
   useEffect(() => {
+    if (skipFetchWhenNoParams && !searchParams.toString()) {
+      return;
+    }
     fetchReportData();
-  }, [searchParams.toString()]);
+  }, [searchParams.toString(), skipFetchWhenNoParams]);
 
   const slugify = (s: string) =>
     s
@@ -183,6 +189,7 @@ function ReportTemplateContent<T, E = T>({
               onApplyClick={() => {
                 setLoading(true);
               }}
+              showClearButton
             >
               {filterContent}
             </FilterWrapper>

@@ -160,7 +160,8 @@ function DoctorLeaveReportContentInner({
       exportFileName="doctor-leave-report"
       getRowId={(row) => row.id}
       showPrintButton={true}
-      emptyMessage="No doctor leave records found. Please select a date & time range and apply filters."
+      emptyMessage="No doctor leave records found. Apply filters and click Search."
+      skipFetchWhenNoParams={true}
     />
   );
 }
