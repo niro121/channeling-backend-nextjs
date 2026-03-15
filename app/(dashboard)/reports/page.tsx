@@ -66,6 +66,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Consultant Payments Report',
     description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
     route: '/reports/consultant-payments'
+  },
+  {
+    id: '11',
+    masterData: 'Agent Balance Confirmation Letter',
+    description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
+    route: '/reports/agent-balance'
   }
 ];
 
