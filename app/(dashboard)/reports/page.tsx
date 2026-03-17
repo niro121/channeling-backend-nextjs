@@ -72,6 +72,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Agent Balance Confirmation Letter',
     description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
     route: '/reports/agent-balance'
+  },
+  {
+    id: '12',
+    masterData: 'SMS Log Report',
+    description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',
+    route: '/reports/sms-log'
   }
 ];
 
