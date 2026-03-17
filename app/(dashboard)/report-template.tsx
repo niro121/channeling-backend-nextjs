@@ -68,6 +68,12 @@ export interface ReportTemplateProps<T, E = T> {
   showPrintButton?: boolean;
   /** Empty state message */
   emptyMessage?: string;
+  /** When true, do not fetch data on initial load when URL has no filter params. Fetch only after user applies filters. */
+  skipFetchWhenNoParams?: boolean;
+  /** Optional: group rows by this key. When provided, renders group headers between row groups. */
+  groupBy?: (row: T) => string;
+  /** Optional: render group header. Receives group key and rows in that group. Only used when groupBy is provided. */
+  renderGroupHeader?: (groupKey: string, rows: T[]) => React.ReactNode;
 }
 
 function ReportTemplateContent<T, E = T>({
@@ -84,7 +90,10 @@ function ReportTemplateContent<T, E = T>({
   exportFileName,
   getRowId,
   showPrintButton = true,
-  emptyMessage = 'No data found'
+  emptyMessage = 'No data found',
+  skipFetchWhenNoParams = false,
+  groupBy,
+  renderGroupHeader
 }: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -131,8 +140,14 @@ function ReportTemplateContent<T, E = T>({
   };
 
   useEffect(() => {
+    if (skipFetchWhenNoParams && !searchParams.toString()) {
+      setLoading(false);
+      setData([]);
+      setTotalRecords(0);
+      return;
+    }
     fetchReportData();
-  }, [searchParams.toString()]);
+  }, [searchParams.toString(), skipFetchWhenNoParams]);
 
   const slugify = (s: string) =>
     s
@@ -183,6 +198,7 @@ function ReportTemplateContent<T, E = T>({
               onApplyClick={() => {
                 setLoading(true);
               }}
+              showClearButton
             >
               {filterContent}
             </FilterWrapper>
@@ -206,6 +222,9 @@ function ReportTemplateContent<T, E = T>({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {groupBy && (
+                        <TableHead className="w-0 opacity-0" aria-hidden />
+                      )}
                       {columns.map((column) => {
                         let header: React.ReactNode;
                         const accKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
@@ -249,35 +268,75 @@ function ReportTemplateContent<T, E = T>({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.map((row) => (
-                      <TableRow key={getRowId(row)}>
-                        {columns.map((column) => {
-                          const accessorKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
-                          let value: unknown;
-                          if (accessorKey) {
-                            value = getNestedValue(row, accessorKey);
-                          } else {
-                            value = undefined;
+                    {groupBy
+                      ? (() => {
+                          const groups = new Map<string, T[]>();
+                          for (const row of data) {
+                            const key = groupBy(row);
+                            if (!groups.has(key)) groups.set(key, []);
+                            groups.get(key)!.push(row);
                           }
-
-                          const cell =
-                            typeof column.cell === 'function'
-                              ? column.cell({
-                                  row: {
-                                    getValue: (key: string) => getNestedValue(row, key),
-                                    original: row
-                                  } as never
-                                } as never)
-                              : value;
-
-                          return (
-                            <TableCell key={column.id ?? accessorKey ?? ''}>
-                              {cell != null && cell !== '' ? cell : '-'}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))}
+                          const entries = Array.from(groups.entries());
+                          return entries.flatMap(([groupKey, rows]) => {
+                            const headerRow =
+                              renderGroupHeader ? (
+                                <TableRow key={`group-${groupKey}`} className="bg-muted/50 hover:bg-muted/50">
+                                  <TableCell
+                                    colSpan={columns.length + (groupBy !== undefined ? 1 : 0)}
+                                    className="font-semibold py-2"
+                                  >
+                                    {renderGroupHeader(groupKey, rows)}
+                                  </TableCell>
+                                </TableRow>
+                              ) : null;
+                            const dataRows = rows.map((row) => (
+                              <TableRow key={getRowId(row)}>
+                                {groupBy && groupBy !== undefined && (
+                                  <TableCell className="w-0 p-0" aria-hidden />
+                                )}
+                                {columns.map((column) => {
+                                  const accessorKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+                                  const cell =
+                                    typeof column.cell === 'function'
+                                      ? column.cell({
+                                          row: {
+                                            getValue: (key: string) => getNestedValue(row, key),
+                                            original: row
+                                          } as never
+                                        } as never)
+                                      : accessorKey ? getNestedValue(row, accessorKey) : undefined;
+                                  return (
+                                    <TableCell key={column.id ?? accessorKey ?? ''}>
+                                      {cell != null && cell !== '' ? cell : '-'}
+                                    </TableCell>
+                                  );
+                                })}
+                              </TableRow>
+                            ));
+                            return headerRow ? [headerRow, ...dataRows] : dataRows;
+                          });
+                        })()
+                      : data.map((row) => (
+                          <TableRow key={getRowId(row)}>
+                            {columns.map((column) => {
+                              const accessorKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+                              const cell =
+                                typeof column.cell === 'function'
+                                  ? column.cell({
+                                      row: {
+                                        getValue: (key: string) => getNestedValue(row, key),
+                                        original: row
+                                      } as never
+                                    } as never)
+                                  : accessorKey ? getNestedValue(row, accessorKey) : undefined;
+                              return (
+                                <TableCell key={column.id ?? accessorKey ?? ''}>
+                                  {cell != null && cell !== '' ? cell : '-'}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
                   </TableBody>
                 </Table>
               </div>

@@ -65,7 +65,7 @@ export function SelectorFilter({
           setValue(val);
         }}
       >
-        <SelectTrigger className="w-60">
+        <SelectTrigger className="`w-60 font-semibold hover:bg-accent hover:text-accent-foreground cursor-pointer">
           <SelectValue placeholder="Filter by Speciality" />
         </SelectTrigger>
         <SelectContent>

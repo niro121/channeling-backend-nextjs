@@ -96,7 +96,7 @@ export const downloadPdfUtil = <T>({
     margin: { left: margin, right: margin },
     tableWidth,
     styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8 }
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
   });
 
   doc.save(fileName);
@@ -141,7 +141,7 @@ export const printPdfUtil = <T>({
     margin: { left: margin, right: margin },
     tableWidth,
     styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8 }
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,6 +203,7 @@ export const downloadExcelUtil = async <T>({
 // ==== TIME CONVERTERS ==== //
 /** Sri Lanka timezone (UTC+5:30). Use when storing/displaying session times. */
 export const SRI_LANKA_TZ = 'Asia/Colombo'
+export const SL_OFFSET = '+05:30';
 
 /**
  * ISO timezone offset string (e.g. "+05:30" or "-08:00") for session start/end.
