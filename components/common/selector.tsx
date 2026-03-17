@@ -22,6 +22,7 @@ type SelectorProps = {
     trigger?: string,
     content?: string
   }
+  disabled?: boolean;
 };
 
 export function Selector({
@@ -30,13 +31,15 @@ export function Selector({
   value,
   onChange,
   defaultValue = '__all__',
-  className
+  className,
+  disabled: disabledProp
 }: SelectorProps) {
   const hasDefaultInOptions = options.some((o) => o.id === (value ?? defaultValue));
+  const disabled = options.length === 0 || disabledProp;
 
   return (
-    <Select value={value ?? defaultValue} onValueChange={onChange}>
-      <SelectTrigger className={`w-60 font-semibold hover:bg-accent hover:text-accent-foreground cursor-pointer ${className?.trigger || ""}`} disabled={options.length === 0}>
+    <Select value={value ?? defaultValue} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={`w-60 font-semibold hover:bg-accent hover:text-accent-foreground cursor-pointer ${className?.trigger || ""}`} disabled={disabled}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent className={`${className?.content || ""}`}>
