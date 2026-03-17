@@ -66,6 +66,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Consultant Payments Report',
     description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
     route: '/reports/consultant-payments'
+  },
+  {
+    id: '11',
+    masterData: 'Channel Bookings',
+    description: 'View channel booking records with filters for date & time range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method',
+    route: '/reports/channel-bookings'
   }
 ];
 
