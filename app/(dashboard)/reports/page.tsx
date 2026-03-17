@@ -81,9 +81,15 @@ const reportsData: ReportListItem[] = [
   },
   {
     id: '13',
-  masterData: 'API Log Report',
+    masterData: 'API Log Report',
     description: 'View API request logs with date & time range and filter by UUID',
     route: '/reports/api-log'
+  },
+  {
+    id: '12',
+    masterData: 'SMS Log Report',
+    description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',
+    route: '/reports/sms-log'
   }
 ];
 
