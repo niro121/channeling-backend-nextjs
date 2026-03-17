@@ -66,6 +66,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'Consultant Payments Report',
     description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
     route: '/reports/consultant-payments'
+  },
+  {
+    id: '11',
+    masterData: 'API Log Report',
+    description: 'View API request logs with date & time range and filter by UUID',
+    route: '/reports/api-log'
   }
 ];
 
