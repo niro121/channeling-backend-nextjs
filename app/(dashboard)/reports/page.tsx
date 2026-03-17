@@ -72,6 +72,12 @@ const reportsData: ReportListItem[] = [
     masterData: 'API Log Report',
     description: 'View API request logs with date & time range and filter by UUID',
     route: '/reports/api-log'
+  },
+  {
+    id: '12',
+    masterData: 'Agent Balance Confirmation Letter',
+    description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
+    route: '/reports/agent-balance'
   }
 ];
 
