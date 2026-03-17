@@ -66,6 +66,13 @@ export default function DiscountForm({
     discount?.isVoucher
   );
 
+  // Sync isVoucher when discount loads (e.g. edit page); don't overwrite form edits
+  React.useEffect(() => {
+    if (discount?.id && discount?.isVoucher !== undefined) {
+      setIsVoucher(discount.isVoucher);
+    }
+  }, [discount?.id, discount?.isVoucher]);
+
   const initialValues: DiscountFormValues = React.useMemo(
     () => ({
       name: discount?.name ?? '',
@@ -302,7 +309,7 @@ export default function DiscountForm({
         <TabsTrigger
           value="voucher"
           className="cursor-pointer"
-          disabled={!discount?.id}
+          disabled={Number(isVoucher ?? 0) !== 1}
         >
           Voucher Codes
         </TabsTrigger>
@@ -320,6 +327,11 @@ export default function DiscountForm({
               labelClassName: 'text-sm text-black font-semibold capitalize',
               inputClassName: 'col-span-full sm:col-span-3'
             };
+
+            // Keep tab state in sync with form value
+            React.useEffect(() => {
+              setIsVoucher(formik.values.isVoucher);
+            }, [formik.values.isVoucher]);
 
             return (
               <>
@@ -488,17 +500,12 @@ export default function DiscountForm({
                       onChange={(value) => {
                         const numericValue = Number(value);
                         formik.setFieldValue('isVoucher', numericValue);
-
-                        if (numericValue === 0) {
-                          // formik.setFieldValue('vouchers', []);
-                          setIsVoucher(0);
-                        }
+                        setIsVoucher(numericValue);
 
                         if (
                           numericValue === 1 &&
                           formik.values.vouchers?.length === 0
                         ) {
-                          setIsVoucher(1);
                           setTimeout(() => setVoucherModalOpen(true), 500);
                         }
                       }}

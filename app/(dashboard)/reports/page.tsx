@@ -69,6 +69,12 @@ const reportsData: ReportListItem[] = [
   },
   {
     id: '11',
+    masterData: 'Channel Bookings',
+    description: 'View channel booking records with filters for date & time range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method',
+    route: '/reports/channel-bookings'
+  },
+  {
+    id: '12',
     masterData: 'Agent Balance Confirmation Letter',
     description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
     route: '/reports/agent-balance'

@@ -61,6 +61,7 @@ export function SearchInput({ name, placeholder, className }: SearchInputProps) 
         defaultValue={currentKeyword}
         className={`focus-visible:ring-offset-0! ${className}`}
         onChange={onChangeValue}
+        data-filter-include
       />
       {isPending && <div className="absolute inset-y-0 right-0 flex items-center pr-2"><Spinner /></div>}
     </form>
