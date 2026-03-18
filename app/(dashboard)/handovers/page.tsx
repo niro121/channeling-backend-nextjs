@@ -15,6 +15,7 @@ import {
 import { formatCents } from "@/lib/format-money"
 import { Loader2, Eye, FileCheck } from "lucide-react"
 import { usePermissions } from "@/components/hooks/use-permissions"
+import { useToast } from "@/components/hooks/use-toast"
 
 type HandoverRow = {
   id: string
@@ -58,6 +59,7 @@ export default function HandoversPage() {
   const [approvedNotReconciledList, setApprovedNotReconciledList] = useState<HandoverRow[]>([])
   const [loading, setLoading] = useState(true)
   const { has: hasPermission } = usePermissions()
+  const { toast } = useToast()
   const canSendToReconciliation = hasPermission("reconciliation", "submit-for-reconciliation")
 
   const fetchList = useCallback(() => {
@@ -66,6 +68,9 @@ export default function HandoversPage() {
       getHandoversToMeAction().then((res) => {
         if (res.success && res.data) setList(res.data as HandoverRow[])
         else setList([])
+        if (!res.success && "message" in res && res.message) {
+          toast({ variant: "destructive", title: "Error", description: res.message })
+        }
       }),
     ]
     if (canSendToReconciliation) {
@@ -73,11 +78,14 @@ export default function HandoversPage() {
         getHandoversApprovedByMeNotReconciledAction().then((res) => {
           if (res.success && res.data) setApprovedNotReconciledList(res.data as HandoverRow[])
           else setApprovedNotReconciledList([])
+          if (!res.success && "message" in res && res.message) {
+            toast({ variant: "destructive", title: "Error", description: res.message })
+          }
         })
       )
     }
     Promise.all(promises).finally(() => setLoading(false))
-  }, [canSendToReconciliation])
+  }, [canSendToReconciliation, toast])
 
   useEffect(() => {
     fetchList()

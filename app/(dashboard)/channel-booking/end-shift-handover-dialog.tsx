@@ -117,6 +117,7 @@ export function EndShiftHandoverDialog({
   const [selectedIncludedHandoverIds, setSelectedIncludedHandoverIds] = useState<string[]>([])
   const [previousHandoversNote, setPreviousHandoversNote] = useState<{ id: string; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
   const [step1DataReady, setStep1DataReady] = useState(false)
+  const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const { toast } = useToast()
 
   // Cash: denominations (notes 10+ ; coins 5, 2, 1 + cents)
@@ -171,6 +172,7 @@ export function EndShiftHandoverDialog({
       setValidationErrors([])
       setPreviousHandoversNote([])
       setStep1DataReady(false)
+      setHandoverPermissionDenied(null)
       setBalanceLoading(true)
       Promise.all([
         getMyTillBalance(),
@@ -192,6 +194,12 @@ export function EndShiftHandoverDialog({
           }
           setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
           setPendingHandoversToMe(handoversToMeRes.success && handoversToMeRes.data?.length ? handoversToMeRes.data.map((h) => ({ id: h.id })) : [])
+          if (!handoversToMeRes.success && "message" in handoversToMeRes && handoversToMeRes.message) {
+            setHandoverPermissionDenied(handoversToMeRes.message)
+            toast({ variant: "destructive", title: "Error", description: handoversToMeRes.message })
+          } else {
+            setHandoverPermissionDenied(null)
+          }
           if (includableRes.success && includableRes.data?.length) {
             setPreviousHandoversNote(
               includableRes.data.map((h) => ({
@@ -202,6 +210,16 @@ export function EndShiftHandoverDialog({
           } else {
             setPreviousHandoversNote([])
           }
+          if (!includableRes.success && "message" in includableRes && includableRes.message) {
+            toast({ variant: "destructive", title: "Error", description: includableRes.message })
+          }
+        })
+        .catch((err) => {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: err?.message ?? "Failed to load handover data.",
+          })
         })
         .finally(() => {
           setBalanceLoading(false)
@@ -509,6 +527,13 @@ export function EndShiftHandoverDialog({
                 </AlertDescription>
               </Alert>
             )}
+            {handoverPermissionDenied && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Handover not allowed</AlertTitle>
+                <AlertDescription>{handoverPermissionDenied}</AlertDescription>
+              </Alert>
+            )}
             {pendingHandoversToMe.length > 0 && (
               <Alert variant="destructive" className="mb-4">
                 <AlertTriangle className="h-4 w-4" />
@@ -566,7 +591,7 @@ export function EndShiftHandoverDialog({
               </Button>
               <Button
                 onClick={handleProceed}
-                disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0}
+                disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
               >
                 {!step1DataReady ? (
                   <>
