@@ -40,7 +40,8 @@ function DoctorLeaveReportContentInner({
       filterButtonLabel="Search"
       filterContent={({ values, setValue }) => (
         <>
-          <div className="flex-shrink-0">
+          {/* Force the date filter onto its own row; other filters + Search/Clear stay on the next row (within FilterWrapper). */}
+          <div className="basis-full shrink-0">
             <DateAndTimeRangePicker
               label="Date & Time Range"
               from={values.fromDateTime}
@@ -51,7 +52,7 @@ function DoctorLeaveReportContentInner({
               }}
             />
           </div>
-          <div className='flex flex-wrap gap-3'>
+          {/* <div className='flex flex-wrap gap-3'> */}
             <Combobox
               label="Doctor"
               options={doctorOptions}
@@ -89,7 +90,7 @@ function DoctorLeaveReportContentInner({
               defaultValue="__all__"
               onChange={(v) => setValue('departmentId', v)}
             />
-          </div>
+          {/* </div> */}
         </>
       )}
       fetchData={async (params) => {

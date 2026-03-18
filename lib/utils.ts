@@ -96,7 +96,7 @@ export const downloadPdfUtil = <T>({
     margin: { left: margin, right: margin },
     tableWidth,
     styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
+    headStyles: { overflow: 'linebreak', fontSize: 8, fillColor: "#317D5A" }
   });
 
   doc.save(fileName);
@@ -141,7 +141,7 @@ export const printPdfUtil = <T>({
     margin: { left: margin, right: margin },
     tableWidth,
     styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
+    headStyles: { overflow: 'linebreak', fontSize: 8, fillColor: "#317D5A" }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
