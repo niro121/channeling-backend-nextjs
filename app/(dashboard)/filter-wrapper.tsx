@@ -17,8 +17,8 @@ interface FilterWrapperProps {
   showClearButton?: boolean;
   /** Label for the Clear button (default: "Clear"). */
   clearButtonLabel?: string;
-  /** Called when the Apply/Search button is clicked, before navigation. Use to clear list data and show loading. */
-  onApplyClick?: () => void;
+  /** Called when the Apply/Search button is clicked. Receives the new URLSearchParams for immediate fetch. */
+  onApplyClick?: (params?: URLSearchParams) => void;
   /** Called when filter values change (e.g. user changed dropdown). Use to clear list until Search is clicked. */
   onValuesChange?: (values: FilterValues) => void;
   children: (props: {
@@ -39,7 +39,7 @@ export function FilterWrapper({
   clearButtonLabel = 'Clear',
   onApplyClick,
   onValuesChange,
-  children, 
+  children,
   searchButton
 }: FilterWrapperProps) {
   const router = useRouter();
@@ -48,22 +48,10 @@ export function FilterWrapper({
   const [isPending, startTransition] = useTransition();
 
   const [values, setValues] = React.useState<FilterValues>(initialValues);
+  const [isApplying, setIsApplying] = React.useState(false);
   const isInitialMount = React.useRef(true);
-  // const prevParamsRef = React.useRef<string>('');
-
-  // Sync values when URL params change (e.g. back/forward nav, or after Search)
-  // Use searchParams.toString() to avoid overwriting user edits during same-session edits
-  /* React.useEffect(() => {
-    const paramsKey = searchParams.toString();
-    if (paramsKey !== prevParamsRef.current) {
-      prevParamsRef.current = paramsKey;
-      const next: FilterValues = {};
-      searchParams.forEach((value, key) => {
-        next[key] = value;
-      });
-      setValues(next);
-    }
-  }, [searchParams]); */
+  const expectedParamsKeyRef = React.useRef<string | null>(null);
+  const applyingTimeoutRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     if (isInitialMount.current) {
@@ -73,6 +61,22 @@ export function FilterWrapper({
     onValuesChange?.(values);
   }, [values]);
 
+  React.useEffect(() => {
+    if (!isApplying) return;
+    const expected = expectedParamsKeyRef.current;
+    if (expected == null) return;
+
+    // Once the URL reflects the last-applied params, stop the button spinner/disable.
+    if (searchParams.toString() === expected) {
+      setIsApplying(false);
+      expectedParamsKeyRef.current = null;
+      if (applyingTimeoutRef.current != null) {
+        window.clearTimeout(applyingTimeoutRef.current);
+        applyingTimeoutRef.current = null;
+      }
+    }
+  }, [isApplying, searchParams]);
+
   const setValue = (key: string, value?: string) => {
     setValues((prev) => ({
       ...prev,
@@ -80,7 +84,7 @@ export function FilterWrapper({
     }));
   };
 
-  const applyFilters = () => {
+  const buildParams = (): URLSearchParams => {
     const params = new URLSearchParams(searchParams.toString());
 
     Object.entries(values).forEach(([key, value]) => {
@@ -91,11 +95,8 @@ export function FilterWrapper({
       }
     });
 
-    // Override with DOM values from any input that opts in via data-filter-include.
-    // The input's name attribute is used as the param key.
     if (typeof window !== 'undefined') {
-      const inputs = document.querySelectorAll<HTMLInputElement>('input[data-filter-include]');
-      inputs.forEach((input) => {
+      document.querySelectorAll<HTMLInputElement>('input[data-filter-include]').forEach((input) => {
         const key = input.getAttribute('name');
         if (key) {
           const val = input.value?.trim();
@@ -106,13 +107,31 @@ export function FilterWrapper({
     }
 
     params.delete('page');
+    return params;
+  };
 
+  const applyFilters = () => {
+    const params = buildParams();
     const queryString = params.toString();
     const href = queryString ? `${pathname}?${queryString}` : pathname;
-    onApplyClick?.();
-    startTransition(() => {
-      router.push(href);
-    });
+
+    // Notify parent with params immediately so fetch can start before URL update
+    onApplyClick?.(params);
+
+    // Disable button + show spinner immediately on click (even if navigation is fast).
+    // A timeout prevents the UI getting stuck if the URL doesn't change (same params).
+    expectedParamsKeyRef.current = queryString;
+    setIsApplying(true);
+    if (applyingTimeoutRef.current != null) {
+      window.clearTimeout(applyingTimeoutRef.current);
+    }
+    applyingTimeoutRef.current = window.setTimeout(() => {
+      setIsApplying(false);
+      expectedParamsKeyRef.current = null;
+      applyingTimeoutRef.current = null;
+    }, 8000);
+
+    router.push(href);
   };
 
   const clearFilters = () => {
@@ -122,8 +141,6 @@ export function FilterWrapper({
         input.value = '';
       });
     }
-    // Don't call onApplyClick when clearing - it sets loading state for fetch, but we're not fetching after clear.
-    // The report-template will handle clearing data/loading via useEffect when searchParams become empty.
     startTransition(() => {
       router.push(pathname);
     });
@@ -138,12 +155,12 @@ export function FilterWrapper({
           size="sm"
           variant={searchButton?.variant ? searchButton.variant : "outline"}
           onClick={applyFilters}
-          disabled={isPending}
+          disabled={isPending || isApplying}
           className={searchButton?.className ? searchButton.className : "h-10 shrink-0 gap-2"}
         >
-          {isPending ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : <SearchIcon /> }
+          {isPending || isApplying ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : <SearchIcon className='h-4 w-4' />}
           {buttonLabel}
         </Button>
       )}
