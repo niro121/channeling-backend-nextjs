@@ -138,6 +138,15 @@ For the full component structure (list page, add/edit routes, form with Formik +
    - ✅ Record Actions: Edit and Delete gated by `usePermissions` (`has('bank-accounts', 'edit')`, `has('bank-accounts', 'delete')`)
    - ✅ UI: Sidebar link "Bank Accounts" gated by `hasAccess('/bank-accounts')`. "Add New" only when user has **bank-accounts** add.
 
+10. **Reconciliation** (`/reconciliation`)
+   - ✅ Page: Has `checkRouteAccess("/reconciliation")` check (layout); redirects to unauthorized if no view
+   - ✅ Resource: **reconciliation** with custom actions view + reconcile; route mapped in `lib/permissions.ts` as `"/reconciliation": "reconciliation"`
+   - ✅ Server Actions: All actions have `requirePermission("reconciliation", …)` checks
+     - `getReconciliationListAction` – view
+     - `getReconciliationDocumentAction` – view
+     - `submitReconciliationAction` – reconcile
+   - ✅ UI: Sidebar link gated by `hasAccess('/reconciliation')`. "Submit as reconciled" button on document page gated by `has('reconciliation', 'reconcile')`.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks

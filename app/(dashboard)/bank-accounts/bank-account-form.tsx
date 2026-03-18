@@ -83,8 +83,10 @@ export default function BankAccountForm({ bankAccount }: BankAccountFormProps) {
               title: 'Success',
               description: isEdit ? 'Bank account updated.' : 'Bank account created.',
             });
-            if (!isEdit && 'data' in res && res.data?.id) {
-              router.push(`/bank-accounts/${res.data.id}/edit`);
+            if (!isEdit && 'data' in res) {
+              const data = res.data as { id?: string } | undefined;
+              if (data?.id) router.push(`/bank-accounts/${data.id}/edit`);
+              else router.refresh();
             } else {
               router.refresh();
             }
@@ -123,24 +125,20 @@ export default function BankAccountForm({ bankAccount }: BankAccountFormProps) {
             <CustomFormField
               type="text"
               id="name"
-              label="Name"
-              placeholder="e.g. Main current account"
+              placeholder="Name"
               value={formik.values.name}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
-              error={formik.touched.name && formik.errors.name}
               required
               styleClasses={styleClasses}
             />
             <CustomFormField
               type="text"
               id="accountNumber"
-              label="Account number"
-              placeholder="Bank account number"
+              placeholder="Account number"
               value={formik.values.accountNumber}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
-              error={formik.touched.accountNumber && formik.errors.accountNumber}
               required
               styleClasses={styleClasses}
             />
@@ -150,8 +148,6 @@ export default function BankAccountForm({ bankAccount }: BankAccountFormProps) {
               placeholder="Select bank"
               value={formik.values.bankId}
               onChange={(v) => formik.setFieldValue('bankId', v)}
-              onBlur={() => formik.setFieldTouched('bankId')}
-              error={formik.touched.bankId && formik.errors.bankId}
               options={bankOptions}
               required
               styleClasses={styleClasses}
@@ -162,8 +158,6 @@ export default function BankAccountForm({ bankAccount }: BankAccountFormProps) {
               placeholder="Select institution (location)"
               value={formik.values.locationId}
               onChange={(v) => formik.setFieldValue('locationId', v)}
-              onBlur={() => formik.setFieldTouched('locationId')}
-              error={formik.touched.locationId && formik.errors.locationId}
               options={locationOptions.map((l) => ({ id: l.id, name: `${l.name} (${l.code})` }))}
               required
               styleClasses={styleClasses}
@@ -174,8 +168,6 @@ export default function BankAccountForm({ bankAccount }: BankAccountFormProps) {
               placeholder="Select status"
               value={String(formik.values.status)}
               onChange={(v) => formik.setFieldValue('status', v === '' ? 1 : Number(v))}
-              onBlur={() => formik.setFieldTouched('status')}
-              error={formik.touched.status && formik.errors.status}
               options={STATUS_OPTIONS}
               required
               styleClasses={styleClasses}

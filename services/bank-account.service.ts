@@ -183,8 +183,8 @@ export async function updateBankAccountService(
     const data: Prisma.BankAccountUpdateInput = {};
     if (parsed.data.name !== undefined) data.name = parsed.data.name.trim();
     if (parsed.data.accountNumber !== undefined) data.accountNumber = parsed.data.accountNumber.trim();
-    if (parsed.data.bankId !== undefined) data.bankId = parsed.data.bankId;
-    if (parsed.data.locationId !== undefined) data.locationId = parsed.data.locationId;
+    if (parsed.data.bankId !== undefined) data.bank = { connect: { id: parsed.data.bankId } };
+    if (parsed.data.locationId !== undefined) data.location = { connect: { id: parsed.data.locationId } };
     if (parsed.data.status !== undefined) data.status = parsed.data.status;
     await prisma.bankAccount.update({ where: { id }, data });
     return { success: true };

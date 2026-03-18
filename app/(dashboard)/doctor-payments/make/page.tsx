@@ -7,7 +7,13 @@ import { MakeDoctorPaymentClient } from "./make-doctor-payment-client";
 import { fetchServerSession } from "@/lib/session";
 import { BackButton } from "@/components/common/back-button";
 
-export default async function MakeDoctorPaymentPage() {
+type MakeDoctorPaymentPageProps = {
+  searchParams?: Promise<{ doctorId?: string }>;
+};
+
+export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctorPaymentPageProps) {
+  const params = await searchParams;
+  const initialDoctorId = params?.doctorId ?? null;
   const canView = await checkRouteAccess("/doctor-payments");
   if (!canView) redirect("/unauthorized-access");
   const canAdd = await checkPermission("doctor-payments", "add");
@@ -44,6 +50,7 @@ export default async function MakeDoctorPaymentPage() {
           staff={staff}
           userId={userId}
           locationId={userLocationId}
+          initialDoctorId={initialDoctorId}
         />
       </div>
     </div>

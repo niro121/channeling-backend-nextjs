@@ -15,7 +15,7 @@ import {
 } from "@/services/accounting.service"
 import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
-import { requireActiveShift } from "@/services/shift.service"
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -55,6 +55,9 @@ export async function refundChannelService(
   userId: string | null
 ): Promise<RefundChannelResult> {
   if (userId) await requireActiveShift(userId)
+
+  const currentShift = userId ? await getCurrentShift(userId) : null
+  const shiftId = currentShift?.id ?? undefined
 
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
@@ -254,6 +257,7 @@ export async function refundChannelService(
           agencyId: booking.agencyId ?? null,
           creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
           createdBy: userId,
+          shiftId,
           userLocationId: null,
           getBookingUpdate: (receipt) => ({
             refund: 3,
@@ -413,6 +417,7 @@ export async function refundChannelService(
         agencyId: booking.agencyId ?? null,
         creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
         createdBy: userId,
+        shiftId,
         userLocationId: null,
         getBookingUpdate: (receipt) => ({
           refund: refundType,

@@ -16,7 +16,7 @@ import {
   type AccountingTx,
 } from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
-import { requireActiveShift } from "@/services/shift.service";
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -38,6 +38,9 @@ export async function cancelDoctorPaymentService(
   input: CancelDoctorPaymentInput
 ): Promise<CancelDoctorPaymentResult> {
   if (input.canceledBy) await requireActiveShift(input.canceledBy);
+
+  const currentShift = input.canceledBy ? await getCurrentShift(input.canceledBy) : null;
+  const shiftId = currentShift?.id ?? undefined;
 
   const reason = input.cancelReason?.trim() ?? "";
   if (!reason) {
@@ -103,6 +106,7 @@ export async function cancelDoctorPaymentService(
     createdBy: input.canceledBy,
     locationId,
     userLocationId: locationId,
+    shiftId,
     whd: original.whd ?? 0,
     whdPercentage: original.whdPercentage ?? 0,
   };
