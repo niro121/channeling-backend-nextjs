@@ -191,8 +191,14 @@ export async function cancelHandoverAction(handoverId: string) {
 }
 
 /** Handovers pending for current user (handed over to me). */
-export async function getHandoversToMeAction() {
-  await requirePermission("handover", "view")
+export async function getHandoversToMeAction(): Promise<
+  { success: true; data: Awaited<ReturnType<typeof getHandoversToMe>> } | { success: false; data: []; message: string }
+> {
+  try {
+    await requirePermission("handover", "view")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { success: true, data: [] }
   const list = await getHandoversToMe(session.user.id)
@@ -200,9 +206,16 @@ export async function getHandoversToMeAction() {
 }
 
 /** Handovers approved by me that are not yet sent to reconciliation. Requires Submit For Reconciliation permission. */
-export async function getHandoversApprovedByMeNotReconciledAction() {
-  await requirePermission("handover", "view")
-  await requirePermission("reconciliation", "submit-for-reconciliation")
+export async function getHandoversApprovedByMeNotReconciledAction(): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getHandoversApprovedByMeNotReconciled>> }
+  | { success: false; data: []; message: string }
+> {
+  try {
+    await requirePermission("handover", "view")
+    await requirePermission("reconciliation", "submit-for-reconciliation")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { success: true, data: [] }
   const list = await getHandoversApprovedByMeNotReconciled(session.user.id)
@@ -210,19 +223,30 @@ export async function getHandoversApprovedByMeNotReconciledAction() {
 }
 
 /** Handovers the current user (sender) has received and not yet forwarded. Shown in end-shift dialog so sender can include them in the chain. */
-export async function getIncludableHandoversForSenderAction() {
-  await requirePermission(SHIFT_RESOURCE, "view")
+export async function getIncludableHandoversForSenderAction(): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getIncludableHandoversForSender>> }
+  | { success: false; data: []; message: string }
+> {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return { success: false, data: [], error: "Unauthorized" }
+  if (!session?.user?.id) return { success: false, data: [], message: "Unauthorized" }
   const list = await getIncludableHandoversForSender(session.user.id)
   return { success: true, data: list }
 }
 
 /** Handovers received by this shift (toShiftId = shiftId). Used to prepopulate non-cash entries in end-shift handover dialog. */
 export async function getHandoversReceivedByShiftAction(shiftId: string) {
-  await requirePermission(SHIFT_RESOURCE, "view")
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return { success: false, data: [], error: "Unauthorized" }
+  if (!session?.user?.id) return { success: false, data: [], message: "Unauthorized" }
   const list = await getHandoversReceivedByShift(shiftId)
   // Debug: also return handovers you approved (toUserId = you) so we can see if toShiftId matches current shift
   const handoversIApproved = await prisma.shiftHandover.findMany({
