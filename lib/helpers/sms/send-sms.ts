@@ -1,8 +1,8 @@
 import prisma from "@/lib/prisma"
 
-const MOBITEL_SMS_USER = "esmsusr_ete"
-const MOBITEL_SMS_API_PASSWORD = "ICT#403!ruhunu"
-const MOBITEL_SMS_URL = "https://msmsenterpriseapi.mobitel.lk/EnterpriseSMSV3/esmsproxyURL.php"
+const MOBITEL_SMS_USER = process.env.MOBITEL_SMS_USER
+const MOBITEL_SMS_API_PASSWORD = process.env.MOBITEL_SMS_API_PASSWORD
+const MOBITEL_SMS_URL = process.env.MOBITEL_SMS_URL
 
 const DEFAULT_FROM = "Ruhunu Hosp"
 const MOBITEL_RESULT_SUCCESS = 200

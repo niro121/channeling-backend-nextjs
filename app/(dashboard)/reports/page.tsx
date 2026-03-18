@@ -54,6 +54,42 @@ const reportsData: ReportListItem[] = [
     masterData: 'Userwise Cashier Detail - Channel',
     description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
     route: '/reports/cashier-summary'
+  },
+  {
+    id: '9',
+    masterData: 'Doctor Leave Report',
+    description: 'View doctor leave records with date & time range, filter by institution, branch, department, speciality, and doctor',
+    route: '/reports/doctor-leave'
+  },
+  {
+    id: '10',
+    masterData: 'Consultant Payments Report',
+    description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
+    route: '/reports/consultant-payments'
+  },
+  {
+    id: '11',
+    masterData: 'Channel Bookings',
+    description: 'View channel booking records with filters for date & time range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method',
+    route: '/reports/channel-bookings'
+  },
+  {
+    id: '12',
+    masterData: 'Agent Balance Confirmation Letter',
+    description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
+    route: '/reports/agent-balance'
+  },
+  {
+    id: '13',
+    masterData: 'API Log Report',
+    description: 'View API request logs with date & time range and filter by UUID',
+    route: '/reports/api-log'
+  },
+  {
+    id: '12',
+    masterData: 'SMS Log Report',
+    description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',
+    route: '/reports/sms-log'
   }
 ];
 

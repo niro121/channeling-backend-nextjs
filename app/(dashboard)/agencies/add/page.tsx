@@ -3,8 +3,13 @@ import AgencyForm from '../agency-form';
 import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
 import { getAllLocations } from '@/app/actions/location.action';
 import { BackButton } from '@/components/common/back-button';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export default async function Page() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user;
+
   // Get parent agencies for dropdown
   const agenciesRes = await getAllAgenciesOptions();
   const parentAgencies =
@@ -28,7 +33,11 @@ export default async function Page() {
         <BackButton href="/agencies" />
       </div>
       <div className="h-full flex-1 flex-col space-y-8">
-        <AgencyForm parentAgencies={parentAgencies} locations={locations} />
+        <AgencyForm
+          parentAgencies={parentAgencies}
+          locations={locations}
+          user={{ id: user?.id, name: user?.name || '' }}
+        />
       </div>
     </div>
   );

@@ -121,6 +121,32 @@ For the full component structure (list page, add/edit routes, form with Formik +
    - ✅ Sender-facing handover actions remain on **shift**: `submitShiftHandoverAction`, `cancelHandoverAction`, `getHandoverUserOptionsAction` use `requirePermission("shift", "view")`
    - ✅ UI: Sidebar link "Handed over to me" gated by `hasAccess('/handovers')`. Grant **Handed over to me** view to allow users to see the list and approve/reject handovers.
 
+9. **Bank Accounts** (`/bank-accounts`)
+   - ✅ Page: Has `checkRouteAccess("/bank-accounts")` check; redirects to unauthorized if no view
+   - ✅ Add page (`/bank-accounts/add`): Requires `checkRouteAccess` + `checkPermission("bank-accounts", "add")`; redirects if no add
+   - ✅ Edit page (`/bank-accounts/[id]/edit`): Has `checkRouteAccess("/bank-accounts")` (view)
+   - ✅ Resource: **bank-accounts** (view / add / edit / delete); route mapped in `lib/permissions.ts` as `"/bank-accounts": "bank-accounts"`
+   - ✅ Server Actions: All actions have `requirePermission("bank-accounts", …)` checks
+     - `getAllBankAccounts` – view
+     - `getBankAccountById` – view
+     - `createBankAccount` – add
+     - `updateBankAccount` – edit
+     - `deleteBankAccount` – delete
+     - `bulkDeleteBankAccounts` – delete
+     - `getBankOptions` – view
+     - `getLocationOptions` – view
+   - ✅ Record Actions: Edit and Delete gated by `usePermissions` (`has('bank-accounts', 'edit')`, `has('bank-accounts', 'delete')`)
+   - ✅ UI: Sidebar link "Bank Accounts" gated by `hasAccess('/bank-accounts')`. "Add New" only when user has **bank-accounts** add.
+
+10. **Reconciliation** (`/reconciliation`)
+   - ✅ Page: Has `checkRouteAccess("/reconciliation")` check (layout); redirects to unauthorized if no view
+   - ✅ Resource: **reconciliation** with custom actions view + reconcile; route mapped in `lib/permissions.ts` as `"/reconciliation": "reconciliation"`
+   - ✅ Server Actions: All actions have `requirePermission("reconciliation", …)` checks
+     - `getReconciliationListAction` – view
+     - `getReconciliationDocumentAction` – view
+     - `submitReconciliationAction` – reconcile
+   - ✅ UI: Sidebar link gated by `hasAccess('/reconciliation')`. "Submit as reconciled" button on document page gated by `has('reconciliation', 'reconcile')`.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
@@ -228,6 +254,7 @@ All these resources are already in `types/user-group.ts`:
 - ✅ doctor-payments (view / add – list, make payment, print)
 - ✅ receipt-manager (view only – list receipts, view receipt and linked double-entry journal)
 - ✅ handover (view only – "Handed over to me" list, approve/reject handovers; separate from shift)
+- ✅ bank-accounts (view / add / edit / delete – Bank Accounts list and CRUD)
 
 All routes are already mapped in `lib/permissions.ts`.
 

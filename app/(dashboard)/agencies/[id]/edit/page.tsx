@@ -4,6 +4,8 @@ import { getAgencyById, getAllAgenciesOptions } from '@/app/actions/agency.actio
 import { getAllLocations } from '@/app/actions/location.action';
 import { notFound } from 'next/navigation';
 import { BackButton } from '@/components/common/back-button';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -11,6 +13,8 @@ type PageProps = {
 
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
+  const session = await getServerSession(authOptions);
+  const user = session?.user;
   const agencyData = await getAgencyById(id);
 
   if (!agencyData.success || !agencyData.data) {
@@ -45,6 +49,7 @@ export default async function Page({ params }: PageProps) {
           parentAgencies={parentAgencies}
           locations={locations}
           isEditPage={true}
+          user={{ id: user?.id, name: user?.name || '' }}
         />
       </div>
     </div>

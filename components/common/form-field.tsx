@@ -24,6 +24,10 @@ interface CustomFormFieldProps {
     labelClassName: string
     inputClassName: string
   }
+  /** For type="number": min value */
+  min?: number
+  /** For type="number": max value */
+  max?: number
 }
 
 const CustomFormField = ({
@@ -38,6 +42,8 @@ const CustomFormField = ({
   disabled = false,
   required,
   styleClasses,
+  min,
+  max,
 }: CustomFormFieldProps) => {
   const [showPassword, setShowPassword] = React.useState(false)
 
@@ -102,6 +108,8 @@ const CustomFormField = ({
             placeholder={placeholder}
             disabled={disabled}
             accept={type === "file" ? ".apk" : undefined}
+            min={type === "number" ? min : undefined}
+            max={type === "number" ? max : undefined}
           />
         )}
         <ErrorMessage

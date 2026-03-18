@@ -71,13 +71,17 @@ export const downloadPdfUtil = <T>({
   keys,
   fileName = 'report.pdf'
 }: DownloadPdfOptions<T>) => {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: 'l' });
+  const margin = 14;
+  const pageWidth =
+    (typeof doc.internal.pageSize.getWidth === 'function'
+      ? doc.internal.pageSize.getWidth()
+      : doc.internal.pageSize.width) ?? 297;
+  const tableWidth = pageWidth - margin * 2;
 
-  // == title == //
   doc.setFontSize(16);
-  doc.text(title, 14, 20);
+  doc.text(title, margin, 20);
 
-  // == rows == //
   const rows = data.map((item) =>
     keys.map((key) => {
       const value = item[key];
@@ -88,10 +92,64 @@ export const downloadPdfUtil = <T>({
   autoTable(doc, {
     head: [columns],
     body: rows,
-    startY: 30
+    startY: 30,
+    margin: { left: margin, right: margin },
+    tableWidth,
+    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
   });
 
   doc.save(fileName);
+};
+
+// ==== PDF PRINT HANDLE UTIL (opens print dialog with same content as PDF) ==== //
+type PrintPdfOptions<T> = {
+  title?: string;
+  data: T[];
+  columns: string[];
+  keys: (keyof T)[];
+};
+
+export const printPdfUtil = <T>({
+  title = 'Report',
+  data,
+  columns,
+  keys
+}: PrintPdfOptions<T>) => {
+  const doc = new jsPDF({ orientation: 'l' });
+  const margin = 14;
+  const pageWidth =
+    (typeof doc.internal.pageSize.getWidth === 'function'
+      ? doc.internal.pageSize.getWidth()
+      : doc.internal.pageSize.width) ?? 297;
+  const tableWidth = pageWidth - margin * 2;
+
+  doc.setFontSize(16);
+  doc.text(title, margin, 20);
+
+  const rows = data.map((item) =>
+    keys.map((key) => {
+      const value = item[key];
+      return value !== undefined && value !== null ? String(value) : '-';
+    })
+  );
+
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: 30,
+    margin: { left: margin, right: margin },
+    tableWidth,
+    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsDoc = doc as any;
+  if (typeof jsDoc.autoPrint === 'function') {
+    jsDoc.autoPrint({ variant: 'non-conform' });
+  }
+  window.open(doc.output('bloburl'), '_blank');
 };
 
 // ==== EXCEL DOWNLOAD HANDLE UTIL ==== //
@@ -145,6 +203,7 @@ export const downloadExcelUtil = async <T>({
 // ==== TIME CONVERTERS ==== //
 /** Sri Lanka timezone (UTC+5:30). Use when storing/displaying session times. */
 export const SRI_LANKA_TZ = 'Asia/Colombo'
+export const SL_OFFSET = '+05:30';
 
 /**
  * ISO timezone offset string (e.g. "+05:30" or "-08:00") for session start/end.

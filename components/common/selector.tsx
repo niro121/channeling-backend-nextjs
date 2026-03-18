@@ -18,6 +18,11 @@ type SelectorProps = {
   options: Option[];
   defaultValue?: string;
   onChange: (value: string) => void
+  className?: {
+    trigger?: string,
+    content?: string
+  }
+  disabled?: boolean;
 };
 
 export function Selector({
@@ -25,16 +30,19 @@ export function Selector({
   options,
   value,
   onChange,
-  defaultValue = '__all__'
+  defaultValue = '__all__',
+  className,
+  disabled: disabledProp
 }: SelectorProps) {
   const hasDefaultInOptions = options.some((o) => o.id === (value ?? defaultValue));
+  const disabled = options.length === 0 || disabledProp;
 
   return (
-    <Select value={value ?? defaultValue} onValueChange={onChange}>
-      <SelectTrigger className="w-60" disabled={options.length === 0}>
+    <Select value={value ?? defaultValue} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={`w-60 font-semibold hover:bg-accent hover:text-accent-foreground cursor-pointer ${className?.trigger || ""}`} disabled={disabled}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className={`${className?.content || ""}`}>
         <SelectItem value={defaultValue} className="[&>span:first-child]:hidden">
           {label}
         </SelectItem>

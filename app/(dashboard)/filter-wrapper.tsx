@@ -12,6 +12,10 @@ interface FilterWrapperProps {
   buttonLabel?: string;
   /** Set to false to hide the Apply button (e.g. when other actions handle filter application). */
   showApplyButton?: boolean;
+  /** When true, shows a Clear button that resets all filters and navigates to the base path. */
+  showClearButton?: boolean;
+  /** Label for the Clear button (default: "Clear"). */
+  clearButtonLabel?: string;
   /** Called when the Apply/Search button is clicked, before navigation. Use to clear list data and show loading. */
   onApplyClick?: () => void;
   /** Called when filter values change (e.g. user changed dropdown). Use to clear list until Search is clicked. */
@@ -26,6 +30,8 @@ export function FilterWrapper({
   initialValues = {},
   buttonLabel = 'Apply',
   showApplyButton = true,
+  showClearButton = false,
+  clearButtonLabel = 'Clear',
   onApplyClick,
   onValuesChange,
   children
@@ -37,6 +43,21 @@ export function FilterWrapper({
 
   const [values, setValues] = React.useState<FilterValues>(initialValues);
   const isInitialMount = React.useRef(true);
+  // const prevParamsRef = React.useRef<string>('');
+
+  // Sync values when URL params change (e.g. back/forward nav, or after Search)
+  // Use searchParams.toString() to avoid overwriting user edits during same-session edits
+  /* React.useEffect(() => {
+    const paramsKey = searchParams.toString();
+    if (paramsKey !== prevParamsRef.current) {
+      prevParamsRef.current = paramsKey;
+      const next: FilterValues = {};
+      searchParams.forEach((value, key) => {
+        next[key] = value;
+      });
+      setValues(next);
+    }
+  }, [searchParams]); */
 
   React.useEffect(() => {
     if (isInitialMount.current) {
@@ -56,17 +77,6 @@ export function FilterWrapper({
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
 
-    // Also read the search input value from the DOM if it exists
-    // This ensures the search keyword is included even if user didn't press Enter
-    if (typeof window !== 'undefined') {
-      const searchInput = document.querySelector('input[name="keyword"]') as HTMLInputElement;
-      if (searchInput && searchInput.value) {
-        params.set('keyword', searchInput.value);
-      } else if (searchInput && !searchInput.value) {
-        params.delete('keyword');
-      }
-    }
-
     Object.entries(values).forEach(([key, value]) => {
       if (value && value !== '__all__') {
         params.set(key, value);
@@ -75,6 +85,20 @@ export function FilterWrapper({
       }
     });
 
+    // Override with DOM values from any input that opts in via data-filter-include.
+    // The input's name attribute is used as the param key.
+    if (typeof window !== 'undefined') {
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[data-filter-include]');
+      inputs.forEach((input) => {
+        const key = input.getAttribute('name');
+        if (key) {
+          const val = input.value?.trim();
+          if (val) params.set(key, val);
+          else params.delete(key);
+        }
+      });
+    }
+
     params.delete('page');
 
     const queryString = params.toString();
@@ -82,6 +106,20 @@ export function FilterWrapper({
     onApplyClick?.();
     startTransition(() => {
       router.push(href);
+    });
+  };
+
+  const clearFilters = () => {
+    setValues({});
+    if (typeof window !== 'undefined') {
+      document.querySelectorAll<HTMLInputElement>('input[data-filter-include]').forEach((input) => {
+        input.value = '';
+      });
+    }
+    // Don't call onApplyClick when clearing - it sets loading state for fetch, but we're not fetching after clear.
+    // The report-template will handle clearing data/loading via useEffect when searchParams become empty.
+    startTransition(() => {
+      router.push(pathname);
     });
   };
 
@@ -101,6 +139,17 @@ export function FilterWrapper({
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : null}
           {buttonLabel}
+        </Button>
+      )}
+      {showClearButton && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={clearFilters}
+          disabled={isPending}
+          className="h-10 shrink-0"
+        >
+          {clearButtonLabel}
         </Button>
       )}
     </div>
