@@ -12,6 +12,11 @@ The test cases cover these areas (Channeling and Dashboard are **not** included)
 - **Agency & billing**: Agency Books, Agency, Discount  
 - **Other**: Tags, SMS Playground, Reports  
 
+For **Channeling** (shift, float, handover, reconciliation), see the spreadsheet **and** the detailed markdown guides:
+
+- **Float Request**: `float-request-test-cases.md`  
+- **Shift Handover & Reconciliation**: `handover-and-reconciliation-test-cases.md` (includes End shift, Handed over to me, Send to reconciliation, Reconciliation list/document, Submit as reconciled, Reject)  
+
 ## How to use the spreadsheet
 
 1. **Open in Excel**  

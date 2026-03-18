@@ -22,6 +22,8 @@ export async function runSeedAccountingAccounts(
     const lines: string[] = []
 
     const deletedRequests = await prisma.floatRequest.deleteMany({})
+    // Break self-relation (forwardedToHandoverId) before deleting handovers
+    await prisma.shiftHandover.updateMany({ data: { forwardedToHandoverId: null } })
     const deletedHandovers = await prisma.shiftHandover.deleteMany({})
     const deletedLines = await prisma.journalLine.deleteMany({})
     const deletedJournals = await prisma.journal.deleteMany({})
