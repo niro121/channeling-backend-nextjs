@@ -16,13 +16,11 @@ function parseDateToUnixRange(fromDateTime?: string, toDateTime?: string): { fro
   const to = new Date(toDateTime);
   if (isNaN(from.getTime()) || isNaN(to.getTime())) return null;
 
-  const start = new Date(from);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setUTCHours(23, 59, 59, 999);
-
-  const fromUnix = Math.floor(start.getTime() / 1000);
-  const toUnix = Math.floor(end.getTime() / 1000);
+  // Respect the actual date+time range provided by the UI.
+  // `YYYY-MM-DDTHH:mm` strings are interpreted as local time by JS Date,
+  // which matches what the user selected in the UI.
+  const fromUnix = Math.floor(from.getTime() / 1000);
+  const toUnix = Math.floor(to.getTime() / 1000);
 
   return { from: fromUnix, to: toUnix };
 }
@@ -68,7 +66,20 @@ function parseHandedByFromRemarks(remarks: string | null | undefined): string | 
   const idx = remarks.indexOf(marker);
   if (idx === -1) return null;
   const after = remarks.slice(idx + marker.length).trim();
-  return after || null;
+  if (!after) return null;
+
+  // Some source data repeats staff codes or ids consecutively, e.g.
+  // "CASHIER 1 (RHCASHIER1) (RHCASHIER1)".
+  // Collapse any immediate duplicate tokens so they only appear once.
+  const parts = after.split(/\s+/);
+  const deduped: string[] = [];
+  for (const part of parts) {
+    if (deduped.length === 0 || deduped[deduped.length - 1] !== part) {
+      deduped.push(part);
+    }
+  }
+  const result = deduped.join(' ').trim();
+  return result || null;
 }
 
 // ==== GET CONSULTANT PAYMENTS REPORT ==== //
@@ -80,7 +91,8 @@ export const getConsultantPaymentsReportService = async ({
   departmentId,
   specialityId,
   doctorId,
-  status
+  status,
+  sessionType
 }: ConsultantPaymentsReportQuery): Promise<{
   success: boolean;
   data?: any[];
@@ -178,6 +190,17 @@ export const getConsultantPaymentsReportService = async ({
       }
     };
 
+    // Filter by institution at the Session level so RH / RHD etc. return correct subsets
+    if (institutionId && institutionId !== '__all__' && institutionId !== '') {
+      const instNum = parseInt(institutionId, 10);
+      if (!isNaN(instNum)) {
+        bookingWhere.session = {
+          ...(bookingWhere.session as Prisma.SessionWhereInput | undefined),
+          institution: instNum
+        };
+      }
+    }
+
     if (doctorIds !== null && doctorIds.length > 0) {
       bookingWhere.doctorId = { in: doctorIds };
     } else if (doctorIds !== null && doctorIds.length === 0) {
@@ -196,7 +219,7 @@ export const getConsultantPaymentsReportService = async ({
       }
     }
 
-    const bookings = await prisma.booking.findMany({
+    let bookings = await prisma.booking.findMany({
       where: bookingWhere,
       include: {
         doctor: { select: { id: true, title: true, name: true, code: true } },
@@ -209,6 +232,29 @@ export const getConsultantPaymentsReportService = async ({
         { sessionStartTime: 'asc' }
       ]
     });
+
+    if (!bookings.length) {
+      return {
+        success: true,
+        data: [],
+        totalRecords: 0
+      };
+    }
+
+    // Apply sessionType (morning / evening) based on the *start time hour* in local time
+    if (sessionType === 'morning') {
+      // 00:00–11:59 AM
+      bookings = bookings.filter((b) => {
+        const h = moment.unix(b.sessionStartTime ?? 0).hour();
+        return h < 12;
+      });
+    } else if (sessionType === 'evening') {
+      // 12:00–11:59 PM
+      bookings = bookings.filter((b) => {
+        const h = moment.unix(b.sessionStartTime ?? 0).hour();
+        return h >= 12;
+      });
+    }
 
     if (!bookings.length) {
       return {
@@ -295,6 +341,7 @@ export const getConsultantPaymentsReportService = async ({
         consultationSession: formatSessionLabel(b.sessionStartTime ?? null, b.sessionEndTime ?? null),
         patientName: formatPatientName(b.title, b.name),
         modeOfPay: b.receiptPaymentMethod != null ? (PAYMENT_METHOD_NAMES[b.receiptPaymentMethod] ?? String(b.receiptPaymentMethod)) : '-',
+        consultationCharge: professionalFee,
         discountAmount: discount,
         netAmount,
         paymentStatus: b.doctorPayment ? 'Paid' : 'Due Pay',

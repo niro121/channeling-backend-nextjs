@@ -49,6 +49,14 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     header: () => <span className="whitespace-nowrap">Mode of Pay</span>
   },
   {
+    accessorKey: 'consultationCharge',
+    header: () => <span className="whitespace-nowrap">Consultation Charge</span>,
+    cell: ({ row }) => {
+      const amount = row.getValue<number>('consultationCharge');
+      return <span className="tabular-nums">{formatLKR(amount)}</span>;
+    }
+  },
+  {
     accessorKey: 'discountAmount',
     header: () => <span className="whitespace-nowrap">Discount Amount</span>,
     cell: ({ row }) => {
@@ -86,7 +94,7 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     header: () => <span className="whitespace-nowrap">Paid Date</span>,
     cell: ({ row }) => {
       const date = row.getValue<Date | null>('paidDate');
-      return date ? moment(date).format('DD/MM/YYYY') : '-';
+      return date ? moment(date).format('DD/MM/YYYY HH:mm') : '-';
     }
   },
   {

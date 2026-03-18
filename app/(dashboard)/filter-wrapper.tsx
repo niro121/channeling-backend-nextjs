@@ -4,6 +4,7 @@ import React, { useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { SearchIcon } from '@/components/icons';
 
 type FilterValues = Record<string, string | undefined>;
 
@@ -127,15 +128,15 @@ export function FilterWrapper({
 
       {showApplyButton && (
         <Button
-          size="sm"
-          variant="outline"
           onClick={applyFilters}
           disabled={isPending}
           className="h-10 shrink-0 gap-2"
         >
           {isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : null}
+          ) : (
+            <SearchIcon className="h-4 w-4" />
+          )}
           {buttonLabel}
         </Button>
       )}
