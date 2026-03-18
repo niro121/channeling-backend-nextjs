@@ -49,10 +49,15 @@ export function Combobox({
           variant="outline"
           role="combobox"
           disabled={options.length === 0}
-          className="w-60 justify-between"
+          className="w-60 min-w-0 justify-between gap-2 text-start"
         >
-          {selectedOption?.name || label}
-          <ChevronsUpDown className="opacity-50" />
+          <span
+            className="min-w-0 flex-1 truncate"
+            title={selectedOption?.name || label}
+          >
+            {selectedOption?.name || label}
+          </span>
+          <ChevronsUpDown className="shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
 
