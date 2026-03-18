@@ -199,6 +199,12 @@ function ReportTemplateContent<T, E = T>({
                 setLoading(true);
               }}
               showClearButton
+              searchButton={{
+                variant: "default"
+              }}
+              container={{
+                className: ""
+              }}
             >
               {filterContent}
             </FilterWrapper>

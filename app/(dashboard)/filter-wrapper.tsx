@@ -4,6 +4,7 @@ import React, { useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { SearchIcon } from 'lucide-react';
 
 type FilterValues = Record<string, string | undefined>;
 
@@ -24,6 +25,10 @@ interface FilterWrapperProps {
     values: FilterValues;
     setValue: (key: string, value?: string) => void;
   }) => React.ReactNode;
+  searchButton?: {
+    variant?: "link" | "default" | "destructive" | "outline" | "secondary" | "ghost" | null | undefined
+    className?: string
+  }
 }
 
 export function FilterWrapper({
@@ -34,7 +39,8 @@ export function FilterWrapper({
   clearButtonLabel = 'Clear',
   onApplyClick,
   onValuesChange,
-  children
+  children, 
+  searchButton
 }: FilterWrapperProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -130,14 +136,14 @@ export function FilterWrapper({
       {showApplyButton && (
         <Button
           size="sm"
-          variant="outline"
+          variant={searchButton?.variant ? searchButton.variant : "outline"}
           onClick={applyFilters}
           disabled={isPending}
-          className="h-10 shrink-0 gap-2"
+          className={searchButton?.className ? searchButton.className : "h-10 shrink-0 gap-2"}
         >
           {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : null}
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : <SearchIcon /> }
           {buttonLabel}
         </Button>
       )}
