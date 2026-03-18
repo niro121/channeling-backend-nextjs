@@ -108,6 +108,8 @@ type MakeDoctorPaymentClientProps = {
   staff: ReferenceSelectOption[];
   userId: string | null;
   locationId: string | null;
+  /** When provided (e.g. from channel-booking Payment tab), pre-select this doctor. */
+  initialDoctorId?: string | null;
 };
 
 export function MakeDoctorPaymentClient({
@@ -116,10 +118,11 @@ export function MakeDoctorPaymentClient({
   staff,
   userId,
   locationId,
+  initialDoctorId,
 }: MakeDoctorPaymentClientProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [doctorId, setDoctorId] = useState("");
+  const [doctorId, setDoctorId] = useState(initialDoctorId ?? "");
   const today = getTodayISO();
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);

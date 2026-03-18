@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useId } from "react"
+import { useState, useEffect, useCallback, useId, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,8 @@ import { SearchableUserSelect } from "@/components/common/searchable-user-select
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyTillBalance } from "@/app/actions/till.actions"
 import { getBulkCashierUsersAction, getMyPendingFloatRequestAction } from "@/app/actions/float-request.actions"
-import { submitShiftHandoverAction } from "@/app/actions/shift.actions"
+import { submitShiftHandoverAction, getHandoversReceivedByShiftAction, getHandoversToMeAction, getIncludableHandoversForSenderAction } from "@/app/actions/shift.actions"
+import Link from "next/link"
 import { useToast } from "@/components/hooks/use-toast"
 import {
   Loader2,
@@ -111,6 +112,12 @@ export function EndShiftHandoverDialog({
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [pendingFloatRequest, setPendingFloatRequest] = useState<{ id: string; amountRequested?: number } | null>(null)
+  const [pendingHandoversToMe, setPendingHandoversToMe] = useState<{ id: string }[]>([])
+  const [includableHandovers, setIncludableHandovers] = useState<{ id: string; createdAt: string; totalCents: number; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
+  const [selectedIncludedHandoverIds, setSelectedIncludedHandoverIds] = useState<string[]>([])
+  const [previousHandoversNote, setPreviousHandoversNote] = useState<{ id: string; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
+  const [step1DataReady, setStep1DataReady] = useState(false)
+  const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const { toast } = useToast()
 
   // Cash: denominations (notes 10+ ; coins 5, 2, 1 + cents)
@@ -126,38 +133,128 @@ export function EndShiftHandoverDialog({
   const [eWalletEntries, setEWalletEntries] = useState<MethodEntry[]>([])
 
   const uid = useId()
+  const prepopulatedStep2Ref = useRef(false)
 
-  const fetchBalance = useCallback(() => {
-    if (!open) return
-    setBalanceLoading(true)
-    getMyTillBalance()
-      .then((res) => {
-        if (res.success && res.data) {
-          setBalance(res.data)
-          setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
-          setCardEntries([])
-          setSlipEntries([])
-          setCheckEntries([])
-          setCreditEntries([])
-          setEWalletEntries([])
-        } else {
-          setBalance(null)
-        }
+  useEffect(() => {
+    if (!open) prepopulatedStep2Ref.current = false
+  }, [open])
+
+  // Debug: when handover popup opens, log whether this shift has any handovers received
+  useEffect(() => {
+    if (!open || !shiftId) return
+    console.log("[Handover popup] Opened. Your current shiftId (the shift you are ending):", shiftId)
+    getHandoversReceivedByShiftAction(shiftId).then((res) => {
+      if (!res.success) {
+        console.log("[Handover popup] Fetch failed or unauthorized:", res)
+        return
+      }
+      const list = res.data ?? []
+      const debug = (res as { debug?: { requestedShiftId: string; handoversReceivedByThisShift: number; handoversIApproved: { id: string; toShiftId: string | null; createdAt: string }[] } }).debug
+      console.log("[Handover popup] Handovers received BY THIS SHIFT (toShiftId =", shiftId, "):", list.length, list.length ? list : "(none)")
+      if (debug) {
+        console.log("[Handover popup] DEBUG — Handovers you approved (toUserId = you), up to 10 recent:", debug.handoversIApproved)
+        console.log("[Handover popup] DEBUG — For prepopulate we only use handovers where toShiftId === your current shiftId. If your approved handover has toShiftId different or null, it will not prepopulate.")
+        const match = debug.handoversIApproved.filter((h) => h.toShiftId === shiftId)
+        const other = debug.handoversIApproved.filter((h) => h.toShiftId !== shiftId)
+        if (other.length > 0) console.log("[Handover popup] DEBUG — Approved handovers with toShiftId !== current shift (or null):", other)
+        if (match.length > 0) console.log("[Handover popup] DEBUG — Approved handovers that match this shift:", match)
+      }
+      list.forEach((h, i) => {
+        console.log(`[Handover popup] Handover ${i + 1} id:`, h.id, "enteredBreakdown:", h.enteredBreakdown)
       })
-      .finally(() => setBalanceLoading(false))
-  }, [open, uid])
+    })
+  }, [open, shiftId])
 
   useEffect(() => {
     if (open && step === 1) {
-      fetchBalance()
       setToUserId("")
       setDiscrepancyReason("")
       setValidationErrors([])
-      getMyPendingFloatRequestAction().then((res) => {
-        setPendingFloatRequest(res.success && res.data ? { id: res.data.id, amountRequested: res.data.amountRequested } : null)
-      })
+      setPreviousHandoversNote([])
+      setStep1DataReady(false)
+      setHandoverPermissionDenied(null)
+      setBalanceLoading(true)
+      Promise.all([
+        getMyTillBalance(),
+        getMyPendingFloatRequestAction(),
+        getHandoversToMeAction(),
+        getIncludableHandoversForSenderAction(),
+      ])
+        .then(([balanceRes, floatRes, handoversToMeRes, includableRes]) => {
+          if (balanceRes.success && balanceRes.data) {
+            setBalance(balanceRes.data)
+            setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
+            setCardEntries([])
+            setSlipEntries([])
+            setCheckEntries([])
+            setCreditEntries([])
+            setEWalletEntries([])
+          } else {
+            setBalance(null)
+          }
+          setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
+          setPendingHandoversToMe(handoversToMeRes.success && handoversToMeRes.data?.length ? handoversToMeRes.data.map((h) => ({ id: h.id })) : [])
+          if (!handoversToMeRes.success && "message" in handoversToMeRes && handoversToMeRes.message) {
+            setHandoverPermissionDenied(handoversToMeRes.message)
+            toast({ variant: "destructive", title: "Error", description: handoversToMeRes.message })
+          } else {
+            setHandoverPermissionDenied(null)
+          }
+          if (includableRes.success && includableRes.data?.length) {
+            setPreviousHandoversNote(
+              includableRes.data.map((h) => ({
+                id: h.id,
+                fromUser: h.fromUser ?? { name: null, staff: null },
+              }))
+            )
+          } else {
+            setPreviousHandoversNote([])
+          }
+          if (!includableRes.success && "message" in includableRes && includableRes.message) {
+            toast({ variant: "destructive", title: "Error", description: includableRes.message })
+          }
+        })
+        .catch((err) => {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: err?.message ?? "Failed to load handover data.",
+          })
+        })
+        .finally(() => {
+          setBalanceLoading(false)
+          setStep1DataReady(true)
+        })
     }
-  }, [open, step, fetchBalance])
+  }, [open, step])
+
+  // Prepopulate non-cash entries from handovers received by this shift (so user only adds what they collected).
+  useEffect(() => {
+    if (!open || step !== 2 || prepopulatedStep2Ref.current || !shiftId) return
+    prepopulatedStep2Ref.current = true
+    getHandoversReceivedByShiftAction(shiftId).then((res) => {
+      if (!res.success || !res.data?.length) return
+      type Entry = { reference: string; amountCents: number }
+      const toMethodEntry = (e: Entry, i: number, method: string): MethodEntry => ({
+        id: `${uid}-pre-${method}-${i}`,
+        reference: e.reference ?? "",
+        amount: e.amountCents != null ? (e.amountCents / 100).toFixed(2) : "",
+      })
+      const merge = (key: "cardEntries" | "slipEntries" | "checkEntries" | "creditEntries" | "eWalletEntries"): MethodEntry[] => {
+        const out: MethodEntry[] = []
+        res.data!.forEach((h, hIdx) => {
+          const arr = (h.enteredBreakdown?.[key] ?? []) as Entry[]
+          arr.forEach((e, i) => out.push(toMethodEntry(e, hIdx * 1000 + i, key)))
+        })
+        return out
+      }
+      setCardEntries(merge("cardEntries"))
+      setSlipEntries(merge("slipEntries"))
+      setCheckEntries(merge("checkEntries"))
+      setCreditEntries(merge("creditEntries"))
+      setEWalletEntries(merge("eWalletEntries"))
+    })
+  }, [open, step, shiftId, uid])
 
   useEffect(() => {
     if (open && (step === 2 || step === 3)) {
@@ -176,6 +273,30 @@ export function EndShiftHandoverDialog({
         .finally(() => setHandoverUsersLoading(false))
     }
   }, [open, step, fromUserId])
+
+  useEffect(() => {
+    if (!open || step !== 3) {
+      setIncludableHandovers([])
+      setSelectedIncludedHandoverIds([])
+      return
+    }
+    getIncludableHandoversForSenderAction().then((res) => {
+      if (res.success && res.data?.length) {
+        setIncludableHandovers(
+          res.data.map((h) => ({
+            id: h.id,
+            createdAt: typeof h.createdAt === "string" ? h.createdAt : (h.createdAt as Date).toISOString(),
+            totalCents: h.totalCents,
+            fromUser: h.fromUser ?? { name: null, staff: null },
+          }))
+        )
+        setSelectedIncludedHandoverIds(res.data.map((h) => h.id))
+      } else {
+        setIncludableHandovers([])
+        setSelectedIncludedHandoverIds([])
+      }
+    })
+  }, [open, step])
 
   const handleProceed = () => setStep(2)
   const handleBack = () => {
@@ -341,10 +462,11 @@ export function EndShiftHandoverDialog({
           .filter((e) => e && (String(e.reference).trim() !== "" || String(e.amount).trim() !== ""))
           .map((e) => ({ reference: String(e.reference).trim(), amountCents: centsFromLkrString(String(e.amount)) })),
       }
-      await submitShiftHandoverAction(
+      const idsToInclude = selectedIncludedHandoverIds.length > 0 ? selectedIncludedHandoverIds : undefined
+      await submitShiftHandoverAction({
         shiftId,
         toUserId,
-        {
+        amounts: {
           cashCents: cashTotalCents,
           cardCents,
           slipCents,
@@ -352,9 +474,10 @@ export function EndShiftHandoverDialog({
           creditCents,
           eWalletCents,
         },
-        discrepancyReason.trim() || undefined,
-        enteredBreakdown
-      )
+        discrepancyReason: discrepancyReason.trim() || undefined,
+        enteredBreakdown,
+        includedHandoverIds: idsToInclude,
+      })
       const recipientName = handoverUsers.find((u) => u.id === toUserId)?.name ?? "recipient"
       toast({ title: `Handover submitted. Waiting for ${recipientName} to approve.` })
       onOpenChange(false)
@@ -383,7 +506,7 @@ export function EndShiftHandoverDialog({
             {step === 1 &&
               "Review your till balance by method. Then proceed to enter amounts and assign the handover."}
             {step === 2 &&
-              "Enter cash denominations and add entries (reference + value) for card, slips, cheques, credit and e-wallet. We will warn if amounts do not match the till balance."}
+              "Entries from handovers you received this shift are pre-filled. Add cash denominations and any extra entries (reference + value) for card, slips, cheques, credit and e-wallet. We will warn if amounts do not match the till balance."}
             {step === 3 &&
               "Review the summary below, check any warnings, select the person receiving the handover, then confirm."}
           </DialogDescription>
@@ -391,6 +514,40 @@ export function EndShiftHandoverDialog({
 
         {step === 1 && (
           <>
+            {previousHandoversNote.length > 0 && (
+              <Alert className="mb-4 border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40">
+                <CircleAlert className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertTitle className="text-blue-800 dark:text-blue-200">Handovers that will go with this</AlertTitle>
+                <AlertDescription>
+                  You have received handover(s) from{" "}
+                  {previousHandoversNote
+                    .map((h) => (h.fromUser?.staff?.code ? `${h.fromUser.name ?? "—"} (${h.fromUser.staff.code})` : h.fromUser?.name ?? "—"))
+                    .join(", ")}
+                  . They will be included when you hand over in the next steps.
+                </AlertDescription>
+              </Alert>
+            )}
+            {handoverPermissionDenied && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Handover not allowed</AlertTitle>
+                <AlertDescription>{handoverPermissionDenied}</AlertDescription>
+              </Alert>
+            )}
+            {pendingHandoversToMe.length > 0 && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Handovers need your action</AlertTitle>
+                <AlertDescription>
+                  You have {pendingHandoversToMe.length} handover{pendingHandoversToMe.length !== 1 ? "s" : ""} pending your
+                  acceptance. Accept or reject them on the{" "}
+                  <Link href="/handovers" className="underline font-medium hover:no-underline" onClick={() => onOpenChange(false)}>
+                    Handovers page
+                  </Link>{" "}
+                  before you can end your shift and hand over.
+                </AlertDescription>
+              </Alert>
+            )}
             {pendingFloatRequest && (
               <Alert variant="destructive" className="mb-4">
                 <AlertTriangle className="h-4 w-4" />
@@ -434,10 +591,19 @@ export function EndShiftHandoverDialog({
               </Button>
               <Button
                 onClick={handleProceed}
-                disabled={balanceLoading || !balance || !!pendingFloatRequest}
+                disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
               >
-                Proceed to handover
-                <ArrowRight className="h-4 w-4 ml-2" />
+                {!step1DataReady ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading…
+                  </>
+                ) : (
+                  <>
+                    Proceed to handover
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </>
@@ -609,41 +775,74 @@ export function EndShiftHandoverDialog({
                                   </td>
                                 </tr>
                               ) : (
-                                entries.map((e) => (
-                                  <tr key={e.id} className="border-b last:border-b-0">
-                                    <td className="p-1">
-                                      <Input
-                                        placeholder="e.g. slip no."
-                                        className="h-9"
-                                        value={e.reference}
-                                        onChange={(ev) => updateEntry(key, e.id, "reference", ev.target.value)}
-                                      />
-                                    </td>
-                                    <td className="p-1 text-right">
-                                      <Input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        placeholder="0.00"
-                                        className="h-9 w-24 text-right tabular-nums ml-auto"
-                                        value={e.amount}
-                                        onChange={(ev) => updateEntry(key, e.id, "amount", ev.target.value)}
-                                      />
-                                    </td>
-                                    <td className="p-1">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeEntry(key, e.id)}
-                                        aria-label="Remove entry"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))
+                                entries.map((e) => {
+                                  const referenceError = !e.reference.trim()
+                                  const amountError = e.amount.trim() === ""
+                                  return (
+                                    <tr key={e.id} className="border-b last:border-b-0">
+                                      <td className="p-1 align-top">
+                                        <div className="space-y-0.5">
+                                          <Input
+                                            placeholder="e.g. slip no."
+                                            className={cn("h-9", referenceError && "border-destructive focus-visible:ring-destructive")}
+                                            value={e.reference}
+                                            onChange={(ev) => updateEntry(key, e.id, "reference", ev.target.value)}
+                                          />
+                                          {referenceError && (
+                                            <p className="text-xs text-destructive">Reference is required</p>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="p-1 text-right align-top">
+                                        <div className="space-y-0.5 flex flex-col items-end">
+                                          <Input
+                                            type="number"
+                                            min={0}
+                                            step={0.01}
+                                            placeholder="0.00"
+                                            className={cn("h-9 w-24 text-right tabular-nums ml-auto", amountError && "border-destructive focus-visible:ring-destructive")}
+                                            value={e.amount}
+                                            onChange={(ev) => {
+                                              const v = ev.target.value
+                                              if (v === "" || v === ".") {
+                                                updateEntry(key, e.id, "amount", v)
+                                                return
+                                              }
+                                              const dotIdx = v.indexOf(".")
+                                              if (dotIdx !== -1 && v.length - dotIdx - 1 > 2) {
+                                                const n = parseFloat(v)
+                                                if (!Number.isNaN(n) && n >= 0) updateEntry(key, e.id, "amount", n.toFixed(2))
+                                                return
+                                              }
+                                              if (parseFloat(v) < 0) return
+                                              updateEntry(key, e.id, "amount", v)
+                                            }}
+                                            onBlur={() => {
+                                              const n = parseFloat(e.amount)
+                                              const formatted = Number.isNaN(n) || n < 0 ? "0.00" : n.toFixed(2)
+                                              if (formatted !== e.amount) updateEntry(key, e.id, "amount", formatted)
+                                            }}
+                                          />
+                                          {amountError && (
+                                            <p className="text-xs text-destructive">Amount required (can be 0)</p>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="p-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                          onClick={() => removeEntry(key, e.id)}
+                                          aria-label="Remove entry"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  )
+                                })
                               )}
                             </tbody>
                           </table>
@@ -790,6 +989,18 @@ export function EndShiftHandoverDialog({
                   <p className="text-xs text-muted-foreground">No other users available.</p>
                 )}
               </div>
+
+              {includableHandovers.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  The following handover(s) will be included (no action needed):{" "}
+                  {includableHandovers
+                    .map((h) => {
+                      const fromLabel = h.fromUser?.staff?.code ? `${h.fromUser.name ?? "—"} (${h.fromUser.staff.code})` : h.fromUser?.name ?? "—"
+                      return `${fromLabel} ${formatCents(h.totalCents)}`
+                    })
+                    .join("; ")}
+                </p>
+              )}
 
               {needsDiscrepancyReason && (
                 <div className="space-y-1">

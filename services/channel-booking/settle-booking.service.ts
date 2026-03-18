@@ -11,7 +11,7 @@ import {
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
-import { requireActiveShift } from "@/services/shift.service"
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
@@ -183,6 +183,9 @@ export async function settleBookingService(
     : null
   const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
 
+  const currentShift = userId ? await getCurrentShift(userId) : null
+  const shiftId = currentShift?.id ?? undefined
+
   const result = await prisma.$transaction(async (tx) => {
     const r = await createReceiptAndUpdateBooking(tx, {
       bookingId: booking.id,
@@ -199,6 +202,7 @@ export async function settleBookingService(
       method: 1, // PAYMENT RECEIPTS
       agencyId: booking.agencyId ?? null,
       createdBy: userId,
+      shiftId,
       userLocationId: input.user_location_id ?? null,
       getBookingUpdate: (receipt) => ({
         status: 1,

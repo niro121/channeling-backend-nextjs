@@ -19,6 +19,8 @@ export type CreateReceiptForBookingReceiptParams = {
   agencyId?: string | null
   creditCustomerId?: string | null
   createdBy?: string | null
+  /** Channel booking shift id when receipt is created during a shift (for reconciliation). */
+  shiftId?: string | null
   locationId?: string | null
   userLocationId?: string | null
 }
@@ -65,6 +67,8 @@ export type CreateReceiptWithoutBookingParams = {
   whd?: number
   /** For method 4 (doctor payment): WHT percentage. */
   whdPercentage?: number
+  /** Channel booking shift id when receipt is created during a shift (for reconciliation). */
+  shiftId?: string | null
 }
 
 export type CreateReceiptWithoutBookingResult =
@@ -108,6 +112,7 @@ export async function createReceiptWithoutBooking(
       bookingId: null,
       agencyId: params.agencyId ?? null,
       createdBy: params.createdBy ?? null,
+      shiftId: params.shiftId ?? null,
       locationId: params.locationId ?? null,
       userLocationId: params.userLocationId ?? params.locationId ?? null,
     },
@@ -154,6 +159,7 @@ export async function createReceiptAndUpdateBooking(
       agencyId: params.agencyId ?? null,
       creditCustomerId: params.creditCustomerId ?? null,
       createdBy: params.createdBy ?? null,
+      shiftId: params.shiftId ?? null,
       locationId: params.locationId ?? null,
       userLocationId: params.userLocationId ?? null,
     },

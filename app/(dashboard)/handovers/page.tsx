@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { getHandoversToMeAction } from "@/app/actions/shift.actions"
+import { getHandoversToMeAction, getHandoversApprovedByMeNotReconciledAction } from "@/app/actions/shift.actions"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -13,7 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCents } from "@/lib/format-money"
-import { Loader2, Eye } from "lucide-react"
+import { Loader2, Eye, FileCheck } from "lucide-react"
+import { usePermissions } from "@/components/hooks/use-permissions"
+import { useToast } from "@/components/hooks/use-toast"
 
 type HandoverRow = {
   id: string
@@ -54,20 +56,46 @@ function fromUserLabel(fromUser: HandoverRow["fromUser"] | null | undefined): st
 
 export default function HandoversPage() {
   const [list, setList] = useState<HandoverRow[]>([])
+  const [approvedNotReconciledList, setApprovedNotReconciledList] = useState<HandoverRow[]>([])
   const [loading, setLoading] = useState(true)
+  const { has: hasPermission } = usePermissions()
+  const { toast } = useToast()
+  const canSendToReconciliation = hasPermission("reconciliation", "submit-for-reconciliation")
 
   const fetchList = useCallback(() => {
     setLoading(true)
-    getHandoversToMeAction()
-      .then((res) => {
+    const promises: Promise<void>[] = [
+      getHandoversToMeAction().then((res) => {
         if (res.success && res.data) setList(res.data as HandoverRow[])
         else setList([])
-      })
-      .finally(() => setLoading(false))
-  }, [])
+        if (!res.success && "message" in res && res.message) {
+          toast({ variant: "destructive", title: "Error", description: res.message })
+        }
+      }),
+    ]
+    if (canSendToReconciliation) {
+      promises.push(
+        getHandoversApprovedByMeNotReconciledAction().then((res) => {
+          if (res.success && res.data) setApprovedNotReconciledList(res.data as HandoverRow[])
+          else setApprovedNotReconciledList([])
+          if (!res.success && "message" in res && res.message) {
+            toast({ variant: "destructive", title: "Error", description: res.message })
+          }
+        })
+      )
+    }
+    Promise.all(promises).finally(() => setLoading(false))
+  }, [canSendToReconciliation, toast])
 
   useEffect(() => {
     fetchList()
+  }, [fetchList])
+
+  // Refetch when page becomes visible (e.g. after returning from approving a handover)
+  useEffect(() => {
+    const onFocus = () => fetchList()
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
   }, [fetchList])
 
   if (loading) {
@@ -130,6 +158,65 @@ export default function HandoversPage() {
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {canSendToReconciliation && (
+        <div className="space-y-3 pt-8 border-t">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FileCheck className="h-5 w-5" />
+              Need to send to reconciliation
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Handovers you approved that are not yet in reconciliation. Open and use &quot;Send to reconciliation&quot; to move them to the Reconciliation page.
+            </p>
+          </div>
+          {approvedNotReconciledList.length === 0 ? (
+            <p className="text-muted-foreground py-4">None.</p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>From</TableHead>
+                    <TableHead>Shift started</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {approvedNotReconciledList.map((h) => (
+                    <TableRow key={h.id}>
+                      <TableCell>{fromUserLabel(h.fromUser)}</TableCell>
+                      <TableCell>
+                        {h.shift?.startedAt
+                          ? new Date(h.shift.startedAt).toLocaleString()
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        LKR {formatCents(totalCents(h))}
+                      </TableCell>
+                      <TableCell>
+                        {h.createdAt
+                          ? new Date(h.createdAt).toLocaleString()
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/handovers/${h.id}`}>
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
     </div>

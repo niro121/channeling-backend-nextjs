@@ -28,6 +28,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { SearchIcon, Printer, Download } from 'lucide-react';
 import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summary.action';
+import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   CashierSummaryReportSection,
   CashierSummaryReportLineItem,
@@ -38,11 +39,11 @@ type CashierSummaryContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
 };
 
-/** Format amount (stored in cents). Never show NaN; use 0.00 for missing/invalid. */
+/** Format amount for display. Handles both cents and rupees (same as receipt amounts). */
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
-  const value = Number.isFinite(num) ? num / 100 : 0;
-  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!Number.isFinite(num)) return '0.00';
+  return formatReceiptAmount(num);
 }
 
 const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string }[] = [

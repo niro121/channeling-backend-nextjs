@@ -21,6 +21,8 @@ import { getOrCreateAccount, getAccountBalance, getCashAccountByUserId, createJo
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
+import { createNotification } from '@/services/notification.service';
+import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from '@/types/notification';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 
@@ -349,6 +351,16 @@ export async function approveFloatRequest(
     });
   }
 
+  const bulkCashierName = (updated.bulkCashier as { name?: string } | null)?.name ?? 'Bulk cashier';
+  await createNotification({
+    userId: fr.requestedById,
+    type: NOTIFICATION_TYPES.FloatApproved,
+    title: 'Float request approved',
+    message: `${bulkCashierName} approved your float request. Enter the code on your slip to receive it.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: updated.id,
+  });
+
   return { success: true, floatRequest: mapFloatRequest(updated), printData };
 }
 
@@ -496,6 +508,15 @@ export async function rejectFloatRequest(
       status: FLOAT_REQUEST_STATUS.REJECTED,
     });
   }
+
+  await createNotification({
+    userId: fr.requestedById,
+    type: NOTIFICATION_TYPES.FloatRejected,
+    title: 'Float request rejected',
+    message: input.reason?.trim() ? `Reason: ${input.reason.trim()}` : undefined,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: updated.id,
+  });
 
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { getHandoverDetailAction, approveHandoverAction, rejectHandoverAction } from "@/app/actions/shift.actions"
+import { sendHandoverToReconciliationAction } from "@/app/actions/reconciliation.actions"
 import { getCashierSummaryReportData } from "@/app/actions/reports/cashier-summary.action"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/components/hooks/use-toast"
+import { usePermissions } from "@/components/hooks/use-permissions"
 import { formatCents } from "@/lib/format-money"
 import { formatDenomLabel } from "@/types/float-request"
 import type { CashierSummaryReportSection } from "@/types/report"
@@ -36,8 +38,11 @@ import {
   Wallet,
   Smartphone,
   CircleAlert,
+  GitBranch,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
+import { HANDOVER_STATUS } from "@/types/handover"
+import { FileCheck } from "lucide-react"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
@@ -68,6 +73,14 @@ function fromUserLabel(fromUser: { name: string | null; staff?: { code: string }
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
 }
 
+/** Shape of each item in data.includedHandovers (linked handovers in the chain). */
+type IncludedHandoverRow = {
+  id: string
+  fromUser: { name: string | null; staff?: { code: string } | null } | null
+  shift?: { startedAt?: Date | string } | null
+  totalCents: number
+}
+
 export default function HandoverDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -79,8 +92,12 @@ export default function HandoverDetailPage() {
   const [rejectReason, setRejectReason] = useState("")
   const [approveOpen, setApproveOpen] = useState(false)
   const [approvalComments, setApprovalComments] = useState("")
+  const [sendToReconciliation, setSendToReconciliation] = useState(false)
   const [summarySections, setSummarySections] = useState<CashierSummaryReportSection[]>([])
+  const { has: hasPermission } = usePermissions()
+  const canSendToReconciliation = hasPermission("reconciliation", "submit-for-reconciliation")
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
@@ -104,6 +121,11 @@ export default function HandoverDetailPage() {
   useEffect(() => {
     fetchDetail()
   }, [fetchDetail])
+
+  // Auto-tick "Send to reconciliation" only when user has the permission (when opening the approve dialog)
+  useEffect(() => {
+    if (approveOpen && canSendToReconciliation) setSendToReconciliation(true)
+  }, [approveOpen, canSendToReconciliation])
 
   useEffect(() => {
     if (!data) return
@@ -173,10 +195,15 @@ export default function HandoverDetailPage() {
     if (!id) return
     setActionLoading("approve")
     try {
-      await approveHandoverAction(id, comments?.trim() || undefined)
-      toast({ title: "Handover approved and received. Funds recorded to your till; shift ended." })
+      await approveHandoverAction(id, comments?.trim() || undefined, sendToReconciliation)
+      toast({
+        title: sendToReconciliation
+          ? "Handover approved and sent to reconciliation. Complete it from the Reconciliation page."
+          : "Handover approved and received. Funds recorded to your till; shift ended.",
+      })
       setApproveOpen(false)
       setApprovalComments("")
+      setSendToReconciliation(false)
       router.push("/handovers")
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to approve", variant: "destructive" })
@@ -198,6 +225,25 @@ export default function HandoverDetailPage() {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to reject", variant: "destructive" })
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  async function handleSendToReconciliation() {
+    if (!id) return
+    setSendToReconLoading(true)
+    try {
+      const result = await sendHandoverToReconciliationAction(id)
+      if (result.success) {
+        toast({ title: "Sent to reconciliation. Open it from the Reconciliation page to tick receipts and submit." })
+        router.push("/handovers")
+        router.refresh()
+      } else {
+        toast({ title: result.error ?? "Failed", variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to send to reconciliation", variant: "destructive" })
+    } finally {
+      setSendToReconLoading(false)
     }
   }
 
@@ -226,24 +272,49 @@ export default function HandoverDetailPage() {
   const hasIssues = tillBreakdown && METHOD_KEYS.some((key) => (tillBreakdown[key] ?? 0) !== (handover[key] ?? 0))
   const tickProgress = allTickIds.length > 0 ? `${ticked.size} of ${allTickIds.length} checked` : null
 
+  const isPending = handover.status === HANDOVER_STATUS.PENDING
+  const isApprovedNotReconciled =
+    handover.status === HANDOVER_STATUS.APPROVED &&
+    !handover.nonCashReconciledAt &&
+    handover.forwardedToHandoverId == null &&
+    (handover.reconciliationStatus == null || handover.reconciliationStatus === 0)
+
   return (
     <div className="space-y-6">
-      {/* Page header with actions — sticky so Reject/Approve stay visible when scrolling */}
+      {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
       <div className="sticky top-14 z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-3 bg-background border-b border-border">
         <BackButton href="/handovers" />
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>
-            <XCircle className="h-4 w-4 mr-1" />
-            Reject
-          </Button>
-          <Button
-            onClick={() => setApproveOpen(true)}
-            disabled={!!actionLoading || !canApproveAndReceive}
-            title={!canApproveAndReceive ? "Tick all entered entries first to approve and receive." : undefined}
-          >
-            {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-            Approve and Receive
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {isPending && (
+            <>
+              <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>
+                <XCircle className="h-4 w-4 mr-1" />
+                Reject
+              </Button>
+              <Button
+                onClick={() => setApproveOpen(true)}
+                disabled={!!actionLoading || !canApproveAndReceive}
+                title={!canApproveAndReceive ? "Tick all entered entries first to approve and receive." : undefined}
+              >
+                {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                Approve and Receive
+              </Button>
+            </>
+          )}
+          {isApprovedNotReconciled && canSendToReconciliation && (
+            <>
+              <Button
+                onClick={handleSendToReconciliation}
+                disabled={sendToReconLoading}
+              >
+                {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+                Send to reconciliation
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/reconciliation">Reconciliation page</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -276,8 +347,47 @@ export default function HandoverDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Issues: only when there are differences or a reason */}
-      {(hasIssues || handover.discrepancyReason) && (
+      {/* Included handovers (chain): handovers the sender is passing on — read-only */}
+      {data.includedHandovers && data.includedHandovers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5" />
+              Included handovers
+            </CardTitle>
+            <CardDescription>
+              This handover includes the following handovers that were received earlier (passed on in this transfer).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>From</TableHead>
+                  <TableHead>Shift date</TableHead>
+                  <TableHead className="text-right">Total (LKR)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.includedHandovers.map((h: IncludedHandoverRow) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="font-medium">{fromUserLabel(h.fromUser)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {h.shift?.startedAt
+                        ? new Date(h.shift.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{formatCents(h.totalCents)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Issues: only when pending (not needed after approval; balances have moved) */}
+      {isPending && (hasIssues || handover.discrepancyReason) && (
         <Alert variant="destructive" className="border-amber-500/70 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50">
           <CircleAlert className="h-4 w-4" />
           <AlertTitle>Issues detected</AlertTitle>
@@ -313,7 +423,106 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {/* Entries to check: tick when verified */}
+      {isApprovedNotReconciled && canSendToReconciliation && (
+        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40">
+          <FileCheck className="h-4 w-4" />
+          <AlertTitle>Approved — not yet in reconciliation</AlertTitle>
+          <AlertDescription>
+            This handover is approved. Use <strong>Send to reconciliation</strong> above, then open it on the Reconciliation page to tick receipts and submit.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Entries verified at approval: same breakdown as approval page, shown as verified (read-only) when handover is already approved */}
+      {isApprovedNotReconciled && (() => {
+        const breakdown = data.handover.enteredBreakdown as EnteredBreakdown | null | undefined
+        const hasBreakdown = breakdown?.cashDenominations?.length || breakdown?.cardEntries?.length || breakdown?.slipEntries?.length || breakdown?.checkEntries?.length || breakdown?.creditEntries?.length || breakdown?.eWalletEntries?.length
+        if (!hasBreakdown) return null
+        return (
+          <Card className="border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">Entries verified at approval</CardTitle>
+              <CardDescription>Same breakdown you verified when approving. All entries are marked as checked.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {breakdown?.cashDenominations?.length ? (
+                <div>
+                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <Banknote className="h-4 w-4" />
+                    Cash denominations
+                  </h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">✓</TableHead>
+                        <TableHead>Denomination</TableHead>
+                        <TableHead className="text-right">Count</TableHead>
+                        <TableHead className="text-right">Amount (LKR)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {breakdown.cashDenominations.map((d, i) => (
+                        <TableRow key={i} className="!bg-emerald-50/50 dark:!bg-emerald-950/30">
+                          <TableCell className="border-l-4 border-l-emerald-500 text-emerald-600">✓</TableCell>
+                          <TableCell>{formatDenomLabel(d.value)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{d.count}</TableCell>
+                          <TableCell className="text-right tabular-nums">{(d.value * d.count).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="border-t-2 font-medium bg-muted/30">
+                        <TableCell colSpan={3} />
+                        <TableCell className="text-right tabular-nums">LKR {formatCents(handover.cashCents)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+              {[
+                { key: "card" as const, entries: breakdown?.cardEntries, label: "Card", Icon: CreditCard, centsKey: "cardCents" as const },
+                { key: "slip" as const, entries: breakdown?.slipEntries, label: "Slips", Icon: SlipIcon, centsKey: "slipCents" as const },
+                { key: "check" as const, entries: breakdown?.checkEntries, label: "Cheques", Icon: Receipt, centsKey: "checkCents" as const },
+                { key: "credit" as const, entries: breakdown?.creditEntries, label: "Credit", Icon: Wallet, centsKey: "creditCents" as const },
+                { key: "eWallet" as const, entries: breakdown?.eWalletEntries, label: "E-Wallet", Icon: Smartphone, centsKey: "eWalletCents" as const },
+              ].map(
+                ({ key, entries, label, Icon, centsKey }) =>
+                  entries?.length ? (
+                    <div key={key}>
+                      <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-10">✓</TableHead>
+                            <TableHead>Reference</TableHead>
+                            <TableHead className="text-right">Amount (LKR)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {entries.map((e, i) => (
+                            <TableRow key={i} className="!bg-emerald-50/50 dark:!bg-emerald-950/30">
+                              <TableCell className="border-l-4 border-l-emerald-500 text-emerald-600">✓</TableCell>
+                              <TableCell>{e.reference || "—"}</TableCell>
+                              <TableCell className="text-right tabular-nums">{(e.amountCents / 100).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="border-t-2 font-medium bg-muted/30">
+                            <TableCell colSpan={2} />
+                            <TableCell className="text-right tabular-nums">LKR {formatCents(handover[centsKey] ?? 0)}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : null
+              )}
+            </CardContent>
+          </Card>
+        )
+      })()}
+
+      {/* Entries to check: tick when verified (only when still pending approval) */}
+      {isPending && (
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -440,9 +649,10 @@ export default function HandoverDetailPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Till details: expected vs entered (compact reference) */}
-      {tillBreakdown && (
+      {/* Till details: only when pending (after approval, balances have moved so comparison not relevant) */}
+      {isPending && tillBreakdown && (
         <Card>
           <CardHeader>
             <CardTitle>Till balance vs entered</CardTitle>
@@ -531,13 +741,25 @@ export default function HandoverDetailPage() {
                   className="mt-1"
                 />
               </div>
+              {canSendToReconciliation && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="send-to-reconciliation"
+                    checked={sendToReconciliation}
+                    onCheckedChange={(v) => setSendToReconciliation(v === true)}
+                  />
+                  <Label htmlFor="send-to-reconciliation" className="font-normal cursor-pointer">
+                    Submit to Reconciliation where back office will go through non-cash transactions and confirm they tally.
+                  </Label>
+                </div>
+              )}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""))} disabled={!!actionLoading}>
+                <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""), setSendToReconciliation(false))} disabled={!!actionLoading}>
                   Cancel
                 </Button>
                 <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading}>
                   {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-                  Approve and Receive
+                  {sendToReconciliation ? "Receive and Reconcile" : "Approve and Receive"}
                 </Button>
               </div>
             </CardContent>
