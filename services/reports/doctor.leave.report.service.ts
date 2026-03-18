@@ -199,8 +199,8 @@ export const getDoctorLeaveReportService = async ({
       orderBy: [{ doctor: { code: 'asc' } }, { fromDate: 'desc' }],
       include: {
         doctor: { select: { id: true, name: true, code: true } },
-        createdUser: { select: { id: true, name: true } },
-        updatedUser: { select: { id: true, name: true } }
+        createdUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+        updatedUser: { select: { id: true, name: true, staff: { select: { code: true } } } }
       }
     });
 

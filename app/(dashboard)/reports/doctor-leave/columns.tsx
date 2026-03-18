@@ -54,7 +54,7 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => {
       const remarks = row.getValue<string>('remarks');
       return (
-        <div className="max-w-32 truncate" title={remarks ?? ''}>
+        <div className="w-32 max-w-48" title={remarks ?? ''}>
           {remarks ?? '-'}
         </div>
       );
@@ -65,12 +65,14 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     header: 'Leave Updater',
     cell: ({ row }) => {
           const name = row.original.updatedUser?.name ?? '—';
+          const staffCode = row.original.updatedUser?.staff?.code;
+          const displayName = staffCode ? `${name} (${staffCode})` : name;
           const date = row.original.updatedAt
             ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
             : '—';
           return (
             <div className="flex flex-col gap-0.5 text-xs">
-              <span>{name}</span>
+              <span>{displayName}</span>
               <span className="text-muted-foreground">{date}</span>
             </div>
           );
@@ -81,12 +83,14 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     header: 'Leave Creator',
     cell: ({ row }) => {
           const name = row.original.createdUser?.name ?? '—';
+          const staffCode = row.original.createdUser?.staff?.code;
+          const displayName = staffCode ? `${name} (${staffCode})` : name;
           const date = row.original.createdAt
             ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
             : '—';
           return (
             <div className="flex flex-col gap-0.5 text-xs">
-              <span>{name}</span>
+              <span>{displayName}</span>
               <span className="text-muted-foreground">{date}</span>
             </div>
           );

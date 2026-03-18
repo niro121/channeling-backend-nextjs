@@ -15,8 +15,8 @@ export type DoctorLeaveReportRow = {
   doctor: { id: string; name: string; code: string };
   /** Single session display text (day + time range) */
   leaveSessionFormatted?: string;
-  createdUser?: { id: string; name: string } | null;
-  updatedUser?: { id: string; name: string } | null;
+  createdUser?: { id: string; name: string; staff?: { code: string } | null } | null;
+  updatedUser?: { id: string; name: string; staff?: { code: string } | null } | null;
   createdAt: Date;
   updatedAt: Date;
 };
