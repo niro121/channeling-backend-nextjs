@@ -22,12 +22,15 @@ export async function runSeedAccountingAccounts(
     const lines: string[] = []
 
     const deletedRequests = await prisma.floatRequest.deleteMany({})
+    const deletedHandovers = await prisma.shiftHandover.deleteMany({})
     const deletedLines = await prisma.journalLine.deleteMany({})
     const deletedJournals = await prisma.journal.deleteMany({})
     await prisma.account.updateMany({ data: { parentAccountId: null } })
     const deletedAccounts = await prisma.account.deleteMany({})
+    await prisma.receipt.updateMany({ data: { shiftId: null } })
+    const deletedShifts = await prisma.shift.deleteMany({})
     lines.push(
-      `Removed ${deletedRequests.count} float request(s), ${deletedLines.count} journal line(s), ${deletedJournals.count} journal(s), ${deletedAccounts.count} account(s).`
+      `Removed ${deletedRequests.count} float request(s), ${deletedHandovers.count} handover(s), ${deletedLines.count} journal line(s), ${deletedJournals.count} journal(s), ${deletedAccounts.count} account(s), ${deletedShifts.count} shift(s).`
     )
 
     let mainCash = await prisma.account.findFirst({

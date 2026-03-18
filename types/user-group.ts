@@ -95,7 +95,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-payments", name: "Doctor Payments" },
   { id: "accounting", name: "Accounting" },
   { id: "ledger", name: "Ledger" },
+  { id: "bank-accounts", name: "Bank Accounts" },
   { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
+  {
+    id: "reconciliation",
+    name: "Reconciliation",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "submit-for-reconciliation", name: "Submit For Reconciliation" },
+      { id: "approve-reconciliation", name: "Approve Reconciliation" },
+    ],
+  },
 ];
 
 export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [

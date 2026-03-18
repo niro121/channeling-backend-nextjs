@@ -26,7 +26,7 @@ import {
   createJournalEntryInTransaction,
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
-import { requireActiveShift } from "@/services/shift.service"
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -464,6 +464,9 @@ export async function saveBookingService(
           : null
         const journalNumber = journalNumberResult?.success ? journalNumberResult.value : 0
 
+        const currentShift = userId ? await getCurrentShift(userId) : null
+        const shiftId = currentShift?.id ?? undefined
+
         const result = await prisma.$transaction(
           async (tx) => {
           const r = await createReceiptAndUpdateBooking(tx, {
@@ -482,6 +485,7 @@ export async function saveBookingService(
             agencyId: input.agency?.id ?? null,
             creditCustomerId: input.credit_customer?.id ?? null,
             createdBy: userId,
+            shiftId,
             userLocationId: null,
             getBookingUpdate: (receipt) => ({
               status: 1,

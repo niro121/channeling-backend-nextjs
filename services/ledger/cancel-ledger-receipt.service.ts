@@ -15,7 +15,7 @@ import {
   createJournalEntryInTransaction,
   type AccountingTx,
 } from "@/services/accounting.service"
-import { requireActiveShift } from "@/services/shift.service"
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
@@ -63,6 +63,9 @@ export async function cancelLedgerReceiptService(
   input: CancelLedgerReceiptInput
 ): Promise<CancelLedgerReceiptResult> {
   if (input.canceledBy) await requireActiveShift(input.canceledBy)
+
+  const currentShift = input.canceledBy ? await getCurrentShift(input.canceledBy) : null
+  const shiftId = currentShift?.id ?? undefined
 
   const reason = input.cancelReason?.trim() ?? ""
   if (!reason) {
@@ -156,6 +159,7 @@ export async function cancelLedgerReceiptService(
     createdBy: input.canceledBy,
     locationId: branchId,
     userLocationId: isAgency ? branchId : undefined,
+    shiftId: shiftId ?? undefined,
   }
 
   const result = await prisma.$transaction(async (tx) => {
