@@ -318,11 +318,12 @@ export default function CashierSummaryContent({
             </div>
             <div className="flex-shrink-0">
               <Button
+              size="sm"
                 onClick={handleSearch}
                 disabled={loading || !fromDateTime || !toDateTime}
-                className="gap-2"
+                className="h-10 shrink-0 gap-2"
               >
-                <SearchIcon />
+                <SearchIcon className='h-4 w-4' />
                 Search
               </Button>
             </div>
