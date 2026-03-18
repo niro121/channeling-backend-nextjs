@@ -25,22 +25,25 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => row.original.doctor?.name ?? '-'
   },
   {
-    accessorKey: 'fromDate',
+    accessorKey: 'leaveDate',
     header: 'Leave Date',
     cell: ({ row }) => {
-      const date = row.getValue<Date>('fromDate');
+      const date = row.getValue<Date>('leaveDate');
       return date ? moment(date).format('DD/MM/YYYY') : '-';
     }
   },
   {
     id: 'leaveSessions',
-    header: 'Leave Sessions',
+    header: 'Leave Session',
     cell: ({ row }) => {
-      const formatted = row.original.leaveSessionsFormatted;
-      if (!formatted) return '-';
+      const formatted = row.original.leaveSessionFormatted;
+      const leaveDate = row.original.leaveDate;
+      if (!formatted && !leaveDate) return '-';
+      const dateLine = leaveDate ? moment(leaveDate).format('Do MMMM YYYY') : '-';
       return (
-        <div className="max-w-64 text-xs whitespace-nowrap" title={formatted}>
-          {formatted}
+        <div className="max-w-64 text-xs" title={`${dateLine}\n${formatted ?? '-'}`}>
+          <div className="truncate font-medium">{dateLine}</div>
+          <div className="truncate text-muted-foreground">{formatted ?? '-'}</div>
         </div>
       );
     }

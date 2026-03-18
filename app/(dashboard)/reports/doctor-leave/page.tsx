@@ -62,11 +62,11 @@ export default async function DoctorLeaveReportPage() {
   const specialityOptions: Array<{ id: string; name: string }> =
     specialityRes.success && specialityRes.data
       ? [
-          { id: '__all__', name: 'All Specialities' },
+          { id: '__all__', name: 'All Specialities'  },
           ...specialityRes.data.map((s: any) => ({
             id: s.id || '',
             name: s.name || ''
-          }))
+          })).sort((a, b) => a.name.localeCompare(b.name))
         ]
       : [{ id: '__all__', name: 'All Specialities' }];
 

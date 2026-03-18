@@ -177,7 +177,10 @@ export const getDoctorLeaveReportService = async ({
           : toDate
         : undefined;
 
-    const leaveWhere: Prisma.DoctorLeaveWhereInput = {};
+    const leaveWhere: Prisma.DoctorLeaveWhereInput = {
+      // Requirement: only fetch CANCEL leaves
+      status: 0
+    };
     if (prismaFrom != null && prismaTo != null) {
       leaveWhere.AND = [
         { toDate: { gte: prismaFrom } },
@@ -191,18 +194,15 @@ export const getDoctorLeaveReportService = async ({
       return { success: true, data: [], totalRecords: 0 };
     }
 
-    const [records, totalCount] = await Promise.all([
-      prisma.doctorLeave.findMany({
-        where: leaveWhere,
-        orderBy: [{ doctor: { code: 'asc' } }, { fromDate: 'desc' }],
-        include: {
-          doctor: { select: { id: true, name: true, code: true } },
-          createdUser: { select: { id: true, name: true } },
-          updatedUser: { select: { id: true, name: true } }
-        }
-      }),
-      prisma.doctorLeave.count({ where: leaveWhere })
-    ]);
+    const records = await prisma.doctorLeave.findMany({
+      where: leaveWhere,
+      orderBy: [{ doctor: { code: 'asc' } }, { fromDate: 'desc' }],
+      include: {
+        doctor: { select: { id: true, name: true, code: true } },
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } }
+      }
+    });
 
     // Time-window filter: when fromDateTime/toDateTime include time (T), only keep leaves
     // whose time (in Sri Lanka) overlaps the filter's time window (repeating daily).
@@ -224,7 +224,7 @@ export const getDoctorLeaveReportService = async ({
       });
     }
 
-    // Enrich leave records with session details (dd/mm/yyyy - Day (time range))
+    // Resolve session details, then explode into 1 row per leave-session
     const allSessionIds = new Set<string>();
     for (const rec of filteredRecords) {
       const raw = rec.sessions;
@@ -260,47 +260,51 @@ export const getDoctorLeaveReportService = async ({
       const hour12 = h % 12 || 12;
       return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
     };
-    const formatSessionLine = (s: { date: Date; startTime: Date; endTime: Date }): string => {
-      const date = s.date instanceof Date ? s.date : new Date(s.date);
-      const dd = String(date.getDate()).padStart(2, '0');
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const yyyy = date.getFullYear();
-      const day = DAY_ABBR[date.getDay()] ?? '';
-      const range = `${formatTime(s.startTime)}-${formatTime(s.endTime)}`;
-      return `${dd}/${mm}/${yyyy} - ${day} (${range})`;
-    };
-
-    const enrichedRecords = filteredRecords.map((rec: any) => {
+    const flattenedRows: any[] = [];
+    for (const rec of filteredRecords as any[]) {
       const raw = rec.sessions;
       const ids: string[] = Array.isArray(raw)
-        ? raw.map((item: unknown) =>
-            typeof item === 'string' ? item : (item as { id?: string })?.id
-          ).filter((x): x is string => Boolean(x))
+        ? raw
+            .map((item: unknown) =>
+              typeof item === 'string' ? item : (item as { id?: string })?.id
+            )
+            .filter((x): x is string => Boolean(x))
         : [];
-      const lines = ids
-        .map((id) => sessionMap.get(id))
-        .filter(Boolean)
-        .map((s) => formatSessionLine(s!));
-      return {
-        ...rec,
-        leaveSessionsFormatted: lines.length > 0 ? lines.join('\n') : '-'
-      };
-    });
 
-    // Sort by doctor code then fromDate for grouping display
-    enrichedRecords.sort((a: any, b: any) => {
+      for (const sessionId of ids) {
+        const s = sessionMap.get(sessionId);
+        if (!s) continue;
+        const date = s.date instanceof Date ? s.date : new Date(s.date);
+        const day = DAY_ABBR[date.getDay()] ?? '';
+        const range = `${formatTime(s.startTime)}-${formatTime(s.endTime)}`;
+        flattenedRows.push({
+          ...rec,
+          id: `${rec.id}_${sessionId}`,
+          leaveId: rec.id,
+          sessionId,
+          leaveDate: date,
+          sessionStartTime: s.startTime,
+          sessionEndTime: s.endTime,
+          leaveSessionFormatted: `${day} (${range})`
+        });
+      }
+    }
+
+    // Sort by doctor code then leaveDate desc for grouping display
+    flattenedRows.sort((a: any, b: any) => {
       const codeA = a.doctor?.code ?? '';
       const codeB = b.doctor?.code ?? '';
       if (codeA !== codeB) return codeA.localeCompare(codeB);
-      const dateA = a.fromDate instanceof Date ? a.fromDate.getTime() : new Date(a.fromDate).getTime();
-      const dateB = b.fromDate instanceof Date ? b.fromDate.getTime() : new Date(b.fromDate).getTime();
-      return dateB - dateA; // desc within doctor
+      const dateA = a.leaveDate instanceof Date ? a.leaveDate.getTime() : new Date(a.leaveDate).getTime();
+      const dateB = b.leaveDate instanceof Date ? b.leaveDate.getTime() : new Date(b.leaveDate).getTime();
+      if (dateA !== dateB) return dateB - dateA;
+      return (a.sessionId ?? '').localeCompare(b.sessionId ?? '');
     });
 
     return {
       success: true,
-      data: enrichedRecords,
-      totalRecords: hasTimeInFilter ? filteredRecords.length : totalCount
+      data: flattenedRows,
+      totalRecords: flattenedRows.length
     };
   } catch (error: any) {
     console.error('getDoctorLeaveReportService error:', error);
