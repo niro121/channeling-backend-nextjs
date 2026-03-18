@@ -25,6 +25,7 @@ const FEATURE_ORDER = [
   "Sessions",
   "Transfer",
   "Float Request",
+  "Shift Handover",
   "Bulk Price Change",
   "Doctor Leave",
   "Patients",

@@ -98,6 +98,7 @@ model User {
   floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
   handoversFrom          ShiftHandover[]                @relation("ShiftHandoverFrom")
   handoversTo            ShiftHandover[]                @relation("ShiftHandoverTo")
+  notifications          Notification[]                 @relation("UserNotifications")
 }
 
 model UserGroup {
@@ -399,6 +400,26 @@ model Location {
   accounts             Account[]             @relation("LocationToAccount")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
+  bankAccounts         BankAccount[]         @relation("LocationToBankAccount")
+}
+
+model BankAccount {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  accountNumber String
+  bankId        String   @db.ObjectId
+  bank          Tag      @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
+  locationId    String   @db.ObjectId
+  location      Location @relation("LocationToBankAccount", fields: [locationId], references: [id], onDelete: Restrict)
+  status        Int      @default(1) // 0 = inactive, 1 = active
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?  @db.ObjectId
+  updatedBy     String?  @db.ObjectId
+
+  @@index([bankId])
+  @@index([locationId])
+  @@index([status])
 }
 
 model Room {
@@ -456,6 +477,8 @@ model Shift {
 
   floatRequests FloatRequest[]
   handovers    ShiftHandover[]
+  handoversReceived ShiftHandover[] @relation("HandoversReceivedByShift")
+  receipts     Receipt[]
 
   @@index([userId, status])
   @@index([locationId])
@@ -505,39 +528,83 @@ model FloatRequest {
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
 // status: 0 = PENDING, 1 = APPROVED, 2 = REJECTED, 3 = CANCELLED
 model ShiftHandover {
-  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
-  shiftId            String    @db.ObjectId
-  shift              Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  fromUserId         String    @db.ObjectId
-  fromUser           User      @relation("ShiftHandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUserId           String    @db.ObjectId
-  toUser             User      @relation("ShiftHandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
-  status             Int       @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=CANCELLED
-  journalId          String?   @db.ObjectId
-  journal            Journal?  @relation(fields: [journalId], references: [id], onDelete: SetNull)
-  cashCents          Int       @default(0)
-  cardCents          Int       @default(0)
-  slipCents          Int       @default(0)
-  checkCents         Int       @default(0)
-  creditCents        Int       @default(0)
-  eWalletCents       Int       @default(0)
-  totalCents         Int       @default(0)
-  discrepancyReason  String?   // Reason for discrepancy (required when there is a short or over > 100 cents)
-  enteredBreakdown   Json?     // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
-  approvedAt         DateTime?
-  approvedBy         String?   @db.ObjectId
-  approvalComments   String?   // Optional comments when bulk cashier approves and receives
-  rejectedAt         DateTime?
-  rejectedBy         String?   @db.ObjectId
-  rejectReason       String?
-  cancelledAt        DateTime?
-  cancelledBy        String?   @db.ObjectId
-  createdAt          DateTime  @default(now())
+  id                     String         @id @default(auto()) @map("_id") @db.ObjectId
+  shiftId                String         @db.ObjectId
+  shift                  Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  fromUserId             String         @db.ObjectId
+  fromUser               User           @relation("ShiftHandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId               String         @db.ObjectId
+  toUser                 User           @relation("ShiftHandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  toShiftId              String?        @db.ObjectId // Recipient's shift when they approved; set on approve
+  toShift                Shift?         @relation("HandoversReceivedByShift", fields: [toShiftId], references: [id], onDelete: SetNull)
+  status                 Int            @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=CANCELLED
+  journalId              String?        @db.ObjectId
+  journal                Journal?       @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  cashCents              Int            @default(0)
+  cardCents              Int            @default(0)
+  slipCents              Int            @default(0)
+  checkCents             Int            @default(0)
+  creditCents            Int            @default(0)
+  eWalletCents           Int            @default(0)
+  totalCents             Int            @default(0)
+  discrepancyReason      String?        // Reason for discrepancy (required when there is a short or over > 100 cents)
+  enteredBreakdown       Json?          // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
+  includedHandoverIds    Json?          // Array of handover ids ["id1","id2"] that the sender is passing on (chain)
+  forwardedToHandoverId  String?        @db.ObjectId // Set when this handover is included in another; where the money went
+  forwardedToHandover    ShiftHandover? @relation("ForwardedTo", fields: [forwardedToHandoverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  forwardedHandovers     ShiftHandover[] @relation("ForwardedTo")
+  approvedAt             DateTime?
+  approvedBy             String?        @db.ObjectId
+  approvalComments       String?        // Optional comments when bulk cashier approves and receives
+  rejectedAt             DateTime?
+  rejectedBy             String?        @db.ObjectId
+  rejectReason           String?
+  cancelledAt            DateTime?
+  cancelledBy            String?        @db.ObjectId
+  createdAt              DateTime       @default(now())
+
+  // Back-office reconciliation lifecycle: status + approved/rejected details
+  // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
+  reconciliationStatus       Int?           @default(0)
+  reconciliationRequestedAt DateTime?      // When bulk cashier opened/requested reconciliation (set with IN_RECONCILIATION)
+  reconciliationRequestedBy  String?       @db.ObjectId // Who requested; whose till is deducted and added to branch
+  nonCashReconciledAt        DateTime?      // Set when status = RECONCILED_APPROVED
+  nonCashReconciledBy        String?        @db.ObjectId
+  reconciliationRejectedAt  DateTime?
+  reconciliationRejectedBy   String?        @db.ObjectId
+  reconciliationRejectReason String?
 
   @@index([shiftId])
   @@index([fromUserId])
   @@index([toUserId])
   @@index([toUserId, status])
+  @@index([toShiftId])
+  @@index([forwardedToHandoverId])
+  @@index([nonCashReconciledAt])
+  @@index([reconciliationStatus])
+  @@index([reconciliationRejectedAt])
+  // List by tab: filter (status, reconciliationStatus) + sort
+  @@index([status, reconciliationStatus, createdAt(sort: Desc)])
+  @@index([status, reconciliationStatus, nonCashReconciledAt(sort: Desc)])
+  @@index([status, reconciliationStatus, reconciliationRejectedAt(sort: Desc)])
+}
+
+// In-app notification center: float/handover approvals and rejections (extensible)
+model Notification {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @db.ObjectId
+  user          User      @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type          String    // e.g. float_approved, float_rejected, handover_approved, handover_rejected
+  title         String
+  message       String?   // optional detail
+  referenceType String?   // e.g. FloatRequest, ShiftHandover
+  referenceId   String?   @db.ObjectId // id of the related entity for deep link
+  readAt        DateTime? // null = unread
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, readAt])
+  @@index([createdAt(sort: Desc)])
 }
 
 model ActivityLog {
@@ -624,7 +691,8 @@ model Tag {
   status          Int?
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
 
-  patients Patient[] @relation("PatientArea")
+  patients     Patient[]     @relation("PatientArea")
+  bankAccounts BankAccount[] @relation("BankToTag")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -929,6 +997,8 @@ model Receipt {
   creditCustomerId  String?   @db.ObjectId
   creditCustomer    CreditCustomer? @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
   createdBy         String?   @db.ObjectId
+  shiftId           String?   @db.ObjectId
+  shift             Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   locationId     String?   @db.ObjectId
   location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
   userLocationId String?   @db.ObjectId
@@ -943,6 +1013,15 @@ model Receipt {
   cancelReason     String?
   reverseReceiptId  String?   @db.ObjectId
   reversedReceiptId String?   @db.ObjectId
+
+  // Back-office handover reconciliation: set when this receipt was ticked and reconciliation submitted
+  reconciledAt        DateTime?
+  reconciledBy        String?   @db.ObjectId
+  reconciledHandoverId String?   @db.ObjectId
+
+  // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
+  @@index([createdBy, createdAt])
+  @@index([shiftId])
 }
 
 // ==== DOUBLE-ENTRY ACCOUNTING ==== //

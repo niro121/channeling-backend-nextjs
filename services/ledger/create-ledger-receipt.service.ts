@@ -21,7 +21,7 @@ import {
   RECEIPT_METHOD,
   RECEIPT_PAYMENT_METHOD,
 } from "@/types/receipt"
-import { requireActiveShift } from "@/services/shift.service"
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
 
@@ -107,7 +107,12 @@ function mapToReceiptMethodAndType(
 export async function createLedgerReceipt(
   input: CreateLedgerReceiptInput
 ): Promise<CreateLedgerReceiptResult> {
-  if (input.createdBy) await requireActiveShift(input.createdBy)
+  let shiftId: string | null = null
+  if (input.createdBy) {
+    await requireActiveShift(input.createdBy)
+    const shift = await getCurrentShift(input.createdBy)
+    shiftId = shift?.id ?? null
+  }
 
   if (!input.branchId?.trim()) {
     return { success: false, errorCode: "VALIDATION", message: "Branch is required." }
@@ -233,6 +238,7 @@ export async function createLedgerReceipt(
     createdBy: input.createdBy ?? null,
     locationId: input.branchId,
     userLocationId: isAgency ? input.branchId : undefined,
+    shiftId: shiftId ?? undefined,
   }
 
   const result = await prisma.$transaction(async (tx) => {

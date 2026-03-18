@@ -78,17 +78,6 @@ export function FilterWrapper({
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
 
-    // Also read the search input value from the DOM if it exists
-    // This ensures the search keyword is included even if user didn't press Enter
-    if (typeof window !== 'undefined') {
-      const searchInput = document.querySelector('input[name="keyword"]') as HTMLInputElement;
-      if (searchInput && searchInput.value) {
-        params.set('keyword', searchInput.value);
-      } else if (searchInput && !searchInput.value) {
-        params.delete('keyword');
-      }
-    }
-
     Object.entries(values).forEach(([key, value]) => {
       if (value && value !== '__all__') {
         params.set(key, value);
@@ -96,6 +85,20 @@ export function FilterWrapper({
         params.delete(key);
       }
     });
+
+    // Override with DOM values from any input that opts in via data-filter-include.
+    // The input's name attribute is used as the param key.
+    if (typeof window !== 'undefined') {
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[data-filter-include]');
+      inputs.forEach((input) => {
+        const key = input.getAttribute('name');
+        if (key) {
+          const val = input.value?.trim();
+          if (val) params.set(key, val);
+          else params.delete(key);
+        }
+      });
+    }
 
     params.delete('page');
 
@@ -110,10 +113,9 @@ export function FilterWrapper({
   const clearFilters = () => {
     setValues({});
     if (typeof window !== 'undefined') {
-      const searchInput = document.querySelector('input[name="keyword"]') as HTMLInputElement;
-      if (searchInput) {
-        searchInput.value = '';
-      }
+      document.querySelectorAll<HTMLInputElement>('input[data-filter-include]').forEach((input) => {
+        input.value = '';
+      });
     }
     // Don't call onApplyClick when clearing - it sets loading state for fetch, but we're not fetching after clear.
     // The report-template will handle clearing data/loading via useEffect when searchParams become empty.

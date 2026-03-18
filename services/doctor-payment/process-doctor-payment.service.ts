@@ -18,7 +18,7 @@ import {
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { formatCents } from "@/lib/format-money";
-import { requireActiveShift } from "@/services/shift.service";
+import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -89,6 +89,9 @@ export async function processDoctorPaymentService(
   } = input;
 
   if (userId) await requireActiveShift(userId);
+
+  const currentShift = userId ? await getCurrentShift(userId) : null;
+  const shiftId = currentShift?.id ?? undefined;
 
   if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
     return { success: false, errorCode: "VALIDATION", message: "At least one booking is required." };
@@ -180,6 +183,7 @@ export async function processDoctorPaymentService(
     createdBy: userId ?? undefined,
     locationId,
     userLocationId: locationId ?? undefined,
+    shiftId,
     whd: Math.round(whtAmount),
     whdPercentage: whtPercentage,
   };

@@ -294,7 +294,7 @@ function ReportTemplateContent<T, E = T>({
                                 <TableRow key={`group-${groupKey}`} className="bg-muted/50 hover:bg-muted/50">
                                   <TableCell
                                     colSpan={columns.length + (groupBy !== undefined ? 1 : 0)}
-                                    className="font-semibold py-2"
+                                    className="font-semibold text-muted-foreground py-2"
                                   >
                                     {renderGroupHeader(groupKey, rows)}
                                   </TableCell>

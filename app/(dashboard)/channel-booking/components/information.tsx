@@ -13,6 +13,7 @@ import { SettleTab } from "./information/settle-tab"
 import { TransferTab } from "./information/transfer-tab"
 import { ArrivalTab } from "./information/arrival-tab"
 import { SearchTab } from "./information/search-tab"
+import { PaymentTab } from "./information/payment-tab"
 
 const tabTriggerClass =
   "rounded-none border-b-2 border-transparent bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
@@ -198,8 +199,7 @@ export function Information() {
           </TabsContent>
           <TabsContent value="payment" className={tabContentClass}>
             <div className="min-h-[200px] rounded-md bg-secondary p-2">
-              <div className="rounded-md border border-primary/30 bg-primary/10 h-9 mb-1.5 flex items-center justify-between px-2" />
-              <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px]" />
+              <PaymentTab />
             </div>
           </TabsContent>
           <TabsContent value="cancel" className={tabContentClass}>
