@@ -28,6 +28,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/admin/receipt-templates": "ledger",
   "/accounting": "accounting",
   "/ledger": "ledger",
+  "/bank-accounts": "bank-accounts",
   "/my-till": "bulk-cashier",
   "/bulk-cashier": "bulk-cashier",
   "/float-transfers": "float-transfers",
@@ -35,6 +36,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/handovers": "handover",
   "/doctor-payments": "doctor-payments",
   "/receipt-manager": "receipt-manager",
+  "/reconciliation": "reconciliation",
 }
 
 /** When set, route access requires this action instead of "view" (e.g. bulk-cashier uses "bulk-cashier-dashboard") */

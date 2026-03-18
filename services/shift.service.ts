@@ -300,6 +300,17 @@ export async function endShift(shiftId: string, userId: string) {
     },
   })
   if (!shift) return { success: false, message: "Shift not found" }
+
+  const pendingHandoversToMe = await prisma.shiftHandover.count({
+    where: { toUserId: validUserId, status: HANDOVER_STATUS.PENDING },
+  })
+  if (pendingHandoversToMe > 0) {
+    return {
+      success: false,
+      message: "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before ending your shift.",
+    }
+  }
+
   const now = new Date()
   await shiftModel.update({
     where: { id: validShiftId },
