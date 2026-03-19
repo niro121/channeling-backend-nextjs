@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/card';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
+import { BackButton } from '@/components/common/back-button';
 import { useToast } from '@/components/hooks/use-toast';
 import Loading from '@/app/(dashboard)/loading'
 
@@ -81,6 +82,8 @@ export interface ReportTemplateProps<T, E = T> {
   groupBy?: (row: T) => string;
   /** Optional: render group header. Receives group key and rows in that group. Only used when groupBy is provided. */
   renderGroupHeader?: (groupKey: string, rows: T[]) => React.ReactNode;
+  /** Back button destination (default: /reports) */
+  backHref?: string;
 }
 
 function ReportTemplateContent<T, E = T>({
@@ -101,13 +104,15 @@ function ReportTemplateContent<T, E = T>({
   emptyMessage = 'No data found',
   skipFetchWhenNoParams = false,
   groupBy,
-  renderGroupHeader
+  renderGroupHeader,
+  backHref = '/reports'
 }: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<T[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const lastFetchedParamsRef = React.useRef<string | null>(null);
 
   const initialValues = React.useMemo(() => {
     const vals: FilterValues = {};
@@ -117,10 +122,10 @@ function ReportTemplateContent<T, E = T>({
     return vals;
   }, [searchParams]);
 
-  const fetchReportData = async () => {
+  const fetchReportDataWithParams = React.useCallback(async (params: URLSearchParams) => {
     setLoading(true);
     try {
-      const result = await fetchData(searchParams);
+      const result = await fetchData(params);
       if (result.success) {
         setData(result.data);
         setTotalRecords(result.totalRecords);
@@ -145,16 +150,25 @@ function ReportTemplateContent<T, E = T>({
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchData, toast]);
 
   useEffect(() => {
-    if (skipFetchWhenNoParams && !searchParams.toString()) {
+    const paramsKey = searchParams.toString();
+    if (skipFetchWhenNoParams && !paramsKey) {
       setLoading(false);
       setData([]);
       setTotalRecords(0);
+      lastFetchedParamsRef.current = null;
       return;
     }
-    fetchReportData();
+    // Skip if we just fetched with these params via onApplyClick (avoids duplicate fetch)
+    if (lastFetchedParamsRef.current === paramsKey) {
+      return;
+    }
+    lastFetchedParamsRef.current = paramsKey;
+    fetchReportDataWithParams(searchParams);
+    // fetchReportDataWithParams omitted to avoid re-run when fetchData prop identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString(), skipFetchWhenNoParams]);
 
   const slugify = (s: string) =>
@@ -177,7 +191,10 @@ function ReportTemplateContent<T, E = T>({
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-3 space-y-4">
+      <div className="flex justify-end">
+        <BackButton href={backHref} className="w-fit" />
+      </div>
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -204,10 +221,18 @@ function ReportTemplateContent<T, E = T>({
               key={searchParams.toString()}
               initialValues={initialValues}
               buttonLabel={filterButtonLabel}
-              onApplyClick={() => {
-                setLoading(true);
+              onApplyClick={(params) => {
+                if (params) {
+                  lastFetchedParamsRef.current = params.toString();
+                  fetchReportDataWithParams(params);
+                } else {
+                  setLoading(true);
+                }
               }}
               showClearButton
+              searchButton={{
+                variant: "default"
+              }}
             >
               {filterContent}
             </FilterWrapper>

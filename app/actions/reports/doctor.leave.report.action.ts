@@ -41,8 +41,8 @@ export async function exportDoctorLeaveReportData(
     const mapped: DoctorLeaveReportExportRow[] = result.data.map((row: any) => ({
       doctorCode: row.doctor?.code ?? '-',
       doctorName: row.doctor?.name ?? '-',
-      leaveDate: row.fromDate ? moment(row.fromDate).format('DD/MM/YYYY') : '-',
-      leaveSessions: row.leaveSessionsFormatted ?? '-',
+      leaveDate: row.leaveDate ? moment(row.leaveDate).format('DD/MM/YYYY') : '-',
+      leaveSessions: row.leaveSessionFormatted ?? '-',
       leaveRemark: row.remarks ?? '-',
       leaveCreator: row.createdUser?.name ?? '-',
       leaveCreatorAt: row.createdAt ? moment(row.createdAt).format('DD/MM/YYYY hh:mm A') : '-',
