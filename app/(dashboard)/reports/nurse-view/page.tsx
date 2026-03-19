@@ -1,6 +1,6 @@
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
-import NurseViewReportContent from './nurse-view-content';
+import NurseViewReportContent from './nurse-view-content-legacy';
 
 // Force dynamic rendering to prevent prerendering during build
 export const dynamic = 'force-dynamic';

@@ -11,6 +11,7 @@ export type PhoneViewBookingData = {
   name: string;
   phone: string;
   status: number;
+  refund: number;
 };
 
 export type PhoneViewSessionData = {
@@ -92,6 +93,7 @@ export const getPhoneViewReportDataService = async ({
         name: true,
         phone: true,
         status: true,
+        refund: true,
       },
     });
 
@@ -149,6 +151,7 @@ export const getPhoneViewReportDataService = async ({
         name: booking.name,
         phone: booking.phone || '',
         status: booking.status,
+        refund: booking.refund || 0,
       })),
     };
 
