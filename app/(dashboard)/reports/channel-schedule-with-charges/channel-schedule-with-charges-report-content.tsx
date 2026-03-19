@@ -52,12 +52,12 @@ function ChannelScheduleWithChargesReportContentInner(
               onChange={(v) => setValue('institutionId', v)}
               className={{ trigger: 'self-end!' }}
             />
-            <Selector
+            <Combobox
               label="Branch (Site)"
               options={props.locationOptions}
               value={values.locationId ?? '__all__'}
+              defaultValue="__all__"
               onChange={(v) => setValue('locationId', v)}
-              className={{ trigger: 'self-end!' }}
             />
             <Combobox
               label="Department"
@@ -66,16 +66,16 @@ function ChannelScheduleWithChargesReportContentInner(
               onChange={(v) => setValue('departmentId', v)}
             />
             <Combobox
-              label="Specialities"
-              options={props.specialityOptions}
-              value={values.specialityId ?? '__all__'}
-              onChange={(v) => setValue('specialityId', v)}
-            />
-            <Combobox
               label="Doctors"
               options={props.doctorOptions}
               value={values.doctorId ?? '__all__'}
               onChange={(v) => setValue('doctorId', v)}
+            />
+            <Combobox
+              label="Specialities"
+              options={props.specialityOptions}
+              value={values.specialityId ?? '__all__'}
+              onChange={(v) => setValue('specialityId', v)}
             />
             <Selector
               label="Report Type"
