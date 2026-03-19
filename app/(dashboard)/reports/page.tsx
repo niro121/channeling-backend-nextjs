@@ -62,6 +62,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/doctor-leave'
   },
   {
+    id: '14',
+    masterData: 'Channel schedule with charges',
+    description:
+      'View doctor sessions with charge breakdown filtered by institution, branch, department, speciality, doctor, and report type.',
+    route: '/reports/channel-schedule-with-charges'
+  },
+  {
     id: '10',
     masterData: 'Consultant Payments Report',
     description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',

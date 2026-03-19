@@ -64,6 +64,20 @@ type DownloadPdfOptions<T> = {
   fileName?: string;
 };
 
+const getPdfLayoutConfig = (columnCount: number) => {
+  const isVeryWide = columnCount > 18;
+  const isWide = columnCount > 12;
+
+  return {
+    format: 'a4' as const,
+    margin: isWide ? 10 : 14,
+    fontSize: isVeryWide ? 6 : isWide ? 7 : 8,
+    headFontSize: isVeryWide ? 6 : 7,
+    cellPadding: isVeryWide ? 1.2 : 1.6,
+    useHorizontalPageBreak: isWide
+  };
+};
+
 export const downloadPdfUtil = <T>({
   title = 'Report',
   data,
@@ -71,8 +85,9 @@ export const downloadPdfUtil = <T>({
   keys,
   fileName = 'report.pdf'
 }: DownloadPdfOptions<T>) => {
-  const doc = new jsPDF({ orientation: 'l' });
-  const margin = 14;
+  const layout = getPdfLayoutConfig(columns.length);
+  const doc = new jsPDF({ orientation: 'l', format: layout.format });
+  const margin = layout.margin;
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
@@ -95,8 +110,15 @@ export const downloadPdfUtil = <T>({
     startY: 30,
     margin: { left: margin, right: margin },
     tableWidth,
-    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'linebreak', fontSize: 8, fillColor: "#317D5A" }
+    styles: {
+      fontSize: layout.fontSize,
+      cellPadding: layout.cellPadding,
+      minCellWidth: 0,
+      overflow: 'linebreak'
+    },
+    headStyles: { overflow: 'linebreak', fontSize: layout.headFontSize, fillColor: '#317D5A' },
+    horizontalPageBreak: layout.useHorizontalPageBreak,
+    horizontalPageBreakRepeat: layout.useHorizontalPageBreak ? [0] : undefined
   });
 
   doc.save(fileName);
@@ -116,8 +138,9 @@ export const printPdfUtil = <T>({
   columns,
   keys
 }: PrintPdfOptions<T>) => {
-  const doc = new jsPDF({ orientation: 'l' });
-  const margin = 14;
+  const layout = getPdfLayoutConfig(columns.length);
+  const doc = new jsPDF({ orientation: 'l', format: layout.format });
+  const margin = layout.margin;
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
@@ -140,8 +163,15 @@ export const printPdfUtil = <T>({
     startY: 30,
     margin: { left: margin, right: margin },
     tableWidth,
-    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'linebreak', fontSize: 8, fillColor: "#317D5A" }
+    styles: {
+      fontSize: layout.fontSize,
+      cellPadding: layout.cellPadding,
+      minCellWidth: 0,
+      overflow: 'linebreak'
+    },
+    headStyles: { overflow: 'linebreak', fontSize: layout.headFontSize, fillColor: '#317D5A' },
+    horizontalPageBreak: layout.useHorizontalPageBreak,
+    horizontalPageBreakRepeat: layout.useHorizontalPageBreak ? [0] : undefined
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
