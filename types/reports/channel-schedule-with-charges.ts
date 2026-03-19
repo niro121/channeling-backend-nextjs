@@ -1,0 +1,102 @@
+import type { DoctorSession } from '@/types/doctor.session';
+
+export type ChannelScheduleWithChargesReportQuery = {
+  institutionId?: string;
+  locationId?: string;
+  departmentId?: string;
+  specialityId?: string;
+  doctorId?: string;
+  /**
+   * '__all__' / undefined => no day-type filter
+   * 'specific_date' => applyTo sessions
+   * 'weekday' => recurring weekday sessions
+   */
+  reportType?: string;
+};
+
+export type ChannelScheduleWithChargesReportRow = Pick<
+  DoctorSession,
+  | 'id'
+  | 'name'
+  | 'institution'
+  | 'startTime'
+  | 'endTime'
+  | 'startingPatientNumber'
+  | 'maxPatientNumber'
+  | 'refundable'
+  | 'advancedBookingDays'
+  | 'fees'
+  | 'amountLocal'
+  | 'amountForeign'
+  | 'applyTo'
+  | 'dayType'
+  | 'status'
+> & {
+  doctor?: {
+    id?: string;
+    name?: string;
+    code?: string;
+    title?: string;
+  } | null;
+  location?: {
+    id?: string;
+    name?: string;
+  } | null;
+  room?: {
+    id?: string;
+    number?: string;
+    description?: string;
+  } | null;
+  department?: {
+    id?: string;
+    name?: string;
+  } | null;
+  previousSession?: {
+    id?: string;
+    name?: string;
+  } | null;
+};
+
+export type ChannelScheduleWithChargesReportExportRow = {
+  locationName: string;
+  doctorName: string;
+  sessionName: string;
+  roomName: string;
+  startTime: string;
+  endTime: string;
+  dateType: string;
+  applyOnlyTo: string;
+
+  doctorFeeLocal: string;
+  hospitalFeeLocal: string;
+  agencyFeeLocal: string;
+  scanFeeLocal: string;
+  onCallFeeLocal: string;
+  creditCardCommissionLocal: string;
+  sessionValueLocal: string;
+
+  doctorFeeForeign: string;
+  hospitalFeeForeign: string;
+  agencyFeeForeign: string;
+  scanFeeForeign: string;
+  onCallFeeForeign: string;
+  creditCardCommissionForeign: string;
+  sessionValueForeign: string;
+
+  startingPatientNo: number | string;
+  maximumPatientNo: number | string;
+  previousSession: string;
+
+  refundable: string;
+  advanceBookingDays: number | string;
+  status: string;
+};
+
+export type ChannelScheduleWithChargesReportContentProps = {
+  institutionOptions: Array<{ id: string; name: string }>;
+  locationOptions: Array<{ id: string; name: string }>;
+  departmentOptions: Array<{ id: string; name: string }>;
+  specialityOptions: Array<{ id: string; name: string }>;
+  doctorOptions: Array<{ id: string; name: string }>;
+};
+

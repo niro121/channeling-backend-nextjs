@@ -117,7 +117,10 @@ async function getLockedSessionIdsForDoctor(
   doctorId: string,
   excludeLeaveId?: string | null
 ): Promise<Set<string>> {
-  const res = await getSessionIdsLockedByOtherLeavesService(doctorId, excludeLeaveId);
+  const res = await getSessionIdsLockedByOtherLeavesService(
+    doctorId,
+    excludeLeaveId
+  );
   if (!res.success || !res.data) return new Set();
   return new Set(res.data);
 }
@@ -359,7 +362,8 @@ export const getSessionIdsLockedByOtherLeavesService = async (
       if (raw == null) continue;
       const arr = Array.isArray(raw) ? raw : [];
       for (const item of arr) {
-        const id = typeof item === 'string' ? item : (item as { id?: string })?.id;
+        const id =
+          typeof item === 'string' ? item : (item as { id?: string })?.id;
         if (id && typeof id === 'string') lockedIds.add(id);
       }
     }
@@ -495,8 +499,13 @@ export const createDoctorLeaveService = async (
     }
 
     const data = parsed.data;
-    const lockedIds = await getLockedSessionIdsForDoctor(data.doctorId, undefined);
-    const conflicting = data.sessions.map((s) => s.id).filter((id) => lockedIds.has(id));
+    const lockedIds = await getLockedSessionIdsForDoctor(
+      data.doctorId,
+      undefined
+    );
+    const conflicting = data.sessions
+      .map((s) => s.id)
+      .filter((id) => lockedIds.has(id));
     if (conflicting.length > 0) {
       return {
         success: false,
@@ -585,7 +594,7 @@ export const updateDoctorLeaveService = async (
       sendSms:
         payload.sendSms !== undefined
           ? normalizeSendSms(payload.sendSms)
-          : existing.sendSms ?? 0,
+          : (existing.sendSms ?? 0),
       status: payload.status ?? existing.status
     };
 
@@ -628,6 +637,8 @@ export const updateDoctorLeaveService = async (
 
     const leaveStatus = data.status ?? existing.status;
 
+    const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+
     const leave = await prisma.doctorLeave.update({
       where: { id },
       data: {
@@ -638,7 +649,8 @@ export const updateDoctorLeaveService = async (
         sessions: sessionsJson,
         sendSms: data.sendSms ?? existing.sendSms ?? 0,
         status: leaveStatus,
-        ...(user?.id && { updatedUser: { connect: { id: user.id } } })
+        updatedUser: userRelation,
+        updatedAt: new Date()
       },
       include: {
         doctor: { select: { id: true, name: true, code: true } }

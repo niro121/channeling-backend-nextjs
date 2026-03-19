@@ -8,12 +8,12 @@ import { INSTITUTION_OPTIONS } from '@/types/doctor.session';
 import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
-import DoctorLeaveReportContent from './doctor-leave-report-content';
+import ChannelScheduleWithChargesReportContent from './channel-schedule-with-charges-report-content';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DoctorLeaveReportPage() {
-  const canView = await checkRouteAccess('/reports/doctor-leave');
+export default async function ChannelScheduleWithChargesReportPage() {
+  const canView = await checkRouteAccess('/reports/channel-schedule-with-charges');
   if (!canView) redirect('/unauthorized-access');
 
   const [doctorsResult, locationsResult, departmentsResult, specialityRes] =
@@ -62,19 +62,17 @@ export default async function DoctorLeaveReportPage() {
   const specialityOptions: Array<{ id: string; name: string }> =
     specialityRes.success && specialityRes.data
       ? [
-          { id: '__all__', name: 'All Specialities'  },
+          { id: '__all__', name: 'All Specialities' },
           ...specialityRes.data.map((s: any) => ({
             id: s.id || '',
             name: s.name || ''
-          })).sort((a, b) => a.name.localeCompare(b.name))
+          })).sort((a: any, b: any) => a.name.localeCompare(b.name))
         ]
       : [{ id: '__all__', name: 'All Specialities' }];
 
   return (
-    <DoctorLeaveReportContent
-      institutionOptions={[
-        ...INSTITUTION_OPTIONS
-      ]}
+    <ChannelScheduleWithChargesReportContent
+      institutionOptions={[...INSTITUTION_OPTIONS]}
       locationOptions={locationOptions}
       departmentOptions={departmentOptions}
       specialityOptions={specialityOptions}
@@ -82,3 +80,4 @@ export default async function DoctorLeaveReportPage() {
     />
   );
 }
+
