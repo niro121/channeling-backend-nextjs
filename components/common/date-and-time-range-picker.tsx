@@ -6,6 +6,7 @@ import { DateRangePicker } from '@/components/common/date-range-picker';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
 import { timeToMinutes, minutesToTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { CalendarIcon } from 'lucide-react';
 
 /** Parse from/to: YYYY-MM-DD or YYYY-MM-DDTHH:mm -> { date, timeStr, meridiem } */
 function parseDateTime(val?: string): {
@@ -178,7 +179,10 @@ export function DateAndTimeRangePicker({
   return (
     <div className={cn('space-y-3', className)}>
       {label && (
-        <Label className="text-sm font-semibold block">{label}</Label>
+        <Label className="text-sm font-semibold flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" />
+          {label}
+        </Label>
       )}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -209,7 +213,8 @@ export function DateAndTimeRangePicker({
                 onChanged={handleFromTimeChanged}
                 disabled={!hasFromDate}
                 styleClasses={{
-                  labelClassName: 'text-xs text-muted-foreground font-medium mb-1.5 block',
+                  labelClassName:
+                    'text-xs text-muted-foreground font-medium mb-1.5 block',
                   parentDiv: 'space-y-0'
                 }}
               />
@@ -223,7 +228,8 @@ export function DateAndTimeRangePicker({
                 onChanged={handleToTimeChanged}
                 disabled={!hasToDate}
                 styleClasses={{
-                  labelClassName: 'text-xs text-muted-foreground font-medium mb-1.5 block',
+                  labelClassName:
+                    'text-xs text-muted-foreground font-medium mb-1.5 block',
                   parentDiv: 'space-y-0'
                 }}
               />

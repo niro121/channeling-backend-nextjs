@@ -27,6 +27,7 @@ function formatRs(amount: number): string {
 
 function bookingActionLabel(entry: BookingActivityEntry): string {
   if (entry.action === "booking.transferred") return "Transferred"
+  if (entry.action === "booking.updated") return "Updated"
   return entry.action.replace(/^booking\./, "").replace(/_/g, " ") || entry.action
 }
 
@@ -121,6 +122,7 @@ export function BookingTab() {
   const [discountExpanded, setDiscountExpanded] = useState(false)
   const [billingExpanded, setBillingExpanded] = useState(false)
   const [agentExpanded, setAgentExpanded] = useState(false)
+  const [creditCustomerExpanded, setCreditCustomerExpanded] = useState(false)
   const [referredExpanded, setReferredExpanded] = useState(false)
   const [movedExpanded, setMovedExpanded] = useState(false)
   const [otherExpanded, setOtherExpanded] = useState(false)
@@ -138,6 +140,7 @@ export function BookingTab() {
       setDiscountExpanded(false)
       setBillingExpanded(false)
       setAgentExpanded(false)
+      setCreditCustomerExpanded(false)
       setReferredExpanded(false)
       setMovedExpanded(false)
       setOtherExpanded(false)
@@ -152,6 +155,7 @@ export function BookingTab() {
     setDiscountExpanded(false)
     setBillingExpanded(false)
     setAgentExpanded(false)
+    setCreditCustomerExpanded(false)
     setReferredExpanded(false)
     setMovedExpanded(false)
     setOtherExpanded(false)
@@ -376,6 +380,48 @@ export function BookingTab() {
         </div>
       )}
 
+      {/* Credit Customer: compact summary with expand for details (when booking was paid by Credit Customer) */}
+      {details.creditCustomerInfo && (
+        <div className="space-y-1.5">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            Credit Customer
+          </h3>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setCreditCustomerExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+              )}
+            >
+              {creditCustomerExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              )}
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Credit Customer</span>
+              <span className="text-xs font-medium text-foreground min-w-0 truncate">
+                {details.creditCustomerInfo.creditCustomerCode
+                  ? `${details.creditCustomerInfo.creditCustomerName} (${details.creditCustomerInfo.creditCustomerCode})`
+                  : details.creditCustomerInfo.creditCustomerName}
+              </span>
+              {!creditCustomerExpanded && details.creditCustomerInfo.creditCustomerCode && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
+                  CODE: {details.creditCustomerInfo.creditCustomerCode}
+                </span>
+              )}
+            </button>
+            {creditCustomerExpanded && (
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
+                <Row label="Code" value={details.creditCustomerInfo.creditCustomerCode || "—"} />
+                <Row label="Credit Customer" value={details.creditCustomerInfo.creditCustomerName} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Agent: compact summary with expand for details (when booking is via Agent) */}
       {details.agentInfo && (
         <div className="space-y-1.5">
@@ -402,15 +448,18 @@ export function BookingTab() {
                   ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})`
                   : details.agentInfo.agencyName}
               </span>
-              {!agentExpanded && details.agentInfo.agencyRef && (
+              {!agentExpanded && (details.agentInfo.agencyCode || details.agentInfo.agencyRef) && (
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
-                  REF: {details.agentInfo.agencyRef}
+                  CODE: {details.agentInfo.agencyCode || details.agentInfo.agencyRef}
                 </span>
               )}
             </button>
             {agentExpanded && (
               <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
-                <Row label="REF NO." value={details.agentInfo.agencyRef || "—"} />
+                <Row
+                  label="Agent Code"
+                  value={details.agentInfo.agencyCode || details.agentInfo.agencyRef || "—"}
+                />
                 {details.agentInfo.bookNumber && (
                   <Row label="Book No." value={details.agentInfo.bookNumber} />
                 )}

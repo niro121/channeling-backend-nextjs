@@ -73,6 +73,12 @@ export type AgentInfoView = {
   bookNumber: string | null
 }
 
+/** Credit-customer info for the Booking tab (when booking method is Credit Customer). */
+export type CreditCustomerInfoView = {
+  creditCustomerName: string
+  creditCustomerCode: string | null
+}
+
 /** Display shape for the Information panel Booking tab. */
 export type BookingDetailsView = {
   id: string
@@ -112,6 +118,8 @@ export type BookingDetailsView = {
   discountInfo: DiscountInfoView
   /** When booking method is Agent: agency and financial details. */
   agentInfo: AgentInfoView | null
+  /** When booking method is Credit Customer: company name and code. */
+  creditCustomerInfo: CreditCustomerInfoView | null
   /** Present when status !== 0 (paid). */
   settlement?: SettlementDetailsView
   /** All receipts attached to this booking (for table). */
@@ -185,6 +193,7 @@ export async function getBookingDetailsService(
         doctor: true,
         receipts: { orderBy: { createdAt: "desc" } },
         agency: true,
+        creditCustomer: true,
         referredStaff: true,
         movedFromSession: {
           include: { doctor: { select: { title: true, name: true } } },
@@ -328,6 +337,14 @@ export async function getBookingDetailsService(
           }
         : null
 
+    const creditCustomerInfo: CreditCustomerInfoView | null =
+      b.creditCustomerId && b.creditCustomer
+        ? {
+            creditCustomerName: b.creditCustomer.name,
+            creditCustomerCode: b.creditCustomer.code ?? null,
+          }
+        : null
+
     const data: BookingDetailsView = {
       id: b.id,
       name: `${b.title} ${b.name}`.trim(),
@@ -361,6 +378,7 @@ export async function getBookingDetailsService(
       createdAt: b.createdAt,
       discountInfo,
       agentInfo,
+      creditCustomerInfo,
       settlement,
       receipts: receiptRows,
       refundableBreakdown:

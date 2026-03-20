@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { settleBookingService } from "@/services/channel-booking/settle-booking.service"
+import { SAVE_PAYMENT_TYPE_CREDIT_CARD, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
 
 const settleBookingSchema = z
   .object({
@@ -85,6 +86,45 @@ const settleBookingSchema = z
         "Doctor has departed. Doctor must arrive again before settlement is allowed.",
     }
   )
+  .superRefine((data, ctx) => {
+    const bankId = data.bank?.id?.trim()
+
+    // When settling via Slip: both bank and slip reference are mandatory.
+    if (data.settle_method === SAVE_PAYMENT_TYPE_SLIP) {
+      if (!bankId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["bank"],
+          message: "Bank is required when settling via Slip.",
+        })
+      }
+      if (!data.slip_ref?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slip_ref"],
+          message: "Slip reference is required when settling via Slip.",
+        })
+      }
+    }
+
+    // When settling via Credit Card: both bank and card reference are mandatory.
+    if (data.settle_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
+      if (!bankId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["bank"],
+          message: "Bank is required when settling via Credit Card.",
+        })
+      }
+      if (!data.card?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["card"],
+          message: "Card reference is required when settling via Credit Card.",
+        })
+      }
+    }
+  })
 
 export type SettleBookingActionInput = z.infer<typeof settleBookingSchema>
 

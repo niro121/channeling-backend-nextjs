@@ -153,12 +153,34 @@ export function TransferTab() {
   }, [selectedSession, sessionsForTransfer, transferSessionId, eligibilityMap])
 
   const n = selectedTransferBookingIds.length
+
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const selectedSessionDateKey =
+    selectedSession?.date instanceof Date
+      ? selectedSession.date.toISOString().slice(0, 10)
+      : selectedSession?.date
+        ? new Date(selectedSession.date).toISOString().slice(0, 10)
+        : null
+  const isPastSelectedSession = selectedSessionDateKey != null ? selectedSessionDateKey < todayKey : false
+
   const canSubmit =
     n > 0 &&
     !!transferDoctorId &&
     !!transferSessionId &&
     transferRemarks.trim().length > 0 &&
     !!selectedSession?.id
+
+  if (selectedSession && isPastSelectedSession) {
+    return (
+      <div className="flex flex-1 flex-col min-h-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+          <span className="text-sm text-amber-800 dark:text-amber-200">
+            Cannot transfer bookings for a past session date. Only cancel or refund is allowed.
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   const handleTransfer = async () => {
     if (!canSubmit || !selectedSession?.id) return
@@ -276,7 +298,8 @@ export function TransferTab() {
               const isLeave = s.status === 0
               const eligibility = eligibilityMap[s.id]
               const previousMustBeFilled = eligibility && !eligibility.canTransfer
-              const disabled = !priceMatch || isLeave || previousMustBeFilled
+              const disabled =
+                !priceMatch || isLeave || previousMustBeFilled || (selectedSession && s.id === selectedSession.id)
               const label = formatTransferSessionLabel(s)
               const suffix = isLeave
                 ? " (Leave)"

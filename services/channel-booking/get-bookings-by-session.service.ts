@@ -10,7 +10,9 @@ export type ChannelBookingListItem = {
   method: number
   methodName: string
   agencyRef: string | null
+  agencyCode: string | null
   staffId: string | null
+  staffCode: string | null
   /** Set when booking was transferred into this session (or from another). */
   movedAt: Date | null
   /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Transfer tick hidden when !== 0. */
@@ -48,13 +50,28 @@ export async function getBookingsBySessionService(
         status: true,
         method: true,
         agencyRef: true,
+        agency: { select: { code: true } },
         staffId: true,
+        staff: { select: { code: true } },
         movedAt: true,
         refund: true,
       },
     })
 
-    type Row = { id: string; appointmentNo: number; title: string; name: string; status: number; method: number; agencyRef: string | null; staffId: string | null; movedAt: Date | null; refund: number }
+    type Row = {
+      id: string
+      appointmentNo: number
+      title: string
+      name: string
+      status: number
+      method: number
+      agencyRef: string | null
+      agency: { code: string | null } | null
+      staffId: string | null
+      staff: { code: string } | null
+      movedAt: Date | null
+      refund: number
+    }
     const data: ChannelBookingListItem[] = (records as Row[]).map((r) => ({
       id: r.id,
       appointmentNo: r.appointmentNo,
@@ -64,7 +81,9 @@ export async function getBookingsBySessionService(
       method: r.method,
       methodName: BOOKING_METHODS.find((m) => m.id === r.method)?.name ?? "",
       agencyRef: r.agencyRef,
+      agencyCode: r.agency?.code ?? null,
       staffId: r.staffId,
+      staffCode: r.staff?.code ?? null,
       movedAt: r.movedAt ?? null,
       refund: r.refund ?? 0,
     }))

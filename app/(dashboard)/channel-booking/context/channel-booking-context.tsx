@@ -16,7 +16,11 @@ export type ChannelBookingRecord = {
   method: number
   methodName: string
   agencyRef: string | null
+  /** Agent code (from `agency.code`) when method is Agent. */
+  agencyCode?: string | null
   staffId: string | null
+  /** Staff code (from `staff.code`) when method is Staff. */
+  staffCode?: string | null
   movedAt?: Date | null
   /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Transfer tick hidden when !== 0. */
   refund?: number
