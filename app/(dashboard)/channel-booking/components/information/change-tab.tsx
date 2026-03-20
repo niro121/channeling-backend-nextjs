@@ -99,6 +99,15 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
     )
   }
 
+  const todayKey = new Date().toISOString().slice(0, 10)
+  if (details.sessionDateForSettle && details.sessionDateForSettle < todayKey) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+        Cannot update a booking for a past session date. Only cancel or refund is allowed.
+      </div>
+    )
+  }
+
   async function handleUpdate() {
     if (!selectedBooking) return
     if (!title.trim() || !name.trim() || !sex.trim() || !phone.trim()) {

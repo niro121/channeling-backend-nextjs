@@ -45,7 +45,6 @@ export function DateSelection({
           selected={value ?? undefined}
           onSelect={(d) => onChange(d ?? null)}
           initialFocus
-          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
         />
       </PopoverContent>
     </Popover>

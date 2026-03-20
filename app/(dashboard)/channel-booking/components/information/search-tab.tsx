@@ -84,6 +84,7 @@ export function SearchTab() {
       methodName: row.methodName,
       agencyRef: row.agencyRef,
       staffId: row.staffId,
+      staffCode: row.staffCode,
     }
     if (row.sessionId) {
       const sessionRes = await getSessionByIdForChannelBooking(row.sessionId)
@@ -247,7 +248,7 @@ export function SearchTab() {
                             {paidLabel(row.status, row.methodName)}
                           </td>
                           <td className="px-2 py-1.5">
-                            {row.staffName || "—"}
+                            {row.staffCode || row.staffName || "—"}
                           </td>
                         </tr>
                       )

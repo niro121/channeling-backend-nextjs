@@ -12,6 +12,7 @@ import {
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { SAVE_PAYMENT_TYPE_CREDIT_CARD, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
@@ -89,6 +90,42 @@ export async function settleBookingService(
         errorCode: "session_date_past",
         message:
           "Cannot settle a booking for a past session date. Only today's sessions can be settled.",
+      }
+    }
+  }
+
+  // Server-side mandatory fields:
+  // - Slip settlements require bank + slip reference.
+  // - Credit card settlements require bank + card reference.
+  if (input.settle_method === SAVE_PAYMENT_TYPE_SLIP) {
+    if (!input.bank?.id) {
+      return {
+        success: false,
+        errorCode: "missing_bank",
+        message: "Bank is required when settling via Slip.",
+      }
+    }
+    if (!input.slip_ref?.trim()) {
+      return {
+        success: false,
+        errorCode: "missing_slip_reference",
+        message: "Slip reference is required when settling via Slip.",
+      }
+    }
+  }
+  if (input.settle_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
+    if (!input.bank?.id) {
+      return {
+        success: false,
+        errorCode: "missing_bank",
+        message: "Bank is required when settling via Credit Card.",
+      }
+    }
+    if (!input.card?.trim()) {
+      return {
+        success: false,
+        errorCode: "missing_card_reference",
+        message: "Card reference is required when settling via Credit Card.",
       }
     }
   }

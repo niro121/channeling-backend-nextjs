@@ -198,7 +198,12 @@ export function Bookings() {
                         ? `Paid - ${b.methodName}`
                         : `Credit - ${b.methodName}`
                     const displayName = [b.title, b.name].filter(Boolean).join(" ") || "—"
-                    const agentStaff = b.agencyRef || b.staffId || "—"
+                    const agentStaff =
+                      b.method === 2
+                        ? b.agencyCode || b.agencyRef || "—"
+                        : b.method === 3
+                          ? b.staffCode || b.staffId || "—"
+                          : b.staffId || "—"
                     return (
                       <tr
                         key={b.id}
