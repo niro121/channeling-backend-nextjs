@@ -26,6 +26,7 @@ export type SearchBookingsResultItem = {
   agencyRef: string | null
   agencyName: string | null
   staffId: string | null
+  staffCode: string | null
   staffName: string | null
   receiptNoString: string | null
   bookingid_string: string | null
@@ -106,7 +107,7 @@ export async function searchBookingsService(
         session: { select: { date: true } },
         doctor: { select: { title: true, name: true } },
         agency: { select: { name: true } },
-        staff: { select: { name: true } },
+        staff: { select: { name: true, code: true } },
       },
     })
 
@@ -121,13 +122,14 @@ export async function searchBookingsService(
       method: number
       agencyRef: string | null
       staffId: string | null
+      staffCode: string | null
       receiptNoString: string | null
       bookingid_string: string | null
       sessionId: string | null
       session: { date: Date } | null
       doctor: { title: string; name: string } | null
       agency: { name: string } | null
-      staff: { name: string } | null
+      staff: { name: string; code: string } | null
     }>
 
     const data: SearchBookingsResultItem[] = list.map((r) => ({
@@ -142,6 +144,7 @@ export async function searchBookingsService(
       agencyRef: r.agencyRef,
       agencyName: r.agency?.name ?? null,
       staffId: r.staffId ?? null,
+      staffCode: r.staff?.code ?? null,
       staffName: r.staff?.name ?? null,
       receiptNoString: r.receiptNoString ?? null,
       bookingid_string: r.bookingid_string ?? null,

@@ -216,6 +216,7 @@ model DoctorSession {
   endTime               DateTime
   durationMinutes       Int?
   scheduleId            Int?
+  migrateSourceId      String?   // Source system id (e.g. legacy doctor_session_id) for migrate import lookup
   startingPatientNumber Int
   maxPatientNumber      Int
   refundable            Int // == 0: No, 1: Yes == // 

@@ -46,6 +46,11 @@ export async function transferBookingsService(
 ): Promise<TransferBookingsResult> {
   const { bookingIds, doctorId, sessionId, currentSessionId, remarks } = input
 
+  // Prevent no-op transfers.
+  if (sessionId === currentSessionId) {
+    return { success: false, errorCode: "same_session", message: "Cannot transfer to the same session." }
+  }
+
   if (!bookingIds.length) {
     return { success: false, errorCode: "invalid_input", message: "No bookings selected." }
   }
