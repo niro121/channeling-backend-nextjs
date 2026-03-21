@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { formatLKR } from '@/lib/format-money';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
-import { BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
+import { BookOpen, Pencil, PlusCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
@@ -355,8 +355,11 @@ const AgencyForm = ({
                             className="gap-1.5"
                             asChild
                           >
-                            <Link href={`/accounting/${agency.accountId}/statement`} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
+                            <Link
+                              href={`/accounting/${agency.accountId}/edit`}
+                              className="inline-flex items-center gap-1.5"
+                            >
+                              <Pencil className="h-4 w-4" />
                               Open account
                             </Link>
                           </Button>

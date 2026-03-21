@@ -54,7 +54,7 @@ export const getAgentDetailReportDataService = async ({
       where: whereClause,
       include: {
         accounts: {
-          where: { type: 'RECEIVABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true },
           take: 1,
           select: { id: true },
         },
