@@ -14,7 +14,7 @@ export type AgencyDetailsForChannelBooking = {
   code: string | null
   /** Soft limit for bookings (user-editable on agency). Hard limit is account minBalanceAllowed. */
   allowedCreditLimit: number
-  /** Balance from linked RECEIVABLE account (rupees for display); fallback to agency.balance when no account. */
+  /** Balance from linked PAYABLE account (rupees for display). */
   balance: number
   books: AgencyBookForChannelBooking[]
 }
@@ -35,7 +35,7 @@ export async function getAgencyDetailsForChannelBookingService(
         code: true,
         allowedCreditLimit: true,
         accounts: {
-          where: { type: "RECEIVABLE", isActive: true },
+          where: { type: "PAYABLE", isActive: true },
           take: 1,
           select: { id: true },
         },

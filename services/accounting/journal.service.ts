@@ -49,7 +49,7 @@ export async function createJournalEntry(
       const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay})`,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}".`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -58,7 +58,7 @@ export async function createJournalEntry(
       const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay})`,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}".`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -139,7 +139,7 @@ export async function checkJournalEntryBalance(
       const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         allowed: false,
-        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}". This booking cannot be completed.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -148,7 +148,7 @@ export async function checkJournalEntryBalance(
       const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
       return {
         allowed: false,
-        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay}). This booking would exceed the credit limit.`,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}". This booking cannot be completed.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -203,7 +203,7 @@ export async function createJournalEntryInTransaction(
       const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would go below allowed minimum (${minDisplay}). This booking would exceed the credit limit.`,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}". This transaction cannot be completed.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };
@@ -212,7 +212,7 @@ export async function createJournalEntryInTransaction(
       const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
       return {
         success: false,
-        error: `Account "${acc.name}" would exceed allowed maximum (${maxDisplay}). This booking would exceed the credit limit.`,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}". This transaction cannot be completed.`,
         errorCode: 'INSUFFICIENT_BALANCE',
         accountId: acc.id,
       };

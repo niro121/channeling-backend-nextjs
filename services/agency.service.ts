@@ -176,7 +176,7 @@ export const getAllAgenciesService = async ({
         createdUser: { select: { id: true, name: true } },
         updatedUser: { select: { id: true, name: true } },
         accounts: {
-          where: { type: 'RECEIVABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true },
           take: 1
         }
       },
@@ -260,7 +260,7 @@ export const getAllAgenciesExportService = async ({
       include: {
         parentAgency: true,
         accounts: {
-          where: { type: 'RECEIVABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true },
           take: 1
         }
       },
@@ -319,7 +319,7 @@ export const getAgencyByIdService = async (
         parentAgency: true,
         user: true,
         accounts: {
-          where: { type: 'RECEIVABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true },
           take: 1
         }
       }
@@ -452,7 +452,7 @@ export const createAgencyService = async (
 
     const accountResult = await createAccount({
       name: `Agency - ${agency.name}`,
-      type: 'RECEIVABLE',
+      type: 'PAYABLE',
       agencyId: agency.id,
       code: agency.code ?? undefined,
     });

@@ -34,14 +34,6 @@ export async function updateBookingService(
     return { success: false, errorCode: "not_found", message: "Booking not found." }
   }
 
-  const before = {
-    title: booking.title ?? "",
-    name: booking.name ?? "",
-    sex: booking.sex ?? "",
-    phone: booking.phone ?? "",
-    remarks: booking.remarks ?? "",
-  }
-
   // Past-date sessions: booking details cannot be changed (cancel/refund only).
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -71,14 +63,6 @@ export async function updateBookingService(
   const data = await getBookingForSaveBooking(input.booking_id)
 
   if (userId) {
-    const after = {
-      title: input.title.trim(),
-      name: input.name.trim().toUpperCase(),
-      sex: input.sex.trim(),
-      phone: input.phone.trim(),
-      remarks: input.remarks?.trim() ?? "",
-    }
-
     logActivityNonBlocking({
       userId,
       action: "booking.updated",
@@ -87,8 +71,6 @@ export async function updateBookingService(
       importance: "high",
       metadata: {
         remarks: "Booking details updated.",
-        before: JSON.stringify(before),
-        after: JSON.stringify(after),
       },
     })
   }
