@@ -17,7 +17,7 @@
  * - Doctor PAYABLE: type=PAYABLE, doctorId → used when posting channel booking payments (professional fee).
  * - Branch CASH: type=CASH, locationId → branch cash book (hospital fee).
  * - Cashier till: type=CASH, userId → till for a staff member (float).
- * - Agency RECEIVABLE: type=RECEIVABLE, agencyId.
+ * - Agency PAYABLE: type=PAYABLE, agencyId (prepaid balance / liability to agent).
  * - Credit customer RECEIVABLE: type=RECEIVABLE, creditCustomerId.
  */
 

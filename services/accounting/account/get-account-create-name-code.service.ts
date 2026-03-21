@@ -98,8 +98,8 @@ export async function getAccountCreateNameAndCode(
     }
   }
 
-  // Agency receivable: one per agency. Seed: "Agent - {name}", "AGT-{code}" or "AGT-{id}" if no code.
-  if (type === 'RECEIVABLE' && agencyId) {
+  // Agency payable (prepaid / liability to agent): one per agency. Seed: "Agent - {name}", "AGT-{code}" or "AGT-{id}" if no code.
+  if (type === 'PAYABLE' && agencyId) {
     const agency = await prisma.agency.findUnique({
       where: { id: agencyId },
       select: { name: true, code: true, id: true },
