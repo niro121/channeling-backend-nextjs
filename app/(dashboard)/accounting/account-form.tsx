@@ -320,7 +320,7 @@ export default function AccountForm({
                   name="maxBalanceDisplay"
                   type="text"
                   inputMode="decimal"
-                  placeholder="e.g. 50000.00 = cap at 50,000 (for RECEIVABLE = credit limit)"
+                  placeholder="e.g. 50000.00 = cap at 50,000 (RECEIVABLE: owe cap; agency PAYABLE: max prepaid)"
                   value={formik.values.maxBalanceDisplay}
                   onChange={(e) => formik.setFieldValue('maxBalanceDisplay', e.target.value)}
                   onBlur={() => {
@@ -336,7 +336,7 @@ export default function AccountForm({
                 )}
               </div>
               <p className="text-xs text-muted-foreground col-span-full">
-                For RECEIVABLE (agency/credit customer): hard cap on how much they can owe. Leave empty for no cap.
+                RECEIVABLE (credit customer): hard cap on how much they can owe. Agency PAYABLE: cap on prepaid balance. Leave empty for no cap.
               </p>
             </div>
 

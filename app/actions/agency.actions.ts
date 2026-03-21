@@ -142,7 +142,7 @@ export async function createAgencyAccount(agencyId: string) {
       return { success: false, message: 'Agency not found' };
     }
     const result = await getOrCreateAccount({
-      type: 'RECEIVABLE',
+      type: 'PAYABLE',
       agencyId: agency.id,
       name: `Agency - ${agency.name}`,
     });

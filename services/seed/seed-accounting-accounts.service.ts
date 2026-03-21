@@ -1,7 +1,7 @@
 /**
  * Seed accounting accounts (same logic as scripts/seed-accounting-accounts.ts).
  * Removes all accounting data then creates Main Cash Book, location cash books,
- * agent/doctor/credit-customer accounts, and syncs Sequence table.
+ * agent (PAYABLE) / doctor (PAYABLE) / credit-customer (RECEIVABLE) accounts, and syncs Sequence table.
  * Runs only when SEED_HELPER is enabled in .env.
  */
 
@@ -103,7 +103,7 @@ export async function runSeedAccountingAccounts(
     })
     const agencyIds = agencies.map((a) => a.id)
     const existingAgencyAccounts = await prisma.account.findMany({
-      where: { type: "RECEIVABLE", agencyId: { in: agencyIds }, isActive: true },
+      where: { type: "PAYABLE", agencyId: { in: agencyIds }, isActive: true },
       select: { agencyId: true },
     })
     const existingAgencyIds = new Set(
@@ -116,7 +116,7 @@ export async function runSeedAccountingAccounts(
         data: agenciesToCreate.map((ag) => ({
           name: `Agent - ${ag.name}`,
           code: ag.code ? `AGT-${ag.code}` : `AGT-${ag.id}`,
-          type: "RECEIVABLE",
+          type: "PAYABLE",
           parentAccountId: null,
           locationId: null,
           doctorId: null,
