@@ -18,6 +18,7 @@ export type ConsultantPaymentsReportExportRow = {
   consultationSession: string;
   patientName: string;
   modeOfPay: string;
+  consultationCharge: string;
   discountAmount: string;
   netAmount: string;
   paymentStatus: string;
@@ -67,11 +68,12 @@ export async function exportConsultantPaymentsReportData(
         consultationSession: row.consultationSession ?? '-',
         patientName: row.patientName ?? '-',
         modeOfPay: row.modeOfPay ?? '-',
+        consultationCharge: String(row.consultationCharge ?? '0'),
         discountAmount: String(row.discountAmount ?? '0'),
         netAmount: String(row.netAmount ?? '0'),
         paymentStatus: row.paymentStatus ?? '-',
         paidBy: row.paidBy ?? '-',
-        paidDate: row.paidDate ? moment(row.paidDate).format('DD/MM/YYYY') : '-',
+        paidDate: row.paidDate ? moment(row.paidDate).format('DD/MM/YYYY HH:mm') : '-',
         handedBy: row.handedBy ?? '-',
       };
     });

@@ -7,6 +7,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow
@@ -78,6 +79,8 @@ export interface ReportTemplateProps<T, E = T> {
   emptyMessage?: string;
   /** When true, do not fetch data on initial load when URL has no filter params. Fetch only after user applies filters. */
   skipFetchWhenNoParams?: boolean;
+  /** Optional: initial filter values used only when the URL has no query params (e.g. prefill date range without fetching). */
+  initialFilterValues?: FilterValues;
   /** Optional: group rows by this key. When provided, renders group headers between row groups. */
   groupBy?: (row: T) => string;
   /** Optional: render group header. Receives group key and rows in that group. Only used when groupBy is provided. */
@@ -103,6 +106,7 @@ function ReportTemplateContent<T, E = T>({
   customPrintPdf,
   emptyMessage = 'No data found',
   skipFetchWhenNoParams = false,
+  initialFilterValues,
   groupBy,
   renderGroupHeader,
   backHref = '/reports'
@@ -119,8 +123,12 @@ function ReportTemplateContent<T, E = T>({
     searchParams.forEach((value, key) => {
       vals[key] = value;
     });
+    // If URL has no params, allow caller to provide initial values (without triggering a fetch).
+    if (!searchParams.toString() && initialFilterValues) {
+      return { ...initialFilterValues };
+    }
     return vals;
-  }, [searchParams]);
+  }, [searchParams, initialFilterValues]);
 
   const fetchReportDataWithParams = React.useCallback(async (params: URLSearchParams) => {
     setLoading(true);

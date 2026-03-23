@@ -436,6 +436,7 @@ export type ConsultantPaymentsReportQuery = {
   specialityId?: string;
   doctorId?: string;
   status?: string; // '__all__' | '0' | '1' (0 = Due Pay, 1 = Paid)
+  sessionType?: string; // '__all__' | 'morning' | 'evening'
 };
 
 export type ConsultantPaymentsReportRow = {
@@ -449,6 +450,7 @@ export type ConsultantPaymentsReportRow = {
   consultationSession: string;
   patientName: string;
   modeOfPay: string;
+  consultationCharge: number;
   discountAmount: number;
   netAmount: number;
   paymentStatus: string;
