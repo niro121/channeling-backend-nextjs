@@ -222,7 +222,7 @@ export async function saveBookingService(
       select: {
         allowedCreditLimit: true,
         accounts: {
-          where: { type: "RECEIVABLE", isActive: true },
+          where: { type: "PAYABLE", isActive: true },
           take: 1,
           select: { id: true },
         },
@@ -234,14 +234,17 @@ export async function saveBookingService(
         success: false,
         errorCode: "AGENCY_NO_LINKED_ACCOUNT",
         message:
-          "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a RECEIVABLE account to the agency.",
+          "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a PAYABLE account to the agency.",
       }
     }
     const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
     const balanceCents = await getAgentBalance(input.agency.id)
+    /** PAYABLE signed balance (rupees): positive = prepaid with us; may be negative if over limit. */
     const balanceRupees = balanceCents / 100
 
-    if (allowedCreditLimit < amountToUse + balanceRupees) {
+    // Soft limit: booking amount must not exceed prepaid balance + allowed credit line (not sum vs limit alone).
+    // (Legacy RECEIVABLE compared limit to amount+balance when prepaid showed negative; PAYABLE needs this form.)
+    if (amountToUse > balanceRupees + allowedCreditLimit) {
       return {
         success: false,
         errorCode: "AGENCY_CREDIT_EXCEED",

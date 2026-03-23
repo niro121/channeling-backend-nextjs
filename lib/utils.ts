@@ -64,6 +64,20 @@ type DownloadPdfOptions<T> = {
   fileName?: string;
 };
 
+const getPdfLayoutConfig = (columnCount: number) => {
+  const isVeryWide = columnCount > 18;
+  const isWide = columnCount > 12;
+
+  return {
+    format: 'a4' as const,
+    margin: isWide ? 10 : 14,
+    fontSize: isVeryWide ? 6 : isWide ? 7 : 8,
+    headFontSize: isVeryWide ? 6 : 7,
+    cellPadding: isVeryWide ? 1.2 : 1.6,
+    useHorizontalPageBreak: isWide
+  };
+};
+
 export const downloadPdfUtil = <T>({
   title = 'Report',
   data,
@@ -71,8 +85,9 @@ export const downloadPdfUtil = <T>({
   keys,
   fileName = 'report.pdf'
 }: DownloadPdfOptions<T>) => {
-  const doc = new jsPDF({ orientation: 'l' });
-  const margin = 14;
+  const layout = getPdfLayoutConfig(columns.length);
+  const doc = new jsPDF({ orientation: 'l', format: layout.format });
+  const margin = layout.margin;
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
@@ -95,8 +110,15 @@ export const downloadPdfUtil = <T>({
     startY: 30,
     margin: { left: margin, right: margin },
     tableWidth,
-    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
+    styles: {
+      fontSize: layout.fontSize,
+      cellPadding: layout.cellPadding,
+      minCellWidth: 0,
+      overflow: 'linebreak'
+    },
+    headStyles: { overflow: 'linebreak', fontSize: layout.headFontSize, fillColor: '#317D5A' },
+    horizontalPageBreak: layout.useHorizontalPageBreak,
+    horizontalPageBreakRepeat: layout.useHorizontalPageBreak ? [0] : undefined
   });
 
   doc.save(fileName);
@@ -116,8 +138,9 @@ export const printPdfUtil = <T>({
   columns,
   keys
 }: PrintPdfOptions<T>) => {
-  const doc = new jsPDF({ orientation: 'l' });
-  const margin = 14;
+  const layout = getPdfLayoutConfig(columns.length);
+  const doc = new jsPDF({ orientation: 'l', format: layout.format });
+  const margin = layout.margin;
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
@@ -140,8 +163,91 @@ export const printPdfUtil = <T>({
     startY: 30,
     margin: { left: margin, right: margin },
     tableWidth,
+    styles: {
+      fontSize: layout.fontSize,
+      cellPadding: layout.cellPadding,
+      minCellWidth: 0,
+      overflow: 'linebreak'
+    },
+    headStyles: { overflow: 'linebreak', fontSize: layout.headFontSize, fillColor: '#317D5A' },
+    horizontalPageBreak: layout.useHorizontalPageBreak,
+    horizontalPageBreakRepeat: layout.useHorizontalPageBreak ? [0] : undefined
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsDoc = doc as any;
+  if (typeof jsDoc.autoPrint === 'function') {
+    jsDoc.autoPrint({ variant: 'non-conform' });
+  }
+  window.open(doc.output('bloburl'), '_blank');
+};
+
+// ==== PDF PRINT WITH HEADER HANDLE UTIL (title + custom header lines + table only) ==== //
+type PrintPdfWithHeaderOptions<T> = {
+  title?: string;
+  headerLines?: string[];
+  data: T[];
+  columns: string[];
+  keys: (keyof T)[];
+};
+
+/**
+ * Generates a PDF with:
+ * - Report title
+ * - Custom header lines (e.g. session details with labels)
+ * - Table only (autoTable) from provided data
+ */
+export const printPdfUtilWithHeader = <T>({
+  title = 'Report',
+  headerLines = [],
+  data,
+  columns,
+  keys
+}: PrintPdfWithHeaderOptions<T>) => {
+  const doc = new jsPDF({ orientation: 'l' });
+  const margin = 14;
+
+  const pageWidth =
+    (typeof doc.internal.pageSize.getWidth === 'function'
+      ? doc.internal.pageSize.getWidth()
+      : (doc.internal.pageSize as any).width) ?? 297;
+  const tableWidth = pageWidth - margin * 2;
+
+  // Title
+  let y = 20;
+  doc.setFontSize(16);
+  doc.text(title, margin, y);
+  y += 10;
+
+  // Header lines (session details)
+  if (headerLines?.length) {
+    doc.setFontSize(11);
+    for (const raw of headerLines) {
+      const line = (raw ?? '').toString().trim();
+      if (!line) continue;
+
+      const split = doc.splitTextToSize(line, tableWidth);
+      doc.text(split as any, margin, y);
+      y += split.length * 6;
+    }
+    y += 4;
+  }
+
+  const rows = data.map((item) =>
+    keys.map((key) => {
+      const value = (item as any)?.[key];
+      return value !== undefined && value !== null ? String(value) : '-';
+    })
+  );
+
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: y,
+    margin: { left: margin, right: margin },
+    tableWidth,
     styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
-    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: "#317D5A" }
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: '#317D5A' }
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

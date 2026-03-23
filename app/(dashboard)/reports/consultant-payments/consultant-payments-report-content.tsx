@@ -211,39 +211,6 @@ function ConsultantPaymentsReportContentInner({
       getRowId={(row) => row.id}
       showPrintButton={true}
       emptyMessage="No consultant payment records found. Please select a date & time range and apply filters."
-      renderTotalsRow={(data, columnCount) => {
-        const totals = data.reduce(
-          (acc, row) => ({
-            consultationCharge: acc.consultationCharge + (row.consultationCharge ?? 0),
-            discountAmount: acc.discountAmount + (row.discountAmount ?? 0),
-            netAmount: acc.netAmount + (row.netAmount ?? 0)
-          }),
-          { consultationCharge: 0, discountAmount: 0, netAmount: 0 }
-        );
-
-        // Column indices: sNo(0), branch(1), consultant(2), paymentReceipt(3), channelReceipt(4), 
-        // consultationSession(5), patientName(6), modeOfPay(7), consultationCharge(8), 
-        // discountAmount(9), netAmount(10), paymentStatus(11), paidBy(12), paidDate(13), handedBy(14)
-        return (
-          <TableRow className="bg-muted/50 font-semibold">
-            <TableCell>{/* sNo */}</TableCell>
-            <TableCell>{/* branch */}</TableCell>
-            <TableCell>{/* consultant */}</TableCell>
-            <TableCell>{/* paymentReceipt */}</TableCell>
-            <TableCell className="font-semibold">Total</TableCell>
-            <TableCell>{/* consultationSession */}</TableCell>
-            <TableCell>{/* patientName */}</TableCell>
-            <TableCell>{/* modeOfPay */}</TableCell>
-            <TableCell className="tabular-nums">{formatLKR(totals.consultationCharge)}</TableCell>
-            <TableCell className="tabular-nums">{formatLKR(totals.discountAmount)}</TableCell>
-            <TableCell className="tabular-nums">{formatLKR(totals.netAmount)}</TableCell>
-            <TableCell>{/* paymentStatus */}</TableCell>
-            <TableCell>{/* paidBy */}</TableCell>
-            <TableCell>{/* paidDate */}</TableCell>
-            <TableCell>{/* handedBy */}</TableCell>
-          </TableRow>
-        );
-      }}
     />
   );
 }

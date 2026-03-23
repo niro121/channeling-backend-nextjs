@@ -25,22 +25,25 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => row.original.doctor?.name ?? '-'
   },
   {
-    accessorKey: 'fromDate',
+    accessorKey: 'leaveDate',
     header: 'Leave Date',
     cell: ({ row }) => {
-      const date = row.getValue<Date>('fromDate');
+      const date = row.getValue<Date>('leaveDate');
       return date ? moment(date).format('DD/MM/YYYY') : '-';
     }
   },
   {
     id: 'leaveSessions',
-    header: 'Leave Sessions',
+    header: 'Leave Session',
     cell: ({ row }) => {
-      const formatted = row.original.leaveSessionsFormatted;
-      if (!formatted) return '-';
+      const formatted = row.original.leaveSessionFormatted;
+      const leaveDate = row.original.leaveDate;
+      if (!formatted && !leaveDate) return '-';
+      const dateLine = leaveDate ? moment(leaveDate).format('Do MMMM YYYY') : '-';
       return (
-        <div className="max-w-64 text-xs whitespace-nowrap" title={formatted}>
-          {formatted}
+        <div className="max-w-64 text-xs" title={`${dateLine}\n${formatted ?? '-'}`}>
+          <div className="truncate font-medium">{dateLine}</div>
+          <div className="truncate text-muted-foreground">{formatted ?? '-'}</div>
         </div>
       );
     }
@@ -51,7 +54,7 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => {
       const remarks = row.getValue<string>('remarks');
       return (
-        <div className="max-w-32 truncate" title={remarks ?? ''}>
+        <div className="w-32 max-w-48" title={remarks ?? ''}>
           {remarks ?? '-'}
         </div>
       );
@@ -62,12 +65,14 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     header: 'Leave Updater',
     cell: ({ row }) => {
           const name = row.original.updatedUser?.name ?? '—';
+          const staffCode = row.original.updatedUser?.staff?.code;
+          const displayName = staffCode ? `${name} (${staffCode})` : name;
           const date = row.original.updatedAt
             ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
             : '—';
           return (
             <div className="flex flex-col gap-0.5 text-xs">
-              <span>{name}</span>
+              <span>{displayName}</span>
               <span className="text-muted-foreground">{date}</span>
             </div>
           );
@@ -78,12 +83,14 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     header: 'Leave Creator',
     cell: ({ row }) => {
           const name = row.original.createdUser?.name ?? '—';
+          const staffCode = row.original.createdUser?.staff?.code;
+          const displayName = staffCode ? `${name} (${staffCode})` : name;
           const date = row.original.createdAt
             ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
             : '—';
           return (
             <div className="flex flex-col gap-0.5 text-xs">
-              <span>{name}</span>
+              <span>{displayName}</span>
               <span className="text-muted-foreground">{date}</span>
             </div>
           );

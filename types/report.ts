@@ -188,11 +188,16 @@ export type NurseViewBookingData = {
   agencyRef: string | null;
   staffId: string | null;
   agencyId: string | null;
+  creditCustomerId?: string | null;
   staff?: {
     id: string;
     name: string;
   } | null;
   agency?: {
+    id: string;
+    name: string;
+  } | null;
+  creditCustomer?: {
     id: string;
     name: string;
   } | null;
@@ -253,6 +258,8 @@ export type DoctorViewBookingData = {
     id: string;
     name: string;
   } | null;
+  creditCustomerId?: string | null;
+  creditCustomer?: { id: string; name: string } | null;
 };
 
 export type DoctorViewReportResponse = {
@@ -297,6 +304,7 @@ export type PhoneViewBookingData = {
   name: string;
   phone: string;
   status: number;
+  refund: number;
 };
 
 export type PhoneViewReportResponse = {
@@ -318,7 +326,7 @@ export type ExportPhoneViewData = {
 // All Doctor View Report Types
 export type AllDoctorViewReportQuery = {
   date: string;
-  sessionType?: string; // '__all__', 'morning', 'afternoon', 'evening', or hour number
+  sessionType?: string; // '__all__', 'morning', 'evening'
   feeType?: string; // '__all__', 'hospital', 'professional', 'total'
   locationId?: string; // '__all__' or location ID
 };

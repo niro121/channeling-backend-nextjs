@@ -13,6 +13,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { Printer } from 'lucide-react';
 import moment from 'moment';
+import { printPdfUtilWithHeader } from '@/lib/utils';
 
 type DoctorViewReportContentProps = {
   sessionId: string;
@@ -70,7 +71,86 @@ export default function DoctorViewReportContent({
   };
 
   const handlePrint = () => {
-    window.print();
+    if (!sessionData) return;
+
+    type DoctorViewPrintRow = {
+      appNo: string;
+      patientName: string;
+      billNo: string;
+      agent: string;
+      creditCustomer: string;
+      paidOrNot: string;
+      cOrR: string;
+      pOrA: string;
+      doctorFee: string;
+      total: string;
+    };
+
+    const headerLines = [
+      `Branch: ${sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}`,
+      sessionData.location?.address
+        ? `Address: ${sessionData.location.address}`
+        : '',
+      `Consultant: ${
+        sessionData.doctor
+          ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+          : '-'
+      }`,
+      `Date: ${formatDate(sessionData.date)}`,
+      `Session Name: ${formatSessionName(
+        sessionData.date,
+        sessionData.startTime
+      )}`
+    ].filter(Boolean);
+
+    const data: DoctorViewPrintRow[] = (sessionData.bookings ?? []).map(
+      (booking) => ({
+        appNo: String(booking.appointmentNo ?? '-'),
+        patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
+        billNo: booking.receiptNoString || '-',
+        agent: getAgentName(booking),
+        creditCustomer: booking.creditCustomer?.name ?? '-',
+        paidOrNot: getPaymentStatus(booking.status),
+        cOrR: getCancelRefundStatus(booking.refund),
+        pOrA: getPresentAbsentStatus(booking.status),
+        doctorFee: formatCurrency(booking.professionalFee),
+        total: formatCurrency(booking.amount)
+      })
+    );
+
+    const columns = [
+      'App No.',
+      'Patient Name',
+      'Bill No',
+      'Agent',
+      'Credit Customer',
+      'Paid or Not',
+      'C / R',
+      'P/A',
+      'Doctor Fee',
+      'Total'
+    ];
+
+    const keys = [
+      'appNo',
+      'patientName',
+      'billNo',
+      'agent',
+      'creditCustomer',
+      'paidOrNot',
+      'cOrR',
+      'pOrA',
+      'doctorFee',
+      'total'
+    ] as (keyof DoctorViewPrintRow)[];
+
+    printPdfUtilWithHeader<DoctorViewPrintRow>({
+      title: 'Doctor View Report',
+      headerLines,
+      data,
+      columns,
+      keys
+    });
   };
 
   const formatTime = (date: Date) => {
@@ -197,6 +277,7 @@ export default function DoctorViewReportContent({
                     <th className="border p-2 text-left font-semibold">Patient Name</th>
                     <th className="border p-2 text-left font-semibold">Bill No</th>
                     <th className="border p-2 text-left font-semibold">Agent</th>
+                    <th className="border p-2 text-left font-semibold">Credit Customer</th>
                     <th className="border p-2 text-left font-semibold">Paid or Not</th>
                     <th className="border p-2 text-left font-semibold">C / R</th>
                     <th className="border p-2 text-left font-semibold">P/A</th>
@@ -220,6 +301,7 @@ export default function DoctorViewReportContent({
                         </td>
                         <td className="border p-2">{booking.receiptNoString || '-'}</td>
                         <td className="border p-2">{getAgentName(booking)}</td>
+                        <td className="border p-2">{booking.creditCustomer?.name ?? '-'}</td>
                         <td className="border p-2">
                           <span className={booking.status === 1 ? 'text-green-600' : 'text-amber-600'}>
                             {getPaymentStatus(booking.status)}

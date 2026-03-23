@@ -14,6 +14,13 @@ export type ExportWrapperProps<T> = {
   fileName?: string;
   /** When true, shows the Print button (optional; wrapper is used in other components) */
   showPrintButton?: boolean;
+  /** Optional: custom print handler (PDF generation). When not provided, uses default `printPdfUtil`. */
+  customPrintPdf?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+  }) => void | Promise<void>;
 };
 
 export const ExportWrapper = <T,>({
@@ -24,6 +31,7 @@ export const ExportWrapper = <T,>({
   title = 'Report',
   fileName = 'report',
   showPrintButton = false,
+  customPrintPdf
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -47,12 +55,21 @@ export const ExportWrapper = <T,>({
         return;
       }
 
-      printPdfUtil({
-        title,
-        data: response.data,
-        columns,
-        keys
-      });
+      if (customPrintPdf) {
+        await customPrintPdf({
+          title,
+          data: response.data,
+          columns,
+          keys
+        });
+      } else {
+        printPdfUtil({
+          title,
+          data: response.data,
+          columns,
+          keys
+        });
+      }
     } catch (error: unknown) {
       toast({
         variant: 'destructive',

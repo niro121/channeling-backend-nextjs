@@ -1,13 +1,22 @@
 export type DoctorLeaveReportRow = {
+  /** Unique row id (leaveId + sessionId) */
   id: string;
-  fromDate: Date;
-  toDate: Date;
+  /** DoctorLeave id */
+  leaveId: string;
+  /** Session id that is on leave */
+  sessionId: string;
+  /** Leave date (session date) */
+  leaveDate: Date;
+  /** Session start/end time for the leave date */
+  sessionStartTime?: Date;
+  sessionEndTime?: Date;
   status: number;
   remarks: string | null;
   doctor: { id: string; name: string; code: string };
-  leaveSessionsFormatted?: string;
-  createdUser?: { id: string; name: string } | null;
-  updatedUser?: { id: string; name: string } | null;
+  /** Single session display text (day + time range) */
+  leaveSessionFormatted?: string;
+  createdUser?: { id: string; name: string; staff?: { code: string } | null } | null;
+  updatedUser?: { id: string; name: string; staff?: { code: string } | null } | null;
   createdAt: Date;
   updatedAt: Date;
 };
