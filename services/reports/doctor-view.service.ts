@@ -110,6 +110,12 @@ export const getDoctorViewReportDataService = async ({
             name: true,
           },
         },
+        creditCustomer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -174,6 +180,8 @@ export const getDoctorViewReportDataService = async ({
         refund: booking.refund || 0,
         staff: booking.staff,
         agency: booking.agency,
+        creditCustomerId: booking.creditCustomerId || null,
+        creditCustomer: booking.creditCustomer || null,
       })),
     };
 

@@ -64,7 +64,14 @@ export const exportPhoneViewReportData = async (
         patientName: `${booking.title} ${booking.name}`.trim(),
         phoneNo: booking.phone || '-',
         time: timeStr,
-        presentAbsent: booking.status === 1 ? 'Present' : 'Absent',
+        presentAbsent:
+          (booking.refund ?? 0) > 0
+            ? 'Refunded'
+            : booking.status === 2
+              ? 'Cancelled'
+              : booking.status === 1
+                ? 'Present'
+                : 'Absent',
       };
     });
 

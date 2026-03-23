@@ -49,7 +49,7 @@ export const getAllDoctorViewReportDataService = async ({
       sessionWhere.locationId = locationId;
     }
 
-    // Filter by session type (morning/afternoon/evening)
+    // Filter by session type (morning/evening)
     if (sessionType && sessionType !== '__all__') {
       const startOfDay = new Date(sessionDateStart);
       startOfDay.setHours(0, 0, 0, 0);
@@ -57,29 +57,19 @@ export const getAllDoctorViewReportDataService = async ({
       endOfDay.setHours(23, 59, 59, 999);
 
       if (sessionType === 'morning') {
-        // Morning: 6 AM to 12 PM
+        // Morning: 12:00 AM to 11:59:59 AM
         const morningStart = new Date(startOfDay);
-        morningStart.setHours(6, 0, 0, 0);
+        morningStart.setHours(0, 0, 0, 0);
         const morningEnd = new Date(startOfDay);
         morningEnd.setHours(12, 0, 0, 0);
         sessionWhere.startTime = {
           gte: morningStart,
           lt: morningEnd,
         };
-      } else if (sessionType === 'afternoon') {
-        // Afternoon: 12 PM to 6 PM
-        const afternoonStart = new Date(startOfDay);
-        afternoonStart.setHours(12, 0, 0, 0);
-        const afternoonEnd = new Date(startOfDay);
-        afternoonEnd.setHours(18, 0, 0, 0);
-        sessionWhere.startTime = {
-          gte: afternoonStart,
-          lt: afternoonEnd,
-        };
       } else if (sessionType === 'evening') {
-        // Evening: 6 PM to 12 AM
+        // Evening: 12:00 PM to 11:59:59 PM
         const eveningStart = new Date(startOfDay);
-        eveningStart.setHours(18, 0, 0, 0);
+        eveningStart.setHours(12, 0, 0, 0);
         sessionWhere.startTime = {
           gte: eveningStart,
           lte: endOfDay,
@@ -110,8 +100,11 @@ export const getAllDoctorViewReportDataService = async ({
             id: true,
             status: true,
             refund: true,
+            canceledAt: true,
             hospitalFee: true,
+            hospitalFeeDiscount: true,
             professionalFee: true,
+            professionsalFeeDiscount: true,
             amount: true,
           },
         },
@@ -171,35 +164,52 @@ export const getAllDoctorViewReportDataService = async ({
 
       // Aggregate bookings
       session.bookings.forEach((booking) => {
-        // Status: 0 = pending, 1 = paid, 2 = canceled/refunded
-        if (booking.status === 0) {
+        const refund = booking.refund ?? 0;
+        const isCancelled = booking.status === 2 || !!booking.canceledAt;
+        const isRefunded = refund > 0;
+
+        if (isCancelled) {
+          row.cancel++;
+        }
+
+        // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
+        if (refund === 2 || refund === 3) {
+          row.hosRefund++;
+        }
+        if (refund === 1 || refund === 3) {
+          row.proRefund++;
+        }
+
+        // Not paid bucket should only include active pending bookings.
+        if (booking.status === 0 && !isCancelled && !isRefunded) {
           row.notPaid++;
-        } else if (booking.status === 1) {
+          return;
+        }
+
+        // Paid/valid buckets should exclude cancelled/refunded bookings.
+        if (booking.status === 1 && !isCancelled && !isRefunded) {
           row.paid++;
           row.hosValid++;
           row.proValid++;
           row.nettValid++;
-          
+
+          // Use net fee values after discounts for fee-type filtered totals.
+          const netHospitalFee = Math.max(
+            0,
+            (booking.hospitalFee ?? 0) - (booking.hospitalFeeDiscount ?? 0)
+          );
+          const netProfessionalFee = Math.max(
+            0,
+            (booking.professionalFee ?? 0) - (booking.professionsalFeeDiscount ?? 0)
+          );
+
           // Calculate total based on fee type
-          if (feeType === '__all__' || !feeType) {
+          if (feeType === '__all__' || !feeType || feeType === 'total') {
             row.total += booking.amount || 0;
           } else if (feeType === 'hospital') {
-            row.total += booking.hospitalFee || 0;
+            row.total += netHospitalFee;
           } else if (feeType === 'professional') {
-            row.total += booking.professionalFee || 0;
-          } else if (feeType === 'total') {
-            row.total += booking.amount || 0;
-          }
-        } else if (booking.status === 2) {
-          row.cancel++;
-          
-          // Check refund types
-          // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
-          if (booking.refund === 2 || booking.refund === 3) {
-            row.hosRefund++;
-          }
-          if (booking.refund === 1 || booking.refund === 3) {
-            row.proRefund++;
+            row.total += netProfessionalFee;
           }
         }
       });
