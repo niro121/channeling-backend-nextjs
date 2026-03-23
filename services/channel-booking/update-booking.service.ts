@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { getBookingForSaveBooking } from "./helpers"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export type UpdateBookingInput = {
   booking_id: string
@@ -24,10 +25,28 @@ export async function updateBookingService(
 ): Promise<UpdateBookingResult> {
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
+    include: {
+      session: { select: { date: true } },
+    },
   })
 
   if (!booking) {
     return { success: false, errorCode: "not_found", message: "Booking not found." }
+  }
+
+  // Past-date sessions: booking details cannot be changed (cancel/refund only).
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const sessionDate = booking.session?.date ? new Date(booking.session.date) : null
+  if (sessionDate) {
+    sessionDate.setHours(0, 0, 0, 0)
+    if (sessionDate < today) {
+      return {
+        success: false,
+        errorCode: "past_session",
+        message: "Cannot change a booking for a past session date. Only cancel or refund is allowed.",
+      }
+    }
   }
 
   await prisma.booking.update({
@@ -42,5 +61,19 @@ export async function updateBookingService(
   })
 
   const data = await getBookingForSaveBooking(input.booking_id)
+
+  if (userId) {
+    logActivityNonBlocking({
+      userId,
+      action: "booking.updated",
+      entityType: "Booking",
+      entityId: input.booking_id,
+      importance: "high",
+      metadata: {
+        remarks: "Booking details updated.",
+      },
+    })
+  }
+
   return { success: true, data }
 }

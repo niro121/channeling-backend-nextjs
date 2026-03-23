@@ -40,6 +40,28 @@ const transferBookingsSchema = z
     },
     { message: "The selected session is on leave and cannot receive transfers. Please choose an active session." }
   )
+  .refine(
+    async (data) => {
+      const session = await prisma.session.findUnique({
+        where: { id: data.currentSessionId },
+        select: { date: true },
+      })
+      if (!session?.date) return false
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const sessionDate = new Date(session.date)
+      sessionDate.setHours(0, 0, 0, 0)
+      return sessionDate >= today
+    },
+    { message: "Cannot transfer bookings for a past session date. Only cancel or refund is allowed." }
+  )
+  .refine(
+    async (data) => {
+      // Explicitly reject transferring to the same session.
+      return data.sessionId !== data.currentSessionId
+    },
+    { message: "Cannot transfer to the same session." }
+  )
 
 export type TransferBookingsActionInput = z.infer<typeof transferBookingsSchema>
 

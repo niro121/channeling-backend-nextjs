@@ -4,8 +4,8 @@
  *
  * - Cash payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.CASH): increase cashier float — Dr Cashier CASH, Cr Branch Cash Book.
  * - Cash refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.CASH): decrease cashier float — Cr Cashier CASH, Dr Branch Cash Book.
- * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): increase receivable (agency owes us) — Dr Agent RECEIVABLE, Cr Branch Cash Book.
- * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse — Cr Agent RECEIVABLE, Dr Branch Cash Book.
+ * - Agent payment (RECEIPT_METHOD.PAYMENT, RECEIPT_PAYMENT_METHOD.AGENT): use agent prepaid (reduce liability) — Dr Agent PAYABLE, Cr Branch Cash Book.
+ * - Agent refund (RECEIPT_METHOD.REFUND, RECEIPT_PAYMENT_METHOD.AGENT): reverse — Cr Agent PAYABLE, Dr Branch Cash Book.
  *
  * Receipt.amount is in rupees; journal lines use cents.
  */
@@ -20,7 +20,7 @@ export type ReceiptJournalAccounts = {
   branchAccountId: string;
   /** Cashier CASH account (required for cash receipt/refund). */
   cashierAccountId?: string | null;
-  /** Agent RECEIVABLE account (required for agent receipt/refund). */
+  /** Agent PAYABLE account (required for agent receipt/refund). */
   agentAccountId?: string | null;
   /** Credit Customer RECEIVABLE account (required for credit customer receipt/refund). */
   creditCustomerAccountId?: string | null;
@@ -370,7 +370,7 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Agent: one RECEIVABLE account — debit = they owe more (booking), credit = they owe less (deposit/refund)
+  // Agent: one PAYABLE account — debit = use prepaid / reduce liability (booking, withdraw); credit = deposit / refund to agent
   if (hasAgent) {
     if (isPayment) {
       const creditLines = useFeeSplit
@@ -445,7 +445,7 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Debit Note (2) - increase agency liability
+  // Ledger: Agency Debit Note (2) — Dr Agent PAYABLE, Cr branch cash (charge agent; credit branch)
   if (receipt.method === RECEIPT_METHOD.DEBIT_NOTE && accounts.agentAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
@@ -455,13 +455,13 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
 
-  // Ledger: Agency Credit Note (3) - decrease agency liability
+  // Ledger: Agency Credit Note (3) — Dr branch cash, Cr Agent PAYABLE (reverse of debit note)
   if (receipt.method === RECEIPT_METHOD.CREDIT_NOTE && accounts.agentAccountId) {
     return {
       date: receipt.createdAt ?? new Date(),
@@ -471,8 +471,8 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: accounts.branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
@@ -651,7 +651,7 @@ export async function resolveReceiptJournalAccounts(params: {
   let agentAccountId: string | null = null;
   if (params.agencyId) {
     const res = await getOrCreateAccount({
-      type: 'RECEIVABLE',
+      type: 'PAYABLE',
       agencyId: params.agencyId,
     });
     if (res.success) agentAccountId = res.account.id;
