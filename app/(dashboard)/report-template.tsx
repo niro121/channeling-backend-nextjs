@@ -67,6 +67,13 @@ export interface ReportTemplateProps<T, E = T> {
   getRowId: (row: T) => string;
   /** Show Print button (optional, default: true for reports) */
   showPrintButton?: boolean;
+  /** Optional: override the PDF print generation for this report only. */
+  customPrintPdf?: (args: {
+    title: string;
+    data: E[];
+    columns: string[];
+    keys: (keyof E)[];
+  }) => void | Promise<void>;
   /** Empty state message */
   emptyMessage?: string;
   /** When true, do not fetch data on initial load when URL has no filter params. Fetch only after user applies filters. */
@@ -93,6 +100,7 @@ function ReportTemplateContent<T, E = T>({
   exportFileName,
   getRowId,
   showPrintButton = true,
+  customPrintPdf,
   emptyMessage = 'No data found',
   skipFetchWhenNoParams = false,
   groupBy,
@@ -203,6 +211,7 @@ function ReportTemplateContent<T, E = T>({
               title={effectiveExportTitle}
               fileName={effectiveExportFileName}
               showPrintButton={showPrintButton}
+              customPrintPdf={customPrintPdf}
             />
           </div>
         </CardHeader>

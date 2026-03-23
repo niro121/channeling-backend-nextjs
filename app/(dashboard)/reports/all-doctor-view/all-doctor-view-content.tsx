@@ -17,6 +17,7 @@ import CustomDatePickerField from '@/components/common/custom-date-picker-field'
 import { Selector } from '@/components/common/selector';
 import { SearchIcon } from '@/components/icons';
 import moment from 'moment';
+import { printPdfUtilWithHeader } from '@/lib/utils';
 
 type AllDoctorViewReportContentProps = {
   initialLocationOptions: Array<{ id: string; name: string }>;
@@ -42,15 +43,13 @@ export default function AllDoctorViewReportContent({
   const [locationOptions] = useState(initialLocationOptions);
   
   const sessionTypeOptions = [
-    { id: 'morning', name: 'Morning' },
-    { id: 'afternoon', name: 'Afternoon' },
-    { id: 'evening', name: 'Evening' },
+    { id: 'morning', name: 'Morining (From 12.00 AM to 11.59 AM)' },
+    { id: 'evening', name: 'Evening (From 12.00 PM to 11.59 PM)' },
   ];
 
   const feeTypeOptions = [
     { id: 'hospital', name: 'Hospital Fee' },
     { id: 'professional', name: 'Professional Fee' },
-    { id: 'total', name: 'Total Fee' },
   ];
 
   const fetchReportData = async () => {
@@ -106,7 +105,112 @@ export default function AllDoctorViewReportContent({
   };
 
   const handlePrint = () => {
-    window.print();
+    type AllDoctorViewPrintRow = {
+      no: string;
+      consultant: string;
+      notPaid: string;
+      paid: string;
+      cancel: string;
+      hosRefund: string;
+      proRefund: string;
+      hosValid: string;
+      proValid: string;
+      nettValid: string;
+      total: string;
+      doctorSessionTime: string;
+    };
+
+    const sessionTypeLabel =
+      sessionType === '__all__'
+        ? 'All'
+        : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType;
+
+    const feeTypeLabel =
+      feeType === '__all__'
+        ? 'All'
+        : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType;
+
+    const branchLabel =
+      locationId === '__all__'
+        ? 'All Branches'
+        : locationOptions.find((l) => l.id === locationId)?.name ?? locationId;
+
+    const headerLines = [
+      `Date: ${date ? moment(date).format('YYYY-MM-DD') : ''}`,
+      `Session Type: ${sessionTypeLabel}`,
+      `Fee Type: ${feeTypeLabel}`,
+      `Branch: ${branchLabel}`
+    ].filter(Boolean);
+
+    const mappedRows: AllDoctorViewPrintRow[] = rows.map((row) => ({
+      no: String(row.no ?? ''),
+      consultant: `${row.consultantName} (${row.consultantCode})`,
+      notPaid: String(row.notPaid ?? ''),
+      paid: String(row.paid ?? ''),
+      cancel: String(row.cancel ?? ''),
+      hosRefund: String(row.hosRefund ?? ''),
+      proRefund: String(row.proRefund ?? ''),
+      hosValid: String(row.hosValid ?? ''),
+      proValid: String(row.proValid ?? ''),
+      nettValid: String(row.nettValid ?? ''),
+      total: formatCurrency(row.total),
+      doctorSessionTime: row.doctorSessionTimes.join(' / ')
+    }));
+
+    if (totals) {
+      mappedRows.push({
+        no: String(totals.no ?? ''),
+        consultant: 'Total',
+        notPaid: '',
+        paid: '',
+        cancel: '',
+        hosRefund: '',
+        proRefund: '',
+        hosValid: '',
+        proValid: '',
+        nettValid: '',
+        total: formatCurrency(totals.total),
+        doctorSessionTime: ''
+      });
+    }
+
+    const columns = [
+      'No',
+      'Consultant',
+      'Not Paid',
+      'Paid',
+      'Cancel',
+      'Hos Refund',
+      'Pro Refund',
+      'Hos Valid',
+      'Pro Valid',
+      'Nett Valid',
+      'Total (Rs.)',
+      'Doctor Session Time'
+    ];
+
+    const keys = [
+      'no',
+      'consultant',
+      'notPaid',
+      'paid',
+      'cancel',
+      'hosRefund',
+      'proRefund',
+      'hosValid',
+      'proValid',
+      'nettValid',
+      'total',
+      'doctorSessionTime'
+    ] as (keyof AllDoctorViewPrintRow)[];
+
+    printPdfUtilWithHeader<AllDoctorViewPrintRow>({
+      title: 'All Doctor View Report',
+      headerLines,
+      data: mappedRows,
+      columns,
+      keys
+    });
   };
 
   const formatCurrency = (amount: number) => {
