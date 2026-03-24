@@ -135,7 +135,10 @@ export const getChannelAgentReferenceBookReportDataService = async ({
   fromDate,
   toDate,
   agencyId,
-  bookNumber
+  bookNumber,
+  createdBy,
+  updatedBy,
+  status
 }: ChannelAgentReferenceBookReportQuery) => {
   try {
     const whereClause: PrismaAgencyBookWhereInput = {};
@@ -162,6 +165,40 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       };
     }
 
+    // Created by user filter (match user name or username)
+    if (createdBy && createdBy.trim() !== '') {
+      const q = createdBy.trim();
+      whereClause.createdUser = {
+        is: {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { username: { contains: q, mode: 'insensitive' } }
+          ]
+        }
+      };
+    }
+
+    // Updated by user filter (match user name or username)
+    if (updatedBy && updatedBy.trim() !== '') {
+      const q = updatedBy.trim();
+      whereClause.updatedUser = {
+        is: {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { username: { contains: q, mode: 'insensitive' } }
+          ]
+        }
+      };
+    }
+
+    // Status filter (1 = Active, 0 = Inactive)
+    if (status && status !== '__all__') {
+      const statusNum = Number(status);
+      if (!Number.isNaN(statusNum)) {
+        whereClause.status = statusNum;
+      }
+    }
+
     const records = await prisma.agencyBook.findMany({
       where: whereClause,
       include: {
@@ -179,13 +216,32 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       }
     });
 
+    const recordsWithUtilizedCount = await Promise.all(
+      records.map(async (book) => {
+        const utilizedPageCount = await prisma.booking.count({
+          where: {
+            agencyId: book.agencyId ?? undefined,
+            agencyRef: {
+              startsWith: book.bookNumber
+            },
+            status: { in: [0, 1] }
+          }
+        });
+
+        return {
+          ...book,
+          utilizedPageCount
+        };
+      })
+    );
+
     const totalRecords = await prisma.agencyBook.count({
       where: whereClause
     });
 
     return {
       success: true,
-      data: records,
+      data: recordsWithUtilizedCount,
       totalRecords
     };
   } catch (error: unknown) {

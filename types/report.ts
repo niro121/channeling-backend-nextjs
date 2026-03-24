@@ -35,6 +35,9 @@ export type ChannelAgentReferenceBookReportQuery = {
   toDate: string;
   agencyId?: string;
   bookNumber?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  status?: string; // '__all__' | '1' | '0'
 };
 
 export type ChannelAgentReferenceBookReportResponse = {
