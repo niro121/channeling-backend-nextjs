@@ -8,11 +8,11 @@ import moment from 'moment';
 
 export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBook>[] = [
   {
-    id: 'sNo',
+    accessorKey: 'sNo',
     header: 'S.No',
     cell: ({ row }) => {
-      // S.No will be calculated in the component using the index
-      return row.index + 1;
+      const sNo = row.getValue<number>('sNo');
+      return sNo ?? '-';
     }
   },
   {
@@ -21,7 +21,7 @@ export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBook>[] = [
     cell: ({ row }) => {
       const agency = row.original.agency;
       const name = agency?.name || '-';
-      return <div className="max-w-[200px] truncate" title={name.toUpperCase()}>{name.toUpperCase()}</div>;
+      return <div>{name.toUpperCase()}</div>;
     }
   },
   {
@@ -35,8 +35,9 @@ export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBook>[] = [
   {
     accessorKey: 'utilizedPageCount',
     header: 'Utilized Page Count',
-    cell: () => {
-      return <span className="text-muted-foreground">-</span>;
+    cell: ({ row }) => {
+      const utilizedPageCount = row.original.utilizedPageCount;
+      return utilizedPageCount !== undefined && utilizedPageCount !== null ? utilizedPageCount : '-';
     }
   },
   {
@@ -96,7 +97,7 @@ export const ChannelAgentReferenceBookReportColumns: ColumnDef<AgencyBook>[] = [
           }
         >
           {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {isActive ? 'Published' : 'Unpublished'}
+          {isActive ? 'Active' : 'Inactive'}
         </Badge>
       );
     }

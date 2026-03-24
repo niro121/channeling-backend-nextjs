@@ -156,7 +156,7 @@ export function FilterWrapper({
           variant={searchButton?.variant ? searchButton.variant : "outline"}
           onClick={applyFilters}
           disabled={isPending || isApplying}
-          className={searchButton?.className ? searchButton.className : "h-10 shrink-0 gap-2"}
+          className={searchButton?.className ? searchButton.className : "h-10 shrink-0 gap-2 self-end"}
         >
           {isPending || isApplying ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,7 +170,7 @@ export function FilterWrapper({
           variant="ghost"
           onClick={clearFilters}
           disabled={isPending}
-          className="h-10 shrink-0"
+          className="h-10 shrink-0 self-end"
         >
           {clearButtonLabel}
         </Button>
