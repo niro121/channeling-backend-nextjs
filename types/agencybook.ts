@@ -3,9 +3,11 @@ import { User } from './user';
 
 export type AgencyBook = {
   id?: string;
+  sNo?: number;
   bookNumber: string;
   startNumber: string;
   endNumber: string;
+  utilizedPageCount?: number;
   status?: number | null; // 0 = inactive, 1 = active
   agencyId?: string | null;
   agency?: {

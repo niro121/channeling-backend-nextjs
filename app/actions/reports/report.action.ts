@@ -157,8 +157,9 @@ export const getChannelAgentReferenceBookReportData = async (
     const result = await getChannelAgentReferenceBookReportDataService(query);
     
     // Map the result to ensure User objects have all required fields
-    const mappedData: AgencyBook[] = result.data.map((book: any) => ({
+    const mappedData: AgencyBook[] = result.data.map((book: any, index: number) => ({
       ...book,
+      sNo: index + 1,
       createdUser: book.createdUser ? {
         ...book.createdUser,
         checkedDefaultLocation: book.createdUser.checkedDefaultLocation ?? false
@@ -226,7 +227,7 @@ export const exportChannelAgentReferenceBookReportData = async (
         sNo: index + 1,
         agent: book.agency?.name?.toUpperCase() || '-',
         bookNumber: book.bookNumber?.toUpperCase() || '-',
-        utilizedPageCount: '', // Empty as per requirement
+        utilizedPageCount: String(book.utilizedPageCount ?? 0),
         startingReferenceNumber: book.startNumber || '-',
         endingReferenceNumber: book.endNumber || '-',
         createdBy: book.createdUser?.name || '-',
