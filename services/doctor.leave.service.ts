@@ -33,7 +33,7 @@ const doctorLeaveBaseSchema = z.object({
     .number()
     .int()
     .refine((v) => v === 0 || v === 1, {
-      message: 'Status must be 0 (Cancel) or 1 (Active)'
+      message: 'Status must be 0 (Cancelled) or 1 (Active)'
     })
 });
 
