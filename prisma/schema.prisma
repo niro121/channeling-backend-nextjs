@@ -356,7 +356,7 @@ model DoctorLeave {
   cancelRemarks String?
   sessions      Json?
   sendSms       Int? // == 0: no, 1: yes == //
-  status        Int // == 0 = CANCEL, 1 = ACTIVE == //
+  status        Int // == 0 = On Leave, 1 = Leave Cancelled == //
 
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId

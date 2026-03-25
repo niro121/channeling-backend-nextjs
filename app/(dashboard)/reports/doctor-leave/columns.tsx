@@ -98,21 +98,25 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: 'Leave Status',
     cell: ({ row }) => {
       const status = row.getValue<number>('status');
-      const isActive = status === 1;
+      const isSessionsActive = status === 1;
       return (
         <Badge
-          variant={isActive ? 'default' : 'secondary'}
-          className={
-            isActive
-              ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
-              : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+          variant={isSessionsActive ? 'default' : 'secondary'}
+          className={ 
+            `${isSessionsActive
+              ? 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+              : 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'} whitespace-nowrap flex-nowrap`
           }
         >
-          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {isActive ? 'Active' : 'Cancel'}
+          {isSessionsActive ? (
+            <XCircle className="h-4 w-4" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" />
+          )}
+          {isSessionsActive ? 'Leave Cancelled' : 'On Leave'}
         </Badge>
       );
     }
