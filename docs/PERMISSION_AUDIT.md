@@ -147,6 +147,20 @@ For the full component structure (list page, add/edit routes, form with Formik +
      - `submitReconciliationAction` – reconcile
    - ✅ UI: Sidebar link gated by `hasAccess('/reconciliation')`. "Submit as reconciled" button on document page gated by `has('reconciliation', 'reconcile')`.
 
+11. **Sessions** (`/sessions`)
+   - ✅ Page: Has `checkRouteAccess("/sessions")` check; redirects to unauthorized if no view
+   - ✅ Resource: **sessions** (view / add / edit / delete); route mapped in `lib/permissions.ts` as `"/sessions": "sessions"`; listed in `types/user-group.ts` `RESOURCES`
+   - ✅ Server Actions (`app/actions/sessions.action.ts`): `requirePermission` / `checkPermission` as appropriate
+     - `getAllSessions` – view
+     - `getDoctorOptions` – view on **sessions** or **doctor-leaves** (shared with `/doctor-leaves` page)
+     - `createSessions` – add
+     - `updateSessions` – edit
+     - `updateSession` – edit
+     - `deleteSession` – delete
+     - `getSessionActivity` – view
+   - ✅ Record Actions: Edit and Delete gated by `usePermissions` (`has('sessions', 'edit')`, `has('sessions', 'delete')`)
+   - ✅ UI: Sidebar link gated by `hasAccess('/sessions')`. "Analyse & Create" is shown only with `has('sessions', 'add')` (maps to **Add** in user groups); "Update Only" only with `has('sessions', 'edit')` (**Edit**). Server: `createSessions` → `requirePermission('sessions','add')`, `updateSessions` → `requirePermission('sessions','edit')`.
+
 ---
 
 ### ❌ Components WITHOUT Permission Checks
@@ -215,9 +229,9 @@ For the full component structure (list page, add/edit routes, form with Formik +
 
 ## Summary
 
-- **Total Components:** 19
-- **With Permission Checks:** 8 (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments, Receipt Manager)
-- **Without Permission Checks:** 12
+- **Total Components:** 19 (in the “WITHOUT” list below)
+- **With Permission Checks:** Includes **Sessions** (`/sessions`) and the modules listed in sections 1–11 above (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments, Receipt Manager, Handovers, Bank Accounts, Reconciliation, **Sessions**).
+- **Without Permission Checks:** See numbered items under “Components WITHOUT Permission Checks” (e.g. Agencies, Doctors, …).
 
 ## Action Required
 
@@ -232,6 +246,7 @@ All components except Users need permission checks added. The middleware provide
 
 All these resources are already in `types/user-group.ts`:
 - ✅ users
+- ✅ sessions (Sessions list — view / add / edit / delete)
 - ✅ channel-booking
 - ✅ shift (Shift (Channel Booking) – use view to allow all shift actions)
 - ✅ doctors
