@@ -182,6 +182,82 @@ export const printPdfUtil = <T>({
   window.open(doc.output('bloburl'), '_blank');
 };
 
+// ==== PDF PRINT WITH HEADER HANDLE UTIL (title + custom header lines + table only) ==== //
+type PrintPdfWithHeaderOptions<T> = {
+  title?: string;
+  headerLines?: string[];
+  data: T[];
+  columns: string[];
+  keys: (keyof T)[];
+};
+
+/**
+ * Generates a PDF with:
+ * - Report title
+ * - Custom header lines (e.g. session details with labels)
+ * - Table only (autoTable) from provided data
+ */
+export const printPdfUtilWithHeader = <T>({
+  title = 'Report',
+  headerLines = [],
+  data,
+  columns,
+  keys
+}: PrintPdfWithHeaderOptions<T>) => {
+  const doc = new jsPDF({ orientation: 'l' });
+  const margin = 14;
+
+  const pageWidth =
+    (typeof doc.internal.pageSize.getWidth === 'function'
+      ? doc.internal.pageSize.getWidth()
+      : (doc.internal.pageSize as any).width) ?? 297;
+  const tableWidth = pageWidth - margin * 2;
+
+  // Title
+  let y = 20;
+  doc.setFontSize(16);
+  doc.text(title, margin, y);
+  y += 10;
+
+  // Header lines (session details)
+  if (headerLines?.length) {
+    doc.setFontSize(11);
+    for (const raw of headerLines) {
+      const line = (raw ?? '').toString().trim();
+      if (!line) continue;
+
+      const split = doc.splitTextToSize(line, tableWidth);
+      doc.text(split as any, margin, y);
+      y += split.length * 6;
+    }
+    y += 4;
+  }
+
+  const rows = data.map((item) =>
+    keys.map((key) => {
+      const value = (item as any)?.[key];
+      return value !== undefined && value !== null ? String(value) : '-';
+    })
+  );
+
+  autoTable(doc, {
+    head: [columns],
+    body: rows,
+    startY: y,
+    margin: { left: margin, right: margin },
+    tableWidth,
+    styles: { fontSize: 8, cellPadding: 2, minCellWidth: 0 },
+    headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: '#317D5A' }
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsDoc = doc as any;
+  if (typeof jsDoc.autoPrint === 'function') {
+    jsDoc.autoPrint({ variant: 'non-conform' });
+  }
+  window.open(doc.output('bloburl'), '_blank');
+};
+
 // ==== EXCEL DOWNLOAD HANDLE UTIL ==== //
 type DownloadExcelOptions<T> = {
   columns: string[];

@@ -14,6 +14,7 @@ import { useToast } from '@/components/hooks/use-toast';
 import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { ExportWrapper } from '../../export-wrapper';
+import { printPdfUtilWithHeader } from '@/lib/utils';
 
 type PhoneViewReportContentProps = {
   sessionId: string;
@@ -71,7 +72,72 @@ export default function PhoneViewReportContent({
   };
 
   const handlePrint = () => {
-    window.print();
+    if (!sessionData) return;
+
+    type PhoneViewPrintRow = {
+      appNo: string;
+      bookingId: string;
+      patientName: string;
+      phoneNo: string;
+      time: string;
+      presentAbsent: string;
+    };
+
+    const headerLines = [
+      `Branch: ${sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}`,
+      sessionData.location?.address
+        ? `Address: ${sessionData.location.address}`
+        : '',
+      `Consultant: ${
+        sessionData.doctor
+          ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+          : '-'
+      }`,
+      `Date: ${formatDate(sessionData.date)}`,
+      `Session Name: ${formatSessionName(
+        sessionData.date,
+        sessionData.startTime
+      )}`
+    ].filter(Boolean);
+
+    const timeStr = formatTime(sessionData.startTime);
+
+    const data: PhoneViewPrintRow[] = (sessionData.bookings ?? []).map(
+      (booking) => ({
+        appNo: String(booking.appointmentNo ?? '-'),
+        bookingId: booking.bookingId || '-',
+        patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
+        phoneNo: booking.phone || '-',
+        time: timeStr,
+        presentAbsent: getPresentAbsentStatus(booking)
+      })
+    );
+
+    const columns = [
+      'App No.',
+      'Booking Id',
+      'Patient Name',
+      'Phone No',
+      'Time',
+      'P/A'
+    ];
+
+    const keys = [
+      'appNo',
+      'bookingId',
+      'patientName',
+      'phoneNo',
+      'time',
+      'presentAbsent'
+    ] as (keyof PhoneViewPrintRow)[];
+
+    printPdfUtilWithHeader<PhoneViewPrintRow>({
+      title: 'Phone View Report',
+      headerLines,
+      data,
+      columns,
+      keys
+    });
   };
 
   const formatTime = (date: Date) => {
@@ -88,8 +154,18 @@ export default function PhoneViewReportContent({
     return `${dateStr} ${timeStr}`;
   };
 
-  const getPresentAbsentStatus = (status: number) => {
-    return status === 1 ? 'Present' : 'Absent';
+  const getPresentAbsentStatus = (
+    booking: PhoneViewSessionData['bookings'][0]
+  ) => {
+    if ((booking.refund ?? 0) > 0) return 'Refunded';
+    if (booking.status === 2) return 'Cancelled';
+    return booking.status === 1 ? 'Present' : 'Absent';
+  };
+
+  const getCancelRefundStatus = (booking: PhoneViewSessionData['bookings'][0]) => {
+    if (booking.status === 2) return 'C';
+    if ((booking.refund ?? 0) > 0) return 'R';
+    return '-';
   };
 
   const handleExport = async () => {
@@ -210,13 +286,14 @@ export default function PhoneViewReportContent({
                     <th className="border p-2 text-left font-semibold">Patient Name</th>
                     <th className="border p-2 text-left font-semibold">Phone No</th>
                     <th className="border p-2 text-left font-semibold">Time</th>
+                    <th className="border p-2 text-left font-semibold">C / R</th>
                     <th className="border p-2 text-left font-semibold">P/A</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessionData.bookings.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="border p-4 text-center text-muted-foreground">
+                      <td colSpan={7} className="border p-4 text-center text-muted-foreground">
                         No bookings found
                       </td>
                     </tr>
@@ -230,9 +307,10 @@ export default function PhoneViewReportContent({
                         </td>
                         <td className="border p-2">{booking.phone || '-'}</td>
                         <td className="border p-2">{formatTime(sessionData.startTime)}</td>
+                        <td className="border p-2">{getCancelRefundStatus(booking)}</td>
                         <td className="border p-2">
                           <span className={booking.status === 1 ? 'text-green-600' : 'text-red-600'}>
-                            {getPresentAbsentStatus(booking.status)}
+                            {getPresentAbsentStatus(booking)}
                           </span>
                         </td>
                       </tr>

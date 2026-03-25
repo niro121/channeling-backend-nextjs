@@ -35,6 +35,9 @@ export type ChannelAgentReferenceBookReportQuery = {
   toDate: string;
   agencyId?: string;
   bookNumber?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  status?: string; // '__all__' | '1' | '0'
 };
 
 export type ChannelAgentReferenceBookReportResponse = {
@@ -188,11 +191,16 @@ export type NurseViewBookingData = {
   agencyRef: string | null;
   staffId: string | null;
   agencyId: string | null;
+  creditCustomerId?: string | null;
   staff?: {
     id: string;
     name: string;
   } | null;
   agency?: {
+    id: string;
+    name: string;
+  } | null;
+  creditCustomer?: {
     id: string;
     name: string;
   } | null;
@@ -253,6 +261,8 @@ export type DoctorViewBookingData = {
     id: string;
     name: string;
   } | null;
+  creditCustomerId?: string | null;
+  creditCustomer?: { id: string; name: string } | null;
 };
 
 export type DoctorViewReportResponse = {
@@ -297,6 +307,7 @@ export type PhoneViewBookingData = {
   name: string;
   phone: string;
   status: number;
+  refund: number;
 };
 
 export type PhoneViewReportResponse = {
@@ -318,7 +329,7 @@ export type ExportPhoneViewData = {
 // All Doctor View Report Types
 export type AllDoctorViewReportQuery = {
   date: string;
-  sessionType?: string; // '__all__', 'morning', 'afternoon', 'evening', or hour number
+  sessionType?: string; // '__all__', 'morning', 'evening'
   feeType?: string; // '__all__', 'hospital', 'professional', 'total'
   locationId?: string; // '__all__' or location ID
 };
@@ -428,6 +439,7 @@ export type ConsultantPaymentsReportQuery = {
   specialityId?: string;
   doctorId?: string;
   status?: string; // '__all__' | '0' | '1' (0 = Due Pay, 1 = Paid)
+  sessionType?: string; // '__all__' | 'morning' | 'evening'
 };
 
 export type ConsultantPaymentsReportRow = {
@@ -441,6 +453,7 @@ export type ConsultantPaymentsReportRow = {
   consultationSession: string;
   patientName: string;
   modeOfPay: string;
+  consultationCharge: number;
   discountAmount: number;
   netAmount: number;
   paymentStatus: string;

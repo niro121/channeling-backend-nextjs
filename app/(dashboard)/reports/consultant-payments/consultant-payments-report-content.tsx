@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
+import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
 import {
@@ -14,6 +14,8 @@ import {
 import { ConsultantPaymentsReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import type { ConsultantPaymentsReportRow } from '@/types/report';
+import { TableCell, TableRow } from '@/components/ui/table';
+import { formatLKR } from '@/lib/format-money';
 
 type ConsultantPaymentsReportContentProps = {
   institutionOptions: Array<{ id: string; name: string }>;
@@ -22,6 +24,18 @@ type ConsultantPaymentsReportContentProps = {
   specialityOptions: Array<{ id: string; name: string }>;
   doctorOptions: Array<{ id: string; name: string }>;
 };
+
+/** Default from = today 00:00, to = today 23:59 (local) in YYYY-MM-DDTHH:mm */
+function getTodayDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    from: `${y}-${m}-${d}T00:00`,
+    to: `${y}-${m}-${d}T23:59`
+  };
+}
 
 function ConsultantPaymentsReportContentInner({
   institutionOptions,
@@ -40,13 +54,20 @@ function ConsultantPaymentsReportContentInner({
     departmentId: searchParams.get('departmentId') ?? undefined,
     specialityId: searchParams.get('specialityId') ?? undefined,
     doctorId: searchParams.get('doctorId') ?? undefined,
-    status: searchParams.get('status') ?? undefined
+    status: searchParams.get('status') ?? undefined,
+    sessionType: searchParams.get('sessionType') ?? undefined
   });
 
   const statusOptions = [
-    { id: '__all__', name: 'All' },
+    { id: '__all__', name: 'All Status' },
     { id: '1', name: 'Paid' },
     { id: '0', name: 'Due Pay' }
+  ];
+
+  const sessionOptions = [
+    { id: '__all__', name: 'All Session' },
+    { id: 'morning', name: 'Morning (12.00 AM – 11.59 AM)' },
+    { id: 'evening', name: 'Evening (12.00 PM – 11.59 PM)' }
   ];
 
   return (
@@ -54,10 +75,15 @@ function ConsultantPaymentsReportContentInner({
       title="Consultant Payments Report"
       description="View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status"
       filterButtonLabel="Search"
+      skipFetchWhenNoParams={true}
+      initialFilterValues={{
+        fromDateTime: getTodayDateTimeRange().from,
+        toDateTime: getTodayDateTimeRange().to
+      }}
       filterContent={({ values, setValue }) => (
         <>
           <div className="flex-shrink-0">
-            <DateTimeRangePicker
+            <DateAndTimeRangePicker
               label="Date & Time Range"
               from={values.fromDateTime}
               to={values.toDateTime}
@@ -67,52 +93,63 @@ function ConsultantPaymentsReportContentInner({
               }}
             />
           </div>
-          <Selector
-            label="Institution"
-            options={institutionOptions}
-            value={values.institutionId ?? '__all__'}
-            onChange={(v) => setValue('institutionId', v)}
-            className={{
-              trigger: 'self-end!'
-            }}
-          />
-          <Combobox
-            label="Branch"
-            options={locationOptions}
-            value={values.locationId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('locationId', v)}
-          />
-          <Combobox
-            label="Department"
-            options={departmentOptions}
-            value={values.departmentId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('departmentId', v)}
-          />
-          <Combobox
-            label="Speciality"
-            options={specialityOptions}
-            value={values.specialityId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('specialityId', v)}
-          />
-          <Combobox
-            label="Doctor"
-            options={doctorOptions}
-            value={values.doctorId ?? '__all__'}
-            defaultValue="__all__"
-            onChange={(v) => setValue('doctorId', v)}
-          />
-          <Selector
-            label="Status"
-            options={statusOptions}
-            value={values.status ?? '__all__'}
-            onChange={(v) => setValue('status', v)}
-            className={{
-              trigger: 'self-end!'
-            }}
-          />
+          <div className='flex flex-wrap gap-3'>
+            <Selector
+              label="Institution"
+              options={institutionOptions}
+              value={values.institutionId ?? '__all__'}
+              onChange={(v) => setValue('institutionId', v)}
+              className={{
+                trigger: 'self-end!'
+              }}
+            />
+            <Combobox
+              label="Branch"
+              options={locationOptions}
+              value={values.locationId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('locationId', v)}
+            />
+            <Combobox
+              label="Department"
+              options={departmentOptions}
+              value={values.departmentId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('departmentId', v)}
+            />
+            <Combobox
+              label="Speciality"
+              options={specialityOptions}
+              value={values.specialityId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('specialityId', v)}
+            />
+            <Combobox
+              label="Doctor"
+              options={doctorOptions}
+              value={values.doctorId ?? '__all__'}
+              defaultValue="__all__"
+              onChange={(v) => setValue('doctorId', v)}
+            />
+            <Selector
+              label=""
+              options={statusOptions}
+              value={values.status ?? '__all__'}
+              onChange={(v) => setValue('status', v)}
+              className={{
+                trigger: 'self-end!'
+              }}
+            />
+            <Selector
+              label=""
+              options={sessionOptions}
+              value={values.sessionType ?? '__all__'}
+              onChange={(v) => setValue('sessionType', v)}
+              className={{
+                trigger: 'self-end!'
+              }}
+            />
+          </div>
         </>
       )}
       fetchData={async (params) => {
@@ -124,7 +161,8 @@ function ConsultantPaymentsReportContentInner({
           departmentId: params.get('departmentId') ?? undefined,
           specialityId: params.get('specialityId') ?? undefined,
           doctorId: params.get('doctorId') ?? undefined,
-          status: params.get('status') ?? undefined
+          status: params.get('status') ?? undefined,
+          sessionType: params.get('sessionType') ?? undefined
         };
         return getConsultantPaymentsReportData(query);
       }}
@@ -140,6 +178,7 @@ function ConsultantPaymentsReportContentInner({
         'Consultation Date/Session Time',
         'Patient Name',
         'Mode of Pay',
+        'Consultation Charge',
         'Discount Amount',
         'Net Amount',
         'Payment Status',
@@ -158,6 +197,7 @@ function ConsultantPaymentsReportContentInner({
           'consultationSession',
           'patientName',
           'modeOfPay',
+          'consultationCharge',
           'discountAmount',
           'netAmount',
           'paymentStatus',

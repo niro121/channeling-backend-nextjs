@@ -19,6 +19,7 @@ import { PlusCircle } from '@/components/icons';
 import { CalendarIcon, Loader2, RefreshCw } from 'lucide-react';
 import { createSessions, updateSessions } from '@/app/actions/sessions.action';
 import { cn } from '@/lib/utils';
+import { usePermissions } from '@/components/hooks/use-permissions';
 
 type Option = { id: string; name: string };
 
@@ -55,6 +56,7 @@ export default function FilterSection({
 }: SessionFiltersProps) {
   const { setDoctor } = useSessionStore();
   const { toast } = useToast();
+  const { has } = usePermissions();
   const router = useRouter();
   const pathname = usePathname();
   const [creating, setCreating] = React.useState(false);
@@ -191,6 +193,8 @@ export default function FilterSection({
           >
             View Sessions
           </Button>
+          {/* Sessions resource: add = Analyse & Create (bulk generate) */}
+          {has('sessions', 'add') && (
           <Button
             size="sm"
             disabled={creating || updating || !canSubmit}
@@ -246,6 +250,9 @@ export default function FilterSection({
             <PlusCircle />
             {creating ? 'Creating…' : 'Analyse & Create'}
           </Button>
+          )}
+          {/* Sessions resource: edit = Update Only (bulk refresh) */}
+          {has('sessions', 'edit') && (
           <Button
             size="sm"
             disabled={creating || updating || !canSubmit}
@@ -301,6 +308,7 @@ export default function FilterSection({
             <RefreshCw className="h-4 w-4" />
             {updating ? 'Updating…' : 'Update Only'}
           </Button>
+          )}
 
           <Dialog
             open={progressOpen}
