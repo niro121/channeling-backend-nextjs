@@ -13,6 +13,7 @@ type PrismaAgencyWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof pr
 export const getAgentDetailReportDataService = async ({
   fromDate,
   toDate,
+  agencyId,
   agencyName,
   agencyCode,
   status
@@ -28,6 +29,11 @@ export const getAgentDetailReportDataService = async ({
       gte: startOfDay,
       lte: endOfDay,
     };
+
+    // Agency selector filter (optional)
+    if (agencyId && agencyId !== '__all__') {
+      whereClause.id = agencyId;
+    }
 
     // Agency name filter (optional)
     if (agencyName && agencyName.trim() !== '') {
