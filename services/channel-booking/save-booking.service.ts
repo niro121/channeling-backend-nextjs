@@ -355,6 +355,36 @@ export async function saveBookingService(
     }
   }
 
+  // Pre-check: if this booking/payment method needs a till (cash/card/slip/check/e-wallet),
+  // validate till account creation before creating a pending booking row.
+  if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+    const isAgent = input.payment_type === 4
+    const isCreditCustomer = input.payment_type === 5
+    const needTill = [0, 1, 2, 3, 6].includes(input.payment_type)
+
+    if (needTill) {
+      const reqResult = await requireReceiptJournalAccounts(
+        {
+          locationId,
+          createdBy: userId,
+          agencyId: input.agency?.id ?? null,
+          creditCustomerId: input.credit_customer?.id ?? null,
+          doctorId: session.doctorId ?? input.doctor?.id ?? null,
+          needTill,
+        },
+        { needTill, isAgent, isCreditCustomer }
+      )
+
+      if (!reqResult.success) {
+        return {
+          success: false,
+          errorCode: reqResult.errorCode as SaveBookingErrorCode,
+          message: reqResult.error,
+        }
+      }
+    }
+  }
+
   try {
     const booking = await prisma.booking.create({
       data: {

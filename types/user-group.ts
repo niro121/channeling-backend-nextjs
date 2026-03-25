@@ -64,6 +64,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "handover", name: "Handed over to me", actions: ["view"] },
   { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
+  { id: "sessions", name: "Sessions" },
   { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
   { id: "patients", name: "Patients" },
