@@ -8,7 +8,7 @@ import {
   deleteSessionService,
 } from '@/services/sessions';
 import { getSessionParams, getSessionQuery } from "@/types/sessions";
-import { requirePermission } from '@/lib/server-permissions';
+import { requirePermission, checkPermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
 import { parseSessionDateTime, timeToMinutes, calculateDurationMinutes } from '@/lib/utils';
@@ -82,7 +82,18 @@ export const getAllSessions = async (sort: getSessionParams) => {
 };
 
 // ==== GET DOCTOR SESSIONS (doctors list for dropdown / Analyse & Create) ==== //
+/** Used by /sessions and /doctor-leaves — allow if user may view either module. */
 export const getDoctorOptions = async () => {
+  const canSessions = await checkPermission('sessions', 'view');
+  const canDoctorLeaves = await checkPermission('doctor-leaves', 'view');
+  if (!canSessions && !canDoctorLeaves) {
+    return {
+      success: false,
+      error: { message: 'Access denied' },
+      data: [],
+      totalRecords: 0,
+    };
+  }
   try {
     const response = await getDoctorsForSessionsService();
 

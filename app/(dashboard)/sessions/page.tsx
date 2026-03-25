@@ -5,6 +5,8 @@ import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
 import SessionsPageClient from './sessions-page-client';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -25,6 +27,10 @@ function todayYYYYMMDD(): string {
 }
 
 export default async function Page({ searchParams }: SearchParams) {
+  const canView = await checkRouteAccess('/sessions');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
   const params = await searchParams;
   const session = await getServerSession(authOptions);
   if (session?.user?.id) {
