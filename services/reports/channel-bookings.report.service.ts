@@ -56,6 +56,7 @@ export async function getChannelBookingsReportService(
       dateType,
       institutionId,
       locationId,
+      departmentId,
       branchTypeId,
       specialityId,
       doctorId,
@@ -75,6 +76,7 @@ export async function getChannelBookingsReportService(
       hasDateFilter ||
       (institutionId && institutionId !== "__all__") ||
       (locationId && locationId !== "__all__") ||
+      (departmentId && departmentId !== "__all__") ||
       (branchTypeId && branchTypeId !== "__all__") ||
       (specialityId && specialityId !== "__all__") ||
       (doctorId && doctorId !== "__all__") ||
@@ -124,6 +126,9 @@ export async function getChannelBookingsReportService(
           const instNum = parseInt(institutionId, 10);
           if (!isNaN(instNum)) sessionWhere.institution = instNum;
         }
+        if (departmentId && departmentId !== "__all__") {
+          sessionWhere.departmentId = departmentId;
+        }
         const sessions = await prisma.session.findMany({
           where: sessionWhere,
           select: { id: true },
@@ -145,6 +150,23 @@ export async function getChannelBookingsReportService(
       const instNum = parseInt(institutionId, 10);
       if (!isNaN(instNum)) {
         bookingWhere.session = { institution: instNum };
+      }
+    }
+
+    if (departmentId && departmentId !== "__all__") {
+      const appliedViaSessionDateList =
+        Boolean(dateRange) && dateType !== "transaction_date";
+      if (!appliedViaSessionDateList) {
+        const existing = bookingWhere.session;
+        if (
+          existing &&
+          typeof existing === "object" &&
+          !Array.isArray(existing)
+        ) {
+          bookingWhere.session = { ...existing, departmentId };
+        } else {
+          bookingWhere.session = { departmentId };
+        }
       }
     }
 
@@ -261,13 +283,78 @@ export async function getChannelBookingsReportService(
         session: { select: { id: true, date: true, startTime: true, endTime: true } },
         location: { select: { id: true, name: true, branchType: true } },
         agency: { select: { id: true, name: true } },
-        createdUser: { select: { id: true, name: true } },
-        updatedUser: { select: { id: true, name: true } },
+        createdUser: {
+          select: {
+            id: true,
+            name: true,
+            staff: { select: { code: true } },
+          },
+        },
+        updatedUser: {
+          select: {
+            id: true,
+            name: true,
+            staff: { select: { code: true } },
+          },
+        },
+        receipts: {
+          where: { method: 0 },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { id: true, createdAt: true, createdBy: true },
+        },
       },
       orderBy: [{ doctor: { code: "asc" } }, { session: { date: "asc" } }, { appointmentNo: "asc" }],
     });
 
-    const rows: ChannelBookingsReportRow[] = bookings.map((b) => ({ ...b }));
+    const refundCreatorIds = [
+      ...new Set(
+        bookings.flatMap((b) => {
+          if ((b.refund ?? 0) === 0) return [];
+          const recs = b.receipts ?? [];
+          const rec =
+            (b.refundReceiptId
+              ? recs.find((r) => r.id === b.refundReceiptId)
+              : undefined) ?? recs[0];
+          return rec?.createdBy ? [rec.createdBy] : [];
+        })
+      ),
+    ];
+    const refundUsers =
+      refundCreatorIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: refundCreatorIds } },
+            select: {
+              id: true,
+              name: true,
+              staff: { select: { code: true } },
+            },
+          })
+        : [];
+    const refundUserById = new Map(refundUsers.map((u) => [u.id, u]));
+
+    const rows: ChannelBookingsReportRow[] = bookings.map((b) => {
+      const refundRecs = b.receipts ?? [];
+      const { receipts: _r, ...rest } = b;
+      const hasRefund = (rest.refund ?? 0) !== 0;
+      const refundRec = hasRefund
+        ? (rest.refundReceiptId
+            ? refundRecs.find((r) => r.id === rest.refundReceiptId)
+            : undefined) ?? refundRecs[0]
+        : undefined;
+      const resolvedRefundedAt = hasRefund
+        ? rest.refundReceiptCreatedAt ?? refundRec?.createdAt ?? null
+        : rest.refundReceiptCreatedAt;
+      const refundCreatedUser =
+        hasRefund && refundRec?.createdBy
+          ? refundUserById.get(refundRec.createdBy) ?? null
+          : null;
+      return {
+        ...rest,
+        refundReceiptCreatedAt: resolvedRefundedAt,
+        refundCreatedUser,
+      } as ChannelBookingsReportRow;
+    });
 
     return {
       success: true,

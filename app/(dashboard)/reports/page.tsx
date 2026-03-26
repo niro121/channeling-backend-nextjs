@@ -76,7 +76,7 @@ const reportsData: ReportListItem[] = [
   },
   {
     id: '11',
-    masterData: 'Channel Bookings',
+    masterData: 'Channel Booking Details',
     description: 'View channel booking records with filters for date & time range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method',
     route: '/reports/channel-bookings'
   },
