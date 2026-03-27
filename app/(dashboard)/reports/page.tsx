@@ -82,8 +82,8 @@ const reportsData: ReportListItem[] = [
   },
   {
     id: '12',
-    masterData: 'Agent Balance Confirmation Letter',
-    description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
+    masterData: 'Agent Balance Report',
+    description: 'View agent balances with status filter using agency soft limit, associated account hard limit, and live account balance.',
     route: '/reports/agent-balance'
   },
   {
@@ -97,6 +97,18 @@ const reportsData: ReportListItem[] = [
     masterData: 'All Cashier Summary and Detail Report',
     description: 'All-cashier report with date/time, branch, and user filters; supports Summary and Detail formats with print and CSV.',
     route: '/reports/all-cashier-summary-detail'
+  },
+  {
+    id: '16',
+    masterData: 'Agency Statement',
+    description: 'Agent-wise statement with opening/closing balance and receipt details enriched with booking fee breakdown when available.',
+    route: '/reports/agency-statement'
+  },
+  {
+    id: '17',
+    masterData: 'Channel Agent Receipt Report',
+    description: 'Search all receipts linked to bookings by Book No prefix (BookNo%).',
+    route: '/reports/channel-agent-receipt'
   },
   {
     id: '12',
