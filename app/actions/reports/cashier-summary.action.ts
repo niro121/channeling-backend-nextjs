@@ -20,7 +20,8 @@ export async function getCashierSummaryReportData(
     return {
       success: false,
       sections: [],
-      grandTotals: { cash: 0, creditCard: 0, slip: 0, cheque: 0, agent: 0, agentCredit: 0 },
+      grandTotals: { cash: 0, creditCard: 0, slip: 0, cheque: 0, agent: 0, agentCredit: 0, eWallet: 0 },
+      includedShifts: [],
       message: error instanceof Error ? error.message : 'Failed to load cashier summary report',
     };
   }
