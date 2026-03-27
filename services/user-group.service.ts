@@ -40,10 +40,6 @@ export const getUserGroups = async ({
             orderBy: {
                 createdAt: "desc",
             },
-            include: {
-                createdUser: true,
-                updatedUser: true,
-            },
         })
 
         const totalRecords = await prisma.userGroup.count({
@@ -111,7 +107,7 @@ export const saveUserGroup = async (
     user?: { id?: string; name?: string }
 ) => {
     try {
-        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+        const userId = user?.id?.trim() || undefined
 
         const result = await prisma.userGroup.create({
             data: {
@@ -121,8 +117,7 @@ export const saveUserGroup = async (
                 permissions: userGroup.permissions as any,
                 twoFactorEnabled: userGroup.twoFactorEnabled ?? false,
                 twoFactorMethods: Array.isArray(userGroup.twoFactorMethods) ? userGroup.twoFactorMethods : [],
-                createdUser: userRelation,
-                updatedUser: userRelation,
+                ...(userId && { createdBy: userId, updatedBy: userId }),
             },
         })
 
@@ -146,7 +141,7 @@ export const updateOneUserGroup = async (
     user?: { id?: string; name?: string }
 ) => {
     try {
-        const userRelation = user?.id ? { connect: { id: user.id } } : undefined
+        const userId = user?.id?.trim() || undefined
 
         await prisma.userGroup.update({
             data: {
@@ -156,7 +151,7 @@ export const updateOneUserGroup = async (
                 permissions: payload.permissions as any,
                 twoFactorEnabled: payload.twoFactorEnabled ?? false,
                 twoFactorMethods: Array.isArray(payload.twoFactorMethods) ? payload.twoFactorMethods : [],
-                ...(userRelation && { updatedUser: userRelation }),
+                ...(userId && { updatedBy: userId }),
                 updatedAt: new Date(),
             },
             where: {
@@ -175,10 +170,6 @@ export const getUserGroupById = async (id: string) => {
     try {
         const result = await prisma.userGroup.findUnique({
             where: { id: id },
-            include: {
-                createdUser: true,
-                updatedUser: true,
-            },
         })
 
         return result
