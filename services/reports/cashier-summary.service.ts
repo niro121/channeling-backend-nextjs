@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
   CashierSummaryReportQuery,
@@ -8,6 +9,7 @@ import type {
   CashierSummaryReportSection,
   CashierSummaryReportLineItem,
   CashierSummaryPaymentAmounts,
+  CashierSummaryIncludedShift,
 } from '@/types/report';
 import type { Prisma } from '@prisma/client';
 
@@ -18,6 +20,7 @@ const ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
   cheque: 0,
   agent: 0,
   agentCredit: 0,
+  eWallet: 0,
 };
 
 /**
@@ -57,6 +60,7 @@ function paymentColumnKey(paymentMethod: number): keyof CashierSummaryPaymentAmo
     [RECEIPT_PAYMENT_METHOD.CHECK]: 'cheque',
     [RECEIPT_PAYMENT_METHOD.AGENT]: 'agent',
     [RECEIPT_PAYMENT_METHOD.CREDIT]: 'agentCredit',
+    [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'eWallet',
   };
   return map[paymentMethod] ?? 'cash';
 }
@@ -80,6 +84,7 @@ function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmo
     cheque: a.cheque + b.cheque,
     agent: a.agent + b.agent,
     agentCredit: a.agentCredit + b.agentCredit,
+    eWallet: a.eWallet + b.eWallet,
   };
 }
 
@@ -100,16 +105,28 @@ function formatSessionDateTime(session: { date: Date; startTime?: Date | null } 
   return d.toLocaleDateString('en-CA', { dateStyle: 'short' });
 }
 
+function formatShiftLabel(
+  shift: { startedAt: Date; endedAt?: Date | null; user?: { id?: string; name: string | null; staff?: { code: string | null } | null } | null } | null
+): string | null {
+  if (!shift) return null;
+  const start = new Date(shift.startedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  const end = shift.endedAt
+    ? new Date(shift.endedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+    : 'Ongoing';
+  const userName = formatUserDisplayName(shift.user?.name, shift.user?.id, shift.user?.staff?.code);
+  return `${userName} (${start} - ${end})`;
+}
+
 export async function getCashierSummaryReportService(
   query: CashierSummaryReportQuery
 ): Promise<CashierSummaryReportResponse> {
   const range = parseFromTo(query.dateFrom, query.dateTo);
   if (!range) {
-    return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, message: 'From date and to date are required.' };
+    return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, includedShifts: [], message: 'From date and to date are required.' };
   }
   const { start: from, end: to } = range;
   if (from.getTime() > to.getTime()) {
-    return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, message: 'From date/time must be before or equal to to date/time.' };
+    return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, includedShifts: [], message: 'From date/time must be before or equal to to date/time.' };
   }
 
   const baseWhere: Prisma.ReceiptWhereInput = {
@@ -127,10 +144,38 @@ export async function getCashierSummaryReportService(
         doctor: { select: { title: true, name: true } },
       },
     },
+    shift: {
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        user: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      },
+    },
   } as const;
 
   const sections: CashierSummaryReportSection[] = [];
   let grandTotals = { ...ZERO_AMOUNTS };
+  const includedShiftMap = new Map<string, CashierSummaryIncludedShift>();
+
+  function collectShifts(
+    rows: Array<{
+      shiftId?: string | null;
+      shift?: { id: string; startedAt: Date; endedAt?: Date | null; user?: { id?: string; name: string | null; staff?: { code: string | null } | null } | null } | null;
+    }>
+  ) {
+    for (const row of rows) {
+      if (!row.shiftId || !row.shift) continue;
+      if (!includedShiftMap.has(row.shiftId)) {
+        includedShiftMap.set(row.shiftId, {
+          id: row.shift.id,
+          userName: formatUserDisplayName(row.shift.user?.name, row.shift.user?.id, row.shift.user?.staff?.code),
+          startedAt: row.shift.startedAt,
+          endedAt: row.shift.endedAt ?? null,
+        });
+      }
+    }
+  }
 
   // --- Channel Billed: method PAYMENT, bookingId not null ---
   const channelBilled = await prisma.receipt.findMany({
@@ -145,6 +190,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -153,6 +199,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(channelBilled);
   const channelBilledTotals = channelBilledRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'channelBilled',
@@ -180,6 +227,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -188,6 +236,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(channelRefund);
   const channelRefundTotals = channelRefundRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'channelRefund',
@@ -215,6 +264,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -223,6 +273,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(channelCancel);
   const channelCancelTotals = channelCancelRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'channelCancel',
@@ -235,7 +286,10 @@ export async function getCashierSummaryReportService(
   // --- Agent Billed: agencyId not null, method PAYMENT ---
   const agentBilled = await prisma.receipt.findMany({
     where: { ...baseWhere, agencyId: { not: null }, method: RECEIPT_METHOD.PAYMENT },
-    include: { booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } } },
+    include: {
+      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   const agentBilledRows: CashierSummaryReportLineItem[] = agentBilled.map((r) => {
@@ -245,6 +299,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -253,6 +308,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(agentBilled);
   const agentBilledTotals = agentBilledRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'agentBilled',
@@ -270,7 +326,10 @@ export async function getCashierSummaryReportService(
       method: RECEIPT_METHOD.REFUND,
       booking: { status: { not: 2 } },
     },
-    include: { booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } } },
+    include: {
+      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   const agentRefundedRows: CashierSummaryReportLineItem[] = agentRefunded.map((r) => {
@@ -280,6 +339,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -288,6 +348,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(agentRefunded);
   const agentRefundedTotals = agentRefundedRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'agentRefunded',
@@ -305,7 +366,10 @@ export async function getCashierSummaryReportService(
       method: RECEIPT_METHOD.REFUND,
       booking: { status: 2 },
     },
-    include: { booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } } },
+    include: {
+      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   const agentCanceledRows: CashierSummaryReportLineItem[] = agentCanceled.map((r) => {
@@ -315,6 +379,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -323,6 +388,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(agentCanceled);
   const agentCanceledTotals = agentCanceledRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'agentCanceled',
@@ -335,13 +401,17 @@ export async function getCashierSummaryReportService(
   // --- Agent Deposit: method AGENCY_DEPOSIT ---
   const agentDeposit = await prisma.receipt.findMany({
     where: { ...baseWhere, method: RECEIPT_METHOD.AGENCY_DEPOSIT },
-    include: { agency: { select: { name: true } } },
+    include: {
+      agency: { select: { name: true } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   const agentDepositRows: CashierSummaryReportLineItem[] = agentDeposit.map((r) => {
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -350,6 +420,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(agentDeposit);
   const agentDepositTotals = agentDepositRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'agentDeposit',
@@ -375,6 +446,7 @@ export async function getCashierSummaryReportService(
     },
     include: {
       booking: { include: { doctor: { select: { title: true, name: true } } } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -383,6 +455,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -391,6 +464,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(doctorPayments);
   const doctorPaymentTotals = doctorPaymentRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'doctorPayment',
@@ -406,6 +480,9 @@ export async function getCashierSummaryReportService(
       ...baseWhere,
       method: { in: [RECEIPT_METHOD.BRANCH_INCOME, RECEIPT_METHOD.BRANCH_EXPENSE] },
     },
+    include: {
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   const incomeExpenseRows: CashierSummaryReportLineItem[] = incomeExpense.map((r) => {
@@ -413,6 +490,7 @@ export async function getCashierSummaryReportService(
     const typeLabel = r.method === RECEIPT_METHOD.BRANCH_INCOME ? 'Income' : 'Expense';
     return {
       txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -423,6 +501,7 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
+  collectShifts(incomeExpense);
   const incomeExpenseTotals = incomeExpenseRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'incomeExpense',
@@ -436,5 +515,6 @@ export async function getCashierSummaryReportService(
     success: true,
     sections,
     grandTotals,
+    includedShifts: Array.from(includedShiftMap.values()).sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime()),
   };
 }
