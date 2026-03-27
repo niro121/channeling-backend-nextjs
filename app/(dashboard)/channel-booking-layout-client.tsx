@@ -9,6 +9,7 @@ import { DesktopSidebar } from "./desktop-sidebar";
 import { Session } from "next-auth";
 
 const CHANNEL_BOOKING_PATH = "/channel-booking";
+const REPORTS_PATH = "/reports";
 
 export function ChannelBookingLayoutClient({
   session,
@@ -21,41 +22,43 @@ export function ChannelBookingLayoutClient({
 }) {
   const pathname = usePathname();
   const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH);
-  const [sidebarOpen, setSidebarOpen] = useState(!isChannelBooking);
+  const isReports = pathname?.startsWith(REPORTS_PATH);
+  const isSidebarAutoCollapsedPage = isChannelBooking || isReports;
+  const [sidebarOpen, setSidebarOpen] = useState(!isSidebarAutoCollapsedPage);
 
-  // When navigating to/from channel-booking, sync sidebar state
+  // When navigating to/from focus pages, sync sidebar state
   useEffect(() => {
-    if (isChannelBooking) {
+    if (isSidebarAutoCollapsedPage) {
       setSidebarOpen(false);
     } else {
       setSidebarOpen(true);
     }
-  }, [isChannelBooking]);
+  }, [isSidebarAutoCollapsedPage]);
 
   return (
     <>
-      {/* Sidebar: on channel-booking, slide off-screen when closed */}
+      {/* Sidebar: on focus pages, slide off-screen when closed */}
       <DesktopSidebar
         session={session}
         e2eRunEnabled={e2eRunEnabled}
         className={cn(
           "hidden sm:flex transition-transform duration-200 ease-out",
-          isChannelBooking && !sidebarOpen && "-translate-x-full"
+          isSidebarAutoCollapsedPage && !sidebarOpen && "-translate-x-full"
         )}
       />
 
-      {/* Main content: no left padding when sidebar hidden on channel-booking */}
+      {/* Main content: no left padding when sidebar hidden on focus pages */}
       <div
         className={cn(
           "flex flex-1 flex-col min-h-screen transition-[padding] duration-200",
-          isChannelBooking && !sidebarOpen ? "pl-0" : "sm:pl-52"
+          isSidebarAutoCollapsedPage && !sidebarOpen ? "pl-0" : "sm:pl-52"
         )}
       >
         {children}
       </div>
 
-      {/* Toggle button: only on channel-booking (desktop) */}
-      {isChannelBooking && (
+      {/* Toggle button: only on focus pages (desktop) */}
+      {isSidebarAutoCollapsedPage && (
         <Button
           type="button"
           size="icon"
