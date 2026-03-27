@@ -149,7 +149,7 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
             <Combobox
               label="Select Agent"
               options={agentOptions}
-              value={agencyId || undefined}
+              value={agencyId}
               onChange={(v) => setAgencyId(v ?? '')}
             />
             <Button size="sm" onClick={runSearch} disabled={loading} className="h-10 gap-2">
