@@ -196,14 +196,17 @@ export type NurseViewBookingData = {
   staff?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   agency?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   creditCustomer?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
 };
 
@@ -264,6 +267,7 @@ export type DoctorViewBookingData = {
   } | null;
   creditCustomerId?: string | null;
   creditCustomer?: { id: string; name: string } | null;
+  refundReceiptCreatedAt?: Date | null;
 };
 
 export type DoctorViewReportResponse = {
@@ -309,6 +313,7 @@ export type PhoneViewBookingData = {
   phone: string;
   status: number;
   refund: number;
+  refundReceiptCreatedAt?: Date | null;
 };
 
 export type PhoneViewReportResponse = {
