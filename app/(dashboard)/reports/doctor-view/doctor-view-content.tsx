@@ -78,7 +78,6 @@ export default function DoctorViewReportContent({
       patientName: string;
       billNo: string;
       agent: string;
-      creditCustomer: string;
       paidOrNot: string;
       cOrR: string;
       pOrA: string;
@@ -109,9 +108,8 @@ export default function DoctorViewReportContent({
         patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
         billNo: booking.receiptNoString || '-',
         agent: getAgentName(booking),
-        creditCustomer: booking.creditCustomer?.name ?? '-',
         paidOrNot: getPaymentStatus(booking.status),
-        cOrR: getCancelRefundStatus(booking.refund),
+        cOrR: getCancelRefundStatus(booking),
         pOrA: getPresentAbsentStatus(booking.status),
         doctorFee: formatCurrency(booking.professionalFee),
         total: formatCurrency(booking.amount)
@@ -122,8 +120,7 @@ export default function DoctorViewReportContent({
       'App No.',
       'Patient Name',
       'Bill No',
-      'Agent',
-      'Credit Customer',
+      'Agent/ Staff/ Credit Customer',
       'Paid or Not',
       'C / R',
       'P/A',
@@ -136,7 +133,6 @@ export default function DoctorViewReportContent({
       'patientName',
       'billNo',
       'agent',
-      'creditCustomer',
       'paidOrNot',
       'cOrR',
       'pOrA',
@@ -175,10 +171,12 @@ export default function DoctorViewReportContent({
     return status === 1 ? 'Paid' : 'Pending';
   };
 
-  const getCancelRefundStatus = (refund: number) => {
-    if (refund === 0) return '-';
-    if (refund === 1) return 'C'; // Cancel
-    if (refund === 2 || refund === 3) return 'R'; // Refund
+  const getCancelRefundStatus = (booking: DoctorViewSessionData['bookings'][0]) => {
+    // Align with Phone View rules:
+    // - If full refund (3) with refund receipt -> C
+    // - If any refund (1,2,3) without refund receipt -> R
+    if ((booking.refund ?? 0) === 3 && booking.refundReceiptCreatedAt) return 'C';
+    if ((booking.refund ?? 0) > 0 && !booking.refundReceiptCreatedAt) return 'R';
     return '-';
   };
 
@@ -194,6 +192,9 @@ export default function DoctorViewReportContent({
     }
     if (booking.staff?.name) {
       return booking.staff.name;
+    }
+    if (booking.creditCustomer?.name) {
+      return booking.creditCustomer.name;
     }
     return '-';
   };
@@ -276,8 +277,7 @@ export default function DoctorViewReportContent({
                     <th className="border p-2 text-left font-semibold">App No.</th>
                     <th className="border p-2 text-left font-semibold">Patient Name</th>
                     <th className="border p-2 text-left font-semibold">Bill No</th>
-                    <th className="border p-2 text-left font-semibold">Agent</th>
-                    <th className="border p-2 text-left font-semibold">Credit Customer</th>
+                    <th className="border p-2 text-left font-semibold">Agent/ Staff/ Credit Customer</th>
                     <th className="border p-2 text-left font-semibold">Paid or Not</th>
                     <th className="border p-2 text-left font-semibold">C / R</th>
                     <th className="border p-2 text-left font-semibold">P/A</th>
@@ -301,13 +301,12 @@ export default function DoctorViewReportContent({
                         </td>
                         <td className="border p-2">{booking.receiptNoString || '-'}</td>
                         <td className="border p-2">{getAgentName(booking)}</td>
-                        <td className="border p-2">{booking.creditCustomer?.name ?? '-'}</td>
                         <td className="border p-2">
                           <span className={booking.status === 1 ? 'text-green-600' : 'text-amber-600'}>
                             {getPaymentStatus(booking.status)}
                           </span>
                         </td>
-                        <td className="border p-2">{getCancelRefundStatus(booking.refund)}</td>
+                        <td className="border p-2">{getCancelRefundStatus(booking)}</td>
                         <td className="border p-2">
                           <span className={booking.status === 1 ? 'text-green-600' : 'text-red-600'}>
                             {getPresentAbsentStatus(booking.status)}

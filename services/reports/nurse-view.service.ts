@@ -23,14 +23,17 @@ export type NurseViewBookingData = {
   staff?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   agency?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   creditCustomer?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
 };
 
@@ -106,18 +109,21 @@ export const getNurseViewReportDataService = async ({
           select: {
             id: true,
             name: true,
+            code: true,
           },
         },
         agency: {
           select: {
             id: true,
             name: true,
+            code: true,
           },
         },
         creditCustomer: {
           select: {
             id: true,
             name: true,
+            code: true,
           },
         },
       },

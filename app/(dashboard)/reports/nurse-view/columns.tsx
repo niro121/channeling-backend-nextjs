@@ -31,18 +31,23 @@ export const NurseViewReportColumns: ColumnDef<NurseViewBookingData>[] = [
   },
   {
     id: 'agentStaff',
-    header: 'Agent/ Staff',
-    cell: ({ row }) => row.original.agency?.name ?? row.original.staff?.name ?? '-'
-  },
-  {
-    id: 'creditCustomer',
-    header: 'Credit Customer',
-    cell: ({ row }) => row.original.creditCustomer?.name ?? '-'
+    header: 'Agent/ Staff/ Credit Customer',
+    cell: ({ row }) =>
+      row.original.agency?.name ??
+      row.original.staff?.name ??
+      row.original.creditCustomer?.name ??
+      '-'
   },
   {
     accessorKey: 'agencyRef',
-    header: 'Agent Ref.',
-    cell: ({ row }) => row.original.agencyRef || '-'
+    header: 'Agent/ Staff/ Credit Customer Ref.',
+    cell: ({ row }) => {
+      const b = row.original;
+      if (b.agencyId) return b.agency?.code ?? b.agencyRef ?? '-';
+      if (b.staffId) return b.staff?.code ?? '-';
+      if (b.creditCustomerId) return b.creditCustomer?.code ?? '-';
+      return '-';
+    }
   },
   {
     id: 'markAbsent',
