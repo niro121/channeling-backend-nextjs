@@ -21,7 +21,6 @@ type NurseViewExportRow = {
   remark: string;
   area: string;
   agentStaff: string;
-  creditCustomer: string;
   agentRef: string;
   markAbsent: string;
 };
@@ -46,9 +45,14 @@ export default function NurseViewReportContent({
     paymentStatus: b.status === 1 ? 'Paid' : 'Pending',
     remark: b.remarks || '-',
     area: b.area || '-',
-    agentStaff: b.agency?.name ?? b.staff?.name ?? '-',
-    creditCustomer: b.creditCustomer?.name ?? '-',
-    agentRef: b.agencyRef || '-',
+    agentStaff: b.agency?.name ?? b.staff?.name ?? b.creditCustomer?.name ?? '-',
+    agentRef: b.agencyId
+      ? b.agency?.code ?? b.agencyRef ?? '-'
+      : b.staffId
+        ? b.staff?.code ?? '-'
+        : b.creditCustomerId
+          ? b.creditCustomer?.code ?? '-'
+          : '-',
     markAbsent: ''
   });
 
@@ -182,9 +186,8 @@ export default function NurseViewReportContent({
             'Payment Status',
             'Remark',
             'Area',
-            'Agent/ Staff',
-            'Credit Customer',
-            'Agent Ref.',
+            'Agent/ Staff/ Credit Customer',
+            'Agent/ Staff/ Credit Customer Ref.',
             'Mark Absent'
           ]}
           exportKeys={
@@ -195,7 +198,6 @@ export default function NurseViewReportContent({
               'remark',
               'area',
               'agentStaff',
-              'creditCustomer',
               'agentRef',
               'markAbsent'
             ] as (keyof NurseViewExportRow)[]
