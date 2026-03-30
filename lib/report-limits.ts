@@ -10,7 +10,8 @@ type ReportLimitKey =
   | 'sms_log'
   | 'agent_detail'
   | 'user_activity'
-  | 'channel_patient_count_accounting_wise';
+  | 'channel_patient_count_accounting_wise'
+  | 'channel_income_accounting_wise';
 
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
