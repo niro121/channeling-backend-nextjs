@@ -35,6 +35,10 @@ export type ChannelPatientCountAccountingWiseRow = {
   nettRevenueHosFee: number;
   nettRevenueHosDis: number;
   nettRevenueProFee: number;
+  nettRevenueProDis: number;
+  nettRevenueTotal: number;
+  pendingRevenueHosFee: number;
+  pendingRevenueProFee: number;
 };
 
 export type ChannelPatientCountAccountingWiseResult = {

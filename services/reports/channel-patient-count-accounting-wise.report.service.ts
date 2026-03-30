@@ -30,12 +30,10 @@ const BUCKETS: BucketDef[] = [
   { key: 'channel_on_call', label: 'Channel On-Call', method: 1, isScan: false },
   { key: 'channel_agent', label: 'Channel Agent', method: 2, isScan: false },
   { key: 'channel_staff', label: 'Channel Staff', method: 3, isScan: false },
-  { key: 'channel_online', label: 'Channel ONLINE', method: 4, isScan: false },
   { key: 'scan_pos', label: 'Scan POS', method: 0, isScan: true },
   { key: 'scan_on_call', label: 'Scan On-Call', method: 1, isScan: true },
   { key: 'scan_agent', label: 'Scan Agent', method: 2, isScan: true },
   { key: 'scan_staff', label: 'Scan Staff', method: 3, isScan: true },
-  { key: 'scan_online', label: 'Scan ONLINE', method: 4, isScan: true },
   { key: 'channel_ewallet', label: 'Channel E-Wallet', method: -1, isScan: false },
   { key: 'channel_credit_customer', label: 'Channel Credit Customer', method: -1, isScan: false },
   { key: 'scan_ewallet', label: 'Scan E-Wallet', method: -1, isScan: true },
@@ -87,6 +85,10 @@ function makeEmptyRow(key: string, bookingType: string): ChannelPatientCountAcco
     nettRevenueHosFee: 0,
     nettRevenueHosDis: 0,
     nettRevenueProFee: 0,
+    nettRevenueProDis: 0,
+    nettRevenueTotal: 0,
+    pendingRevenueHosFee: 0,
+    pendingRevenueProFee: 0,
   };
 }
 
@@ -117,6 +119,10 @@ function addRowInto(target: ChannelPatientCountAccountingWiseRow, row: ChannelPa
   target.nettRevenueHosFee += row.nettRevenueHosFee;
   target.nettRevenueHosDis += row.nettRevenueHosDis;
   target.nettRevenueProFee += row.nettRevenueProFee;
+  target.nettRevenueProDis += row.nettRevenueProDis;
+  target.nettRevenueTotal += row.nettRevenueTotal;
+  target.pendingRevenueHosFee += row.pendingRevenueHosFee;
+  target.pendingRevenueProFee += row.pendingRevenueProFee;
 }
 
 export async function getChannelPatientCountAccountingWiseService(
@@ -195,21 +201,29 @@ export async function getChannelPatientCountAccountingWiseService(
       if (!row) continue;
 
       const isPending = b.status === 0;
-      const isPaid = b.status === 1;
-      const isCanceled = b.status === 2;
       const paidBeforeCancel = Boolean(b.receiptNoString);
+      const refundType = Number(b.refund ?? 0);
+      const isFullCancel = b.status === 2 && refundType === 3;
+      const isPendingCancel = b.status === 2 && !paidBeforeCancel;
+      // Partial refunds (prof-only=1, hosp-only=2) are only possible when a paid receipt exists.
+      const isPartialRefund = paidBeforeCancel && (refundType === 1 || refundType === 2);
 
-      row.paidBillPaid += isPaid ? 1 : 0;
+      // Receipt-based counts:
+      // - Paid bill count = number of payment receipts (receiptNoString exists), regardless of later cancel/refund.
+      row.paidBillPaid += paidBeforeCancel ? 1 : 0;
       row.paidBillPending += isPending ? 1 : 0;
       row.paidBillNet = row.paidBillPaid + row.paidBillPending;
 
-      row.cancelBillPaid += isCanceled && paidBeforeCancel ? 1 : 0;
-      row.cancelBillPending += isCanceled && !paidBeforeCancel ? 1 : 0;
+      // Cancel bill count:
+      // - Paid cancel = full cancel (refund=3) with an original paid receipt.
+      // - Pending cancel = canceled booking without any paid receipt.
+      row.cancelBillPaid += isFullCancel && paidBeforeCancel ? 1 : 0;
+      row.cancelBillPending += isPendingCancel ? 1 : 0;
       row.cancelBillNet = row.cancelBillPaid + row.cancelBillPending;
 
-      const refundType = Number(b.refund ?? 0);
-      row.refundBillHos += refundType === 2 || refundType === 3 ? 1 : 0;
-      row.refundBillPro += refundType === 1 || refundType === 3 ? 1 : 0;
+      // Refund bill count should not include canceled bookings (full cancel is handled in Cancel Bill Count).
+      row.refundBillHos += isPartialRefund && refundType === 2 ? 1 : 0;
+      row.refundBillPro += isPartialRefund && refundType === 1 ? 1 : 0;
 
       row.totalCountPaid = row.paidBillPaid - row.cancelBillPaid;
       row.totalCountPending = row.paidBillPending - row.cancelBillPending;
@@ -222,19 +236,26 @@ export async function getChannelPatientCountAccountingWiseService(
       const hosRefund = includeHos ? Number(b.refundAmountHospitalFee ?? 0) : 0;
       const proRefund = includePro ? Number(b.refundAmountProfessionalFee ?? 0) : 0;
 
-      if (isCanceled) {
+      if (isFullCancel && paidBeforeCancel) {
         row.cancelRevenueHosFee += hosFee;
         row.cancelRevenueHosDis += hosDis;
         row.cancelRevenueProFee += proFee;
         row.cancelRevenueProDis += proDis;
-      } else {
+      } else if (paidBeforeCancel) {
         row.paidRevenueHosFee += hosFee;
         row.paidRevenueHosDis += hosDis;
         row.paidRevenueProFee += proFee;
         row.paidRevenueProDis += proDis;
+      } else if (isPending) {
+        // Pending revenue (no receipt yet): use net fee (fee - discount) for visibility.
+        row.pendingRevenueHosFee += Math.max(0, hosFee - hosDis);
+        row.pendingRevenueProFee += Math.max(0, proFee - proDis);
       }
-      row.refundRevenueHosRefund += hosRefund;
-      row.refundRevenueProRefund += proRefund;
+      // Refund revenue should exclude full cancels (refund=3) since those are treated as Cancel above.
+      if (isPartialRefund) {
+        row.refundRevenueHosRefund += hosRefund;
+        row.refundRevenueProRefund += proRefund;
+      }
 
       row.paidRevenueTotal =
         row.paidRevenueHosFee - row.paidRevenueHosDis + row.paidRevenueProFee - row.paidRevenueProDis;
@@ -244,6 +265,9 @@ export async function getChannelPatientCountAccountingWiseService(
       row.nettRevenueHosFee = row.paidRevenueHosFee - row.cancelRevenueHosFee - row.refundRevenueHosRefund;
       row.nettRevenueHosDis = row.paidRevenueHosDis - row.cancelRevenueHosDis;
       row.nettRevenueProFee = row.paidRevenueProFee - row.cancelRevenueProFee - row.refundRevenueProRefund;
+      row.nettRevenueProDis = row.paidRevenueProDis - row.cancelRevenueProDis;
+      row.nettRevenueTotal =
+        row.nettRevenueHosFee - row.nettRevenueHosDis + row.nettRevenueProFee - row.nettRevenueProDis;
     }
 
     const data = BUCKETS.map((b) => rowsByBucket.get(b.key) || makeEmptyRow(b.key, b.label));
