@@ -80,12 +80,24 @@ function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmo
   };
 }
 
-function sectionKeyFromReceipt(r: {
-  method: number;
-  bookingId: string | null;
-  agencyId: string | null;
-  booking?: { status: number; refund: number } | null;
-}): { key: string; title: string } {
+function sectionKeyFromReceipt(
+  r: {
+    method: number;
+    bookingId: string | null;
+    agencyId: string | null;
+    reversedReceiptId: string | null;
+    booking?: { status: number; refund: number } | null;
+  },
+  agentDepositCancelOrigIds: Set<string>
+): { key: string; title: string } {
+  if (
+    r.method === RECEIPT_METHOD.AGENCY_WITHDRAW &&
+    r.reversedReceiptId &&
+    r.agencyId &&
+    agentDepositCancelOrigIds.has(r.reversedReceiptId)
+  ) {
+    return { key: 'agentDepositCanceled', title: 'Agent Deposit - Canceled Bills' };
+  }
   if (r.method === RECEIPT_METHOD.PAYMENT && r.bookingId && !r.agencyId) {
     return { key: 'channelBilled', title: 'Channel Billed Bills' };
   }
@@ -105,7 +117,10 @@ function sectionKeyFromReceipt(r: {
     return { key: 'agentRefunded', title: 'Agent - Refunded Bills' };
   }
   if (r.method === RECEIPT_METHOD.AGENCY_DEPOSIT) {
-    return { key: 'agentDeposit', title: 'Agent - Deposit Bills' };
+    return { key: 'agentDeposit', title: 'Agent - Deposit & Withdraw Bills' };
+  }
+  if (r.method === RECEIPT_METHOD.AGENCY_WITHDRAW && r.agencyId) {
+    return { key: 'agentDeposit', title: 'Agent - Deposit & Withdraw Bills' };
   }
   if (r.method === RECEIPT_METHOD.DOCTOR_PAYMENT || r.method === RECEIPT_METHOD.DOCTOR_CANCEL) {
     return { key: 'doctorPayment', title: 'Doctor Payment / Canceled - Bills' };
@@ -172,10 +187,24 @@ export async function getAllCashierSummaryDetailReportService(
       method: true,
       bookingId: true,
       agencyId: true,
+      reversedReceiptId: true,
       booking: { select: { status: true, refund: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
+
+  const withdrawReversalIds = receipts
+    .filter((r) => r.method === RECEIPT_METHOD.AGENCY_WITHDRAW && r.reversedReceiptId)
+    .map((r) => r.reversedReceiptId) as string[];
+  const uniqueOrigIds = [...new Set(withdrawReversalIds)];
+  const origDeposits =
+    uniqueOrigIds.length > 0
+      ? await prisma.receipt.findMany({
+          where: { id: { in: uniqueOrigIds }, method: RECEIPT_METHOD.AGENCY_DEPOSIT },
+          select: { id: true },
+        })
+      : [];
+  const agentDepositCancelOrigIds = new Set(origDeposits.map((o) => o.id));
 
   const userIds = Array.from(new Set(receipts.map((r) => r.createdBy).filter(Boolean))) as string[];
   const users = userIds.length
@@ -218,7 +247,7 @@ export async function getAllCashierSummaryDetailReportService(
     }
     const entry = byUser.get(userId)!;
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
-    const section = sectionKeyFromReceipt(r);
+    const section = sectionKeyFromReceipt(r, agentDepositCancelOrigIds);
 
     entry.receiptCount += 1;
     entry.totals = addAmounts(entry.totals, amounts);
