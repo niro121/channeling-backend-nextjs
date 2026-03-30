@@ -93,6 +93,12 @@ const reportsData: ReportListItem[] = [
     route: '/reports/api-log'
   },
   {
+    id: '15',
+    masterData: 'All Cashier Summary and Detail Report',
+    description: 'All-cashier report with date/time, branch, and user filters; supports Summary and Detail formats with print and CSV.',
+    route: '/reports/all-cashier-summary-detail'
+  },
+  {
     id: '12',
     masterData: 'SMS Log Report',
     description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',

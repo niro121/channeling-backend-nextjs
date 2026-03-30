@@ -196,14 +196,17 @@ export type NurseViewBookingData = {
   staff?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   agency?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
   creditCustomer?: {
     id: string;
     name: string;
+    code?: string | null;
   } | null;
 };
 
@@ -264,6 +267,7 @@ export type DoctorViewBookingData = {
   } | null;
   creditCustomerId?: string | null;
   creditCustomer?: { id: string; name: string } | null;
+  refundReceiptCreatedAt?: Date | null;
 };
 
 export type DoctorViewReportResponse = {
@@ -309,6 +313,7 @@ export type PhoneViewBookingData = {
   phone: string;
   status: number;
   refund: number;
+  refundReceiptCreatedAt?: Date | null;
 };
 
 export type PhoneViewReportResponse = {
@@ -403,10 +408,12 @@ export type CashierSummaryPaymentAmounts = {
   cheque: number;
   agent: number;
   agentCredit: number;
+  eWallet: number;
 };
 
 export type CashierSummaryReportLineItem = {
   txCreated: Date;
+  shiftLabel: string | null;
   sessionDateTime: string | null;
   billId: string | null;
   receiptId: string;
@@ -423,10 +430,57 @@ export type CashierSummaryReportSection = {
   totals: CashierSummaryPaymentAmounts;
 };
 
+export type CashierSummaryIncludedShift = {
+  id: string;
+  userName: string | null;
+  startedAt: Date;
+  endedAt: Date | null;
+};
+
 export type CashierSummaryReportResponse = {
   success: boolean;
   sections: CashierSummaryReportSection[];
   grandTotals: CashierSummaryPaymentAmounts;
+  includedShifts: CashierSummaryIncludedShift[];
+  message?: string;
+};
+
+// All Cashier Summary and Detail Report Types
+export type AllCashierSummaryDetailReportQuery = {
+  userId?: string; // __all__ or specific user id
+  locationId?: string; // __all__ or specific branch/location id
+  dateFrom: string;
+  dateTo: string;
+  format: 'summary' | 'detail';
+};
+
+export type AllCashierUserSummaryRow = {
+  userId: string;
+  userName: string;
+  receiptCount: number;
+} & CashierSummaryPaymentAmounts;
+
+export type AllCashierUserDetailSection = {
+  key: string;
+  title: string;
+  receiptCount: number;
+  totals: CashierSummaryPaymentAmounts;
+};
+
+export type AllCashierUserDetailRow = {
+  userId: string;
+  userName: string;
+  receiptCount: number;
+  totals: CashierSummaryPaymentAmounts;
+  sections: AllCashierUserDetailSection[];
+};
+
+export type AllCashierSummaryDetailReportResponse = {
+  success: boolean;
+  summaryRows: AllCashierUserSummaryRow[];
+  detailRows: AllCashierUserDetailRow[];
+  grandTotals: CashierSummaryPaymentAmounts;
+  totalReceipts: number;
   message?: string;
 };
 
