@@ -89,22 +89,48 @@ export async function exportChannelBookingsReportData(
           })
         : '-';
       const applyTime = formatApplyTime(session);
-      const refundedAt = row.refundReceiptCreatedAt
-        ? new Date(row.refundReceiptCreatedAt).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          })
-        : '-';
-      const updater = row.updatedUser?.name
-        ? `${row.updatedUser.name} (${row.updatedAt ? new Date(row.updatedAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : ''})`
-        : '-';
-      const creator = row.createdUser?.name
-        ? `${row.createdUser.name} (${row.createdAt ? new Date(row.createdAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : ''})`
-        : '-';
+      const hasRefund = (row.refund ?? 0) !== 0;
+      const refundedAt =
+        hasRefund && row.refundReceiptCreatedAt
+          ? new Date(row.refundReceiptCreatedAt).toLocaleString('en-GB', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })
+          : '-';
+      const refundedBy =
+        !hasRefund
+          ? '-'
+          : row.refundCreatedUser?.name
+            ? row.refundCreatedUser.staff?.code
+              ? `${row.refundCreatedUser.name} (${row.refundCreatedUser.staff.code})`
+              : row.refundCreatedUser.name
+            : '-';
+      const formatUserWithStaff = (
+        user: { name?: string | null; staff?: { code?: string | null } | null } | null | undefined,
+        at: Date | string | null | undefined
+      ) => {
+        const n = user?.name;
+        if (!n) return '-';
+        const code = user?.staff?.code;
+        const display = code ? `${n} (${code})` : n;
+        const ts = at
+          ? new Date(at).toLocaleString('en-GB', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })
+          : '';
+        return `${display} (${ts})`;
+      };
+      const updater = formatUserWithStaff(row.updatedUser, row.updatedAt);
+      const creator = formatUserWithStaff(row.createdUser, row.createdAt);
 
       return {
         consultantCodeName,
@@ -117,6 +143,7 @@ export async function exportChannelBookingsReportData(
         status: STATUS_LABELS[row.status] ?? String(row.status),
         refundStatus: REFUND_LABELS[row.refund] ?? '-',
         refundedAt,
+        refundedBy,
         patientName: formatPatientName(row.title, row.name),
         patientNumber: row.phone ?? '-',
         area: row.area ?? '-',
