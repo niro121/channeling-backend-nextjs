@@ -317,6 +317,24 @@ function ChannelBookingsReportContentInner(
       exportFileName="channel-bookings-report"
       getRowId={(row) => row.id}
       showPrintButton={true}
+      totalColumnIds={['hospitalFee', 'doctorFee', 'discount', 'totalFee']}
+      getTotalNumericValue={(row, columnId) => {
+        const o = row as Record<string, unknown>;
+        const fromCents = (key: string) =>
+          typeof o[key] === 'number' ? (o[key] as number) / 100 : 0;
+        switch (columnId) {
+          case 'hospitalFee':
+            return fromCents('hospitalFee');
+          case 'doctorFee':
+            return fromCents('professionalFee');
+          case 'discount':
+            return fromCents('discount');
+          case 'totalFee':
+            return fromCents('amount');
+          default:
+            return 0;
+        }
+      }}
       emptyMessage="No channel bookings found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
       groupBy={(row) => (row as { doctor?: { id?: string } }).doctor?.id ?? ''}
