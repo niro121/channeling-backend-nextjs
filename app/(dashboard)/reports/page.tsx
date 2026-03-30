@@ -111,10 +111,22 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-agent-receipt'
   },
   {
+    id: '18',
+    masterData: 'Doctor Appointment Count Report ( By Session Date )',
+    description: 'Counts are based on receipt entries matched to bookings by session date, with booking/session filter options.',
+    route: '/reports/doctor-appointment-count'
+  },
+  {
     id: '12',
     masterData: 'SMS Log Report',
     description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',
     route: '/reports/sms-log'
+  },
+  {
+    id: '19',
+    masterData: 'Channel Patient Count (Accounting Wise)',
+    description: 'Channel booking count and accounting-wise fee summary by date range and branch.',
+    route: '/reports/channel-patient-count-accounting-wise'
   }
 ];
 

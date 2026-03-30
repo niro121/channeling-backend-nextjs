@@ -6,6 +6,9 @@ import { TestingGuideDialog } from "./testing-guide-dialog";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { getDoctorOptions } from "@/app/actions/doctor.sessions.action";
+import { formatDoctorName } from "@/lib/helpers/doctor-name.helper";
+import type { Doctor } from "@/types/doctor";
 
 const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
@@ -41,6 +44,18 @@ export default async function AdminRunE2EPage() {
     );
   }
 
+  const doctorsResult = await getDoctorOptions();
+  const doctorOptions: Array<{ id: string; name: string }> =
+    doctorsResult.success && doctorsResult.data
+      ? doctorsResult.data
+          .filter((d: { id?: string }) => d.id)
+          .map((d) => ({
+            id: (d as Doctor).id!,
+            name: formatDoctorName(d as Doctor),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -53,7 +68,7 @@ export default async function AdminRunE2EPage() {
         <TestingGuideDialog />
       </div>
 
-      <RunE2EClient />
+      <RunE2EClient doctorOptions={doctorOptions} />
     </div>
   );
 }

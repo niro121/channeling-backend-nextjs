@@ -2,7 +2,8 @@
  * Single-scenario E2E: one browser run = login → go to channel booking once → run each step in order (no restart).
  * Use for flows like: Step 1 Booking (create cash) → Step 2 Cancel it.
  *
- * Invoked by /admin/run-e2e with E2E_STEPS='[{"type":"booking","config":{...}},{"type":"cancel","config":{...}}]'
+ * Invoked by /admin/run-e2e with E2E_STEPS='[{"type":"booking","config":{"patientName":"ACME","paymentMethods":["CASH"]}},{"type":"cancel","config":{...}}]'
+ * Booking step: optional `patientName` (base); runner sets patient field to `{patientName} ( {first payment method label} )`. If `patientName` is omitted, uses `TEST USER Step1`, `Step2`, …
  * Credentials: E2E_USER_EMAIL, E2E_USER_PASSWORD.
  */
 import { test, expect } from "@playwright/test"
@@ -12,13 +13,19 @@ import {
   createCashBooking,
   selectBooking,
   getE2ECredentials,
+  captureCreatedBookingDetails,
+  writeE2EBookingCapture,
+  sessionButtonTextHintFromCapture,
 } from "./channel-booking-common"
 
 type StepConfig = {
   paymentMethods?: string[]
   bookingExtras?: Record<string, string>
+  /** Base name only; runner fills `{patientName} ( {first payment method} )`. If empty, `TEST USER Step{n}`. */
+  patientName?: string
   doctorSearch?: string
   doctorSelect?: string
+  sessionIndex?: number | string
   sessionButtonText?: string
   appointmentNo?: string
 }
@@ -52,13 +59,22 @@ test.describe("Channel booking scenario (single run)", () => {
     await loginAndGoToChannelBooking(page)
 
     const first = steps[0]
-    const doctorSearch = first.config.doctorSearch?.trim() || "Test Doctor"
+    const doctorSearch = first.config.doctorSearch?.trim() || "TEST DOCTOR"
     const doctorSelect = first.config.doctorSelect?.trim() || "MR. TEST DOCTOR"
     const sessionButtonText = first.config.sessionButtonText?.trim()
+    const rawIdx = first.config.sessionIndex
+    let sessionIndex: number | undefined
+    if (typeof rawIdx === "number" && Number.isFinite(rawIdx) && rawIdx >= 1) {
+      sessionIndex = Math.floor(rawIdx)
+    } else if (typeof rawIdx === "string" && rawIdx.trim()) {
+      const n = parseInt(rawIdx.trim(), 10)
+      if (Number.isFinite(n) && n >= 1) sessionIndex = n
+    }
 
     await selectDoctorAndSession(page, {
       doctorSearch,
       doctorSelect,
+      sessionIndex,
       sessionButtonText: sessionButtonText || undefined,
     })
 
@@ -67,8 +83,41 @@ test.describe("Channel booking scenario (single run)", () => {
       const c = step.config
 
       if (step.type === "booking") {
-        await createCashBooking(page, `Step${i + 1}`)
+        const patientBase =
+          c.patientName?.trim() || `TEST USER Step${i + 1}`
+        await createCashBooking(page, {
+          patientBaseName: patientBase,
+          paymentMethods: c.paymentMethods?.length ? c.paymentMethods : ["CASH"],
+          bookingExtras: c.bookingExtras ?? {},
+        })
         await page.waitForTimeout(1000)
+
+        const outPath = process.env.E2E_CAPTURE_OUT?.trim()
+        const logStdout =
+          process.env.E2E_CAPTURE_STDOUT === "1" || process.env.E2E_CAPTURE_STDOUT === "true"
+        if (outPath || logStdout) {
+          const captured = await captureCreatedBookingDetails(page)
+          const forRunner = {
+            ...captured,
+            sessionButtonTextHint: sessionButtonTextHintFromCapture(captured),
+            /** Use with cancel/refund/etc. env or step config */
+            suggestedEnv: {
+              E2E_DOCTOR_SEARCH: captured.consultantSearch || undefined,
+              E2E_DOCTOR_SELECT: captured.consultantDisplay || undefined,
+              E2E_SESSION: sessionButtonTextHintFromCapture(captured) || undefined,
+              E2E_APPOINTMENT_NO: (() => {
+                const raw = captured.appointmentNo.trim()
+                const n = parseInt(raw, 10)
+                return Number.isFinite(n) ? String(n) : raw
+              })(),
+            },
+          }
+          if (outPath) writeE2EBookingCapture(outPath, captured)
+          if (logStdout) {
+            // eslint-disable-next-line no-console
+            console.log(`\n--- E2E_CAPTURE_JSON ---\n${JSON.stringify(forRunner, null, 2)}\n---\n`)
+          }
+        }
         continue
       }
 

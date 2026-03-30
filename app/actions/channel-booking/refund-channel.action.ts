@@ -5,17 +5,27 @@ import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { refundChannelService } from "@/services/channel-booking/refund-channel.service"
 
-const refundChannelSchema = z.object({
-  booking_id: z.string().min(1),
-  refund_type: z.number().int().min(0).max(1),
-  professional_fee: z.number().min(0),
-  hospital_fee: z.number().min(0),
-  refund_to: z.number().int().min(0).optional(),
-  remarks: z
-    .string()
-    .min(1, "Remarks are required")
-    .refine((s) => s.trim().length > 0, "Remarks are required"),
-})
+const refundChannelSchema = z
+  .object({
+    booking_id: z.string().min(1),
+    refund_type: z.number().int().min(0).max(1),
+    professional_fee: z.number().min(0),
+    hospital_fee: z.number().min(0),
+    refund_to: z.number().int().min(0).optional(),
+    remarks: z
+      .string()
+      .min(1, "Remarks are required")
+      .refine((s) => s.trim().length > 0, "Remarks are required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.refund_type === 1 && data.professional_fee > 0 && data.hospital_fee > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Refund only one fee at a time: professional or hospital, not both.",
+        path: ["hospital_fee"],
+      })
+    }
+  })
 
 export type RefundChannelActionInput = z.infer<typeof refundChannelSchema>
 

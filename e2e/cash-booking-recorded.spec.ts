@@ -127,7 +127,7 @@ test.describe("Booking by payment method (recorded)", () => {
       await page.waitForLoadState("networkidle");
 
       await page.getByRole("textbox", { name: "Consultant" }).click();
-      await page.getByRole("textbox", { name: "Consultant" }).fill("Test Doctor");
+      await page.getByRole("textbox", { name: "Consultant" }).fill("TEST DOCTOR");
       await page.getByText("MR. TEST DOCTOR").click({ timeout: 10000 });
       await page.waitForTimeout(500);
       const sessionButton = page.locator("li button").filter({ hasNot: page.getByText("On leave") }).first();
