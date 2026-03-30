@@ -77,7 +77,9 @@ function ConsultantPaymentsReportContentInner({
       skipFetchWhenNoParams={true}
       initialFilterValues={{
         fromDateTime: getTodayDateTimeRange().from,
-        toDateTime: getTodayDateTimeRange().to
+        toDateTime: getTodayDateTimeRange().to,
+        status: '__all__',
+        sessionType: '__all__'
       }}
       filterContent={({ values, setValue }) => (
         <>
@@ -131,18 +133,20 @@ function ConsultantPaymentsReportContentInner({
               onChange={(v) => setValue('doctorId', v)}
             />
             <Selector
-              label=""
+              label="All Status"
               options={statusOptions}
-              value={values.status ?? '__all__'}
+              value={values.status || '__all__'}
+              showDefaultOption={false}
               onChange={(v) => setValue('status', v)}
               className={{
                 trigger: 'self-end!'
               }}
             />
             <Selector
-              label=""
+              label="All Session"
               options={sessionOptions}
-              value={values.sessionType ?? '__all__'}
+              value={values.sessionType || '__all__'}
+              showDefaultOption={false}
               onChange={(v) => setValue('sessionType', v)}
               className={{
                 trigger: 'self-end!'
