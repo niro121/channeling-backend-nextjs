@@ -164,7 +164,7 @@ export async function getChannelBookingsReportService(
     ) {
       const instNum = parseInt(institutionId, 10);
       if (!isNaN(instNum)) {
-        bookingWhere.session = { institution: instNum };
+        bookingWhere.session = { is: { institution: instNum } };
       }
     }
 
@@ -173,15 +173,19 @@ export async function getChannelBookingsReportService(
         Boolean(dateRange) && dateType !== "transaction_date";
       if (!appliedViaSessionDateList) {
         const existing = bookingWhere.session;
-        if (
+        const prevInner: Prisma.SessionWhereInput =
           existing &&
           typeof existing === "object" &&
-          !Array.isArray(existing)
-        ) {
-          bookingWhere.session = { ...existing, departmentId };
-        } else {
-          bookingWhere.session = { departmentId };
-        }
+          !Array.isArray(existing) &&
+          "is" in existing &&
+          existing.is &&
+          typeof existing.is === "object" &&
+          !Array.isArray(existing.is)
+            ? { ...(existing.is as Prisma.SessionWhereInput) }
+            : {};
+        bookingWhere.session = {
+          is: { ...prevInner, departmentId },
+        };
       }
     }
 
