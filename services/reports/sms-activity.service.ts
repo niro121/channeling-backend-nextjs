@@ -1,9 +1,12 @@
 "use server"
 
 import prisma from "@/lib/prisma"
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 
 /** Cost per SMS in LKR (override via env SMS_COST_PER_MESSAGE). */
 const DEFAULT_SMS_COST = 0.05
+const MAX_RANGE_DAYS = getReportMaxRangeDays('sms_log', 31);
+const MAX_RECORDS_SCAN = getReportMaxRecords('sms_log', 50000);
 function getCostPerSms(): number {
   const env = process.env.SMS_COST_PER_MESSAGE
   if (env != null && env !== "") {
@@ -53,6 +56,25 @@ export async function getSmsActivityService(
     start.setHours(0, 0, 0, 0)
     const end = new Date(dateTo)
     end.setHours(23, 59, 59, 999)
+    const daySpan = getInclusiveDaySpan(start, end);
+    if (daySpan > MAX_RANGE_DAYS) {
+      return {
+        success: false,
+        message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
+      };
+    }
+
+    const totalCount = await prisma.smsLog.count({
+      where: {
+        createdAt: { gte: start, lte: end },
+      },
+    });
+    if (totalCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        message: `Too many records in selected range (${totalCount}). Please narrow filters/date range.`,
+      };
+    }
 
     const logs = await prisma.smsLog.findMany({
       where: {

@@ -10,8 +10,10 @@ const E2E_RUN_ENABLED = process.env.E2E_RUN_FROM_APP === "true" || process.env.E
 type StepConfig = {
   paymentMethods?: string[];
   bookingExtras?: Record<string, string>;
+  patientName?: string;
   doctorSearch?: string;
   doctorSelect?: string;
+  sessionIndex?: number;
   sessionButtonText?: string;
   appointmentNo?: string;
 };

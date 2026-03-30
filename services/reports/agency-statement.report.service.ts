@@ -1,11 +1,15 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { RECEIPT_METHOD_NAMES } from '@/types/receipt';
 import type { AgencyStatementQuery, AgencyStatementReportData, AgencyStatementRow } from '@/types/reports/agency-statement';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('agency_statement', 62);
+const MAX_JOURNALS_SCAN = getReportMaxRecords('agency_statement', 20000);
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
   const trimmed = value?.trim();
@@ -44,6 +48,10 @@ export async function getAgencyStatementReportService(
     const to = parseDateTime(query.dateTo, true);
     if (!from || !to) return { success: false, message: 'From and To date/time are required.' };
     if (from.getTime() > to.getTime()) return { success: false, message: 'From date/time must be before or equal to To date/time.' };
+    const daySpan = getInclusiveDaySpan(from, to);
+    if (daySpan > MAX_RANGE_DAYS) {
+      return { success: false, message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` };
+    }
 
     const agency = await prisma.agency.findUnique({
       where: { id: query.agencyId },
@@ -82,6 +90,16 @@ export async function getAgencyStatementReportService(
     const openingBalanceCents = await getAccountBalance(account.id, new Date(from.getTime() - 1));
 
     // Mongo-safe two-step filtering: first journals in range, then lines for account.
+    const matchedJournals = await prisma.journal.count({
+      where: { date: { gte: from, lte: to } },
+    });
+    if (matchedJournals > MAX_JOURNALS_SCAN) {
+      return {
+        success: false,
+        message: `Too many records in selected range (${matchedJournals}). Please narrow filters/date range.`,
+      };
+    }
+
     const journals = await prisma.journal.findMany({
       where: { date: { gte: from, lte: to } },
       select: {
