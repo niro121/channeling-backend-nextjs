@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchableUserSelect } from '@/components/common/searchable-user-select';
 import {
   Table,
   TableBody,
@@ -506,18 +507,15 @@ export default function CashierSummaryContent({
             </div>
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Select User</label>
-              <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="h-8 w-[200px] px-2 py-1 text-sm shadow-none focus:ring-1 focus:ring-offset-0 [&>span]:block [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left">
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-[200px]">
+                <SearchableUserSelect
+                  options={userOptions}
+                  value={userId}
+                  onChange={setUserId}
+                  label="user"
+                  placeholder="Select user"
+                />
+              </div>
             </div>
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Format</label>
