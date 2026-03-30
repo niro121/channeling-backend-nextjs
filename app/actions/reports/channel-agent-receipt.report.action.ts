@@ -48,8 +48,8 @@ export async function exportChannelAgentReceiptReportData(
     }
 
     const data: ChannelAgentReceiptReportExportRow[] = result.data.map((row) => ({
+      agentRef: row.agentRef,
       refNo: row.refNo,
-      billNo: row.billNo,
       agency: row.agency,
       patient: row.patient,
       status: row.status,

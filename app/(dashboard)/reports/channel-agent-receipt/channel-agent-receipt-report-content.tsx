@@ -45,8 +45,8 @@ function ChannelAgentReceiptReportContentInner(_props: ChannelAgentReceiptReport
       }
       exportData={async () => exportChannelAgentReceiptReportData(buildQuery())}
       columns={ChannelAgentReceiptReportColumns}
-      exportColumns={['Receipt No', 'Bill No', 'Agency', 'Patient', 'Status', 'Creator', 'Created Date', 'Bill Value']}
-      exportKeys={['refNo', 'billNo', 'agency', 'patient', 'status', 'creator', 'createdDate', 'billValue']}
+      exportColumns={['Agent Reference', 'Receipt No', 'Agency', 'Patient', 'Status', 'Creator', 'Created Date', 'Bill Value']}
+      exportKeys={['agentRef', 'refNo', 'agency', 'patient', 'status', 'creator', 'createdDate', 'billValue']}
       exportTitle="Channel Agent Receipt Report"
       exportFileName="channel-agent-receipt-report"
       getRowId={(row) => row.id}

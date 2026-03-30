@@ -39,6 +39,13 @@ function formatAmount(n: number | undefined | null): string {
   return formatReceiptAmount(num);
 }
 
+function formatAmountForCsv(n: number | undefined | null): string {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0.00';
+  // Receipt.amount is already in rupees (not cents), so do not divide by 100.
+  return num.toFixed(2);
+}
+
 function getDefaultDateTimeRange(): { from: string; to: string } {
   const now = new Date();
   const y = now.getFullYear();
@@ -168,7 +175,11 @@ export default function AllCashierSummaryDetailContent({
       lines.push(['User', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
       for (const r of summaryRows) {
         lines.push(
-          [r.userName, String(r.receiptCount), ...PAYMENT_COLUMNS.map((c) => String((Number(r[c.key]) || 0) / 100))]
+          [
+            r.userName,
+            String(r.receiptCount),
+            ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(r[c.key])),
+          ]
             .map((x) => `"${String(x).replace(/"/g, '""')}"`)
             .join(',')
         );
@@ -178,7 +189,12 @@ export default function AllCashierSummaryDetailContent({
       for (const u of detailRows) {
         for (const s of u.sections) {
           lines.push(
-            [u.userName, s.title, String(s.receiptCount), ...PAYMENT_COLUMNS.map((c) => String((Number(s.totals[c.key]) || 0) / 100))]
+            [
+              u.userName,
+              s.title,
+              String(s.receiptCount),
+              ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(s.totals[c.key])),
+            ]
               .map((x) => `"${String(x).replace(/"/g, '""')}"`)
               .join(',')
           );
