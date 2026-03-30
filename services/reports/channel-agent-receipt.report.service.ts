@@ -34,7 +34,7 @@ export async function getChannelAgentReceiptReportService(
       },
       select: {
         id: true,
-        bookingid_string: true,
+        agencyRef: true,
         title: true,
         name: true,
         status: true,
@@ -90,8 +90,8 @@ export async function getChannelAgentReceiptReportService(
 
       return {
         id: receipt.id,
+        agentRef: booking?.agencyRef || '-',
         refNo: receipt.receiptNoString || '-',
-        billNo: booking?.bookingid_string || '-',
         agency: booking?.agency?.name || '-',
         patient: patientName,
         status: BOOKING_STATUS_LABELS[statusNum] ?? String(statusNum),

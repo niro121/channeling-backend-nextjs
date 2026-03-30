@@ -4,8 +4,8 @@ export type ChannelAgentReceiptReportQuery = {
 
 export type ChannelAgentReceiptReportRow = {
   id: string;
+  agentRef: string;
   refNo: string;
-  billNo: string;
   agency: string;
   patient: string;
   status: string;
@@ -15,8 +15,8 @@ export type ChannelAgentReceiptReportRow = {
 };
 
 export type ChannelAgentReceiptReportExportRow = {
+  agentRef: string;
   refNo: string;
-  billNo: string;
   agency: string;
   patient: string;
   status: string;
