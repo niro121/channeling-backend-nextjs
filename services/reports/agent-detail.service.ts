@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { AgentDetailReportQuery } from '@/types/report';
 import moment from 'moment';
@@ -8,11 +9,14 @@ import moment from 'moment';
 // Get Prisma types from the prisma instance
 type ExtractWhereInput<T> = T extends { where?: infer W } ? W : never;
 type PrismaAgencyWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.agency.findMany>[0]>>;
+const MAX_RANGE_DAYS = getReportMaxRangeDays('agent_detail', 62);
+const MAX_RECORDS_SCAN = getReportMaxRecords('agent_detail', 20000);
 
 // ==== GET AGENT DETAIL REPORT DATA ==== //
 export const getAgentDetailReportDataService = async ({
   fromDate,
   toDate,
+  agencyId,
   agencyName,
   agencyCode,
   status
@@ -23,11 +27,20 @@ export const getAgentDetailReportDataService = async ({
     // Date range filter (required) - filter by createdAt
     const startOfDay = moment(fromDate).startOf('day').toDate();
     const endOfDay = moment(toDate).endOf('day').toDate();
+    const daySpan = getInclusiveDaySpan(startOfDay, endOfDay);
+    if (daySpan > MAX_RANGE_DAYS) {
+      throw new Error(`Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`);
+    }
 
     whereClause.createdAt = {
       gte: startOfDay,
       lte: endOfDay,
     };
+
+    // Agency selector filter (optional)
+    if (agencyId && agencyId !== '__all__') {
+      whereClause.id = agencyId;
+    }
 
     // Agency name filter (optional)
     if (agencyName && agencyName.trim() !== '') {
@@ -50,6 +63,13 @@ export const getAgentDetailReportDataService = async ({
       whereClause.status = status === '1' ? 1 : 0;
     }
 
+    const totalRecords = await prisma.agency.count({
+      where: whereClause
+    });
+    if (totalRecords > MAX_RECORDS_SCAN) {
+      throw new Error(`Too many records in selected range (${totalRecords}). Please narrow filters/date range.`);
+    }
+
     const rows = await prisma.agency.findMany({
       where: whereClause,
       include: {
@@ -62,10 +82,6 @@ export const getAgentDetailReportDataService = async ({
       orderBy: {
         createdAt: 'desc'
       }
-    });
-
-    const totalRecords = await prisma.agency.count({
-      where: whereClause
     });
 
     const records = await Promise.all(

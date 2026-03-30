@@ -101,6 +101,7 @@ export const getAllDoctorViewReportDataService = async ({
             status: true,
             refund: true,
             canceledAt: true,
+            refundReceiptCreatedAt: true,
             hospitalFee: true,
             hospitalFeeDiscount: true,
             professionalFee: true,
@@ -165,14 +166,16 @@ export const getAllDoctorViewReportDataService = async ({
       // Aggregate bookings
       session.bookings.forEach((booking) => {
         const refund = booking.refund ?? 0;
-        const isCancelled = booking.status === 2 || !!booking.canceledAt;
-        const isRefunded = refund > 0;
+        const isCancelByRefundReceipt = refund === 3 && !!booking.refundReceiptCreatedAt;
+        const isCancelled = booking.status === 2 || !!booking.canceledAt || isCancelByRefundReceipt;
+        const isRefunded = refund > 0 && !isCancelByRefundReceipt;
 
         if (isCancelled) {
           row.cancel++;
         }
 
         // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
+        // Count refunds independent of cancel status (a booking can be both refunded and cancelled).
         if (refund === 2 || refund === 3) {
           row.hosRefund++;
         }

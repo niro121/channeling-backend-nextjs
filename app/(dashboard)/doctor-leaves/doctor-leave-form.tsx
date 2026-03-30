@@ -120,7 +120,7 @@ export default function DoctorLeaveForm({
     sendSms: Yup.boolean().required('Send SMS is required'),
 
     status: Yup.number()
-      .oneOf([0, 1], 'Status must be Cancel (0) or Active (1)')
+      .oneOf([0, 1], 'Leave status must be Cancelled or Active')
       .required('This field is mandatory')
   });
 
@@ -482,7 +482,7 @@ export default function DoctorLeaveForm({
                     </TabsList>
                     <TabsContent value="active" className="mt-3">
                       <p className="text-sm text-muted-foreground mb-2">
-                        Sessions available for channeling. Add to Selected sessions to include in this leave; on save, their status will follow the leave status (Active = available, Cancel = unavailable).
+                        Sessions available for channeling. Add to Selected sessions to include in this leave; on save, booking state follows leave status: Leave Active = sessions go on leave (not bookable); Leave Cancelled = sessions return to normal booking.
                         {lockedSessionIds.size > 0 && (
                           <span className="block mt-1 text-amber-600 dark:text-amber-500">
                             Sessions already in another leave for this doctor are not shown and cannot be selected.
@@ -530,7 +530,7 @@ export default function DoctorLeaveForm({
                     </TabsContent>
                     <TabsContent value="selected" className="mt-3">
                       <p className="text-sm text-muted-foreground mb-2">
-                        Sessions selected for this leave. On save, Session status will match the leave status: Active = available, Cancel = unavailable. Remove to exclude from this leave.
+                        Sessions selected for this leave. On save, booking state follows leave status: Leave Active = on leave (not bookable); Leave Cancelled = available for booking again. Remove to exclude from this leave.
                       </p>
                       {selectedSessions.length > 0 && (
                         <div className="flex justify-end mb-2">
@@ -586,19 +586,37 @@ export default function DoctorLeaveForm({
 
               <CustomSelectField
                 id="status"
-                placeholder="Status"
+                label="Leave status"
+                placeholder="Select leave state"
                 value={formik.values.status?.toString()}
                 onChange={(value) =>
                   formik.setFieldValue('status', parseInt(value))
                 }
                 required
                 options={[
-                  { id: '0', name: 'Cancel' },
-                  { id: '1', name: 'Active' }
+                  {
+                    id: '0',
+                    name: 'Leave Active (selected sessions unavailable)'
+                  },
+                  {
+                    id: '1',
+                    name: 'Leave Cancelled (sessions available again)'
+                  }
                 ]}
                 styleClasses={styleClasses}
               />
-
+              <div className={styleClasses.parentDiv}>
+                <span
+                  className={`${styleClasses.labelClassName} hidden sm:block sm:col-span-1`}
+                  aria-hidden
+                />
+                <p
+                  className={`${styleClasses.inputClassName} text-sm text-muted-foreground`}
+                >
+                  This sets whether the leave is active after you press Save. It
+                  is not the same as Cancel, which exits without saving.
+                </p>
+              </div>
               <CustomFormField
                 type="textarea"
                 id="remarks"

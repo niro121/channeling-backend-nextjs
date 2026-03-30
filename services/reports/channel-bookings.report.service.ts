@@ -7,6 +7,10 @@ import {
 } from "@/types/reports/channel-bookings";
 import { Prisma } from "@prisma/client";
 import { SL_OFFSET } from "@/lib/utils";
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_bookings', 62);
+const MAX_RECORDS_SCAN = getReportMaxRecords('channel_bookings', 30000);
 
 /** Parse date range: supports YYYY-MM-DD or YYYY-MM-DDTHH:mm */
 function parseDateRange(from?: string, to?: string): {
@@ -56,6 +60,7 @@ export async function getChannelBookingsReportService(
       dateType,
       institutionId,
       locationId,
+      departmentId,
       branchTypeId,
       specialityId,
       doctorId,
@@ -75,6 +80,7 @@ export async function getChannelBookingsReportService(
       hasDateFilter ||
       (institutionId && institutionId !== "__all__") ||
       (locationId && locationId !== "__all__") ||
+      (departmentId && departmentId !== "__all__") ||
       (branchTypeId && branchTypeId !== "__all__") ||
       (specialityId && specialityId !== "__all__") ||
       (doctorId && doctorId !== "__all__") ||
@@ -98,6 +104,17 @@ export async function getChannelBookingsReportService(
         totalRecords: 0,
         error: { message: "Invalid date format" },
       };
+    }
+    if (dateRange) {
+      const daySpan = getInclusiveDaySpan(dateRange.from, dateRange.to);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` },
+        };
+      }
     }
 
     const bookingWhere: Prisma.BookingWhereInput = {};
@@ -124,6 +141,9 @@ export async function getChannelBookingsReportService(
           const instNum = parseInt(institutionId, 10);
           if (!isNaN(instNum)) sessionWhere.institution = instNum;
         }
+        if (departmentId && departmentId !== "__all__") {
+          sessionWhere.departmentId = departmentId;
+        }
         const sessions = await prisma.session.findMany({
           where: sessionWhere,
           select: { id: true },
@@ -144,7 +164,28 @@ export async function getChannelBookingsReportService(
     ) {
       const instNum = parseInt(institutionId, 10);
       if (!isNaN(instNum)) {
-        bookingWhere.session = { institution: instNum };
+        bookingWhere.session = { is: { institution: instNum } };
+      }
+    }
+
+    if (departmentId && departmentId !== "__all__") {
+      const appliedViaSessionDateList =
+        Boolean(dateRange) && dateType !== "transaction_date";
+      if (!appliedViaSessionDateList) {
+        const existing = bookingWhere.session;
+        const prevInner: Prisma.SessionWhereInput =
+          existing &&
+          typeof existing === "object" &&
+          !Array.isArray(existing) &&
+          "is" in existing &&
+          existing.is &&
+          typeof existing.is === "object" &&
+          !Array.isArray(existing.is)
+            ? { ...(existing.is as Prisma.SessionWhereInput) }
+            : {};
+        bookingWhere.session = {
+          is: { ...prevInner, departmentId },
+        };
       }
     }
 
@@ -254,6 +295,16 @@ export async function getChannelBookingsReportService(
       if (!isNaN(m)) bookingWhere.method = m;
     }
 
+    const matchedBookingCount = await prisma.booking.count({ where: bookingWhere });
+    if (matchedBookingCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${matchedBookingCount}). Please narrow filters/date range.` },
+      };
+    }
+
     const bookings = await prisma.booking.findMany({
       where: bookingWhere,
       include: {
@@ -261,13 +312,78 @@ export async function getChannelBookingsReportService(
         session: { select: { id: true, date: true, startTime: true, endTime: true } },
         location: { select: { id: true, name: true, branchType: true } },
         agency: { select: { id: true, name: true } },
-        createdUser: { select: { id: true, name: true } },
-        updatedUser: { select: { id: true, name: true } },
+        createdUser: {
+          select: {
+            id: true,
+            name: true,
+            staff: { select: { code: true } },
+          },
+        },
+        updatedUser: {
+          select: {
+            id: true,
+            name: true,
+            staff: { select: { code: true } },
+          },
+        },
+        receipts: {
+          where: { method: 0 },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { id: true, createdAt: true, createdBy: true },
+        },
       },
       orderBy: [{ doctor: { code: "asc" } }, { session: { date: "asc" } }, { appointmentNo: "asc" }],
     });
 
-    const rows: ChannelBookingsReportRow[] = bookings.map((b) => ({ ...b }));
+    const refundCreatorIds = [
+      ...new Set(
+        bookings.flatMap((b) => {
+          if ((b.refund ?? 0) === 0) return [];
+          const recs = b.receipts ?? [];
+          const rec =
+            (b.refundReceiptId
+              ? recs.find((r) => r.id === b.refundReceiptId)
+              : undefined) ?? recs[0];
+          return rec?.createdBy ? [rec.createdBy] : [];
+        })
+      ),
+    ];
+    const refundUsers =
+      refundCreatorIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: refundCreatorIds } },
+            select: {
+              id: true,
+              name: true,
+              staff: { select: { code: true } },
+            },
+          })
+        : [];
+    const refundUserById = new Map(refundUsers.map((u) => [u.id, u]));
+
+    const rows: ChannelBookingsReportRow[] = bookings.map((b) => {
+      const refundRecs = b.receipts ?? [];
+      const { receipts: _r, ...rest } = b;
+      const hasRefund = (rest.refund ?? 0) !== 0;
+      const refundRec = hasRefund
+        ? (rest.refundReceiptId
+            ? refundRecs.find((r) => r.id === rest.refundReceiptId)
+            : undefined) ?? refundRecs[0]
+        : undefined;
+      const resolvedRefundedAt = hasRefund
+        ? rest.refundReceiptCreatedAt ?? refundRec?.createdAt ?? null
+        : rest.refundReceiptCreatedAt;
+      const refundCreatedUser =
+        hasRefund && refundRec?.createdBy
+          ? refundUserById.get(refundRec.createdBy) ?? null
+          : null;
+      return {
+        ...rest,
+        refundReceiptCreatedAt: resolvedRefundedAt,
+        refundCreatedUser,
+      } as ChannelBookingsReportRow;
+    });
 
     return {
       success: true,

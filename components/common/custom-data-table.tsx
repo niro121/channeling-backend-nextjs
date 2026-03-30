@@ -78,6 +78,8 @@ interface DataTableProps<TData, TValue> {
   page?: string
   haveBulkDelete?: boolean
   haveDataDownload?: boolean
+  /** If false, hides pagination controls (useful for static lists). */
+  showPagination?: boolean
   deleteServerAction?: (ids: string[]) => Promise<boolean>
   /** Optional function to get custom bulk delete description. Receives selected IDs and returns description string or Promise<string> */
   getBulkDeleteDescription?: (ids: string[]) => Promise<string> | string
@@ -101,6 +103,7 @@ export function CustomDataTable<TData, TValue>({
   page,
   haveBulkDelete = true,
   haveDataDownload = false,
+  showPagination = true,
   deleteServerAction,
   getBulkDeleteDescription,
   toolbar,
@@ -443,15 +446,17 @@ export function CustomDataTable<TData, TValue>({
           </div>
           </div>
         </CardContent>
-        <CardFooter>
-          <div className="w-full">
-            <DataTablePagination
-              table={table}
-              onLimitChange={onLimitChange}
-              onPageChange={onPageChange}
-            />
-          </div>
-        </CardFooter>
+        {showPagination ? (
+          <CardFooter>
+            <div className="w-full">
+              <DataTablePagination
+                table={table}
+                onLimitChange={onLimitChange}
+                onPageChange={onPageChange}
+              />
+            </div>
+          </CardFooter>
+        ) : null}
       </Card>
       <CustomAlertDialogWithWarning
         open={showDeleteConfirmation}

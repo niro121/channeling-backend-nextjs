@@ -27,6 +27,21 @@ import Loading from '@/app/(dashboard)/loading'
 
 type FilterValues = Record<string, string | undefined>;
 
+function getReportColumnKey<T>(column: ColumnDef<T>): string {
+  const acc = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+  const accStr = typeof acc === 'string' ? acc : '';
+  return String(column.id ?? accStr ?? '');
+}
+
+function coerceNumberForTotal(v: unknown): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(String(v).replace(/,/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
 export interface ReportTemplateProps<T, E = T> {
   /** Report title */
   title: string;
@@ -87,6 +102,21 @@ export interface ReportTemplateProps<T, E = T> {
   renderGroupHeader?: (groupKey: string, rows: T[]) => React.ReactNode;
   /** Back button destination (default: /reports) */
   backHref?: string;
+  /**
+   * Optional footer row: sum numeric values for these column ids (or accessorKey strings).
+   * Keys must match each column's `id` or `accessorKey` (same as table cell keys).
+   */
+  totalColumnIds?: string[];
+  /**
+   * Per-row numeric contribution for a total column. Required when totals use fields that
+   * differ from accessorKey or need scaling (e.g. cents → display units). If omitted,
+   * sums use each column's `accessorKey` with {@link getNestedValue}.
+   */
+  getTotalNumericValue?: (row: T, columnId: string) => number;
+  /** Label in the first data column of the total row (default: "Total") */
+  totalRowLabel?: string;
+  /** Format a summed value for display (default: locale string, up to 2 fraction digits) */
+  formatTotalValue?: (columnId: string, sum: number) => React.ReactNode;
 }
 
 function ReportTemplateContent<T, E = T>({
@@ -109,7 +139,11 @@ function ReportTemplateContent<T, E = T>({
   initialFilterValues,
   groupBy,
   renderGroupHeader,
-  backHref = '/reports'
+  backHref = '/reports',
+  totalColumnIds,
+  getTotalNumericValue,
+  totalRowLabel = 'Total',
+  formatTotalValue
 }: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -196,6 +230,75 @@ function ReportTemplateContent<T, E = T>({
       v = (v as Record<string, unknown>)?.[k];
     }
     return v;
+  };
+
+  const accessorPathByColumnKey = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const col of columns) {
+      const key = getReportColumnKey(col);
+      const acc = (col as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+      if (typeof acc === 'string' && acc) map.set(key, acc);
+    }
+    return map;
+  }, [columns]);
+
+  const columnTotalSums = React.useMemo(() => {
+    const ids = totalColumnIds;
+    if (!ids?.length) return {} as Record<string, number>;
+    const sums: Record<string, number> = {};
+    for (const colId of ids) {
+      let sum = 0;
+      for (const row of data) {
+        let n: number;
+        if (getTotalNumericValue) {
+          n = getTotalNumericValue(row, colId);
+        } else {
+          const path = accessorPathByColumnKey.get(colId);
+          n = path ? coerceNumberForTotal(getNestedValue(row, path)) : 0;
+        }
+        sum += Number.isFinite(n) ? n : 0;
+      }
+      sums[colId] = sum;
+    }
+    return sums;
+  }, [data, totalColumnIds, getTotalNumericValue, accessorPathByColumnKey]);
+
+  const defaultFormatTotal = React.useCallback((_columnId: string, sum: number) => {
+    return sum.toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0
+    });
+  }, []);
+
+  const renderTotalFooterRow = () => {
+    const ids = totalColumnIds;
+    if (!ids?.length) return null;
+    const idSet = new Set(ids);
+    return (
+      <TableFooter>
+        <TableRow className="hover:bg-muted/50">
+          {groupBy && <TableCell className="w-0 p-0" aria-hidden />}
+          {columns.map((column, colIndex) => {
+            const colKey = getReportColumnKey(column);
+            const isTotalCol = idSet.has(colKey);
+            let content: React.ReactNode = null;
+            if (colIndex === 0) {
+              content = totalRowLabel;
+            } else if (isTotalCol) {
+              const sum = columnTotalSums[colKey] ?? 0;
+              content = formatTotalValue
+                ? formatTotalValue(colKey, sum)
+                : defaultFormatTotal(colKey, sum);
+            }
+            return (
+              <TableCell key={column.id ?? (colKey || colIndex)} className="whitespace-nowrap text-base">
+                {content}
+              </TableCell>
+            );
+          })}
+        </TableRow>
+      </TableFooter>
+    );
   };
 
   return (
@@ -380,6 +483,7 @@ function ReportTemplateContent<T, E = T>({
                           </TableRow>
                         ))}
                   </TableBody>
+                  {renderTotalFooterRow()}
                 </Table>
               </div>
             )}

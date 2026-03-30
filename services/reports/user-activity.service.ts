@@ -1,8 +1,10 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays } from '@/lib/report-limits';
 
 const DEFAULT_REPORT_MAX = 10000;
+const MAX_RANGE_DAYS = getReportMaxRangeDays('user_activity', 62);
 
 /** Max rows for report queries (env: REPORT_MAX). Used across reports to protect the server. */
 function getReportMax(): number {
@@ -60,6 +62,16 @@ export async function getActivityLogsForReport(
   const to = toParsed.end;
   if (from.getTime() > to.getTime()) {
     return { success: false, data: [], totalReturned: 0, hasMore: false, message: 'From date must be before or equal to to date.' };
+  }
+  const daySpan = getInclusiveDaySpan(from, to);
+  if (daySpan > MAX_RANGE_DAYS) {
+    return {
+      success: false,
+      data: [],
+      totalReturned: 0,
+      hasMore: false,
+      message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
+    };
   }
 
   const max = getReportMax();

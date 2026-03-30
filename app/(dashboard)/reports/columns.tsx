@@ -5,12 +5,22 @@ import { ColumnDef } from '@tanstack/react-table';
 
 export type ReportListItem = {
   id: string;
+  rank: number;
   masterData: string;
   description: string;
   route: string;
 };
 
 export const reportColumns: ColumnDef<ReportListItem>[] = [
+  {
+    accessorKey: 'rank',
+    header: '#',
+    cell: ({ row }) => (
+      <span className="font-mono text-sm text-muted-foreground">
+        {row.getValue<number>('rank')}
+      </span>
+    ),
+  },
   {
     accessorKey: 'masterData',
     header: 'Report',

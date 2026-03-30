@@ -76,7 +76,6 @@ export default function NurseViewReportContentLegacy({
       remark: string;
       area: string;
       agentStaff: string;
-      creditCustomer: string;
       agentRef: string;
       markAbsent: string;
     };
@@ -100,9 +99,14 @@ export default function NurseViewReportContentLegacy({
         paymentStatus: b.status === 1 ? 'Paid' : 'Pending',
         remark: b.remarks || '-',
         area: b.area || '-',
-        agentStaff: b.agency?.name ?? b.staff?.name ?? '-',
-        creditCustomer: b.creditCustomer?.name ?? '-',
-        agentRef: b.agencyRef || '-',
+        agentStaff: b.agency?.name ?? b.staff?.name ?? b.creditCustomer?.name ?? '-',
+        agentRef: b.agencyId
+          ? b.agency?.code ?? b.agencyRef ?? '-'
+          : b.staffId
+            ? b.staff?.code ?? '-'
+            : b.creditCustomerId
+              ? b.creditCustomer?.code ?? '-'
+              : '-',
         markAbsent: ''
       })
     );
@@ -113,9 +117,8 @@ export default function NurseViewReportContentLegacy({
       'Payment Status',
       'Remark',
       'Area',
-      'Agent/ Staff',
-      'Credit Customer',
-      'Agent Ref.',
+      'Agent/ Staff/ Credit Customer',
+      'Agent/ Staff/ Credit Customer Ref.',
       'Mark Absent'
     ];
 
@@ -126,7 +129,6 @@ export default function NurseViewReportContentLegacy({
       'remark',
       'area',
       'agentStaff',
-      'creditCustomer',
       'agentRef',
       'markAbsent'
     ] as (keyof NurseViewPrintRow)[];
@@ -157,13 +159,17 @@ export default function NurseViewReportContentLegacy({
   ) => {
     if (booking.agency?.name) return booking.agency.name;
     if (booking.staff?.name) return booking.staff.name;
+    if (booking.creditCustomer?.name) return booking.creditCustomer.name;
     return '-';
   };
 
-  const getCreditCustomerName = (
+  const getAgentStaffCreditCustomerRef = (
     booking: NurseViewSessionData['bookings'][0]
   ) => {
-    return booking.creditCustomer?.name ?? '-';
+    if (booking.agencyId) return booking.agency?.code ?? booking.agencyRef ?? '-';
+    if (booking.staffId) return booking.staff?.code ?? '-';
+    if (booking.creditCustomerId) return booking.creditCustomer?.code ?? '-';
+    return '-';
   };
 
   if (loading) {
@@ -263,13 +269,10 @@ export default function NurseViewReportContentLegacy({
                       Area
                     </th>
                     <th className="border p-2 text-left font-semibold">
-                      Agent/ Staff
+                      Agent/ Staff/ Credit Customer
                     </th>
                     <th className="border p-2 text-left font-semibold">
-                      Credit Customer
-                    </th>
-                    <th className="border p-2 text-left font-semibold">
-                      Agent Ref.
+                      Agent/ Staff/ Credit Customer Ref.
                     </th>
                     <th className="border p-2 text-left font-semibold">
                       Mark Absent
@@ -280,7 +283,7 @@ export default function NurseViewReportContentLegacy({
                   {sessionData.bookings.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={8}
                         className="border p-4 text-center text-muted-foreground"
                       >
                         No bookings found
@@ -314,10 +317,7 @@ export default function NurseViewReportContentLegacy({
                           {getAgentStaffName(booking)}
                         </td>
                         <td className="border p-2">
-                          {getCreditCustomerName(booking)}
-                        </td>
-                        <td className="border p-2">
-                          {booking.agencyRef || '-'}
+                          {getAgentStaffCreditCustomerRef(booking)}
                         </td>
                         <td className="border p-2">
                           <input

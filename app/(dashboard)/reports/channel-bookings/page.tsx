@@ -26,12 +26,14 @@ export default async function ChannelBookingsReportPage() {
   const [
     doctorsResult,
     locationsResult,
+    departmentsResult,
     specialityRes,
     areasRes,
     agenciesRes,
   ] = await Promise.all([
     getDoctorOptions(),
     getLocationOptions(),
+    getDepartmentOptions(),
     getAllSpecialityOptions(),
     getAreasForChannelBooking(),
     getAllAgenciesOptions(),
@@ -60,6 +62,17 @@ export default async function ChannelBookingsReportPage() {
           })),
         ]
       : [{ id: '__all__', name: 'All Branches' }];
+
+  const departmentOptions: Array<{ id: string; name: string }> =
+    departmentsResult.success && departmentsResult.data
+      ? [
+          { id: '__all__', name: 'All Departments' },
+          ...departmentsResult.data.map((d: any) => ({
+            id: d.id || '',
+            name: d.name || '',
+          })),
+        ]
+      : [{ id: '__all__', name: 'All Departments' }];
 
   const specialityOptions: Array<{ id: string; name: string }> =
     specialityRes.success && specialityRes.data
@@ -121,6 +134,7 @@ export default async function ChannelBookingsReportPage() {
     <ChannelBookingsReportContent
       institutionOptions={INSTITUTION_OPTIONS}
       locationOptions={locationOptions}
+      departmentOptions={departmentOptions}
       branchTypeOptions={branchTypeOptions}
       specialityOptions={specialityOptions}
       doctorOptions={doctorOptions}

@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import prisma from '@/lib/prisma';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getActivityLogsForReport } from '@/services/reports/user-activity.service';
 import type {
   UserActivityReportQuery,
@@ -22,11 +23,11 @@ export async function getReportUserOptionsAction(): Promise<{
   try {
     const users = await prisma.user.findMany({
       where: { status: 1 },
-      select: { id: true, name: true },
+      select: { id: true, name: true, staff: { select: { code: true } } },
       orderBy: { name: 'asc' },
       take: 500,
     });
-    const data = users.map((u) => ({ id: u.id, name: u.name || u.id }));
+    const data = users.map((u) => ({ id: u.id, name: formatUserDisplayName(u.name, u.id, u.staff?.code) }));
     return { success: true, data };
   } catch (error: unknown) {
     console.error('getReportUserOptionsAction error', error);
