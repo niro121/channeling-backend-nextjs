@@ -10,6 +10,7 @@ export type ChannelBookingsReportQuery = {
   dateType?: string; // 'session_date' | 'transaction_date'
   institutionId?: string;
   locationId?: string;
+  departmentId?: string;
   branchTypeId?: string;
   specialityId?: string;
   doctorId?: string;
@@ -37,6 +38,7 @@ export type ChannelBookingsReportExportRow = {
 export type ChannelBookingsReportContentProps = {
   institutionOptions: Array<{ id: string; name: string }>;
   locationOptions: Array<{ id: string; name: string }>;
+  departmentOptions: Array<{ id: string; name: string }>;
   branchTypeOptions: Array<{ id: string; name: string }>;
   specialityOptions: Array<{ id: string; name: string }>;
   doctorOptions: Array<{ id: string; name: string }>;

@@ -31,6 +31,7 @@ function ChannelBookingsReportContentInner(
     dateType: searchParams.get('dateType') ?? undefined,
     institutionId: searchParams.get('institutionId') ?? undefined,
     locationId: searchParams.get('locationId') ?? undefined,
+    departmentId: searchParams.get('departmentId') ?? undefined,
     branchTypeId: searchParams.get('branchTypeId') ?? undefined,
     specialityId: searchParams.get('specialityId') ?? undefined,
     doctorId: searchParams.get('doctorId') ?? undefined,
@@ -46,8 +47,8 @@ function ChannelBookingsReportContentInner(
 
   return (
     <ReportTemplate<ChannelBookingsReportRow, ChannelBookingsReportExportRow>
-      title="Channel Bookings Report"
-      description="View channel booking records with filters for date range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method"
+      title="Channel Booking Details Report"
+      description="View channel booking records with filters for date range, data type, institution, branch, department, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method"
       filterButtonLabel="Search"
       filterContent={({ values, setValue }) => {
         const hasDateRange = Boolean(
@@ -117,6 +118,13 @@ function ChannelBookingsReportContentInner(
                   />
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
+                  <Combobox
+                    label="Department"
+                    options={props.departmentOptions}
+                    value={values.departmentId ?? '__all__'}
+                    defaultValue="__all__"
+                    onChange={(v) => setValue('departmentId', v)}
+                  />
                   <Combobox
                     label="Area"
                     options={props.areaOptions}
@@ -190,14 +198,14 @@ function ChannelBookingsReportContentInner(
                 </span>
                 <div className="flex flex-wrap items-end gap-3">
                   <Selector
-                    label="Status"
+                    label="All Status"
                     options={props.statusOptions}
                     value={values.status ?? '__all__'}
                     onChange={(v) => setValue('status', v)}
                     className={{ trigger: 'self-end!' }}
                   />
                   <Selector
-                    label="Refund Status"
+                    label="All Refund Status"
                     options={props.refundStatusOptions}
                     value={values.refundStatus ?? '__all__'}
                     onChange={(v) => setValue('refundStatus', v)}
@@ -212,14 +220,14 @@ function ChannelBookingsReportContentInner(
                 </span>
                 <div className="flex flex-wrap items-end gap-3">
                   <Selector
-                    label="Payment Type"
+                    label="All Payment Types"
                     options={props.paymentTypeOptions}
                     value={values.paymentTypeId ?? '__all__'}
                     onChange={(v) => setValue('paymentTypeId', v)}
                     className={{ trigger: 'self-end!' }}
                   />
                   <Selector
-                    label="Method"
+                    label="All Methods"
                     options={props.methodOptions}
                     value={values.methodId ?? '__all__'}
                     onChange={(v) => setValue('methodId', v)}
@@ -238,6 +246,7 @@ function ChannelBookingsReportContentInner(
           dateType: params.get('dateType') ?? undefined,
           institutionId: params.get('institutionId') ?? undefined,
           locationId: params.get('locationId') ?? undefined,
+          departmentId: params.get('departmentId') ?? undefined,
           branchTypeId: params.get('branchTypeId') ?? undefined,
           specialityId: params.get('specialityId') ?? undefined,
           doctorId: params.get('doctorId') ?? undefined,
@@ -265,6 +274,7 @@ function ChannelBookingsReportContentInner(
         'Status',
         'Refund Status',
         'Refunded At',
+        'Refunded By',
         'Patient Name',
         'Patient Number',
         'Area',
@@ -289,6 +299,7 @@ function ChannelBookingsReportContentInner(
           'status',
           'refundStatus',
           'refundedAt',
+          'refundedBy',
           'patientName',
           'patientNumber',
           'area',
@@ -306,6 +317,24 @@ function ChannelBookingsReportContentInner(
       exportFileName="channel-bookings-report"
       getRowId={(row) => row.id}
       showPrintButton={true}
+      totalColumnIds={['hospitalFee', 'doctorFee', 'discount', 'totalFee']}
+      getTotalNumericValue={(row, columnId) => {
+        const o = row as Record<string, unknown>;
+        const fromCents = (key: string) =>
+          typeof o[key] === 'number' ? (o[key] as number) / 100 : 0;
+        switch (columnId) {
+          case 'hospitalFee':
+            return fromCents('hospitalFee');
+          case 'doctorFee':
+            return fromCents('professionalFee');
+          case 'discount':
+            return fromCents('discount');
+          case 'totalFee':
+            return fromCents('amount');
+          default:
+            return 0;
+        }
+      }}
       emptyMessage="No channel bookings found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
       groupBy={(row) => (row as { doctor?: { id?: string } }).doctor?.id ?? ''}
