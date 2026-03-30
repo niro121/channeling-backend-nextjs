@@ -14,7 +14,6 @@ import {
 import { ConsultantPaymentsReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import type { ConsultantPaymentsReportRow } from '@/types/report';
-import { TableCell, TableRow } from '@/components/ui/table';
 import { formatLKR } from '@/lib/format-money';
 
 type ConsultantPaymentsReportContentProps = {
@@ -210,6 +209,20 @@ function ConsultantPaymentsReportContentInner({
       exportFileName="consultant-payments-report"
       getRowId={(row) => row.id}
       showPrintButton={true}
+      totalColumnIds={['consultationCharge', 'discountAmount', 'netAmount']}
+      formatTotalValue={(columnId, sum) => {
+        if (
+          columnId === 'consultationCharge' ||
+          columnId === 'discountAmount' ||
+          columnId === 'netAmount'
+        ) {
+          return <span className="tabular-nums font-medium">{formatLKR(sum)}</span>;
+        }
+        return sum.toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+          minimumFractionDigits: 0
+        });
+      }}
       emptyMessage="No consultant payment records found. Please select a date & time range and apply filters."
     />
   );
