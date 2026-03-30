@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import {DoctorLeaveReportQuery} from '@/types/reports/doctor.leave'
 import { Prisma } from '@prisma/client';
 import { SRI_LANKA_TZ, SL_OFFSET } from '@/lib/utils';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('doctor_leave', 62);
+const MAX_RECORDS_SCAN = getReportMaxRecords('doctor_leave', 20000);
 
 /** Get minutes-from-midnight (0-1439) for a Date in a timezone */
 function getMinutesInTimezone(date: Date, timeZone: string): number {
@@ -105,6 +109,15 @@ export const getDoctorLeaveReportService = async ({
           error: { message: 'Invalid date format' }
         };
       }
+      const daySpan = getInclusiveDaySpan(fromDate, toDate);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` }
+        };
+      }
     }
 
     // Start with explicit doctor if selected; then apply all other filters
@@ -192,6 +205,16 @@ export const getDoctorLeaveReportService = async ({
     }
     if (doctorIds !== null && doctorIds.length === 0) {
       return { success: true, data: [], totalRecords: 0 };
+    }
+
+    const matchedLeaveCount = await prisma.doctorLeave.count({ where: leaveWhere });
+    if (matchedLeaveCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${matchedLeaveCount}). Please narrow filters/date range.` }
+      };
     }
 
     const records = await prisma.doctorLeave.findMany({

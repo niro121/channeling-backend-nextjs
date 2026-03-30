@@ -2,13 +2,14 @@
 
 import { requirePermission } from '@/lib/server-permissions';
 import { getAgentBalanceReportService } from '@/services/reports/agent-balance.report.service';
-import { AgentBalanceReportQuery, AgentBalanceReportData } from '@/types/reports/agent-balance';
+import type { AgentBalanceReportQuery, AgentBalanceReportRow } from '@/types/reports/agent-balance';
 
 export async function getAgentBalanceReportData(
   query: AgentBalanceReportQuery
 ): Promise<{
   success: boolean;
-  data?: AgentBalanceReportData;
+  data?: AgentBalanceReportRow[];
+  totalRecords?: number;
   message?: string;
 }> {
   await requirePermission('reports', 'view');
@@ -17,6 +18,7 @@ export async function getAgentBalanceReportData(
     return {
       success: result.success,
       data: result.data,
+      totalRecords: result.totalRecords,
       message: result.message
     };
   } catch (error: unknown) {

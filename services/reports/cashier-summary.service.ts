@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
@@ -22,6 +23,9 @@ const ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
   agentCredit: 0,
   eWallet: 0,
 };
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('cashier_summary', 62);
+const MAX_RECEIPTS_SCAN = getReportMaxRecords('cashier_summary', 50000);
 
 /**
  * Parse a date or datetime string into a single moment.
@@ -128,12 +132,26 @@ export async function getCashierSummaryReportService(
   if (from.getTime() > to.getTime()) {
     return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, includedShifts: [], message: 'From date/time must be before or equal to to date/time.' };
   }
+  const daySpan = getInclusiveDaySpan(from, to);
+  if (daySpan > MAX_RANGE_DAYS) {
+    return { success: false, sections: [], grandTotals: ZERO_AMOUNTS, includedShifts: [], message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` };
+  }
 
   const baseWhere: Prisma.ReceiptWhereInput = {
     createdAt: { gte: from, lte: to },
   };
   if (query.userId && query.userId.trim() !== '' && query.userId !== '__all__') {
     baseWhere.createdBy = query.userId.trim();
+  }
+  const matchedReceiptCount = await prisma.receipt.count({ where: baseWhere });
+  if (matchedReceiptCount > MAX_RECEIPTS_SCAN) {
+    return {
+      success: false,
+      sections: [],
+      grandTotals: ZERO_AMOUNTS,
+      includedShifts: [],
+      message: `Too many records in selected range (${matchedReceiptCount}). Please narrow filters/date range.`,
+    };
   }
   const isSummary = query.format === 'summary';
 
@@ -209,13 +227,14 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, channelBilledTotals);
 
-  // --- Channel Refund: method REFUND, bookingId not null, booking.status !== 2 ---
+  // --- Channel Refund: REFUND receipt, channel — not full cancel (refund 3 + status 2 together)
   const channelRefund = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
       method: RECEIPT_METHOD.REFUND,
       bookingId: { not: null },
-      booking: { status: { not: 2 } },
+      agencyId: null,
+      booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
     },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
@@ -246,13 +265,14 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, channelRefundTotals);
 
-  // --- Channel Cancel: method REFUND, bookingId not null, booking.status === 2 ---
+  // --- Channel Cancel: full paid cancel sets refund 3 and status 2 (refund-channel.service)
   const channelCancel = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
       method: RECEIPT_METHOD.REFUND,
       bookingId: { not: null },
-      booking: { status: 2 },
+      agencyId: null,
+      booking: { AND: [{ refund: 3 }, { status: 2 }] },
     },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
@@ -318,13 +338,13 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, agentBilledTotals);
 
-  // --- Agent Refunded: agencyId not null, method REFUND, booking.status !== 2 ---
+  // --- Agent Refunded: not full cancel (refund 3 + status 2)
   const agentRefunded = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
       agencyId: { not: null },
       method: RECEIPT_METHOD.REFUND,
-      booking: { status: { not: 2 } },
+      booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
     },
     include: {
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
@@ -358,13 +378,13 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, agentRefundedTotals);
 
-  // --- Agent Canceled: agencyId not null, method REFUND, booking.status === 2 ---
+  // --- Agent Canceled: same rule as channel — refund 3 and status 2 on paid full cancel
   const agentCanceled = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
       agencyId: { not: null },
       method: RECEIPT_METHOD.REFUND,
-      booking: { status: 2 },
+      booking: { AND: [{ refund: 3 }, { status: 2 }] },
     },
     include: {
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },

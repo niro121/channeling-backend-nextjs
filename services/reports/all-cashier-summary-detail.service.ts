@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
@@ -21,6 +22,9 @@ const ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
   agentCredit: 0,
   eWallet: 0,
 };
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('all_cashier_summary_detail', getReportMaxRangeDays('cashier_summary', 62));
+const MAX_RECEIPTS_SCAN = getReportMaxRecords('all_cashier_summary_detail', getReportMaxRecords('cashier_summary', 50000));
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
   const trimmed = value?.trim();
@@ -80,20 +84,24 @@ function sectionKeyFromReceipt(r: {
   method: number;
   bookingId: string | null;
   agencyId: string | null;
-  booking?: { status: number } | null;
+  booking?: { status: number; refund: number } | null;
 }): { key: string; title: string } {
   if (r.method === RECEIPT_METHOD.PAYMENT && r.bookingId && !r.agencyId) {
     return { key: 'channelBilled', title: 'Channel Billed Bills' };
   }
   if (r.method === RECEIPT_METHOD.REFUND && r.bookingId && !r.agencyId) {
-    if (r.booking?.status === 2) return { key: 'channelCancel', title: 'Channel Cancel Bills' };
+    if (r.booking?.refund === 3 && r.booking?.status === 2) {
+      return { key: 'channelCancel', title: 'Channel Cancel Bills' };
+    }
     return { key: 'channelRefund', title: 'Channel Refund Bills' };
   }
   if (r.agencyId && r.method === RECEIPT_METHOD.PAYMENT) {
     return { key: 'agentBilled', title: 'Agent - Billed Bills' };
   }
   if (r.agencyId && r.method === RECEIPT_METHOD.REFUND) {
-    if (r.booking?.status === 2) return { key: 'agentCanceled', title: 'Agent - Canceled Bills' };
+    if (r.booking?.refund === 3 && r.booking?.status === 2) {
+      return { key: 'agentCanceled', title: 'Agent - Canceled Bills' };
+    }
     return { key: 'agentRefunded', title: 'Agent - Refunded Bills' };
   }
   if (r.method === RECEIPT_METHOD.AGENCY_DEPOSIT) {
@@ -119,6 +127,17 @@ export async function getAllCashierSummaryDetailReportService(
   if (from.getTime() > to.getTime()) {
     return { success: false, summaryRows: [], detailRows: [], grandTotals: ZERO_AMOUNTS, totalReceipts: 0, message: 'From date/time must be before or equal to to date/time.' };
   }
+  const daySpan = getInclusiveDaySpan(from, to);
+  if (daySpan > MAX_RANGE_DAYS) {
+    return {
+      success: false,
+      summaryRows: [],
+      detailRows: [],
+      grandTotals: ZERO_AMOUNTS,
+      totalReceipts: 0,
+      message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
+    };
+  }
 
   const baseWhere: Prisma.ReceiptWhereInput = {
     createdAt: { gte: from, lte: to },
@@ -128,6 +147,18 @@ export async function getAllCashierSummaryDetailReportService(
   }
   if (query.locationId && query.locationId !== '__all__') {
     baseWhere.OR = [{ locationId: query.locationId }, { userLocationId: query.locationId }];
+  }
+
+  const matchedReceiptCount = await prisma.receipt.count({ where: baseWhere });
+  if (matchedReceiptCount > MAX_RECEIPTS_SCAN) {
+    return {
+      success: false,
+      summaryRows: [],
+      detailRows: [],
+      grandTotals: ZERO_AMOUNTS,
+      totalReceipts: 0,
+      message: `Too many records in selected range (${matchedReceiptCount}). Please narrow filters/date range.`,
+    };
   }
 
   const receipts = await prisma.receipt.findMany({
@@ -141,7 +172,7 @@ export async function getAllCashierSummaryDetailReportService(
       method: true,
       bookingId: true,
       agencyId: true,
-      booking: { select: { status: true } },
+      booking: { select: { status: true, refund: true } },
     },
     orderBy: { createdAt: 'asc' },
   });

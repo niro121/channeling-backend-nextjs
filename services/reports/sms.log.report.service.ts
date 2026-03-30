@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import {SmsLogReportQuery} from '@/types/reports/sms.log'
 import { Prisma } from '@prisma/client';
 import { SL_OFFSET } from '@/lib/utils';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('sms_log', 31);
+const MAX_RECORDS_SCAN = getReportMaxRecords('sms_log', 50000);
 
 // ==== GET SMS LOGS FOR REPORT ==== //
 export const getSmsLogReportService = async ({
@@ -82,6 +86,15 @@ export const getSmsLogReportService = async ({
           error: { message: 'Invalid date format' }
         };
       }
+      const daySpan = getInclusiveDaySpan(fromDate, toDate);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` }
+        };
+      }
     }
 
     const smsLogWhere: Prisma.SmsLogWhereInput = {};
@@ -111,13 +124,19 @@ export const getSmsLogReportService = async ({
       };
     }
 
-    const [records, totalCount] = await Promise.all([
-      prisma.smsLog.findMany({
-        where: smsLogWhere,
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.smsLog.count({ where: smsLogWhere })
-    ]);
+    const totalCount = await prisma.smsLog.count({ where: smsLogWhere });
+    if (totalCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${totalCount}). Please narrow filters/date range.` }
+      };
+    }
+    const records = await prisma.smsLog.findMany({
+      where: smsLogWhere,
+      orderBy: { createdAt: 'desc' }
+    });
 
     // Map records to report format
     const enrichedRecords = records.map((rec: any) => {

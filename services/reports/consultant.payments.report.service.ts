@@ -5,9 +5,12 @@ import { ConsultantPaymentsReportQuery } from '@/types/report';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 
 type ExtractWhereInput<T> = T extends { where?: infer W } ? W : never;
 type PrismaBookingWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.booking.findMany>[0]>>;
+const MAX_RANGE_DAYS = getReportMaxRangeDays('consultant_payments', 62);
+const MAX_RECORDS_SCAN = getReportMaxRecords('consultant_payments', 30000);
 
 function parseDateToUnixRange(fromDateTime?: string, toDateTime?: string): { from: number; to: number } | null {
   if (!fromDateTime || !toDateTime) return null;
@@ -125,6 +128,19 @@ export const getConsultantPaymentsReportService = async ({
         error: { message: 'Invalid date format' }
       };
     }
+    {
+      const from = new Date(fromDateTime!);
+      const to = new Date(toDateTime!);
+      const daySpan = getInclusiveDaySpan(from, to);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` }
+        };
+      }
+    }
 
     let doctorIds: string[] | null = null;
 
@@ -217,6 +233,16 @@ export const getConsultantPaymentsReportService = async ({
       } else if (status === '0') {
         bookingWhere.doctorPayment = false;
       }
+    }
+
+    const matchedBookingCount = await prisma.booking.count({ where: bookingWhere });
+    if (matchedBookingCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${matchedBookingCount}). Please narrow filters/date range.` }
+      };
     }
 
     let bookings = await prisma.booking.findMany({

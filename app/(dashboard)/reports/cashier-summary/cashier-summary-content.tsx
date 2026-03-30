@@ -61,9 +61,105 @@ const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string 
   { key: 'slip', label: 'Slip' },
   { key: 'cheque', label: 'Cheque' },
   { key: 'agent', label: 'Agent' },
-  { key: 'agentCredit', label: 'Agent Credit' },
+  { key: 'agentCredit', label: 'Credit Customer' },
   { key: 'eWallet', label: 'E-wallet' },
 ];
+
+/** Slip + Credit Customer → Credit Summary; all other methods → Cash Summary (see report footer). */
+const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
+  'cash',
+  'creditCard',
+  'cheque',
+  'agent',
+  'eWallet',
+];
+
+function sumAmounts(t: CashierSummaryPaymentAmounts, keys: (keyof CashierSummaryPaymentAmounts)[]): number {
+  return keys.reduce((acc, k) => acc + Number(t[k] ?? 0), 0);
+}
+
+/** Footer: Credit Summary = Slip + Credit Customer; Cash Summary = everything else. */
+function CashierCreditCashSummaryFooter({ totals }: { totals: CashierSummaryPaymentAmounts }) {
+  const slip = Number(totals.slip);
+  const creditCustomer = Number(totals.agentCredit);
+  const creditSectionTotal = slip + creditCustomer;
+  const cashSectionTotal = sumAmounts(totals, CASH_SUMMARY_KEYS);
+  const grandCombined = creditSectionTotal + cashSectionTotal;
+
+  const cashRows: { key: keyof CashierSummaryPaymentAmounts; label: string }[] = [
+    { key: 'cash', label: 'Cash Total' },
+    { key: 'creditCard', label: 'Credit Card Total' },
+    { key: 'cheque', label: 'Cheque Total' },
+    { key: 'agent', label: 'Agent Total' },
+    { key: 'eWallet', label: 'E-wallet Total' },
+  ];
+
+  const rowClass = 'border-t border-border/80';
+  const cellLabel = 'px-3 py-1.5 text-[13px] text-left align-middle';
+  const cellAmt = 'px-3 py-1.5 text-right tabular-nums text-[13px] align-middle';
+
+  return (
+    <div className="max-w-md">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        Cashier summary (credit vs cash)
+      </h3>
+      <div className="rounded-md border border-border overflow-hidden shadow-sm">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-muted/90">
+              <th colSpan={2} className="text-left font-semibold px-3 py-2 text-xs">
+                Credit Summary
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className={rowClass}>
+              <td className={cellLabel}>Slip Total</td>
+              <td className={cellAmt}>{formatAmount(slip)}</td>
+            </tr>
+            <tr className={rowClass}>
+              <td className={cellLabel}>Credit Customer Total</td>
+              <td className={cellAmt}>{formatAmount(creditCustomer)}</td>
+            </tr>
+            <tr className={`${rowClass} bg-muted/50 font-medium`}>
+              <td className={cellLabel}>Total</td>
+              <td className={cellAmt}>{formatAmount(creditSectionTotal)}</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr className="bg-muted/90 border-t-2 border-border">
+              <th colSpan={2} className="text-left font-semibold px-3 py-2 text-xs">
+                Cash Summary
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {cashRows.map(({ key, label }) => (
+              <tr key={key} className={rowClass}>
+                <td className={cellLabel}>{label}</td>
+                <td className={cellAmt}>{formatAmount(totals[key])}</td>
+              </tr>
+            ))}
+            <tr className={`${rowClass} bg-muted/50 font-medium`}>
+              <td className={cellLabel}>Total</td>
+              <td className={cellAmt}>{formatAmount(cashSectionTotal)}</td>
+            </tr>
+          </tbody>
+          <tbody>
+            <tr className="border-t-2 border-border bg-muted/80 font-semibold">
+              <td className="px-3 py-2.5 text-[13px] text-left">Grand Total</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-[13px]">{formatAmount(grandCombined)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+        Credit Summary groups slip and credit-customer receipts. Cash Summary groups cash, card, cheque, agent, and e-wallet.
+        Grand Total equals the sum of both section totals (and matches the all-columns total above).
+      </p>
+    </div>
+  );
+}
 
 /** Default from = today 00:00, to = today 23:59 (end of day / midnight) in YYYY-MM-DDTHH:mm for datetime-local */
 function getDefaultDateTimeRange(): { from: string; to: string } {
@@ -308,7 +404,7 @@ export default function CashierSummaryContent({
     }
 
     if (grandTotals) {
-      lines.push('Grand Total');
+      lines.push('Grand Total (all payment columns)');
       lines.push(
         [
           '',
@@ -328,6 +424,22 @@ export default function CashierSummaryContent({
           .map((c) => `"${String(c).replace(/"/g, '""')}"`)
           .join(',')
       );
+      const crSlip = Number(grandTotals.slip);
+      const crCust = Number(grandTotals.agentCredit);
+      const crTotal = crSlip + crCust;
+      const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
+      lines.push('');
+      lines.push('"Credit Summary","","","","","","","","",""');
+      lines.push(`"Slip Total","","","","","","","","","${String(crSlip / 100)}"`);
+      lines.push(`"Credit Customer Total","","","","","","","","","${String(crCust / 100)}"`);
+      lines.push(`"Total (Credit Summary)","","","","","","","","","${String(crTotal / 100)}"`);
+      lines.push('"Cash Summary","","","","","","","","",""');
+      for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
+        const n = Number(grandTotals[col.key]);
+        lines.push(`"${col.label} Total","","","","","","","","","${String(Number.isFinite(n) ? n / 100 : 0)}"`);
+      }
+      lines.push(`"Total (Cash Summary)","","","","","","","","","${String(cashTotal / 100)}"`);
+      lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${String((crTotal + cashTotal) / 100)}"`);
     }
 
     const csv = lines.join('\n');
@@ -381,7 +493,7 @@ export default function CashierSummaryContent({
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Select User</label>
               <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="h-8 w-[200px] px-2 py-1 text-sm shadow-none focus:ring-1 focus:ring-offset-0 [&>span]:block [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left">
                   <SelectValue placeholder="Select user" />
                 </SelectTrigger>
                 <SelectContent>
@@ -396,7 +508,7 @@ export default function CashierSummaryContent({
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Format</label>
               <Select value={format} onValueChange={(v) => setFormat(v as 'summary' | 'detail')}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="h-8 w-[140px] px-2 py-1 text-sm shadow-none focus:ring-1 focus:ring-offset-0 [&>span]:block [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -462,32 +574,8 @@ export default function CashierSummaryContent({
                 ))}
 
                 {grandTotals && (
-                  <div className="border-t pt-2 mt-2">
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-b">
-                            <TableHead className="text-right font-medium py-1.5 text-xs w-14">Total</TableHead>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableHead key={c.key} className="text-right font-medium py-1.5 text-xs tabular-nums">
-                                {c.label}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow className="font-medium">
-                            <TableCell className="text-right py-1.5 text-xs font-semibold">Total</TableCell>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableCell key={c.key} className="text-right py-1.5 text-xs tabular-nums">
-                                {formatAmount(grandTotals[c.key])}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <div className="mt-2">{renderReportMetaCard(reportMeta)}</div>
+                  <div className="border-t pt-4 mt-2">
+                    <CashierCreditCashSummaryFooter totals={grandTotals} />
                   </div>
                 )}
               </>
