@@ -7,12 +7,12 @@ import type { ChannelAgentReceiptReportRow } from '@/types/reports/channel-agent
 
 export const ChannelAgentReceiptReportColumns: ColumnDef<ChannelAgentReceiptReportRow>[] = [
   {
-    accessorKey: 'refNo',
-    header: 'Receipt No',
+    accessorKey: 'agentRef',
+    header: 'Agent Reference',
   },
   {
-    accessorKey: 'billNo',
-    header: 'Bill No',
+    accessorKey: 'refNo',
+    header: 'Receipt No',
   },
   {
     accessorKey: 'agency',
