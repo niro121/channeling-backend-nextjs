@@ -1,290 +1,246 @@
 'use client';
 
-import React, { Suspense, useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
-import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
-import { Combobox } from '@/components/common/combobox';
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Selector } from '@/components/common/selector';
-import { getAgentBalanceReportData } from '@/app/actions/reports/agent-balance.report.action';
-import { AgentBalanceReportContentProps, AgentBalanceReportData } from '@/types/reports/agent-balance';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent
-} from '@/components/ui/card';
+import { Combobox } from '@/components/common/combobox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import Loading from '@/app/(dashboard)/loading';
-import moment from 'moment';
-import { format } from 'date-fns';
+import { Download, Printer, SearchIcon } from 'lucide-react';
+import { getAgentBalanceReportData } from '@/app/actions/reports/agent-balance.report.action';
+import type { AgentBalanceReportContentProps, AgentBalanceReportRow } from '@/types/reports/agent-balance';
 import { formatLKR } from '@/lib/format-money';
 
-// Language translations
-const translations = {
-  en: {
-    greeting: 'Dear Sir/s,',
-    title: 'CERTIFICATE OF BALANCE',
-    body: 'We hereby certify that the balance in the below mentioned Agent account maintained with us, as at close of business on {date} was as follows.',
-    nameOfAgent: 'Name of Agent',
-    agentCode: 'Agent Code',
-    balanceAsAtDate: 'Balance as at date',
-    yoursFaithfully: 'Yours faithfully,',
-    accountant: 'Accountant.',
-    companyName: 'Ruhunu Hospital (Pvt.) Ltd.'
-  },
-  si: {
-    greeting: 'මහත්මයාණෙනි,',
-    getTitle: (date: string) => `${date} දිනට ශේෂ සහතිකය.`,
-    body: 'අප ආයතනයේ පවත්වා ගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ {date} දිනට ශේෂය පහත පරිදි වේ.',
-    nameOfAgent: 'නියෝජිත නම',
-    agentCode: 'නියෝජිත අංකය',
-    balanceAsAtDate: 'ශේෂය',
-    yoursFaithfully: 'ස්තුතියි.',
-    accountant: 'ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.',
-    companyName: 'රුහුණු රෝහල (ප්‍රයිවට්) ලිමිටඩ්'
-  }
-};
+const STATUS_OPTIONS = [
+  { id: '1', name: 'Active' },
+  { id: '0', name: 'Inactive' },
+];
 
-function AgentBalanceReportContentInner({
-  agentOptions
-}: AgentBalanceReportContentProps) {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+export default function AgentBalanceReportContent({ agentOptions, currentUserName }: AgentBalanceReportContentProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState<AgentBalanceReportData | null>(null);
+  const [agentId, setAgentId] = useState('__all__');
+  const [status, setStatus] = useState('__all__');
+  const [rows, setRows] = useState<AgentBalanceReportRow[]>([]);
+  const [reportMeta, setReportMeta] = useState<{
+    agentLabel: string;
+    statusLabel: string;
+    generatedBy: string;
+    generatedAt: string;
+  } | null>(null);
 
-  const agentId = searchParams.get('agentId') || '__all__';
-  const dateStr = searchParams.get('date');
-  const language = searchParams.get('language') || 'en';
-  const date = dateStr ? new Date(dateStr) : new Date();
+  const balanceTotal = rows.reduce((sum, r) => sum + (Number(r.agentBalance) || 0), 0);
 
-  const lang = language === 'si' ? 'si' : 'en';
-  const t = translations[lang];
-
-  const fetchReportData = async () => {
-    if (!agentId || agentId === '__all__' || !dateStr) {
-      setReportData(null);
-      return;
-    }
-
+  const runSearch = async () => {
     setLoading(true);
     try {
-      const result = await getAgentBalanceReportData({
-        agentId,
-        date: dateStr,
-        language
-      });
-
-      if (result.success && result.data) {
-        setReportData(result.data);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: result.message || 'Failed to fetch report data'
-        });
-        setReportData(null);
+      const res = await getAgentBalanceReportData({ agentId, status });
+      if (!res.success) {
+        toast({ variant: 'destructive', title: 'Error', description: res.message || 'Failed to load report' });
+        setRows([]);
+        setReportMeta(null);
+        return;
       }
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to fetch report data'
+      const data = res.data ?? [];
+      setRows(data);
+      setReportMeta({
+        agentLabel: agentOptions.find((a) => a.id === agentId)?.name ?? 'All Agents',
+        statusLabel: STATUS_OPTIONS.find((s) => s.id === status)?.name ?? 'All Status',
+        generatedBy: currentUserName,
+        generatedAt: new Date().toLocaleString(),
       });
-      setReportData(null);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to load report';
+      toast({ variant: 'destructive', title: 'Error', description: msg });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (agentId && agentId !== '__all__' && dateStr) {
-      fetchReportData();
-    } else {
-      setReportData(null);
-    }
-  }, [agentId, dateStr, language]);
+  const renderMetaCard = () =>
+    reportMeta ? (
+      <div className="rounded-md border border-primary/30 bg-primary/5 shadow-sm px-3 py-2.5">
+        <div className="mb-2 flex items-center gap-2 border-l-2 border-primary pl-2">
+          <p className="text-[11px] font-semibold tracking-wide text-primary">Report Generation Details</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-0.5 sm:col-span-2">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
+            <p className="text-[11px] leading-tight font-medium">
+              Agent: {reportMeta.agentLabel} | Status: {reportMeta.statusLabel}
+            </p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Generated by</p>
+            <p className="text-[11px] font-semibold leading-tight">{reportMeta.generatedBy}</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Generated at</p>
+            <p className="text-[11px] font-semibold leading-tight">{reportMeta.generatedAt}</p>
+          </div>
+        </div>
+      </div>
+    ) : null;
 
-  const languageOptions = [
-    { id: 'en', name: 'English' },
-    { id: 'si', name: 'Sinhala' }
-  ];
-
-  const exportData = async () => {
-    if (!reportData) {
-      return { success: false, data: [], message: 'No data available' };
-    }
-
-    const exportRow = {
-      agentName: reportData.agentName,
-      agentCode: reportData.agentCode,
-      balance: reportData.balance.toFixed(2),
-      date: reportData.date
-    };
-
-    return {
-      success: true,
-      data: [exportRow]
-    };
-  };
-
-  const formatDate = (dateStr: string) => {
-    return moment(dateStr).format('YYYY-MM-DD');
-  };
-
-  const formatBalance = (balance: number) => {
-    return formatLKR(balance);
+  const downloadCsv = () => {
+    const lines = [
+      [
+        'S No.',
+        'Status',
+        'Agent Code',
+        'Parent Agent',
+        'Agent Name',
+        'Agent Phone No',
+        'Agent Address',
+        'Max Credit Limit',
+        'Allowed Credit Limit',
+        'Agent Balance',
+      ].join(','),
+      ...rows.map((r, i) =>
+        [
+          i + 1,
+          r.status === 1 ? 'Active' : 'Inactive',
+          r.agentCode,
+          r.parentAgent,
+          r.agentName,
+          r.agentPhoneNo,
+          r.agentAddress,
+          r.maxCreditLimit.toFixed(2),
+          r.allowedCreditLimit.toFixed(2),
+          r.agentBalance.toFixed(2),
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(',')
+      ),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-balance-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="w-full py-2 space-y-3">
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <CardTitle className="text-2xl font-bold">Agent Balance Confirmation Letter</CardTitle>
-              <CardDescription>
-                Generate a balance certificate letter for selected agent as at a specific date
+              <CardTitle className="text-xl font-bold">Agent Balance Report</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Agent balances from agencies and linked PAYABLE accounts.
               </CardDescription>
             </div>
-            <ExportWrapper
-              serverData={exportData}
-              columns={['Agent Name', 'Agent Code', 'Balance', 'Date']}
-              keys={['agentName', 'agentCode', 'balance', 'date'] as any}
-              title="Agent Balance Confirmation Letter"
-              fileName="agent-balance-confirmation-letter"
-              showPrintButton={true}
-            />
+            <div className="flex gap-2 no-print">
+              <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer />Print</Button>
+              <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2"><Download />Download CSV</Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="mb-6 pb-4 border-b [&>div]:!flex-nowrap [&>div]:items-end">
-            <FilterWrapper
-              key={searchParams.toString()}
-              initialValues={{
-                agentId: agentId || '__all__',
-                date: dateStr || undefined,
-                language: language || 'en'
-              }}
-              buttonLabel="Search"
-              onApplyClick={() => {
-                setLoading(true);
-              }}
-              showClearButton
-            >
-              {({ values, setValue }) => (
-                <>
-                  <Combobox
-                    label="Select Agent"
-                    options={agentOptions}
-                    value={values.agentId ?? '__all__'}
-                    defaultValue="__all__"
-                    onChange={(v) => setValue('agentId', v)}
-                  />
-                  <input
-                    type="date"
-                    value={values.date || format(new Date(), 'yyyy-MM-dd')}
-                    onChange={(e) => setValue('date', e.target.value || undefined)}
-                    className="h-10 px-3 border rounded-md w-60 flex-shrink-0"
-                    aria-label="Date"
-                  />
-                  <Selector
-                    label="Language"
-                    options={languageOptions}
-                    value={values.language ?? 'en'}
-                    onChange={(v) => setValue('language', v)}
-                    className={{
-                      trigger: 'self-end!'
-                    }}
-                  />
-                </>
-              )}
-            </FilterWrapper>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4 no-print">
+            <Combobox
+              label="Select Agent"
+              options={[{ id: '__all__', name: 'All Agents' }, ...agentOptions]}
+              value={agentId}
+              defaultValue="__all__"
+              onChange={(v) => setAgentId(v ?? '__all__')}
+            />
+            <Selector
+              label="All Status"
+              options={STATUS_OPTIONS}
+              value={status}
+              onChange={setStatus}
+              className={{ trigger: 'w-[180px]' }}
+            />
+            <Button size="sm" onClick={runSearch} disabled={loading} className="h-10 gap-2">
+              <SearchIcon className="h-4 w-4" />Search
+            </Button>
           </div>
-
-          {loading ? (
-            <Loading />
-          ) : reportData ? (
-            <div className="space-y-6 print:space-y-4">
-              {/* Letter Content */}
-              <div className="bg-white p-8 print:p-6 space-y-6 print:space-y-4 border rounded-lg print:border-0">
-                {/* Address Section */}
-                <div className="text-sm space-y-1">
-                  <div>{reportData.agentName}</div>
-                  {reportData.address && <div>{reportData.address}</div>}
-                </div>
-
-                {/* Date */}
-                <div className="text-sm">
-                  {formatDate(reportData.date)}
-                </div>
-
-                {/* Greeting */}
-                <div className="text-sm">
-                  {t.greeting}
-                </div>
-
-                {/* Title */}
-                <div className="text-center font-bold text-lg print:text-base underline">
-                  {lang === 'si' && typeof (t as any).getTitle === 'function' 
-                    ? (t as any).getTitle(formatDate(reportData.date))
-                    : (t as { title: string }).title}
-                </div>
-
-                {/* Body */}
-                <div className="text-sm leading-relaxed">
-                  {t.body.replace('{date}', formatDate(reportData.date))}
-                </div>
-
-                {/* Agent Details Table */}
-                <div className="mt-6 print:mt-4">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="text-left text-sm font-bold pb-2 border-b pr-4">{t.nameOfAgent}</th>
-                        <th className="text-right text-sm font-bold pb-2 border-b px-4">{t.agentCode}</th>
-                        <th className="text-right text-sm font-bold pb-2 border-b pl-4">{t.balanceAsAtDate}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="text-sm py-2 pr-4">{reportData.agentName}</td>
-                        <td className="text-sm py-2 text-right px-4">{reportData.agentCode}</td>
-                        <td className="text-sm py-2 text-right pl-4">{formatBalance(reportData.balance)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-8 print:mt-6 space-y-4 print:space-y-2">
-                  <div className="text-sm">{t.yoursFaithfully}</div>
-                  <div className="border-t border-dashed border-gray-400 w-48 pt-2">
-                    {/* Signature line */}
-                  </div>
-                  <div className="text-sm">{t.accountant}</div>
-                  <div className="text-sm font-semibold">{t.companyName}</div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              Please select an agent and date, then click Search to generate the certificate.
-            </div>
-          )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
 
-export default function AgentBalanceReportContent(props: AgentBalanceReportContentProps) {
-  return (
-    <Suspense fallback={<Loading />}>
-      <AgentBalanceReportContentInner {...props} />
-    </Suspense>
+      {!reportMeta && (
+        <Card className="border-dashed">
+          <CardContent className="py-8">
+            <p className="text-sm font-medium text-muted-foreground">Search to view report details.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {reportMeta && (
+        <Card className="bg-muted/20">
+          <CardHeader className="py-2">
+            <CardTitle className="text-base">Agent Balance Report</CardTitle>
+            <CardDescription className="text-xs mt-0.5">Agency soft/hard limits with live account balance.</CardDescription>
+            {renderMetaCard()}
+          </CardHeader>
+          <CardContent className="space-y-3 py-2">
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : rows.length === 0 ? (
+              <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">No agents found for the selected filters.</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                    <TableHeader>
+                      <TableRow className="border-b">
+                        <TableHead className="w-10 text-right">No.</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Agent Code</TableHead>
+                        <TableHead>Parent Agent</TableHead>
+                        <TableHead>Agent Name</TableHead>
+                        <TableHead>Agent Phone No</TableHead>
+                        <TableHead>Agent Address</TableHead>
+                        <TableHead className="text-right">Max Credit Limit</TableHead>
+                        <TableHead className="text-right">Allowed Credit Limit</TableHead>
+                        <TableHead className="text-right">Agent Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((r, i) => (
+                        <TableRow key={r.id} className="border-b border-border/50">
+                          <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                r.status === 1
+                                  ? 'inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700'
+                                  : 'inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-red-100/70 text-red-700'
+                              }
+                            >
+                              {r.status === 1 ? 'Active' : 'Inactive'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">{r.agentCode}</TableCell>
+                          <TableCell>{r.parentAgent}</TableCell>
+                          <TableCell>{r.agentName}</TableCell>
+                          <TableCell>{r.agentPhoneNo}</TableCell>
+                          <TableCell>{r.agentAddress}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatLKR(r.maxCreditLimit)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatLKR(r.allowedCreditLimit)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatLKR(r.agentBalance)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-medium bg-muted/50">
+                        <TableCell colSpan={9}>Total</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatLKR(balanceTotal)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                {renderMetaCard()}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

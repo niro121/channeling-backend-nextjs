@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { ApiLogReportQuery } from '@/types/reports/api.log';
 import { Prisma } from '@prisma/client';
 import { SL_OFFSET } from '@/lib/utils';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('api_log', 31);
+const MAX_RECORDS_SCAN = getReportMaxRecords('api_log', 20000);
 
 // ==== GET API LOGS FOR REPORT ==== //
 export const getApiLogReportService = async ({
@@ -73,6 +77,15 @@ export const getApiLogReportService = async ({
           error: { message: 'Invalid date format' }
         };
       }
+      const daySpan = getInclusiveDaySpan(fromDate, toDate);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` }
+        };
+      }
     }
 
     // Build where clause for Log model
@@ -95,14 +108,19 @@ export const getApiLogReportService = async ({
       ];
     }
 
-    // Query Log model
-    const [records, totalCount] = await Promise.all([
-      prisma.log.findMany({
-        where: logWhere,
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.log.count({ where: logWhere })
-    ]);
+    const totalCount = await prisma.log.count({ where: logWhere });
+    if (totalCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${totalCount}). Please narrow filters/date range.` }
+      };
+    }
+    const records = await prisma.log.findMany({
+      where: logWhere,
+      orderBy: { createdAt: 'desc' }
+    });
 
     // Map Log model fields to API log report format
     // Log.name -> endpoint, Log.status -> errorStatus, Log.before -> requestBody, Log.after -> responseBody

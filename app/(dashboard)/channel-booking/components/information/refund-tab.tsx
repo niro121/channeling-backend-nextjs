@@ -208,6 +208,9 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         <Label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Refundable items
         </Label>
+        <p className="text-[11px] text-muted-foreground">
+          Choose one fee only — professional or hospital (not both).
+        </p>
         <div className="rounded-md border border-border/60 bg-muted/10 overflow-hidden">
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -224,7 +227,11 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
                 <td className="py-1.5 px-2">
                   <Checkbox
                     checked={professionalChecked}
-                    onCheckedChange={(c) => setProfessionalChecked(!!c)}
+                    onCheckedChange={(c) => {
+                      const on = !!c
+                      setProfessionalChecked(on)
+                      if (on) setHospitalChecked(false)
+                    }}
                     disabled={professionalRefundable <= 0}
                   />
                 </td>
@@ -237,7 +244,11 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
                 <td className="py-1.5 px-2">
                   <Checkbox
                     checked={hospitalChecked}
-                    onCheckedChange={(c) => setHospitalChecked(!!c)}
+                    onCheckedChange={(c) => {
+                      const on = !!c
+                      setHospitalChecked(on)
+                      if (on) setProfessionalChecked(false)
+                    }}
                     disabled={hospitalRefundable <= 0}
                   />
                 </td>

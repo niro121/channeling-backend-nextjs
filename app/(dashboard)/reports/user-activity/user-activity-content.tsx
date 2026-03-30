@@ -191,7 +191,7 @@ export default function UserActivityContent({
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">User</label>
               <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[200px] pr-1">
                   <SelectValue placeholder="Select user" />
                 </SelectTrigger>
                 <SelectContent>

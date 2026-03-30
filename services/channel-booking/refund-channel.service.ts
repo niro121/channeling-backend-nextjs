@@ -147,7 +147,7 @@ export async function refundChannelService(
   // Cancel (refund_type 0)
   if (input.refund_type === 0) {
     if (booking.status === 1) {
-      // Paid: full refund — create refund receipt and update refund fields only. Do NOT set status to 2.
+      // Paid: full refund — receipt + refund fields; status must be 2 (canceled) like unpaid cancel path.
       // booking.amount is already net (does not include discount), so do not subtract discount again.
       const refundAmount = booking.amount
       const isAgent = refundTo === 4
@@ -260,6 +260,7 @@ export async function refundChannelService(
           shiftId,
           userLocationId: null,
           getBookingUpdate: (receipt) => ({
+            status: 2,
             refund: 3,
             refundAmount: receipt.amount, // same sign as receipt (negative)
             refundReason: remarks,
@@ -313,10 +314,16 @@ export async function refundChannelService(
     if (totalRefund <= 0) {
       return { success: false, errorCode: "invalid_input", message: "Select at least one refundable amount." }
     }
+    if (input.professional_fee > 0 && input.hospital_fee > 0) {
+      return {
+        success: false,
+        errorCode: "invalid_input",
+        message: "Refund only one fee at a time: professional or hospital, not both.",
+      }
+    }
 
     let refundType = 0
-    if (input.hospital_fee > 0 && input.professional_fee > 0) refundType = 3
-    else if (input.hospital_fee > 0) refundType = 2
+    if (input.hospital_fee > 0) refundType = 2
     else if (input.professional_fee > 0) refundType = 1
 
     const isAgent = refundTo === 4

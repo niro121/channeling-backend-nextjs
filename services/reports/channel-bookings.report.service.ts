@@ -7,6 +7,10 @@ import {
 } from "@/types/reports/channel-bookings";
 import { Prisma } from "@prisma/client";
 import { SL_OFFSET } from "@/lib/utils";
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_bookings', 62);
+const MAX_RECORDS_SCAN = getReportMaxRecords('channel_bookings', 30000);
 
 /** Parse date range: supports YYYY-MM-DD or YYYY-MM-DDTHH:mm */
 function parseDateRange(from?: string, to?: string): {
@@ -100,6 +104,17 @@ export async function getChannelBookingsReportService(
         totalRecords: 0,
         error: { message: "Invalid date format" },
       };
+    }
+    if (dateRange) {
+      const daySpan = getInclusiveDaySpan(dateRange.from, dateRange.to);
+      if (daySpan > MAX_RANGE_DAYS) {
+        return {
+          success: false,
+          data: [],
+          totalRecords: 0,
+          error: { message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.` },
+        };
+      }
     }
 
     const bookingWhere: Prisma.BookingWhereInput = {};
@@ -274,6 +289,16 @@ export async function getChannelBookingsReportService(
     if (methodId && methodId !== "__all__") {
       const m = parseInt(methodId, 10);
       if (!isNaN(m)) bookingWhere.method = m;
+    }
+
+    const matchedBookingCount = await prisma.booking.count({ where: bookingWhere });
+    if (matchedBookingCount > MAX_RECORDS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        error: { message: `Too many records in selected range (${matchedBookingCount}). Please narrow filters/date range.` },
+      };
     }
 
     const bookings = await prisma.booking.findMany({

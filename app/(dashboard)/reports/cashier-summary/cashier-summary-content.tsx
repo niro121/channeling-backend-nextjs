@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchableUserSelect } from '@/components/common/searchable-user-select';
 import {
   Table,
   TableBody,
@@ -61,9 +62,116 @@ const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string 
   { key: 'slip', label: 'Slip' },
   { key: 'cheque', label: 'Cheque' },
   { key: 'agent', label: 'Agent' },
-  { key: 'agentCredit', label: 'Agent Credit' },
+  { key: 'agentCredit', label: 'Credit' },
   { key: 'eWallet', label: 'E-wallet' },
 ];
+
+/** All agent-related bill sections: first column is agency name, not patient. */
+const AGENCY_BILL_SECTION_KEYS = new Set([
+  'agentBilled',
+  'agentRefunded',
+  'agentCanceled',
+  'agentDeposit',
+  'agentDepositCanceled',
+]);
+
+/** Amount columns: modest min width (~999,999 scale); nowrap so wider values grow the column. */
+const AMOUNT_HEAD =
+  'text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap align-bottom';
+const AMOUNT_CELL =
+  'text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
+
+/** Slip + Credit (credit customer) → Credit Summary; all other methods → Cash Summary (see report footer). */
+const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
+  'cash',
+  'creditCard',
+  'cheque',
+  'agent',
+  'eWallet',
+];
+
+function sumAmounts(t: CashierSummaryPaymentAmounts, keys: (keyof CashierSummaryPaymentAmounts)[]): number {
+  return keys.reduce((acc, k) => acc + Number(t[k] ?? 0), 0);
+}
+
+/** Footer: Credit Summary = Slip + Credit; Cash Summary = everything else. */
+function CashierCreditCashSummaryFooter({ totals }: { totals: CashierSummaryPaymentAmounts }) {
+  const slip = Number(totals.slip);
+  const creditCustomer = Number(totals.agentCredit);
+  const creditSectionTotal = slip + creditCustomer;
+  const cashSectionTotal = sumAmounts(totals, CASH_SUMMARY_KEYS);
+  const grandCombined = creditSectionTotal + cashSectionTotal;
+
+  const cashRows: { key: keyof CashierSummaryPaymentAmounts; label: string }[] = [
+    { key: 'cash', label: 'Cash Total' },
+    { key: 'creditCard', label: 'Credit Card Total' },
+    { key: 'cheque', label: 'Cheque Total' },
+    { key: 'agent', label: 'Agent Total' },
+    { key: 'eWallet', label: 'E-wallet Total' },
+  ];
+
+  const rowClass = 'border-t border-border/80';
+  const cellLabel = 'px-3 py-1.5 text-[13px] text-left align-middle';
+  const cellAmt = 'px-3 py-1.5 text-right tabular-nums text-[13px] align-middle';
+
+  return (
+    <div className="max-w-md">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        Cashier summary (credit vs cash)
+      </h3>
+      <div className="rounded-md border border-border overflow-hidden shadow-sm">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-muted/90">
+              <th colSpan={2} className="text-left font-semibold px-3 py-2 text-xs">
+                Credit Summary
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className={rowClass}>
+              <td className={cellLabel}>Slip Total</td>
+              <td className={cellAmt}>{formatAmount(slip)}</td>
+            </tr>
+            <tr className={rowClass}>
+              <td className={cellLabel}>Credit Total</td>
+              <td className={cellAmt}>{formatAmount(creditCustomer)}</td>
+            </tr>
+            <tr className={`${rowClass} bg-muted/50 font-medium`}>
+              <td className={cellLabel}>Total</td>
+              <td className={cellAmt}>{formatAmount(creditSectionTotal)}</td>
+            </tr>
+          </tbody>
+          <thead>
+            <tr className="bg-muted/90 border-t-2 border-border">
+              <th colSpan={2} className="text-left font-semibold px-3 py-2 text-xs">
+                Cash Summary
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {cashRows.map(({ key, label }) => (
+              <tr key={key} className={rowClass}>
+                <td className={cellLabel}>{label}</td>
+                <td className={cellAmt}>{formatAmount(totals[key])}</td>
+              </tr>
+            ))}
+            <tr className={`${rowClass} bg-muted/50 font-medium`}>
+              <td className={cellLabel}>Total</td>
+              <td className={cellAmt}>{formatAmount(cashSectionTotal)}</td>
+            </tr>
+          </tbody>
+          <tbody>
+            <tr className="border-t-2 border-border bg-muted/80 font-semibold">
+              <td className="px-3 py-2.5 text-[13px] text-left">Grand Total</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-[13px]">{formatAmount(grandCombined)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 /** Default from = today 00:00, to = today 23:59 (end of day / midnight) in YYYY-MM-DDTHH:mm for datetime-local */
 function getDefaultDateTimeRange(): { from: string; to: string } {
@@ -256,11 +364,14 @@ export default function CashierSummaryContent({
     }
 
     const lines: string[] = [];
-    const header =
-      'Section,Tx Created,Shift,Session Date/Time,Bill ID,Receipt ID,Patient,Consultant,Name,Type,' +
-      PAYMENT_COLUMNS.map((c) => c.label).join(',');
 
     for (const section of sections) {
+      const nameColumnLabel = AGENCY_BILL_SECTION_KEYS.has(section.key) ? 'Agency' : 'Patient';
+      const header =
+        'Section,Tx Created,Shift,Session Date/Time,Bill ID,Receipt ID,' +
+        nameColumnLabel +
+        ',Consultant,Name,Type,' +
+        PAYMENT_COLUMNS.map((c) => c.label).join(',');
       lines.push(section.title);
       lines.push(header);
 
@@ -308,7 +419,7 @@ export default function CashierSummaryContent({
     }
 
     if (grandTotals) {
-      lines.push('Grand Total');
+      lines.push('Grand Total (all payment columns)');
       lines.push(
         [
           '',
@@ -328,6 +439,22 @@ export default function CashierSummaryContent({
           .map((c) => `"${String(c).replace(/"/g, '""')}"`)
           .join(',')
       );
+      const crSlip = Number(grandTotals.slip);
+      const crCust = Number(grandTotals.agentCredit);
+      const crTotal = crSlip + crCust;
+      const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
+      lines.push('');
+      lines.push('"Credit Summary","","","","","","","","",""');
+      lines.push(`"Slip Total","","","","","","","","","${String(crSlip / 100)}"`);
+      lines.push(`"Credit Total","","","","","","","","","${String(crCust / 100)}"`);
+      lines.push(`"Total (Credit Summary)","","","","","","","","","${String(crTotal / 100)}"`);
+      lines.push('"Cash Summary","","","","","","","","",""');
+      for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
+        const n = Number(grandTotals[col.key]);
+        lines.push(`"${col.label} Total","","","","","","","","","${String(Number.isFinite(n) ? n / 100 : 0)}"`);
+      }
+      lines.push(`"Total (Cash Summary)","","","","","","","","","${String(cashTotal / 100)}"`);
+      lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${String((crTotal + cashTotal) / 100)}"`);
     }
 
     const csv = lines.join('\n');
@@ -380,23 +507,20 @@ export default function CashierSummaryContent({
             </div>
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Select User</label>
-              <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-[200px]">
+                <SearchableUserSelect
+                  options={userOptions}
+                  value={userId}
+                  onChange={setUserId}
+                  label="user"
+                  placeholder="Select user"
+                />
+              </div>
             </div>
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Format</label>
               <Select value={format} onValueChange={(v) => setFormat(v as 'summary' | 'detail')}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="h-8 w-[140px] px-2 py-1 text-sm shadow-none focus:ring-1 focus:ring-offset-0 [&>span]:block [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -442,7 +566,6 @@ export default function CashierSummaryContent({
               {'  '}|{'  '}
               <span className="font-medium text-foreground">Range:</span> {formatRangeLabel(reportMeta.from, reportMeta.to)}
             </CardDescription>
-            {renderReportMetaCard(reportMeta)}
           </CardHeader>
           <CardContent className="space-y-3 py-2">
             {loading ? (
@@ -462,35 +585,14 @@ export default function CashierSummaryContent({
                 ))}
 
                 {grandTotals && (
-                  <div className="border-t pt-2 mt-2">
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-b">
-                            <TableHead className="text-right font-medium py-1.5 text-xs w-14">Total</TableHead>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableHead key={c.key} className="text-right font-medium py-1.5 text-xs tabular-nums">
-                                {c.label}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow className="font-medium">
-                            <TableCell className="text-right py-1.5 text-xs font-semibold">Total</TableCell>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableCell key={c.key} className="text-right py-1.5 text-xs tabular-nums">
-                                {formatAmount(grandTotals[c.key])}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <div className="mt-2">{renderReportMetaCard(reportMeta)}</div>
+                  <div className="border-t pt-4 mt-2">
+                    <CashierCreditCashSummaryFooter totals={grandTotals} />
                   </div>
                 )}
               </>
+            )}
+            {!loading && (
+              <div className="border-t pt-4 mt-2 print:pt-3">{renderReportMetaCard(reportMeta)}</div>
             )}
           </CardContent>
         </Card>
@@ -507,6 +609,7 @@ function SectionBlock({
   showRows: boolean;
 }) {
   const isIncomeExpense = section.key === 'incomeExpense';
+  const isAgencyBillSection = AGENCY_BILL_SECTION_KEYS.has(section.key);
   const hasAnyTotal = PAYMENT_COLUMNS.some((col) => section.totals[col.key] !== 0);
 
   return (
@@ -528,12 +631,14 @@ function SectionBlock({
                   </>
                 ) : (
                   <>
-                    <TableHead className="py-1 text-[11px] font-medium text-left">Patient</TableHead>
+                    <TableHead className="py-1 text-[11px] font-medium text-left">
+                      {isAgencyBillSection ? 'Agency' : 'Patient'}
+                    </TableHead>
                     <TableHead className="py-1 text-[11px] font-medium text-left">Consultant</TableHead>
                   </>
                 )}
                 {PAYMENT_COLUMNS.map((c) => (
-                  <TableHead key={c.key} className="text-right py-1 text-[11px] font-medium tabular-nums">
+                  <TableHead key={c.key} className={AMOUNT_HEAD}>
                     {c.label}
                   </TableHead>
                 ))}
@@ -570,7 +675,7 @@ function SectionBlock({
                     </>
                   )}
                   {PAYMENT_COLUMNS.map((col) => (
-                    <TableCell key={col.key} className="text-right tabular-nums text-[11px] py-0.5">
+                    <TableCell key={col.key} className={AMOUNT_CELL}>
                       {formatAmount(row[col.key])}
                     </TableCell>
                   ))}
@@ -581,7 +686,7 @@ function SectionBlock({
                   Total
                 </TableCell>
                 {PAYMENT_COLUMNS.map((col) => (
-                  <TableCell key={col.key} className="text-right tabular-nums text-[11px] py-0.5">
+                  <TableCell key={col.key} className={`${AMOUNT_CELL} font-semibold`}>
                     {formatAmount(section.totals[col.key])}
                   </TableCell>
                 ))}
@@ -596,7 +701,7 @@ function SectionBlock({
               <TableRow className="border-b">
                 <TableHead className="w-14 py-1 text-[11px] font-medium text-left">Total</TableHead>
                 {PAYMENT_COLUMNS.map((c) => (
-                  <TableHead key={c.key} className="text-right py-1 text-[11px] font-medium tabular-nums">
+                  <TableHead key={c.key} className={AMOUNT_HEAD}>
                     {c.label}
                   </TableHead>
                 ))}
@@ -606,7 +711,7 @@ function SectionBlock({
               <TableRow className="font-medium">
                 <TableCell className="py-0.5 text-[11px] text-left">Total</TableCell>
                 {PAYMENT_COLUMNS.map((col) => (
-                  <TableCell key={col.key} className="text-right tabular-nums text-[11px] py-0.5">
+                  <TableCell key={col.key} className={AMOUNT_CELL}>
                     {formatAmount(section.totals[col.key])}
                   </TableCell>
                 ))}

@@ -10,6 +10,7 @@ import { useToast } from '@/components/hooks/use-toast';
 import { Download, Printer, SearchIcon } from 'lucide-react';
 import { getAllCashierSummaryDetailReportData } from '@/app/actions/reports/all-cashier-summary-detail.action';
 import { formatReceiptAmount } from '@/lib/format-money';
+import { SearchableUserSelect } from '@/components/common/searchable-user-select';
 import type {
   AllCashierUserDetailRow,
   AllCashierUserSummaryRow,
@@ -28,7 +29,7 @@ const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string 
   { key: 'slip', label: 'Slip' },
   { key: 'cheque', label: 'Cheque' },
   { key: 'agent', label: 'Agent' },
-  { key: 'agentCredit', label: 'Agent Credit' },
+  { key: 'agentCredit', label: 'Credit' },
   { key: 'eWallet', label: 'E-wallet' },
 ];
 
@@ -36,6 +37,13 @@ function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
   if (!Number.isFinite(num)) return '0.00';
   return formatReceiptAmount(num);
+}
+
+function formatAmountForCsv(n: number | undefined | null): string {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0.00';
+  // Receipt.amount is already in rupees (not cents), so do not divide by 100.
+  return num.toFixed(2);
 }
 
 function getDefaultDateTimeRange(): { from: string; to: string } {
@@ -72,7 +80,7 @@ export default function AllCashierSummaryDetailContent({
     generatedBy: string;
   } | null>(null);
 
-  const userOptions = [{ id: '__all__', name: 'Select User' }, ...initialUserOptions];
+  const userOptions = [{ id: '__all__', name: 'All Users' }, ...initialUserOptions];
 
   const formatRangeLabel = (fromStr: string, toStr: string) => {
     try {
@@ -167,7 +175,11 @@ export default function AllCashierSummaryDetailContent({
       lines.push(['User', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
       for (const r of summaryRows) {
         lines.push(
-          [r.userName, String(r.receiptCount), ...PAYMENT_COLUMNS.map((c) => String((Number(r[c.key]) || 0) / 100))]
+          [
+            r.userName,
+            String(r.receiptCount),
+            ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(r[c.key])),
+          ]
             .map((x) => `"${String(x).replace(/"/g, '""')}"`)
             .join(',')
         );
@@ -177,7 +189,12 @@ export default function AllCashierSummaryDetailContent({
       for (const u of detailRows) {
         for (const s of u.sections) {
           lines.push(
-            [u.userName, s.title, String(s.receiptCount), ...PAYMENT_COLUMNS.map((c) => String((Number(s.totals[c.key]) || 0) / 100))]
+            [
+              u.userName,
+              s.title,
+              String(s.receiptCount),
+              ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(s.totals[c.key])),
+            ]
               .map((x) => `"${String(x).replace(/"/g, '""')}"`)
               .join(',')
           );
@@ -234,14 +251,15 @@ export default function AllCashierSummaryDetailContent({
             </div>
             <div>
               <label className="text-sm font-semibold mb-2 block">Select User</label>
-              <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-[200px]">
+                <SearchableUserSelect
+                  options={userOptions}
+                  value={userId}
+                  onChange={setUserId}
+                  label="user"
+                  placeholder="Select user"
+                />
+              </div>
             </div>
             <div>
               <label className="text-sm font-semibold mb-2 block">Format</label>
@@ -286,22 +304,36 @@ export default function AllCashierSummaryDetailContent({
                   <TableHeader>
                     <TableRow className="border-b">
                       <TableHead className="w-10 text-right">No.</TableHead>
-                      <TableHead>User</TableHead>
+                      <TableHead className="pr-0">User</TableHead>
                       <TableHead className="text-right">Receipts</TableHead>
                       {PAYMENT_COLUMNS.map((c) => (
                         <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
                       ))}
+                      <TableHead className="text-center">Handover Date</TableHead>
+                      <TableHead className="text-center">Checked By</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {summaryRows.map((r, i) => (
                       <TableRow key={r.userId} className="border-b border-border/50">
                         <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
-                        <TableCell>{r.userName}</TableCell>
+                        <TableCell className="pr-0">{r.userName}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.receiptCount}</TableCell>
                         {PAYMENT_COLUMNS.map((c) => (
                           <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(r[c.key])}</TableCell>
                         ))}
+                        <TableCell className="text-center">
+                          <div
+                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                            aria-hidden
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div
+                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                            aria-hidden
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                     {grandTotals && (
@@ -310,6 +342,8 @@ export default function AllCashierSummaryDetailContent({
                         {PAYMENT_COLUMNS.map((c) => (
                           <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(grandTotals[c.key])}</TableCell>
                         ))}
+                        <TableCell />
+                        <TableCell />
                       </TableRow>
                     )}
                   </TableBody>
@@ -319,28 +353,52 @@ export default function AllCashierSummaryDetailContent({
               <div className="space-y-3">
                 {detailRows.map((u, idx) => (
                   <div key={u.userId} className="rounded-md border overflow-x-auto">
-                    <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                    <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_td]:border-r">
                       <TableHeader>
                         <TableRow className="border-b">
                           <TableHead className="w-10 text-right">No.</TableHead>
-                          <TableHead>User</TableHead>
+                          <TableHead className="pr-0">User</TableHead>
                           <TableHead>Section</TableHead>
                           <TableHead className="text-right">Receipts</TableHead>
                           {PAYMENT_COLUMNS.map((c) => (
                             <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
                           ))}
+                          <TableHead className="text-center">Handover Date</TableHead>
+                          <TableHead className="text-center">Checked By</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {u.sections.map((s, i) => (
                           <TableRow key={`${u.userId}-${s.key}`} className="border-b border-border/50">
                             <TableCell className="text-center tabular-nums">{i === 0 ? idx + 1 : ''}</TableCell>
-                            <TableCell>{i === 0 ? u.userName : ''}</TableCell>
+                            <TableCell className="pr-0">{i === 0 ? u.userName : ''}</TableCell>
                             <TableCell>{s.title}</TableCell>
                             <TableCell className="text-right tabular-nums">{s.receiptCount}</TableCell>
                             {PAYMENT_COLUMNS.map((c) => (
                               <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(s.totals[c.key])}</TableCell>
                             ))}
+                            {i === 0 && (
+                              <>
+                                <TableCell
+                                  rowSpan={u.sections.length + 1}
+                                  className="text-center"
+                                >
+                                  <div
+                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                    aria-hidden
+                                  />
+                                </TableCell>
+                                <TableCell
+                                  rowSpan={u.sections.length + 1}
+                                  className="text-center"
+                                >
+                                  <div
+                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                    aria-hidden
+                                  />
+                                </TableCell>
+                              </>
+                            )}
                           </TableRow>
                         ))}
                         <TableRow className="font-medium bg-muted/50">
@@ -363,6 +421,8 @@ export default function AllCashierSummaryDetailContent({
                           {PAYMENT_COLUMNS.map((c) => (
                             <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
                           ))}
+                          <TableHead />
+                          <TableHead />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -371,6 +431,8 @@ export default function AllCashierSummaryDetailContent({
                           {PAYMENT_COLUMNS.map((c) => (
                             <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(grandTotals[c.key])}</TableCell>
                           ))}
+                          <TableCell />
+                          <TableCell />
                         </TableRow>
                       </TableBody>
                     </Table>

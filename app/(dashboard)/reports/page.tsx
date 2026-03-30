@@ -9,100 +9,123 @@ import Loading from '../loading';
 const reportsData: ReportListItem[] = [
   {
     id: '1',
-    masterData: 'All Doctors List',
-    description: 'Comprehensive list of all doctors with their details',
-    route: '/reports/doctors'
-  },
-  {
-    id: '2',
-    masterData: 'Channel Agent Reference Book',
-    description: 'View channel agent reference book information with filters',
-    route: '/reports/channel-agent-reference-book'
-  },
-  {
-    id: '3',
-    masterData: 'Doctor Arrivals Report',
+    rank: 1,
+    masterData: 'Doctor Arrival Report',
     description: 'View doctor arrivals information with filters',
     route: '/reports/arrivals'
   },
   {
-    id: '4',
-    masterData: 'Agent Detail Report',
-    description: 'View agent information with filters',
-    route: '/reports/agent-detail'
-  },
-  {
-    id: '5',
-    masterData: 'All Doctor View (By Session Time)',
+    id: '2',
+    rank: 2,
+    masterData: 'All Doctor View',
     description: 'View aggregated booking details by doctor and session time with filters',
     route: '/reports/all-doctor-view'
   },
   {
-    id: '6',
-    masterData: 'SMS Activity',
-    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
-    route: '/reports/sms-activity'
-  },
-  {
-    id: '7',
-    masterData: 'User Activity',
-    description: 'Audit log of user actions by user and date range (display capped at 10,000; export as PDF/CSV)',
-    route: '/reports/user-activity'
-  },
-  {
-    id: '8',
-    masterData: 'Userwise Cashier Detail - Channel',
-    description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
-    route: '/reports/cashier-summary'
-  },
-  {
-    id: '9',
-    masterData: 'Doctor Leave Report',
+    id: '3',
+    rank: 3,
+    masterData: 'Doctor Leave',
     description: 'View doctor leave records with date & time range, filter by institution, branch, department, speciality, and doctor',
     route: '/reports/doctor-leave'
   },
   {
-    id: '14',
-    masterData: 'Channel schedule with charges',
-    description:
-      'View doctor sessions with charge breakdown filtered by institution, branch, department, speciality, doctor, and report type.',
-    route: '/reports/channel-schedule-with-charges'
+    id: '4',
+    rank: 4,
+    masterData: 'Doctor Appointment Count Report ( By Session Date )',
+    description: 'Counts are based on receipt entries matched to bookings by session date, with booking/session filter options.',
+    route: '/reports/doctor-appointment-count'
+  },
+  {
+    id: '5',
+    rank: 5,
+    masterData: 'Channel Patient Count (Accounting Wise)',
+    description: 'Channel booking count and accounting-wise fee summary by date range and branch.',
+    route: '/reports/channel-patient-count-accounting-wise'
   },
   {
     id: '10',
+    rank: 10,
     masterData: 'Consultant Payments Report',
     description: 'View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status',
     route: '/reports/consultant-payments'
   },
   {
     id: '11',
+    rank: 11,
+    masterData: 'Channel Agent Reference Book',
+    description: 'View channel agent reference book information with filters',
+    route: '/reports/channel-agent-reference-book'
+  },
+  {
+    id: '14',
+    rank: 14,
+    masterData: 'Agent Details',
+    description: 'View agent information with filters',
+    route: '/reports/agent-detail'
+  },
+  {
+    id: '15',
+    rank: 15,
+    masterData: 'Agent Statement',
+    description: 'Agent-wise statement with opening/closing balance and receipt details enriched with booking fee breakdown when available.',
+    route: '/reports/agency-statement'
+  },
+  {
+    id: '16',
+    rank: 16,
+    masterData: 'Channel Agent Receipt',
+    description: 'Search all receipts linked to bookings by Book No prefix (BookNo%).',
+    route: '/reports/channel-agent-receipt'
+  },
+  {
+    id: '18',
+    rank: 18,
+    masterData: 'Agent Balance Report',
+    description: 'View agent balances with status filter using agency soft limit, associated account hard limit, and live account balance.',
+    route: '/reports/agent-balance'
+  },
+  {
+    id: '21',
+    rank: 21,
     masterData: 'Channel Booking Details',
     description: 'View channel booking records with filters for date & time range, data type, institution, branch, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method',
     route: '/reports/channel-bookings'
   },
   {
-    id: '12',
-    masterData: 'Agent Balance Confirmation Letter',
-    description: 'Generate a balance certificate letter for selected agent as at a specific date with support for English and Sinhala languages',
-    route: '/reports/agent-balance'
-  },
-  {
-    id: '13',
-    masterData: 'API Log Report',
-    description: 'View API request logs with date & time range and filter by UUID',
-    route: '/reports/api-log'
-  },
-  {
-    id: '15',
+    id: '24',
+    rank: 24,
     masterData: 'All Cashier Summary and Detail Report',
     description: 'All-cashier report with date/time, branch, and user filters; supports Summary and Detail formats with print and CSV.',
     route: '/reports/all-cashier-summary-detail'
   },
   {
-    id: '12',
-    masterData: 'SMS Log Report',
-    description: 'View SMS sent/failure logs with date & time range, institution, branch, department, report type, and phone number filters',
-    route: '/reports/sms-log'
+    id: '25',
+    rank: 25,
+    masterData: 'Userwise Cashier Detail - Channel',
+    description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
+    route: '/reports/cashier-summary'
+  },
+  {
+    id: '28',
+    rank: 28,
+    masterData: 'SMS Report',
+    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
+    route: '/reports/sms-activity'
+  },
+  {
+    id: '30',
+    rank: 30,
+    masterData: 'Channel Schedule With Charges',
+    description:
+      'View doctor sessions with charge breakdown filtered by institution, branch, department, speciality, doctor, and report type.',
+    route: '/reports/channel-schedule-with-charges'
+  },
+  {
+    id: '31',
+    rank: 31,
+    masterData: 'API LOG REPORT',
+    description: 'View API request logs with date & time range and filter by UUID',
+    route: '/reports/api-log'
   }
 ];
 
@@ -116,17 +139,62 @@ export default async function ReportsPage() {
       importance: 'low',
     });
   }
+
+  const doctors = reportsData.filter((r) =>
+    [
+      '/reports/arrivals',
+      '/reports/all-doctor-view',
+      '/reports/doctor-leave',
+      '/reports/doctor-appointment-count',
+    ].includes(r.route)
+  );
+  const channel = reportsData.filter((r) =>
+    [
+      '/reports/channel-patient-count-accounting-wise',
+      '/reports/consultant-payments',
+      '/reports/channel-bookings',
+      '/reports/channel-schedule-with-charges',
+    ].includes(r.route)
+  );
+  const agents = reportsData.filter((r) =>
+    [
+      '/reports/channel-agent-reference-book',
+      '/reports/agent-detail',
+      '/reports/agency-statement',
+      '/reports/channel-agent-receipt',
+      '/reports/agent-balance',
+    ].includes(r.route)
+  );
+  const cashier = reportsData.filter((r) =>
+    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary'].includes(r.route)
+  );
+  const smsAndApi = reportsData.filter((r) =>
+    ['/reports/sms-activity', '/reports/api-log'].includes(r.route)
+  );
+
+  const sections = [
+    { title: 'Doctors', items: doctors },
+    { title: 'Channel', items: channel },
+    { title: 'Agents', items: agents },
+    { title: 'Cashier', items: cashier },
+    { title: 'SMS & System', items: smsAndApi },
+  ].filter((s) => s.items.length > 0);
+
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-hidden space-y-4">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable<ReportListItem, unknown>
-          heading="Reports"
-          subHeading="Access various reports and analytics."
-          columns={reportColumns}
-          data={reportsData}
-          rowCount={reportsData.length}
-          haveBulkDelete={false}
-        />
+        {sections.map((section) => (
+          <CustomDataTable<ReportListItem, unknown>
+            key={section.title}
+            heading={section.title}
+            subHeading=""
+            columns={reportColumns}
+            data={section.items}
+            rowCount={section.items.length}
+            haveBulkDelete={false}
+            showPagination={false}
+          />
+        ))}
       </Suspense>
     </div>
   );
