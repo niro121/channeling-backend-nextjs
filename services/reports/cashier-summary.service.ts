@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { REFERENCE_TYPES } from '@/types/accounting';
 import type {
   CashierSummaryReportQuery,
   CashierSummaryReportResponse,
@@ -119,6 +120,18 @@ function formatShiftLabel(
     : 'Ongoing';
   const userName = formatUserDisplayName(shift.user?.name, shift.user?.id, shift.user?.staff?.code);
   return `${userName} (${start} - ${end})`;
+}
+
+function doctorNameFromJournalLines(
+  lines: Array<{
+    account: { doctor: { title: string; name: string } | null } | null;
+  }>
+): string | null {
+  for (const line of lines) {
+    const d = line.account?.doctor;
+    if (d) return `${d.title} ${d.name}`.trim();
+  }
+  return null;
 }
 
 export async function getCashierSummaryReportService(
@@ -307,6 +320,7 @@ export async function getCashierSummaryReportService(
   const agentBilled = await prisma.receipt.findMany({
     where: { ...baseWhere, agencyId: { not: null }, method: RECEIPT_METHOD.PAYMENT },
     include: {
+      agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
@@ -323,7 +337,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: b ? [b.title, b.name].filter(Boolean).join(' ') || null : null,
+      patient: r.agency?.name ?? null,
       consultant,
       ...amounts,
     };
@@ -347,6 +361,7 @@ export async function getCashierSummaryReportService(
       booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
     },
     include: {
+      agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
@@ -363,7 +378,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: b ? [b.title, b.name].filter(Boolean).join(' ') || null : null,
+      patient: r.agency?.name ?? null,
       consultant,
       ...amounts,
     };
@@ -387,6 +402,7 @@ export async function getCashierSummaryReportService(
       booking: { AND: [{ refund: 3 }, { status: 2 }] },
     },
     include: {
+      agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
@@ -403,7 +419,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: b ? [b.title, b.name].filter(Boolean).join(' ') || null : null,
+      patient: r.agency?.name ?? null,
       consultant,
       ...amounts,
     };
@@ -418,8 +434,8 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, agentCanceledTotals);
 
-  // --- Agent Deposit: method AGENCY_DEPOSIT ---
-  const agentDeposit = await prisma.receipt.findMany({
+  // --- Agent Deposit & Withdraw: deposits + agency withdrawals (withdraw rows that cancel a deposit go to Agent Deposit - Canceled only)
+  const agentDepositOnly = await prisma.receipt.findMany({
     where: { ...baseWhere, method: RECEIPT_METHOD.AGENCY_DEPOSIT },
     include: {
       agency: { select: { name: true } },
@@ -427,7 +443,58 @@ export async function getCashierSummaryReportService(
     },
     orderBy: { createdAt: 'asc' },
   });
-  const agentDepositRows: CashierSummaryReportLineItem[] = agentDeposit.map((r) => {
+  const agentWithdrawAll = await prisma.receipt.findMany({
+    where: { ...baseWhere, method: RECEIPT_METHOD.AGENCY_WITHDRAW, agencyId: { not: null } },
+    include: {
+      agency: { select: { name: true } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  const withdrawReversalIds = [...new Set(agentWithdrawAll.map((r) => r.reversedReceiptId).filter(Boolean))] as string[];
+  const reversalOriginals =
+    withdrawReversalIds.length > 0
+      ? await prisma.receipt.findMany({
+          where: { id: { in: withdrawReversalIds }, method: RECEIPT_METHOD.AGENCY_DEPOSIT },
+          select: { id: true },
+        })
+      : [];
+  const agentDepositCancelOrigIds = new Set(reversalOriginals.map((o) => o.id));
+  const agentWithdrawForDepositSection = agentWithdrawAll.filter(
+    (r) => !r.reversedReceiptId || !agentDepositCancelOrigIds.has(r.reversedReceiptId)
+  );
+  const agentDepositCombined = [...agentDepositOnly, ...agentWithdrawForDepositSection].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+  );
+  function mapAgentLedgerRow(r: (typeof agentDepositOnly)[0]): CashierSummaryReportLineItem {
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    return {
+      txCreated: r.createdAt,
+      shiftLabel: formatShiftLabel(r.shift),
+      sessionDateTime: null,
+      billId: null,
+      receiptId: r.receiptNoString,
+      patient: r.agency?.name ?? null,
+      consultant: null,
+      ...amounts,
+    };
+  }
+  const agentDepositRows: CashierSummaryReportLineItem[] = agentDepositCombined.map(mapAgentLedgerRow);
+  collectShifts(agentDepositCombined);
+  const agentDepositTotals = agentDepositRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
+  sections.push({
+    key: 'agentDeposit',
+    title: 'Agent - Deposit & Withdraw Bills',
+    rows: isSummary ? [] : agentDepositRows,
+    totals: agentDepositTotals,
+  });
+  grandTotals = addAmounts(grandTotals, agentDepositTotals);
+
+  // --- Agent Deposit Canceled: AGENCY_WITHDRAW reversal of an AGENCY_DEPOSIT (subset of agentWithdrawAll)
+  const agentDepositCanceledFiltered = agentWithdrawAll.filter(
+    (r) => r.reversedReceiptId != null && agentDepositCancelOrigIds.has(r.reversedReceiptId)
+  );
+  const agentDepositCanceledRows: CashierSummaryReportLineItem[] = agentDepositCanceledFiltered.map((r) => {
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
@@ -440,23 +507,15 @@ export async function getCashierSummaryReportService(
       ...amounts,
     };
   });
-  collectShifts(agentDeposit);
-  const agentDepositTotals = agentDepositRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
-  sections.push({
-    key: 'agentDeposit',
-    title: 'Agent - Deposit Bills',
-    rows: isSummary ? [] : agentDepositRows,
-    totals: agentDepositTotals,
-  });
-  grandTotals = addAmounts(grandTotals, agentDepositTotals);
-
-  // --- Agent Deposit Canceled: no distinct method in schema; use empty section ---
+  collectShifts(agentDepositCanceledFiltered);
+  const agentDepositCanceledTotals = agentDepositCanceledRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'agentDepositCanceled',
     title: 'Agent Deposit - Canceled Bills',
-    rows: [],
-    totals: ZERO_AMOUNTS,
+    rows: isSummary ? [] : agentDepositCanceledRows,
+    totals: agentDepositCanceledTotals,
   });
+  grandTotals = addAmounts(grandTotals, agentDepositCanceledTotals);
 
   // --- Doctor Payment / Canceled: method 4 or 5 ---
   const doctorPayments = await prisma.receipt.findMany({
@@ -465,13 +524,81 @@ export async function getCashierSummaryReportService(
       method: { in: [RECEIPT_METHOD.DOCTOR_PAYMENT, RECEIPT_METHOD.DOCTOR_CANCEL] },
     },
     include: {
-      booking: { include: { doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
     orderBy: { createdAt: 'asc' },
   });
+
+  const paymentReceiptIds = doctorPayments.filter((r) => r.method === RECEIPT_METHOD.DOCTOR_PAYMENT).map((r) => r.id);
+  const cancelOriginalIds = doctorPayments
+    .filter((r) => r.method === RECEIPT_METHOD.DOCTOR_CANCEL && r.reversedReceiptId)
+    .map((r) => r.reversedReceiptId) as string[];
+
+  const bookingsLinked = await prisma.booking.findMany({
+    where: { doctorPaymentReceiptId: { in: [...new Set([...paymentReceiptIds, ...cancelOriginalIds])] } },
+    select: {
+      doctorPaymentReceiptId: true,
+      doctor: { select: { title: true, name: true } },
+    },
+  });
+  const consultantByPaymentReceiptId = new Map<string, string>();
+  for (const b of bookingsLinked) {
+    if (!b.doctorPaymentReceiptId || !b.doctor) continue;
+    if (consultantByPaymentReceiptId.has(b.doctorPaymentReceiptId)) continue;
+    consultantByPaymentReceiptId.set(
+      b.doctorPaymentReceiptId,
+      `${b.doctor.title} ${b.doctor.name}`.trim()
+    );
+  }
+
+  const journalRefIds = [
+    ...new Set([
+      ...doctorPayments.map((r) => r.id),
+      ...doctorPayments.map((r) => r.reversedReceiptId).filter((id): id is string => Boolean(id)),
+    ]),
+  ];
+  const journalsForDoctorReceipts =
+    journalRefIds.length > 0
+      ? await prisma.journal.findMany({
+          where: {
+            referenceType: REFERENCE_TYPES.Receipt,
+            referenceId: { in: journalRefIds },
+          },
+          include: {
+            journalLines: {
+              include: { account: { include: { doctor: { select: { title: true, name: true } } } } },
+            },
+          },
+        })
+      : [];
+  const consultantByJournalRefId = new Map<string, string>();
+  for (const j of journalsForDoctorReceipts) {
+    if (!j.referenceId) continue;
+    const name = doctorNameFromJournalLines(j.journalLines);
+    if (name && !consultantByJournalRefId.has(j.referenceId)) {
+      consultantByJournalRefId.set(j.referenceId, name);
+    }
+  }
+
+  function resolveDoctorConsultant(r: (typeof doctorPayments)[0]): string | null {
+    if (r.method === RECEIPT_METHOD.DOCTOR_PAYMENT) {
+      return (
+        consultantByPaymentReceiptId.get(r.id) ?? consultantByJournalRefId.get(r.id) ?? null
+      );
+    }
+    if (r.method === RECEIPT_METHOD.DOCTOR_CANCEL && r.reversedReceiptId) {
+      return (
+        consultantByPaymentReceiptId.get(r.reversedReceiptId) ??
+        consultantByJournalRefId.get(r.id) ??
+        consultantByJournalRefId.get(r.reversedReceiptId) ??
+        null
+      );
+    }
+    return null;
+  }
+
   const doctorPaymentRows: CashierSummaryReportLineItem[] = doctorPayments.map((r) => {
-    const consultant = r.booking?.doctor ? `${r.booking.doctor.title} ${r.booking.doctor.name}`.trim() : null;
+    const consultant = resolveDoctorConsultant(r);
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
     return {
       txCreated: r.createdAt,
