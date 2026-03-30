@@ -256,15 +256,17 @@ export default function DoctorAppointmentCountReportContent({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 items-start mb-4 pb-3 border-b no-print">
-            <DateRangePicker
-              label="Date Range"
-              from={fromDateTime}
-              to={toDateTime}
-              onChange={({ from, to }) => {
-                setFromDateTime(from ?? '');
-                setToDateTime(to ?? '');
-              }}
-            />
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold">Date Range</label>
+              <DateRangePicker
+                from={fromDateTime}
+                to={toDateTime}
+                onChange={({ from, to }) => {
+                  setFromDateTime(from ?? '');
+                  setToDateTime(to ?? '');
+                }}
+              />
+            </div>
             <div className="flex flex-wrap items-end gap-3">
               <Combobox
                 label="All Branches"
