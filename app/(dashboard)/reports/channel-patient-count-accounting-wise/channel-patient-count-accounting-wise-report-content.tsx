@@ -19,6 +19,8 @@ import {
   CHANNEL_PATIENT_COUNT_DATE_TYPE_OPTIONS,
   CHANNEL_PATIENT_COUNT_FEE_MODE_OPTIONS,
 } from '@/types/reports/channel-patient-count-accounting-wise';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 
 function defaultDateTimeRange() {
   const now = new Date();
@@ -30,6 +32,16 @@ function defaultDateTimeRange() {
 
 const money = (n: number) =>
   Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Revenue table: background for Hos Total columns (hospital net). */
+const hosTotalThClass = 'text-right font-semibold bg-primary/12 dark:bg-primary/20';
+const hosTotalTdClass = 'text-right tabular-nums font-semibold bg-primary/10 dark:bg-primary/15';
+const hosTotalTdNettClass =
+  'text-right tabular-nums font-semibold text-muted-foreground bg-primary/10 dark:bg-primary/15';
+const hosTotalTdTotalsClass =
+  'text-right tabular-nums font-semibold bg-primary/15 dark:bg-primary/25';
+const hosTotalTdTotalsNettClass =
+  'text-right tabular-nums font-semibold text-muted-foreground bg-primary/15 dark:bg-primary/25';
 
 export default function ChannelPatientCountAccountingWiseReportContent({
   locationOptions,
@@ -55,8 +67,9 @@ export default function ChannelPatientCountAccountingWiseReportContent({
   const [locationId, setLocationId] = useState('__all__');
   const [feeMode, setFeeMode] = useState<'all' | 'hospital_fee_only' | 'professional_fee_only'>('hospital_fee_only');
 
-  const branchOptions = locationOptions.filter((o) => o.id !== '__all__');
-  const optionListsLoading = branchOptions.length === 0;
+  const branchOptions = withAllBranchesOptions(locationOptions);
+  /** Location options are server-rendered; always allow search once "All Branches" is available. */
+  const optionListsLoading = false;
 
   const onSearch = async () => {
     if (optionListsLoading) {
@@ -103,7 +116,6 @@ export default function ChannelPatientCountAccountingWiseReportContent({
     }
   };
 
-  const formatRangeLabel = (fromStr: string, toStr: string) => `${fromStr} - ${toStr}`;
   const renderReportMetaCard = () =>
     reportMeta ? (
       <div className="rounded-md border border-primary/30 bg-primary/5 shadow-sm px-3 py-2.5">
@@ -114,7 +126,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           <div className="space-y-0.5 sm:col-span-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
             <p className="text-[11px] leading-tight font-medium">
-              Date Type: {reportMeta.dateTypeLabel} | Range: {formatRangeLabel(reportMeta.from, reportMeta.to)}
+              Date Type: {reportMeta.dateTypeLabel} | Range: {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </p>
             <p className="text-[11px] leading-tight font-medium">
               Branch: {reportMeta.branchLabel} | Fee Mode: {reportMeta.feeModeLabel}
@@ -323,6 +335,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                 options={branchOptions}
                 value={locationId}
                 defaultValue="__all__"
+                clearable
                 onChange={(v) => setLocationId(v ?? '__all__')}
                 loading={optionListsLoading}
               />
@@ -411,6 +424,9 @@ export default function ChannelPatientCountAccountingWiseReportContent({
               </div>
 
               <div className="rounded-md border overflow-x-auto">
+                <div className="px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-foreground">
+                  Revenue Breakdown
+                </div>
                 <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                   <TableHeader>
                     <TableRow className="bg-muted/40 text-muted-foreground">
@@ -427,19 +443,19 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                       <TableHead className="text-right font-medium">Hos Dis</TableHead>
                       <TableHead className="text-right font-medium">Pro Fee</TableHead>
                       <TableHead className="text-right font-medium">Pro Dis</TableHead>
-                      <TableHead className="text-right font-semibold">Hos Total</TableHead>
+                      <TableHead className={hosTotalThClass}>Hos Total</TableHead>
                       <TableHead className="text-right font-medium">Hos Fee</TableHead>
                       <TableHead className="text-right font-medium">Hos Dis</TableHead>
                       <TableHead className="text-right font-medium">Pro Fee</TableHead>
                       <TableHead className="text-right font-medium">Pro Dis</TableHead>
-                      <TableHead className="text-right font-semibold">Hos Total</TableHead>
+                      <TableHead className={hosTotalThClass}>Hos Total</TableHead>
                       <TableHead className="text-right font-medium">Hos Refund</TableHead>
                       <TableHead className="text-right font-medium">Pro Refund</TableHead>
                       <TableHead className="text-right font-medium">Hos Fee</TableHead>
                       <TableHead className="text-right font-medium">Hos Dis</TableHead>
                       <TableHead className="text-right font-medium">Pro Fee</TableHead>
                       <TableHead className="text-right font-medium">Pro Dis</TableHead>
-                      <TableHead className="text-right font-semibold">Hos Total</TableHead>
+                      <TableHead className={hosTotalThClass}>Hos Total</TableHead>
                       <TableHead className="text-right font-medium">Hos Fee</TableHead>
                       <TableHead className="text-right font-medium">Pro Fee</TableHead>
                     </TableRow>
@@ -453,19 +469,19 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableCell className="text-right tabular-nums">{money(r.paidRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.paidRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.paidRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{money(r.paidRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdClass}>{money(r.paidRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.cancelRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.cancelRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.cancelRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.cancelRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{money(r.cancelRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdClass}>{money(r.cancelRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.refundRevenueHosRefund)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.refundRevenueProRefund)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(r.nettRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(r.nettRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(r.nettRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(r.nettRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold text-muted-foreground">{money(r.nettRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdNettClass}>{money(r.nettRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.pendingRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(r.pendingRevenueProFee)}</TableCell>
                       </TableRow>
@@ -478,19 +494,19 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableCell className="text-right tabular-nums">{money(totals.paidRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.paidRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.paidRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{money(totals.paidRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdTotalsClass}>{money(totals.paidRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.cancelRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.cancelRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.cancelRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.cancelRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{money(totals.cancelRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdTotalsClass}>{money(totals.cancelRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.refundRevenueHosRefund)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.refundRevenueProRefund)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(totals.nettRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(totals.nettRevenueHosDis)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(totals.nettRevenueProFee)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{money(totals.nettRevenueProDis)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold text-muted-foreground">{money(totals.nettRevenueTotal)}</TableCell>
+                        <TableCell className={hosTotalTdTotalsNettClass}>{money(totals.nettRevenueTotal)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.pendingRevenueHosFee)}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(totals.pendingRevenueProFee)}</TableCell>
                       </TableRow>
@@ -498,7 +514,6 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                   </TableBody>
                 </Table>
               </div>
-              {renderReportMetaCard()}
             </div>
           )}
         </CardContent>

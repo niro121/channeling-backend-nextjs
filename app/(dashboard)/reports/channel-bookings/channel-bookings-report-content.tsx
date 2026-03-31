@@ -6,6 +6,7 @@ import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -111,9 +112,10 @@ function ChannelBookingsReportContentInner(
                   />
                   <Combobox
                     label="Branch (Site)"
-                    options={props.locationOptions}
+                    options={withAllBranchesOptions(props.locationOptions)}
                     value={values.locationId ?? '__all__'}
                     defaultValue="__all__"
+                    clearable
                     onChange={(v) => setValue('locationId', v)}
                   />
                 </div>

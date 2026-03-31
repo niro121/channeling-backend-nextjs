@@ -6,6 +6,7 @@ import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import {
   getDoctorLeaveReportData,
   exportDoctorLeaveReportData,
@@ -78,9 +79,10 @@ function DoctorLeaveReportContentInner({
             />
             <Combobox
               label="Branch"
-              options={locationOptions}
+              options={withAllBranchesOptions(locationOptions)}
               value={values.locationId ?? '__all__'}
               defaultValue="__all__"
+              clearable
               onChange={(v) => setValue('locationId', v)}
             />
             <Combobox
