@@ -25,28 +25,36 @@ function parseDateTime(input?: string, asEnd = false): Date | null {
 }
 
 type BucketDef = { key: string; label: string; method: number; isScan: boolean };
+/** Display order: all Channel buckets, then all Scan (method order within each group). */
 const BUCKETS: BucketDef[] = [
   { key: 'channel_pos', label: 'Channel POS', method: 0, isScan: false },
   { key: 'channel_on_call', label: 'Channel On-Call', method: 1, isScan: false },
   { key: 'channel_agent', label: 'Channel Agent', method: 2, isScan: false },
   { key: 'channel_staff', label: 'Channel Staff', method: 3, isScan: false },
-  { key: 'channel_online', label: 'Channel ONLINE', method: 4, isScan: false },
+  { key: 'channel_ewallet', label: 'Channel E-Wallet', method: -1, isScan: false },
+  { key: 'channel_credit_customer', label: 'Channel Credit Customer', method: -1, isScan: false },
   { key: 'scan_pos', label: 'Scan POS', method: 0, isScan: true },
   { key: 'scan_on_call', label: 'Scan On-Call', method: 1, isScan: true },
   { key: 'scan_agent', label: 'Scan Agent', method: 2, isScan: true },
   { key: 'scan_staff', label: 'Scan Staff', method: 3, isScan: true },
-  { key: 'scan_online', label: 'Scan ONLINE', method: 4, isScan: true },
-  { key: 'channel_ewallet', label: 'Channel E-Wallet', method: -1, isScan: false },
-  { key: 'channel_credit_customer', label: 'Channel Credit Customer', method: -1, isScan: false },
   { key: 'scan_ewallet', label: 'Scan E-Wallet', method: -1, isScan: true },
   { key: 'scan_credit_customer', label: 'Scan Credit Customer', method: -1, isScan: true },
 ];
 
+/** Booking.method: 0 POS, 1 On-Call, 2 Agent, 3 Staff, 4 API — API has no row; map to Agent for reporting. */
+function normalizeChannelMethod(method: unknown): number {
+  const m = Number(method);
+  if (!Number.isFinite(m)) return 0;
+  if (m === 4) return 2;
+  return m;
+}
+
 function resolveBucket(booking: {
-  method: number;
+  method: unknown;
   isScan: boolean;
   receiptPaymentMethod: number | null;
 }): BucketDef | undefined {
+  const channelMethod = normalizeChannelMethod(booking.method);
   const pm = booking.receiptPaymentMethod;
   if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET) {
     return BUCKETS.find((b) => b.key === (booking.isScan ? 'scan_ewallet' : 'channel_ewallet'));
@@ -54,7 +62,7 @@ function resolveBucket(booking: {
   if (pm === RECEIPT_PAYMENT_METHOD.CREDIT) {
     return BUCKETS.find((b) => b.key === (booking.isScan ? 'scan_credit_customer' : 'channel_credit_customer'));
   }
-  return BUCKETS.find((x) => x.method === booking.method && x.isScan === Boolean(booking.isScan));
+  return BUCKETS.find((x) => x.method === channelMethod && x.isScan === Boolean(booking.isScan));
 }
 
 function makeEmptyRow(key: string, bookingType: string): ChannelPatientCountAccountingWiseRow {
@@ -87,6 +95,10 @@ function makeEmptyRow(key: string, bookingType: string): ChannelPatientCountAcco
     nettRevenueHosFee: 0,
     nettRevenueHosDis: 0,
     nettRevenueProFee: 0,
+    nettRevenueProDis: 0,
+    nettRevenueTotal: 0,
+    pendingRevenueHosFee: 0,
+    pendingRevenueProFee: 0,
   };
 }
 
@@ -117,6 +129,10 @@ function addRowInto(target: ChannelPatientCountAccountingWiseRow, row: ChannelPa
   target.nettRevenueHosFee += row.nettRevenueHosFee;
   target.nettRevenueHosDis += row.nettRevenueHosDis;
   target.nettRevenueProFee += row.nettRevenueProFee;
+  target.nettRevenueProDis += row.nettRevenueProDis;
+  target.nettRevenueTotal += row.nettRevenueTotal;
+  target.pendingRevenueHosFee += row.pendingRevenueHosFee;
+  target.pendingRevenueProFee += row.pendingRevenueProFee;
 }
 
 export async function getChannelPatientCountAccountingWiseService(
@@ -134,12 +150,28 @@ export async function getChannelPatientCountAccountingWiseService(
     }
 
     const dateType = query.dateType === 'session_date' ? 'session_date' : 'transaction_date';
+    /**
+     * Unpaid cancellations (no payment receipt): not keyed by receiptNoCreatedAt.
+     * Use updatedAt in range so the row is included when the cancel runs (Prisma @updatedAt) — Mongo often
+     * does not match `{ canceledAt: null }` when the field is omitted, and legacy rows lack canceledAt.
+     */
+    const unpaidCancelInTransactionWindow = {
+      AND: [
+        { status: 2 },
+        {
+          OR: [{ receiptNoString: null }, { receiptNoString: '' }],
+        },
+        { updatedAt: { gte: from, lte: to } },
+      ],
+    };
+
     const bookingWhere =
       dateType === 'transaction_date'
         ? {
             OR: [
               { status: 0, createdAt: { gte: from, lte: to } },
               { status: { in: [1, 2, 3] }, receiptNoCreatedAt: { gte: from, lte: to } },
+              unpaidCancelInTransactionWindow,
             ],
             ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
           }
@@ -195,24 +227,34 @@ export async function getChannelPatientCountAccountingWiseService(
       if (!row) continue;
 
       const isPending = b.status === 0;
-      const isPaid = b.status === 1;
-      const isCanceled = b.status === 2;
-      const paidBeforeCancel = Boolean(b.receiptNoString);
+      const paidBeforeCancel = Boolean(b.receiptNoString?.trim());
+      const refundType = Number(b.refund ?? 0);
+      const isFullCancel = b.status === 2 && refundType === 3;
+      const isPendingCancel = b.status === 2 && !paidBeforeCancel;
+      // Partial refunds (prof-only=1, hosp-only=2) are only possible when a paid receipt exists.
+      const isPartialRefund = paidBeforeCancel && (refundType === 1 || refundType === 2);
 
-      row.paidBillPaid += isPaid ? 1 : 0;
+      // Receipt-based counts:
+      // - Paid bill count = number of payment receipts (receiptNoString exists), regardless of later cancel/refund.
+      row.paidBillPaid += paidBeforeCancel ? 1 : 0;
       row.paidBillPending += isPending ? 1 : 0;
       row.paidBillNet = row.paidBillPaid + row.paidBillPending;
 
-      row.cancelBillPaid += isCanceled && paidBeforeCancel ? 1 : 0;
-      row.cancelBillPending += isCanceled && !paidBeforeCancel ? 1 : 0;
+      // Cancel bill count:
+      // - Paid cancel = full cancel (refund=3) with an original paid receipt.
+      // - Pending cancel = canceled booking without any paid receipt.
+      row.cancelBillPaid += isFullCancel && paidBeforeCancel ? 1 : 0;
+      row.cancelBillPending += isPendingCancel ? 1 : 0;
       row.cancelBillNet = row.cancelBillPaid + row.cancelBillPending;
 
-      const refundType = Number(b.refund ?? 0);
-      row.refundBillHos += refundType === 2 || refundType === 3 ? 1 : 0;
-      row.refundBillPro += refundType === 1 || refundType === 3 ? 1 : 0;
+      // Refund bill count should not include canceled bookings (full cancel is handled in Cancel Bill Count).
+      row.refundBillHos += isPartialRefund && refundType === 2 ? 1 : 0;
+      row.refundBillPro += isPartialRefund && refundType === 1 ? 1 : 0;
 
       row.totalCountPaid = row.paidBillPaid - row.cancelBillPaid;
-      row.totalCountPending = row.paidBillPending - row.cancelBillPending;
+      // Still-open pendings (status 0) only. Do not subtract cancelBillPending: those bookings are no longer
+      // status 0, so they were never in paidBillPending — subtracting would yield negative totals (e.g. -1).
+      row.totalCountPending = row.paidBillPending;
       row.totalCountNet = row.totalCountPaid + row.totalCountPending;
 
       const hosFee = includeHos ? Number(b.hospitalFee ?? 0) : 0;
@@ -222,28 +264,36 @@ export async function getChannelPatientCountAccountingWiseService(
       const hosRefund = includeHos ? Number(b.refundAmountHospitalFee ?? 0) : 0;
       const proRefund = includePro ? Number(b.refundAmountProfessionalFee ?? 0) : 0;
 
-      if (isCanceled) {
+      if (isFullCancel && paidBeforeCancel) {
         row.cancelRevenueHosFee += hosFee;
         row.cancelRevenueHosDis += hosDis;
         row.cancelRevenueProFee += proFee;
         row.cancelRevenueProDis += proDis;
-      } else {
+      } else if (paidBeforeCancel) {
         row.paidRevenueHosFee += hosFee;
         row.paidRevenueHosDis += hosDis;
         row.paidRevenueProFee += proFee;
         row.paidRevenueProDis += proDis;
+      } else if (isPending) {
+        // Pending revenue (no receipt yet): use net fee (fee - discount) for visibility.
+        row.pendingRevenueHosFee += Math.max(0, hosFee - hosDis);
+        row.pendingRevenueProFee += Math.max(0, proFee - proDis);
       }
-      row.refundRevenueHosRefund += hosRefund;
-      row.refundRevenueProRefund += proRefund;
+      // Refund revenue should exclude full cancels (refund=3) since those are treated as Cancel above.
+      if (isPartialRefund) {
+        row.refundRevenueHosRefund += hosRefund;
+        row.refundRevenueProRefund += proRefund;
+      }
 
-      row.paidRevenueTotal =
-        row.paidRevenueHosFee - row.paidRevenueHosDis + row.paidRevenueProFee - row.paidRevenueProDis;
-      row.cancelRevenueTotal =
-        row.cancelRevenueHosFee - row.cancelRevenueHosDis + row.cancelRevenueProFee - row.cancelRevenueProDis;
+      // "Hos Total" columns: hospital net (fee − discount) only; professional is in Pro Fee / Pro Dis.
+      row.paidRevenueTotal = row.paidRevenueHosFee - row.paidRevenueHosDis;
+      row.cancelRevenueTotal = row.cancelRevenueHosFee - row.cancelRevenueHosDis;
 
       row.nettRevenueHosFee = row.paidRevenueHosFee - row.cancelRevenueHosFee - row.refundRevenueHosRefund;
       row.nettRevenueHosDis = row.paidRevenueHosDis - row.cancelRevenueHosDis;
       row.nettRevenueProFee = row.paidRevenueProFee - row.cancelRevenueProFee - row.refundRevenueProRefund;
+      row.nettRevenueProDis = row.paidRevenueProDis - row.cancelRevenueProDis;
+      row.nettRevenueTotal = row.nettRevenueHosFee - row.nettRevenueHosDis;
     }
 
     const data = BUCKETS.map((b) => rowsByBucket.get(b.key) || makeEmptyRow(b.key, b.label));

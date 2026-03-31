@@ -43,6 +43,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-patient-count-accounting-wise'
   },
   {
+    id: '7',
+    rank: 7,
+    masterData: 'Channel Income Report (Accounting Wise)',
+    description: 'Income totals grouped by booking channel type (excluding API/PCR).',
+    route: '/reports/channel-income-accounting-wise'
+  },
+  {
     id: '10',
     rank: 10,
     masterData: 'Consultant Payments Report',
@@ -151,6 +158,7 @@ export default async function ReportsPage() {
   const channel = reportsData.filter((r) =>
     [
       '/reports/channel-patient-count-accounting-wise',
+      '/reports/channel-income-accounting-wise',
       '/reports/consultant-payments',
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
