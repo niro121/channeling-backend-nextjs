@@ -90,6 +90,14 @@ export interface ReportTemplateProps<T, E = T> {
     columns: string[];
     keys: (keyof E)[];
   }) => void | Promise<void>;
+  /** Optional: override the PDF download generation for this report only. */
+  customDownloadPdf?: (args: {
+    title: string;
+    data: E[];
+    columns: string[];
+    keys: (keyof E)[];
+    fileName?: string;
+  }) => void | Promise<void>;
   /** Empty state message */
   emptyMessage?: string;
   /** When true, do not fetch data on initial load when URL has no filter params. Fetch only after user applies filters. */
@@ -134,6 +142,7 @@ function ReportTemplateContent<T, E = T>({
   getRowId,
   showPrintButton = true,
   customPrintPdf,
+  customDownloadPdf,
   emptyMessage = 'No data found',
   skipFetchWhenNoParams = false,
   initialFilterValues,
@@ -323,6 +332,7 @@ function ReportTemplateContent<T, E = T>({
               fileName={effectiveExportFileName}
               showPrintButton={showPrintButton}
               customPrintPdf={customPrintPdf}
+              customDownloadPdf={customDownloadPdf}
             />
           </div>
         </CardHeader>
