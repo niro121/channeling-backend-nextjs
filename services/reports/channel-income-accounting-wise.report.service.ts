@@ -26,22 +26,32 @@ function parseDateTime(input?: string, asEnd = false): Date | null {
 
 type BucketDef = { key: string; label: string; method: number; isScan: boolean };
 // NOTE: Excludes API and PCR-related booking types; also excludes ONLINE.
+/** Display order: all Channel buckets, then all Scan (method order within each group). */
 const BUCKETS: BucketDef[] = [
   { key: 'channel_pos', label: 'Channel POS', method: 0, isScan: false },
   { key: 'channel_on_call', label: 'Channel On-Call', method: 1, isScan: false },
   { key: 'channel_agent', label: 'Channel Agent', method: 2, isScan: false },
   { key: 'channel_staff', label: 'Channel Staff', method: 3, isScan: false },
+  { key: 'channel_ewallet', label: 'Channel E-Wallet', method: -1, isScan: false },
+  { key: 'channel_credit_customer', label: 'Channel Credit Customer', method: -1, isScan: false },
   { key: 'scan_pos', label: 'Scan POS', method: 0, isScan: true },
   { key: 'scan_on_call', label: 'Scan On-Call', method: 1, isScan: true },
   { key: 'scan_agent', label: 'Scan Agent', method: 2, isScan: true },
   { key: 'scan_staff', label: 'Scan Staff', method: 3, isScan: true },
-  { key: 'channel_ewallet', label: 'Channel E-Wallet', method: -1, isScan: false },
-  { key: 'channel_credit_customer', label: 'Channel Credit Customer', method: -1, isScan: false },
   { key: 'scan_ewallet', label: 'Scan E-Wallet', method: -1, isScan: true },
   { key: 'scan_credit_customer', label: 'Scan Credit Customer', method: -1, isScan: true },
 ];
 
-function resolveBucket(booking: { method: number; isScan: boolean; receiptPaymentMethod: number | null }): BucketDef | undefined {
+/** Booking.method: 0 POS, 1 On-Call, 2 Agent, 3 Staff, 4 API — map API to Agent for reporting buckets. */
+function normalizeChannelMethod(method: unknown): number {
+  const m = Number(method);
+  if (!Number.isFinite(m)) return 0;
+  if (m === 4) return 2;
+  return m;
+}
+
+function resolveBucket(booking: { method: unknown; isScan: boolean; receiptPaymentMethod: number | null }): BucketDef | undefined {
+  const channelMethod = normalizeChannelMethod(booking.method);
   const pm = booking.receiptPaymentMethod;
   if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET) {
     return BUCKETS.find((b) => b.key === (booking.isScan ? 'scan_ewallet' : 'channel_ewallet'));
@@ -49,7 +59,7 @@ function resolveBucket(booking: { method: number; isScan: boolean; receiptPaymen
   if (pm === RECEIPT_PAYMENT_METHOD.CREDIT) {
     return BUCKETS.find((b) => b.key === (booking.isScan ? 'scan_credit_customer' : 'channel_credit_customer'));
   }
-  return BUCKETS.find((x) => x.method === booking.method && x.isScan === Boolean(booking.isScan));
+  return BUCKETS.find((x) => x.method === channelMethod && x.isScan === Boolean(booking.isScan));
 }
 
 function makeEmptyRow(key: string, bookingType: string): ChannelIncomeAccountingWiseRow {
@@ -87,12 +97,26 @@ export async function getChannelIncomeAccountingWiseService(
     }
 
     const dateType = query.dateType === 'session_date' ? 'session_date' : 'transaction_date';
+    /**
+     * Unpaid cancellations: key off updatedAt (cancel bumps it); avoids Mongo null/missing canceledAt issues.
+     */
+    const unpaidCancelInTransactionWindow = {
+      AND: [
+        { status: 2 },
+        {
+          OR: [{ receiptNoString: null }, { receiptNoString: '' }],
+        },
+        { updatedAt: { gte: from, lte: to } },
+      ],
+    };
+
     const bookingWhere =
       dateType === 'transaction_date'
         ? {
             OR: [
               { status: 0, createdAt: { gte: from, lte: to } },
               { status: { in: [1, 2, 3] }, receiptNoCreatedAt: { gte: from, lte: to } },
+              unpaidCancelInTransactionWindow,
             ],
             ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
           }
@@ -146,7 +170,7 @@ export async function getChannelIncomeAccountingWiseService(
       const row = rowsByBucket.get(bucket.key);
       if (!row) continue;
 
-      const paidReceiptExists = Boolean(b.receiptNoString);
+      const paidReceiptExists = Boolean(b.receiptNoString?.trim());
       const refundType = Number(b.refund ?? 0);
       const isFullCancel = b.status === 2 && refundType === 3 && paidReceiptExists;
       const isPartialRefund = paidReceiptExists && (refundType === 1 || refundType === 2);

@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Download, Printer, SearchIcon } from 'lucide-react';
+import { Download, Printer, SearchIcon, X } from 'lucide-react';
 import { getAllCashierSummaryDetailReportData } from '@/app/actions/reports/all-cashier-summary-detail.action';
 import { formatReceiptAmount } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { SearchableUserSelect } from '@/components/common/searchable-user-select';
 import type {
   AllCashierUserDetailRow,
@@ -82,16 +83,6 @@ export default function AllCashierSummaryDetailContent({
 
   const userOptions = [{ id: '__all__', name: 'All Users' }, ...initialUserOptions];
 
-  const formatRangeLabel = (fromStr: string, toStr: string) => {
-    try {
-      const f = new Date(fromStr);
-      const t = new Date(toStr);
-      return `${f.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })} - ${t.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`;
-    } catch {
-      return `${fromStr} - ${toStr}`;
-    }
-  };
-
   const renderReportMetaCard = (meta: {
     from: string;
     to: string;
@@ -109,7 +100,7 @@ export default function AllCashierSummaryDetailContent({
         <div className="space-y-0.5 sm:col-span-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
           <p className="text-[11px] leading-tight font-medium">
-            User: {meta.userLabel} | Branch: {meta.locationLabel} | Range: {formatRangeLabel(meta.from, meta.to)} | Format:{' '}
+            User: {meta.userLabel} | Branch: {meta.locationLabel} | Range: {formatReportRangeLabel(meta.from, meta.to)} | Format:{' '}
             {meta.format === 'detail' ? 'Detail' : 'Summary'}
           </p>
         </div>
@@ -240,14 +231,28 @@ export default function AllCashierSummaryDetailContent({
             />
             <div>
               <label className="text-sm font-semibold mb-2 block">Branch</label>
-              <Select value={locationId} onValueChange={setLocationId}>
-                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {initialLocationOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1">
+                <Select value={locationId} onValueChange={setLocationId}>
+                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {initialLocationOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {locationId !== '__all__' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Clear branch"
+                    onClick={() => setLocationId('__all__')}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
             <div>
               <label className="text-sm font-semibold mb-2 block">Select User</label>

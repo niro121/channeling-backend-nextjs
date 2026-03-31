@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
 import { SearchIcon } from '@/components/icons';
-import { Printer } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 import { ExportWrapper } from '../../export-wrapper';
 
 type DoctorArrivalsReportContentProps = {
@@ -229,12 +229,26 @@ export default function DoctorArrivalsReportContent({
               <label className="text-sm text-black font-semibold mb-2 block">
                 Select Branch
               </label>
-              <Selector
-                label="All Branches"
-                options={locationOptions}
-                value={locationId || '__all__'}
-                onChange={(v) => setLocationId(v)}
-              />
+              <div className="flex items-center gap-1">
+                <Selector
+                  label="All Branches"
+                  options={locationOptions}
+                  value={locationId || '__all__'}
+                  onChange={(v) => setLocationId(v)}
+                />
+                {(locationId || '__all__') !== '__all__' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Clear branch"
+                    onClick={() => setLocationId('__all__')}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             <div className="flex-shrink-0">

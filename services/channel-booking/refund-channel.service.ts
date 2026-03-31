@@ -301,9 +301,14 @@ export async function refundChannelService(
       }
     } else if (booking.status === 0) {
       // Pending: just cancel, no receipt
+      const now = new Date()
       await prisma.booking.update({
         where: { id: input.booking_id },
-        data: { status: 2 },
+        data: {
+          status: 2,
+          canceledAt: now,
+          ...(userId ? { canceledBy: userId } : {}),
+        },
       })
     } else {
       return { success: false, errorCode: "invalid_state", message: "Booking cannot be canceled." }

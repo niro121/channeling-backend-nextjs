@@ -49,6 +49,7 @@ export type SessionListItem = {
   durationMinutes?: number | null;
   maxPatientNumber?: number;
   originalSessionName?: string;
+  isScan?: boolean;
   location?: { name: string | null } | null;
   doctor?: { name?: string | null } | null;
   department?: { name?: string | null } | null;
@@ -78,12 +79,19 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     id: 'date',
     header: 'Date',
     cell: ({ row }) => {
-      const { date, originalSessionName } = row.original;
+      const { date, originalSessionName, isScan } = row.original;
       const dateStr = moment(date).format('DD MMM YYYY');
       const original = originalSessionName ? `(${originalSessionName})` : null;
       return (
         <div className="flex flex-col gap-0.5 text-xs whitespace-nowrap">
-          <span>{dateStr}</span>
+          <div className="flex items-center gap-2">
+            <span>{dateStr}</span>
+            {isScan ? (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold tracking-wide">
+                SCAN
+              </Badge>
+            ) : null}
+          </div>
           {original && <span className="text-muted-foreground/80">{original}</span>}
         </div>
       );

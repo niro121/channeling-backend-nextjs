@@ -16,6 +16,8 @@ import type {
   ChannelIncomeAccountingWiseRow,
 } from '@/types/reports/channel-income-accounting-wise';
 import { CHANNEL_INCOME_DATE_TYPE_OPTIONS, CHANNEL_INCOME_FEE_MODE_OPTIONS } from '@/types/reports/channel-income-accounting-wise';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 
 function defaultDateTimeRange() {
   const now = new Date();
@@ -52,8 +54,8 @@ export default function ChannelIncomeAccountingWiseReportContent({
   const [locationId, setLocationId] = useState('__all__');
   const [feeMode, setFeeMode] = useState<'all' | 'hospital_fee_only' | 'professional_fee_only'>('hospital_fee_only');
 
-  const branchOptions = locationOptions.filter((o) => o.id !== '__all__');
-  const optionListsLoading = branchOptions.length === 0;
+  const branchOptions = withAllBranchesOptions(locationOptions);
+  const optionListsLoading = false;
 
   const onSearch = async () => {
     if (optionListsLoading) {
@@ -113,7 +115,7 @@ export default function ChannelIncomeAccountingWiseReportContent({
           <div className="space-y-0.5 sm:col-span-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
             <p className="text-[11px] leading-tight font-medium">
-              Date Type: {reportMeta.dateTypeLabel} | Range: {reportMeta.from} - {reportMeta.to}
+              Date Type: {reportMeta.dateTypeLabel} | Range: {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </p>
             <p className="text-[11px] leading-tight font-medium">
               Branch: {reportMeta.branchLabel} | Fee Type: {reportMeta.feeModeLabel}
@@ -233,6 +235,7 @@ export default function ChannelIncomeAccountingWiseReportContent({
                 options={branchOptions}
                 value={locationId}
                 defaultValue="__all__"
+                clearable
                 onChange={(v) => setLocationId(v ?? '__all__')}
                 loading={optionListsLoading}
               />
