@@ -30,6 +30,7 @@ import { useToast } from '@/components/hooks/use-toast';
 import { SearchIcon, Printer, Download } from 'lucide-react';
 import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summary.action';
 import { formatReceiptAmount } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import type {
   CashierSummaryReportSection,
   CashierSummaryReportLineItem,
@@ -241,7 +242,7 @@ export default function CashierSummaryContent({
         <div className="space-y-0.5 sm:col-span-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
           <p className="text-[11px] leading-tight font-medium">
-            User: {meta.userLabel} | Range: {formatRangeLabel(meta.from,meta.to)} | Format: {meta.format === 'detail' ? 'Detail' : 'Summary'}
+            User: {meta.userLabel} | Range: {formatReportRangeLabel(meta.from, meta.to)} | Format: {meta.format === 'detail' ? 'Detail' : 'Summary'}
           </p>
         </div>
         <div className="space-y-0.5">
@@ -263,21 +264,6 @@ export default function CashierSummaryContent({
       </div>
     </div>
   );
-
-  /** Format from/to for display (date + time if present) */
-  const formatRangeLabel = (fromStr: string, toStr: string) => {
-    try {
-      const hasTime = fromStr.includes('T') || toStr.includes('T');
-      if (hasTime) {
-        const f = new Date(fromStr);
-        const t = new Date(toStr);
-        return `${f.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })} – ${t.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`;
-      }
-      return `${fromStr} 00:00:00 – ${toStr} 23:59:59`;
-    } catch {
-      return `${fromStr} – ${toStr}`;
-    }
-  };
 
   const userOptions = [{ id: '__all__', name: 'All Users' }, ...initialUserOptions];
 
@@ -564,7 +550,7 @@ export default function CashierSummaryContent({
             <CardDescription className="text-xs mt-0.5">
               <span className="font-medium text-foreground">User:</span> {reportMeta.userLabel}
               {'  '}|{'  '}
-              <span className="font-medium text-foreground">Range:</span> {formatRangeLabel(reportMeta.from, reportMeta.to)}
+              <span className="font-medium text-foreground">Range:</span> {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 py-2">

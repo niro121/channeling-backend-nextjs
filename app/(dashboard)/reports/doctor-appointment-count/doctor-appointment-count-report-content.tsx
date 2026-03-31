@@ -18,6 +18,8 @@ import type {
   DoctorAppointmentCountReportRow,
   DoctorAppointmentCountReportTotals,
 } from '@/types/reports/doctor-appointment-count';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 
 const BOOKING_TYPE_OPTIONS = [
   { id: 'scan', name: 'Scan' },
@@ -74,11 +76,11 @@ export default function DoctorAppointmentCountReportContent({
   const [groupBy, setGroupBy] = useState('__none__');
   const [sessionType, setSessionType] = useState('__all__');
 
-  const branchOptions = locationOptions.filter((o) => o.id !== '__all__');
+  const branchOptions = withAllBranchesOptions(locationOptions);
   const specialityFilteredOptions = specialityOptions.filter((o) => o.id !== '__all__');
   const doctorFilteredOptions = doctorOptions.filter((o) => o.id !== '__all__');
   const optionListsLoading =
-    branchOptions.length === 0 || specialityFilteredOptions.length === 0 || doctorFilteredOptions.length === 0;
+    specialityFilteredOptions.length === 0 || doctorFilteredOptions.length === 0;
 
   const buildQuery = () => ({
     fromDateTime,
@@ -135,8 +137,6 @@ export default function DoctorAppointmentCountReportContent({
     }
   };
 
-  const formatRangeLabel = (fromStr: string, toStr: string) => `${fromStr} 00:00:00 - ${toStr} 23:59:59`;
-
   const renderReportMetaCard = () =>
     reportMeta ? (
       <div className="rounded-md border border-primary/30 bg-primary/5 shadow-sm px-3 py-2.5">
@@ -147,7 +147,7 @@ export default function DoctorAppointmentCountReportContent({
           <div className="space-y-0.5 sm:col-span-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
             <p className="text-[11px] leading-tight font-medium">
-              Range: {formatRangeLabel(reportMeta.from, reportMeta.to)} | Branch: {reportMeta.branchLabel} | Speciality: {reportMeta.specialityLabel} | Doctor: {reportMeta.doctorLabel}
+              Range: {formatReportRangeLabel(reportMeta.from, reportMeta.to)} | Branch: {reportMeta.branchLabel} | Speciality: {reportMeta.specialityLabel} | Doctor: {reportMeta.doctorLabel}
             </p>
             <p className="text-[11px] leading-tight font-medium">
               Booking: {reportMeta.bookingTypeLabel} | Group By: {reportMeta.groupByLabel} | Session: {reportMeta.sessionLabel}
@@ -273,6 +273,7 @@ export default function DoctorAppointmentCountReportContent({
                 options={branchOptions}
                 value={locationId}
                 defaultValue="__all__"
+                clearable
                 onChange={(v) => setLocationId(v ?? '__all__')}
                 loading={optionListsLoading}
               />

@@ -11,6 +11,7 @@ import { Download, Printer, SearchIcon } from 'lucide-react';
 import { getAgencyStatementReportData } from '@/app/actions/reports/agency-statement.report.action';
 import type { AgencyStatementReportData } from '@/types/reports/agency-statement';
 import { formatLKR } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 
 type Props = {
   agentOptions: Array<{ id: string; name: string }>;
@@ -103,7 +104,7 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
           <div className="space-y-0.5 sm:col-span-2">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Filters</p>
             <p className="text-[11px] leading-tight font-medium">
-              Agent: {data.agencyName} ({data.agencyCode}) | Range: {new Date(fromDateTime).toLocaleString()} - {new Date(toDateTime).toLocaleString()}
+              Agent: {data.agencyName} ({data.agencyCode}) | Range: {formatReportRangeLabel(fromDateTime, toDateTime)}
             </p>
           </div>
           <div className="space-y-0.5">

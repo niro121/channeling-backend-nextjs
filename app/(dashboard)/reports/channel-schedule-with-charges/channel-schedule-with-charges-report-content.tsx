@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import Loading from '@/app/(dashboard)/loading';
 import {
   getChannelScheduleWithChargesReportData,
@@ -54,9 +55,10 @@ function ChannelScheduleWithChargesReportContentInner(
             />
             <Combobox
               label="Branch (Site)"
-              options={props.locationOptions}
+              options={withAllBranchesOptions(props.locationOptions)}
               value={values.locationId ?? '__all__'}
               defaultValue="__all__"
+              clearable
               onChange={(v) => setValue('locationId', v)}
             />
             <Combobox

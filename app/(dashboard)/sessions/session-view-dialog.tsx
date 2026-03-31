@@ -88,6 +88,7 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
   const department = session.department;
   const room = session.room;
   const isActive = session.status === 1;
+  const isScan = Boolean((session as unknown as { isScan?: boolean }).isScan);
   const timeRange = `${formatSessionTimeForDisplay(session.startTime, session.date)} – ${formatSessionTimeForDisplay(session.endTime, session.date)}`;
 
   const handleLoadActivity = async () => {
@@ -121,12 +122,19 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
               <InfoItem label="Location" value={session.location?.name} />
               <div className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Status</span>
-                <Badge
-                  variant={isActive ? 'default' : 'secondary'}
-                  className="w-fit text-[11px] font-medium px-1.5 py-0"
-                >
-                  {isActive ? 'Active' : 'Leave'}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant={isActive ? 'default' : 'secondary'}
+                    className="w-fit text-[11px] font-medium px-1.5 py-0"
+                  >
+                    {isActive ? 'Active' : 'Leave'}
+                  </Badge>
+                  {isScan ? (
+                    <Badge variant="secondary" className="w-fit text-[11px] font-semibold px-1.5 py-0">
+                      SCAN
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
