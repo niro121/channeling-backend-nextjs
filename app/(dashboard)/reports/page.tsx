@@ -126,6 +126,13 @@ const reportsData: ReportListItem[] = [
     masterData: 'API LOG REPORT',
     description: 'View API request logs with date & time range and filter by UUID',
     route: '/reports/api-log'
+  },
+  {
+    id: '32',
+    rank: 32,
+    masterData: 'Agency Balance Confirmation Letter',
+    description: 'Check agency balance confirmation letter',
+    route: '/reports/agent-balance-confirmation-letter'
   }
 ];
 
@@ -163,6 +170,7 @@ export default async function ReportsPage() {
       '/reports/agency-statement',
       '/reports/channel-agent-receipt',
       '/reports/agent-balance',
+      '/reports/agent-balance-confirmation-letter',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
