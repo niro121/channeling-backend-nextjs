@@ -21,6 +21,14 @@ export type ExportWrapperProps<T> = {
     columns: string[];
     keys: (keyof T)[];
   }) => void | Promise<void>;
+  /** Optional: custom PDF download handler. When not provided, uses default `downloadPdfUtil`. */
+  customDownloadPdf?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+    fileName?: string;
+  }) => void | Promise<void>;
 };
 
 export const ExportWrapper = <T,>({
@@ -31,7 +39,8 @@ export const ExportWrapper = <T,>({
   title = 'Report',
   fileName = 'report',
   showPrintButton = false,
-  customPrintPdf
+  customPrintPdf,
+  customDownloadPdf
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -96,13 +105,23 @@ export const ExportWrapper = <T,>({
         return;
       }
 
-      downloadPdfUtil({
-        title,
-        data: response.data,
-        columns,
-        keys,
-        fileName: `${formattedFileName}.pdf`
-      });
+      if (customDownloadPdf) {
+        await customDownloadPdf({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.pdf`
+        });
+      } else {
+        downloadPdfUtil({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.pdf`
+        });
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
