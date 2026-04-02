@@ -126,7 +126,11 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     header: 'Allowed Credit Limit',
     cell: ({ row }) => {
       const allowedCreditLimit = row.getValue<number>('allowedCreditLimit');
-      return (allowedCreditLimit != null ? formatLKR(allowedCreditLimit) : '0.00');
+      return (
+        <span className="text-right tabular-nums block">
+          {allowedCreditLimit != null ? formatLKR(allowedCreditLimit) : '0.00'}
+        </span>
+      );
     }
   },
   {
@@ -134,7 +138,11 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     header: 'Balance',
     cell: ({ row }) => {
       const balance = row.getValue<number>('balance');
-      return (balance != null ? formatLKR(balance) : '0.00');
+      return (
+        <span className="text-right tabular-nums block">
+          {balance != null ? formatLKR(balance) : '0.00'}
+        </span>
+      );
     }
   }
 ];

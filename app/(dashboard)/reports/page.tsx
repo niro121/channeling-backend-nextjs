@@ -137,9 +137,37 @@ const reportsData: ReportListItem[] = [
   {
     id: '32',
     rank: 32,
-    masterData: 'Agency Balance Confirmation Letter',
-    description: 'Check agency balance confirmation letter',
-    route: '/reports/agent-balance-confirmation-letter'
+    masterData: 'Agent History(Credit Limit Update)',
+    description: 'Track changes to agent soft/hard credit limits from the activity log.',
+    route: '/reports/agent-history-credit-limit-update'
+  },
+  {
+    id: '33',
+    rank: 33,
+    masterData: 'Channel Transfer Report',
+    description: 'View booking transfers with From/To session details using activity log + booking/session data.',
+    route: '/reports/channel-transfer'
+  },
+  {
+    id: '34',
+    rank: 34,
+    masterData: 'Cashier Drawer Balance',
+    description: 'Shows all tills and their balances by payment method for the selected date.',
+    route: '/reports/cashier-drawer-balance'
+  },
+  {
+    id: '35',
+    rank: 35,
+    masterData: 'Card Summary - Bank Wise',
+    description: 'Lists card transactions by bank with Summary and Detail views.',
+    route: '/reports/card-summary-bank-wise'
+  },
+  {
+    id: '36',
+    rank: 36,
+    masterData: 'Agent Collection Receipt Report',
+    description: 'Shows agent deposits/withdrawals and cancellations by payment type, with totals.',
+    route: '/reports/agent-collection-receipt'
   }
 ];
 
@@ -169,6 +197,7 @@ export default async function ReportsPage() {
       '/reports/consultant-payments',
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
+      '/reports/channel-transfer',
     ].includes(r.route)
   );
   const agents = reportsData.filter((r) =>
@@ -178,11 +207,12 @@ export default async function ReportsPage() {
       '/reports/agency-statement',
       '/reports/channel-agent-receipt',
       '/reports/agent-balance',
-      '/reports/agent-balance-confirmation-letter',
+      '/reports/agent-history-credit-limit-update',
+      '/reports/agent-collection-receipt',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
-    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary'].includes(r.route)
+    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise'].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
     ['/reports/sms-activity', '/reports/api-log'].includes(r.route)

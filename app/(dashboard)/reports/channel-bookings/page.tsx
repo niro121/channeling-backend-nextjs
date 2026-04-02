@@ -1,21 +1,13 @@
-import {
-  getDoctorOptions,
-  getLocationOptions,
-  getDepartmentOptions,
-} from '@/app/actions/doctor.sessions.action';
-import { getAllSpecialityOptions } from '@/app/actions/doctor.actions';
-import { getAreasForChannelBooking } from '@/app/actions/channel-booking/get-areas.action';
-import { getAllAgenciesOptions } from '@/app/actions/agency.actions';
 import { INSTITUTION_OPTIONS } from '@/types/doctor.session';
 import { LOCATION_OPTIONS } from '@/types/location';
 import { SEX_OPTIONS } from '@/types/channel-booking';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import { BOOKING_METHODS } from '@/types/channel-booking';
-import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import ChannelBookingsReportContent from './channel-bookings-report-content';
 import { STATUS_OPTIONS, REFUND_STATUS_OPTIONS, DATE_TYPE_OPTIONS } from '@/types/reports/channel-bookings';
+import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,43 +16,27 @@ export default async function ChannelBookingsReportPage() {
   if (!canView) redirect('/unauthorized-access');
 
   const [
-    doctorsResult,
-    locationsResult,
-    departmentsResult,
-    specialityRes,
-    areasRes,
-    agenciesRes,
+    doctorRef,
+    locRef,
+    specRef,
+    areaRef,
+    agencyRef,
   ] = await Promise.all([
-    getDoctorOptions(),
-    getLocationOptions(),
-    getDepartmentOptions(),
-    getAllSpecialityOptions(),
-    getAreasForChannelBooking(),
-    getAllAgenciesOptions(),
+    getReportFilterOptions({ doctors: true }),
+    getReportFilterOptions({ locations: true }),
+    getReportFilterOptions({ specialities: true }),
+    getReportFilterOptions({ areas: true }),
+    getReportFilterOptions({ agencies: true }),
   ]);
 
   const doctorOptions: Array<{ id: string; name: string }> =
-    doctorsResult.success && doctorsResult.data
-      ? [
-          { id: '__all__', name: 'All Doctors' },
-          ...doctorsResult.data
-            .filter((d: any) => d.id)
-            .map((d: any) => ({
-              id: d.id || '',
-              name: formatDoctorName(d),
-            })),
-        ]
+    doctorRef.success && doctorRef.doctorOptions
+      ? doctorRef.doctorOptions
       : [{ id: '__all__', name: 'All Doctors' }];
 
   const locationOptions: Array<{ id: string; name: string }> =
-    locationsResult.success && locationsResult.data
-      ? [
-          { id: '__all__', name: 'All Branches' },
-          ...locationsResult.data.map((loc: any) => ({
-            id: loc.id || '',
-            name: loc.name || '',
-          })),
-        ]
+    locRef.success && locRef.locationOptions
+      ? locRef.locationOptions
       : [{ id: '__all__', name: 'All Branches' }];
 
   const departmentOptions: Array<{ id: string; name: string }> =
@@ -75,37 +51,19 @@ export default async function ChannelBookingsReportPage() {
       : [{ id: '__all__', name: 'All Departments' }];
 
   const specialityOptions: Array<{ id: string; name: string }> =
-    specialityRes.success && specialityRes.data
-      ? [
-          { id: '__all__', name: 'All Specialities' },
-          ...specialityRes.data.map((s: any) => ({
-            id: s.id || '',
-            name: s.name || '',
-          })),
-        ]
+    specRef.success && specRef.specialityOptions
+      ? specRef.specialityOptions
       : [{ id: '__all__', name: 'All Specialities' }];
 
   const areaOptions: Array<{ id: string; name: string }> =
-    areasRes.success && areasRes.data
-      ? [
-          { id: '__all__', name: 'All Areas' },
-          ...areasRes.data.map((a: any) => ({
-            id: a.id || '',
-            name: a.name || '',
-          })),
-        ]
+    areaRef.success && areaRef.areaOptions
+      ? areaRef.areaOptions
       : [{ id: '__all__', name: 'All Areas' }];
 
   const agencyOptions: Array<{ id: string; name: string }> =
-    agenciesRes.success && agenciesRes.data
-      ? [
-          { id: '__all__', name: 'All Agencies' },
-          ...agenciesRes.data.map((a: any) => ({
-            id: a.id || '',
-            name: a.name || '',
-          })),
-        ]
-      : [{ id: '__all__', name: 'All Agencies' }];
+    agencyRef.success && agencyRef.agencyOptions
+      ? agencyRef.agencyOptions
+      : [{ id: '__all__', name: 'All Agents' }];
 
   const branchTypeOptions = [
     // { id: '__all__', name: 'All Branch Types' },

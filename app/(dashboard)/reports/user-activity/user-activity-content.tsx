@@ -42,6 +42,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ACTIVITY_ACTIONS_AUDIT } from '@/lib/activity-actions-audit';
+import { ReportUserSelect } from '@/components/common/user-select';
+import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 
 type UserActivityContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -61,7 +63,7 @@ export default function UserActivityContent({
   const [userId, setUserId] = useState<string>('__all__');
   const [action, setAction] = useState<string>('');
 
-  const userOptions = [{ id: '__all__', name: 'All Users' }, ...initialUserOptions];
+  const userOptions = initialUserOptions;
 
   const fetchReportData = async () => {
     if (!fromDate || !toDate) {
@@ -188,21 +190,13 @@ export default function UserActivityContent({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-shrink-0">
-              <label className="text-sm font-semibold mb-2 block">User</label>
-              <Select value={userId} onValueChange={setUserId}>
-                <SelectTrigger className="w-[200px] pr-1">
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ReportUserSelect
+              userOptions={userOptions}
+              value={userId}
+              onChange={setUserId}
+              label="User"
+              widthClassName="w-[200px]"
+            />
             <div className="flex-shrink-0" style={{ minWidth: '200px' }}>
               <label className="text-sm font-semibold mb-2 block">Action</label>
               <Input
@@ -278,9 +272,10 @@ export default function UserActivityContent({
           {loading ? (
             <div className="text-center py-8">Loading...</div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No data available. Please select date range and click Search.
-            </div>
+            <ReportEmptyStateCard
+              title="No results"
+              description="No data available. Please select date range and click Search."
+            />
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <Table>
