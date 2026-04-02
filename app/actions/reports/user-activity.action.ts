@@ -5,8 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import prisma from '@/lib/prisma';
-import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getActivityLogsForReport } from '@/services/reports/user-activity.service';
+import { getReferenceData } from '@/app/actions/reference/get-reference-data.action';
 import type {
   UserActivityReportQuery,
   UserActivityReportResponse,
@@ -21,13 +21,9 @@ export async function getReportUserOptionsAction(): Promise<{
 }> {
   await requirePermission('reports', 'view');
   try {
-    const users = await prisma.user.findMany({
-      where: { status: 1 },
-      select: { id: true, name: true, staff: { select: { code: true } } },
-      orderBy: { name: 'asc' },
-      take: 500,
-    });
-    const data = users.map((u) => ({ id: u.id, name: formatUserDisplayName(u.name, u.id, u.staff?.code) }));
+    const ref = await getReferenceData({ users: true });
+    if (!ref.success) return { success: false, message: ref.message ?? 'Failed to load users' };
+    const data = (ref.users ?? []).map((u) => ({ id: u.id, name: u.name }));
     return { success: true, data };
   } catch (error: unknown) {
     console.error('getReportUserOptionsAction error', error);
@@ -51,7 +47,8 @@ export async function getReportActionOptionsAction(): Promise<{
       orderBy: { action: 'asc' },
       take: 10000,
     });
-    const data = [...new Set(logs.map((l) => l.action).filter(Boolean))].sort().slice(0, 500);
+    const actions = logs.map((l) => l.action).filter((a): a is string => Boolean(a));
+    const data = [...new Set(actions)].sort().slice(0, 500);
     return { success: true, data };
   } catch (error: unknown) {
     console.error('getReportActionOptionsAction error', error);

@@ -44,6 +44,7 @@ function SmsLogReportContentInner({
       title="SMS Log Report"
       description="View SMS log records with date range and filter by institution, branch, department, report type, and phone number"
       filterButtonLabel="Search"
+      initialEmptyMessage="No SMS logs found. Select filters and click Search."
       filterContent={({ values, setValue }) => (
         <>
           {/* Force Date & Time Range to occupy the full first row.

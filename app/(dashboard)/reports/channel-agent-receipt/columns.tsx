@@ -41,6 +41,10 @@ export const ChannelAgentReceiptReportColumns: ColumnDef<ChannelAgentReceiptRepo
   {
     accessorKey: 'billValue',
     header: 'Bill Value',
-    cell: ({ row }) => formatLKR(Number(row.original.billValue ?? 0)),
+    cell: ({ row }) => (
+      <span className="text-right tabular-nums block">
+        {formatLKR(Number(row.original.billValue ?? 0))}
+      </span>
+    ),
   },
 ];

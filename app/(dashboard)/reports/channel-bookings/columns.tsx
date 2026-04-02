@@ -231,7 +231,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const fee = (row.original as any).hospitalFee;
         const n = typeof fee === 'number' ? fee / 100 : 0;
-        return n > 0 ? n.toFixed(2) : '-';
+        return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
     {
@@ -240,7 +240,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const fee = (row.original as any).professionalFee;
         const n = typeof fee === 'number' ? fee / 100 : 0;
-        return n > 0 ? n.toFixed(2) : '-';
+        return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
     {
@@ -249,7 +249,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const d = (row.original as any).discount;
         const n = typeof d === 'number' ? d / 100 : 0;
-        return n > 0 ? n.toFixed(2) : '-';
+        return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
     {
@@ -258,7 +258,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const amt = (row.original as any).amount;
         const n = typeof amt === 'number' ? amt / 100 : 0;
-        return n > 0 ? n.toFixed(2) : '-';
+        return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
     {
