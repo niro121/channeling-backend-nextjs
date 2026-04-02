@@ -157,14 +157,17 @@ export default function PhoneViewReportContent({
   const getPresentAbsentStatus = (
     booking: PhoneViewSessionData['bookings'][0]
   ) => {
-    if ((booking.refund ?? 0) > 0) return 'Refunded';
-    if (booking.status === 2) return 'Cancelled';
+    // Keep P/A strictly for attendance; refunds are shown in C/R column.
+    if ((booking.refund ?? 0) > 0) return '-';
+    if (booking.status === 2) return '-';
     return booking.status === 1 ? 'Present' : 'Absent';
   };
 
   const getCancelRefundStatus = (booking: PhoneViewSessionData['bookings'][0]) => {
-    if (booking.status === 2) return 'C';
-    if ((booking.refund ?? 0) > 0) return 'R';
+    // If full refund exists with refund receipt, treat as cancelled
+    if ((booking.refund ?? 0) === 3 && booking.refundReceiptCreatedAt) return 'C';
+    // If has any refund flag (1,2,3) but no refund receipt yet, show as R
+    if ((booking.refund ?? 0) > 0 && !booking.refundReceiptCreatedAt) return 'R';
     return '-';
   };
 

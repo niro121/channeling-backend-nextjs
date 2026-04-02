@@ -182,6 +182,7 @@ export const getDoctorViewReportDataService = async ({
         agency: booking.agency,
         creditCustomerId: booking.creditCustomerId || null,
         creditCustomer: booking.creditCustomer || null,
+        refundReceiptCreatedAt: (booking as any).refundReceiptCreatedAt ?? null,
       })),
     };
 

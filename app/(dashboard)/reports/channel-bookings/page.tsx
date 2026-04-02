@@ -39,6 +39,17 @@ export default async function ChannelBookingsReportPage() {
       ? locRef.locationOptions
       : [{ id: '__all__', name: 'All Branches' }];
 
+  const departmentOptions: Array<{ id: string; name: string }> =
+    departmentsResult.success && departmentsResult.data
+      ? [
+          { id: '__all__', name: 'All Departments' },
+          ...departmentsResult.data.map((d: any) => ({
+            id: d.id || '',
+            name: d.name || '',
+          })),
+        ]
+      : [{ id: '__all__', name: 'All Departments' }];
+
   const specialityOptions: Array<{ id: string; name: string }> =
     specRef.success && specRef.specialityOptions
       ? specRef.specialityOptions
@@ -81,6 +92,7 @@ export default async function ChannelBookingsReportPage() {
     <ChannelBookingsReportContent
       institutionOptions={INSTITUTION_OPTIONS}
       locationOptions={locationOptions}
+      departmentOptions={departmentOptions}
       branchTypeOptions={branchTypeOptions}
       specialityOptions={specialityOptions}
       doctorOptions={doctorOptions}

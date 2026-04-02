@@ -50,7 +50,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
         const name = doctor?.name ?? '-';
         const display = code ? `${code} – ${name}` : name;
         return (
-          <div className="max-w-40" title={display}>
+          <div className="max-w-40 w-full text-xs" title={display}>
             {display}
           </div>
         );
@@ -62,17 +62,17 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const doctor = (row.original as any).doctor;
         const spec = doctor?.speciality?.name;
-        return <span className="max-w-28 truncate block">{spec ?? '-'}</span>;
+        return <span className="max-w-40 text-xs block">{spec ?? '-'}</span>;
       }
     },
     {
       id: 'applyDate',
-      header: () => <span className="whitespace-nowrap">Apply Date</span>,
+      header: () => <span className="whitespace-nowrap">App Date</span>,
       cell: ({ row }) => {
         const session = (row.original as any).session;
         const date = session?.date;
         return (
-          <span className="whitespace-nowrap">
+          <span className="whitespace-nowrap text-xs">
             {date ? moment(date).format('DD/MM/YYYY') : '-'}
           </span>
         );
@@ -80,20 +80,20 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
     },
     {
       id: 'applyTime',
-      header: () => <span className="whitespace-nowrap">Apply Time</span>,
+      header: () => <span className="whitespace-nowrap">App Time</span>,
       cell: ({ row }) => {
         const session = (row.original as any).session;
         return (
-          <span className="whitespace-nowrap">{formatApplyTime(session)}</span>
+          <span className="whitespace-nowrap text-xs">{formatApplyTime(session)}</span>
         );
       }
     },
     {
       id: 'applyNumber',
-      header: 'Apply Number',
+      header: 'App Number',
       cell: ({ row }) => {
         const n = (row.original as any).appointmentNo;
-        return n != null ? String(n) : '-';
+        return <span className="text-xs">{n != null ? String(n) : '-'}</span>;
       }
     },
     {
@@ -103,7 +103,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
         const o = row.original as any;
         const bill = o.receiptNoString ?? o.bookingid_string ?? '';
         return (
-          <span className="max-w-24 truncate block" title={bill}>
+          <span className="max-w-24 whitespace-nowrap text-xs block">
             {bill || '-'}
           </span>
         );
@@ -115,7 +115,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const m = (row.original as any).method;
         const name = BOOKING_METHODS.find((x) => x.id === m)?.name;
-        return name ?? (m != null ? String(m) : '-');
+        return <span className="text-xs">{name ?? (m != null ? String(m) : '-')}</span>;
       }
     },
     {
@@ -156,12 +156,32 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       }
     },
     {
+      id: 'refundedBy',
+      header: 'Refunded By',
+      cell: ({ row }) => {
+        const o = row.original as any;
+        const refund = o.refund ?? 0;
+        if (refund === 0) {
+          return <span className="text-xs">-</span>;
+        }
+        const name = o.refundCreatedUser?.name ?? '-';
+        const staffCode = o.refundCreatedUser?.staff?.code;
+        const displayName = staffCode ? `${name} (${staffCode})` : name;
+        return <span className="max-w-40 text-xs">{displayName}</span>;
+      }
+    },
+    {
       id: 'refundedAt',
       header: 'Refunded At',
       cell: ({ row }) => {
-        const date = (row.original as any).refundReceiptCreatedAt;
+        const o = row.original as any;
+        const refund = o.refund ?? 0;
+        if (refund === 0) {
+          return <span className="whitespace-nowrap text-xs">-</span>;
+        }
+        const date = o.refundReceiptCreatedAt;
         return (
-          <span className="whitespace-nowrap">
+          <span className="whitespace-nowrap text-xs">
             {date ? moment(date).format('DD/MM/YYYY hh:mm A') : '-'}
           </span>
         );
@@ -172,12 +192,12 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Patient Name',
       cell: ({ row }) => {
         const o = row.original as any;
-        return formatPatientName(o.title, o.name);
+        return <span className="max-w-40 w-full text-xs">{formatPatientName(o.title, o.name)}</span>;
       }
     },
     {
       id: 'patientNumber',
-      header: 'Patient Number',
+      header: 'Phone Number',
       cell: ({ row }) => {
         const phone = (row.original as any).phone;
         return <span className="max-w-28 whitespace-nowrap block">{phone ?? '-'}</span>;
@@ -188,24 +208,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Area',
       cell: ({ row }) => {
         const area = (row.original as any).area;
-        return <span className="max-w-24 truncate block">{area ?? '-'}</span>;
-      }
-    },
-    {
-      id: 'updater',
-      header: 'Updater',
-      cell: ({ row }) => {
-        const o = row.original as any;
-        const name = o.updatedUser?.name ?? '—';
-        const date = o.updatedAt
-          ? moment(o.updatedAt).format('DD/MM/YYYY hh:mm A')
-          : '—';
-        return (
-          <div className="flex flex-col gap-0.5 text-xs">
-            <span>{name}</span>
-            <span className="text-muted-foreground">{date}</span>
-          </div>
-        );
+        return <span className="max-w-24 whitespace-nowrap text-xs block">{area ?? '-'}</span>;
       }
     },
     {
@@ -214,12 +217,33 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       cell: ({ row }) => {
         const o = row.original as any;
         const name = o.createdUser?.name ?? '—';
+        const staffCode = o.createdUser?.staff?.code;
+        const displayName = staffCode ? `${name} (${staffCode})` : name;
         const date = o.createdAt
           ? moment(o.createdAt).format('DD/MM/YYYY hh:mm A')
           : '—';
         return (
           <div className="flex flex-col gap-0.5 text-xs">
-            <span>{name}</span>
+            <span>{displayName}</span>
+            <span className="text-muted-foreground">{date}</span>
+          </div>
+        );
+      }
+    },
+    {
+      id: 'updater',
+      header: 'Updater',
+      cell: ({ row }) => {
+        const o = row.original as any;
+        const name = o.updatedUser?.name ?? '—';
+        const staffCode = o.updatedUser?.staff?.code;
+        const displayName = staffCode ? `${name} (${staffCode})` : name;
+        const date = o.updatedAt
+          ? moment(o.updatedAt).format('DD/MM/YYYY hh:mm A')
+          : '—';
+        return (
+          <div className="flex flex-col gap-0.5 text-xs">
+            <span>{displayName}</span>
             <span className="text-muted-foreground">{date}</span>
           </div>
         );

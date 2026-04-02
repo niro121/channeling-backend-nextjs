@@ -199,7 +199,9 @@ export const getConsultantPaymentsReportService = async ({
 
     const bookingWhere: PrismaBookingWhereInput = {
       status: 1,
-      refund: 0,
+      // Include "hospital fee refunded only" records because doctor payment can still be valid.
+      // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
+      refund: { in: [0, 2] },
       sessionStartTime: {
         gte: unixRange.from,
         lte: unixRange.to

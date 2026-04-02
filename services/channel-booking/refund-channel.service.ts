@@ -437,6 +437,9 @@ export async function refundChannelService(
           refundReason: remarks,
           refundAmountProfessionalFee: input.professional_fee,
           refundAmountHospitalFee: input.hospital_fee,
+          refundReceiptId: receipt.id,
+          refundReceiptNoString: receipt.receiptNoString,
+          refundReceiptCreatedAt: receipt.createdAt,
         }),
       })
         if (!r.success) return r
