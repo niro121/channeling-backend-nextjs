@@ -18,12 +18,14 @@ export default async function ChannelBookingsReportPage() {
   const [
     doctorRef,
     locRef,
+    deptRef,
     specRef,
     areaRef,
     agencyRef,
   ] = await Promise.all([
     getReportFilterOptions({ doctors: true }),
     getReportFilterOptions({ locations: true }),
+    getReportFilterOptions({ departments: true }),
     getReportFilterOptions({ specialities: true }),
     getReportFilterOptions({ areas: true }),
     getReportFilterOptions({ agencies: true }),
@@ -40,14 +42,8 @@ export default async function ChannelBookingsReportPage() {
       : [{ id: '__all__', name: 'All Branches' }];
 
   const departmentOptions: Array<{ id: string; name: string }> =
-    departmentsResult.success && departmentsResult.data
-      ? [
-          { id: '__all__', name: 'All Departments' },
-          ...departmentsResult.data.map((d: any) => ({
-            id: d.id || '',
-            name: d.name || '',
-          })),
-        ]
+    deptRef.success && deptRef.departmentOptions
+      ? deptRef.departmentOptions
       : [{ id: '__all__', name: 'All Departments' }];
 
   const specialityOptions: Array<{ id: string; name: string }> =
