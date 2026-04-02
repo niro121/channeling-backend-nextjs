@@ -4,7 +4,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateRangePicker } from '@/components/common/date-range-picker';
-import { Combobox } from '@/components/common/combobox';
+import { ReportAgentSelect } from '@/components/common/agent-select';
 import {
   Select,
   SelectContent,
@@ -90,11 +90,10 @@ function AgentDetailReportContentInner({
               <label className="text-sm text-black font-semibold mb-2 block">
                 Agency
               </label>
-              <Combobox
+              <ReportAgentSelect
                 label="Agency"
-                options={initialAgencyOptions}
+                agentOptions={initialAgencyOptions.filter((o) => o.id !== '__all__')}
                 value={values.agencyId ?? '__all__'}
-                defaultValue="__all__"
                 onChange={(v) => setValue('agencyId', v)}
               />
             </div>

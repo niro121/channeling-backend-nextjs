@@ -294,6 +294,15 @@ export const updateAgency = async (
   await requirePermission('agencies', 'edit');
 
   try {
+    const shouldTrackSoftLimitChange =
+      'allowedCreditLimit' in payload && payload.allowedCreditLimit !== undefined;
+    const beforeSoftLimit = shouldTrackSoftLimitChange
+      ? await prisma.agency.findUnique({
+          where: { id },
+          select: { id: true, name: true, code: true, allowedCreditLimit: true },
+        })
+      : null;
+
     const result = await updateAgencyService(id, payload, user);
 
     if (!result.success) {
@@ -315,6 +324,28 @@ export const updateAgency = async (
         importance: 'high',
         metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined,
       });
+
+      if (shouldTrackSoftLimitChange && beforeSoftLimit) {
+        const oldValue = Number(beforeSoftLimit.allowedCreditLimit ?? 0);
+        const newValue = Number(result.data?.allowedCreditLimit ?? oldValue);
+        if (Number.isFinite(oldValue) && Number.isFinite(newValue) && oldValue !== newValue) {
+          logActivityNonBlocking({
+            userId: session.user.id,
+            action: 'agencies.limit.soft_changed',
+            entityType: 'Agency',
+            entityId: id,
+            importance: 'high',
+            metadata: {
+              agencyName: beforeSoftLimit.name,
+              agencyCode: beforeSoftLimit.code,
+              field: 'allowedCreditLimit',
+              oldValue,
+              newValue,
+              delta: newValue - oldValue,
+            },
+          });
+        }
+      }
     }
     revalidatePath('/agencies');
 

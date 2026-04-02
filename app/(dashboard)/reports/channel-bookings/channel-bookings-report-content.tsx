@@ -9,6 +9,7 @@ import { Combobox } from '@/components/common/combobox';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ReportAgentSelect } from '@/components/common/agent-select';
 import {
   getChannelBookingsReportData,
   exportChannelBookingsReportData
@@ -51,6 +52,7 @@ function ChannelBookingsReportContentInner(
       title="Channel Booking Details Report"
       description="View channel booking records with filters for date range, data type, institution, branch, department, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method"
       filterButtonLabel="Search"
+      initialEmptyMessage="No bookings found. Select filters and click Search."
       filterContent={({ values, setValue }) => {
         const hasDateRange = Boolean(
           values.fromDateTime?.trim() && values.toDateTime?.trim()
@@ -134,11 +136,10 @@ function ChannelBookingsReportContentInner(
                     defaultValue="__all__"
                     onChange={(v) => setValue('areaId', v)}
                   />
-                  <Combobox
+                  <ReportAgentSelect
                     label="Agency"
-                    options={props.agencyOptions}
+                    agentOptions={props.agencyOptions.filter((o) => o.id !== '__all__')}
                     value={values.agencyId ?? '__all__'}
-                    defaultValue="__all__"
                     onChange={(v) => setValue('agencyId', v)}
                   />
                 </div>

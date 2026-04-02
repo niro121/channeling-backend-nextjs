@@ -210,7 +210,8 @@ export async function getCashierSummaryReportService(
 
   // --- Channel Billed: method PAYMENT, bookingId not null ---
   const channelBilled = await prisma.receipt.findMany({
-    where: { ...baseWhere, method: RECEIPT_METHOD.PAYMENT, bookingId: { not: null } },
+    // Channel sections should exclude agent-linked bookings (those belong under Agent - ... sections).
+    where: { ...baseWhere, method: RECEIPT_METHOD.PAYMENT, bookingId: { not: null }, agencyId: null },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
   });

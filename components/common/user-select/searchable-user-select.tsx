@@ -34,7 +34,9 @@ type SearchableUserSelectProps = {
 
 /** Sorts options by name ascending (locale-aware). */
 function sortByName(options: SearchableUserOption[]): SearchableUserOption[] {
-  return [...options].sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }))
+  return [...options].sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+  )
 }
 
 export function SearchableUserSelect({
@@ -99,7 +101,12 @@ export function SearchableUserSelect({
                       </Badge>
                     )}
                   </span>
-                  <Check className={cn("ml-auto h-4 w-4 shrink-0", value === option.id ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn(
+                      "ml-auto h-4 w-4 shrink-0",
+                      value === option.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -109,3 +116,4 @@ export function SearchableUserSelect({
     </Popover>
   )
 }
+
