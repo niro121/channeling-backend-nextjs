@@ -53,7 +53,7 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     header: () => <span className="whitespace-nowrap">Consultation Charge</span>,
     cell: ({ row }) => {
       const amount = row.getValue<number>('consultationCharge');
-      return <span className="tabular-nums">{formatLKR(amount)}</span>;
+      return <span className="text-right tabular-nums block">{formatLKR(amount)}</span>;
     }
   },
   {
@@ -61,7 +61,7 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     header: () => <span className="whitespace-nowrap">Discount Amount</span>,
     cell: ({ row }) => {
       const amount = row.getValue<number>('discountAmount');
-      return <span className="tabular-nums">{formatLKR(amount)}</span>;
+      return <span className="text-right tabular-nums block">{formatLKR(amount)}</span>;
     }
   },
   {
@@ -69,7 +69,7 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     header: () => <span className="whitespace-nowrap">Net Amount</span>,
     cell: ({ row }) => {
       const amount = row.getValue<number>('netAmount');
-      return <span className="tabular-nums font-medium">{formatLKR(amount)}</span>;
+      return <span className="text-right tabular-nums font-medium block">{formatLKR(amount)}</span>;
     }
   },
   {

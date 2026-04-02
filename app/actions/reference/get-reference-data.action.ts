@@ -5,14 +5,25 @@ import {
   getLocationsForSelectService,
   getDoctorsForSelectService,
   getStaffForSelectService,
+  getUsersForSelectService,
+  getDepartmentsForSelectService,
+  getSpecialitiesForSelectService,
+  getAreasForSelectService,
+  getBanksForSelectService,
 } from "@/services/reference/reference-data.service"
 import type { ReferenceSelectOption } from "@/types/reference"
+import { requirePermission } from "@/lib/server-permissions"
 
 export type GetReferenceDataParams = {
   agencies?: boolean
   locations?: boolean
   doctors?: boolean
   staff?: boolean
+  users?: boolean
+  departments?: boolean
+  specialities?: boolean
+  areas?: boolean
+  banks?: boolean
 }
 
 export type GetReferenceDataResult = {
@@ -21,6 +32,11 @@ export type GetReferenceDataResult = {
   locations?: ReferenceSelectOption[]
   doctors?: ReferenceSelectOption[]
   staff?: ReferenceSelectOption[]
+  users?: ReferenceSelectOption[]
+  departments?: ReferenceSelectOption[]
+  specialities?: ReferenceSelectOption[]
+  areas?: ReferenceSelectOption[]
+  banks?: ReferenceSelectOption[]
   message?: string
 }
 
@@ -29,12 +45,31 @@ export async function getReferenceData(
   params: GetReferenceDataParams = {}
 ): Promise<GetReferenceDataResult> {
   try {
-    const { agencies: wantAgencies, locations: wantLocations, doctors: wantDoctors, staff: wantStaff } = params
+    const {
+      agencies: wantAgencies,
+      locations: wantLocations,
+      doctors: wantDoctors,
+      staff: wantStaff,
+      users: wantUsers,
+      departments: wantDepartments,
+      specialities: wantSpecialities,
+      areas: wantAreas,
+      banks: wantBanks,
+    } = params
+
+    if (wantUsers) {
+      await requirePermission("reports", "view")
+    }
     const results = await Promise.all([
       wantAgencies ? getAgenciesForSelectService() : Promise.resolve([]),
       wantLocations ? getLocationsForSelectService() : Promise.resolve([]),
       wantDoctors ? getDoctorsForSelectService() : Promise.resolve([]),
       wantStaff ? getStaffForSelectService() : Promise.resolve([]),
+      wantUsers ? getUsersForSelectService() : Promise.resolve([]),
+      wantDepartments ? getDepartmentsForSelectService() : Promise.resolve([]),
+      wantSpecialities ? getSpecialitiesForSelectService() : Promise.resolve([]),
+      wantAreas ? getAreasForSelectService() : Promise.resolve([]),
+      wantBanks ? getBanksForSelectService() : Promise.resolve([]),
     ])
     return {
       success: true,
@@ -42,6 +77,11 @@ export async function getReferenceData(
       ...(wantLocations && { locations: results[1] }),
       ...(wantDoctors && { doctors: results[2] }),
       ...(wantStaff && { staff: results[3] }),
+      ...(wantUsers && { users: results[4] }),
+      ...(wantDepartments && { departments: results[5] }),
+      ...(wantSpecialities && { specialities: results[6] }),
+      ...(wantAreas && { areas: results[7] }),
+      ...(wantBanks && { banks: results[8] }),
     }
   } catch (err) {
     console.error("getReferenceData error", err)

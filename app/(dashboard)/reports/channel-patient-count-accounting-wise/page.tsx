@@ -5,6 +5,7 @@ import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
 import ChannelPatientCountAccountingWiseReportContent from './channel-patient-count-accounting-wise-report-content';
+import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +13,14 @@ export default async function ChannelPatientCountAccountingWiseReportPage() {
   const canView = await checkRouteAccess('/reports');
   if (!canView) redirect('/unauthorized-access');
 
-  const [locationsResult, session] = await Promise.all([getLocationOptions(), fetchServerSession()]);
+  const [ref, session] = await Promise.all([
+    getReportFilterOptions({ locations: true }),
+    fetchServerSession(),
+  ]);
 
   const locationOptions: Array<{ id: string; name: string }> =
-    locationsResult.success && locationsResult.data
-      ? [
-          { id: '__all__', name: 'All Branches' },
-          ...locationsResult.data.map((loc: any) => ({ id: loc.id || '', name: loc.name || '' })),
-        ]
+    ref.success && ref.locationOptions
+      ? ref.locationOptions
       : [{ id: '__all__', name: 'All Branches' }];
 
   const currentUser =

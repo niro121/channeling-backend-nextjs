@@ -19,6 +19,7 @@ import type { CreateAccountInput, UpdateAccountInput } from '@/types/accounting'
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import prisma from '@/lib/prisma';
 
 export type GetAccountsParams = {
   page?: string | number;
@@ -130,6 +131,21 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
   await requirePermission('accounting', 'edit');
 
   try {
+    const shouldTrackHardLimitChange =
+      'maxBalanceAllowed' in payload && payload.maxBalanceAllowed !== undefined;
+    const beforeHardLimit = shouldTrackHardLimitChange
+      ? await prisma.account.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            type: true,
+            maxBalanceAllowed: true,
+            agencyId: true,
+            agency: { select: { id: true, name: true, code: true } },
+          },
+        })
+      : null;
+
     const result = await updateAccountService(id, payload);
     if (!result.success) {
       return {
@@ -148,6 +164,38 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
         importance: 'high',
         metadata: result.account ? { code: result.account.code, name: result.account.name } : undefined,
       });
+
+      if (shouldTrackHardLimitChange && beforeHardLimit?.agencyId) {
+        const oldValueCents = beforeHardLimit.maxBalanceAllowed;
+        const newValueCents = result.account?.maxBalanceAllowed ?? null;
+        if (oldValueCents !== newValueCents) {
+          const oldValue = oldValueCents == null ? null : oldValueCents / 100;
+          const newValue = newValueCents == null ? null : newValueCents / 100;
+          const delta =
+            oldValue != null && newValue != null ? newValue - oldValue : null;
+
+          logActivityNonBlocking({
+            userId: session.user.id,
+            action: 'agencies.limit.hard_changed',
+            entityType: 'Account',
+            entityId: id,
+            importance: 'high',
+            metadata: {
+              accountId: id,
+              accountType: beforeHardLimit.type,
+              agencyId: beforeHardLimit.agencyId,
+              agencyName: beforeHardLimit.agency?.name ?? null,
+              agencyCode: beforeHardLimit.agency?.code ?? null,
+              field: 'maxBalanceAllowed',
+              oldValueCents,
+              newValueCents,
+              oldValue,
+              newValue,
+              delta,
+            },
+          });
+        }
+      }
     }
     revalidatePath('/accounting');
     revalidatePath(`/accounting/${id}/edit`);
