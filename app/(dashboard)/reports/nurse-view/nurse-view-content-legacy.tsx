@@ -14,6 +14,7 @@ import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { Button } from '@/components/ui/button';
 import { printPdfUtilWithHeader } from '@/lib/utils';
+import Loading from '@/app/(dashboard)/loading';
 
 type NurseViewReportContentProps = {
   sessionId: string;
@@ -24,7 +25,7 @@ export default function NurseViewReportContentLegacy({
 }: NurseViewReportContentProps) {
   const { toast } = useToast();
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(sessionId));
   const [sessionData, setSessionData] = useState<NurseViewSessionData | null>(
     null
   );
@@ -173,11 +174,7 @@ export default function NurseViewReportContentLegacy({
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-center py-8">Loading...</div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!sessionData) {
