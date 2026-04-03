@@ -316,8 +316,8 @@ function ReportTemplateContent<T, E = T>({
 
   const defaultFormatTotal = React.useCallback((_columnId: string, sum: number) => {
     return sum.toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 0
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   }, []);
 
