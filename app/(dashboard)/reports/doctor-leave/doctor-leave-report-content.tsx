@@ -15,7 +15,17 @@ import { DoctorLeaveReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import {DoctorLeaveReportExportRow, DoctorLeaveReportContentProps, DoctorLeaveReportRow} from '@/types/reports/doctor.leave'
 
+function filterOptionLabel(
+  id: string | undefined,
+  allLabel: string,
+  options: Array<{ id: string; name: string }>
+): string {
+  if (id == null || id === '' || id === '__all__') return allLabel;
+  return options.find((o) => o.id === id)?.name ?? id;
+}
+
 function DoctorLeaveReportContentInner({
+  currentUserName,
   institutionOptions,
   locationOptions,
   departmentOptions,
@@ -39,6 +49,50 @@ function DoctorLeaveReportContentInner({
       title="Doctor Leave Report"
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
+      generationDetails={{
+        generatedBy: currentUserName,
+        formatFilters: (values) => {
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          const branchOpts = withAllBranchesOptions(locationOptions);
+          const doctor = filterOptionLabel(
+            values.doctorId,
+            'All Doctors',
+            doctorOptions
+          );
+          const spec = filterOptionLabel(
+            values.specialityId,
+            'All Specialities',
+            specialityOptions
+          );
+          const inst = filterOptionLabel(
+            values.institutionId,
+            'All Institutions',
+            institutionOptions
+          );
+          const loc = filterOptionLabel(
+            values.locationId,
+            'All Branches',
+            branchOpts
+          );
+          const dept = filterOptionLabel(
+            values.departmentId,
+            'All Departments',
+            departmentOptions
+          );
+          return (
+            <>
+              <div>
+                Date & time range: {from || '—'} to {to || '—'}
+              </div>
+              <div>
+                Doctor: {doctor} | Speciality: {spec} | Institution: {inst} |
+                Branch: {loc} | Department: {dept}
+              </div>
+            </>
+          );
+        }
+      }}
       filterContent={({ values, setValue }) => (
         <>
           {/* Force the date filter onto its own row; other filters + Search/Clear stay on the next row (within FilterWrapper). */}
