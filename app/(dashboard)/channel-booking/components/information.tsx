@@ -93,7 +93,26 @@ function ViewsTab() {
   }
 
   const handleAllDoctorView = () => {
-    const url = `/reports/all-doctor-view`
+    if (!selectedSession) return
+
+    const params = new URLSearchParams()
+
+    const sessionDate = new Date(selectedSession.date)
+    if (!Number.isNaN(sessionDate.getTime())) {
+      params.set("date", sessionDate.toISOString().slice(0, 10))
+    }
+
+    const sessionStart = new Date(selectedSession.startTime)
+    if (!Number.isNaN(sessionStart.getTime())) {
+      params.set("sessionType", sessionStart.getHours() < 12 ? "morning" : "evening")
+    }
+
+    if (selectedSession.locationId) {
+      params.set("locationId", selectedSession.locationId)
+    }
+
+    const query = params.toString()
+    const url = `/reports/all-doctor-view${query ? `?${query}` : ""}`
     window.open(url, '_blank')
   }
 
