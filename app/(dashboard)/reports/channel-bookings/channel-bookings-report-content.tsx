@@ -323,17 +323,17 @@ function ChannelBookingsReportContentInner(
       totalColumnIds={['hospitalFee', 'doctorFee', 'discount', 'totalFee']}
       getTotalNumericValue={(row, columnId) => {
         const o = row as Record<string, unknown>;
-        const fromCents = (key: string) =>
-          typeof o[key] === 'number' ? (o[key] as number) / 100 : 0;
+        const num = (key: string) =>
+          typeof o[key] === 'number' ? (o[key] as number) : 0;
         switch (columnId) {
           case 'hospitalFee':
-            return fromCents('hospitalFee');
+            return num('hospitalFee');
           case 'doctorFee':
-            return fromCents('professionalFee');
+            return num('professionalFee');
           case 'discount':
-            return fromCents('discount');
+            return num('discount');
           case 'totalFee':
-            return fromCents('amount');
+            return num('amount');
           default:
             return 0;
         }
