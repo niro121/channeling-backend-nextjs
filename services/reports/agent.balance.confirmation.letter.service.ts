@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { getAccountBalance } from '@/services/accounting/balance-calc.service';
+import { getAgentBalance } from '@/services/channel-booking/helpers/get-agent-balance';
 import {
   AgentBalanceConfirmationLetterQuery,
   AgentBalanceConfirmationLetterRow,
@@ -76,9 +76,10 @@ export async function getAgentBalanceConfirmationLetterService(
       return { success: false, data: [], totalRecords: 0, message: 'Selected agent not found.' };
     }
 
-    const asAtEnd = new Date(`${asAtDate}T23:59:59.999`);
-    const account = agent.accounts?.[0];
-    const balanceCents = account ? await getAccountBalance(account.id, asAtEnd) : 0;
+    const balanceCents = await getAgentBalance(agent.id, {
+      to_date: asAtDate,
+      balance_at_endof_day: true,
+    });
 
     const row: AgentBalanceConfirmationLetterRow = {
       id: agent.id,
