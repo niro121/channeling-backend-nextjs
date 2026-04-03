@@ -165,12 +165,13 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       };
     }
 
-    // Created by user filter (match user name or username)
+    // Created by user filter (supports selected user id or typed name/username)
     if (createdBy && createdBy.trim() !== '') {
       const q = createdBy.trim();
       whereClause.createdUser = {
         is: {
           OR: [
+            { id: q },
             { name: { contains: q, mode: 'insensitive' } },
             { username: { contains: q, mode: 'insensitive' } }
           ]
@@ -178,12 +179,13 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       };
     }
 
-    // Updated by user filter (match user name or username)
+    // Updated by user filter (supports selected user id or typed name/username)
     if (updatedBy && updatedBy.trim() !== '') {
       const q = updatedBy.trim();
       whereClause.updatedUser = {
         is: {
           OR: [
+            { id: q },
             { name: { contains: q, mode: 'insensitive' } },
             { username: { contains: q, mode: 'insensitive' } }
           ]
