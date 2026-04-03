@@ -172,11 +172,11 @@ export default function DoctorViewReportContent({
   };
 
   const getCancelRefundStatus = (booking: DoctorViewSessionData['bookings'][0]) => {
-    // Align with Phone View rules:
-    // - If full refund (3) with refund receipt -> C
-    // - If any refund (1,2,3) without refund receipt -> R
-    if ((booking.refund ?? 0) === 3 && booking.refundReceiptCreatedAt) return 'C';
-    if ((booking.refund ?? 0) > 0 && !booking.refundReceiptCreatedAt) return 'R';
+    const refund = Number(booking.refund ?? 0);
+    if (refund === 3) return 'C';
+    if (refund === 1) return 'R';
+    if (refund === 2) return 'R';
+    if (refund === 0) return '-';
     return '-';
   };
 
