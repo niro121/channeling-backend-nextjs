@@ -254,7 +254,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Hospital Fee',
       cell: ({ row }) => {
         const fee = (row.original as any).hospitalFee;
-        const n = typeof fee === 'number' ? fee / 100 : 0;
+        const n = typeof fee === 'number' ? fee : 0;
         return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
@@ -263,7 +263,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Doctor Fee',
       cell: ({ row }) => {
         const fee = (row.original as any).professionalFee;
-        const n = typeof fee === 'number' ? fee / 100 : 0;
+        const n = typeof fee === 'number' ? fee : 0;
         return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
@@ -272,7 +272,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Discount',
       cell: ({ row }) => {
         const d = (row.original as any).discount;
-        const n = typeof d === 'number' ? d / 100 : 0;
+        const n = typeof d === 'number' ? d : 0;
         return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
@@ -281,7 +281,7 @@ export const ChannelBookingsReportColumns: ColumnDef<ChannelBookingsReportRow>[]
       header: 'Total Fee',
       cell: ({ row }) => {
         const amt = (row.original as any).amount;
-        const n = typeof amt === 'number' ? amt / 100 : 0;
+        const n = typeof amt === 'number' ? amt : 0;
         return <span className="text-right tabular-nums block">{n > 0 ? n.toFixed(2) : '-'}</span>;
       }
     },
