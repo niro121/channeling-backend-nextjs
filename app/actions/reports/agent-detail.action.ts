@@ -78,6 +78,8 @@ export const exportAgentDetailReportData = async (
         contactPhone: agency.contactPersonPhone || '-',
         contactPersonEmail: agency.contactPersonEmail || '-',
         allowedCreditLimit: agency.allowedCreditLimit?.toFixed(2) || '0.00',
+        maxCreditLimit: agency.maxCreditLimit?.toFixed(2) || '0.00',
+        standardCreditLimit: agency.standardCreditLimit?.toFixed(2) || '0.00',
         balance: agency.balance?.toFixed(2) || '0.00',
       };
     });

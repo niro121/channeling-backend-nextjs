@@ -76,7 +76,7 @@ export const getAgentDetailReportDataService = async ({
         accounts: {
           where: { type: 'PAYABLE', isActive: true },
           take: 1,
-          select: { id: true },
+          select: { id: true, maxBalanceAllowed: true },
         },
       },
       orderBy: {
@@ -88,9 +88,16 @@ export const getAgentDetailReportDataService = async ({
       rows.map(async (row) => {
         const acc = row.accounts?.[0];
         const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const maxLimitLkr = acc?.maxBalanceAllowed ? Number(acc.maxBalanceAllowed) / 100 : 0;
+        const standardCreditLimit = Math.min(
+          Number(row.allowedCreditLimit ?? 0),
+          Number(maxLimitLkr ?? 0)
+        );
         const { accounts: _a, ...rest } = row;
         return {
           ...rest,
+          maxCreditLimit: maxLimitLkr,
+          standardCreditLimit,
           balance: balanceCents / 100,
         };
       })
