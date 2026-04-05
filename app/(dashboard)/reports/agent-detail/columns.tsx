@@ -134,6 +134,30 @@ export const AgentDetailReportColumns: ColumnDef<Agency>[] = [
     }
   },
   {
+    accessorKey: 'maxCreditLimit',
+    header: 'Allowed Maximum Credit Limit',
+    cell: ({ row }) => {
+      const maxCreditLimit = row.getValue<number>('maxCreditLimit');
+      return (
+        <span className="text-right tabular-nums block">
+          {maxCreditLimit != null ? formatLKR(maxCreditLimit) : '0.00'}
+        </span>
+      );
+    }
+  },
+  {
+    accessorKey: 'standardCreditLimit',
+    header: 'Standard Credit Limit',
+    cell: ({ row }) => {
+      const v = row.getValue<number>('standardCreditLimit');
+      return (
+        <span className="text-right tabular-nums block">
+          {v != null ? formatLKR(v) : '0.00'}
+        </span>
+      );
+    }
+  },
+  {
     accessorKey: 'balance',
     header: 'Balance',
     cell: ({ row }) => {
