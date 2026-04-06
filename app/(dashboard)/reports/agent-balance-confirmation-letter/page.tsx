@@ -13,13 +13,13 @@ export default async function AgentBalanceConfirmationLetterPage() {
   const agentOptions: Array<{ id: string; name: string }> =
     agenciesRes.success && agenciesRes.data
       ? [
-          { id: '__all__', name: 'Select Agent' },
+          { id: '__all__', name: 'Agent' },
           ...agenciesRes.data.map((a: any) => ({
             id: a.id || '',
             name: a.code && a.name ? `${a.name} (${a.code})` : a.name || '',
           })),
         ]
-      : [{ id: '__all__', name: 'Select Agent' }];
+      : [{ id: '__all__', name: 'Agent' }];
 
   return <AgentBalanceConfirmationLetterContent agentOptions={agentOptions} />;
 }

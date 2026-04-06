@@ -29,6 +29,14 @@ export type ExportWrapperProps<T> = {
     keys: (keyof T)[];
     fileName?: string;
   }) => void | Promise<void>;
+  /** Optional: custom Excel download handler. When not provided, uses default `downloadExcelUtil`. */
+  customDownloadExcel?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+    fileName?: string;
+  }) => void | Promise<void>;
 };
 
 export const ExportWrapper = <T,>({
@@ -40,7 +48,8 @@ export const ExportWrapper = <T,>({
   fileName = 'report',
   showPrintButton = false,
   customPrintPdf,
-  customDownloadPdf
+  customDownloadPdf,
+  customDownloadExcel
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -148,13 +157,23 @@ export const ExportWrapper = <T,>({
         return;
       }
 
-      downloadExcelUtil({
-        title,
-        data: response.data,
-        columns,
-        keys,
-        fileName: `${formattedFileName}.xlsx`
-      })
+      if (customDownloadExcel) {
+        await customDownloadExcel({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.xlsx`
+        });
+      } else {
+        downloadExcelUtil({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.xlsx`
+        })
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
