@@ -9,6 +9,7 @@ type ReportLimitKey =
   | 'channel_transfer'
   | 'consultant_payments'
   | 'doctor_leave'
+  | 'doctor_arrivals'
   | 'api_log'
   | 'sms_log'
   | 'agent_detail'
