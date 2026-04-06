@@ -41,7 +41,7 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
   [
     {
       id: 'locationName',
-      header: () => <span className="whitespace-nowrap">location</span>,
+      header: () => <span className="whitespace-nowrap">Location</span>,
       cell: ({ row }) => (
         <span className="text-xs">{row.original.location?.name ?? '-'}</span>
       )
@@ -376,7 +376,7 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       id: 'previousSession',
       header: () => <span className="whitespace-nowrap">Previous Session</span>,
       cell: ({ row }) => (
-        <span>{row.original.previousSession?.name ?? '-'}</span>
+        <span className="text-xs">{row.original.previousSession?.name ?? '-'}</span>
       )
     },
     {
