@@ -49,13 +49,14 @@ export type SmsActivityResult = {
 
 export async function getSmsActivityService(
   dateFrom: Date,
-  dateTo: Date
+  dateTo: Date,
+  status: "all" | "sent" | "failed" = "all"
 ): Promise<SmsActivityResult> {
   try {
     const start = new Date(dateFrom)
-    start.setHours(0, 0, 0, 0)
     const end = new Date(dateTo)
-    end.setHours(23, 59, 59, 999)
+    const statusWhere =
+      status === "sent" ? 0 : status === "failed" ? 1 : undefined
     const daySpan = getInclusiveDaySpan(start, end);
     if (daySpan > MAX_RANGE_DAYS) {
       return {
@@ -67,6 +68,7 @@ export async function getSmsActivityService(
     const totalCount = await prisma.smsLog.count({
       where: {
         createdAt: { gte: start, lte: end },
+        status: statusWhere,
       },
     });
     if (totalCount > MAX_RECORDS_SCAN) {
@@ -79,6 +81,7 @@ export async function getSmsActivityService(
     const logs = await prisma.smsLog.findMany({
       where: {
         createdAt: { gte: start, lte: end },
+        status: statusWhere,
       },
       select: {
         id: true,

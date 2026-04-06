@@ -31,6 +31,14 @@ import {
 import { useToast } from "@/components/hooks/use-toast"
 import { Loader2, MessageCircle, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { DateTimeRangePicker } from "@/components/common/date-time-range-picker"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   CartesianGrid,
   Line,
@@ -44,15 +52,38 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })
 }
 
+function toLocalDateTimeValue(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  const h = String(date.getHours()).padStart(2, "0")
+  const min = String(date.getMinutes()).padStart(2, "0")
+  return `${y}-${m}-${d}T${h}:${min}`
+}
+
+function formatPhoneListForDisplay(raw: string): string[] {
+  if (!raw) return ["-"]
+  // Extract digit-based phone tokens to avoid keeping separators from source text.
+  const numbers = raw.match(/[+]?\d+/g) ?? []
+  if (numbers.length === 0) return ["-"]
+  const lines: string[] = []
+  for (let i = 0; i < numbers.length; i += 4) {
+    lines.push(numbers.slice(i, i + 4).join(", "))
+  }
+  return lines
+}
+
 export default function SmsActivityContent() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
-    return d.toISOString().slice(0, 10)
+    d.setHours(0, 0, 0, 0)
+    return toLocalDateTimeValue(d)
   })
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dateTo, setDateTo] = useState(() => toLocalDateTimeValue(new Date()))
+  const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed">("all")
   const [data, setData] = useState<Awaited<ReturnType<typeof getSmsActivityAction>>["data"] | null>(null)
   const [recentSearch, setRecentSearch] = useState("")
   const [recentSearchInput, setRecentSearchInput] = useState("")
@@ -62,7 +93,7 @@ export default function SmsActivityContent() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await getSmsActivityAction({ dateFrom, dateTo })
+      const result = await getSmsActivityAction({ dateFrom, dateTo, status: statusFilter })
       if (result.success && result.data) {
         setData(result.data)
       } else {
@@ -83,7 +114,7 @@ export default function SmsActivityContent() {
     } finally {
       setLoading(false)
     }
-  }, [dateFrom, dateTo, toast])
+  }, [dateFrom, dateTo, statusFilter, toast])
 
   useEffect(() => {
     fetchData()
@@ -108,6 +139,8 @@ export default function SmsActivityContent() {
 
   const total = data ? data.totalSent + data.totalFailed : 0
   const successRate = total > 0 && data ? ((data.totalSent / total) * 100).toFixed(1) : "—"
+  const totalRecentSmsCount =
+    recentSms?.items?.reduce((sum, row) => sum + (row.status === 0 ? 1 : 0), 0) ?? 0
 
   const chartConfig = {
     sent: { label: "Sent", color: "hsl(var(--chart-1))" },
@@ -130,26 +163,33 @@ export default function SmsActivityContent() {
                 </CardDescription>
               </div>
             </div>
-            <div className="flex flex-wrap items-end gap-3 pt-2 sm:pt-0">
+            <div className="flex flex-wrap items-end gap-3 pt-2 sm:pt-0 sm:flex-nowrap">
+              <DateTimeRangePicker
+                from={dateFrom}
+                to={dateTo}
+                onChange={({ from,  to }) => {
+                  setDateFrom(from ?? "")
+                  setDateTo(to ?? "")
+                }}
+                label="Date & time range"
+              />
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">From</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                />
+                <label className="text-xs font-medium text-muted-foreground">Status</label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as "all" | "sent" | "failed")}
+                >
+                  <SelectTrigger className="h-9 w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted-foreground">To</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                />
-              </div>
-              <Button onClick={fetchData} disabled={loading} size="default">
+              <Button onClick={fetchData} disabled={loading} size="default" className="shrink-0">
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -395,44 +435,61 @@ export default function SmsActivityContent() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : recentSms && recentSms.items.length > 0 ? (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="whitespace-nowrap">Date / time</TableHead>
-                    <TableHead className="whitespace-nowrap">Status</TableHead>
-                    <TableHead className="whitespace-nowrap">Source</TableHead>
-                    <TableHead className="whitespace-nowrap">Phone</TableHead>
-                    <TableHead className="min-w-[180px]">Message</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentSms.items.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                        {new Date(row.createdAt).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={
-                            row.status === 0
-                              ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                              : "text-destructive font-medium"
-                          }
-                        >
-                          {row.status === 0 ? "Sent" : "Failed"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-medium text-xs">{row.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.phone}</TableCell>
-                      <TableCell className="max-w-[280px] truncate text-muted-foreground text-xs" title={row.template}>
-                        {row.template || "—"}
-                      </TableCell>
+            <>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Date / time</TableHead>
+                      <TableHead className="whitespace-nowrap">Status</TableHead>
+                      <TableHead className="whitespace-nowrap">Source</TableHead>
+                      <TableHead className="whitespace-nowrap w-[520px] min-w-[520px]">Phone</TableHead>
+                      <TableHead className="min-w-[320px]">Message</TableHead>
+                      <TableHead className="whitespace-nowrap text-right">Count</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {recentSms.items.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                          {new Date(row.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              row.status === 0
+                                ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                                : "text-destructive font-medium"
+                            }
+                          >
+                            {row.status === 0 ? "Sent" : "Failed"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium text-xs">{row.name}</TableCell>
+                        <TableCell className="font-mono text-xs w-[520px] min-w-[520px] align-top">
+                          <div className="space-y-1 leading-5">
+                            {formatPhoneListForDisplay(row.phone ?? "").map((line, idx) => (
+                              <div key={`${row.id}-phone-line-${idx}`} className="whitespace-nowrap">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="min-w-[320px] max-w-[520px] text-muted-foreground text-xs align-top">
+                          <div className="whitespace-pre-wrap break-words leading-5">
+                            {row.template || "—"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{row.status === 0 ? 1 : 0}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                Total Count: <span className="font-semibold text-foreground">{totalRecentSmsCount}</span>
+              </div>
+            </>
           ) : (
             <p className="py-8 text-center text-muted-foreground text-sm">
               {recentSearch ? "No SMS match your search." : "No SMS log entries yet."}
