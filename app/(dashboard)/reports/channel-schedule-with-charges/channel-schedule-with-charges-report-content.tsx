@@ -18,30 +18,6 @@ import type {
   ChannelScheduleWithChargesReportQuery,
   ChannelScheduleWithChargesReportRow
 } from '@/types/reports/channel-schedule-with-charges';
-import { formatLKR } from '@/lib/format-money';
-
-function getFeeById(
-  fees: unknown,
-  feeId: number
-): { localFee?: unknown; foreignFee?: unknown } | null {
-  if (!Array.isArray(fees)) return null;
-  return (
-    (fees as { id?: unknown; localFee?: unknown; foreignFee?: unknown }[]).find(
-      (f) => String(f?.id) === String(feeId)
-    ) ?? null
-  );
-}
-
-function feeAmount(
-  fees: unknown,
-  feeId: number,
-  key: 'localFee' | 'foreignFee'
-): number {
-  const v = getFeeById(fees, feeId)?.[key];
-  if (v == null || v === '') return 0;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
 
 function filterOptionLabel(
   id: string | undefined,
@@ -250,70 +226,6 @@ function ChannelScheduleWithChargesReportContentInner(
       exportFileName="channel-schedule-with-charges"
       getRowId={(row) => row.id ?? ''}
       showPrintButton={true}
-      totalColumnIds={[
-        'doctorFeeLocal',
-        'hospitalFeeLocal',
-        'agencyFeeLocal',
-        'scanFeeLocal',
-        'onCallFeeLocal',
-        'creditCardCommissionLocal',
-        'sessionValueLocal',
-        'doctorFeeForeign',
-        'hospitalFeeForeign',
-        'agencyFeeForeign',
-        'scanFeeForeign',
-        'onCallFeeForeign',
-        'creditCardCommissionForeign',
-        'sessionValueForeign'
-      ]}
-      getTotalNumericValue={(row, columnId) => {
-        const r = row as ChannelScheduleWithChargesReportRow;
-        switch (columnId) {
-          case 'doctorFeeLocal':
-            return feeAmount(r.fees, 0, 'localFee');
-          case 'hospitalFeeLocal':
-            return feeAmount(r.fees, 1, 'localFee');
-          case 'agencyFeeLocal':
-            return feeAmount(r.fees, 2, 'localFee');
-          case 'scanFeeLocal':
-            return feeAmount(r.fees, 3, 'localFee');
-          case 'onCallFeeLocal':
-            return feeAmount(r.fees, 4, 'localFee');
-          case 'creditCardCommissionLocal':
-            return feeAmount(r.fees, 5, 'localFee');
-          case 'sessionValueLocal': {
-            const v = r.amountLocal;
-            if (v == null) return 0;
-            const n = typeof v === 'number' ? v : Number(v);
-            return Number.isFinite(n) ? n : 0;
-          }
-          case 'doctorFeeForeign':
-            return feeAmount(r.fees, 0, 'foreignFee');
-          case 'hospitalFeeForeign':
-            return feeAmount(r.fees, 1, 'foreignFee');
-          case 'agencyFeeForeign':
-            return feeAmount(r.fees, 2, 'foreignFee');
-          case 'scanFeeForeign':
-            return feeAmount(r.fees, 3, 'foreignFee');
-          case 'onCallFeeForeign':
-            return feeAmount(r.fees, 4, 'foreignFee');
-          case 'creditCardCommissionForeign':
-            return feeAmount(r.fees, 5, 'foreignFee');
-          case 'sessionValueForeign': {
-            const v = r.amountForeign;
-            if (v == null) return 0;
-            const n = typeof v === 'number' ? v : Number(v);
-            return Number.isFinite(n) ? n : 0;
-          }
-          default:
-            return 0;
-        }
-      }}
-      formatTotalValue={(_, sum) => (
-        <span className="text-right tabular-nums block font-semibold">
-          {formatLKR(sum)}
-        </span>
-      )}
       emptyMessage="No channel schedule records found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
     />
