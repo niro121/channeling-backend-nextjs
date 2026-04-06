@@ -115,6 +115,8 @@ export type ExportAgentDetailData = {
   contactPhone: string;
   contactPersonEmail: string;
   allowedCreditLimit: string;
+  maxCreditLimit: string;
+  standardCreditLimit: string;
   balance: string;
 };
 

@@ -15,6 +15,7 @@ import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { ExportWrapper } from '../../export-wrapper';
 import { printPdfUtilWithHeader } from '@/lib/utils';
+import Loading from '@/app/(dashboard)/loading';
 
 type PhoneViewReportContentProps = {
   sessionId: string;
@@ -25,7 +26,7 @@ export default function PhoneViewReportContent({
 }: PhoneViewReportContentProps) {
   const { toast } = useToast();
   
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(sessionId));
   const [sessionData, setSessionData] = useState<PhoneViewSessionData | null>(null);
   
   useEffect(() => {
@@ -183,11 +184,7 @@ export default function PhoneViewReportContent({
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-center py-8">Loading...</div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!sessionData) {

@@ -8,6 +8,10 @@ export type Agency = {
   parentAgencyId?: string | null;
   allowedCreditLimit: number;
   balance: number;
+  /** Hard cap from linked PAYABLE account, in LKR */
+  maxCreditLimit?: number;
+  /** Effective policy cap = min(allowedCreditLimit, maxCreditLimit) */
+  standardCreditLimit?: number;
   phone?: string | null;
   mobile?: string | null;
   fax?: string | null;

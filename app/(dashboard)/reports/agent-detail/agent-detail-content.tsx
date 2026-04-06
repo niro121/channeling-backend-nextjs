@@ -20,6 +20,7 @@ import { Agency } from '@/types/agency';
 import { ExportAgentDetailData } from '@/types/report';
 import { AgentDetailReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading';
+import { formatLKR } from '@/lib/format-money';
 
 type AgentDetailReportContentProps = {
   initialAgencyOptions: Array<{ id: string; name: string }>;
@@ -50,6 +51,8 @@ function AgentDetailReportContentInner({
       title="Agent Detail Report"
       description="View agent information with filters"
       filterButtonLabel="Search"
+      totalColumnIds={['allowedCreditLimit', 'maxCreditLimit', 'standardCreditLimit', 'balance']}
+      formatTotalValue={(_columnId, sum) => <span className="tabular-nums">{formatLKR(sum)}</span>}
       filterContent={({ values, setValue }) => (
         <>
           <div className="flex flex-wrap items-end gap-4">
@@ -147,6 +150,8 @@ function AgentDetailReportContentInner({
     'Contact Phone',
     'Contact Person E-mail',
     'Allowed Credit Limit',
+    'Allowed Maximum Credit Limit',
+    'Standard Credit Limit',
     'Balance'
       ]}
       exportKeys={[
@@ -162,6 +167,8 @@ function AgentDetailReportContentInner({
     'contactPhone',
     'contactPersonEmail',
     'allowedCreditLimit',
+    'maxCreditLimit',
+    'standardCreditLimit',
     'balance'
       ]}
       exportTitle="Agent Detail Report"
