@@ -7,6 +7,8 @@ import html2canvas from 'html2canvas';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import {
   exportAgentBalanceConfirmationLetterData,
   getAgentBalanceConfirmationLetterData,
@@ -23,6 +25,20 @@ const SINHALA_FONT_VFS_NAME = 'NotoSansSinhala-Regular.ttf';
 const SINHALA_FONT_FAMILY = 'NotoSansSinhala';
 let sinhalaFontLoaded = false;
 
+function formatAmount(amount: unknown): string {
+  const num =
+    typeof amount === 'number'
+      ? amount
+      : typeof amount === 'string'
+      ? Number(amount)
+      : Number.NaN;
+  if (!Number.isFinite(num)) return '0.00';
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
 function getTodayDate() {
   const now = new Date();
   const y = now.getFullYear();
@@ -35,8 +51,8 @@ function letterLabels(language: string) {
   const isSinhala = language === 'si' || language.toLowerCase() === 'sinhala';
   if (isSinhala) {
     return {
-      greetingNameFallback: 'කුලමනාකාරතුමනි,',
-      greeting: 'මහත්මයාණනි,',
+      greetingNameFallback: 'කළමනාකාරතුමා,',
+      greeting: 'මහත්මයාණෙනි,',
       title: 'ශේෂ තහවුරු සහතිකය',
       body: 'අප ආයතනයේ පවත්වාගෙන යනු ලබන පහත සඳහන් නියෝජිත ගිණුමේ දිනට ශේෂය පහත පරිදි වේ.',
       nameOfAgent: 'නියෝජිත නාමය',
@@ -45,7 +61,7 @@ function letterLabels(language: string) {
       footer1: 'ස්තුතියි.',
       footer2: 'මෙයට,',
       footer3: 'විශ්වාසී,',
-      footer4: 'ගණකාධිකාරී - රුහුණු රෝහල් කාර්යාලය.',
+      footer4: '..............................',
     };
   }
 
@@ -75,11 +91,19 @@ function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExpor
   const t = letterLabels(code);
   const isSinhala = code === 'si';
 
-  const greetingName = (row.agentName?.trim() ? row.agentName.trim() : (t as any).greetingNameFallback) || '-';
+  // For Sinhala, the first line must ALWAYS be the Manager salutation,
+  // not the agent name. For English, this value isn't used.
+  const greetingLine =
+    isSinhala
+      ? ((t as any).greetingNameFallback || '-')
+      : ((row.agentName?.trim() ? row.agentName.trim() : (t as any).greetingNameFallback) || '-');
   const asAtDate = row.asAtDate || '';
-  const body = t.body.replace(' on was ', ` on ${asAtDate} was `);
+  const headerTitle = isSinhala ? `${asAtDate} දිනට ශේෂ සහතිකය.` : t.title;
+  const body = isSinhala
+    ? `අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${asAtDate} දිනට ශේෂය පහත පරිදි වේ.`
+    : t.body.replace(' on was ', ` on ${asAtDate} was `);
 
-  const balanceText = typeof row.balance === 'string' ? row.balance : Number(row.balance ?? 0).toFixed(2);
+  const balanceText = formatAmount(row.balance ?? 0);
 
   const fontStack = isSinhala ? `'NotoSansSinhala', serif` : `'Helvetica', 'Arial', sans-serif`;
 
@@ -95,15 +119,25 @@ function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExpor
       color: #000;
       min-height: 720px;
     ">
+      ${isSinhala
+        ? `
       <div style="text-align: left;">
-        <div style="font-size: 16px;">${escapeHtml(greetingName)}</div>
-        <div style="font-size: 16px;">,</div>
-        <div style="font-size: 16px; margin-top: 8px;">${escapeHtml(asAtDate)}</div>
-        <div style="font-size: 16px; margin-top: 8px;">${escapeHtml(t.greeting)}</div>
-      </div>
+        <div style="font-size: 16px;">${escapeHtml(greetingLine)}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(row.agentName || '-')}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(asAtDate)}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(t.greeting)}</div>
+      </div>`
+        : `
+      <div style="text-align: left;">
+        <div style="font-size: 16px;">The Manager,</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(row.agentName || '-')}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(asAtDate)}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(t.greeting)}</div>
+      </div>`
+      }
 
       <div style="text-align:center; margin-top: 36px;">
-        <div style="font-weight: 700; text-decoration: underline; font-size: 16px;">${escapeHtml(t.title)}</div>
+        <div style="font-weight: 700; ${isSinhala ? '' : 'text-decoration: underline;'} font-size: 16px;">${escapeHtml(headerTitle)}</div>
       </div>
 
       <div style="text-align:center; margin-top: 22px; font-size: 14px;">
@@ -122,11 +156,12 @@ function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExpor
         <div style="text-align: right;">${escapeHtml(balanceText)}</div>
       </div>
 
-      <div style="margin-top: 44px;">
+      <div style="margin-top: 48px;">
         <div>${escapeHtml(t.footer1)}</div>
-        <div style="margin-top: 14px;">${escapeHtml(t.footer2)}</div>
-        <div style="margin-top: 14px;">${escapeHtml(t.footer3)}</div>
-        <div style="margin-top: 14px;">${escapeHtml(t.footer4)}</div>
+        <div>${escapeHtml(t.footer2)}</div>
+        <div>${escapeHtml(t.footer3)}</div>
+        <div>${escapeHtml(t.footer4)}</div>
+        ${isSinhala ? `<div>${escapeHtml('ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.')}</div>` : ''}
       </div>
     </div>
   `;
@@ -197,7 +232,7 @@ async function openLetterPrintWindowViaHtml(title: string, row: AgentBalanceConf
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(title)}</title>
+        <title>${langCode === 'si' ? '' : escapeHtml(title)}</title>
         <style>
           @page { size: A4; margin: 10mm; }
           html, body { margin: 0; padding: 0; background: #fff; }
@@ -216,8 +251,74 @@ async function openLetterPrintWindowViaHtml(title: string, row: AgentBalanceConf
   win.document.open();
   win.document.write(docHtml);
   win.document.close();
-  win.focus();
-  win.print();
+
+  const triggerPrint = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fonts: any = (win.document as any).fonts;
+      if (fonts?.ready) {
+        await fonts.ready;
+      }
+    } catch {
+      // ignore font readiness errors
+    }
+    // Allow layout/paint to complete before printing
+    setTimeout(() => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        // ignore
+      }
+    }, 120);
+  };
+
+  if (win.document.readyState === 'complete') {
+    void triggerPrint();
+  } else {
+    win.addEventListener('load', () => void triggerPrint());
+  }
+}
+
+async function printLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceConfirmationLetterExportRow) {
+  // Render the HTML letter off-screen, rasterize at high scale, then print via jsPDF for crisp Sinhala.
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.background = '#fff';
+  container.innerHTML = buildLetterHtml(title, row);
+  document.body.appendChild(container);
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fonts: any = (document as any).fonts;
+    if (fonts?.ready) await fonts.ready;
+  } catch {
+    // ignore
+  }
+
+  const canvas = await html2canvas(container, {
+    scale: 3,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+  });
+  container.remove();
+
+  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const pageWidth = 210;
+  const pageMargin = 10;
+  const imgWidth = pageWidth - pageMargin * 2;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const imgData = canvas.toDataURL('image/png');
+  pdf.addImage(imgData, 'PNG', pageMargin, 10, imgWidth, imgHeight);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsDoc = pdf as any;
+  if (typeof jsDoc.autoPrint === 'function') {
+    jsDoc.autoPrint({ variant: 'non-conform' });
+  }
+  window.open(pdf.output('bloburl'), '_blank');
 }
 
 async function ensureSinhalaFont(doc: jsPDF) {
@@ -263,35 +364,61 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
   }
   let y = 20;
 
+  // Omit the external report title on the printable letter. We'll use the
+  // centered letter title below instead.
   doc.setFontSize(13);
-  doc.text(title, margin, y);
-  y += 16;
 
-  if (row.agentName?.trim()) {
+  if (isSinhala) {
+    // Sinhala letter header format:
+    // කළමනාකාරතුමා,
+    // <Agency Name>
+    // <Date>
+    // මහත්මයාණෙනි,
     doc.setFontSize(11);
-    doc.text(row.agentName, margin, y);
+    doc.text('කළමනාකාරතුමා,', margin, y);
     y += 7;
+    if (row.agentName?.trim()) {
+      doc.text(row.agentName, margin, y);
+      y += 7;
+    }
+    if (row.asAtDate?.trim()) {
+      doc.text(row.asAtDate, margin, y);
+      y += 10;
+    }
+    doc.text('මහත්මයාණෙනි,', margin, y);
+    y += 12;
+  } else {
+    // English letter header format:
+    // The Manager,
+    // <Agency Name>,
+    // <Date>
+    // Dear Sir/s,
+    doc.setFontSize(11);
+    doc.text('The Manager,', margin, y);
+    y += 7;
+    if (row.agentName?.trim()) {
+      doc.text(row.agentName, margin, y);
+      y += 7;
+    }
+    if (row.asAtDate?.trim()) {
+      doc.text(row.asAtDate, margin, y);
+      y += 10;
+    }
+    doc.text(t.greeting, margin, y);
+    y += 12;
   }
-  if (row.address?.trim()) {
-    const wrappedAddress = doc.splitTextToSize(row.address, pageWidth - margin * 2);
-    doc.text(wrappedAddress as string[], margin, y);
-    y += wrappedAddress.length * 6 + 2;
-  }
-
-  if (row.asAtDate?.trim()) {
-    doc.text(row.asAtDate, margin, y);
-    y += 10;
-  }
-
-  doc.text(t.greeting, margin, y);
-  y += 12;
 
   doc.setFontSize(12);
-  doc.text(t.title, pageWidth / 2, y, { align: 'center' });
+  const headerTitleForPdf =
+    isSinhala ? `${row.asAtDate ?? ''} දිනට ශේෂ සහතිකය.` : t.title;
+  doc.text(headerTitleForPdf, pageWidth / 2, y, { align: 'center' });
   y += 10;
 
   doc.setFontSize(11);
-  const body = t.body.replace(' on was ', ` on ${row.asAtDate} was `);
+  const body =
+    isSinhala
+      ? `අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${row.asAtDate ?? ''} දිනට ශේෂය පහත පරිදි වේ.`
+      : t.body.replace(' on was ', ` on ${row.asAtDate} was `);
   const wrappedBody = doc.splitTextToSize(body, pageWidth - margin * 2);
   doc.text(wrappedBody as string[], margin, y);
   y += wrappedBody.length * 6 + 10;
@@ -304,16 +431,21 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
 
   doc.text(row.agentName || '-', margin, y);
   doc.text(row.agentCode || '-', margin + 105, y);
-  doc.text(row.balance || '0.00', pageWidth - margin, y, { align: 'right' });
+  doc.text(formatAmount(row.balance ?? 0), pageWidth - margin, y, { align: 'right' });
   y += 22;
 
+  // Tighter, uniform footer spacing to match preview (no extra space-y).
   doc.text(t.footer1, margin, y);
-  y += 12;
+  y += 7;
   doc.text(t.footer2, margin, y);
-  y += 10;
+  y += 7;
   doc.text(t.footer3, margin, y);
-  y += 10;
+  y += 7;
   doc.text(t.footer4, margin, y);
+  if (isSinhala) {
+    y += 7;
+    doc.text('ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.', margin, y);
+  }
 
   return doc;
 }
@@ -344,7 +476,7 @@ function AgentBalanceConfirmationLetterContentInner({
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
           <Combobox
-            label="Select Agent"
+            label="Agent"
             options={agentOptions}
             value={values.agentId ?? '__all__'}
             defaultValue="__all__"
@@ -408,7 +540,7 @@ function AgentBalanceConfirmationLetterContentInner({
         const langCode = getLangCode(row.language);
         // Print via HTML to preserve Sinhala shaping and layout.
         if (langCode === 'si') {
-          await openLetterPrintWindowViaHtml(title, row);
+          await printLetterPdfViaHtml2Canvas(title, row);
           return;
         }
         const doc = await buildLetterPdf(title, row);
@@ -418,6 +550,86 @@ function AgentBalanceConfirmationLetterContentInner({
           jsDoc.autoPrint({ variant: 'non-conform' });
         }
         window.open(doc.output('bloburl'), '_blank');
+      }}
+      customDownloadExcel={async ({ title, data, fileName }) => {
+        const row = data?.[0];
+        if (!row) return;
+
+        const isSinhala = getLangCode(row.language) === 'si';
+        const t = letterLabels(row.language);
+        const asAtDate = row.asAtDate || '';
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet(title || 'Sheet1');
+
+        // Configure columns (three columns for table section; first column wide for text)
+        sheet.columns = [
+          { header: '', key: 'col1', width: 60 },
+          { header: '', key: 'col2', width: 24 },
+          { header: '', key: 'col3', width: 24 }
+        ];
+
+        let r = 1;
+        // Header block
+        if (isSinhala) {
+          sheet.addRow([`කළමනාකාරතුමා,`]); r++;
+          sheet.addRow([row.agentName || '-']); r++;
+          sheet.addRow([asAtDate]); r++;
+          sheet.addRow([`මහත්මයාණෙනි,`]); r++;
+          sheet.addRow(['']); r++;
+
+          sheet.addRow([`${asAtDate} දිනට ශේෂ සහතිකය.`]); r++;
+          // Title style
+          sheet.getCell(`A${r - 1}`).font = { bold: true };
+          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
+
+          sheet.addRow(['']); r++;
+          sheet.addRow([`අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${asAtDate} දිනට ශේෂය පහත පරිදි වේ.`]); r++;
+          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
+          sheet.addRow(['']); r++;
+        } else {
+          // English header
+          sheet.addRow([row.agentName || '-']); r++;
+          sheet.addRow([asAtDate]); r++;
+          sheet.addRow([t.greeting]); r++;
+          sheet.addRow(['']); r++;
+
+          sheet.addRow([t.title]); r++;
+          sheet.getCell(`A${r - 1}`).font = { bold: true, underline: true };
+          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
+          sheet.addRow(['']); r++;
+
+          const bodyEn = t.body.replace(' on was ', ` on ${asAtDate} was `);
+          sheet.addRow([bodyEn]); r++;
+          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
+          sheet.addRow(['']); r++;
+        }
+
+        // Table headers
+        sheet.addRow([t.nameOfAgent, t.agentCode, t.balanceAsAtDate]); r++;
+        sheet.getRow(r - 1).font = { bold: true };
+        sheet.getCell(`B${r - 1}`).alignment = { horizontal: 'center' };
+        sheet.getCell(`C${r - 1}`).alignment = { horizontal: 'right' };
+
+        // Table row
+        sheet.addRow([row.agentName || '-', row.agentCode || '-', formatAmount(row.balance ?? 0)]); r++;
+        sheet.getCell(`B${r - 1}`).alignment = { horizontal: 'center' };
+        sheet.getCell(`C${r - 1}`).alignment = { horizontal: 'right' };
+
+        // Footer
+        r += 1;
+        sheet.addRow([t.footer1]); r++;
+        sheet.addRow([t.footer2]); r++;
+        sheet.addRow([t.footer3]); r++;
+        sheet.addRow([t.footer4]); r++;
+        if (isSinhala) {
+          sheet.addRow([`ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.`]); r++;
+        } else {
+          sheet.addRow([`Ruhunu Hospital (Pvt.) Ltd.`]); r++;
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), (fileName || 'agent-balance-confirmation-letter.xlsx'));
       }}
       getRowId={(row) => row.id}
       showPrintButton={true}
