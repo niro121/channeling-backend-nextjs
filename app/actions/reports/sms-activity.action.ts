@@ -8,9 +8,8 @@ import { getSmsActivityService } from "@/services/reports/sms-activity.service"
 const smsActivitySchema = z.object({
   dateFrom: z.string().min(1),
   dateTo: z.string().min(1),
+  status: z.enum(["all", "sent", "failed"]).optional(),
 })
-
-export type SmsActivityActionInput = z.infer<typeof smsActivitySchema>
 
 export async function getSmsActivityAction(
   raw: unknown
@@ -32,18 +31,15 @@ export async function getSmsActivityAction(
     return { success: false, message: "Invalid date range" }
   }
   if (dateFrom > dateTo) {
-    return { success: false, message: "From date must be before to date" }
+    return { success: false, message: "From date/time must be before to date/time" }
   }
 
-  return getSmsActivityService(dateFrom, dateTo)
+  return getSmsActivityService(dateFrom, dateTo, parsed.data.status ?? "all")
 }
 
 const smsLogRecentSchema = z.object({
   search: z.string().optional().nullable(),
 })
-
-export type SmsLogRecentActionInput = z.infer<typeof smsLogRecentSchema>
-export type { SmsLogRecentResult } from "@/services/reports/sms-log-recent.service"
 
 export async function getSmsLogRecentAction(
   raw: unknown
