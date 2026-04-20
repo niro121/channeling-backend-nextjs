@@ -12,7 +12,13 @@ function sessionCalendarLabel(d: Date): string {
 }
 
 function sessionStartLabel(d: Date): string {
-  return moment(d).utcOffset(330).format('h.mmA');
+  return moment(d).utcOffset(330).format('h.mm A');
+}
+
+/** Space before AM/PM when value is glued (e.g. 8.00AM); leaves '-' and already-spaced text unchanged. */
+function spaceBeforeMeridiem(s: string): string {
+  if (!s || s === '-') return s;
+  return s.replace(/(\d)(AM|PM)\b/gi, '$1 $2');
 }
 
 export const DoctorArrivalsReportColumns: ColumnDef<DoctorArrivalsReportRow>[] = [
@@ -51,7 +57,7 @@ export const DoctorArrivalsReportColumns: ColumnDef<DoctorArrivalsReportRow>[] =
   {
     accessorKey: 'sessionStartTime',
     header: 'Session Start Time',
-    cell: ({ row }) => sessionStartLabel(row.original.sessionStartTime)
+    cell: ({ row }) => <span className="text-xs whitespace-nowrap">{sessionStartLabel(row.original.sessionStartTime)}</span>
   },
   {
     accessorKey: 'sessionStatus',
@@ -76,12 +82,16 @@ export const DoctorArrivalsReportColumns: ColumnDef<DoctorArrivalsReportRow>[] =
   {
     accessorKey: 'doctorArrivalDisplay',
     header: 'Doctor Arrival Time',
-    cell: ({ row }) => row.original.doctorArrivalDisplay
+    cell: ({ row }) => (
+      <span className="text-xs whitespace-nowrap">{spaceBeforeMeridiem(row.original.doctorArrivalDisplay)}</span>
+    )
   },
   {
     accessorKey: 'doctorDepartureDisplay',
     header: 'Doctor Departure Time',
-    cell: ({ row }) => row.original.doctorDepartureDisplay
+    cell: ({ row }) => (
+      <span className="text-xs whitespace-nowrap">{spaceBeforeMeridiem(row.original.doctorDepartureDisplay)}</span>
+    )
   },
   {
     id: 'roomReleasedBy',
@@ -95,6 +105,6 @@ export const DoctorArrivalsReportColumns: ColumnDef<DoctorArrivalsReportRow>[] =
   {
     accessorKey: 'roomNumber',
     header: 'Room Number',
-    cell: ({ row }) => row.original.roomNumber
+    cell: ({ row }) => <span className="text-xs whitespace-nowrap">{row.original.roomNumber}</span>
   }
 ];
