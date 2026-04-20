@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery, DoctorArrivalsReportQuery } from '@/types/report';
+import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery } from '@/types/report';
 import moment from 'moment';
 
 // Get Prisma types from the prisma instance
@@ -61,75 +61,6 @@ export const getDoctorReportDataService = async ({
   }
 };
 
-// ==== GET DOCTOR ARRIVALS REPORT DATA ==== //
-export const getDoctorArrivalsReportDataService = async ({
-  doctorId,
-  locationId,
-  fromDate,
-  toDate
-}: DoctorArrivalsReportQuery) => {
-  try {
-    // Parse dates
-    const fromDateObj = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
-    const toDateObj = typeof toDate === 'string' ? new Date(toDate) : toDate;
-
-    const fromDateStart = moment(fromDateObj).startOf('day').toDate();
-    const toDateEnd = moment(toDateObj).endOf('day').toDate();
-
-    // Build where clause
-    const whereClause: PrismaSessionWhereInput = {
-      date: {
-        gte: fromDateStart,
-        lte: toDateEnd
-      }
-    };
-
-    // Apply doctor filter
-    if (doctorId) {
-      whereClause.doctorId = doctorId;
-    }
-
-    // Apply location filter
-    if (locationId) {
-      whereClause.locationId = locationId;
-    }
-
-    // Fetch sessions with related data
-    const sessions = await prisma.session.findMany({
-      where: whereClause,
-      include: {
-        doctor: true,
-        location: true,
-        room: true,
-        createdUser: true,
-        updatedUser: true
-      },
-      orderBy: [
-        { date: 'asc' },
-        { startTime: 'asc' }
-      ]
-    });
-
-    // Map sessions to ensure Date fields are properly typed
-    const mappedSessions = sessions.map((session) => ({
-      ...session,
-      startTime: session.startTime instanceof Date ? session.startTime : new Date(session.startTime),
-      endTime: session.endTime instanceof Date ? session.endTime : new Date(session.endTime),
-      date: session.date instanceof Date ? session.date : new Date(session.date)
-    }));
-
-    return {
-      success: true,
-      data: mappedSessions,
-      totalRecords: mappedSessions.length
-    };
-  } catch (error: unknown) {
-    console.error('getDoctorArrivalsReportDataService error', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor arrivals report data';
-    throw new Error(errorMessage);
-  }
-};
-
 // ==== GET CHANNEL AGENT REFERENCE BOOK REPORT DATA ==== //
 export const getChannelAgentReferenceBookReportDataService = async ({
   fromDate,
@@ -165,12 +96,13 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       };
     }
 
-    // Created by user filter (match user name or username)
+    // Created by user filter (supports selected user id or typed name/username)
     if (createdBy && createdBy.trim() !== '') {
       const q = createdBy.trim();
       whereClause.createdUser = {
         is: {
           OR: [
+            { id: q },
             { name: { contains: q, mode: 'insensitive' } },
             { username: { contains: q, mode: 'insensitive' } }
           ]
@@ -178,12 +110,13 @@ export const getChannelAgentReferenceBookReportDataService = async ({
       };
     }
 
-    // Updated by user filter (match user name or username)
+    // Updated by user filter (supports selected user id or typed name/username)
     if (updatedBy && updatedBy.trim() !== '') {
       const q = updatedBy.trim();
       whereClause.updatedUser = {
         is: {
           OR: [
+            { id: q },
             { name: { contains: q, mode: 'insensitive' } },
             { username: { contains: q, mode: 'insensitive' } }
           ]

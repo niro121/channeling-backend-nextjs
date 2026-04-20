@@ -5,6 +5,9 @@ import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import { BOOKING_METHODS } from '@/types/channel-booking';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { fetchServerSession } from '@/lib/session';
+import prisma from '@/lib/prisma';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import ChannelBookingsReportContent from './channel-bookings-report-content';
 import { STATUS_OPTIONS, REFUND_STATUS_OPTIONS, DATE_TYPE_OPTIONS } from '@/types/reports/channel-bookings';
 import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
@@ -16,6 +19,7 @@ export default async function ChannelBookingsReportPage() {
   if (!canView) redirect('/unauthorized-access');
 
   const [
+    session,
     doctorRef,
     locRef,
     deptRef,
@@ -23,6 +27,7 @@ export default async function ChannelBookingsReportPage() {
     areaRef,
     agencyRef,
   ] = await Promise.all([
+    fetchServerSession(),
     getReportFilterOptions({ doctors: true }),
     getReportFilterOptions({ locations: true }),
     getReportFilterOptions({ departments: true }),
@@ -30,6 +35,19 @@ export default async function ChannelBookingsReportPage() {
     getReportFilterOptions({ areas: true }),
     getReportFilterOptions({ agencies: true }),
   ]);
+
+  const currentUser =
+    session?.user?.id
+      ? await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true, name: true, staff: { select: { code: true } } },
+        })
+      : null;
+  const currentUserName = formatUserDisplayName(
+    currentUser?.name ?? session?.user?.name,
+    currentUser?.id ?? session?.user?.id,
+    currentUser?.staff?.code
+  );
 
   const doctorOptions: Array<{ id: string; name: string }> =
     doctorRef.success && doctorRef.doctorOptions
@@ -86,6 +104,7 @@ export default async function ChannelBookingsReportPage() {
 
   return (
     <ChannelBookingsReportContent
+      currentUserName={currentUserName}
       institutionOptions={INSTITUTION_OPTIONS}
       locationOptions={locationOptions}
       departmentOptions={departmentOptions}

@@ -100,6 +100,14 @@ export interface ReportTemplateProps<T, E = T> {
     keys: (keyof E)[];
     fileName?: string;
   }) => void | Promise<void>;
+  /** Optional: override the Excel download generation for this report only. */
+  customDownloadExcel?: (args: {
+    title: string;
+    data: E[];
+    columns: string[];
+    keys: (keyof E)[];
+    fileName?: string;
+  }) => void | Promise<void>;
   /** Empty state message */
   emptyMessage?: string;
   /** When skipFetchWhenNoParams is true, message shown before first search (no URL params yet). */
@@ -156,6 +164,7 @@ function ReportTemplateContent<T, E = T>({
   showPrintButton = true,
   customPrintPdf,
   customDownloadPdf,
+  customDownloadExcel,
   emptyMessage = 'No data found',
   initialEmptyMessage,
   skipFetchWhenNoParams = false,
@@ -316,8 +325,8 @@ function ReportTemplateContent<T, E = T>({
 
   const defaultFormatTotal = React.useCallback((_columnId: string, sum: number) => {
     return sum.toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 0
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   }, []);
 
@@ -346,6 +355,7 @@ function ReportTemplateContent<T, E = T>({
               showPrintButton={showPrintButton}
               customPrintPdf={customPrintPdf}
               customDownloadPdf={customDownloadPdf}
+              customDownloadExcel={customDownloadExcel}
             />
           </div>
         </CardHeader>

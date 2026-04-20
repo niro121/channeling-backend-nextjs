@@ -22,6 +22,15 @@ import {
 } from '@/types/reports/channel-bookings';
 import type { ChannelBookingsReportContentProps } from '@/types/reports/channel-bookings';
 
+function filterOptionLabel(
+  id: string | undefined,
+  allLabel: string,
+  options: Array<{ id: string; name: string }>
+): string {
+  if (id == null || id === '' || id === '__all__') return allLabel;
+  return options.find((o) => o.id === id)?.name ?? id;
+}
+
 function ChannelBookingsReportContentInner(
   props: ChannelBookingsReportContentProps
 ) {
@@ -53,6 +62,102 @@ function ChannelBookingsReportContentInner(
       description="View channel booking records with filters for date range, data type, institution, branch, department, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method"
       filterButtonLabel="Search"
       initialEmptyMessage="No bookings found. Select filters and click Search."
+      generationDetails={{
+        generatedBy: props.currentUserName,
+        formatFilters: (values) => {
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          const dateTypeId = values.dateType ?? 'session_date';
+          const dateTypeLabel =
+            props.dateTypeOptions.find((o) => o.id === dateTypeId)?.name ??
+            dateTypeId;
+          const inst = filterOptionLabel(
+            values.institutionId,
+            'All Institutions',
+            props.institutionOptions
+          );
+          const branchType = filterOptionLabel(
+            values.branchTypeId,
+            'All Branch Types',
+            props.branchTypeOptions
+          );
+          const loc = filterOptionLabel(
+            values.locationId,
+            'All Branches',
+            props.locationOptions
+          );
+          const dept = filterOptionLabel(
+            values.departmentId,
+            'All Departments',
+            props.departmentOptions
+          );
+          const area = filterOptionLabel(
+            values.areaId,
+            'All Areas',
+            props.areaOptions
+          );
+          const agency = filterOptionLabel(
+            values.agencyId,
+            'All Agents',
+            props.agencyOptions
+          );
+          const doctor = filterOptionLabel(
+            values.doctorId,
+            'All Doctors',
+            props.doctorOptions
+          );
+          const spec = filterOptionLabel(
+            values.specialityId,
+            'All Specialities',
+            props.specialityOptions
+          );
+          const phone = values.patientPhone?.trim();
+          const gender = filterOptionLabel(
+            values.gender,
+            'All',
+            props.genderOptions
+          );
+          const status = filterOptionLabel(
+            values.status,
+            'All Statuses',
+            props.statusOptions
+          );
+          const refund = filterOptionLabel(
+            values.refundStatus,
+            'All Refund Statuses',
+            props.refundStatusOptions
+          );
+          const payType = filterOptionLabel(
+            values.paymentTypeId,
+            'All Payment Types',
+            props.paymentTypeOptions
+          );
+          const method = filterOptionLabel(
+            values.methodId,
+            'All Methods',
+            props.methodOptions
+          );
+          return (
+            <>
+              <div>
+                Range: {from || '—'} to {to || '—'} | Date type: {dateTypeLabel}
+              </div>
+              <div>
+                Institution: {inst} | Branch type: {branchType} | Branch: {loc} |
+                Department: {dept} | Area: {area} | Agency: {agency}
+              </div>
+              <div>
+                Doctor: {doctor} | Speciality: {spec} | Patient phone:{' '}
+                {phone || '—'} | Gender: {gender}
+              </div>
+              <div>
+                Status: {status} | Refund: {refund} | Payment: {payType} |
+                Method: {method}
+              </div>
+            </>
+          );
+        }
+      }}
       filterContent={({ values, setValue }) => {
         const hasDateRange = Boolean(
           values.fromDateTime?.trim() && values.toDateTime?.trim()
@@ -323,17 +428,17 @@ function ChannelBookingsReportContentInner(
       totalColumnIds={['hospitalFee', 'doctorFee', 'discount', 'totalFee']}
       getTotalNumericValue={(row, columnId) => {
         const o = row as Record<string, unknown>;
-        const fromCents = (key: string) =>
-          typeof o[key] === 'number' ? (o[key] as number) / 100 : 0;
+        const num = (key: string) =>
+          typeof o[key] === 'number' ? (o[key] as number) : 0;
         switch (columnId) {
           case 'hospitalFee':
-            return fromCents('hospitalFee');
+            return num('hospitalFee');
           case 'doctorFee':
-            return fromCents('professionalFee');
+            return num('professionalFee');
           case 'discount':
-            return fromCents('discount');
+            return num('discount');
           case 'totalFee':
-            return fromCents('amount');
+            return num('amount');
           default:
             return 0;
         }

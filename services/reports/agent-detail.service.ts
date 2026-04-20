@@ -24,18 +24,24 @@ export const getAgentDetailReportDataService = async ({
   try {
     const whereClause: PrismaAgencyWhereInput = {};
 
-    // Date range filter (required) - filter by createdAt
-    const startOfDay = moment(fromDate).startOf('day').toDate();
-    const endOfDay = moment(toDate).endOf('day').toDate();
-    const daySpan = getInclusiveDaySpan(startOfDay, endOfDay);
-    if (daySpan > MAX_RANGE_DAYS) {
-      throw new Error(`Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`);
-    }
+    // Date range filter (optional) - filter by createdAt only when both values are provided
+    if (fromDate || toDate) {
+      if (!fromDate || !toDate) {
+        throw new Error('Please provide both from date and to date.');
+      }
 
-    whereClause.createdAt = {
-      gte: startOfDay,
-      lte: endOfDay,
-    };
+      const startOfDay = moment(fromDate).startOf('day').toDate();
+      const endOfDay = moment(toDate).endOf('day').toDate();
+      const daySpan = getInclusiveDaySpan(startOfDay, endOfDay);
+      if (daySpan > MAX_RANGE_DAYS) {
+        throw new Error(`Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`);
+      }
+
+      whereClause.createdAt = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
 
     // Agency selector filter (optional)
     if (agencyId && agencyId !== '__all__') {
@@ -67,7 +73,7 @@ export const getAgentDetailReportDataService = async ({
       where: whereClause
     });
     if (totalRecords > MAX_RECORDS_SCAN) {
-      throw new Error(`Too many records in selected range (${totalRecords}). Please narrow filters/date range.`);
+      throw new Error(`Too many records selected (${totalRecords}). Please narrow your filters.`);
     }
 
     const rows = await prisma.agency.findMany({
@@ -76,7 +82,7 @@ export const getAgentDetailReportDataService = async ({
         accounts: {
           where: { type: 'PAYABLE', isActive: true },
           take: 1,
-          select: { id: true },
+          select: { id: true, maxBalanceAllowed: true },
         },
       },
       orderBy: {
@@ -88,9 +94,16 @@ export const getAgentDetailReportDataService = async ({
       rows.map(async (row) => {
         const acc = row.accounts?.[0];
         const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const maxLimitLkr = acc?.maxBalanceAllowed ? Number(acc.maxBalanceAllowed) / 100 : 0;
+        const standardCreditLimit = Math.min(
+          Number(row.allowedCreditLimit ?? 0),
+          Number(maxLimitLkr ?? 0)
+        );
         const { accounts: _a, ...rest } = row;
         return {
           ...rest,
+          maxCreditLimit: maxLimitLkr,
+          standardCreditLimit,
           balance: balanceCents / 100,
         };
       })

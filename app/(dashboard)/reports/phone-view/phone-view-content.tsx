@@ -15,6 +15,7 @@ import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { ExportWrapper } from '../../export-wrapper';
 import { printPdfUtilWithHeader } from '@/lib/utils';
+import Loading from '@/app/(dashboard)/loading';
 
 type PhoneViewReportContentProps = {
   sessionId: string;
@@ -25,7 +26,7 @@ export default function PhoneViewReportContent({
 }: PhoneViewReportContentProps) {
   const { toast } = useToast();
   
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(sessionId));
   const [sessionData, setSessionData] = useState<PhoneViewSessionData | null>(null);
   
   useEffect(() => {
@@ -157,17 +158,15 @@ export default function PhoneViewReportContent({
   const getPresentAbsentStatus = (
     booking: PhoneViewSessionData['bookings'][0]
   ) => {
-    // Keep P/A strictly for attendance; refunds are shown in C/R column.
-    if ((booking.refund ?? 0) > 0) return '-';
-    if (booking.status === 2) return '-';
+    // Same rule as Doctor View: status=1 => Present, otherwise => Absent
     return booking.status === 1 ? 'Present' : 'Absent';
   };
 
   const getCancelRefundStatus = (booking: PhoneViewSessionData['bookings'][0]) => {
-    // If full refund exists with refund receipt, treat as cancelled
-    if ((booking.refund ?? 0) === 3 && booking.refundReceiptCreatedAt) return 'C';
-    // If has any refund flag (1,2,3) but no refund receipt yet, show as R
-    if ((booking.refund ?? 0) > 0 && !booking.refundReceiptCreatedAt) return 'R';
+    const refund = Number(booking.refund ?? 0);
+    if (refund === 3) return 'C';
+    if (refund === 1) return 'R';
+    if (refund === 2) return 'R';
     return '-';
   };
 
@@ -185,11 +184,7 @@ export default function PhoneViewReportContent({
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="text-center py-8">Loading...</div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!sessionData) {

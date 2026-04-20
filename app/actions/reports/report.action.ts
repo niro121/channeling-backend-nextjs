@@ -3,23 +3,17 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService, getDoctorArrivalsReportDataService } from '@/services/reports/report.service';
+import { getDoctorReportDataService, getChannelAgentReferenceBookReportDataService } from '@/services/reports/report.service';
 import { 
   DoctorReportQuery, 
   DoctorReportResponse, 
   ChannelAgentReferenceBookReportQuery, 
   ChannelAgentReferenceBookReportResponse, 
-  DoctorArrivalsReportQuery, 
-  DoctorArrivalsReportResponse,
   ExportDoctorData,
-  ExportDoctorArrivalsData,
   ExportChannelAgentReferenceBookData
 } from '@/types/report';
-import { normalizeSessionTime } from '@/lib/utils';
 import { requirePermission } from '@/lib/server-permissions';
-import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 import { Doctor } from '@/types/doctor';
-import { Session } from '@/types/booking.dashboard';
 import { AgencyBook } from '@/types/agencybook';
 import moment from 'moment';
 
@@ -118,31 +112,6 @@ export const exportDoctorReportData = async (
     const errorMessage = error instanceof Error ? error.message : 'Error exporting doctor report data';
     return {
       success: false,
-      message: errorMessage
-    };
-  }
-};
-
-// ==== GET DOCTOR ARRIVALS REPORT DATA ==== //
-export const getDoctorArrivalsReportData = async (
-  query: DoctorArrivalsReportQuery
-): Promise<DoctorArrivalsReportResponse> => {
-  try {
-    const result = await getDoctorArrivalsReportDataService(query);
-
-    return {
-      success: true,
-      data: result.data,
-      totalRecords: result.totalRecords
-    };
-  } catch (error: unknown) {
-    console.error('getDoctorArrivalsReportData error', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor arrivals report data';
-
-    return {
-      success: false,
-      data: [],
-      totalRecords: 0,
       message: errorMessage
     };
   }
@@ -262,60 +231,3 @@ export const exportChannelAgentReferenceBookReportData = async (
   }
 };
 
-// ==== EXPORT DOCTOR ARRIVALS REPORT DATA ==== //
-export const exportDoctorArrivalsReportData = async (
-  query: DoctorArrivalsReportQuery
-): Promise<{ success: boolean; data?: ExportDoctorArrivalsData[]; message?: string }> => {
-  try {
-    const result = await getDoctorArrivalsReportDataService(query);
-
-    if (!result.success || !result.data?.length) {
-      return {
-        success: false,
-        message: 'No data available'
-      };
-    }
-
-    const mappedSessions: ExportDoctorArrivalsData[] = result.data.map((session: Session) => {
-      const sessionDate = session.date instanceof Date ? session.date : new Date(session.date);
-      const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDate);
-      const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDate);
-      const startTimeStr = moment(startDate).format('h:mm A');
-      const endTimeStr = moment(endDate).format('h:mm A');
-      
-      return {
-        consultantName: formatDoctorName(session.doctor),
-        roomAllocatedBy: '', // Empty for now
-        sessionDate: moment(sessionDate).format('DD/MM/YYYY'),
-        sessionTime: `${startTimeStr} - ${endTimeStr}`,
-        sessionStatus: session.status === 1 ? 'Active' : 'Leave',
-        arrivalTime: '', // Empty for now
-        departureTime: '', // Empty for now
-        roomReleaseBy: '', // Empty for now
-        roomNumber: session.room?.number || '-'
-      };
-    });
-
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      logActivityNonBlocking({
-        userId: session.user.id,
-        action: 'reports.doctor-arrivals.exported',
-        entityType: 'Report',
-        importance: 'medium',
-        metadata: { count: mappedSessions.length },
-      });
-    }
-    return {
-      success: true,
-      data: mappedSessions
-    };
-  } catch (error: unknown) {
-    console.error('exportDoctorArrivalsReportData error', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error exporting doctor arrivals report data';
-    return {
-      success: false,
-      message: errorMessage
-    };
-  }
-};

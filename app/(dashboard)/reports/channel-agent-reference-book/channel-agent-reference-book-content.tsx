@@ -6,6 +6,7 @@ import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateRangePicker } from '@/components/common/date-range-picker';
 import { Input } from '@/components/ui/input';
 import { ReportAgentSelect } from '@/components/common/agent-select';
+import { ReportUserSelect } from '@/components/common/user-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getChannelAgentReferenceBookReportData, exportChannelAgentReferenceBookReportData } from '@/app/actions/reports/report.action';
 import { AgencyBook } from '@/types/agencybook';
@@ -15,10 +16,12 @@ import Loading from '@/app/(dashboard)/loading';
 
 export type ChannelAgentReferenceBookReportContentProps = {
   initialAgencyOptions: Array<{ id: string; name: string }>;
+  initialUserOptions: Array<{ id: string; name: string }>;
 };
 
 function ChannelAgentReferenceBookReportContentInner({
-  initialAgencyOptions
+  initialAgencyOptions,
+  initialUserOptions
 }: ChannelAgentReferenceBookReportContentProps) {
   const searchParams = useSearchParams();
 
@@ -77,28 +80,24 @@ function ChannelAgentReferenceBookReportContentInner({
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end" style={{ minWidth: '220px' }}>
-              <label className="text-sm text-black font-semibold mb-2 block">
-                Created By
-              </label>
-              <Input
-                id="createdBy"
-                placeholder="User name or code"
-                value={values.createdBy ?? ''}
-                onChange={(e) => setValue('createdBy', e.target.value || undefined)}
-              />
-            </div>
-            <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end" style={{ minWidth: '220px' }}>
-              <label className="text-sm text-black font-semibold mb-2 block">
-                Updated By
-              </label>
-              <Input
-                id="updatedBy"
-                placeholder="User name or code"
-                value={values.updatedBy ?? ''}
-                onChange={(e) => setValue('updatedBy', e.target.value || undefined)}
-              />
-            </div>
+            <ReportUserSelect
+              userOptions={initialUserOptions}
+              value={values.createdBy ?? '__all__'}
+              onChange={(v) => setValue('createdBy', v ?? '__all__')}
+              label="Created By"
+              placeholder="Select user"
+              widthClassName="w-[220px]"
+              includeAllUsers={true}
+            />
+            <ReportUserSelect
+              userOptions={initialUserOptions}
+              value={values.updatedBy ?? '__all__'}
+              onChange={(v) => setValue('updatedBy', v ?? '__all__')}
+              label="Updated By"
+              placeholder="Select user"
+              widthClassName="w-[220px]"
+              includeAllUsers={true}
+            />
             <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end" style={{ minWidth: '180px' }}>
               <label className="text-sm text-black font-semibold mb-2 block">
                 Status
@@ -126,8 +125,8 @@ function ChannelAgentReferenceBookReportContentInner({
           toDate: params.get('toDate') ?? '',
           agencyId: params.get('agencyId') && params.get('agencyId') !== '__all__' ? params.get('agencyId') ?? undefined : undefined,
           bookNumber: params.get('bookNumber')?.trim() ? params.get('bookNumber')?.trim() : undefined,
-          createdBy: params.get('createdBy')?.trim() ? params.get('createdBy')?.trim() : undefined,
-          updatedBy: params.get('updatedBy')?.trim() ? params.get('updatedBy')?.trim() : undefined,
+          createdBy: params.get('createdBy') && params.get('createdBy') !== '__all__' ? params.get('createdBy') ?? undefined : undefined,
+          updatedBy: params.get('updatedBy') && params.get('updatedBy') !== '__all__' ? params.get('updatedBy') ?? undefined : undefined,
           status: params.get('status') && params.get('status') !== '__all__' ? params.get('status') ?? undefined : undefined
         };
         return getChannelAgentReferenceBookReportData(query);
@@ -139,8 +138,8 @@ function ChannelAgentReferenceBookReportContentInner({
           toDate: query.toDate ?? '',
           agencyId: query.agencyId && query.agencyId !== '__all__' ? query.agencyId : undefined,
           bookNumber: query.bookNumber?.trim() ? query.bookNumber.trim() : undefined,
-          createdBy: query.createdBy?.trim() ? query.createdBy.trim() : undefined,
-          updatedBy: query.updatedBy?.trim() ? query.updatedBy.trim() : undefined,
+          createdBy: query.createdBy && query.createdBy !== '__all__' ? query.createdBy : undefined,
+          updatedBy: query.updatedBy && query.updatedBy !== '__all__' ? query.updatedBy : undefined,
           status: query.status && query.status !== '__all__' ? query.status : undefined
         });
       }}

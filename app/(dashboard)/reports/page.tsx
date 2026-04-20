@@ -168,6 +168,13 @@ const reportsData: ReportListItem[] = [
     masterData: 'Agent Collection Receipt Report',
     description: 'Shows agent deposits/withdrawals and cancellations by payment type, with totals.',
     route: '/reports/agent-collection-receipt'
+  },
+  {
+    id: '37',
+    rank: 37,
+    masterData: 'Agency Balance Confirmation Letter',
+    description: 'Check agency balance confirmation letter.',
+    route: '/reports/agent-balance-confirmation-letter'
   }
 ];
 
@@ -209,6 +216,7 @@ export default async function ReportsPage() {
       '/reports/agent-balance',
       '/reports/agent-history-credit-limit-update',
       '/reports/agent-collection-receipt',
+      '/reports/agent-balance-confirmation-letter',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>

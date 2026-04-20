@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { getAllDoctorViewReportData, exportAllDoctorViewReportData } from '@/app/actions/reports/all-doctor-view.action';
 import { AllDoctorViewRowData, AllDoctorViewTotals } from '@/types/report';
@@ -18,26 +18,47 @@ import { Selector } from '@/components/common/selector';
 import { SearchIcon } from '@/components/icons';
 import moment from 'moment';
 import { printPdfUtilWithHeader } from '@/lib/utils';
+import Loading from '@/app/(dashboard)/loading';
 
 type AllDoctorViewReportContentProps = {
   initialLocationOptions: Array<{ id: string; name: string }>;
+  initialFilters?: {
+    date?: string;
+    sessionType?: string;
+    feeType?: string;
+    locationId?: string;
+  };
 };
 
 export default function AllDoctorViewReportContent({
-  initialLocationOptions
+  initialLocationOptions,
+  initialFilters
 }: AllDoctorViewReportContentProps) {
   const { toast } = useToast();
   
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<AllDoctorViewRowData[]>([]);
   const [totals, setTotals] = useState<AllDoctorViewTotals | null>(null);
   const [totalRecords, setTotalRecords] = useState(0);
   
   // Filter states
-  const [date, setDate] = useState<Date | null>(new Date());
-  const [sessionType, setSessionType] = useState<string>('__all__');
-  const [feeType, setFeeType] = useState<string>('__all__');
-  const [locationId, setLocationId] = useState<string>('__all__');
+  const [date, setDate] = useState<Date | null>(() => {
+    const rawDate = initialFilters?.date;
+    if (!rawDate) return new Date();
+    const parsed = moment(rawDate, 'YYYY-MM-DD', true);
+    return parsed.isValid() ? parsed.toDate() : new Date();
+  });
+  const [sessionType, setSessionType] = useState<string>(
+    initialFilters?.sessionType === 'morning' || initialFilters?.sessionType === 'evening'
+      ? initialFilters.sessionType
+      : '__all__'
+  );
+  const [feeType, setFeeType] = useState<string>(
+    initialFilters?.feeType === 'hospital' || initialFilters?.feeType === 'professional'
+      ? initialFilters.feeType
+      : '__all__'
+  );
+  const [locationId, setLocationId] = useState<string>(initialFilters?.locationId || '__all__');
   
   // Options
   const [locationOptions] = useState(initialLocationOptions);
@@ -52,7 +73,9 @@ export default function AllDoctorViewReportContent({
     { id: 'professional', name: 'Professional Fee' },
   ];
 
-  const fetchReportData = async () => {
+  const hasAutoLoaded = useRef(false);
+
+  const fetchReportData = useCallback(async () => {
     if (!date) {
       toast({
         variant: 'destructive',
@@ -98,10 +121,16 @@ export default function AllDoctorViewReportContent({
     } finally {
       setLoading(false);
     }
-  };
+  }, [date, feeType, locationId, sessionType, toast]);
+
+  useEffect(() => {
+    if (hasAutoLoaded.current) return;
+    hasAutoLoaded.current = true;
+    void fetchReportData();
+  }, [fetchReportData]);
 
   const handleSearch = () => {
-    fetchReportData();
+    void fetchReportData();
   };
 
   const handlePrint = () => {
@@ -378,7 +407,7 @@ export default function AllDoctorViewReportContent({
           {/* Results Table */}
           <div className="mt-6">
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <Loading />
             ) : rows.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No data available. Please apply filters and search.

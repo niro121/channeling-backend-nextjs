@@ -3,7 +3,6 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
 import { ReportAgentSelect } from '@/components/common/agent-select';
 import {
   Select,
@@ -20,6 +19,7 @@ import { Agency } from '@/types/agency';
 import { ExportAgentDetailData } from '@/types/report';
 import { AgentDetailReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading';
+import { formatLKR } from '@/lib/format-money';
 
 type AgentDetailReportContentProps = {
   initialAgencyOptions: Array<{ id: string; name: string }>;
@@ -33,8 +33,6 @@ function AgentDetailReportContentInner({
   const searchParams = useSearchParams();
   
   const buildQuery = () => ({
-    fromDate: searchParams.get('fromDate') ?? '',
-    toDate: searchParams.get('toDate') ?? '',
     agencyId:
       searchParams.get('agencyId') && searchParams.get('agencyId') !== '__all__'
         ? searchParams.get('agencyId') ?? undefined
@@ -50,22 +48,11 @@ function AgentDetailReportContentInner({
       title="Agent Detail Report"
       description="View agent information with filters"
       filterButtonLabel="Search"
+      totalColumnIds={['allowedCreditLimit', 'maxCreditLimit', 'standardCreditLimit', 'balance']}
+      formatTotalValue={(_columnId, sum) => <span className="tabular-nums">{formatLKR(sum)}</span>}
       filterContent={({ values, setValue }) => (
         <>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end w-[260px] [&_button]:w-full">
-              <label className="text-sm text-black font-semibold mb-2 block">
-                Date Range
-              </label>
-              <DateRangePicker
-                from={values.fromDate}
-                to={values.toDate}
-                onChange={({ from, to }) => {
-                  setValue('fromDate', from);
-                  setValue('toDate', to);
-                }}
-              />
-            </div>
             <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end w-[260px]">
               <label className="text-sm text-black font-semibold mb-2 block">
                 Status
@@ -101,21 +88,7 @@ function AgentDetailReportContentInner({
         </>
       )}
       fetchData={async (params) => {
-        const fromDate = params.get('fromDate') ?? '';
-        const toDate = params.get('toDate') ?? '';
-
-        if (!fromDate || !toDate) {
-          return {
-            success: false,
-            data: [],
-            totalRecords: 0,
-            message: 'Please select both from date and to date'
-          };
-    }
-
         return getAgentDetailReportData({
-      fromDate,
-      toDate,
           agencyId:
             params.get('agencyId') && params.get('agencyId') !== '__all__'
               ? params.get('agencyId') ?? undefined
@@ -124,13 +97,10 @@ function AgentDetailReportContentInner({
             params.get('status') && params.get('status') !== '__all__'
               ? params.get('status') ?? undefined
               : undefined
-    });
+        });
       }}
       exportData={async () => {
         const query = buildQuery();
-        if (!query.fromDate || !query.toDate) {
-          return { success: false, message: 'Please select both from date and to date' };
-        }
         return exportAgentDetailReportData(query);
       }}
       columns={AgentDetailReportColumns}
@@ -147,6 +117,8 @@ function AgentDetailReportContentInner({
     'Contact Phone',
     'Contact Person E-mail',
     'Allowed Credit Limit',
+    'Allowed Maximum Credit Limit',
+    'Standard Credit Limit',
     'Balance'
       ]}
       exportKeys={[
@@ -162,6 +134,8 @@ function AgentDetailReportContentInner({
     'contactPhone',
     'contactPersonEmail',
     'allowedCreditLimit',
+    'maxCreditLimit',
+    'standardCreditLimit',
     'balance'
       ]}
       exportTitle="Agent Detail Report"

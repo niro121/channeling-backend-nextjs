@@ -1,74 +1,69 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Session } from '@/types/booking.dashboard';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import moment from 'moment';
-import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
+import type { DoctorArrivalsReportRow } from '@/types/reports/doctor.arrivals';
 
-export const DoctorArrivalsReportColumns: ColumnDef<Session>[] = [
+function sessionCalendarLabel(d: Date): string {
+  const x = d instanceof Date ? d : new Date(d);
+  return moment.utc(x).format('Do MMMM YYYY');
+}
+
+function sessionStartLabel(d: Date): string {
+  return moment(d).utcOffset(330).format('h.mm A');
+}
+
+/** Space before AM/PM when value is glued (e.g. 8.00AM); leaves '-' and already-spaced text unchanged. */
+function spaceBeforeMeridiem(s: string): string {
+  if (!s || s === '-') return s;
+  return s.replace(/(\d)(AM|PM)\b/gi, '$1 $2');
+}
+
+export const DoctorArrivalsReportColumns: ColumnDef<DoctorArrivalsReportRow>[] = [
   {
-    accessorKey: 'doctor',
-    header: 'Consultant Name',
-    cell: ({ row }) => {
-      const doctor = row.original.doctor;
-      return (
-        <div className="max-w-[200px] truncate" title={formatDoctorName(doctor)}>
-          {formatDoctorName(doctor)}
-        </div>
-      );
-    }
+    accessorKey: 'doctorCode',
+    header: () => <span className="whitespace-nowrap">Doctor Code</span>,
+    cell: ({ row }) => (
+      <div className="max-w-28">
+        {row.original.doctorCode}
+      </div>
+    )
   },
   {
-    accessorKey: 'roomAllocatedBy',
+    accessorKey: 'doctorName',
+    header: () => <span className="whitespace-nowrap">Doctor Name</span>,
+    cell: ({ row }) => (
+      <div className="max-w-[200px]">
+        {row.original.doctorName}
+      </div>
+    )
+  },
+  {
+    id: 'roomAllocatedBy',
     header: 'Room Allocated By',
-    cell: () => {
-      // Empty for now - data not available
-      return <span className="text-muted-foreground">-</span>;
-    }
+    cell: ({ row }) => (
+      <div className="max-w-40 truncate text-xs" title={row.original.roomAllocatedBy}>
+        {row.original.roomAllocatedBy}
+      </div>
+    )
   },
   {
-    accessorKey: 'date',
-    header: 'Session Date',
-    cell: ({ row }) => {
-      const date = row.getValue<Date>('date');
-      return date ? moment(date).format('DD/MM/YYYY') : '-';
-    }
+    accessorKey: 'sessionDate',
+    header: () => <span className="whitespace-nowrap">Session Date</span>,
+    cell: ({ row }) => <span className="text-xs whitespace-nowrap">{sessionCalendarLabel(row.original.sessionDate)}</span>
   },
   {
-    accessorKey: 'startTime',
-    header: 'Session Time',
-    cell: ({ row }) => {
-      const session = row.original;
-      // startTime and endTime are in minutes from midnight
-      const startTimeMinutes = Number(session.startTime) || 0;
-      const endTimeMinutes = Number(session.endTime) || 0;
-      
-      // Convert minutes to hours and minutes
-      const startHours = Math.floor(startTimeMinutes / 60);
-      const startMinutes = startTimeMinutes % 60;
-      const endHours = Math.floor(endTimeMinutes / 60);
-      const endMinutes = endTimeMinutes % 60;
-      
-      // Create Date objects for formatting (using today's date as base)
-      const today = new Date();
-      const startTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHours, startMinutes);
-      const endTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), endHours, endMinutes);
-      
-      // Format as 12-hour time with AM/PM
-      const startTimeStr = moment(startTime).format('h:mm A');
-      const endTimeStr = moment(endTime).format('h:mm A');
-      
-      return `${startTimeStr} - ${endTimeStr}`;
-    }
+    accessorKey: 'sessionStartTime',
+    header: 'Session Start Time',
+    cell: ({ row }) => <span className="text-xs whitespace-nowrap">{sessionStartLabel(row.original.sessionStartTime)}</span>
   },
   {
-    accessorKey: 'status',
+    accessorKey: 'sessionStatus',
     header: 'Session Status',
     cell: ({ row }) => {
-      const status = row.getValue('status') as number;
-      const isActive = status === 1;
+      const isActive = row.original.sessionStatus === 1;
       return (
         <Badge
           variant={isActive ? 'default' : 'secondary'}
@@ -85,35 +80,31 @@ export const DoctorArrivalsReportColumns: ColumnDef<Session>[] = [
     }
   },
   {
-    accessorKey: 'arrivalTime',
-    header: 'Arrival Time',
-    cell: () => {
-      // Empty for now - data not available
-      return <span className="text-muted-foreground">-</span>;
-    }
+    accessorKey: 'doctorArrivalDisplay',
+    header: 'Doctor Arrival Time',
+    cell: ({ row }) => (
+      <span className="text-xs whitespace-nowrap">{spaceBeforeMeridiem(row.original.doctorArrivalDisplay)}</span>
+    )
   },
   {
-    accessorKey: 'departureTime',
-    header: 'Departure Time',
-    cell: () => {
-      // Empty for now - data not available
-      return <span className="text-muted-foreground">-</span>;
-    }
+    accessorKey: 'doctorDepartureDisplay',
+    header: 'Doctor Departure Time',
+    cell: ({ row }) => (
+      <span className="text-xs whitespace-nowrap">{spaceBeforeMeridiem(row.original.doctorDepartureDisplay)}</span>
+    )
   },
   {
-    accessorKey: 'roomReleaseBy',
-    header: 'Room Release By',
-    cell: () => {
-      // Empty for now - data not available
-      return <span className="text-muted-foreground">-</span>;
-    }
+    id: 'roomReleasedBy',
+    header: 'Room Released By',
+    cell: ({ row }) => (
+      <div className="max-w-40 truncate text-xs" title={row.original.roomReleasedBy}>
+        {row.original.roomReleasedBy}
+      </div>
+    )
   },
   {
-    accessorKey: 'room.number',
+    accessorKey: 'roomNumber',
     header: 'Room Number',
-    cell: ({ row }) => {
-      const room = row.original.room;
-      return room?.number || '-';
-    }
+    cell: ({ row }) => <span className="text-xs whitespace-nowrap">{row.original.roomNumber}</span>
   }
 ];

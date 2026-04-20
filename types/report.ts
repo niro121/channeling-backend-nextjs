@@ -1,5 +1,4 @@
 import { Doctor } from './doctor';
-import { Session } from './booking.dashboard';
 import { AgencyBook } from './agencybook';
 import { Agency } from './agency';
 
@@ -12,20 +11,6 @@ export type DoctorReportQuery = {
 export type DoctorReportResponse = {
   success: boolean;
   data: Doctor[];
-  totalRecords: number;
-  message?: string;
-};
-
-export type DoctorArrivalsReportQuery = {
-  doctorId?: string;
-  locationId?: string;
-  fromDate: Date | string;
-  toDate: Date | string;
-};
-
-export type DoctorArrivalsReportResponse = {
-  success: boolean;
-  data: Session[];
   totalRecords: number;
   message?: string;
 };
@@ -59,18 +44,6 @@ export type ExportDoctorData = {
   published: string;
 };
 
-export type ExportDoctorArrivalsData = {
-  consultantName: string;
-  roomAllocatedBy: string;
-  sessionDate: string;
-  sessionTime: string;
-  sessionStatus: string;
-  arrivalTime: string;
-  departureTime: string;
-  roomReleaseBy: string;
-  roomNumber: string;
-};
-
 export type ExportChannelAgentReferenceBookData = {
   sNo: number;
   agent: string;
@@ -87,8 +60,8 @@ export type ExportChannelAgentReferenceBookData = {
 
 // Agent Detail Report Types
 export type AgentDetailReportQuery = {
-  fromDate: string;
-  toDate: string;
+  fromDate?: string;
+  toDate?: string;
   agencyId?: string;
   agencyName?: string;
   agencyCode?: string;
@@ -115,6 +88,8 @@ export type ExportAgentDetailData = {
   contactPhone: string;
   contactPersonEmail: string;
   allowedCreditLimit: string;
+  maxCreditLimit: string;
+  standardCreditLimit: string;
   balance: string;
 };
 
