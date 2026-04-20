@@ -35,6 +35,8 @@ const DEFAULTS: Record<AccountType, { name: string; code: string | null }> = {
   CASH: { name: 'Cash Book - Branch', code: null },
   PAYABLE: { name: 'Doctor Payable', code: null },
   RECEIVABLE: { name: 'Account', code: null },
+  INCOME: { name: 'Income account', code: null },
+  EXPENSE: { name: 'Expense account', code: null },
 };
 
 /**
@@ -46,6 +48,36 @@ export async function getAccountCreateNameAndCode(
   params: GetAccountCreateNameCodeParams
 ): Promise<GetAccountCreateNameCodeResult> {
   const { type, locationId, doctorId, agencyId, creditCustomerId, userId } = params;
+
+  // Branch income (P&L): optional per location. "Branch Income - {name}", "BI-{code}".
+  if (type === 'INCOME' && locationId) {
+    const location = await prisma.location.findUnique({
+      where: { id: locationId },
+      select: { name: true, code: true },
+    });
+    if (location) {
+      return {
+        success: true,
+        name: `Branch Income - ${location.name}`,
+        code: location.code ? `BI-${location.code}` : null,
+      };
+    }
+  }
+
+  // Branch expense (P&L): optional per location. "Branch Expense - {name}", "BE-{code}".
+  if (type === 'EXPENSE' && locationId) {
+    const location = await prisma.location.findUnique({
+      where: { id: locationId },
+      select: { name: true, code: true },
+    });
+    if (location) {
+      return {
+        success: true,
+        name: `Branch Expense - ${location.name}`,
+        code: location.code ? `BE-${location.code}` : null,
+      };
+    }
+  }
 
   // Branch cash book: one per location, under main cash book. Seed: "Cash Book - {name}", "CB-{code}".
   if (type === 'CASH' && locationId) {

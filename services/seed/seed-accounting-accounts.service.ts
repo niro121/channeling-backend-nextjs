@@ -1,7 +1,8 @@
 /**
  * Seed accounting accounts (same logic as scripts/seed-accounting-accounts.ts).
  * Removes all accounting data then creates Main Cash Book, location cash books,
- * agent (PAYABLE) / doctor (PAYABLE) / credit-customer (RECEIVABLE) accounts, and syncs Sequence table.
+ * location income/expense accounts, agent (PAYABLE) / doctor (PAYABLE) /
+ * credit-customer (RECEIVABLE) accounts, and syncs Sequence table.
  * Runs only when SEED_HELPER is enabled in .env.
  */
 
@@ -95,6 +96,72 @@ export async function runSeedAccountingAccounts(
     }
     const locationSkipped = locations.length - locationCreated
     lines.push(`Location cash books: ${locationCreated} created, ${locationSkipped} existing.`)
+
+    const existingLocationIncomeAccounts = await prisma.account.findMany({
+      where: { type: "INCOME", locationId: { in: locationIds }, isActive: true },
+      select: { locationId: true },
+    })
+    const existingLocationIncomeIds = new Set(
+      existingLocationIncomeAccounts.map((a) => a.locationId).filter(Boolean) as string[]
+    )
+    const locationIncomesToCreate = locations.filter((loc) => !existingLocationIncomeIds.has(loc.id))
+    let locationIncomeCreated = 0
+    if (locationIncomesToCreate.length > 0) {
+      const result = await prisma.account.createMany({
+        data: locationIncomesToCreate.map((loc) => ({
+          name: `Branch Income - ${loc.name}`,
+          code: loc.code ? `BI-${loc.code}` : null,
+          type: "INCOME",
+          parentAccountId: null,
+          locationId: loc.id,
+          doctorId: null,
+          agencyId: null,
+          userId: null,
+          creditCustomerId: null,
+          minBalanceAllowed: null,
+          maxBalanceAllowed: null,
+          isActive: true,
+        })),
+      })
+      locationIncomeCreated = result.count
+    }
+    const locationIncomeSkipped = locations.length - locationIncomeCreated
+    lines.push(
+      `Location income accounts: ${locationIncomeCreated} created, ${locationIncomeSkipped} existing.`
+    )
+
+    const existingLocationExpenseAccounts = await prisma.account.findMany({
+      where: { type: "EXPENSE", locationId: { in: locationIds }, isActive: true },
+      select: { locationId: true },
+    })
+    const existingLocationExpenseIds = new Set(
+      existingLocationExpenseAccounts.map((a) => a.locationId).filter(Boolean) as string[]
+    )
+    const locationExpensesToCreate = locations.filter((loc) => !existingLocationExpenseIds.has(loc.id))
+    let locationExpenseCreated = 0
+    if (locationExpensesToCreate.length > 0) {
+      const result = await prisma.account.createMany({
+        data: locationExpensesToCreate.map((loc) => ({
+          name: `Branch Expense - ${loc.name}`,
+          code: loc.code ? `BE-${loc.code}` : null,
+          type: "EXPENSE",
+          parentAccountId: null,
+          locationId: loc.id,
+          doctorId: null,
+          agencyId: null,
+          userId: null,
+          creditCustomerId: null,
+          minBalanceAllowed: null,
+          maxBalanceAllowed: null,
+          isActive: true,
+        })),
+      })
+      locationExpenseCreated = result.count
+    }
+    const locationExpenseSkipped = locations.length - locationExpenseCreated
+    lines.push(
+      `Location expense accounts: ${locationExpenseCreated} created, ${locationExpenseSkipped} existing.`
+    )
 
     const agencies = await prisma.agency.findMany({
       where: { status: 1 },

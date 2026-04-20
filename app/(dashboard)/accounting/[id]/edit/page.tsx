@@ -80,6 +80,8 @@ export default async function AccountEditPage({ params }: Props) {
     { value: 'CASH', label: 'Cash' },
     { value: 'PAYABLE', label: 'Payable' },
     { value: 'RECEIVABLE', label: 'Receivable' },
+    { value: 'INCOME', label: 'Income' },
+    { value: 'EXPENSE', label: 'Expense' },
   ];
 
   const typeLabel = types.find((t) => t.value === account.type)?.label ?? account.type;

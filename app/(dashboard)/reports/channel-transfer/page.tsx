@@ -15,7 +15,7 @@ export default async function ChannelTransferReportPage() {
 
   const [session, ref, usersRef] = await Promise.all([
     fetchServerSession(),
-    getReportFilterOptions({ doctors: true }),
+    getReportFilterOptions({ doctors: true, locations: true, specialities: true }),
     getReferenceData({ users: true }),
   ]);
   const currentUser =
@@ -36,12 +36,18 @@ export default async function ChannelTransferReportPage() {
 
   const userOptions: Array<{ id: string; name: string }> =
     usersRef.success && usersRef.users ? usersRef.users.map((u) => ({ id: u.id, name: u.name })) : [];
+  const locationOptions: Array<{ id: string; name: string }> =
+    ref.success && ref.locationOptions ? ref.locationOptions : [{ id: '__all__', name: 'All Branches' }];
+  const specialityOptions: Array<{ id: string; name: string }> =
+    ref.success && ref.specialityOptions ? ref.specialityOptions : [{ id: '__all__', name: 'All Specialities' }];
 
   return (
     <ChannelTransferReportContent
       currentUserName={currentUserName}
       doctorOptions={doctorOptions}
       userOptions={userOptions}
+      locationOptions={locationOptions}
+      specialityOptions={specialityOptions}
     />
   );
 }

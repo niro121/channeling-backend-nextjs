@@ -142,6 +142,8 @@ export default function AccountForm({
           payload.doctorId = values.doctorId === '__none__' ? null : values.doctorId;
           payload.agencyId = values.agencyId === '__none__' ? null : values.agencyId;
           payload.creditCustomerId = values.creditCustomerId === '__none__' ? null : values.creditCustomerId;
+        } else if (values.type === 'INCOME' || values.type === 'EXPENSE') {
+          payload.locationId = values.locationId === '__none__' ? null : values.locationId;
         }
         const result = await updateAccount(account.id, payload);
         if (result.success) {
@@ -174,6 +176,8 @@ export default function AccountForm({
           if (values.doctorId !== '__none__') payload.doctorId = values.doctorId;
           if (values.agencyId !== '__none__') payload.agencyId = values.agencyId;
           if (values.creditCustomerId !== '__none__') payload.creditCustomerId = values.creditCustomerId;
+        } else if (values.type === 'INCOME' || values.type === 'EXPENSE') {
+          if (values.locationId !== '__none__') payload.locationId = values.locationId;
         }
         const result = await createAccount(payload);
         if (result.success) {
@@ -375,6 +379,38 @@ export default function AccountForm({
                       onValueChange={(v) => formik.setFieldValue('locationId', v)}
                     >
                       <SelectTrigger id="locationId">
+                        <SelectValue placeholder="Select location (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {locations.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {(formik.values.type === 'INCOME' || formik.values.type === 'EXPENSE') && (
+              <>
+                <h4 className="text-base font-semibold">Income / expense options</h4>
+                <p className="text-sm text-muted-foreground">
+                  Optional location (branch) for branch-scoped P&amp;L accounts.
+                </p>
+                <div className={styleClasses.parentDiv}>
+                  <Label htmlFor="locationId-income-expense" className={styleClasses.labelClassName}>
+                    Location (branch)
+                  </Label>
+                  <div className={styleClasses.inputClassName}>
+                    <Select
+                      value={formik.values.locationId}
+                      onValueChange={(v) => formik.setFieldValue('locationId', v)}
+                    >
+                      <SelectTrigger id="locationId-income-expense">
                         <SelectValue placeholder="Select location (optional)" />
                       </SelectTrigger>
                       <SelectContent>

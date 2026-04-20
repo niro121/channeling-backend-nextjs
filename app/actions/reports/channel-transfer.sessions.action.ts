@@ -9,14 +9,17 @@ export type ChannelTransferSessionOption = {
   name: string
 }
 
-function parseLocalDay(dateStr: string): { start: Date; end: Date } | null {
-  const s = (dateStr ?? "").trim()
-  if (!s) return null
-  const [y, m, d] = s.split("-").map(Number)
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  if (trimmed.includes("T")) {
+    const d = new Date(trimmed)
+    return Number.isFinite(d.getTime()) ? d : null
+  }
+  const [y, m, d] = trimmed.split("-").map(Number)
   if (!y || !m || !d) return null
-  const start = new Date(y, m - 1, d, 0, 0, 0, 0)
-  const end = new Date(y, m - 1, d, 23, 59, 59, 999)
-  return { start, end }
+  if (asEnd) return new Date(y, m - 1, d, 23, 59, 59, 999)
+  return new Date(y, m - 1, d, 0, 0, 0, 0)
 }
 
 export async function getChannelTransferSessionOptionsAction(args: {
@@ -25,20 +28,23 @@ export async function getChannelTransferSessionOptionsAction(args: {
   doctorId?: string
 }): Promise<{ success: boolean; data?: ChannelTransferSessionOption[]; message?: string }> {
   await requirePermission("reports", "view")
-  const from = parseLocalDay(args.dateFrom)
-  const to = parseLocalDay(args.dateTo)
+  const from = parseDateTime(args.dateFrom, false)
+  const to = parseDateTime(args.dateTo, true)
   if (!from || !to) {
     return { success: false, message: "From date and to date are required." }
   }
-  if (from.start.getTime() > to.end.getTime()) {
+  if (from.getTime() > to.getTime()) {
     return { success: false, message: "From date must be before or equal to to date." }
   }
+  // Session.date is a date field; derive day boundaries from the selected date-times.
+  const fromDayStart = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0)
+  const toDayEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999)
 
   try {
     const doctorId = (args.doctorId ?? "").trim()
     const sessions = await prisma.session.findMany({
       where: {
-        date: { gte: from.start, lte: to.end },
+        date: { gte: fromDayStart, lte: toDayEnd },
         ...(doctorId ? { doctorId } : {}),
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],

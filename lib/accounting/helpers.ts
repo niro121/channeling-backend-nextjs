@@ -62,10 +62,15 @@ export function validateJournalLines(
   return { valid: true };
 }
 
+/** Credit-normal: balance increases with credits (liability, equity-style, income). */
+function isCreditNormalAccountType(accountType: AccountType): boolean {
+  return accountType === 'PAYABLE' || accountType === 'INCOME';
+}
+
 /**
  * Compute balance from lines for a single account.
- * CASH / RECEIVABLE: debits - credits (positive = asset).
- * PAYABLE: credits - debits (positive = we owe them).
+ * CASH / RECEIVABLE / EXPENSE: debits - credits (debit-normal).
+ * PAYABLE / INCOME: credits - debits (credit-normal).
  */
 export function computeBalanceFromLines(
   lines: { debitAmount: number; creditAmount: number }[],
@@ -77,7 +82,7 @@ export function computeBalanceFromLines(
     debits += line.debitAmount ?? 0;
     credits += line.creditAmount ?? 0;
   }
-  if (accountType === 'PAYABLE') {
+  if (isCreditNormalAccountType(accountType)) {
     return credits - debits;
   }
   return debits - credits;
@@ -86,14 +91,15 @@ export function computeBalanceFromLines(
 /**
  * Net effect of a single line on an account (signed).
  * Positive = balance increases, negative = balance decreases.
- * For CASH/RECEIVABLE: debit - credit. For PAYABLE: credit - debit.
+ * Debit-normal (CASH, RECEIVABLE, EXPENSE): debit - credit.
+ * Credit-normal (PAYABLE, INCOME): credit - debit.
  */
 export function netEffectForAccountType(
   debitAmount: number,
   creditAmount: number,
   accountType: AccountType
 ): number {
-  if (accountType === 'PAYABLE') {
+  if (isCreditNormalAccountType(accountType)) {
     return creditAmount - debitAmount;
   }
   return debitAmount - creditAmount;

@@ -20,6 +20,14 @@ export type Location = {
   accountCode?: string | null;
   /** Balance from linked account (display units) */
   balance?: number | null;
+  /** Linked INCOME account for the branch/location */
+  incomeAccountId?: string | null;
+  incomeAccountName?: string | null;
+  incomeAccountCode?: string | null;
+  /** Linked EXPENSE account for the branch/location */
+  expenseAccountId?: string | null;
+  expenseAccountName?: string | null;
+  expenseAccountCode?: string | null;
 };
 
 export type LocationFormValues = {

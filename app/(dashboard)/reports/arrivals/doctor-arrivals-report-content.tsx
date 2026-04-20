@@ -28,6 +28,18 @@ function filterOptionLabel(
   return options.find((o) => o.id === id)?.name ?? id;
 }
 
+/** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm for datetime-local (same as cashier summary). */
+function getDefaultDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    from: `${y}-${m}-${d}T00:00`,
+    to: `${y}-${m}-${d}T23:59`,
+  };
+}
+
 function DoctorArrivalsReportContentInner({
   currentUserName,
   institutionOptions,
@@ -37,6 +49,11 @@ function DoctorArrivalsReportContentInner({
   doctorOptions
 }: DoctorArrivalsReportContentProps) {
   const searchParams = useSearchParams();
+
+  const initialFilterValues = React.useMemo(() => {
+    const { from, to } = getDefaultDateTimeRange();
+    return { fromDateTime: from, toDateTime: to };
+  }, []);
 
   const buildQuery = () => ({
     fromDateTime: searchParams.get('fromDateTime') ?? undefined,
@@ -176,6 +193,7 @@ function DoctorArrivalsReportContentInner({
       showPrintButton={true}
       emptyMessage="No sessions found. Apply at least one filter and click Search."
       skipFetchWhenNoParams={true}
+      initialFilterValues={initialFilterValues}
       groupBy={(row) => row.doctor?.id ?? ''}
       renderGroupHeader={(_, rows) => {
         const first = rows[0] as DoctorArrivalsReportRow;

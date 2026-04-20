@@ -174,7 +174,7 @@ export function DesktopSidebar({
 
         {userType === userTypes.admin && (
           <SidebarGroup label="Admin">
-            <NavLink href="/admin/transaction-flow" label="Transaction flow diagram" icon={<Workflow className="h-5 w-5" />} />
+            <NavLink href="/admin/knowledge-hub" label="Knowledge Hub" icon={<BookOpen className="h-5 w-5" />} />
             <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
             <NavLink href="/admin/seed" label="Database seeds" icon={<Database className="h-5 w-5" />} />
             <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
