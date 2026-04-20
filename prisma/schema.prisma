@@ -1030,6 +1030,8 @@ enum AccountType {
   CASH
   PAYABLE
   RECEIVABLE
+  INCOME
+  EXPENSE
 }
 
 model Account {

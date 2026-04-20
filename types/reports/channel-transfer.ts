@@ -1,8 +1,14 @@
 export type ChannelTransferReportQuery = {
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateFrom: string;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateTo: string;
+  /** '__all__' or location id */
+  branchId?: string;
+  /** '__all__' or speciality id */
+  fromSpecialityId?: string;
+  /** '__all__' or speciality id */
+  toSpecialityId?: string;
   /** '__all__' or doctor id */
   fromDoctorId?: string;
   /** '__all__' or doctor id */
@@ -13,7 +19,7 @@ export type ChannelTransferReportQuery = {
   fromSessionId?: string;
   /** '__all__' or session id */
   toSessionId?: string;
-  /** Optional exact booking id (ObjectId) */
+  /** Optional booking reference (ObjectId, bookingid_string, receiptNoString, or appointmentNo) */
   bookingId?: string;
 };
 
@@ -24,14 +30,18 @@ export type ChannelTransferReportRow = {
   transferredByUserName: string | null;
 
   bookingId: string;
+  bookingDisplayId: string | null;
 
   fromSessionId: string | null;
   fromDoctorId: string | null;
+  fromSpecialityId: string | null;
   beforeActivity: string | null;
 
   toSessionId: string | null;
   toDoctorId: string | null;
+  toSpecialityId: string | null;
   afterActivity: string | null;
+  branchId: string | null;
 
   remarks: string | null;
   metadata: Record<string, unknown> | null;

@@ -41,7 +41,7 @@ export async function getAccountBalance(
   const row = result[0];
   const sumDebit = row?._sum?.debitAmount ?? 0;
   const sumCredit = row?._sum?.creditAmount ?? 0;
-  return netEffectForAccountType(sumDebit, sumCredit, account.type as 'CASH' | 'PAYABLE' | 'RECEIVABLE');
+  return netEffectForAccountType(sumDebit, sumCredit, account.type);
 }
 
 /**
@@ -67,5 +67,5 @@ export async function getAccountBalanceWithTx(
   const row = result[0];
   const sumDebit = row?._sum?.debitAmount ?? 0;
   const sumCredit = row?._sum?.creditAmount ?? 0;
-  return netEffectForAccountType(sumDebit, sumCredit, account.type as 'CASH' | 'PAYABLE' | 'RECEIVABLE');
+  return netEffectForAccountType(sumDebit, sumCredit, account.type);
 }

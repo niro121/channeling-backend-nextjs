@@ -55,7 +55,7 @@ export const ChannelTransferReportColumns: ColumnDef<ChannelTransferReportRow>[]
               More
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-[95vw] max-w-2xl">
             <DialogHeader>
               <DialogTitle>Transfer details</DialogTitle>
             </DialogHeader>
@@ -63,7 +63,7 @@ export const ChannelTransferReportColumns: ColumnDef<ChannelTransferReportRow>[]
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <div className="text-muted-foreground text-xs">Booking ID</div>
-                  <div className="font-mono text-xs break-all">{r.bookingId}</div>
+                  <div className="font-mono text-xs break-all">{r.bookingDisplayId ?? r.bookingId}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs">Remarks</div>
@@ -80,9 +80,9 @@ export const ChannelTransferReportColumns: ColumnDef<ChannelTransferReportRow>[]
                   <div className="whitespace-pre-wrap break-words">{r.afterActivity ?? '-'}</div>
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-muted-foreground text-xs mb-1">Activity metadata</div>
-                <pre className="max-h-[320px] overflow-auto rounded-md bg-muted p-3 text-xs leading-snug">
+                <pre className="max-h-[320px] max-w-full overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs leading-snug">
                   {JSON.stringify(r.metadata ?? {}, null, 2)}
                 </pre>
               </div>

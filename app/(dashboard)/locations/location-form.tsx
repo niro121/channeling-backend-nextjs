@@ -186,45 +186,69 @@ export default function LocationForm({
             {isEditPage && location && (
               <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-6 mb-6">
                 <h3 className="text-lg font-semibold">Balance</h3>
-                {location.accountId ? (
-                  <>
-                    <div className={styleClasses.parentDiv}>
-                      <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
+                <div className={styleClasses.parentDiv}>
+                  <Label className={styleClasses.labelClassName}>Current cash balance</Label>
+                  <div className={styleClasses.inputClassName}>
+                    <span className="font-medium tabular-nums">
+                      {location.accountId ? formatLKR(Number(location.balance ?? 0)) : '—'}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    {
+                      label: 'Cash account',
+                      id: location.accountId,
+                      name: location.accountName,
+                      code: location.accountCode,
+                    },
+                    {
+                      label: 'Income account',
+                      id: location.incomeAccountId,
+                      name: location.incomeAccountName,
+                      code: location.incomeAccountCode,
+                    },
+                    {
+                      label: 'Expense account',
+                      id: location.expenseAccountId,
+                      name: location.expenseAccountName,
+                      code: location.expenseAccountCode,
+                    },
+                  ].map((acc) => (
+                    <div key={acc.label} className={styleClasses.parentDiv}>
+                      <Label className={styleClasses.labelClassName}>{acc.label}</Label>
                       <div className={styleClasses.inputClassName}>
-                        <span className="font-medium tabular-nums">
-                          {formatLKR(Number(location.balance ?? 0))}
-                        </span>
+                        {acc.id ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-muted-foreground">
+                              {acc.name ?? acc.code ?? '—'}
+                              {acc.code && acc.name ? ` (${acc.code})` : ''}
+                            </span>
+                            <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                              <Link href={`/accounting/${acc.id}/statement`}>
+                                <BookOpen className="h-4 w-4" />
+                                Statement
+                              </Link>
+                            </Button>
+                            <Button size="sm" className="gap-1.5" asChild>
+                              <Link href={`/accounting/${acc.id}/statement`} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                                Open account
+                              </Link>
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Not linked</span>
+                        )}
                       </div>
                     </div>
-                    <div className={styleClasses.parentDiv}>
-                      <Label className={styleClasses.labelClassName}>Linked account</Label>
-                      <div className={styleClasses.inputClassName}>
-                        <span className="text-muted-foreground">
-                          {location.accountName ?? location.accountCode ?? '—'}
-                          {location.accountCode && location.accountName
-                            ? ` (${location.accountCode})`
-                            : ''}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="gap-1.5" asChild>
-                        <Link href={`/accounting/${location.accountId}/statement`}>
-                          <BookOpen className="h-4 w-4" />
-                          Statement
-                        </Link>
-                      </Button>
-                      <Button size="sm" className="gap-1.5" asChild>
-                        <Link href={`/accounting/${location.accountId}/statement`} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                          Open account
-                        </Link>
-                      </Button>
-                    </div>
-                  </>
-                ) : (
+                  ))}
+                </div>
+                {(!location.accountId || !location.incomeAccountId || !location.expenseAccountId) && (
                   <>
-                    <p className="text-muted-foreground text-sm">No GL account linked. Create one to track balance and view statement.</p>
+                    <p className="text-muted-foreground text-sm">
+                      One or more location GL accounts are missing. Create missing cash, income, and expense accounts.
+                    </p>
                     <Button
                       size="sm"
                       className="gap-1.5"
@@ -238,14 +262,14 @@ export default function LocationForm({
                             toast({
                               variant: 'success',
                               title: 'Success',
-                              description: res.message ?? 'GL account created.',
+                              description: res.message ?? 'Location GL accounts created.',
                             });
                             router.refresh();
                           } else {
                             toast({
                               variant: 'destructive',
                               title: 'Error',
-                              description: res.message ?? 'Failed to create GL account.',
+                              description: res.message ?? 'Failed to create missing location GL accounts.',
                             });
                           }
                         } finally {
@@ -254,7 +278,7 @@ export default function LocationForm({
                       }}
                     >
                       <PlusCircle className="h-4 w-4" />
-                      {creatingAccount ? 'Creating…' : 'Create GL account'}
+                      {creatingAccount ? 'Creating…' : 'Create missing accounts'}
                     </Button>
                   </>
                 )}

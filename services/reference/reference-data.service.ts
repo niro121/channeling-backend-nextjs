@@ -137,13 +137,15 @@ export async function getAreasForSelectService(): Promise<ReferenceSelectOption[
     }))
 }
 
-/** Banks: active only, alphabetical by name. Derived from Tag records that are referenced by BankAccount.bankId. */
+const TAG_TYPE_BANK = 4 // Bank (old system type 4)
+
+/** Banks: active only, alphabetical by name. */
 export async function getBanksForSelectService(): Promise<ReferenceSelectOption[]> {
   const records = await prisma.tag.findMany({
     where: {
       status: TAG_STATUS_ACTIVE,
+      type: TAG_TYPE_BANK,
       name: { not: null },
-      bankAccounts: { some: {} },
     },
     orderBy: { name: "asc" },
     select: { id: true, name: true },

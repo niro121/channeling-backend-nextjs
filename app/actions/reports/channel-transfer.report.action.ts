@@ -34,7 +34,7 @@ export async function exportChannelTransferReportData(
     const mapped: ChannelTransferReportExportRow[] = result.data.map((r) => ({
       transferredAt: moment(r.transferredAt).format('YYYY-MM-DD HH:mm:ss'),
       transferredBy: r.transferredByUserName ?? r.transferredByUserId ?? '-',
-      bookingId: r.bookingId ?? '-',
+      bookingId: r.bookingDisplayId ?? r.bookingId ?? '-',
 
       beforeActivity: r.beforeActivity ?? '-',
 

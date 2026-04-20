@@ -9,8 +9,6 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('card_summary_bank_wise', 31);
 const MAX_RECORDS = getReportMaxRecords('card_summary_bank_wise', 20000);
 const CARD_PAYMENT_METHOD = 1; // Receipt.paymentMethod: 1 = Credit Card
 
-// Reports use Sri Lanka local day boundaries, independent of server timezone.
-// Sri Lanka is UTC+05:30 and does not observe DST.
 const SRI_LANKA_UTC_OFFSET_MINUTES = 330;
 function parseSriLankaDay(dateStr: string): { start: Date; end: Date } | null {
   const s = (dateStr ?? '').trim();
@@ -23,6 +21,25 @@ function parseSriLankaDay(dateStr: string): { start: Date; end: Date } | null {
   return { start: new Date(startUtcMs), end: new Date(endUtcMs) };
 }
 
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('T')) {
+    const d = new Date(trimmed);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const day = parseSriLankaDay(trimmed);
+  if (!day) return null;
+  return asEnd ? day.end : day.start;
+}
+
+function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date } | null {
+  const start = parseDateTime(dateFrom, false);
+  const end = parseDateTime(dateTo, true);
+  if (!start || !end) return null;
+  return { start, end };
+}
+
 function normAll(v: string | undefined): string {
   const s = (v ?? '').trim();
   return s || '__all__';
@@ -31,13 +48,12 @@ function normAll(v: string | undefined): string {
 export async function getCardSummaryBankWiseReportService(
   query: CardSummaryBankWiseReportQuery
 ): Promise<{ success: boolean; data: CardSummaryBankWiseReportRow[]; totalRecords: number; message?: string }> {
-  const fromParsed = parseSriLankaDay(query.dateFrom);
-  const toParsed = parseSriLankaDay(query.dateTo);
-  if (!fromParsed || !toParsed) {
+  const range = parseFromTo(query.dateFrom, query.dateTo);
+  if (!range) {
     return { success: false, data: [], totalRecords: 0, message: 'From date and to date are required.' };
   }
-  const from = fromParsed.start;
-  const to = toParsed.end;
+  const from = range.start;
+  const to = range.end;
   if (from.getTime() > to.getTime()) {
     return { success: false, data: [], totalRecords: 0, message: 'From date must be before or equal to to date.' };
   }
@@ -53,11 +69,15 @@ export async function getCardSummaryBankWiseReportService(
   const where: any = {
     paymentMethod: CARD_PAYMENT_METHOD,
     createdAt: { gte: from, lte: to },
-    // Prisma Mongo null semantics can be inconsistent; include both null and not-set.
-    OR: [{ canceledAt: null }, { canceledAt: { isSet: false } }],
+    AND: [
+      // Prisma Mongo null semantics can be inconsistent; include both null and not-set.
+      { OR: [{ canceledAt: null }, { canceledAt: { isSet: false } }] },
+    ],
   };
   if (bankId !== '__all__') where.bankId = bankId;
-  if (locationId !== '__all__') where.locationId = locationId;
+  if (locationId !== '__all__') {
+    where.AND.push({ OR: [{ locationId }, { userLocationId: locationId }] });
+  }
 
   if (isSummary) {
     const grouped = await prisma.receipt.groupBy({
@@ -122,6 +142,7 @@ export async function getCardSummaryBankWiseReportService(
       receiptNoString: true,
       createdAt: true,
       locationId: true,
+      userLocationId: true,
       createdBy: true,
     },
   });
@@ -130,7 +151,11 @@ export async function getCardSummaryBankWiseReportService(
   const sliced = hasMore ? receipts.slice(0, MAX_RECORDS) : receipts;
 
   const locationIds = Array.from(
-    new Set(sliced.map((r) => r.locationId).filter((x): x is string => typeof x === 'string' && x.trim() !== ''))
+    new Set(
+      sliced
+        .flatMap((r) => [r.userLocationId, r.locationId])
+        .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+    )
   );
   const userIds = Array.from(
     new Set(sliced.map((r) => r.createdBy).filter((x): x is string => typeof x === 'string' && x.trim() !== ''))
@@ -154,10 +179,11 @@ export async function getCardSummaryBankWiseReportService(
   const userById = new Map(users.map((u) => [u.id, u]));
 
   const data: CardSummaryBankWiseReportRow[] = sliced.map((r) => {
-    const loc = r.locationId ? locationById.get(r.locationId) ?? null : null;
-    const branchLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
+    const userLocId = r.userLocationId ?? r.locationId ?? null;
+    const loc = userLocId ? locationById.get(userLocId) ?? null : null;
+    const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
-    const creatorLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
+    const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
     return {
       id: r.id,
       bankId: r.bankId ?? null,
@@ -166,8 +192,8 @@ export async function getCardSummaryBankWiseReportService(
       count: 1,
       receiptNoString: r.receiptNoString ?? null,
       createdAt: r.createdAt ?? null,
-      branch: branchLabel,
-      creator: creatorLabel,
+      userLocation: userLocationLabel,
+      user: userLabel,
       cardReference: (r.cardReference ?? '').trim() || null,
       remarks: (r.remarks ?? '').trim() || null,
     };
