@@ -89,5 +89,5 @@ function formatSessionCalendarDate(d: Date): string {
 }
 
 function formatTimeSl(d: Date): string {
-  return moment(d).utcOffset(330).format('h.mmA');
+  return moment(d).utcOffset(330).format('h.mm A');
 }

@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
@@ -80,7 +80,7 @@ function DoctorArrivalsReportContentInner({
       filterContent={({ values, setValue }) => (
         <>
           <div className="basis-full shrink-0">
-            <DateAndTimeRangePicker
+            <DateTimeRangePicker
               label="Date & Time Range"
               from={values.fromDateTime}
               to={values.toDateTime}

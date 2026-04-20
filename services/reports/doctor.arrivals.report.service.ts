@@ -60,9 +60,9 @@ function parseToBound(val: string): Date {
   return new Date(trimmed);
 }
 
-/** Wall-clock time in Sri Lanka (UTC+5:30) for display e.g. 9.30AM */
+/** Wall-clock time in Sri Lanka (UTC+5:30) for display e.g. 9.30 AM */
 function formatTimeSl(d: Date): string {
-  return moment(d).utcOffset(330).format('h.mmA');
+  return moment(d).utcOffset(330).format('h.mm A');
 }
 
 function formatUnixEntryTimeSl(timeStr: string): string {
