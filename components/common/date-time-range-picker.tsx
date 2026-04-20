@@ -13,6 +13,8 @@ export interface DateTimeRangePickerProps {
   /** Optional: label for the group */
   label?: string;
   className?: string;
+  /** Keep from/to inputs on a single row. */
+  singleRow?: boolean;
 }
 
 /**
@@ -25,6 +27,7 @@ export function DateTimeRangePicker({
   onChange,
   label = 'Date & time range',
   className,
+  singleRow = false,
 }: DateTimeRangePickerProps) {
   const fromRef = React.useRef<HTMLInputElement>(null);
   const toRef = React.useRef<HTMLInputElement>(null);
@@ -56,7 +59,7 @@ export function DateTimeRangePicker({
           {label}
         </Label>
       )}
-      <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
+      <div className={singleRow ? 'flex flex-nowrap items-center gap-2' : 'flex flex-col sm:flex-row flex-wrap items-center gap-2'}>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground whitespace-nowrap w-8">From</span>
           <div

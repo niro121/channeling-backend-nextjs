@@ -163,7 +163,7 @@ export default function SmsActivityContent() {
                 </CardDescription>
               </div>
             </div>
-            <div className="flex flex-wrap items-end gap-3 pt-2 sm:pt-0 sm:flex-nowrap">
+            <div className="flex flex-wrap items-end gap-2 pt-2 sm:pt-0 sm:flex-nowrap">
               <DateTimeRangePicker
                 from={dateFrom}
                 to={dateTo}
@@ -172,6 +172,8 @@ export default function SmsActivityContent() {
                   setDateTo(to ?? "")
                 }}
                 label="Date & time range"
+                singleRow
+                className="[&>div:last-child>div>span]:w-auto"
               />
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Status</label>
