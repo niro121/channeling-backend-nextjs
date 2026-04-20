@@ -85,18 +85,40 @@ export async function createLocationAccount(locationId: string) {
     if (!location) {
       return { success: false, message: 'Location not found' };
     }
-    const result = await getOrCreateAccount({
-      type: 'CASH',
-      locationId: location.id,
-      name: `Cash Book - ${location.name}`,
-      code: location.code ? `CB-${location.code}` : null,
-    });
-    if (!result.success) {
-      return { success: false, message: result.error ?? 'Failed to create GL account' };
+    const accountResults = await Promise.all([
+      getOrCreateAccount({
+        type: 'CASH',
+        locationId: location.id,
+        name: `Cash Book - ${location.name}`,
+        code: location.code ? `CB-${location.code}` : null,
+      }),
+      getOrCreateAccount({
+        type: 'INCOME',
+        locationId: location.id,
+        name: `Branch Income - ${location.name}`,
+        code: location.code ? `BI-${location.code}` : null,
+      }),
+      getOrCreateAccount({
+        type: 'EXPENSE',
+        locationId: location.id,
+        name: `Branch Expense - ${location.name}`,
+        code: location.code ? `BE-${location.code}` : null,
+      }),
+    ]);
+
+    const failed = accountResults.filter((r) => !r.success) as { success: false; error: string }[];
+    if (failed.length > 0) {
+      return { success: false, message: failed.map((f) => f.error).join('; ') };
     }
+
+    const [cash, income, expense] = accountResults as Array<{ success: true; account: { id: string } }>;
     revalidatePath('/locations');
     revalidatePath(`/locations/${locationId}/edit`);
-    return { success: true, message: 'GL account created', accountId: result.account.id };
+    return {
+      success: true,
+      message: 'Location GL accounts are ready (cash, income, expense).',
+      accountIds: { cash: cash.account.id, income: income.account.id, expense: expense.account.id },
+    };
   } catch (e: unknown) {
     return {
       success: false,

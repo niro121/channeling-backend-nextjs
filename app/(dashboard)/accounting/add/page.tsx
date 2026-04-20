@@ -65,6 +65,8 @@ export default async function AccountingAddPage() {
     { value: 'CASH', label: 'Cash' },
     { value: 'PAYABLE', label: 'Payable' },
     { value: 'RECEIVABLE', label: 'Receivable' },
+    { value: 'INCOME', label: 'Income' },
+    { value: 'EXPENSE', label: 'Expense' },
   ];
 
   return (
@@ -80,7 +82,8 @@ export default async function AccountingAddPage() {
           <p className="text-sm text-muted-foreground">
             Create a new GL account. Set type, name, and optional code and minimum balance. For Cash
             accounts you can link a parent cash book and location; for Payable or Receivable you can
-            link a doctor, agency or credit customer.
+            link a doctor, agency or credit customer. For Income or Expense you can optionally link a
+            location (branch) for reporting.
           </p>
         </div>
       </div>

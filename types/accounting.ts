@@ -10,6 +10,8 @@ export type AccountType = PrismaAccountType;
 export const ACCOUNT_TYPE_CASH = 'CASH' as const;
 export const ACCOUNT_TYPE_PAYABLE = 'PAYABLE' as const;
 export const ACCOUNT_TYPE_RECEIVABLE = 'RECEIVABLE' as const;
+export const ACCOUNT_TYPE_INCOME = 'INCOME' as const;
+export const ACCOUNT_TYPE_EXPENSE = 'EXPENSE' as const;
 
 export const REFERENCE_TYPES = {
   Receipt: 'Receipt',

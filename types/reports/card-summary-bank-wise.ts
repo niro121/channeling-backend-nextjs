@@ -1,9 +1,9 @@
 export type CardSummaryBankWiseReportFormat = 'summary' | 'detail';
 
 export type CardSummaryBankWiseReportQuery = {
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateFrom: string;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateTo: string;
   /** '__all__' or bank tag id */
   bankId?: string;
@@ -23,8 +23,8 @@ export type CardSummaryBankWiseReportRow = {
   // detail-only fields
   receiptNoString?: string | null;
   createdAt?: Date | null;
-  branch?: string | null;
-  creator?: string | null;
+  userLocation?: string | null;
+  user?: string | null;
   cardReference?: string | null;
   remarks?: string | null;
 };
@@ -35,8 +35,8 @@ export type CardSummaryBankWiseReportExportRow = {
   count: string;
   receiptNo?: string;
   createdAt?: string;
-  branch?: string;
-  creator?: string;
+  userLocation?: string;
+  user?: string;
   cardReference?: string;
   remarks?: string;
 };

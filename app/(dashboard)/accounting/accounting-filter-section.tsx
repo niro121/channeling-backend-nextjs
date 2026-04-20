@@ -14,6 +14,8 @@ const TYPE_OPTIONS = [
   { value: "CASH", label: "Cash" },
   { value: "PAYABLE", label: "Payable" },
   { value: "RECEIVABLE", label: "Receivable" },
+  { value: "INCOME", label: "Income" },
+  { value: "EXPENSE", label: "Expense" },
 ];
 
 interface AccountingFilterSectionProps {
