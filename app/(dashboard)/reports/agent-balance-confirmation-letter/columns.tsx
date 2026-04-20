@@ -3,6 +3,12 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { AgentBalanceConfirmationLetterRow } from '@/types/reports/agent.balance.confirmation.letter';
 
+function formatEnglishAgencyLine(agentName?: string): string {
+  const trimmed = agentName?.trim();
+  if (!trimmed) return '-';
+  return trimmed.endsWith(',') ? trimmed : `${trimmed},`;
+}
+
 function labelByLanguage(language: 'en' | 'si') {
   if (language === 'si') {
     return {
@@ -57,21 +63,21 @@ export const AgentBalanceConfirmationLetterColumns: ColumnDef<AgentBalanceConfir
             {r.language === 'si' ? (
               <>
                 <p>{t.greetingNameFallback}</p>
-                <p>{r.agentName || '-'}</p>
+                <p>{formatEnglishAgencyLine(r.agentName)}</p>
                 <p>{asAtDate}</p>
                 <p className="mt-3">{t.greeting}</p>
               </>
             ) : (
               <>
                 <p>The Manager,</p>
-                <p>{r.agentName || '-'}</p>
+                <p>{formatEnglishAgencyLine(r.agentName)}</p>
                 <p>{asAtDate}</p>
                 <p className="mt-3">{t.greeting}</p>
               </>
             )}
 
             {r.language === 'si' ? (
-              <p className="text-center">{headerTitle}</p>
+              <p className="text-center font-extrabold">{headerTitle}</p>
             ) : (
               <p className="text-center underline font-semibold">{headerTitle}</p>
             )}

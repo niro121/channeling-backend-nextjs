@@ -86,10 +86,23 @@ function getLangCode(language: string): 'en' | 'si' {
   return 'en';
 }
 
+function formatEnglishAgencyLine(agentName?: string): string {
+  const trimmed = agentName?.trim();
+  if (!trimmed) return '-';
+  return trimmed.endsWith(',') ? trimmed : `${trimmed},`;
+}
+
+function formatAgencyLineWithComma(agentName?: string): string {
+  const trimmed = agentName?.trim();
+  if (!trimmed) return '-';
+  return trimmed.endsWith(',') ? trimmed : `${trimmed},`;
+}
+
 function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExportRow): string {
   const code = getLangCode(row.language);
   const t = letterLabels(code);
   const isSinhala = code === 'si';
+  const agencyLineWithComma = formatAgencyLineWithComma(row.agentName);
 
   // For Sinhala, the first line must ALWAYS be the Manager salutation,
   // not the agent name. For English, this value isn't used.
@@ -123,21 +136,21 @@ function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExpor
         ? `
       <div style="text-align: left;">
         <div style="font-size: 16px;">${escapeHtml(greetingLine)}</div>
-        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(row.agentName || '-')}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(agencyLineWithComma)}</div>
         <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(asAtDate)}</div>
         <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(t.greeting)}</div>
       </div>`
         : `
       <div style="text-align: left;">
         <div style="font-size: 16px;">The Manager,</div>
-        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(row.agentName || '-')}</div>
+        <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(agencyLineWithComma)}</div>
         <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(asAtDate)}</div>
         <div style="font-size: 16px; margin-top: 2px;">${escapeHtml(t.greeting)}</div>
       </div>`
       }
 
       <div style="text-align:center; margin-top: 36px;">
-        <div style="font-weight: 700; ${isSinhala ? '' : 'text-decoration: underline;'} font-size: 16px;">${escapeHtml(headerTitle)}</div>
+        <div style="font-weight: ${isSinhala ? '900' : '700'}; ${isSinhala ? '' : 'text-decoration: underline;'} font-size: 16px;">${escapeHtml(headerTitle)}</div>
       </div>
 
       <div style="text-align:center; margin-top: 22px; font-size: 14px;">
@@ -378,7 +391,7 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
     doc.text('කළමනාකාරතුමා,', margin, y);
     y += 7;
     if (row.agentName?.trim()) {
-      doc.text(row.agentName, margin, y);
+      doc.text(formatAgencyLineWithComma(row.agentName), margin, y);
       y += 7;
     }
     if (row.asAtDate?.trim()) {
@@ -397,7 +410,7 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
     doc.text('The Manager,', margin, y);
     y += 7;
     if (row.agentName?.trim()) {
-      doc.text(row.agentName, margin, y);
+      doc.text(formatAgencyLineWithComma(row.agentName), margin, y);
       y += 7;
     }
     if (row.asAtDate?.trim()) {
@@ -411,7 +424,14 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
   doc.setFontSize(12);
   const headerTitleForPdf =
     isSinhala ? `${row.asAtDate ?? ''} දිනට ශේෂ සහතිකය.` : t.title;
-  doc.text(headerTitleForPdf, pageWidth / 2, y, { align: 'center' });
+  if (isSinhala) {
+    doc.setFont(SINHALA_FONT_FAMILY, 'normal');
+    // Pseudo-bold pass for Sinhala title (single available TTF weight).
+    doc.text(headerTitleForPdf, pageWidth / 2, y, { align: 'center' });
+    doc.text(headerTitleForPdf, pageWidth / 2 + 0.22, y, { align: 'center' });
+  } else {
+    doc.text(headerTitleForPdf, pageWidth / 2, y, { align: 'center' });
+  }
   y += 10;
 
   doc.setFontSize(11);
