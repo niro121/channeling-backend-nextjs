@@ -19,6 +19,7 @@
  * - Cashier till: type=CASH, userId → till for a staff member (float).
  * - Agency PAYABLE: type=PAYABLE, agencyId (prepaid balance / liability to agent).
  * - Credit customer RECEIVABLE: type=RECEIVABLE, creditCustomerId.
+ * - Branch INCOME / EXPENSE: type=INCOME|EXPENSE, optional locationId (profit and loss; no parent cash book).
  */
 
 import prisma from '@/lib/prisma';

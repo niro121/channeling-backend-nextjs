@@ -7,14 +7,16 @@ import { z } from 'zod';
 import { getMainCashBookAccount } from './read.service';
 import { mapAccount } from '../map-account';
 
-const ACCOUNT_TYPES = ['CASH', 'PAYABLE', 'RECEIVABLE'] as const;
+const ACCOUNT_TYPES = ['CASH', 'PAYABLE', 'RECEIVABLE', 'INCOME', 'EXPENSE'] as const;
 
 const MIN_BALANCE_ALLOWED_MIN = -2147483648; // 32-bit signed int min (cents)
 const MIN_BALANCE_ALLOWED_MAX = 2147483647; // 32-bit signed int max (cents)
 
 const createAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name must be at most 200 characters').trim(),
-  type: z.enum(ACCOUNT_TYPES, { message: 'Type is required and must be CASH, PAYABLE, or RECEIVABLE' }),
+  type: z.enum(ACCOUNT_TYPES, {
+    message: 'Type is required and must be CASH, PAYABLE, RECEIVABLE, INCOME, or EXPENSE',
+  }),
   code: z
     .string()
     .max(50)

@@ -9,28 +9,39 @@ const ACTION_TRANSFER = 'booking.transferred';
 const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_transfer', 31);
 const MAX_RECORDS = getReportMaxRecords('channel_transfer', 10000);
 
-function parseLocalDay(dateStr: string): { start: Date; end: Date } | null {
-  const s = (dateStr ?? '').trim();
-  if (!s) return null;
-  const [y, m, d] = s.split('-').map(Number);
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('T')) {
+    const d = new Date(trimmed);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const [y, m, d] = trimmed.split('-').map(Number);
   if (!y || !m || !d) return null;
-  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  if (asEnd) return new Date(y, m - 1, d, 23, 59, 59, 999);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date } | null {
+  const start = parseDateTime(dateFrom, false);
+  const end = parseDateTime(dateTo, true);
+  if (!start || !end) return null;
   return { start, end };
 }
 
-// NOTE: keep mapping simple; report displays ActivityLog before/after strings.
+function isObjectId(v: string): boolean {
+  return /^[a-fA-F0-9]{24}$/.test(v);
+}
 
 export async function getChannelTransferReportService(
   query: ChannelTransferReportQuery
 ): Promise<{ success: boolean; data: ChannelTransferReportRow[]; totalRecords: number; message?: string }> {
-  const fromParsed = parseLocalDay(query.dateFrom);
-  const toParsed = parseLocalDay(query.dateTo);
-  if (!fromParsed || !toParsed) {
+  const range = parseFromTo(query.dateFrom, query.dateTo);
+  if (!range) {
     return { success: false, data: [], totalRecords: 0, message: 'From date and to date are required.' };
   }
-  const from = fromParsed.start;
-  const to = toParsed.end;
+  const from = range.start;
+  const to = range.end;
   if (from.getTime() > to.getTime()) {
     return { success: false, data: [], totalRecords: 0, message: 'From date must be before or equal to to date.' };
   }
@@ -46,18 +57,38 @@ export async function getChannelTransferReportService(
 
   const fromSessionId = (query.fromSessionId ?? '__all__').trim();
   const toSessionId = (query.toSessionId ?? '__all__').trim();
+  const branchId = (query.branchId ?? '__all__').trim();
+  const fromSpecialityId = (query.fromSpecialityId ?? '__all__').trim();
+  const toSpecialityId = (query.toSpecialityId ?? '__all__').trim();
   const fromDoctorIdFilter = (query.fromDoctorId ?? '__all__').trim();
   const toDoctorIdFilter = (query.toDoctorId ?? '__all__').trim();
   const transferredByUserId = (query.transferredByUserId ?? '__all__').trim();
-  const bookingId = (query.bookingId ?? '').trim();
+  const bookingSearch = (query.bookingId ?? '').trim();
 
   const where: any = {
     action: ACTION_TRANSFER,
     entityType: 'Booking',
     createdAt: { gte: from, lte: to },
   };
-  if (bookingId) {
-    where.entityId = bookingId;
+  if (bookingSearch) {
+    const bookingNo = Number.parseInt(bookingSearch, 10);
+    const bookingMatches = await prisma.booking.findMany({
+      where: {
+        OR: [
+          ...(isObjectId(bookingSearch) ? [{ id: bookingSearch }] : []),
+          { bookingid_string: { contains: bookingSearch } },
+          { receiptNoString: { contains: bookingSearch } },
+          ...(Number.isFinite(bookingNo) ? [{ appointmentNo: bookingNo }] : []),
+        ],
+      },
+      select: { id: true },
+      take: 250,
+    });
+    const matchedBookingIds = Array.from(new Set(bookingMatches.map((b) => b.id).filter(Boolean)));
+    if (matchedBookingIds.length === 0) {
+      return { success: true, data: [], totalRecords: 0, message: 'No transfers found for the provided booking reference.' };
+    }
+    where.entityId = { in: matchedBookingIds };
   }
 
   // NOTE: Prisma Mongo JSON path filtering isn't supported consistently across versions.
@@ -85,6 +116,9 @@ export async function getChannelTransferReportService(
     where: { id: { in: bookingIds } },
     select: {
       id: true,
+      locationId: true,
+      bookingid_string: true,
+      receiptNoString: true,
       amount: true,
       appointmentNo: true,
       sessionStartTime: true,
@@ -98,19 +132,21 @@ export async function getChannelTransferReportService(
       session: {
         select: {
           id: true,
+          locationId: true,
           doctorId: true,
           date: true,
           startTime: true,
-          doctor: { select: { title: true, name: true, code: true, speciality: { select: { name: true } } } },
+          doctor: { select: { title: true, name: true, code: true, specialityId: true, speciality: { select: { name: true } } } },
         },
       },
       movedFromSession: {
         select: {
           id: true,
+          locationId: true,
           doctorId: true,
           date: true,
           startTime: true,
-          doctor: { select: { title: true, name: true, code: true, speciality: { select: { name: true } } } },
+          doctor: { select: { title: true, name: true, code: true, specialityId: true, speciality: { select: { name: true } } } },
         },
       },
     },
@@ -126,6 +162,9 @@ export async function getChannelTransferReportService(
 
       const beforeActivity = typeof md?.before === 'string' ? md.before : null;
       const afterActivity = typeof md?.after === 'string' ? md.after : null;
+      const fromSpeciality = b?.movedFromSession?.doctor?.specialityId ?? null;
+      const toSpeciality = b?.session?.doctor?.specialityId ?? null;
+      const branch = b?.locationId ?? b?.session?.locationId ?? b?.movedFromSession?.locationId ?? null;
 
       return {
         id: log.id,
@@ -134,14 +173,18 @@ export async function getChannelTransferReportService(
         transferredByUserName: formatUserDisplayName(log.user?.name, log.userId, log.user?.staff?.code),
 
         bookingId: log.entityId ?? (md?.bookingId as string | undefined) ?? '',
+        bookingDisplayId: b?.bookingid_string ?? b?.receiptNoString ?? (log.entityId ?? null),
 
         fromSessionId: fromId,
         fromDoctorId: b?.movedFromSession?.doctorId ?? null,
+        fromSpecialityId: fromSpeciality,
         beforeActivity,
 
         toSessionId: toId,
         toDoctorId: b?.session?.doctorId ?? null,
+        toSpecialityId: toSpeciality,
         afterActivity,
+        branchId: branch,
 
         remarks: (md?.remarks as string | undefined) ?? b?.movedRemarks ?? null,
         metadata: md,
@@ -150,6 +193,9 @@ export async function getChannelTransferReportService(
     .filter((row) => {
       if (fromSessionId && fromSessionId !== '__all__' && row.fromSessionId !== fromSessionId) return false;
       if (toSessionId && toSessionId !== '__all__' && row.toSessionId !== toSessionId) return false;
+      if (branchId && branchId !== '__all__' && row.branchId !== branchId) return false;
+      if (fromSpecialityId && fromSpecialityId !== '__all__' && row.fromSpecialityId !== fromSpecialityId) return false;
+      if (toSpecialityId && toSpecialityId !== '__all__' && row.toSpecialityId !== toSpecialityId) return false;
       if (fromDoctorIdFilter && fromDoctorIdFilter !== '__all__' && row.fromDoctorId !== fromDoctorIdFilter) return false;
       if (toDoctorIdFilter && toDoctorIdFilter !== '__all__' && row.toDoctorId !== toDoctorIdFilter) return false;
       if (transferredByUserId && transferredByUserId !== '__all__' && row.transferredByUserId !== transferredByUserId) return false;

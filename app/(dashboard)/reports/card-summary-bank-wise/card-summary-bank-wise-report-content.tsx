@@ -3,7 +3,7 @@
 import React, { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -23,6 +23,17 @@ type Props = {
   locationOptions: Array<{ id: string; name: string }>;
 };
 
+function getDefaultDateTimeRange(): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    dateFrom: `${y}-${m}-${d}T00:00`,
+    dateTo: `${y}-${m}-${d}T23:59`
+  };
+}
+
 function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) {
   const searchParams = useSearchParams();
 
@@ -34,14 +45,14 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
 
   const exportColumns = useMemo(() => {
     return format === 'detail'
-      ? ['Receipt No', 'Created Date', 'Bank Name', 'Card Ref', 'Remarks', 'Branch', 'Creator', 'Amount']
+      ? ['Receipt No.', 'Remark', 'User Location', 'User', 'Created Date and Time', 'Bank', 'Card No', 'Total']
       : ['Bank Name', 'Count', 'Total'];
   }, [format]);
 
   const exportKeys = useMemo(() => {
     return (
       format === 'detail'
-        ? (['receiptNo', 'createdAt', 'bank', 'cardReference', 'remarks', 'branch', 'creator', 'total'] as (keyof CardSummaryBankWiseReportExportRow)[])
+        ? (['receiptNo', 'remarks', 'userLocation', 'user', 'createdAt', 'bank', 'cardReference', 'total'] as (keyof CardSummaryBankWiseReportExportRow)[])
         : (['bank', 'count', 'total'] as (keyof CardSummaryBankWiseReportExportRow)[])
     );
   }, [format]);
@@ -83,8 +94,8 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-shrink-0">
-            <label className="text-sm font-semibold mb-2 block">Date Range</label>
-            <DateRangePicker
+            <DateTimeRangePicker
+              label="Date & time range"
               from={values.dateFrom}
               to={values.dateTo}
               onChange={({ from, to }) => {
@@ -172,6 +183,7 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
         );
       }}
       skipFetchWhenNoParams={true}
+      initialFilterValues={getDefaultDateTimeRange()}
       initialEmptyMessage="No card receipts found. Select filters and click Search."
       emptyMessage="No card receipts found for the selected filters."
     />

@@ -26,22 +26,12 @@ export const CardSummaryBankWiseSummaryColumns: ColumnDef<CardSummaryBankWiseRep
 export const CardSummaryBankWiseDetailColumns: ColumnDef<CardSummaryBankWiseReportRow>[] = [
   {
     accessorKey: 'receiptNoString',
-    header: 'Receipt No',
+    header: 'Receipt No.',
     cell: ({ row }) => row.getValue<string>('receiptNoString') ?? '-'
   },
   {
-    accessorKey: 'createdAt',
-    header: 'Created Date',
-    cell: ({ row }) => {
-      const d = row.getValue<Date | null>('createdAt');
-      return d ? moment(d).format('YYYY-MM-DD HH:mm') : '-';
-    }
-  },
-  { accessorKey: 'bankName', header: 'Bank Name', cell: ({ row }) => row.getValue<string>('bankName') ?? '-' },
-  { accessorKey: 'cardReference', header: 'Card Ref', cell: ({ row }) => row.getValue<string>('cardReference') ?? '-' },
-  {
     accessorKey: 'remarks',
-    header: 'Remarks',
+    header: 'Remark',
     cell: ({ row }) => {
       const v = row.getValue<string>('remarks');
       return (
@@ -51,11 +41,21 @@ export const CardSummaryBankWiseDetailColumns: ColumnDef<CardSummaryBankWiseRepo
       );
     }
   },
-  { accessorKey: 'branch', header: 'Branch', cell: ({ row }) => row.getValue<string>('branch') ?? '-' },
-  { accessorKey: 'creator', header: 'Creator', cell: ({ row }) => row.getValue<string>('creator') ?? '-' },
+  { accessorKey: 'userLocation', header: 'User Location', cell: ({ row }) => row.getValue<string>('userLocation') ?? '-' },
+  { accessorKey: 'user', header: 'User', cell: ({ row }) => row.getValue<string>('user') ?? '-' },
+  {
+    accessorKey: 'createdAt',
+    header: 'Created Date and Time',
+    cell: ({ row }) => {
+      const d = row.getValue<Date | null>('createdAt');
+      return d ? moment(d).format('YYYY-MM-DD HH:mm') : '-';
+    }
+  },
+  { accessorKey: 'bankName', header: 'Bank', cell: ({ row }) => row.getValue<string>('bankName') ?? '-' },
+  { accessorKey: 'cardReference', header: 'Card No', cell: ({ row }) => row.getValue<string>('cardReference') ?? '-' },
   {
     accessorKey: 'totalAmount',
-    header: () => <span className="text-right block">Amount</span>,
+    header: () => <span className="text-right block">Total</span>,
     cell: ({ row }) => <span className="text-right tabular-nums block">{formatReceiptAmount(row.getValue<number>('totalAmount') ?? 0)}</span>
   }
 ];

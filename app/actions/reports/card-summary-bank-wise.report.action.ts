@@ -45,8 +45,8 @@ export async function exportCardSummaryBankWiseReportData(
             count: String(r.count ?? 0),
             receiptNo: r.receiptNoString ?? '-',
             createdAt: r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',
-            branch: r.branch ?? '-',
-            creator: r.creator ?? '-',
+            userLocation: r.userLocation ?? '-',
+            user: r.user ?? '-',
             cardReference: r.cardReference ?? '-',
             remarks: r.remarks ?? '-'
           }));

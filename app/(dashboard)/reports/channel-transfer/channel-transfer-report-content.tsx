@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Input } from '@/components/ui/input';
 import Loading from '@/app/(dashboard)/loading';
@@ -17,14 +17,30 @@ type Props = {
   currentUserName: string;
   doctorOptions: Array<{ id: string; name: string }>;
   userOptions: Array<{ id: string; name: string }>;
+  locationOptions: Array<{ id: string; name: string }>;
+  specialityOptions: Array<{ id: string; name: string }>;
 };
 
-function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
+function getDefaultDateTimeRange(): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    dateFrom: `${y}-${m}-${d}T00:00`,
+    dateTo: `${y}-${m}-${d}T23:59`,
+  };
+}
+
+function ContentInner({ currentUserName, doctorOptions, userOptions, locationOptions, specialityOptions }: Props) {
   const searchParams = useSearchParams();
 
   const buildQuery = (): ChannelTransferReportQuery => ({
     dateFrom: searchParams.get('dateFrom') ?? '',
     dateTo: searchParams.get('dateTo') ?? '',
+    branchId: searchParams.get('branchId') ?? '__all__',
+    fromSpecialityId: searchParams.get('fromSpecialityId') ?? '__all__',
+    toSpecialityId: searchParams.get('toSpecialityId') ?? '__all__',
     fromDoctorId: searchParams.get('fromDoctorId') ?? '__all__',
     toDoctorId: searchParams.get('toDoctorId') ?? '__all__',
     transferredByUserId: searchParams.get('transferredByUserId') ?? '__all__',
@@ -115,12 +131,27 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
         formatFilters: (values) => {
           const df = values.dateFrom ?? '';
           const dt = values.dateTo ?? '';
+          const branchId = values.branchId ?? '__all__';
+          const fromSpecialityId = values.fromSpecialityId ?? '__all__';
+          const toSpecialityId = values.toSpecialityId ?? '__all__';
           const fromDoctorId = values.fromDoctorId ?? '__all__';
           const toDoctorId = values.toDoctorId ?? '__all__';
           const transferredByUserId = values.transferredByUserId ?? '__all__';
           const fromId = values.fromSessionId ?? '__all__';
           const toId = values.toSessionId ?? '__all__';
           const bookingId = (values.bookingId ?? '').trim();
+          const branchLabel =
+            branchId === '__all__'
+              ? 'All Branches'
+              : locationOptions.find((l) => l.id === branchId)?.name ?? branchId;
+          const fromSpecialityLabel =
+            fromSpecialityId === '__all__'
+              ? 'All Specialities'
+              : specialityOptions.find((s) => s.id === fromSpecialityId)?.name ?? fromSpecialityId;
+          const toSpecialityLabel =
+            toSpecialityId === '__all__'
+              ? 'All Specialities'
+              : specialityOptions.find((s) => s.id === toSpecialityId)?.name ?? toSpecialityId;
           const fromDoctorLabel =
             fromDoctorId === '__all__'
               ? 'All Doctors'
@@ -141,7 +172,7 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
             <>
               <div>Range: {df} to {dt}</div>
               <div>
-                Transferred by: {transferredByLabel} | From doctor: {fromDoctorLabel} | From session: {fromLabel} | To doctor: {toDoctorLabel} | To session: {toLabel}
+                Branch: {branchLabel} | Transferred by: {transferredByLabel} | From speciality: {fromSpecialityLabel} | From doctor: {fromDoctorLabel} | From session: {fromLabel} | To speciality: {toSpecialityLabel} | To doctor: {toDoctorLabel} | To session: {toLabel}
                 {bookingId ? ` | Booking ID: ${bookingId}` : ''}
               </div>
             </>
@@ -151,8 +182,8 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-shrink-0">
-            <label className="text-sm font-semibold mb-2 block">Date Range</label>
-            <DateRangePicker
+            <DateTimeRangePicker
+              label="Date & time range"
               from={values.dateFrom}
               to={values.dateTo}
               onChange={({ from, to }) => {
@@ -162,6 +193,18 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
                 setValue('fromSessionId', '__all__');
                 setValue('toSessionId', '__all__');
               }}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold mb-2 block">Branch</label>
+            <Combobox
+              label="Branch"
+              options={locationOptions}
+              value={values.branchId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => setValue('branchId', v ?? '__all__')}
             />
           </div>
 
@@ -176,6 +219,22 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
           />
 
           <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold mb-2 block">From Speciality</label>
+            <Combobox
+              label="From Speciality"
+              options={specialityOptions}
+              value={values.fromSpecialityId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => {
+                setValue('fromSpecialityId', v ?? '__all__');
+                setValue('fromDoctorId', '__all__');
+                setValue('fromSessionId', '__all__');
+              }}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold mb-2 block">From Doctor</label>
             <Combobox
               label="From Doctor"
@@ -186,6 +245,22 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
               onChange={(v) => {
                 setValue('fromDoctorId', v ?? '__all__');
                 setValue('fromSessionId', '__all__');
+              }}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold mb-2 block">To Speciality</label>
+            <Combobox
+              label="To Speciality"
+              options={specialityOptions}
+              value={values.toSpecialityId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => {
+                setValue('toSpecialityId', v ?? '__all__');
+                setValue('toDoctorId', '__all__');
+                setValue('toSessionId', '__all__');
               }}
             />
           </div>
@@ -232,9 +307,9 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
           </div>
 
           <div className="w-72">
-            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Booking ID (optional)</label>
+            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Booking ID / Bill No / Appointment No</label>
             <Input
-              placeholder="Paste Booking ObjectId"
+              placeholder="e.g. 680... or CH-... or 123"
               value={values.bookingId ?? ''}
               onChange={(e) => setValue('bookingId', e.target.value)}
               className="h-10"
@@ -246,6 +321,9 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
         const query: ChannelTransferReportQuery = {
           dateFrom: params.get('dateFrom') ?? '',
           dateTo: params.get('dateTo') ?? '',
+          branchId: params.get('branchId') ?? '__all__',
+          fromSpecialityId: params.get('fromSpecialityId') ?? '__all__',
+          toSpecialityId: params.get('toSpecialityId') ?? '__all__',
           fromDoctorId: params.get('fromDoctorId') ?? '__all__',
           toDoctorId: params.get('toDoctorId') ?? '__all__',
           transferredByUserId: params.get('transferredByUserId') ?? '__all__',
@@ -281,6 +359,7 @@ function ContentInner({ currentUserName, doctorOptions, userOptions }: Props) {
       exportFileName="channel-transfer-report"
       getRowId={(row) => row.id}
       skipFetchWhenNoParams={true}
+      initialFilterValues={getDefaultDateTimeRange()}
       initialEmptyMessage="No transfers found. Select filters and click Search."
       emptyMessage="No transfers found for the selected filters."
     />
