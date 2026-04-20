@@ -60,8 +60,8 @@ export type ExportChannelAgentReferenceBookData = {
 
 // Agent Detail Report Types
 export type AgentDetailReportQuery = {
-  fromDate: string;
-  toDate: string;
+  fromDate?: string;
+  toDate?: string;
   agencyId?: string;
   agencyName?: string;
   agencyCode?: string;

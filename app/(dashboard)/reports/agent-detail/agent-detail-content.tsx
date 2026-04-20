@@ -3,7 +3,6 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
 import { ReportAgentSelect } from '@/components/common/agent-select';
 import {
   Select,
@@ -34,8 +33,6 @@ function AgentDetailReportContentInner({
   const searchParams = useSearchParams();
   
   const buildQuery = () => ({
-    fromDate: searchParams.get('fromDate') ?? '',
-    toDate: searchParams.get('toDate') ?? '',
     agencyId:
       searchParams.get('agencyId') && searchParams.get('agencyId') !== '__all__'
         ? searchParams.get('agencyId') ?? undefined
@@ -56,19 +53,6 @@ function AgentDetailReportContentInner({
       filterContent={({ values, setValue }) => (
         <>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end w-[260px] [&_button]:w-full">
-              <label className="text-sm text-black font-semibold mb-2 block">
-                Date Range
-              </label>
-              <DateRangePicker
-                from={values.fromDate}
-                to={values.toDate}
-                onChange={({ from, to }) => {
-                  setValue('fromDate', from);
-                  setValue('toDate', to);
-                }}
-              />
-            </div>
             <div className="flex-shrink-0 min-h-[68px] flex flex-col justify-end w-[260px]">
               <label className="text-sm text-black font-semibold mb-2 block">
                 Status
@@ -104,21 +88,7 @@ function AgentDetailReportContentInner({
         </>
       )}
       fetchData={async (params) => {
-        const fromDate = params.get('fromDate') ?? '';
-        const toDate = params.get('toDate') ?? '';
-
-        if (!fromDate || !toDate) {
-          return {
-            success: false,
-            data: [],
-            totalRecords: 0,
-            message: 'Please select both from date and to date'
-          };
-    }
-
         return getAgentDetailReportData({
-      fromDate,
-      toDate,
           agencyId:
             params.get('agencyId') && params.get('agencyId') !== '__all__'
               ? params.get('agencyId') ?? undefined
@@ -127,13 +97,10 @@ function AgentDetailReportContentInner({
             params.get('status') && params.get('status') !== '__all__'
               ? params.get('status') ?? undefined
               : undefined
-    });
+        });
       }}
       exportData={async () => {
         const query = buildQuery();
-        if (!query.fromDate || !query.toDate) {
-          return { success: false, message: 'Please select both from date and to date' };
-        }
         return exportAgentDetailReportData(query);
       }}
       columns={AgentDetailReportColumns}
