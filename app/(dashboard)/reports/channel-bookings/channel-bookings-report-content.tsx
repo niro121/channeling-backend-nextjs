@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateAndTimeRangePicker } from '@/components/common/date-and-time-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
@@ -31,10 +31,27 @@ function filterOptionLabel(
   return options.find((o) => o.id === id)?.name ?? id;
 }
 
+/** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm for datetime-local (same as doctor arrivals). */
+function getDefaultDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    from: `${y}-${m}-${d}T00:00`,
+    to: `${y}-${m}-${d}T23:59`,
+  };
+}
+
 function ChannelBookingsReportContentInner(
   props: ChannelBookingsReportContentProps
 ) {
   const searchParams = useSearchParams();
+
+  const initialFilterValues = React.useMemo(() => {
+    const { from, to } = getDefaultDateTimeRange();
+    return { fromDateTime: from, toDateTime: to };
+  }, []);
 
   const buildQuery = () => ({
     fromDateTime: searchParams.get('fromDateTime') ?? undefined,
@@ -167,8 +184,8 @@ function ChannelBookingsReportContentInner(
             <div className="flex flex-wrap gap-3">
               {/* Date */}
               <div className="flex flex-col gap-1.5">
-                <div className="flex flex-wrap items-end gap-3">
-                  <DateAndTimeRangePicker
+                <div className="basis-full">
+                  <DateTimeRangePicker
                     label="Date & Time Range"
                     from={values.fromDateTime}
                     to={values.toDateTime}
@@ -243,7 +260,9 @@ function ChannelBookingsReportContentInner(
                   />
                   <ReportAgentSelect
                     label="Agency"
-                    agentOptions={props.agencyOptions.filter((o) => o.id !== '__all__')}
+                    agentOptions={props.agencyOptions.filter(
+                      (o) => o.id !== '__all__'
+                    )}
                     value={values.agencyId ?? '__all__'}
                     onChange={(v) => setValue('agencyId', v)}
                   />
@@ -445,6 +464,7 @@ function ChannelBookingsReportContentInner(
       }}
       emptyMessage="No channel bookings found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
+      initialFilterValues={initialFilterValues}
       groupBy={(row) => (row as { doctor?: { id?: string } }).doctor?.id ?? ''}
       renderGroupHeader={(_, rows) => {
         const first = rows[0] as { doctor?: { code?: string; name?: string } };
