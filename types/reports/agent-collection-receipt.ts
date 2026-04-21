@@ -1,9 +1,9 @@
-export type AgentCollectionReceiptPaymentType = '__all__' | 'cash' | 'credit_card' | 'slip' | 'cheque';
+export type AgentCollectionReceiptPaymentType = '__all__' | 'cash' | 'credit_card' | 'slip' | 'cheque' | 'e_wallet';
 
 export type AgentCollectionReceiptReportQuery = {
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateFrom: string;
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm */
   dateTo: string;
   /** '__all__' or location id */
   locationId?: string;

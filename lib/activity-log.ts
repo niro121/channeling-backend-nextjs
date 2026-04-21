@@ -1,4 +1,3 @@
-import { headers } from "next/headers"
 import prisma from "@/lib/prisma"
 
 const ACTIVITY_LOG_ENABLED =
@@ -17,20 +16,8 @@ export type LogActivityParams = {
   importance?: "low" | "medium" | "high"
 }
 
-/** Get client IP from request headers (x-forwarded-for or x-real-ip). Returns null if not in request context. */
+/** Returns null; this module must stay import-safe for client-reachable bundles. */
 async function getClientIp(): Promise<string | null> {
-  try {
-    const h = await headers()
-    const forwarded = h.get("x-forwarded-for")
-    if (forwarded) {
-      const first = forwarded.split(",")[0]?.trim()
-      if (first) return first
-    }
-    const real = h.get("x-real-ip")
-    if (real) return real.trim()
-  } catch {
-    // Not in request context (e.g. background job)
-  }
   return null
 }
 

@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { BackButton } from '@/components/common/back-button';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkPermission } from '@/lib/server-permissions';
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -15,6 +16,7 @@ export default async function Page({ params }: PageProps) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   const user = session?.user;
+  const canEditCreditLimit = await checkPermission('agencies', 'edit-credit-limit');
   const agencyData = await getAgencyById(id);
 
   if (!agencyData.success || !agencyData.data) {
@@ -48,6 +50,7 @@ export default async function Page({ params }: PageProps) {
           agency={agencyData.data}
           parentAgencies={parentAgencies}
           locations={locations}
+          canEditCreditLimit={canEditCreditLimit}
           isEditPage={true}
           user={{ id: user?.id, name: user?.name || '' }}
         />

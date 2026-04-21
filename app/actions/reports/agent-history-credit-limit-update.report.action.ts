@@ -39,16 +39,16 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
       return { success: false, message: result.message ?? 'No data available' };
     }
 
-    const mapped: AgentHistoryCreditLimitUpdateReportExportRow[] = result.data.map((r) => ({
-      dateTime: moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
-      changedBy: r.changedByUserName ?? r.changedByUserId ?? '-',
-      limitType: r.limitType === 'soft' ? 'Soft limit' : 'Hard limit',
+    const mapped: AgentHistoryCreditLimitUpdateReportExportRow[] = result.data.map((r, idx) => ({
+      no: String(idx + 1),
       agent: r.agencyName ?? '-',
       agentCode: r.agencyCode ?? '-',
-      oldValue: r.oldValue == null ? '-' : String(r.oldValue.toFixed(2)),
-      newValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
+      limitType: r.limitType === 'soft' ? 'Soft limit' : 'Hard limit',
+      beforeValue: r.oldValue == null ? '-' : String(r.oldValue.toFixed(2)),
+      updatedValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
       delta: r.delta == null ? '-' : String(r.delta.toFixed(2)),
-      action: r.action,
+      changedBy: r.changedByUserName ?? r.changedByUserId ?? '-',
+      dateTime: moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
     }));
 
     const session = await getServerSession(authOptions);
