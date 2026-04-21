@@ -168,7 +168,6 @@ export const getAllDoctorViewReportDataService = async ({
         const refund = booking.refund ?? 0;
         const isCancelByRefundReceipt = refund === 3 && !!booking.refundReceiptCreatedAt;
         const isCancelled = booking.status === 2 || !!booking.canceledAt || isCancelByRefundReceipt;
-        const isRefunded = refund > 0 && !isCancelByRefundReceipt;
 
         if (isCancelled) {
           row.cancel++;
@@ -184,13 +183,13 @@ export const getAllDoctorViewReportDataService = async ({
         }
 
         // Not paid bucket should only include active pending bookings.
-        if (booking.status === 0 && !isCancelled && !isRefunded) {
+        if (booking.status === 0 && !isCancelled) {
           row.notPaid++;
           return;
         }
 
-        // Paid/valid buckets should exclude cancelled/refunded bookings.
-        if (booking.status === 1 && !isCancelled && !isRefunded) {
+        // Paid/valid buckets should exclude only cancelled bookings.
+        if (booking.status === 1 && !isCancelled) {
           row.paid++;
           row.hosValid++;
           row.proValid++;
