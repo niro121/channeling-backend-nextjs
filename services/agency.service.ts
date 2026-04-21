@@ -6,7 +6,8 @@ import {
   GetAgenciesReturn,
   Agency,
   AgencyFormValues,
-  UpdateAgencyPayload
+  UpdateAgencyPayload,
+  AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP
 } from '@/types/agency';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -14,9 +15,11 @@ import { sriLankaPhoneRegex, sriLankaMobileRegex } from '@/lib/regex';
 import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
 import { createAccount } from '@/services/accounting/account.service';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
+import { formatLKR } from '@/lib/format-money';
+import { getAgentBalance } from '@/services/channel-booking/helpers/get-agent-balance';
 
 // ==== AGENCY: VALIDATION SCHEMA ==== //
-const agencySchema = z.object({
+const agencySchemaBase = z.object({
   name: z
     .string()
     .min(1, 'This field is mandatory')
@@ -30,6 +33,11 @@ const agencySchema = z.object({
     .number()
     .min(0, 'Must be 0 or greater')
     .refine((val) => val >= 0, 'Allowed credit limit must be 0 or greater'),
+  creditLimit: z
+    .coerce
+    .number()
+    .min(0, 'Must be 0 or greater')
+    .refine((val) => val >= 0, 'Credit limit must be 0 or greater'),
   contactPersonName: z
     .string()
     .min(1, 'This field is mandatory')
@@ -102,11 +110,50 @@ const agencySchema = z.object({
   locationId: z.string().optional().nullable()
 });
 
-const agencyUpdateSchema = agencySchema.partial().extend({
-  id: z.string().min(1, 'Agency ID is required')
+const agencySchema = agencySchemaBase.superRefine((value, ctx) => {
+  if (Number(value.creditLimit) > Number(value.allowedCreditLimit)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Credit limit cannot be greater than allowed credit limit',
+      path: ['creditLimit']
+    });
+  }
 });
 
+const agencyUpdateSchema = agencySchemaBase
+  .partial()
+  .extend({
+    id: z.string().min(1, 'Agency ID is required')
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.creditLimit !== undefined &&
+      value.allowedCreditLimit !== undefined &&
+      Number(value.creditLimit) > Number(value.allowedCreditLimit)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Credit limit cannot be greater than allowed credit limit',
+        path: ['creditLimit']
+      });
+    }
+  });
+
 type agencyInput = z.infer<typeof agencySchema>;
+
+function clampCreditLimit(creditLimit: number, allowedCreditLimit: number): number {
+  return Math.max(0, Math.min(Number(creditLimit), Number(allowedCreditLimit)));
+}
+
+function resolveAgencyHardCreditLimitLkr(account: {
+  minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
+} | null | undefined): number | undefined {
+  if (!account) return undefined;
+  if (account.minBalanceAllowed != null) return Math.abs(Number(account.minBalanceAllowed)) / 100;
+  if (account.maxBalanceAllowed != null) return Number(account.maxBalanceAllowed) / 100;
+  return undefined;
+}
 
 // ==== GET ALL AGENCIES ==== //
 export const getAllAgenciesService = async ({
@@ -193,10 +240,17 @@ export const getAllAgenciesService = async ({
       rows.map(async (row) => {
         const acc = row.accounts?.[0];
         const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const maxCreditLimit = resolveAgencyHardCreditLimitLkr(acc);
+        const standardCreditLimit =
+          maxCreditLimit != null
+            ? Math.min(Number(row.allowedCreditLimit ?? 0), maxCreditLimit)
+            : Number(row.allowedCreditLimit ?? 0);
         const { accounts: _a, ...rest } = row;
         return {
           ...rest,
           balance: balanceCents / 100,
+          maxCreditLimit,
+          standardCreditLimit,
           accountId: acc?.id ?? null,
           accountName: acc?.name ?? null,
           accountCode: acc?.code ?? null
@@ -273,10 +327,17 @@ export const getAllAgenciesExportService = async ({
       rows.map(async (row) => {
         const acc = row.accounts?.[0];
         const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+        const maxCreditLimit = resolveAgencyHardCreditLimitLkr(acc);
+        const standardCreditLimit =
+          maxCreditLimit != null
+            ? Math.min(Number(row.allowedCreditLimit ?? 0), maxCreditLimit)
+            : Number(row.allowedCreditLimit ?? 0);
         const { accounts: _a, ...rest } = row;
         return {
           ...rest,
           balance: balanceCents / 100,
+          maxCreditLimit,
+          standardCreditLimit,
           accountId: acc?.id ?? null,
           accountName: acc?.name ?? null,
           accountCode: acc?.code ?? null
@@ -338,10 +399,17 @@ export const getAgencyByIdService = async (
 
     const acc = agency.accounts?.[0];
     const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
+    const maxCreditLimit = resolveAgencyHardCreditLimitLkr(acc);
+    const standardCreditLimit =
+      maxCreditLimit != null
+        ? Math.min(Number(agency.allowedCreditLimit ?? 0), maxCreditLimit)
+        : Number(agency.allowedCreditLimit ?? 0);
     const { accounts: _accounts, ...rest } = agency;
     const data = {
       ...rest,
       balance: balanceCents / 100,
+      maxCreditLimit,
+      standardCreditLimit,
       accountId: acc?.id ?? null,
       accountName: acc?.name ?? null,
       accountCode: acc?.code ?? null
@@ -417,6 +485,8 @@ export const createAgencyService = async (
     }
 
     const data = parsed.data;
+    const safeAllowedCreditLimit = Number(data.allowedCreditLimit);
+    const safeCreditLimit = clampCreditLimit(Number(data.creditLimit), safeAllowedCreditLimit);
 
     const agencyCode = await getNextAgencyCode();
 
@@ -425,7 +495,11 @@ export const createAgencyService = async (
         name: data.name,
         code: agencyCode,
         chequePrintingName: data.chequePrintingName,
-        allowedCreditLimit: data.allowedCreditLimit,
+        allowedCreditLimit: safeAllowedCreditLimit,
+        creditLimit: safeCreditLimit,
+        isCreditLimitViolation: false,
+        creditLimitViolationAt: null,
+        creditLimitViolationReason: null,
         phone: data.phone || null,
         mobile: data.mobile || null,
         fax: data.fax || null,
@@ -525,6 +599,61 @@ export const updateAgencyService = async (
     }
 
     const data = parsed.data;
+    const existingAgency = await prisma.agency.findUnique({
+      where: { id },
+      select: { id: true, allowedCreditLimit: true, creditLimit: true, isCreditLimitViolation: true }
+    });
+    if (!existingAgency) {
+      return {
+        success: false,
+        error: { message: 'Agency not found' }
+      };
+    }
+
+    const isLimitEditRequest =
+      data.allowedCreditLimit !== undefined || data.creditLimit !== undefined;
+
+    if (existingAgency.isCreditLimitViolation && isLimitEditRequest) {
+      return {
+        success: false,
+        error: {
+          message: 'Credit limit violation is active. Limit updates are blocked until deposit clears the violation.'
+        }
+      };
+    }
+
+    const nextAllowedCreditLimit =
+      data.allowedCreditLimit !== undefined
+        ? Number(data.allowedCreditLimit)
+        : Number(existingAgency.allowedCreditLimit);
+    const nextCreditLimit =
+      data.creditLimit !== undefined
+        ? Number(data.creditLimit)
+        : Number(existingAgency.creditLimit);
+    const safeCreditLimit = clampCreditLimit(nextCreditLimit, nextAllowedCreditLimit);
+    const linkedPayableAccount = await prisma.account.findFirst({
+      where: {
+        agencyId: id,
+        type: 'PAYABLE',
+        isActive: true
+      },
+      select: { minBalanceAllowed: true, maxBalanceAllowed: true }
+    });
+    const hardCreditLimit = resolveAgencyHardCreditLimitLkr(linkedPayableAccount) ?? null;
+    if (hardCreditLimit != null && nextAllowedCreditLimit > hardCreditLimit) {
+      return {
+        success: false,
+        error: {
+          message: `Allowed credit limit cannot be greater than hard credit limit (${hardCreditLimit.toFixed(2)}). Set it equal to or below the hard credit limit.`
+        }
+      };
+    }
+
+    const allowedBeingUpdated = data.allowedCreditLimit !== undefined;
+    const reachesHardCap =
+      hardCreditLimit != null &&
+      allowedBeingUpdated &&
+      Math.round(nextAllowedCreditLimit * 100) === Math.round(hardCreditLimit * 100);
 
     const agency = await prisma.agency.update({
       where: { id },
@@ -534,7 +663,10 @@ export const updateAgencyService = async (
           chequePrintingName: data.chequePrintingName
         }),
         ...(data.allowedCreditLimit !== undefined && {
-          allowedCreditLimit: data.allowedCreditLimit
+          allowedCreditLimit: nextAllowedCreditLimit
+        }),
+        ...((data.creditLimit !== undefined || data.allowedCreditLimit !== undefined) && {
+          creditLimit: safeCreditLimit
         }),
         ...(data.phone !== undefined && { phone: data.phone || null }),
         ...(data.mobile !== undefined && { mobile: data.mobile || null }),
@@ -569,6 +701,11 @@ export const updateAgencyService = async (
         ...(data.locationId !== undefined && {
           locationId: data.locationId || null
         }),
+        ...(reachesHardCap && {
+          isCreditLimitViolation: true,
+          creditLimitViolationAt: new Date(),
+          creditLimitViolationReason: AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP
+        }),
         ...(user?.id && { updatedBy: user.id }),
         updatedAt: new Date()
       },
@@ -578,10 +715,15 @@ export const updateAgencyService = async (
       }
     });
 
+    let successMessage = 'Agency updated successfully';
+    if (reachesHardCap) {
+      successMessage = `Allowed credit limit is now set to the hard limit (${formatLKR(Number(hardCreditLimit))}). A credit-limit restriction is recorded. The allowed credit limit can only be changed again after the agency deposits so the outstanding balance is at or below the agency credit limit of ${formatLKR(Number(safeCreditLimit))}. Until that deposit clears this status, further limit changes are blocked.`;
+    }
+
     return {
       success: true,
       data: agency,
-      message: 'Agency updated successfully'
+      message: successMessage
     };
   } catch (error: any) {
     console.error('updateAgencyService error:', error);
@@ -610,6 +752,93 @@ export const updateAgencyService = async (
       error: {
         message: error.message || 'Failed to update agency'
       }
+    };
+  }
+};
+
+/** Same eligibility as post-deposit auto-clear: debt at or below agency credit limit. */
+export const tryClearAgencyCreditViolationIfEligibleService = async (
+  agencyId: string
+): Promise<{
+  success: boolean;
+  cleared?: boolean;
+  message?: string;
+  error?: { message: string };
+  /** Present when `cleared` so callers can log `agencies.limit.soft_changed`. */
+  softLimitChange?: {
+    oldValue: number;
+    newValue: number;
+    agencyName: string;
+    agencyCode: string | null;
+  };
+}> => {
+  try {
+    const agency = await prisma.agency.findUnique({
+      where: { id: agencyId },
+      select: {
+        id: true,
+        creditLimit: true,
+        isCreditLimitViolation: true,
+        name: true,
+        code: true,
+        allowedCreditLimit: true
+      }
+    });
+    if (!agency) {
+      return { success: false, error: { message: 'Agency not found' } };
+    }
+    if (!agency.isCreditLimitViolation) {
+      return {
+        success: true,
+        cleared: false,
+        message: 'There is no active credit violation for this agency.'
+      };
+    }
+
+    const balanceCents = await getAgentBalance(agencyId);
+    const balanceRupees = balanceCents / 100;
+    const debtRupees = Math.max(0, -balanceRupees);
+    const creditLimit = Number(agency.creditLimit ?? 0);
+
+    if (debtRupees > creditLimit) {
+      return {
+        success: false,
+        error: {
+          message: `Outstanding balance is still above the agency credit limit (${formatLKR(creditLimit)} LKR). Record a deposit or correct the account before clearing.`
+        }
+      };
+    }
+
+    const oldAllowed = Number(agency.allowedCreditLimit ?? 0);
+    const newAllowed = creditLimit;
+
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        allowedCreditLimit: creditLimit,
+        isCreditLimitViolation: false,
+        creditLimitViolationAt: null,
+        creditLimitViolationReason: null
+      }
+    });
+
+    return {
+      success: true,
+      cleared: true,
+      message:
+        'Credit violation cleared. Allowed credit limit was reset to the agency credit limit.',
+      softLimitChange: {
+        oldValue: oldAllowed,
+        newValue: newAllowed,
+        agencyName: agency.name,
+        agencyCode: agency.code
+      }
+    };
+  } catch (error: any) {
+    console.error('tryClearAgencyCreditViolationIfEligibleService error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to clear violation' }
     };
   }
 };

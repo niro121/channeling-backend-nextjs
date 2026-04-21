@@ -162,33 +162,36 @@ export async function cancelLedgerReceiptService(
     shiftId: shiftId ?? undefined,
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const r = await createReceiptWithoutBooking(tx as Pick<PrismaClient, "receipt">, reverseParams)
-    if (!r.success) return r
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const r = await createReceiptWithoutBooking(tx as Pick<PrismaClient, "receipt">, reverseParams)
+      if (!r.success) return r
 
-    await tx.receipt.update({
-      where: { id: r.receipt.id },
-      data: { reversedReceiptId: input.receiptId },
-    })
+      await tx.receipt.update({
+        where: { id: r.receipt.id },
+        data: { reversedReceiptId: input.receiptId },
+      })
 
-    const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts!)
-    if (journalInput && journalNumber > 0) {
-      const jResult = await createJournalEntryInTransaction(tx as unknown as AccountingTx, journalInput, journalNumber)
-      if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed")
-    }
+      const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts!)
+      if (journalInput && journalNumber > 0) {
+        const jResult = await createJournalEntryInTransaction(tx as unknown as AccountingTx, journalInput, journalNumber)
+        if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed")
+      }
 
-    await tx.receipt.update({
-      where: { id: input.receiptId },
-      data: {
-        canceledAt: new Date(),
-        canceledBy: input.canceledBy,
-        cancelReason: reason,
-        reverseReceiptId: r.receipt.id,
-      },
-    })
+      await tx.receipt.update({
+        where: { id: input.receiptId },
+        data: {
+          canceledAt: new Date(),
+          canceledBy: input.canceledBy,
+          cancelReason: reason,
+          reverseReceiptId: r.receipt.id,
+        },
+      })
 
-    return { success: true as const, receipt: r.receipt }
-  })
+      return { success: true as const, receipt: r.receipt }
+    },
+    { timeout: 15000 }
+  )
 
   if (!result.success) {
     const failed = result as { success: false; errorCode?: string; message?: string };

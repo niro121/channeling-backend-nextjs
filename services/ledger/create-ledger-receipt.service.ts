@@ -17,6 +17,7 @@ import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequen
 import { getAgentBalance } from "@/services/channel-booking/helpers/get-agent-balance"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
 import { formatCents } from "@/lib/format-money"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import {
   RECEIPT_METHOD,
   RECEIPT_PAYMENT_METHOD,
@@ -77,6 +78,69 @@ function getTillPaymentMethodLabel(pm: number): string {
     6: "e-wallet",
   }
   return labels[pm] ?? "cash"
+}
+
+async function clearAgencyViolationIfEligible(
+  agencyId: string,
+  actingUserId: string | null
+): Promise<void> {
+  const agency = await prisma.agency.findUnique({
+    where: { id: agencyId },
+    select: {
+      id: true,
+      creditLimit: true,
+      isCreditLimitViolation: true,
+      allowedCreditLimit: true,
+      name: true,
+      code: true,
+    },
+  })
+  if (!agency?.isCreditLimitViolation) return
+
+  const balanceCents = await getAgentBalance(agencyId)
+  const balanceRupees = balanceCents / 100
+  const debtRupees = Math.max(0, -balanceRupees)
+  const creditLimit = Number(agency.creditLimit ?? 0)
+
+  // Clearance threshold: debt should be at or below credit limit.
+  if (debtRupees <= creditLimit) {
+    const oldAllowed = Number(agency.allowedCreditLimit ?? 0)
+    const newAllowed = creditLimit
+
+    await prisma.agency.update({
+      where: { id: agencyId },
+      data: {
+        allowedCreditLimit: creditLimit,
+        isCreditLimitViolation: false,
+        creditLimitViolationAt: null,
+        creditLimitViolationReason: null,
+      },
+    })
+
+    if (
+      actingUserId &&
+      Number.isFinite(oldAllowed) &&
+      Number.isFinite(newAllowed) &&
+      oldAllowed !== newAllowed
+    ) {
+      logActivityNonBlocking({
+        userId: actingUserId,
+        action: "agencies.limit.soft_changed",
+        entityType: "Agency",
+        entityId: agencyId,
+        importance: "high",
+        metadata: {
+          agencyName: agency.name,
+          agencyCode: agency.code,
+          field: "allowedCreditLimit",
+          oldValue: oldAllowed,
+          newValue: newAllowed,
+          delta: newAllowed - oldAllowed,
+          source: "agency_deposit_violation_auto_clear",
+        },
+      })
+    }
+  }
 }
 
 function mapToReceiptMethodAndType(
@@ -266,6 +330,7 @@ export async function createLedgerReceipt(
       await updateAgentBalance(input.agencyId, -amountRounded)
     } else if (input.transactionType === "AGENCY_DEPOSIT") {
       await updateAgentBalance(input.agencyId, -amountRounded)
+      await clearAgencyViolationIfEligible(input.agencyId, input.createdBy ?? null)
     } else if (input.transactionType === "AGENCY_WITHDRAW") {
       await updateAgentBalance(input.agencyId, amountRounded)
     }

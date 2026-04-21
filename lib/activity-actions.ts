@@ -99,6 +99,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'agencies.agency.deleted',
   'agencies.agencies.bulkDeleted',
   'agencies.exported',
+  'agencies.credit_violation_cleared_manually',
   'credit-customers.visited',
   'credit-customers.creditCustomer.created',
   'credit-customers.creditCustomer.updated',

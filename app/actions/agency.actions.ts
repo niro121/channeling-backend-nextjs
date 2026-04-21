@@ -10,22 +10,25 @@ import {
   deleteAgencyByIdService,
   bulkDeleteAgenciesService,
   getAllAgenciesOptionsService,
-  getAllAgenciesExportService
+  getAllAgenciesExportService,
+  tryClearAgencyCreditViolationIfEligibleService
 } from '@/services/agency.service';
 import {
   GetAgenciesParams,
   GetAgenciesQuery,
   AgencyFormValues,
   UpdateAgencyPayload,
-  Agency
+  Agency,
+  AgencyAllowedCreditLimitHistoryEntry
 } from '@/types/agency';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { saveUser } from '@/services/user.service';
 import { sendAgencyWelcomeSmsService } from '@/services/send-agency-welcome-sms.service';
 import prisma from '@/lib/prisma';
-import { requirePermission } from '@/lib/server-permissions';
+import { checkPermission, requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 
@@ -178,6 +181,17 @@ export const createAgency = async (
   await requirePermission('agencies', 'add');
 
   try {
+    const canEditCreditLimit = await checkPermission('agencies', 'edit-credit-limit');
+    if (!canEditCreditLimit && Number(payload.creditLimit ?? 0) !== 0) {
+      return {
+        success: false,
+        isError: true,
+        errors: {
+          message: "Access denied: You don't have permission to edit agency credit limit."
+        }
+      };
+    }
+
     const result = await createAgencyService(payload, user);
 
     if (!result.success) {
@@ -251,6 +265,27 @@ export const createAgency = async (
         importance: 'high',
         metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined,
       });
+
+      const newAgencyId = result.data?.id;
+      const newAllowed = Number(result.data?.allowedCreditLimit ?? 0);
+      if (newAgencyId && newAllowed !== 0) {
+        logActivityNonBlocking({
+          userId: session.user.id,
+          action: 'agencies.limit.soft_changed',
+          entityType: 'Agency',
+          entityId: newAgencyId,
+          importance: 'high',
+          metadata: {
+            agencyName: result.data?.name,
+            agencyCode: result.data?.code,
+            field: 'allowedCreditLimit',
+            oldValue: 0,
+            newValue: newAllowed,
+            delta: newAllowed,
+            source: 'agency_created'
+          }
+        });
+      }
     }
     revalidatePath('/agencies');
 
@@ -294,6 +329,21 @@ export const updateAgency = async (
   await requirePermission('agencies', 'edit');
 
   try {
+    const canEditCreditLimit = await checkPermission('agencies', 'edit-credit-limit');
+    if (
+      !canEditCreditLimit &&
+      'creditLimit' in payload &&
+      payload.creditLimit !== undefined
+    ) {
+      return {
+        success: false,
+        isError: true,
+        errors: {
+          message: "Access denied: You don't have permission to edit agency credit limit."
+        }
+      };
+    }
+
     const shouldTrackSoftLimitChange =
       'allowedCreditLimit' in payload && payload.allowedCreditLimit !== undefined;
     const beforeSoftLimit = shouldTrackSoftLimitChange
@@ -342,6 +392,7 @@ export const updateAgency = async (
               oldValue,
               newValue,
               delta: newValue - oldValue,
+              source: 'agency_edit'
             },
           });
         }
@@ -366,6 +417,83 @@ export const updateAgency = async (
       errors: {
         message: error.message || 'Unexpected error occurred'
       }
+    };
+  }
+};
+
+// ==== CLEAR CREDIT VIOLATION (list / edit; when balance allows) ==== //
+export const clearAgencyCreditViolationIfEligible = async (agencyId: string) => {
+  await requirePermission('agencies', 'edit');
+
+  try {
+    const result = await tryClearAgencyCreditViolationIfEligibleService(agencyId);
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        cleared: false as const,
+        errors: { message: result.error?.message ?? 'Failed to clear violation' }
+      };
+    }
+    if (!result.cleared) {
+      return {
+        success: true,
+        isError: false,
+        cleared: false as const,
+        message: result.message
+      };
+    }
+
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'agencies.credit_violation_cleared_manually',
+        entityType: 'Agency',
+        entityId: agencyId,
+        importance: 'high'
+      });
+
+      if (result.softLimitChange) {
+        const { oldValue, newValue, agencyName, agencyCode } = result.softLimitChange;
+        if (Number.isFinite(oldValue) && Number.isFinite(newValue) && oldValue !== newValue) {
+          logActivityNonBlocking({
+            userId: session.user.id,
+            action: 'agencies.limit.soft_changed',
+            entityType: 'Agency',
+            entityId: agencyId,
+            importance: 'high',
+            metadata: {
+              agencyName,
+              agencyCode,
+              field: 'allowedCreditLimit',
+              oldValue,
+              newValue,
+              delta: newValue - oldValue,
+              source: 'violation_cleared_manually'
+            }
+          });
+        }
+      }
+    }
+
+    revalidatePath('/agencies');
+    revalidatePath(`/agencies/${agencyId}/edit`);
+    revalidatePath('/agencies/allowed-credit-limits');
+
+    return {
+      success: true,
+      isError: false,
+      cleared: true as const,
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('clearAgencyCreditViolationIfEligible error:', error);
+    return {
+      success: false,
+      isError: true,
+      cleared: false as const,
+      errors: { message: error.message || 'Unexpected error occurred' }
     };
   }
 };
@@ -512,6 +640,305 @@ export const bulkDeleteAgencies = async (ids: string[]) => {
   } catch (error: any) {
     console.error('bulkDeleteAgencies action error:', error);
     throw error;
+  }
+};
+
+// ==== AGENCY ALLOWED CREDIT LIMIT (dedicated page) ==== //
+
+const ALLOWED_CREDIT_HISTORY_TAKE = 100;
+
+const HISTORY_METADATA_CORE_KEYS = new Set([
+  'source',
+  'oldValue',
+  'newValue',
+  'delta',
+  'field',
+  'agencyName',
+  'agencyCode',
+  'formalAcknowledgementAgencyRequestDepositBelowCreditLimitResponsibility'
+]);
+
+function metaNumber(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function resolveAllowedLimitHistorySource(md: Record<string, unknown> | null): string | null {
+  if (!md) return null;
+  const raw = md.source;
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  if (md.formalAcknowledgementAgencyRequestDepositBelowCreditLimitResponsibility === true) {
+    return 'agency_allowed_credit_limits_page';
+  }
+  return null;
+}
+
+function buildOtherMetadataJson(md: Record<string, unknown>): string | null {
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(md)) {
+    if (!HISTORY_METADATA_CORE_KEYS.has(k)) rest[k] = v;
+  }
+  if (Object.keys(rest).length === 0) return null;
+  try {
+    return JSON.stringify(rest);
+  } catch {
+    return null;
+  }
+}
+
+export const getAgencyAllowedCreditLimitHistory = async (
+  agencyId: string
+): Promise<{
+  success: boolean;
+  data: AgencyAllowedCreditLimitHistoryEntry[];
+  message?: string;
+}> => {
+  await requirePermission('agencies', 'edit-allowed-credit-limit');
+
+  try {
+    if (!agencyId?.trim()) {
+      return { success: false, data: [], message: 'Agency id is required' };
+    }
+
+    const logs = await prisma.activityLog.findMany({
+      where: {
+        action: 'agencies.limit.soft_changed',
+        entityType: 'Agency',
+        entityId: agencyId
+      },
+      orderBy: { createdAt: 'desc' },
+      take: ALLOWED_CREDIT_HISTORY_TAKE,
+      include: {
+        user: { select: { name: true, staff: { select: { code: true } } } }
+      }
+    });
+
+    const data: AgencyAllowedCreditLimitHistoryEntry[] = logs.map((log) => {
+      const md =
+        log.metadata != null && typeof log.metadata === 'object' && !Array.isArray(log.metadata)
+          ? (log.metadata as Record<string, unknown>)
+          : null;
+      const oldValue = metaNumber(md?.oldValue);
+      const newValue = metaNumber(md?.newValue);
+      let delta = metaNumber(md?.delta);
+      if (delta == null && oldValue != null && newValue != null) {
+        delta = newValue - oldValue;
+      }
+      const source = typeof md?.source === 'string' && md.source.trim() !== '' ? md.source.trim() : null;
+      const sourceResolved = resolveAllowedLimitHistorySource(md);
+      const field = typeof md?.field === 'string' ? md.field : null;
+      const agencyNameFromMetadata = typeof md?.agencyName === 'string' ? md.agencyName : null;
+      const agencyCodeFromMetadata =
+        md?.agencyCode === null || md?.agencyCode === undefined
+          ? null
+          : String(md.agencyCode);
+      const formalDeclarationAcknowledged =
+        md?.formalAcknowledgementAgencyRequestDepositBelowCreditLimitResponsibility === true;
+      const otherMetadataJson = md ? buildOtherMetadataJson(md) : null;
+      return {
+        id: log.id,
+        createdAt: log.createdAt.toISOString(),
+        changedByUserId: log.userId,
+        changedByUserName: formatUserDisplayName(
+          log.user?.name,
+          log.userId,
+          log.user?.staff?.code
+        ),
+        oldValue,
+        newValue,
+        delta,
+        source,
+        sourceResolved,
+        field,
+        agencyNameFromMetadata,
+        agencyCodeFromMetadata,
+        ipAddress: log.ipAddress ?? null,
+        formalDeclarationAcknowledged,
+        otherMetadataJson
+      };
+    });
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('getAgencyAllowedCreditLimitHistory error:', error);
+    return {
+      success: false,
+      data: [],
+      message: error.message || 'Failed to load history'
+    };
+  }
+};
+
+export const getAgenciesForAllowedCreditLimitControl = async (params: GetAgenciesParams) => {
+  await requirePermission('agencies', 'edit-allowed-credit-limit');
+
+  try {
+    const query: GetAgenciesQuery = {
+      page: params.page ? parseInt(params.page) : 0,
+      limit: params.limit
+        ? parseInt(params.limit)
+        : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
+      keyword: params.keyword ?? '',
+      parentAgencyId: params.parentAgencyId
+    };
+
+    const response = await getAllAgenciesService(query);
+
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.error?.message || 'Failed to fetch agencies',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data?.records ?? [],
+      totalRecords: response.data?.totalRecords ?? 0,
+      message: response.message
+    };
+  } catch (error: any) {
+    console.error('getAgenciesForAllowedCreditLimitControl action error:', error);
+    return {
+      success: false,
+      message: error.message || 'Error getting agencies. Please try again later',
+      data: [],
+      totalRecords: 0
+    };
+  }
+};
+
+export const updateAgencyAllowedCreditLimit = async (
+  agencyId: string,
+  allowedCreditLimit: number,
+  acknowledgedRequestAndAgencyNotice: boolean
+): Promise<{
+  success: boolean;
+  message?: string;
+  isError?: boolean;
+  errors?: { message?: string; issues?: any };
+}> => {
+  await requirePermission('agencies', 'edit-allowed-credit-limit');
+
+  try {
+    if (acknowledgedRequestAndAgencyNotice !== true) {
+      return {
+        success: false,
+        isError: true,
+        errors: {
+          message:
+            'You must confirm the formal declaration: agency request, agency undertaking on deposits below the credit limit, and your acceptance of responsibility.'
+        }
+      };
+    }
+
+    const safe = Number(allowedCreditLimit);
+    if (!Number.isFinite(safe) || safe < 0) {
+      return {
+        success: false,
+        isError: true,
+        errors: { message: 'Allowed credit limit must be 0 or greater.' }
+      };
+    }
+
+    const beforeSoftLimit = await prisma.agency.findUnique({
+      where: { id: agencyId },
+      select: { id: true, name: true, code: true, allowedCreditLimit: true }
+    });
+    if (!beforeSoftLimit) {
+      return {
+        success: false,
+        isError: true,
+        errors: { message: 'Agency not found' }
+      };
+    }
+
+    const linkedPayable = await prisma.account.findFirst({
+      where: { agencyId, type: 'PAYABLE', isActive: true },
+      select: { minBalanceAllowed: true, maxBalanceAllowed: true }
+    });
+    const hasHardLimit = linkedPayable?.minBalanceAllowed != null || linkedPayable?.maxBalanceAllowed != null;
+    if (!hasHardLimit) {
+      return {
+        success: false,
+        isError: true,
+        errors: {
+          message:
+            'Hard credit limit is not configured for this agency (linked payable account min/max balance). Ask an administrator to configure it before changing the allowed credit limit.'
+        }
+      };
+    }
+
+    const session = await getServerSession(authOptions);
+    const result = await updateAgencyService(
+      agencyId,
+      { allowedCreditLimit: safe },
+      session?.user?.id ? { id: session.user.id } : undefined
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        isError: true,
+        errors: result.error || { message: result.message || 'Update failed' }
+      };
+    }
+
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'agencies.agency.updated',
+        entityType: 'Agency',
+        entityId: agencyId,
+        importance: 'high',
+        metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined
+      });
+
+      const oldValue = Number(beforeSoftLimit.allowedCreditLimit ?? 0);
+      const newValue = Number(result.data?.allowedCreditLimit ?? oldValue);
+      if (Number.isFinite(oldValue) && Number.isFinite(newValue) && oldValue !== newValue) {
+        logActivityNonBlocking({
+          userId: session.user.id,
+          action: 'agencies.limit.soft_changed',
+          entityType: 'Agency',
+          entityId: agencyId,
+          importance: 'high',
+          metadata: {
+            agencyName: beforeSoftLimit.name,
+            agencyCode: beforeSoftLimit.code,
+            field: 'allowedCreditLimit',
+            oldValue,
+            newValue,
+            delta: newValue - oldValue,
+            source: 'agency_allowed_credit_limits_page',
+            formalAcknowledgementAgencyRequestDepositBelowCreditLimitResponsibility: true
+          }
+        });
+      }
+    }
+
+    revalidatePath('/agencies');
+    revalidatePath('/agencies/allowed-credit-limits');
+    revalidatePath(`/agencies/${agencyId}/edit`);
+
+    return {
+      success: true,
+      message: result.message || 'Allowed credit limit updated',
+      isError: false
+    };
+  } catch (error: any) {
+    console.error('updateAgencyAllowedCreditLimit error:', error);
+    return {
+      success: false,
+      isError: true,
+      errors: { message: error.message || 'Unexpected error occurred' }
+    };
   }
 };
 

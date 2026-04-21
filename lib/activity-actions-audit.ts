@@ -99,6 +99,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'agencies.agency.deleted', importance: 'High', when: 'User deletes an agency' },
   { action: 'agencies.agencies.bulkDeleted', importance: 'High', when: 'User bulk-deletes agencies' },
   { action: 'agencies.exported', importance: 'Medium', when: 'User exports agencies list' },
+  { action: 'agencies.credit_violation_cleared_manually', importance: 'High', when: 'User clears agency credit violation from list when balance is eligible' },
   { action: 'credit-customers.visited', importance: 'Low', when: 'User opens Credit Customers page' },
   { action: 'credit-customers.creditCustomer.created', importance: 'High', when: 'User creates a credit customer' },
   { action: 'credit-customers.creditCustomer.updated', importance: 'High', when: 'User updates a credit customer' },

@@ -3,7 +3,7 @@
 import React, { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { ReportAgentSelect } from '@/components/common/agent-select';
 import Loading from '@/app/(dashboard)/loading';
@@ -32,22 +32,32 @@ const PAYMENT_TYPE_OPTIONS: Array<{ id: AgentCollectionReceiptPaymentType; name:
   { id: 'cash', name: 'CASH' },
   { id: 'credit_card', name: 'CREDIT CARD' },
   { id: 'slip', name: 'SLIP' },
-  { id: 'cheque', name: 'CHEQUE' }
+  { id: 'cheque', name: 'CHEQUE' },
+  { id: 'e_wallet', name: 'E-WALLET' }
 ];
+
+function getDefaultDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return { from: `${y}-${m}-${d}T00:00`, to: `${y}-${m}-${d}T23:59` };
+}
 
 function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props) {
   const searchParams = useSearchParams();
+  const defaultRange = getDefaultDateTimeRange();
 
   const buildQuery = (): AgentCollectionReceiptReportQuery => ({
-    dateFrom: searchParams.get('dateFrom') ?? '',
-    dateTo: searchParams.get('dateTo') ?? '',
+    dateFrom: searchParams.get('dateFrom') ?? defaultRange.from,
+    dateTo: searchParams.get('dateTo') ?? defaultRange.to,
     locationId: searchParams.get('locationId') ?? '__all__',
     agencyId: searchParams.get('agencyId') ?? '__all__',
     paymentType: (searchParams.get('paymentType') as AgentCollectionReceiptPaymentType) ?? '__all__'
   });
 
   const allLocations = useMemo(
-    () => [{ id: '__all__', name: 'Select Branch' }, ...locationOptions.filter((x) => x.id !== '__all__')],
+    () => [{ id: '__all__', name: 'All Branches' }, ...locationOptions.filter((x) => x.id !== '__all__')],
     [locationOptions]
   );
 
@@ -80,8 +90,8 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-shrink-0">
-            <label className="text-sm font-semibold mb-2 block">Date Range</label>
-            <DateRangePicker
+            <DateTimeRangePicker
+              label="Date & time range"
               from={values.dateFrom}
               to={values.dateTo}
               onChange={({ from, to }) => {
@@ -126,8 +136,8 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
       )}
       fetchData={async (params) => {
         const query: AgentCollectionReceiptReportQuery = {
-          dateFrom: params.get('dateFrom') ?? '',
-          dateTo: params.get('dateTo') ?? '',
+          dateFrom: params.get('dateFrom') ?? defaultRange.from,
+          dateTo: params.get('dateTo') ?? defaultRange.to,
           locationId: params.get('locationId') ?? '__all__',
           agencyId: params.get('agencyId') ?? '__all__',
           paymentType: (params.get('paymentType') as AgentCollectionReceiptPaymentType) ?? '__all__'
@@ -200,6 +210,13 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
         );
       }}
       skipFetchWhenNoParams={true}
+      initialFilterValues={{
+        dateFrom: defaultRange.from,
+        dateTo: defaultRange.to,
+        locationId: '__all__',
+        agencyId: '__all__',
+        paymentType: '__all__',
+      }}
       initialEmptyMessage="No agent collection receipts found. Select filters and click Search."
       emptyMessage="No agent collection receipts found for the selected filters."
     />

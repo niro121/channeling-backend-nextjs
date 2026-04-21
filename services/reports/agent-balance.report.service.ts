@@ -16,6 +16,16 @@ export async function getAgentBalanceReportService(
   };
 }> {
   try {
+    const resolveAgencyHardCreditLimitLkr = (account?: {
+      minBalanceAllowed?: number | null;
+      maxBalanceAllowed?: number | null;
+    } | null): number => {
+      if (!account) return 0;
+      if (account.minBalanceAllowed != null) return Math.abs(Number(account.minBalanceAllowed)) / 100;
+      if (account.maxBalanceAllowed != null) return Number(account.maxBalanceAllowed) / 100;
+      return 0;
+    };
+
     const where: Prisma.AgencyWhereInput = {};
     if (query.agentId && query.agentId !== '__all__') {
       where.id = query.agentId;
@@ -46,7 +56,7 @@ export async function getAgentBalanceReportService(
         city: true,
         accounts: {
           where: { type: 'PAYABLE', isActive: true },
-          select: { id: true, maxBalanceAllowed: true, createdAt: true },
+          select: { id: true, minBalanceAllowed: true, maxBalanceAllowed: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
@@ -82,7 +92,7 @@ export async function getAgentBalanceReportService(
           agentName: a.name || '-',
           agentPhoneNo: a.phone || '-',
           agentAddress: address || '-',
-          maxCreditLimit: Number(acc?.maxBalanceAllowed ?? 0) / 100,
+          maxCreditLimit: resolveAgencyHardCreditLimitLkr(acc),
           allowedCreditLimit: Number(a.allowedCreditLimit ?? 0),
           agentBalance: Number(balanceCents || 0) / 100,
         };

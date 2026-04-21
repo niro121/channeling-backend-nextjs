@@ -18,6 +18,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/locations": "locations",
   "/agency-books": "agency-books",
   "/agencies": "agencies",
+  "/agencies/allowed-credit-limits": "agencies",
   "/credit-customers": "credit-customers",
   "/discounts": "discounts",
   "/doctor-leaves": "doctor-leaves",
@@ -43,6 +44,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {
   "/bulk-cashier": "bulk-cashier-dashboard",
   "/my-till": "my-till",
+  "/agencies/allowed-credit-limits": "edit-allowed-credit-limit",
 }
 
 // Map HTTP methods to permission actions
