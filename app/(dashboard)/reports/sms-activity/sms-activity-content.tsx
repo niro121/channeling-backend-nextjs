@@ -78,11 +78,14 @@ export default function SmsActivityContent() {
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
-    d.setDate(d.getDate() - 30)
     d.setHours(0, 0, 0, 0)
     return toLocalDateTimeValue(d)
   })
-  const [dateTo, setDateTo] = useState(() => toLocalDateTimeValue(new Date()))
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date()
+    d.setHours(23, 59, 0, 0)
+    return toLocalDateTimeValue(d)
+  })
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed">("all")
   const [data, setData] = useState<Awaited<ReturnType<typeof getSmsActivityAction>>["data"] | null>(null)
   const [recentSearch, setRecentSearch] = useState("")
