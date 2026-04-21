@@ -37,6 +37,7 @@ import {
   Play,
   Workflow,
   CheckSquare,
+  SlidersHorizontal,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -145,10 +146,17 @@ export function DesktopSidebar({
           </SidebarGroup>
         )}
 
-        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/receipt-manager") || hasAccess("/reconciliation") || hasAccess("/doctor-payments") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+        {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/agencies/allowed-credit-limits") || hasAccess("/credit-customers") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/receipt-manager") || hasAccess("/reconciliation") || hasAccess("/doctor-payments") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
           <SidebarGroup label="Agency & billing">
             {hasAccess("/agency-books") && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
             {hasAccess("/agencies") && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
+            {hasAccess("/agencies/allowed-credit-limits") && (
+              <NavLink
+                href="/agencies/allowed-credit-limits"
+                label="Agency allowed limits"
+                icon={<SlidersHorizontal className="h-5 w-5" />}
+              />
+            )}
             {hasAccess("/credit-customers") && <NavLink href="/credit-customers" label="Credit Customers" icon={<CreditCard className="h-5 w-5" />} />}
             {hasAccess("/discounts") && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
             {hasAccess("/accounting") && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}

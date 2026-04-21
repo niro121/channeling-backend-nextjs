@@ -28,6 +28,7 @@ const PATH_NAMES: Path[] = [
     { path: "locations", name: "Locations" },
     { path: "agency-books", name: "Agency Books" },
     { path: "agencies", name: "Agencies" },
+    { path: "allowed-credit-limits", name: "Allowed credit limits" },
     { path: "discounts", name: "Discounts" },
     { path: "sms-playground", name: "SMS Playground" },
     { path: "reports", name: "Reports" },

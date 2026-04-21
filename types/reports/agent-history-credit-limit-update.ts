@@ -1,6 +1,4 @@
 export type AgentHistoryCreditLimitUpdateReportQuery = {
-  dateFrom: string;
-  dateTo: string;
   /** '__all__' or agency id */
   agencyId?: string;
   /** '__all__' | 'soft' | 'hard' */
@@ -28,14 +26,14 @@ export type AgentHistoryCreditLimitUpdateReportRow = {
 };
 
 export type AgentHistoryCreditLimitUpdateReportExportRow = {
-  dateTime: string;
-  changedBy: string;
-  limitType: string;
+  no: string;
   agent: string;
   agentCode: string;
-  oldValue: string;
-  newValue: string;
+  limitType: string;
+  beforeValue: string;
+  updatedValue: string;
   delta: string;
-  action: string;
+  changedBy: string;
+  dateTime: string;
 };
 

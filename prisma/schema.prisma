@@ -806,6 +806,10 @@ model Agency {
 
   // ==== CREDIT FIELDS ==== //
   allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is linked RECEIVABLE account maxBalanceAllowed
+  creditLimit        Float @default(0) // Default credit limit threshold used for violation clearance
+  isCreditLimitViolation Boolean @default(false)
+  creditLimitViolationAt DateTime?
+  creditLimitViolationReason String?
   // balance is derived from linked PAYABLE account (getAccountBalance)
 
   // ==== CONTACT FIELDS ==== //

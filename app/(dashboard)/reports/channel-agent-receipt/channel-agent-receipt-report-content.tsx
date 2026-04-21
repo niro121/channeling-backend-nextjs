@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import Loading from '@/app/(dashboard)/loading';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
+import { formatLKR } from '@/lib/format-money';
 import { ChannelAgentReceiptReportColumns } from './columns';
 import {
   getChannelAgentReceiptReportData,
@@ -51,6 +52,8 @@ function ChannelAgentReceiptReportContentInner(_props: ChannelAgentReceiptReport
       exportFileName="channel-agent-receipt-report"
       getRowId={(row) => row.id}
       showPrintButton={true}
+      totalColumnIds={['billValue']}
+      formatTotalValue={(columnId, sum) => (columnId === 'billValue' ? formatLKR(sum) : String(sum))}
       emptyMessage="No receipts found. Enter a Book No and click Search."
       skipFetchWhenNoParams={true}
     />

@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { formatLKR } from '@/lib/format-money';
+import { AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP } from '@/types/agency';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { BookOpen, Pencil, PlusCircle } from 'lucide-react';
@@ -30,6 +31,7 @@ type AgencyFormProps = {
   agency?: Agency | null;
   parentAgencies?: { id: string; name: string }[];
   locations?: { id: string; name: string }[];
+  canEditCreditLimit?: boolean;
   isEditPage?: boolean;
   user?: { id?: string; name?: string };
 };
@@ -38,6 +40,7 @@ const AgencyForm = ({
   agency,
   parentAgencies = [],
   locations = [],
+  canEditCreditLimit = false,
   isEditPage = false,
   user
 }: AgencyFormProps) => {
@@ -47,6 +50,7 @@ const AgencyForm = ({
     chequePrintingName: agency?.chequePrintingName || '',
     parentAgencyId: agency?.parentAgencyId || '',
     allowedCreditLimit: agency?.allowedCreditLimit || 0,
+    creditLimit: agency?.creditLimit || 0,
     phone: agency?.phone || '',
     mobile: agency?.mobile || '',
     fax: agency?.fax || '',
@@ -93,7 +97,30 @@ const AgencyForm = ({
     allowedCreditLimit: Yup.number()
       .transform((_, val) => (val === '' || val === null || val === undefined ? undefined : Number(val)))
       .required('Allowed credit limit is required')
-      .min(0, 'Must be 0 or greater'),
+      .min(0, 'Must be 0 or greater')
+      .test(
+        'max-allowed-vs-hard',
+        `Allowed credit limit cannot be greater than hard credit limit (${formatLKR(Number(agency?.maxCreditLimit ?? 0))})`,
+        function (value) {
+          const hard = agency?.maxCreditLimit;
+          if (hard == null) return true;
+          if (value == null) return false;
+          return Number(value) <= Number(hard);
+        }
+      ),
+    creditLimit: Yup.number()
+      .transform((_, val) => (val === '' || val === null || val === undefined ? undefined : Number(val)))
+      .required('Credit limit is required')
+      .min(0, 'Must be 0 or greater')
+      .test(
+        'max-credit-vs-allowed',
+        'Credit limit cannot be greater than allowed credit limit',
+        function (value) {
+          const allowed = Number(this.parent.allowedCreditLimit ?? 0);
+          if (value == null) return false;
+          return Number(value) <= allowed;
+        }
+      ),
     contactPersonName: Yup.string()
       .required('Contact person name is required')
       .max(100, 'Must be less than 100 characters'),
@@ -139,6 +166,9 @@ const AgencyForm = ({
             const payload = {
               ...formik.values,
               allowedCreditLimit: Number(formik.values.allowedCreditLimit),
+              creditLimit: canEditCreditLimit
+                ? Number(formik.values.creditLimit)
+                : Number(agency?.creditLimit ?? 0),
               status: Number(formik.values.status),
               sendSms: Number(formik.values.sendSms)
             };
@@ -403,6 +433,37 @@ const AgencyForm = ({
                     )}
                   </div>
                 )}
+                {isEditPage && agency?.isCreditLimitViolation && (
+                  <div className="mb-6 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+                    <div className="font-semibold">Credit limit restriction is active</div>
+                    {agency.creditLimitViolationReason === AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP ? (
+                      <div className="mt-1 space-y-2">
+                        <p>
+                          Allowed credit limit was set to the hard limit. New bookings and further
+                          credit-limit edits are blocked until an agency deposit clears this status.
+                        </p>
+                        <p>
+                          The only way to reset the allowed credit limit is an agency deposit that
+                          brings the outstanding balance to at or below the agency credit limit of{' '}
+                          <span className="font-semibold tabular-nums">
+                            {formatLKR(Number(agency.creditLimit ?? 0))}
+                          </span>{' '}
+                          (LKR). When that condition is met, the restriction clears and limits can be
+                          adjusted again.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-1">
+                        New bookings and limit updates are blocked. Only an agency deposit can clear
+                        this status after the balance is at or below the agency credit limit of{' '}
+                        <span className="font-semibold tabular-nums">
+                          {formatLKR(Number(agency.creditLimit ?? 0))}
+                        </span>{' '}
+                        (LKR).
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="grid gap-4 border rounded-lg p-6">
                   {/* Name */}
                   <CustomFormField
@@ -437,15 +498,18 @@ const AgencyForm = ({
                       <CustomSelectField
                         id="parentAgencyId"
                         placeholder="Select"
-                        value={formik.values.parentAgencyId || ''}
+                        value={formik.values.parentAgencyId || '__none__'}
                         onChange={(value) =>
-                          formik.setFieldValue('parentAgencyId', value)
+                          formik.setFieldValue('parentAgencyId', value === '__none__' ? '' : value)
                         }
                         required={false}
-                        options={parentAgencies.map((a) => ({
-                          id: a.id,
-                          name: a.name
-                        }))}
+                        options={[
+                          { id: '__none__', name: 'No parent' },
+                          ...parentAgencies.map((a) => ({
+                            id: a.id,
+                            name: a.name
+                          }))
+                        ]}
                         styleClasses={{
                           ...styleClasses,
                           parentDiv: '',
@@ -468,17 +532,60 @@ const AgencyForm = ({
                     styleClasses={styleClasses}
                   />
 
-                  {/* Allowed Credit Limit: soft limit for bookings; hard limit is account minBalanceAllowed */}
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 space-y-2">
+                    <CustomFormField
+                      type="number"
+                      id="allowedCreditLimit"
+                      placeholder="Allowed Credit Limit"
+                      value={formik.values.allowedCreditLimit}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      required
+                      styleClasses={styleClasses}
+                    />
+                    <div className={styleClasses.parentDiv}>
+                      <span className={styleClasses.labelClassName} aria-hidden />
+                      <div className={`${styleClasses.inputClassName} text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2`}>
+                        <span className="font-semibold">Note:</span> Allowed Credit Limit can be changed for urgency.
+                        This change is tracked with user/audit logs, so update cautiously.
+                      </div>
+                    </div>
+                  </div>
+
                   <CustomFormField
                     type="number"
-                    id="allowedCreditLimit"
-                    placeholder="Allowed Credit Limit"
-                    value={formik.values.allowedCreditLimit}
+                    id="creditLimit"
+                    placeholder="Credit Limit"
+                    value={formik.values.creditLimit}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required
+                    disabled={!canEditCreditLimit}
                     styleClasses={styleClasses}
                   />
+                  {!canEditCreditLimit && (
+                    <div className={styleClasses.parentDiv}>
+                      <span className={styleClasses.labelClassName} aria-hidden />
+                      <div className={`${styleClasses.inputClassName} text-xs text-muted-foreground`}>
+                        You do not have permission to edit Credit Limit.
+                      </div>
+                    </div>
+                  )}
+
+                  {agency?.accountId && (
+                    <div className={styleClasses.parentDiv}>
+                      <Label className={styleClasses.labelClassName}>Hard Credit Limit</Label>
+                      <div className={styleClasses.inputClassName}>
+                        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          {agency.maxCreditLimit != null ? (
+                            <span className="tabular-nums font-semibold">{formatLKR(Number(agency.maxCreditLimit))}</span>
+                          ) : (
+                            <span>Not configured on linked account.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Contact Information */}
                   <CustomFormField
