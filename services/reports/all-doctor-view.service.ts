@@ -205,13 +205,22 @@ export const getAllDoctorViewReportDataService = async ({
             (booking.professionalFee ?? 0) - (booking.professionsalFeeDiscount ?? 0)
           );
 
-          // Calculate total based on fee type
+          // Calculate total based on fee type and partial refund type:
+          // - refund=1 (professional): deduct only professional part
+          // - refund=2 (hospital): deduct only hospital part
+          // - cancelled bookings are already excluded by !isCancelled
           if (feeType === '__all__' || !feeType || feeType === 'total') {
-            row.total += booking.amount || 0;
+            let effectiveTotal = booking.amount || 0;
+            if (refund === 1) {
+              effectiveTotal -= netProfessionalFee;
+            } else if (refund === 2) {
+              effectiveTotal -= netHospitalFee;
+            }
+            row.total += Math.max(0, effectiveTotal);
           } else if (feeType === 'hospital') {
-            row.total += netHospitalFee;
+            row.total += refund === 2 ? 0 : netHospitalFee;
           } else if (feeType === 'professional') {
-            row.total += netProfessionalFee;
+            row.total += refund === 1 ? 0 : netProfessionalFee;
           }
         }
       });
