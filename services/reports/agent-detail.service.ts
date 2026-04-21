@@ -12,6 +12,16 @@ type PrismaAgencyWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof pr
 const MAX_RANGE_DAYS = getReportMaxRangeDays('agent_detail', 62);
 const MAX_RECORDS_SCAN = getReportMaxRecords('agent_detail', 20000);
 
+function resolveAgencyHardCreditLimitLkr(account?: {
+  minBalanceAllowed?: number | null;
+  maxBalanceAllowed?: number | null;
+} | null): number {
+  if (!account) return 0;
+  if (account.minBalanceAllowed != null) return Math.abs(Number(account.minBalanceAllowed)) / 100;
+  if (account.maxBalanceAllowed != null) return Number(account.maxBalanceAllowed) / 100;
+  return 0;
+}
+
 // ==== GET AGENT DETAIL REPORT DATA ==== //
 export const getAgentDetailReportDataService = async ({
   fromDate,
@@ -82,7 +92,7 @@ export const getAgentDetailReportDataService = async ({
         accounts: {
           where: { type: 'PAYABLE', isActive: true },
           take: 1,
-          select: { id: true, maxBalanceAllowed: true },
+          select: { id: true, minBalanceAllowed: true, maxBalanceAllowed: true },
         },
       },
       orderBy: {
@@ -94,7 +104,7 @@ export const getAgentDetailReportDataService = async ({
       rows.map(async (row) => {
         const acc = row.accounts?.[0];
         const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
-        const maxLimitLkr = acc?.maxBalanceAllowed ? Number(acc.maxBalanceAllowed) / 100 : 0;
+        const maxLimitLkr = resolveAgencyHardCreditLimitLkr(acc);
         const standardCreditLimit = Math.min(
           Number(row.allowedCreditLimit ?? 0),
           Number(maxLimitLkr ?? 0)

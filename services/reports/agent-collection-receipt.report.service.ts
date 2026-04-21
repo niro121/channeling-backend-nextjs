@@ -15,17 +15,24 @@ const MAX_RECORDS = getReportMaxRecords('agent_collection_receipt', 20000);
 const METHOD_AGENCY_DEPOSIT = 6;
 const METHOD_AGENCY_WITHDRAW = 7;
 
-// Sri Lanka is UTC+05:30 and has no DST.
-const SRI_LANKA_UTC_OFFSET_MINUTES = 330;
-function parseSriLankaDay(dateStr: string): { start: Date; end: Date } | null {
-  const s = (dateStr ?? '').trim();
-  if (!s) return null;
-  const [y, m, d] = s.split('-').map(Number);
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('T')) {
+    const d = new Date(trimmed);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const [y, m, d] = trimmed.split('-').map(Number);
   if (!y || !m || !d) return null;
-  const offsetMs = SRI_LANKA_UTC_OFFSET_MINUTES * 60 * 1000;
-  const startUtcMs = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - offsetMs;
-  const endUtcMs = Date.UTC(y, m - 1, d, 23, 59, 59, 999) - offsetMs;
-  return { start: new Date(startUtcMs), end: new Date(endUtcMs) };
+  if (asEnd) return new Date(y, m - 1, d, 23, 59, 59, 999);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date } | null {
+  const start = parseDateTime(dateFrom, false);
+  const end = parseDateTime(dateTo, true);
+  if (!start || !end) return null;
+  return { start, end };
 }
 
 function normAll(v: string | undefined): string {
@@ -42,19 +49,19 @@ function mapPaymentTypeToReceiptPaymentMethod(
   if (t === 'credit_card') return RECEIPT_PAYMENT_METHOD.CREDIT_CARD;
   if (t === 'slip') return RECEIPT_PAYMENT_METHOD.SLIP;
   if (t === 'cheque') return RECEIPT_PAYMENT_METHOD.CHECK;
+  if (t === 'e_wallet') return RECEIPT_PAYMENT_METHOD.E_WALLET;
   return '__all__';
 }
 
 export async function getAgentCollectionReceiptReportService(
   query: AgentCollectionReceiptReportQuery
 ): Promise<{ success: boolean; data: AgentCollectionReceiptReportRow[]; totalRecords: number; message?: string }> {
-  const fromParsed = parseSriLankaDay(query.dateFrom);
-  const toParsed = parseSriLankaDay(query.dateTo);
-  if (!fromParsed || !toParsed) {
+  const range = parseFromTo(query.dateFrom, query.dateTo);
+  if (!range) {
     return { success: false, data: [], totalRecords: 0, message: 'From date and to date are required.' };
   }
-  const from = fromParsed.start;
-  const to = toParsed.end;
+  const from = range.start;
+  const to = range.end;
   if (from.getTime() > to.getTime()) {
     return { success: false, data: [], totalRecords: 0, message: 'From date must be before or equal to to date.' };
   }

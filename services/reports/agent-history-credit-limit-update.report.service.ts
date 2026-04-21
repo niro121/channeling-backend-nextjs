@@ -1,22 +1,14 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import type {
   AgentHistoryCreditLimitUpdateReportQuery,
   AgentHistoryCreditLimitUpdateReportRow,
 } from '@/types/reports/agent-history-credit-limit-update';
 
-const MAX_RANGE_DAYS = getReportMaxRangeDays('user_activity', 62);
 const MAX_RECORDS = getReportMaxRecords('user_activity', 10000);
-
-function parseLocalDay(dateStr: string): { start: Date; end: Date } {
-  const [y, m, d] = dateStr.trim().split('-').map(Number);
-  const start = new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
-  const end = new Date(y, (m ?? 1) - 1, d ?? 1, 23, 59, 59, 999);
-  return { start, end };
-}
 
 const ACTION_SOFT = 'agencies.limit.soft_changed';
 const ACTION_HARD = 'agencies.limit.hard_changed';
@@ -29,26 +21,6 @@ export async function getAgentHistoryCreditLimitUpdateReportService(
   totalRecords: number;
   message?: string;
 }> {
-  const fromParsed = query.dateFrom?.trim() ? parseLocalDay(query.dateFrom) : null;
-  const toParsed = query.dateTo?.trim() ? parseLocalDay(query.dateTo) : null;
-  if (!fromParsed || !toParsed) {
-    return { success: false, data: [], totalRecords: 0, message: 'From date and to date are required.' };
-  }
-  const from = fromParsed.start;
-  const to = toParsed.end;
-  if (from.getTime() > to.getTime()) {
-    return { success: false, data: [], totalRecords: 0, message: 'From date must be before or equal to to date.' };
-  }
-  const daySpan = getInclusiveDaySpan(from, to);
-  if (daySpan > MAX_RANGE_DAYS) {
-    return {
-      success: false,
-      data: [],
-      totalRecords: 0,
-      message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
-    };
-  }
-
   const limitType = (query.limitType ?? '__all__').trim();
   const actions =
     limitType === 'soft'
@@ -59,7 +31,6 @@ export async function getAgentHistoryCreditLimitUpdateReportService(
 
   const where: any = {
     action: { in: actions },
-    createdAt: { gte: from, lte: to },
   };
 
   const changedByUserId = (query.changedByUserId ?? '__all__').trim();

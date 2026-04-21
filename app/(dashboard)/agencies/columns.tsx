@@ -3,6 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 import {
   Tooltip,
   TooltipContent,
@@ -50,38 +51,16 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
   },
   {
     accessorKey: 'name',
-    header: 'Agency Name'
-  },
-  {
-    accessorKey: 'chequePrintingName',
-    header: 'Cheque Printing Name'
-  },
-  {
-    id: 'parentAgency',
-    header: 'Parent Agency',
+    header: 'Agency Name',
     cell: ({ row }) => {
-      const parentAgency = row.original.parentAgency;
-      return parentAgency ? (
-        <span>{parentAgency.name}</span>
-      ) : (
-        <span className="text-muted-foreground">-</span>
+      const name = row.getValue('name') as string;
+      const id = row.original.id;
+      if (!id) return name || <span className="text-muted-foreground">-</span>;
+      return (
+        <Link href={`/agencies/${id}/edit`} className="text-primary hover:underline font-medium">
+          {name || '-'}
+        </Link>
       );
-    }
-  },
-  {
-    accessorKey: 'email',
-    header: 'Email',
-    cell: ({ row }) => {
-      const email = row.getValue('email') as string;
-      return email || <span className="text-muted-foreground">-</span>;
-    }
-  },
-  {
-    accessorKey: 'phone',
-    header: 'Phone',
-    cell: ({ row }) => {
-      const phone = row.getValue('phone') as string;
-      return phone || <span className="text-muted-foreground">-</span>;
     }
   },
   {
@@ -91,6 +70,30 @@ export const AgencyColumns: ColumnDef<Agency>[] = [
       const balance = row.getValue('balance') as number;
       return <span className="tabular-nums">{balance != null ? formatLKR(balance) : '0.00'}</span>;
     }
+  },
+  {
+    id: 'creditViolation',
+    header: 'Credit Violation',
+    cell: ({ row }) => {
+      const isViolation = !!row.original.isCreditLimitViolation;
+      if (!isViolation) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-help items-center gap-1 text-red-600">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Credit limit violation is active</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
   },
   {
     id: 'account',
