@@ -168,7 +168,6 @@ export const getAllDoctorViewReportDataService = async ({
         const refund = booking.refund ?? 0;
         const isCancelByRefundReceipt = refund === 3 && !!booking.refundReceiptCreatedAt;
         const isCancelled = booking.status === 2 || !!booking.canceledAt || isCancelByRefundReceipt;
-        const isRefunded = refund > 0 && !isCancelByRefundReceipt;
 
         if (isCancelled) {
           row.cancel++;
@@ -184,13 +183,13 @@ export const getAllDoctorViewReportDataService = async ({
         }
 
         // Not paid bucket should only include active pending bookings.
-        if (booking.status === 0 && !isCancelled && !isRefunded) {
+        if (booking.status === 0 && !isCancelled) {
           row.notPaid++;
           return;
         }
 
-        // Paid/valid buckets should exclude cancelled/refunded bookings.
-        if (booking.status === 1 && !isCancelled && !isRefunded) {
+        // Paid/valid buckets should exclude only cancelled bookings.
+        if (booking.status === 1 && !isCancelled) {
           row.paid++;
           row.hosValid++;
           row.proValid++;
@@ -206,13 +205,22 @@ export const getAllDoctorViewReportDataService = async ({
             (booking.professionalFee ?? 0) - (booking.professionsalFeeDiscount ?? 0)
           );
 
-          // Calculate total based on fee type
+          // Calculate total based on fee type and partial refund type:
+          // - refund=1 (professional): deduct only professional part
+          // - refund=2 (hospital): deduct only hospital part
+          // - cancelled bookings are already excluded by !isCancelled
           if (feeType === '__all__' || !feeType || feeType === 'total') {
-            row.total += booking.amount || 0;
+            let effectiveTotal = booking.amount || 0;
+            if (refund === 1) {
+              effectiveTotal -= netProfessionalFee;
+            } else if (refund === 2) {
+              effectiveTotal -= netHospitalFee;
+            }
+            row.total += Math.max(0, effectiveTotal);
           } else if (feeType === 'hospital') {
-            row.total += netHospitalFee;
+            row.total += refund === 2 ? 0 : netHospitalFee;
           } else if (feeType === 'professional') {
-            row.total += netProfessionalFee;
+            row.total += refund === 1 ? 0 : netProfessionalFee;
           }
         }
       });

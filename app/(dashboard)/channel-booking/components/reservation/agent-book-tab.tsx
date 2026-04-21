@@ -108,7 +108,7 @@ export function AgentBookTab() {
         )}
       </div>
 
-      {/* Financial Details: balance from linked account; soft limit = Allowed Credit Limit; hard limit = account minBalanceAllowed */}
+      {/* Financial details: balance from linked PAYABLE account; soft limit = Allowed Credit Limit; hard cap = account maxBalanceAllowed */}
       <div className="rounded-md border border-border/60 bg-green-50/80 dark:bg-green-950/20 p-2 space-y-1.5">
         <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Financial

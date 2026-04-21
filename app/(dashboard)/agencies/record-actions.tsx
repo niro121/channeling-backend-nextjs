@@ -6,9 +6,9 @@ import { Row } from '@tanstack/react-table';
 import { useToast } from '@/components/hooks/use-toast';
 import { DataTableRowActions } from '@/components/common/custom-table-row-actions';
 import CustomAlertDialog from '@/components/common/custom-alert-dialog';
-import { deleteAgency } from '@/app/actions/agency.actions';
+import { clearAgencyCreditViolationIfEligible, deleteAgency } from '@/app/actions/agency.actions';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, ShieldCheck, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/components/hooks/use-permissions';
 
@@ -20,7 +20,9 @@ const AgencyRecordActions = <TData extends Agency>({
   row
 }: AgencyActionsProps<TData>) => {
   const [showDeleteConfirmation, setShowDelConfirmation] = useState(false);
+  const [showClearViolation, setShowClearViolation] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [clearViolationLoading, setClearViolationLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const { has } = usePermissions();
@@ -65,6 +67,50 @@ const AgencyRecordActions = <TData extends Agency>({
     }
   };
 
+  const onClearViolationConfirmation = async () => {
+    if (!agency.id) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Agency id not found.'
+      });
+      return;
+    }
+    try {
+      setClearViolationLoading(true);
+      const result = await clearAgencyCreditViolationIfEligible(agency.id);
+      if (!result.success || result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Cannot clear violation',
+          description: result.errors?.message ?? 'Request failed.'
+        });
+        return;
+      }
+      if (!result.cleared) {
+        toast({
+          title: 'No change',
+          description: result.message ?? 'Violation was not cleared.'
+        });
+        return;
+      }
+      toast({
+        title: 'Violation cleared',
+        description: result.message ?? 'Credit violation was cleared.'
+      });
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Clear violation failed.'
+      });
+    } finally {
+      setClearViolationLoading(false);
+      setShowClearViolation(false);
+    }
+  };
+
   return (
     <>
       <DataTableRowActions>
@@ -77,6 +123,18 @@ const AgencyRecordActions = <TData extends Agency>({
           >
             <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
+          </Button>
+        )}
+        {has('agencies', 'edit') && agency.isCreditLimitViolation && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            onClick={() => setShowClearViolation(true)}
+            title="Clear credit violation (when eligible)"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span className="sr-only">Clear credit violation</span>
           </Button>
         )}
         {has('agencies', 'delete') && (
@@ -100,6 +158,15 @@ const AgencyRecordActions = <TData extends Agency>({
         description="This action cannot be undone. This will permanently delete this
                     agency and remove the data from our servers."
         handleContinue={onDeleteConfirmation}
+      />
+
+      <CustomAlertDialog
+        open={showClearViolation}
+        handleVisibilityChange={setShowClearViolation}
+        loading={clearViolationLoading}
+        title="Clear credit violation?"
+        description="This only clears the violation if the agency's outstanding balance is already at or below the agency credit limit (same rule as after a deposit). Allowed credit limit will be reset to the agency credit limit when cleared."
+        handleContinue={onClearViolationConfirmation}
       />
     </>
   );

@@ -247,8 +247,9 @@ export async function saveBookingService(
     if (amountToUse > balanceRupees + allowedCreditLimit) {
       return {
         success: false,
-        errorCode: "AGENCY_CREDIT_EXCEED",
-        message: "Exceed Agency Credit Limit.",
+        errorCode: "CREDIT_LIMIT_VIOLATION",
+        message:
+          "Booking exceeds the agency's allowed credit limit. Please complete a deposit or adjust the booking amount.",
       }
     }
   }

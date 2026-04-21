@@ -28,7 +28,7 @@ import { revalidatePath } from 'next/cache';
 // ==== GET LEAVES FOR A SPECIFIC DOCTOR ==== //
 export const getDoctorLeaves = async (sort: GetDoctorLeavesParams) => {
   // Check view permission
-  await requirePermission('doctor_leaves', 'view');
+  await requirePermission('doctor-leaves', 'view');
 
   try {
     const newFilter: GetDoctorLeavesQuery = {
@@ -147,7 +147,7 @@ export const getCanceledSessions = async (
   message?: string;
   error?: { message?: string };
 }> => {
-  await requirePermission('doctor_leaves', 'view');
+  await requirePermission('doctor-leaves', 'view');
   try {
     if (!params?.doctorId) {
       return {
@@ -192,7 +192,7 @@ export const getSessionIdsLockedByOtherLeaves = async (
   message?: string;
   error?: { message?: string };
 }> => {
-  await requirePermission('doctor_leaves', 'view');
+  await requirePermission('doctor-leaves', 'view');
   try {
     if (!params?.doctorId) {
       return { success: true, data: [] };
@@ -232,7 +232,7 @@ export const getSessionsByIds = async (
   message?: string;
   error?: { message?: string };
 }> => {
-  await requirePermission('doctor_leaves', 'view');
+  await requirePermission('doctor-leaves', 'view');
   try {
     const response = await getSessionsByIdsService(ids);
     if (!response.success) {
@@ -259,7 +259,7 @@ export const getSessionsByIds = async (
 
 // ==== GET ONE DOCTOR LEAVE BY ID ==== //
 export const getOneLeaveByID = async (id: string) => {
-  await requirePermission('doctor_leaves', 'view');
+  await requirePermission('doctor-leaves', 'view');
 
   try {
     const response = await getOneLeaveByIdService(id);
@@ -297,7 +297,7 @@ export const createDoctorLeave = async (
   message?: string;
   error?: { message?: string; issues?: Record<string, string[]> };
 }> => {
-  await requirePermission('doctor_leaves', 'add');
+  await requirePermission('doctor-leaves', 'add');
 
   try {
     const result = await createDoctorLeaveService(payload, user);
@@ -345,7 +345,7 @@ export const updateDoctorLeave = async (
   message?: string;
   error?: { message?: string; issues?: Record<string, string[]> };
 }> => {
-  await requirePermission('doctor_leaves', 'edit');
+  await requirePermission('doctor-leaves', 'edit');
 
   try {
     const result = await updateDoctorLeaveService(id, payload, user);
@@ -391,7 +391,7 @@ export const deleteOneDoctorLeave = async (
   message?: string;
   error?: { message?: string };
 }> => {
-  await requirePermission('doctor_leaves', 'delete');
+  await requirePermission('doctor-leaves', 'delete');
 
   try {
     const result = await deleteOneDoctorLeaveService(id);
@@ -436,7 +436,7 @@ export const bulkDeleteDoctorLeaves = async (
   message?: string;
   error?: { message?: string };
 }> => {
-  await requirePermission('doctor_leaves', 'delete');
+  await requirePermission('doctor-leaves', 'delete');
 
   try {
     const result = await bulkDeleteDoctorLeavesService(ids);

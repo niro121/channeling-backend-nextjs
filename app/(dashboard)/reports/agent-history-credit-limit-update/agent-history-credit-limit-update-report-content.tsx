@@ -3,7 +3,6 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
 import {
   Select,
   SelectContent,
@@ -35,8 +34,6 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
   const searchParams = useSearchParams();
 
   const buildQuery = (): AgentHistoryCreditLimitUpdateReportQuery => ({
-    dateFrom: searchParams.get('dateFrom') ?? '',
-    dateTo: searchParams.get('dateTo') ?? '',
     agencyId: searchParams.get('agencyId') ?? '__all__',
     limitType: searchParams.get('limitType') ?? '__all__',
     changedByUserId: searchParams.get('changedByUserId') ?? '__all__',
@@ -50,8 +47,6 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
-          const dateFrom = values.dateFrom ?? '';
-          const dateTo = values.dateTo ?? '';
           const agencyId = values.agencyId ?? '__all__';
           const limitType = values.limitType ?? '__all__';
           const changedByUserId = values.changedByUserId ?? '__all__';
@@ -70,9 +65,6 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
           return (
             <>
               <div>
-                Range: {dateFrom} to {dateTo}
-              </div>
-              <div>
                 Agent: {agentLabel} | Limit type: {limitTypeLabel} | Changed by: {userLabel}
               </div>
             </>
@@ -81,18 +73,6 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
-          <div className="flex-shrink-0">
-            <label className="text-sm font-semibold mb-2 block">Date Range</label>
-            <DateRangePicker
-              from={values.dateFrom}
-              to={values.dateTo}
-              onChange={({ from, to }) => {
-                setValue('dateFrom', from);
-                setValue('dateTo', to);
-              }}
-            />
-          </div>
-
           <div className="flex-shrink-0">
             <label className="text-sm font-semibold mb-2 block">Agent</label>
             <div className="w-[260px] [&_button]:w-full">
@@ -133,8 +113,6 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       )}
       fetchData={async (params) => {
         const query: AgentHistoryCreditLimitUpdateReportQuery = {
-          dateFrom: params.get('dateFrom') ?? '',
-          dateTo: params.get('dateTo') ?? '',
           agencyId: params.get('agencyId') ?? '__all__',
           limitType: params.get('limitType') ?? '__all__',
           changedByUserId: params.get('changedByUserId') ?? '__all__',
@@ -144,27 +122,27 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       exportData={async () => exportAgentHistoryCreditLimitUpdateReportData(buildQuery())}
       columns={AgentHistoryCreditLimitUpdateColumns}
       exportColumns={[
-        'Date / Time',
-        'Changed by',
-        'Limit type',
+        'No.',
         'Agent',
-        'Agent code',
-        'Old',
-        'New',
+        'Agent Code',
+        'Limit Type',
+        'Before Value',
+        'Updated Value',
         'Delta',
-        'Action',
+        'Changed by',
+        'Date & Time',
       ]}
       exportKeys={
         [
-          'dateTime',
-          'changedBy',
-          'limitType',
+          'no',
           'agent',
           'agentCode',
-          'oldValue',
-          'newValue',
+          'limitType',
+          'beforeValue',
+          'updatedValue',
           'delta',
-          'action',
+          'changedBy',
+          'dateTime',
         ] as (keyof AgentHistoryCreditLimitUpdateReportExportRow)[]
       }
       exportTitle="Agent History(Credit Limit Update)"

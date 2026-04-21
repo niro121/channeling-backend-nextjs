@@ -52,6 +52,7 @@ export type SaveBookingErrorCode =
   | "LIMIT_EXCEEDED"
   /** Soft limit: booking amount > agency prepaid (PAYABLE balance) + Agency.allowedCreditLimit (agent only). */
   | "AGENCY_CREDIT_EXCEED"
+  | "CREDIT_LIMIT_VIOLATION"
   | "AGENCY_REF_ERROR"
   | "AGENCY_NO_LINKED_ACCOUNT"
   | "CASH_BOOK_NOT_FOUND"

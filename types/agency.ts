@@ -1,5 +1,8 @@
 // EXPORT ALL TYPES RELATED TO AGENCY FROM HERE
 
+/** Stored in `Agency.creditLimitViolationReason` when allowed credit limit is set to the hard cap. */
+export const AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP = 'ALLOWED_AT_HARD_CAP' as const;
+
 export type Agency = {
   id?: string;
   name: string;
@@ -7,8 +10,12 @@ export type Agency = {
   chequePrintingName: string;
   parentAgencyId?: string | null;
   allowedCreditLimit: number;
+  creditLimit: number;
+  isCreditLimitViolation?: boolean;
+  creditLimitViolationAt?: Date | null;
+  creditLimitViolationReason?: string | null;
   balance: number;
-  /** Hard cap from linked PAYABLE account, in LKR */
+  /** Hard cap from linked PAYABLE account, in LKR (minBalanceAllowed preferred, maxBalanceAllowed fallback) */
   maxCreditLimit?: number;
   /** Effective policy cap = min(allowedCreditLimit, maxCreditLimit) */
   standardCreditLimit?: number;
@@ -52,6 +59,7 @@ export type AgencyFormValues = {
   chequePrintingName: string;
   parentAgencyId?: string;
   allowedCreditLimit: number;
+  creditLimit: number;
   phone?: string;
   mobile?: string;
   fax?: string;
@@ -81,6 +89,7 @@ export type UpdateAgencyPayload = Partial<{
   chequePrintingName: string;
   parentAgencyId?: string;
   allowedCreditLimit: number;
+  creditLimit: number;
   phone?: string;
   mobile?: string;
   fax?: string;
@@ -116,4 +125,26 @@ export type GetAgenciesQuery = {
 export type GetAgenciesReturn = {
   data: Agency[];
   totalRecords: number;
+};
+
+/** Rows from activity log for `agencies.limit.soft_changed` on one agency (allowed credit limit history). */
+export type AgencyAllowedCreditLimitHistoryEntry = {
+  id: string;
+  createdAt: string;
+  changedByUserId: string;
+  changedByUserName: string;
+  oldValue: number | null;
+  newValue: number | null;
+  delta: number | null;
+  /** `source` from log metadata when stored; may be null on older entries. */
+  source: string | null;
+  /** Effective source after inference (e.g. allowed-limits page from formal-ack flag). */
+  sourceResolved: string | null;
+  field: string | null;
+  agencyNameFromMetadata: string | null;
+  agencyCodeFromMetadata: string | null;
+  ipAddress: string | null;
+  formalDeclarationAcknowledged: boolean;
+  /** JSON of metadata keys not shown elsewhere (empty object → null). */
+  otherMetadataJson: string | null;
 };
