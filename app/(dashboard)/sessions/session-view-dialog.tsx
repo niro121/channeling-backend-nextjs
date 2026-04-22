@@ -87,7 +87,7 @@ export function SessionViewDialog({ session, open, onOpenChange }: SessionViewDi
   const doctor = session.doctor;
   const department = session.department;
   const room = session.room;
-  const isActive = session.status === 1;
+  const isActive = Number(session.status) === 1;
   const isScan = Boolean((session as unknown as { isScan?: boolean }).isScan);
   const timeRange = `${formatSessionTimeForDisplay(session.startTime, session.date)} – ${formatSessionTimeForDisplay(session.endTime, session.date)}`;
 

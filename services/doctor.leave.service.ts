@@ -50,13 +50,43 @@ const doctorLeaveUpdateSchema = doctorLeaveBaseSchema.partial().extend({
 export type DoctorLeaveCreateInput = z.infer<typeof doctorLeaveCreateSchema>;
 export type DoctorLeaveUpdateInput = z.infer<typeof doctorLeaveUpdateSchema>;
 
+function extractSessionIdFromEntry(entry: unknown): string | undefined {
+  if (entry == null) return undefined;
+  if (typeof entry === 'string') {
+    const t = entry.trim();
+    return t.length > 0 ? t : undefined;
+  }
+  if (typeof entry === 'object') {
+    const o = entry as { id?: unknown; _id?: unknown };
+    const v = o._id ?? o.id;
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (v != null && typeof v === 'object' && '$oid' in (v as Record<string, unknown>)) {
+      const oid = (v as { $oid?: string }).$oid;
+      if (typeof oid === 'string' && oid.trim()) return oid.trim();
+    }
+  }
+  return undefined;
+}
+
+/** Normalize any sessions array: strings, { id }, or Mongo-style { _id } */
+function normalizeSessionsArray(raw: unknown): string[] {
+  if (raw == null || !Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => extractSessionIdFromEntry(entry))
+    .filter((id): id is string => Boolean(id));
+}
+
 /** Normalize form payload: accept sessions as { id }[] or legacy typo key */
 function normalizeSessions(
   payload: DoctorLeaveFormProps & { sessions?: { id: string }[] }
 ): string[] {
   const raw = payload.sessions ?? (payload as any).sesssions ?? [];
-  const arr = Array.isArray(raw) ? raw : [];
-  return arr.map((s) => (typeof s === 'string' ? s : s?.id)).filter(Boolean);
+  return normalizeSessionsArray(raw);
+}
+
+/** Parse DoctorLeave.sessions from DB: string[] or { id: string }[] */
+function normalizeDoctorLeaveSessionsJson(raw: unknown): string[] {
+  return normalizeSessionsArray(raw);
 }
 
 /** Normalize sendSms: form may send boolean (true/false) or number (0/1); DB stores 0 or 1 */
@@ -66,9 +96,9 @@ function normalizeSendSms(value: unknown): 0 | 1 {
 }
 
 /**
- * Set Session.status to match DoctorLeave for the given session IDs.
- * DoctorLeave status 1 (ACTIVE) = leave in effect → sessions on leave → Session.status = 0.
- * DoctorLeave status 0 (CANCEL) = leave cancelled → sessions available → Session.status = 1.
+ * Set Session rows from DoctorLeave outcome.
+ * DoctorLeave.status: 0 = leave active → sessions on leave (status 0 + leave metadata).
+ * DoctorLeave.status: 1 = leave cancelled → same as restoreSessionsToActive (status 1, clear leave fields).
  */
 async function setSessionsStatusByLeave(
   sessionIds: string[],
@@ -80,11 +110,15 @@ async function setSessionsStatusByLeave(
   }
 ) {
   if (sessionIds.length === 0) return;
-  const status = leaveStatus === 1 ? 0 : 1; // Active leave → session 0 (on leave); Cancelled leave → session 1 (available)
+  const onLeave = Number(leaveStatus) === 0;
+  if (!onLeave) {
+    await restoreSessionsToActive(sessionIds);
+    return;
+  }
   await prisma.session.updateMany({
     where: { id: { in: sessionIds } },
     data: {
-      status,
+      status: 0,
       ...(options?.doctorLeaveRemark != null && {
         doctorLeaveRemark: options.doctorLeaveRemark
       }),
@@ -348,7 +382,11 @@ export const getSessionIdsLockedByOtherLeavesService = async (
     if (!doctorId?.trim()) {
       return { success: true, data: [] };
     }
-    const where: Prisma.DoctorLeaveWhereInput = { doctorId };
+    const where: Prisma.DoctorLeaveWhereInput = {
+      doctorId,
+      // Only active leaves lock sessions; cancelled leaves (1) must not block selection.
+      status: 0
+    };
     if (excludeLeaveId?.trim()) {
       where.id = { not: excludeLeaveId };
     }
@@ -358,13 +396,8 @@ export const getSessionIdsLockedByOtherLeavesService = async (
     });
     const lockedIds = new Set<string>();
     for (const leave of leaves) {
-      const raw = leave.sessions;
-      if (raw == null) continue;
-      const arr = Array.isArray(raw) ? raw : [];
-      for (const item of arr) {
-        const id =
-          typeof item === 'string' ? item : (item as { id?: string })?.id;
-        if (id && typeof id === 'string') lockedIds.add(id);
+      for (const id of normalizeDoctorLeaveSessionsJson(leave.sessions)) {
+        lockedIds.add(id);
       }
     }
     return { success: true, data: Array.from(lockedIds) };
@@ -538,7 +571,7 @@ export const createDoctorLeaveService = async (
       }
     });
 
-    // Apply DoctorLeave status to selected sessions: Active (1) → Session 0 (on leave), Cancel (0) → Session 1 (available).
+    // Apply DoctorLeave.status to sessions (0 = on leave, 1 = available) — same values as Session.status.
     await setSessionsStatusByLeave(sessionIds, data.status, {
       doctorLeaveRemark: data.remarks ?? 'Doctor leave',
       doctorLeaveCreator: user?.name ?? undefined,
@@ -579,7 +612,24 @@ export const updateDoctorLeaveService = async (
       };
     }
 
-    const sessionIds = normalizeSessions(payload as any);
+    const previousSessionIds = normalizeDoctorLeaveSessionsJson(
+      existing.sessions
+    );
+
+    const payloadRecord = payload as Record<string, unknown>;
+    const hasSessionsKey =
+      Object.prototype.hasOwnProperty.call(payloadRecord, 'sessions') ||
+      Object.prototype.hasOwnProperty.call(payloadRecord, 'sesssions');
+    const rawSel = (payload as any).sessions ?? (payload as any).sesssions;
+
+    /** If the client omitted session keys (e.g. server-action serialization), keep DB membership so Leave Active still applies to those sessions. */
+    const effectiveNewIds: string[] =
+      !hasSessionsKey || rawSel === undefined || rawSel === null
+        ? [...previousSessionIds]
+        : Array.isArray(rawSel) && rawSel.length === 0
+          ? []
+          : normalizeSessionsArray(rawSel);
+
     const toValidate = {
       id,
       doctorId: payload.doctorId ?? existing.doctorId,
@@ -588,8 +638,8 @@ export const updateDoctorLeaveService = async (
       remarks:
         payload.remarks !== undefined ? payload.remarks : existing.remarks,
       cancelRemarks: (payload as any).cancelRemarks ?? existing.cancelRemarks,
-      sessions: sessionIds.length
-        ? sessionIds.map((sid) => ({ id: sid }))
+      sessions: effectiveNewIds.length
+        ? effectiveNewIds.map((sid) => ({ id: sid }))
         : undefined,
       sendSms:
         payload.sendSms !== undefined
@@ -610,7 +660,7 @@ export const updateDoctorLeaveService = async (
     }
 
     const data = parsed.data;
-    const newSessionIds = (data.sessions ?? []).map((s) => s.id);
+    const newSessionIds = effectiveNewIds;
     const lockedIds = await getLockedSessionIdsForDoctor(
       data.doctorId ?? existing.doctorId,
       id
@@ -625,7 +675,6 @@ export const updateDoctorLeaveService = async (
       };
     }
 
-    const previousSessionIds = (existing.sessions as string[] | null) ?? [];
     const sessionsToRestore = previousSessionIds.filter(
       (sid) => !newSessionIds.includes(sid)
     );
@@ -657,7 +706,7 @@ export const updateDoctorLeaveService = async (
       }
     });
 
-    // Always apply DoctorLeave status to selected sessions: Active (1) → Session 0 (on leave), Cancel (0) → Session 1 (available).
+    // Apply DoctorLeave.status to selected sessions (0/1 aligns with Session.status).
     if (newSessionIds.length > 0) {
       await setSessionsStatusByLeave(newSessionIds, leaveStatus, {
         doctorLeaveRemark: data.remarks ?? 'Doctor leave',
@@ -708,7 +757,7 @@ export const deleteOneDoctorLeaveService = async (
       };
     }
 
-    const sessionIds = (existing.sessions as string[] | null) ?? [];
+    const sessionIds = normalizeDoctorLeaveSessionsJson(existing.sessions);
     await restoreSessionsToActive(sessionIds);
 
     await prisma.doctorLeave.delete({ where: { id } });
@@ -753,8 +802,9 @@ export const bulkDeleteDoctorLeavesService = async (
 
     const allSessionIds = new Set<string>();
     for (const leave of leaves) {
-      const sids = (leave.sessions as string[] | null) ?? [];
-      sids.forEach((sid) => allSessionIds.add(sid));
+      normalizeDoctorLeaveSessionsJson(leave.sessions).forEach((sid) =>
+        allSessionIds.add(sid)
+      );
     }
     await restoreSessionsToActive(Array.from(allSessionIds));
 
