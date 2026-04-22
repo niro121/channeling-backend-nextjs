@@ -50,6 +50,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-income-accounting-wise'
   },
   {
+    id: '9',
+    rank: 9,
+    masterData: 'Channel Discount Report',
+    description: 'Shows billed channel bookings with hospital/professional fee discounts and discount schemes.',
+    route: '/reports/channel-discount'
+  },
+  {
     id: '10',
     rank: 10,
     masterData: 'Consultant Payments Report',
@@ -208,6 +215,7 @@ export default async function ReportsPage() {
     [
       '/reports/channel-patient-count-accounting-wise',
       '/reports/channel-income-accounting-wise',
+      '/reports/channel-discount',
       '/reports/consultant-payments',
       '/reports/withholding-tax',
       '/reports/channel-bookings',
