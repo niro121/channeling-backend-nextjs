@@ -86,7 +86,7 @@ export default function DoctorLeaveForm({
       remarks: doctorLeave?.remarks ?? '',
       sesssions: doctorLeave?.sessions ?? [],
       sendSms: Boolean(doctorLeave?.sendSms),
-      status: doctorLeave?.status ?? 1,
+      status: doctorLeave?.status ?? 0,
       doctorId: doctorLeave?.doctorId ?? doctorId
     }),
     [
