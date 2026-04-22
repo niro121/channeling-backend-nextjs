@@ -191,7 +191,7 @@ export const getDoctorLeaveReportService = async ({
         : undefined;
 
     const leaveWhere: Prisma.DoctorLeaveWhereInput = {
-      // Requirement: only fetch CANCEL leaves
+      // Active leaves only (Leave Active in UI; DoctorLeave.status === 0 per schema)
       status: 0
     };
     if (prismaFrom != null && prismaTo != null) {
