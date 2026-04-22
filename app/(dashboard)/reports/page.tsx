@@ -113,6 +113,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/cashier-summary'
   },
   {
+    id: '27',
+    rank: 27,
+    masterData: 'Withholding Tax Report',
+    description: 'Shows doctor payments completed with withholding tax (WHT) deductions.',
+    route: '/reports/withholding-tax'
+  },
+  {
     id: '28',
     rank: 28,
     masterData: 'SMS Report',
@@ -202,6 +209,7 @@ export default async function ReportsPage() {
       '/reports/channel-patient-count-accounting-wise',
       '/reports/channel-income-accounting-wise',
       '/reports/consultant-payments',
+      '/reports/withholding-tax',
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
       '/reports/channel-transfer',
