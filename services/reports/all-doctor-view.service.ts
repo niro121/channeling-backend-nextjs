@@ -174,12 +174,14 @@ export const getAllDoctorViewReportDataService = async ({
         }
 
         // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
-        // Count refunds independent of cancel status (a booking can be both refunded and cancelled).
-        if (refund === 2 || refund === 3) {
-          row.hosRefund++;
-        }
-        if (refund === 1 || refund === 3) {
-          row.proRefund++;
+        // Refund counters should include only non-cancelled paid bookings.
+        if (booking.status === 1 && !isCancelled) {
+          if (refund === 2 || refund === 3) {
+            row.hosRefund++;
+          }
+          if (refund === 1 || refund === 3) {
+            row.proRefund++;
+          }
         }
 
         // Not paid bucket should only include active pending bookings.
@@ -188,12 +190,9 @@ export const getAllDoctorViewReportDataService = async ({
           return;
         }
 
-        // Paid/valid buckets should exclude only cancelled bookings.
+        // Paid bucket should exclude cancelled bookings.
         if (booking.status === 1 && !isCancelled) {
           row.paid++;
-          row.hosValid++;
-          row.proValid++;
-          row.nettValid++;
 
           // Use net fee values after discounts for fee-type filtered totals.
           const netHospitalFee = Math.max(
@@ -226,8 +225,18 @@ export const getAllDoctorViewReportDataService = async ({
       });
     });
 
-    // Convert map to array and sort
+    // Convert map to array and derive valid columns from paid/refund counts:
+    // hosValid = paid - hosRefund
+    // proValid = paid - proRefund
+    // nettValid = paid - hosRefund - proRefund
     const rows = Array.from(doctorMap.values());
+    rows.forEach((row) => {
+      row.hosValid = Math.max(0, row.paid - row.hosRefund);
+      row.proValid = Math.max(0, row.paid - row.proRefund);
+      row.nettValid = Math.max(0, row.paid - row.hosRefund - row.proRefund);
+    });
+
+    // Sort rows by consultant
     rows.sort((a, b) => {
       if (a.consultantName < b.consultantName) return -1;
       if (a.consultantName > b.consultantName) return 1;
