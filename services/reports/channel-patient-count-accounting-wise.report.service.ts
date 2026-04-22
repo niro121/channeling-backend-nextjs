@@ -264,12 +264,11 @@ export async function getChannelPatientCountAccountingWiseService(
       const hosRefund = includeHos ? Number(b.refundAmountHospitalFee ?? 0) : 0;
       const proRefund = includePro ? Number(b.refundAmountProfessionalFee ?? 0) : 0;
 
-      if (isFullCancel && paidBeforeCancel) {
-        row.cancelRevenueHosFee += hosFee;
-        row.cancelRevenueHosDis += hosDis;
-        row.cancelRevenueProFee += proFee;
-        row.cancelRevenueProDis += proDis;
-      } else if (paidBeforeCancel) {
+      // Revenue flow:
+      // 1) Any booking with a paid receipt contributes to Paid Revenue first.
+      // 2) If that paid booking was fully canceled, the same values are added to Cancel Revenue
+      //    so Nett Revenue correctly reflects the reversal once (Paid - Cancel - Refund).
+      if (paidBeforeCancel) {
         row.paidRevenueHosFee += hosFee;
         row.paidRevenueHosDis += hosDis;
         row.paidRevenueProFee += proFee;
@@ -278,6 +277,12 @@ export async function getChannelPatientCountAccountingWiseService(
         // Pending revenue (no receipt yet): use net fee (fee - discount) for visibility.
         row.pendingRevenueHosFee += Math.max(0, hosFee - hosDis);
         row.pendingRevenueProFee += Math.max(0, proFee - proDis);
+      }
+      if (isFullCancel && paidBeforeCancel) {
+        row.cancelRevenueHosFee += hosFee;
+        row.cancelRevenueHosDis += hosDis;
+        row.cancelRevenueProFee += proFee;
+        row.cancelRevenueProDis += proDis;
       }
       // Refund revenue should exclude full cancels (refund=3) since those are treated as Cancel above.
       if (isPartialRefund) {

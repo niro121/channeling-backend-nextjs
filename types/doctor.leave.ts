@@ -20,7 +20,7 @@ export type DoctorLeave = {
   remarks: string | null;
   sessions?: Session[];
   sendSms: boolean;
-  status: number; // 0 = CANCEL, 1 = ACTIVE
+  status: number; // 0 = leave active (on leave), 1 = leave cancelled (matches Prisma DoctorLeave.status)
   doctor: Doctor
   doctorId: string;
   createdBy: string | null;
@@ -35,7 +35,7 @@ export type DoctorLeaveFormProps = {
   remarks: string | null;
   sesssions: Session[];
   sendSms: boolean;
-  status: number; // 0 = CANCEL, 1 = ACTIVE
+  status: number; // 0 = leave active (on leave), 1 = leave cancelled (matches Prisma DoctorLeave.status)
   doctorId: string;
 };
 
