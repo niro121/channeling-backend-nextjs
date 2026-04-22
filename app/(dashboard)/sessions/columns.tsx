@@ -168,8 +168,8 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = row.original.status;
-      const isActive = status === 1;
+      const status = Number(row.original.status);
+      const isActive = status === 1 && !Number.isNaN(status);
       return (
         <Badge variant={isActive ? 'default' : 'secondary'} className={!isActive ? 'bg-amber-100 text-amber-800' : ''}>
           {isActive ? 'Active' : 'Leave'}

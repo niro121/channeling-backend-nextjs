@@ -86,7 +86,7 @@ export default function DoctorLeaveForm({
       remarks: doctorLeave?.remarks ?? '',
       sesssions: doctorLeave?.sessions ?? [],
       sendSms: Boolean(doctorLeave?.sendSms),
-      status: doctorLeave?.status ?? 1,
+      status: doctorLeave?.status ?? 0,
       doctorId: doctorLeave?.doctorId ?? doctorId
     }),
     [
@@ -128,12 +128,17 @@ export default function DoctorLeaveForm({
     values: DoctorLeaveFormProps,
     { setErrors, setTouched }: FormikHelpers<DoctorLeaveFormProps>
   ) => {
-    // Ensure doctorId is always sent; convert sendSms boolean to 0/1 for DB
+    // Ensure doctorId is always sent; convert sendSms boolean to 0/1 for DB.
+    // Duplicate selected sessions under `sessions` so server actions always receive ids (some paths only read `sessions`).
+    const sessionIds = values.sesssions.map((s) =>
+      typeof s === 'string' ? s : s.id
+    );
     const payload = {
       ...values,
       doctorId: values.doctorId ?? doctorId,
-      sendSms: values.sendSms === true ? 1 : 0
-    } as DoctorLeaveFormProps & { sendSms: number };
+      sendSms: values.sendSms === true ? 1 : 0,
+      sessions: sessionIds.map((id) => ({ id }))
+    } as DoctorLeaveFormProps & { sendSms: number; sessions: { id: string }[] };
     const closeAfterSave = saveAndCloseRef.current;
 
     try {

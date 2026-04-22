@@ -248,7 +248,9 @@ export function SessionsSelection() {
                     const nextAppointmentNo = lastAppointmentNo === 0 ? start : lastAppointmentNo + 1
                     const isFull = currentCount >= capacity
                     const isWeekend = isSessionWeekend(session.date)
-                    const isOnLeave = session.status === 0
+                    const sessionStatus = Number(session.status)
+                    const isOnLeave =
+                      sessionStatus === 0 && !Number.isNaN(sessionStatus)
                     return (
                       <li key={session.id}>
                         <button
