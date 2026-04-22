@@ -99,6 +99,7 @@ export const getAllDoctorViewReportDataService = async ({
           select: {
             id: true,
             status: true,
+            receiptNoString: true,
             refund: true,
             canceledAt: true,
             refundReceiptCreatedAt: true,
@@ -166,8 +167,10 @@ export const getAllDoctorViewReportDataService = async ({
       // Aggregate bookings
       session.bookings.forEach((booking) => {
         const refund = booking.refund ?? 0;
+        const paidBeforeCancel = Boolean(booking.receiptNoString?.trim());
         const isCancelByRefundReceipt = refund === 3 && !!booking.refundReceiptCreatedAt;
         const isCancelled = booking.status === 2 || !!booking.canceledAt || isCancelByRefundReceipt;
+        const isPaidBooking = booking.status === 1 || paidBeforeCancel;
 
         if (isCancelled) {
           row.cancel++;
@@ -175,7 +178,7 @@ export const getAllDoctorViewReportDataService = async ({
 
         // refund: 0 = none, 1 = prof only, 2 = hosp only, 3 = full
         // Refund counters should include only non-cancelled paid bookings.
-        if (booking.status === 1 && !isCancelled) {
+        if (isPaidBooking && !isCancelled) {
           if (refund === 2 || refund === 3) {
             row.hosRefund++;
           }
@@ -190,8 +193,9 @@ export const getAllDoctorViewReportDataService = async ({
           return;
         }
 
-        // Paid bucket should exclude cancelled bookings.
-        if (booking.status === 1 && !isCancelled) {
+        // Paid bucket should include all paid bookings, including cancelled ones.
+        // Cancellations/refunds are handled by separate derived counters.
+        if (isPaidBooking) {
           row.paid++;
 
           // Use net fee values after discounts for fee-type filtered totals.
@@ -207,8 +211,11 @@ export const getAllDoctorViewReportDataService = async ({
           // Calculate total based on fee type and partial refund type:
           // - refund=1 (professional): deduct only professional part
           // - refund=2 (hospital): deduct only hospital part
-          // - cancelled bookings are already excluded by !isCancelled
+          // - cancelled bookings are still counted in paid, but should not add to amount totals
           if (feeType === '__all__' || !feeType || feeType === 'total') {
+            if (isCancelled) {
+              return;
+            }
             let effectiveTotal = booking.amount || 0;
             if (refund === 1) {
               effectiveTotal -= netProfessionalFee;
@@ -217,23 +224,29 @@ export const getAllDoctorViewReportDataService = async ({
             }
             row.total += Math.max(0, effectiveTotal);
           } else if (feeType === 'hospital') {
+            if (isCancelled) {
+              return;
+            }
             row.total += refund === 2 ? 0 : netHospitalFee;
           } else if (feeType === 'professional') {
+            if (isCancelled) {
+              return;
+            }
             row.total += refund === 1 ? 0 : netProfessionalFee;
           }
         }
       });
     });
 
-    // Convert map to array and derive valid columns from paid/refund counts:
-    // hosValid = paid - hosRefund
-    // proValid = paid - proRefund
-    // nettValid = paid - hosRefund - proRefund
+    // Convert map to array and derive valid columns:
+    // nettValid = paid - cancel - proRefund
+    // proValid = paid - cancel - proRefund
+    // hosValid = paid - cancel - hosRefund
     const rows = Array.from(doctorMap.values());
     rows.forEach((row) => {
-      row.hosValid = Math.max(0, row.paid - row.hosRefund);
-      row.proValid = Math.max(0, row.paid - row.proRefund);
-      row.nettValid = Math.max(0, row.paid - row.hosRefund - row.proRefund);
+      row.nettValid = Math.max(0, row.paid - row.cancel - row.proRefund);
+      row.proValid = Math.max(0, row.paid - row.cancel - row.proRefund);
+      row.hosValid = Math.max(0, row.paid - row.cancel - row.hosRefund);
     });
 
     // Sort rows by consultant
