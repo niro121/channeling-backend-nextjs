@@ -34,12 +34,13 @@ function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string }
 
 function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props) {
   const searchParams = useSearchParams();
+  const defaultRange = getDefaultDateTimeRange();
 
   const buildQuery = (): ChannelDiscountReportQuery => ({
     doctorId: searchParams.get('doctorId') ?? '__all__',
     locationId: searchParams.get('locationId') ?? '__all__',
-    fromDateTime: searchParams.get('fromDateTime') ?? '',
-    toDateTime: searchParams.get('toDateTime') ?? ''
+    fromDateTime: searchParams.get('fromDateTime') ?? defaultRange.fromDateTime,
+    toDateTime: searchParams.get('toDateTime') ?? defaultRange.toDateTime
   });
 
   return (
@@ -105,8 +106,8 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
         const result = await getChannelDiscountReportData({
           doctorId: params.get('doctorId') ?? '__all__',
           locationId: params.get('locationId') ?? '__all__',
-          fromDateTime: params.get('fromDateTime') ?? '',
-          toDateTime: params.get('toDateTime') ?? ''
+          fromDateTime: params.get('fromDateTime') ?? defaultRange.fromDateTime,
+          toDateTime: params.get('toDateTime') ?? defaultRange.toDateTime
         });
         return {
           success: result.success,
