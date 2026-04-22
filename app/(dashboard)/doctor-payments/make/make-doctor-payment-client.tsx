@@ -89,13 +89,8 @@ const VALID_PAYMENT_METHODS = [
   RECEIPT_PAYMENT_METHOD.E_WALLET,
 ] as const;
 
-function getDoctorPaymentMethodOptions(): { value: string; label: string }[] {
-  const raw = process.env.NEXT_PUBLIC_DOCTOR_PAYMENT_METHODS;
-  if (raw == null || String(raw).trim() === "") {
-    return [{ value: String(RECEIPT_PAYMENT_METHOD.CASH), label: PAYMENT_METHOD_NAMES[RECEIPT_PAYMENT_METHOD.CASH] }];
-  }
-  const parts = String(raw).split(",").map((s) => parseInt(s.trim(), 10));
-  const allowed = parts.filter((n) => !Number.isNaN(n) && VALID_PAYMENT_METHODS.includes(n as (typeof VALID_PAYMENT_METHODS)[number]));
+function getDoctorPaymentMethodOptions(methodCodes: number[]): { value: string; label: string }[] {
+  const allowed = methodCodes.filter((n) => VALID_PAYMENT_METHODS.includes(n as (typeof VALID_PAYMENT_METHODS)[number]));
   if (allowed.length === 0) {
     return [{ value: String(RECEIPT_PAYMENT_METHOD.CASH), label: PAYMENT_METHOD_NAMES[RECEIPT_PAYMENT_METHOD.CASH] }];
   }
@@ -110,6 +105,8 @@ type MakeDoctorPaymentClientProps = {
   locationId: string | null;
   /** When provided (e.g. from channel-booking Payment tab), pre-select this doctor. */
   initialDoctorId?: string | null;
+  whtPercentage: number;
+  doctorPaymentMethodCodes: number[];
 };
 
 export function MakeDoctorPaymentClient({
@@ -119,6 +116,8 @@ export function MakeDoctorPaymentClient({
   userId,
   locationId,
   initialDoctorId,
+  whtPercentage,
+  doctorPaymentMethodCodes,
 }: MakeDoctorPaymentClientProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -144,7 +143,10 @@ export function MakeDoctorPaymentClient({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
 
-  const paymentMethodOptions = React.useMemo(() => getDoctorPaymentMethodOptions(), []);
+  const paymentMethodOptions = React.useMemo(
+    () => getDoctorPaymentMethodOptions(doctorPaymentMethodCodes),
+    [doctorPaymentMethodCodes]
+  );
 
   useEffect(() => {
     const allowed = paymentMethodOptions.map((o) => o.value);
@@ -164,12 +166,7 @@ export function MakeDoctorPaymentClient({
     return () => observer.disconnect();
   }, []);
 
-  const whtPct = (() => {
-    const raw = process.env.NEXT_PUBLIC_WHT_PERCENTAGE;
-    if (raw == null || raw === "") return 0;
-    const n = parseFloat(raw);
-    return Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
-  })();
+  const whtPct = Math.max(0, Math.min(100, whtPercentage));
   const payingNum = parseFloat(payingThisTime) || 0;
   const whtAmount = wht ? (payingNum * whtPct) / 100 : 0;
   const netAmount = Math.max(0, payingNum - whtAmount);

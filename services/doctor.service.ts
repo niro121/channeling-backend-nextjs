@@ -757,12 +757,12 @@ export const checkDoctorHasActiveSessionsOrLeavesService = async (
       }
     });
 
-    // Check for approved leave records associated with this doctor
-    // DoctorLeave: status === 1 means active/approved, status === 0 means cancelled
+    // Check for leave records still in effect (not cancelled) for this doctor
+    // DoctorLeave: status === 0 = leave active (on leave); status === 1 = leave cancelled
     const approvedLeavesCount = await prisma.doctorLeave.count({
       where: {
         doctorId: doctorId,
-        status: 1 // 1 = ACTIVE/approved, 0 = CANCEL
+        status: 0
       }
     });
 
@@ -816,14 +816,14 @@ export const checkDoctorsHaveActiveSessionsOrLeavesService = async (
       }
     });
 
-    // Check for approved leave records associated with any of these doctors
-    // DoctorLeave: status === 1 means active/approved, status === 0 means cancelled
+    // Check for leave records still in effect (not cancelled) for any of these doctors
+    // DoctorLeave: status === 0 = leave active (on leave); status === 1 = leave cancelled
     const approvedLeavesCount = await prisma.doctorLeave.count({
       where: {
         doctorId: {
           in: doctorIds
         },
-        status: 1 // 1 = ACTIVE/approved, 0 = CANCEL
+        status: 0
       }
     });
 

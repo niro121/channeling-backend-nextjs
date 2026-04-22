@@ -319,6 +319,8 @@ export const createDoctorLeave = async (
       });
     }
     revalidatePath('/doctor-leaves');
+    revalidatePath('/sessions');
+    revalidatePath('/channel-booking');
 
     return {
       success: true,
@@ -367,6 +369,8 @@ export const updateDoctorLeave = async (
       });
     }
     revalidatePath('/doctor-leaves');
+    revalidatePath('/sessions');
+    revalidatePath('/channel-booking');
 
     return {
       success: true,
@@ -413,6 +417,8 @@ export const deleteOneDoctorLeave = async (
       });
     }
     revalidatePath('/doctor-leaves');
+    revalidatePath('/sessions');
+    revalidatePath('/channel-booking');
 
     return {
       success: true,
@@ -458,6 +464,8 @@ export const bulkDeleteDoctorLeaves = async (
       });
     }
     revalidatePath('/doctor-leaves');
+    revalidatePath('/sessions');
+    revalidatePath('/channel-booking');
 
     return {
       success: true,
