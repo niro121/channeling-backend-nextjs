@@ -12,10 +12,9 @@ export default async function WithholdingTaxReportPage() {
   const canView = await checkRouteAccess('/reports/withholding-tax');
   if (!canView) redirect('/unauthorized-access');
 
-  const [session, doctorRef, locationRef] = await Promise.all([
+  const [session, ref] = await Promise.all([
     fetchServerSession(),
-    getReportFilterOptions({ doctors: true }),
-    getReportFilterOptions({ locations: true })
+    getReportFilterOptions({ doctors: true, locations: true, specialities: true })
   ]);
 
   const currentUser =
@@ -32,17 +31,18 @@ export default async function WithholdingTaxReportPage() {
   );
 
   const doctorOptions =
-    doctorRef.success && doctorRef.doctorOptions ? doctorRef.doctorOptions : [{ id: '__all__', name: 'All Doctors' }];
+    ref.success && ref.doctorOptions ? ref.doctorOptions : [{ id: '__all__', name: 'All Doctors' }];
   const locationOptions =
-    locationRef.success && locationRef.locationOptions
-      ? locationRef.locationOptions
-      : [{ id: '__all__', name: 'All Branches' }];
+    ref.success && ref.locationOptions ? ref.locationOptions : [{ id: '__all__', name: 'All Branches' }];
+  const specialityOptions =
+    ref.success && ref.specialityOptions ? ref.specialityOptions : [{ id: '__all__', name: 'All Specialities' }];
 
   return (
     <WithholdingTaxReportContent
       currentUserName={currentUserName}
       doctorOptions={doctorOptions}
       locationOptions={locationOptions}
+      specialityOptions={specialityOptions}
     />
   );
 }
