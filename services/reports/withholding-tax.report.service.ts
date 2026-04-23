@@ -1,13 +1,21 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { WithholdingTaxReportQuery, WithholdingTaxReportRow } from '@/types/report';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 
-function getDateRange(fromValue?: string, toValue?: string): { from: Date; to: Date } | null {
-  if (!fromValue || !toValue) return null;
-  const fromDate = new Date(`${fromValue}T00:00:00`);
-  const toDate = new Date(`${toValue}T23:59:59.999`);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return null;
-  return { from: fromDate, to: toDate };
+const MAX_RANGE_DAYS = getReportMaxRangeDays('withholding_tax', 62);
+const MAX_RECEIPTS_SCAN = getReportMaxRecords('withholding_tax', 50000);
+
+function parseDateTime(input?: string, isEnd = false): Date | null {
+  const v = input?.trim();
+  if (!v) return null;
+  if (v.includes('T')) {
+    const d = new Date(v);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const [y, m, d] = v.split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return isEnd ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
 type ReceiptReportBucket = {
@@ -27,14 +35,31 @@ export async function getWithholdingTaxReportService(
 ): Promise<{ success: boolean; data: WithholdingTaxReportRow[]; totalRecords: number; message?: string }> {
   try {
     const reportType = query.reportType === 'summary' ? 'summary' : 'detail';
-    const range = getDateRange(query.fromDate, query.toDate);
-
-    if (!range) {
+    const from = parseDateTime(query.fromDateTime, false);
+    const to = parseDateTime(query.toDateTime, true);
+    if (!from || !to) {
       return {
-        success: true,
+        success: false,
         data: [],
         totalRecords: 0,
-        message: 'Please select a valid date range.'
+        message: 'From and To date/time are required.'
+      };
+    }
+    if (from.getTime() > to.getTime()) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        message: 'From date must be before or equal to To date.'
+      };
+    }
+    const daySpan = getInclusiveDaySpan(from, to);
+    if (daySpan > MAX_RANGE_DAYS) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`
       };
     }
 
@@ -42,13 +67,23 @@ export async function getWithholdingTaxReportService(
       method: 4, // RECEIPT_METHOD.DOCTOR_PAYMENT
       whd: { gt: 0 },
       createdAt: {
-        gte: range.from,
-        lte: range.to
+        gte: from,
+        lte: to
       }
     };
 
     if (query.locationId && query.locationId !== '__all__') {
       where.locationId = query.locationId;
+    }
+
+    const matchedCount = await prisma.receipt.count({ where });
+    if (matchedCount > MAX_RECEIPTS_SCAN) {
+      return {
+        success: false,
+        data: [],
+        totalRecords: 0,
+        message: `Too many records in selected range (${matchedCount}). Please narrow filters/date range.`
+      };
     }
 
     const receipts = await prisma.receipt.findMany({
@@ -81,16 +116,21 @@ export async function getWithholdingTaxReportService(
           select: {
             title: true,
             name: true,
+            specialityId: true,
             speciality: { select: { name: true } }
           }
         }
       }
     });
 
+    const specialityFilter =
+      query.specialityId && query.specialityId !== '__all__' ? query.specialityId : null;
+
     const receiptDoctorMap = new Map<string, { consultant: string; speciality: string; doctorId: string }>();
     for (const b of bookings) {
       if (!b.doctorPaymentReceiptId || !b.doctor) continue;
       if (query.doctorId && query.doctorId !== '__all__' && b.doctorId !== query.doctorId) continue;
+      if (specialityFilter && b.doctor.specialityId !== specialityFilter) continue;
       if (receiptDoctorMap.has(b.doctorPaymentReceiptId)) continue;
       receiptDoctorMap.set(b.doctorPaymentReceiptId, {
         consultant: `${b.doctor.title ?? ''} ${b.doctor.name ?? ''}`.trim() || '-',
