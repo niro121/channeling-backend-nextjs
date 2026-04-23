@@ -22,6 +22,8 @@ type Props = {
   currentUserName: string;
   doctorOptions: Array<{ id: string; name: string }>;
   locationOptions: Array<{ id: string; name: string }>;
+  specialityOptions: Array<{ id: string; name: string }>;
+  discountSchemeOptions: Array<{ id: string; name: string }>;
 };
 
 function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string } {
@@ -32,13 +34,21 @@ function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string }
   return { fromDateTime: `${y}-${m}-${d}T00:00`, toDateTime: `${y}-${m}-${d}T23:59` };
 }
 
-function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props) {
+function ContentInner({
+  currentUserName,
+  doctorOptions,
+  locationOptions,
+  specialityOptions,
+  discountSchemeOptions
+}: Props) {
   const searchParams = useSearchParams();
   const defaultRange = getDefaultDateTimeRange();
 
   const buildQuery = (): ChannelDiscountReportQuery => ({
     doctorId: searchParams.get('doctorId') ?? '__all__',
     locationId: searchParams.get('locationId') ?? '__all__',
+    specialityId: searchParams.get('specialityId') ?? '__all__',
+    discountSchemeId: searchParams.get('discountSchemeId') ?? '__all__',
     fromDateTime: searchParams.get('fromDateTime') ?? defaultRange.fromDateTime,
     toDateTime: searchParams.get('toDateTime') ?? defaultRange.toDateTime
   });
@@ -56,15 +66,26 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
           const toDateTime = values.toDateTime ?? '';
           const doctorId = values.doctorId ?? '__all__';
           const locationId = values.locationId ?? '__all__';
+          const specialityId = values.specialityId ?? '__all__';
+          const discountSchemeId = values.discountSchemeId ?? '__all__';
           const doctorLabel = doctorId === '__all__' ? 'All Doctors' : (doctorOptions.find((d) => d.id === doctorId)?.name ?? doctorId);
           const branchLabel =
             locationId === '__all__'
               ? 'All Branches'
               : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId);
+          const specialityLabel =
+            specialityId === '__all__'
+              ? 'All Specialities'
+              : (specialityOptions.find((s) => s.id === specialityId)?.name ?? specialityId);
+          const discountSchemeLabel =
+            discountSchemeId === '__all__'
+              ? 'All Discount Schemes'
+              : (discountSchemeOptions.find((d) => d.id === discountSchemeId)?.name ?? discountSchemeId);
           return (
             <>
               <div>Range: {formatReportRangeLabel(fromDateTime, toDateTime)}</div>
               <div>Doctor: {doctorLabel} | Branch: {branchLabel}</div>
+              <div>Speciality: {specialityLabel} | Discount Scheme: {discountSchemeLabel}</div>
             </>
           );
         }
@@ -72,7 +93,9 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
       initialFilterValues={{
         ...getDefaultDateTimeRange(),
         doctorId: '__all__',
-        locationId: '__all__'
+        locationId: '__all__',
+        specialityId: '__all__',
+        discountSchemeId: '__all__'
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-3">
@@ -91,6 +114,20 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
             clearable
             onChange={(v) => setValue('locationId', v ?? '__all__')}
           />
+          <Combobox
+            label="Speciality"
+            options={specialityOptions}
+            value={values.specialityId ?? '__all__'}
+            defaultValue="__all__"
+            onChange={(v) => setValue('specialityId', v ?? '__all__')}
+          />
+          <Combobox
+            label="Discount Scheme"
+            options={discountSchemeOptions}
+            value={values.discountSchemeId ?? '__all__'}
+            defaultValue="__all__"
+            onChange={(v) => setValue('discountSchemeId', v ?? '__all__')}
+          />
           <DateTimeRangePicker
             label="Date & Time Range"
             from={values.fromDateTime}
@@ -106,6 +143,8 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
         const result = await getChannelDiscountReportData({
           doctorId: params.get('doctorId') ?? '__all__',
           locationId: params.get('locationId') ?? '__all__',
+          specialityId: params.get('specialityId') ?? '__all__',
+          discountSchemeId: params.get('discountSchemeId') ?? '__all__',
           fromDateTime: params.get('fromDateTime') ?? defaultRange.fromDateTime,
           toDateTime: params.get('toDateTime') ?? defaultRange.toDateTime
         });
@@ -153,6 +192,12 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       showPrintButton={true}
+      totalColumnIds={['hospitalFee', 'hospitalFeeDiscount', 'professionalFee', 'professionalFeeDiscount', 'discount']}
+      getTotalNumericValue={(row, columnId) => {
+        const source = row as Record<string, unknown>;
+        const value = source[columnId];
+        return typeof value === 'number' ? value : 0;
+      }}
       initialEmptyMessage="No channel discount records found. Select filters and click Search."
       emptyMessage="No channel discount records found for the selected filters."
     />

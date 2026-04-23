@@ -1,6 +1,8 @@
 export type ChannelDiscountReportQuery = {
   doctorId?: string;
   locationId?: string;
+  specialityId?: string;
+  discountSchemeId?: string;
   fromDateTime?: string; // YYYY-MM-DDTHH:mm
   toDateTime?: string; // YYYY-MM-DDTHH:mm
 };
