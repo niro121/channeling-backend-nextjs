@@ -127,11 +127,11 @@ const reportsData: ReportListItem[] = [
     route: '/reports/withholding-tax'
   },
   {
-    id: '28',
-    rank: 28,
-    masterData: 'SMS Report',
-    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
-    route: '/reports/sms-activity'
+    id: '29',
+    rank: 29,
+    masterData: 'SMS Reports',
+    description: 'View SMS log entries with date & time range and status filters, with print/PDF/Excel export.',
+    route: '/reports/sms-reports'
   },
   {
     id: '30',
@@ -239,7 +239,7 @@ export default async function ReportsPage() {
     ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise'].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
-    ['/reports/sms-activity', '/reports/api-log'].includes(r.route)
+    ['/reports/sms-reports', '/reports/api-log'].includes(r.route)
   );
 
   const sections = [
