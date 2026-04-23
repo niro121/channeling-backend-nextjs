@@ -204,6 +204,13 @@ const reportsData: ReportListItem[] = [
     masterData: 'Agency Balance Confirmation Letter',
     description: 'Check agency balance confirmation letter.',
     route: '/reports/agent-balance-confirmation-letter'
+  },
+  {
+    id: '39',
+    rank: 39,
+    masterData: 'Bank Deposits',
+    description: 'Lists bank deposit receipts with date/time range and bank account filters.',
+    route: '/reports/bank-deposits'
   }
 ];
 
@@ -252,7 +259,14 @@ export default async function ReportsPage() {
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
-    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise', '/reports/cash-book'].includes(r.route)
+    [
+      '/reports/all-cashier-summary-detail',
+      '/reports/cashier-summary',
+      '/reports/cashier-drawer-balance',
+      '/reports/card-summary-bank-wise',
+      '/reports/cash-book',
+      '/reports/bank-deposits',
+    ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
     ['/reports/sms-reports', '/reports/api-log'].includes(r.route)

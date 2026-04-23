@@ -29,11 +29,13 @@ const AGENCY_TYPES_FOR_VALIDATION: string[] = [
   "AGENCY_DEPOSIT",
   "AGENCY_WITHDRAW",
 ]
+const BANK_DEPOSIT_TYPE = "BANK_DEPOSIT"
 
 type LedgerFormValues = {
   transactionType: LedgerTransactionType
   branchId: string
   agencyId: string
+  bankAccountId: string
   amount: string
   remarks: string
   paymentMethod: number
@@ -47,13 +49,19 @@ const validationSchema = Yup.object({
     .oneOf(LEDGER_TRANSACTION_TYPES as unknown as string[])
     .required("Transaction type is required"),
   branchId: Yup.string().when("transactionType", {
-    is: (type: string) => !AGENCY_TYPES_FOR_VALIDATION.includes(type),
+    is: (type: string) =>
+      !AGENCY_TYPES_FOR_VALIDATION.includes(type) && type !== BANK_DEPOSIT_TYPE,
     then: (schema) => schema.required("Please select a branch."),
     otherwise: (schema) => schema,
   }),
   agencyId: Yup.string().when("transactionType", {
     is: (type: string) => AGENCY_TYPES_FOR_VALIDATION.includes(type),
     then: (schema) => schema.required("Please select an agency."),
+    otherwise: (schema) => schema,
+  }),
+  bankAccountId: Yup.string().when("transactionType", {
+    is: (type: string) => type === "BANK_DEPOSIT",
+    then: (schema) => schema.required("Please select a bank account."),
     otherwise: (schema) => schema,
   }),
   amount: Yup.string()
@@ -100,6 +108,7 @@ const TRANSACTION_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   AGENCY_CREDIT_NOTE: "Agency Credit Note",
   AGENCY_DEPOSIT: "Agency Deposit",
   AGENCY_WITHDRAW: "Agency Withdraw",
+  BANK_DEPOSIT: "Bank Deposit",
 }
 
 const AGENCY_TYPES: LedgerTransactionType[] = [
@@ -136,11 +145,23 @@ function formatAmountDisplay(value: string): string {
 }
 
 type BankOption = { id: string; name: string }
+type BankAccountOption = {
+  id: string
+  name: string
+  accountNumber: string
+  locationId: string
+  locationName: string
+  locationCode: string
+  glAccountId: string | null
+  glAccountName: string | null
+  glAccountCode: string | null
+}
 
 type LedgerTransactionFormProps = {
   locations: ReferenceSelectOption[]
   agencies: ReferenceSelectOption[]
   banks: BankOption[]
+  bankAccounts: BankAccountOption[]
   userLocationId?: string | null
   userLocationName?: string | null
   /** Called after a transaction is successfully added (e.g. to close dialog and refresh) */
@@ -153,6 +174,7 @@ export function LedgerTransactionForm({
   locations,
   agencies,
   banks,
+  bankAccounts,
   userLocationId = null,
   userLocationName = null,
   onSuccess,
@@ -166,6 +188,7 @@ export function LedgerTransactionForm({
     transactionType: "BRANCH_INCOME",
     branchId: "",
     agencyId: "",
+    bankAccountId: "",
     amount: "",
     remarks: "",
     paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
@@ -179,11 +202,15 @@ export function LedgerTransactionForm({
     { setSubmitting, setValues, setErrors, setTouched }: FormikHelpers<LedgerFormValues>
   ) {
     const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
-    const effectiveBranchId = isAgencyType ? (userLocationId ?? "") : values.branchId
-    if (isAgencyType && !effectiveBranchId.trim()) {
+    const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
+    const effectiveBranchId =
+      isAgencyType || isBankDeposit ? (userLocationId ?? "") : values.branchId
+    if ((isAgencyType || isBankDeposit) && !effectiveBranchId.trim()) {
       toast({
         title: "Validation",
-        description: "You must have a branch assigned to record agency transactions.",
+        description: isBankDeposit
+          ? "You must have a branch assigned to record bank deposits."
+          : "You must have a branch assigned to record agency transactions.",
         variant: "destructive",
       })
       setSubmitting(false)
@@ -209,6 +236,10 @@ export function LedgerTransactionForm({
           values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
             ? values.bankId || undefined
             : undefined,
+        bankAccountId:
+          values.transactionType === "BANK_DEPOSIT"
+            ? values.bankAccountId || undefined
+            : undefined,
         cardReference:
           values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
             ? values.cardReference.trim()
@@ -229,6 +260,7 @@ export function LedgerTransactionForm({
           ...values,
           amount: "",
           remarks: "",
+          bankAccountId: "",
           cardReference: "",
           slipReference: "",
           bankId: "",
@@ -280,6 +312,7 @@ export function LedgerTransactionForm({
       {(formik) => {
         const isAgencyType = AGENCY_TYPES.includes(formik.values.transactionType)
         const isAgencyDeposit = formik.values.transactionType === "AGENCY_DEPOSIT"
+        const isBankDeposit = formik.values.transactionType === "BANK_DEPOSIT"
         const showPaymentDetails = isAgencyDeposit
         const showBank = showPaymentDetails && formik.values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
         const isCard = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
@@ -306,7 +339,7 @@ export function LedgerTransactionForm({
               </Select>
             </div>
 
-            {!isAgencyType && (
+            {!isAgencyType && !isBankDeposit && (
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
                 <ReferenceSelect
@@ -320,6 +353,31 @@ export function LedgerTransactionForm({
                 />
                 {formik.errors.branchId && (
                   <p className="text-sm text-destructive">{formik.errors.branchId}</p>
+                )}
+              </div>
+            )}
+
+            {isBankDeposit && (
+              <div className="space-y-2">
+                <Label htmlFor="bankAccountId">Bank account</Label>
+                <Select
+                  value={formik.values.bankAccountId}
+                  onValueChange={(v) => formik.setFieldValue("bankAccountId", v)}
+                >
+                  <SelectTrigger id="bankAccountId">
+                    <SelectValue placeholder="Select bank account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {`${b.name} - ${b.accountNumber}${b.glAccountCode ? ` [${b.glAccountCode}]` : ""}`}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {formik.errors.bankAccountId && (
+                  <p className="text-sm text-destructive">{formik.errors.bankAccountId}</p>
                 )}
               </div>
             )}

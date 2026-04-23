@@ -16,6 +16,17 @@ import { buildReceiptPrintHtml } from "@/lib/receipt-template/build-print-html"
 import type { ReferenceSelectOption } from "@/types/reference"
 
 type BankOption = { id: string; name: string }
+type BankAccountOption = {
+  id: string
+  name: string
+  accountNumber: string
+  locationId: string
+  locationName: string
+  locationCode: string
+  glAccountId: string | null
+  glAccountName: string | null
+  glAccountCode: string | null
+}
 
 type AddLedgerTransactionDialogProps = {
   open: boolean
@@ -23,6 +34,7 @@ type AddLedgerTransactionDialogProps = {
   locations: ReferenceSelectOption[]
   agencies: ReferenceSelectOption[]
   banks: BankOption[]
+  bankAccounts: BankAccountOption[]
   userLocationId?: string | null
   userLocationName?: string | null
 }
@@ -33,6 +45,7 @@ export function AddLedgerTransactionDialog({
   locations,
   agencies,
   banks,
+  bankAccounts,
   userLocationId = null,
   userLocationName = null,
 }: AddLedgerTransactionDialogProps) {
@@ -94,6 +107,7 @@ export function AddLedgerTransactionDialog({
             locations={locations}
             agencies={agencies}
             banks={banks}
+            bankAccounts={bankAccounts}
             userLocationId={userLocationId}
             userLocationName={userLocationName}
             onSuccess={handleSuccess}

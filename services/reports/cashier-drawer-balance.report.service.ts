@@ -43,11 +43,37 @@ export async function getCashierDrawerBalanceReportService(
 
   const accountIds = tills.map((t) => t.id);
 
+  // Mongo-safe two-step date filter: resolve journal ids first, then filter journal lines by journalId.
+  const journals = await prisma.journal.findMany({
+    where: { date: { lte: asOfDateTime } },
+    select: { id: true },
+    orderBy: { date: 'asc' }
+  });
+  const journalIds = journals.map((j) => j.id);
+  if (!journalIds.length) {
+    const data: CashierDrawerBalanceReportRow[] = tills.map((t) => ({
+      tillAccountId: t.id,
+      tillAccountName: t.name ?? null,
+      tillAccountCode: t.code ?? null,
+      cashierUserId: t.userId ?? null,
+      cashierName: t.user?.name ?? null,
+      cashierStaffCode: t.user?.staff?.code ?? null,
+      cashCents: 0,
+      cardCents: 0,
+      slipCents: 0,
+      checkCents: 0,
+      creditCents: 0,
+      eWalletCents: 0,
+      totalCents: 0
+    }));
+    return { success: true, data, totalRecords: data.length };
+  }
+
   const grouped = await prisma.journalLine.groupBy({
     by: ['accountId', 'paymentMethod'],
     where: {
       accountId: { in: accountIds },
-      journal: { date: { lte: asOfDateTime } }
+      journalId: { in: journalIds }
     },
     _sum: { debitAmount: true, creditAmount: true }
   });

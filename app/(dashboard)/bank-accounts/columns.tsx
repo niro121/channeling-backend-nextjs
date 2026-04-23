@@ -46,11 +46,12 @@ export const BankAccountColumns: ColumnDef<BankAccount>[] = [
     },
   },
   {
-    id: 'location',
-    header: 'Institution',
+    id: 'glAccount',
+    header: 'GL Account',
     cell: ({ row }) => {
-      const loc = row.original.location;
-      return loc ? `${loc.name} (${loc.code})` : <span className="text-muted-foreground">—</span>;
+      const acc = row.original.account;
+      if (!acc) return <span className="text-muted-foreground">—</span>;
+      return acc.code ? `${acc.name} (${acc.code})` : acc.name;
     },
   },
   {

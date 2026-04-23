@@ -141,6 +141,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'reports.channel-transfer.exported',
   'reports.cashier-drawer-balance.exported',
   'reports.card-summary-bank-wise.exported',
+  'reports.bank-deposits.exported',
   'reports.agent-collection-receipt.exported',
   'admin.receipt-templates.visited',
   'admin.receipt-templates.template.created',

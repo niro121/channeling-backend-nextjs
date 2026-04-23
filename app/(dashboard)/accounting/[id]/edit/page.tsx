@@ -85,6 +85,46 @@ export default async function AccountEditPage({ params }: Props) {
   ];
 
   const typeLabel = types.find((t) => t.value === account.type)?.label ?? account.type;
+  const linkedEntities: Array<{ label: string; value: string; subValue?: string }> = [];
+  if (account.userId && account.user) {
+    linkedEntities.push({
+      label: 'User',
+      value: account.user.staffCode ? `${account.user.name} (${account.user.staffCode})` : account.user.name,
+      subValue: account.user.email,
+    });
+  }
+  if (account.doctorId && account.doctor) {
+    linkedEntities.push({
+      label: 'Doctor',
+      value: `${account.doctor.name} (${account.doctor.code})`,
+    });
+  }
+  if (account.agencyId && account.agency) {
+    linkedEntities.push({
+      label: 'Agency',
+      value: `${account.agency.name}${account.agency.code ? ` (${account.agency.code})` : ''}`,
+    });
+  }
+  if (account.creditCustomerId && account.creditCustomer) {
+    linkedEntities.push({
+      label: 'Credit customer',
+      value: `${account.creditCustomer.name}${account.creditCustomer.code ? ` (${account.creditCustomer.code})` : ''}`,
+    });
+  }
+  if (account.locationId && account.location) {
+    linkedEntities.push({
+      label: 'Location',
+      value: account.location.name,
+    });
+  }
+  const bankAccountLink = account.bankAccounts?.[0];
+  if (bankAccountLink) {
+    linkedEntities.push({
+      label: 'Bank account',
+      value: `${bankAccountLink.name}${bankAccountLink.bankName ? ` - ${bankAccountLink.bankName}` : ''}`,
+      subValue: `A/C: ${bankAccountLink.accountNumber}`,
+    });
+  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -112,16 +152,19 @@ export default async function AccountEditPage({ params }: Props) {
               <p className="mt-1 text-sm font-semibold text-foreground">{typeLabel}</p>
             </div>
 
-            {account.userId && account.user ? (
+            {linkedEntities.length > 0 ? (
               <div className="rounded-md border bg-background/70 p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Linked user</p>
-                <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
-                  {account.user.name}
-                  {account.user.staffCode ? (
-                    <span className="ml-1 text-muted-foreground font-medium">({account.user.staffCode})</span>
-                  ) : null}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground break-all">{account.user.email}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Linked to</p>
+                <div className="mt-1 space-y-1">
+                  {linkedEntities.map((entity) => (
+                    <p key={`${entity.label}-${entity.value}`} className="text-sm leading-snug text-foreground">
+                      <span className="font-semibold">{entity.label}:</span> {entity.value}
+                      {entity.subValue ? (
+                        <span className="ml-1 text-xs text-muted-foreground">{entity.subValue}</span>
+                      ) : null}
+                    </p>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>

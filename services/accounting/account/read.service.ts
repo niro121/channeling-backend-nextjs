@@ -69,6 +69,17 @@ export async function getAccountById(id: string): Promise<Account | null> {
       agency: { select: { id: true, name: true, code: true } },
       creditCustomer: { select: { id: true, name: true, code: true } },
       user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
+      bankAccounts: {
+        select: {
+          id: true,
+          name: true,
+          accountNumber: true,
+          bankId: true,
+          institution: true,
+          bank: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
   return row ? mapAccount(row) : null;

@@ -32,6 +32,8 @@ export type ReceiptJournalAccounts = {
   creditCustomerAccountId?: string | null;
   /** Doctor PAYABLE account (required for doctor payment method 4). */
   doctorAccountId?: string | null;
+  /** Bank ledger account (for bank deposit/withdraw ledger methods). */
+  bankLedgerAccountId?: string | null;
 };
 
 /** When provided for channel PAYMENT (save/settle booking), journal credits branch with hospital fee and doctor payable with professional fee. */
@@ -545,6 +547,43 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
+  // Ledger: Bank Deposit (10) - cash moved from till to bank
+  if (receipt.method === RECEIPT_METHOD.BANK_DEPOSIT && accounts.cashierAccountId && accounts.bankLedgerAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Bank deposit${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.bankLedgerAccountId, debitAmount: amountCents, creditAmount: 0 },
+        {
+          accountId: accounts.cashierAccountId,
+          debitAmount: 0,
+          creditAmount: amountCents,
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        },
+      ],
+    };
+  }
+
+  // Ledger: Bank Withdraw (11) - reversal of bank deposit (used by cancel flow)
+  if (receipt.method === RECEIPT_METHOD.BANK_WITHDRAW && accounts.cashierAccountId && accounts.bankLedgerAccountId) {
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Bank withdraw${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
+        { accountId: accounts.bankLedgerAccountId, debitAmount: 0, creditAmount: amountCents },
+      ],
+    };
+  }
+
   // Doctor Payment (4): Dr Doctor PAYABLE (reduce liability), Cr Branch/Cashier (cash out). Use net amount (gross - WHT) in cents.
   if (receipt.method === RECEIPT_METHOD.DOCTOR_PAYMENT && accounts.doctorAccountId) {
     const grossCents = Math.round(Math.abs(receipt.amount) * 100);
@@ -645,6 +684,8 @@ export async function resolveReceiptJournalAccounts(params: {
   doctorId?: string | null;
   /** True if receipt hits till (cash, card, or slip); then we need cashier till account. */
   needTill: boolean;
+  /** Bank account id (BankAccount model) when receipt method requires bank ledger mapping. */
+  bankAccountId?: string | null;
 }): Promise<ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError> {
   const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
     '@/services/accounting.service'
@@ -680,9 +721,6 @@ export async function resolveReceiptJournalAccounts(params: {
         select: { userLocationId: true },
       });
       tillLocationId = user?.userLocationId ?? null;
-    }
-    if (!tillLocationId) {
-      tillLocationId = params.locationId;
     }
     if (!tillLocationId) {
       return { error: 'User location is required to resolve till account.', errorCode: 'LOCATION_REQUIRED_FOR_TILL' };
@@ -724,6 +762,21 @@ export async function resolveReceiptJournalAccounts(params: {
     }
   }
 
+  let bankLedgerAccountId: string | null = null;
+  if (params.bankAccountId) {
+    const bankAcc = await prisma.bankAccount.findUnique({
+      where: { id: params.bankAccountId },
+      select: { accountId: true, status: true },
+    });
+    if (!bankAcc || bankAcc.status !== 1) {
+      return { error: 'Selected bank account is not active or not found.', errorCode: 'BANK_ACCOUNT_NOT_FOUND' };
+    }
+    if (!bankAcc.accountId) {
+      return { error: 'Selected bank account is not linked to a GL account.', errorCode: 'BANK_ACCOUNT_GL_NOT_LINKED' };
+    }
+    bankLedgerAccountId = bankAcc.accountId;
+  }
+
   return {
     branchAccountId: branchAccount.id,
     branchIncomeAccountId: incomeRes.account.id,
@@ -732,6 +785,7 @@ export async function resolveReceiptJournalAccounts(params: {
     agentAccountId: agentAccountId ?? undefined,
     creditCustomerAccountId: creditCustomerAccountId ?? undefined,
     doctorAccountId: doctorAccountId ?? undefined,
+    bankLedgerAccountId: bankLedgerAccountId ?? undefined,
   };
 }
 
@@ -754,6 +808,7 @@ export async function requireReceiptJournalAccounts(
     /** For channel payment fee-split journal (branch = hospital fee, doctor = professional fee). */
     doctorId?: string | null;
     needTill: boolean;
+    bankAccountId?: string | null;
   },
   options: { needTill: boolean; isAgent: boolean; isCreditCustomer?: boolean }
 ): Promise<RequireReceiptJournalAccountsResult> {
@@ -837,9 +892,6 @@ export async function resolveDoctorPaymentAccounts(params: {
         select: { userLocationId: true },
       });
       tillLocationId = user?.userLocationId ?? null;
-    }
-    if (!tillLocationId) {
-      tillLocationId = params.locationId;
     }
     if (!tillLocationId) {
       return { error: 'User location is required to resolve till account.' };

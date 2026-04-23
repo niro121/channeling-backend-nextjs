@@ -1,8 +1,11 @@
 import { Department } from './department';
 import { Doctor } from './doctor';
+import { INSTITUTION_LIST, INSTITUTION_OPTIONS } from './institution';
 import { Location } from './location';
 import { Room } from './room';
 import { User } from './user';
+
+export { INSTITUTION_LIST, INSTITUTION_OPTIONS } from './institution';
 
 export type Fee = {
   id: string;
@@ -103,19 +106,6 @@ type Option = {
   id: string;
   name: string;
 };
-
-export const INSTITUTION_LIST = [
-  { id: 0, name: 'Ruhunu Hospital (Pvt) Ltd  (RH)' },
-  { id: 1, name: 'Ruhunu Hospital Diagnostics (Private) Limited  (RHD)' },
-  { id: 2, name: 'Ruhunu Hospital Training  (RHT)' },
-  { id: 3, name: 'Ruhunu Pharmaceuticals & Services (Pvt) Ltd  (RPS)' }
-] as const;
-
-// For dropdowns that expect { id: string, name: string }
-export const INSTITUTION_OPTIONS: Option[] = INSTITUTION_LIST.map((item) => ({
-  id: String(item.id),
-  name: item.name
-}));
 
 export const REFUNDABLE_OPTIONS: Option[] = [
   { id: '0', name: 'No' },

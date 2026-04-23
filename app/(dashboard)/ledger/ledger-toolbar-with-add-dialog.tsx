@@ -7,12 +7,24 @@ import { AddLedgerTransactionDialog } from "./add-ledger-transaction-dialog"
 import type { ReferenceSelectOption } from "@/types/reference"
 
 type BankOption = { id: string; name: string }
+type BankAccountOption = {
+  id: string
+  name: string
+  accountNumber: string
+  locationId: string
+  locationName: string
+  locationCode: string
+  glAccountId: string | null
+  glAccountName: string | null
+  glAccountCode: string | null
+}
 
 type LedgerToolbarWithAddDialogProps = {
   canAdd: boolean
   locations: ReferenceSelectOption[]
   agencies: ReferenceSelectOption[]
   banks: BankOption[]
+  bankAccounts: BankAccountOption[]
   userLocationId?: string | null
   userLocationName?: string | null
 }
@@ -22,6 +34,7 @@ export function LedgerToolbarWithAddDialog({
   locations,
   agencies,
   banks,
+  bankAccounts,
   userLocationId = null,
   userLocationName = null,
 }: LedgerToolbarWithAddDialogProps) {
@@ -47,6 +60,7 @@ export function LedgerToolbarWithAddDialog({
         locations={locations}
         agencies={agencies}
         banks={banks}
+        bankAccounts={bankAccounts}
         userLocationId={userLocationId}
         userLocationName={userLocationName}
       />
