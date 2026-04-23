@@ -99,6 +99,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-bookings'
   },
   {
+    id: '21a',
+    rank: 22,
+    masterData: 'Agent Wise Appointments - Summary and Detail',
+    description:
+      'Agent channel appointments by session date & time with institution, branch, department, and agent filters; summary counts per month or full detail with fee totals.',
+    route: '/reports/agent-wise-appointments'
+  },
+  {
     id: '24',
     rank: 24,
     masterData: 'All Cashier Summary and Detail Report',
@@ -217,6 +225,7 @@ export default async function ReportsPage() {
       '/reports/agent-history-credit-limit-update',
       '/reports/agent-collection-receipt',
       '/reports/agent-balance-confirmation-letter',
+      '/reports/agent-wise-appointments',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
