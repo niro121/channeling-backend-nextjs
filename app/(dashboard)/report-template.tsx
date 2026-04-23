@@ -26,6 +26,7 @@ import { useToast } from '@/components/hooks/use-toast';
 import Loading from '@/app/(dashboard)/loading'
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
+import { cn } from '@/lib/utils';
 
 type FilterValues = Record<string, string | undefined>;
 
@@ -547,7 +548,7 @@ function ReportTemplateContent<T, E = T>({
                     <TableFooter>
                       {footerRow ? footerRow(data) : null}
                       {totalColumnIds && totalColumnIds.length > 0 && (
-                        <TableRow className="hover:bg-muted/50">
+                        <TableRow className="hover:bg-muted/50 font-normal [&_td]:align-middle">
                           {groupBy && <TableCell className="w-0 p-0" aria-hidden />}
                           {(() => {
                             const idSet = new Set(totalColumnIds);
@@ -564,8 +565,19 @@ function ReportTemplateContent<T, E = T>({
                                   : defaultFormatTotal(colKey, sum);
                               }
                               return (
-                                <TableCell key={column.id ?? (colKey || colIndex)} className="whitespace-nowrap text-base">
-                                  {content}
+                                <TableCell
+                                  key={column.id ?? (colKey || colIndex)}
+                                  className={cn(
+                                    'whitespace-nowrap',
+                                    colIndex === 0 && 'text-left font-bold',
+                                    isTotalCol && 'text-right tabular-nums font-bold'
+                                  )}
+                                >
+                                  {isTotalCol && content != null ? (
+                                    <span className="block w-full text-right tabular-nums">{content}</span>
+                                  ) : (
+                                    content
+                                  )}
                                 </TableCell>
                               );
                             });
