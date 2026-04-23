@@ -16,7 +16,6 @@ type SearchParams = {
     limit?: string;
     keyword?: string;
     bankId?: string;
-    locationId?: string;
   }>;
 };
 
@@ -31,7 +30,6 @@ export default async function BankAccountsPage({ searchParams }: SearchParams) {
     limit: params?.limit,
     keyword: params?.keyword,
     bankId: params?.bankId,
-    locationId: params?.locationId,
   });
 
   return (
@@ -39,7 +37,7 @@ export default async function BankAccountsPage({ searchParams }: SearchParams) {
       <Suspense fallback={<Loading />}>
         <CustomDataTable
           heading="Bank Accounts"
-          subHeading="Manage bank accounts for deposits. Link each account to a bank (tag) and institution (location)."
+          subHeading="Manage bank accounts for deposits and link each account to a bank."
           columns={BankAccountColumns}
           data={data}
           rowCount={totalRecords}

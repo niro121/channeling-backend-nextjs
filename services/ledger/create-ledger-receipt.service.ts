@@ -33,6 +33,7 @@ export const LEDGER_TRANSACTION_TYPES = [
   "AGENCY_CREDIT_NOTE",
   "AGENCY_DEPOSIT",
   "AGENCY_WITHDRAW",
+  "BANK_DEPOSIT",
 ] as const
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number]
@@ -53,7 +54,9 @@ function isAgencyType(
 export type CreateLedgerReceiptInput = {
   transactionType: LedgerTransactionType
   branchId: string
+  userLocationId?: string | null
   agencyId?: string | null
+  bankAccountId?: string | null
   amount: number
   remarks?: string
   createdBy: string | null
@@ -163,6 +166,8 @@ function mapToReceiptMethodAndType(
       }
     case "AGENCY_WITHDRAW":
       return { method: RECEIPT_METHOD.AGENCY_WITHDRAW, type: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
+    case "BANK_DEPOSIT":
+      return { method: RECEIPT_METHOD.BANK_DEPOSIT, type: 1, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
     default:
       throw new Error(`Unknown transaction type: ${transactionType}`)
   }
@@ -193,6 +198,14 @@ export async function createLedgerReceipt(
       return { success: false, errorCode: "VALIDATION", message: "Payment method must be Cash, Credit Card, or Slip." }
     }
   }
+  if (input.transactionType === "BANK_DEPOSIT") {
+    if (!input.bankAccountId?.trim()) {
+      return { success: false, errorCode: "VALIDATION", message: "Bank account is required for bank deposit." }
+    }
+    if (input.paymentMethod != null && input.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH) {
+      return { success: false, errorCode: "VALIDATION", message: "Bank deposit supports cash only." }
+    }
+  }
 
   // Agency withdraw: ensure the agent has sufficient balance (cannot withdraw more than they have with us)
   if (input.transactionType === "AGENCY_WITHDRAW" && input.agencyId) {
@@ -220,15 +233,18 @@ export async function createLedgerReceipt(
 
   const isCash = paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
   const isAgency = isAgencyType(input.transactionType)
+  const isBankDeposit = input.transactionType === "BANK_DEPOSIT"
   const needCashierAccount =
     method === RECEIPT_METHOD.BRANCH_INCOME ||
     method === RECEIPT_METHOD.BRANCH_EXPENSE ||
     (method === RECEIPT_METHOD.AGENCY_DEPOSIT && isCash) ||
-    method === RECEIPT_METHOD.AGENCY_WITHDRAW
+    method === RECEIPT_METHOD.AGENCY_WITHDRAW ||
+    method === RECEIPT_METHOD.BANK_DEPOSIT
 
   let accounts = await resolveReceiptJournalAccounts({
     locationId: input.branchId,
     createdBy: input.createdBy,
+    userLocationId: input.userLocationId ?? null,
     agencyId: input.agencyId ?? null,
     needTill: needCashierAccount,
   })
@@ -244,6 +260,7 @@ export async function createLedgerReceipt(
     {
       locationId: input.branchId,
       createdBy: input.createdBy,
+      userLocationId: input.userLocationId ?? null,
       agencyId: input.agencyId ?? null,
       needTill: needCashierAccount,
     },
@@ -257,7 +274,7 @@ export async function createLedgerReceipt(
   // Transactions that pay out from the till: till must have sufficient balance for this payment method
   const amountCents = Math.round(input.amount * 100)
   const paysOutFromTill =
-    input.transactionType === "AGENCY_WITHDRAW" || input.transactionType === "BRANCH_EXPENSE"
+    input.transactionType === "AGENCY_WITHDRAW" || input.transactionType === "BRANCH_EXPENSE" || input.transactionType === "BANK_DEPOSIT"
   if (paysOutFromTill && accounts.cashierAccountId) {
     const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
     const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, paymentMethod)
@@ -271,6 +288,35 @@ export async function createLedgerReceipt(
             ? `Till has no ${methodLabel} balance. Cannot complete this transaction until the till has sufficient ${methodLabel}.`
             : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
       }
+    }
+  }
+
+  let bankDepositAccount:
+    | {
+        id: string
+        name: string
+        accountNumber: string
+        accountId: string | null
+      }
+    | null = null
+  if (input.transactionType === "BANK_DEPOSIT") {
+    bankDepositAccount = await prisma.bankAccount.findFirst({
+      where: { id: input.bankAccountId!, status: 1 },
+      select: {
+        id: true,
+        name: true,
+        accountNumber: true,
+        accountId: true,
+      },
+    })
+    if (!bankDepositAccount) {
+      return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not active or not found." }
+    }
+    if (!bankDepositAccount.accountId) {
+      return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not linked to a GL account." }
+    }
+    if (!accounts.cashierAccountId) {
+      return { success: false, errorCode: "CASHIER_ACCOUNT_ERROR", message: "Till account could not be resolved for bank deposit." }
     }
   }
 
@@ -291,8 +337,14 @@ export async function createLedgerReceipt(
   const receiptParams: CreateReceiptWithoutBookingParams = {
     paymentMethod,
     amount: receiptAmount,
-    bank: input.bank ?? "",
-    bankId: input.bankId ?? null,
+    bank:
+      input.transactionType === "BANK_DEPOSIT"
+        ? (bankDepositAccount?.name ?? "")
+        : (input.bank ?? ""),
+    bankId:
+      input.transactionType === "BANK_DEPOSIT"
+        ? (input.bankAccountId ?? null)
+        : (input.bankId ?? null),
     cardReference: input.cardReference ?? "",
     slipReference: input.slipReference ?? "",
     remarks: input.remarks ?? "",
@@ -301,14 +353,33 @@ export async function createLedgerReceipt(
     agencyId: input.agencyId ?? null,
     createdBy: input.createdBy ?? null,
     locationId: input.branchId,
-    userLocationId: isAgency ? input.branchId : undefined,
+    userLocationId: isAgency || isBankDeposit ? (input.userLocationId ?? input.branchId) : undefined,
     shiftId: shiftId ?? undefined,
   }
 
   const result = await prisma.$transaction(async (tx) => {
     const r = await createReceiptWithoutBooking(tx, receiptParams)
     if (!r.success) return r
-    const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts!)
+    const journalInput =
+      input.transactionType === "BANK_DEPOSIT" && bankDepositAccount
+        ? {
+            date: r.receipt.createdAt ?? new Date(),
+            description: `Bank deposit - ${bankDepositAccount.name} (${bankDepositAccount.accountNumber})${r.receipt.receiptNoString ? ` - Receipt ${r.receipt.receiptNoString}` : ""}`,
+            referenceType: "Receipt",
+            referenceId: r.receipt.id,
+            locationId: r.receipt.locationId ?? null,
+            createdBy: r.receipt.createdBy ?? null,
+            lines: [
+              { accountId: bankDepositAccount.accountId!, debitAmount: amountCents, creditAmount: 0 },
+              {
+                accountId: accounts!.cashierAccountId!,
+                debitAmount: 0,
+                creditAmount: amountCents,
+                paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+              },
+            ],
+          }
+        : buildReceiptJournalEntryInput(r.receipt, accounts!)
     if (journalInput && journalNumber > 0) {
       const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber)
       if (!jResult.success) throw new Error(jResult.error)

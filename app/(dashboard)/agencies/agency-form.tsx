@@ -20,7 +20,7 @@ import { formatLKR } from '@/lib/format-money';
 import { AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP } from '@/types/agency';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
-import { BookOpen, Pencil, PlusCircle } from 'lucide-react';
+import { BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
@@ -350,7 +350,7 @@ const AgencyForm = ({
                     {agency.accountId ? (
                       <>
                         <div className={styleClasses.parentDiv}>
-                          <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
+                          <Label className={styleClasses.labelClassName}>Current cash balance</Label>
                           <div className={styleClasses.inputClassName}>
                             <span className="font-medium tabular-nums">
                               {formatLKR(Number(agency.balance ?? 0))}
@@ -387,9 +387,10 @@ const AgencyForm = ({
                           >
                             <Link
                               href={`/accounting/${agency.accountId}/edit`}
-                              className="inline-flex items-center gap-1.5"
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
-                              <Pencil className="h-4 w-4" />
+                              <ExternalLink className="h-4 w-4" />
                               Open account
                             </Link>
                           </Button>

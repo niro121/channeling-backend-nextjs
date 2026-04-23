@@ -10,6 +10,7 @@ import { LedgerTableClient } from "./ledger-table-client"
 import { getLedgerTransactions } from "@/app/actions/ledger/list-ledger-transactions.action"
 import { getReferenceData } from "@/app/actions/reference/get-reference-data.action"
 import { getBanksForChannelBooking } from "@/app/actions/channel-booking/get-banks.action"
+import { getActiveBankAccountOptionsForLedger } from "@/app/actions/bank-account.actions"
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -52,7 +53,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
     })
   }
 
-  const [listResult, refRes, banksRes] = await Promise.all([
+  const [listResult, refRes, banksRes, bankAccountsRes] = await Promise.all([
     getLedgerTransactions({
       page: params?.page,
       limit: params?.limit,
@@ -63,6 +64,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
     }),
     getReferenceData({ locations: true, agencies: true }),
     getBanksForChannelBooking(),
+    getActiveBankAccountOptionsForLedger(),
   ])
 
   const data = listResult.success ? listResult.data : []
@@ -73,6 +75,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
     banksRes.success && banksRes.data
       ? banksRes.data.map((b) => ({ id: b.id, name: b.name }))
       : []
+  const bankAccounts = bankAccountsRes.success && bankAccountsRes.data ? bankAccountsRes.data : []
 
   return (
     <div className="overflow-hidden">
@@ -89,6 +92,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
           locations={locations}
           agencies={agencies}
           banks={banks}
+          bankAccounts={bankAccounts}
           userLocationId={userLocationId}
           userLocationName={userLocationName}
         />

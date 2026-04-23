@@ -231,7 +231,7 @@ export default function LocationForm({
                               </Link>
                             </Button>
                             <Button size="sm" className="gap-1.5" asChild>
-                              <Link href={`/accounting/${acc.id}/statement`} target="_blank" rel="noopener noreferrer">
+                              <Link href={`/accounting/${acc.id}/edit`} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="h-4 w-4" />
                                 Open account
                               </Link>

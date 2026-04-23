@@ -25,6 +25,14 @@ export function mapAccount(
     creditCustomer?: { id: string; name: string; code: string | null } | null;
     parentAccount?: { id: string; name: string; code: string | null } | null;
     user?: { id: string; name: string; email: string; staff: { code: string } | null } | null;
+    bankAccounts?: Array<{
+      id: string;
+      name: string;
+      accountNumber: string;
+      bankId: string;
+      institution: number;
+      bank?: { name: string | null } | null;
+    }>;
   }
 ): Account {
   return {
@@ -55,5 +63,13 @@ export function mapAccount(
           staffCode: row.user.staff?.code ?? null,
         }
       : null,
+    bankAccounts: row.bankAccounts?.map((bankAccount) => ({
+      id: bankAccount.id,
+      name: bankAccount.name,
+      accountNumber: bankAccount.accountNumber,
+      bankId: bankAccount.bankId,
+      bankName: bankAccount.bank?.name ?? null,
+      institution: bankAccount.institution,
+    })) ?? [],
   };
 }
