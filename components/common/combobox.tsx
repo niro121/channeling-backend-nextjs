@@ -33,6 +33,10 @@ type ComboboxProps = {
   loading?: boolean;
   /** Show a clear control when value differs from default (e.g. reset to all branches). */
   clearable?: boolean;
+  /** Optional width/style override for the trigger button. */
+  triggerClassName?: string;
+  /** Optional width/style override for the dropdown panel. */
+  popoverClassName?: string;
 };
 
 export function Combobox({
@@ -43,6 +47,8 @@ export function Combobox({
   defaultValue = '__all__',
   loading = false,
   clearable = false,
+  triggerClassName,
+  popoverClassName,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const selectedOption = options.find((opt) => opt.id === value);
@@ -56,7 +62,7 @@ export function Combobox({
             variant="outline"
             role="combobox"
             disabled={loading || options.length === 0}
-            className="w-60 min-w-0 justify-between gap-2 text-start"
+            className={cn('w-60 min-w-0 justify-between gap-2 text-start', triggerClassName)}
           >
             <span
               className="min-w-0 flex-1 truncate"
@@ -72,8 +78,8 @@ export function Combobox({
           </Button>
         </PopoverTrigger>
 
-      <PopoverContent className="w-60 p-0">
-        <Command>
+      <PopoverContent className={cn('w-60 p-0', popoverClassName)}>
+        <Command value={value}>
           <CommandInput placeholder={`Search ${label.toLowerCase()}...`} disabled={loading} />
           <CommandList>
             {loading ? (
@@ -85,7 +91,8 @@ export function Combobox({
                   {options.map((option) => (
                     <CommandItem
                       key={option.id}
-                      value={option.name}
+                      value={option.id}
+                      keywords={[option.name]}
                       onSelect={() => {
                         onChange(option.id);
                         setOpen(false);

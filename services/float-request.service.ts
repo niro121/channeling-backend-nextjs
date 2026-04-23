@@ -17,7 +17,8 @@ import {
   denominationsTotalLKR,
   lkrToCents,
 } from '@/types/float-request';
-import { getOrCreateAccount, getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
+import { getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
+import { resolveTillForUserAndLocation } from '@/services/accounting.service';
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
@@ -301,15 +302,18 @@ export async function approveFloatRequest(
     };
   }
 
-  const cashierAccountResult = await getOrCreateAccount({
-    type: 'CASH',
-    userId: fr.requestedById,
-    name: `Float - ${fr.requestedBy.name}`,
+  const requestShift = fr.shiftId
+    ? await prisma.shift.findUnique({ where: { id: fr.shiftId }, select: { locationId: true } })
+    : null;
+  const requester = await prisma.user.findUnique({
+    where: { id: fr.requestedById },
+    select: { userLocationId: true },
   });
-  if (!cashierAccountResult.success) {
-    return { success: false, error: cashierAccountResult.error };
+  const tillLocationId = requestShift?.locationId ?? requester?.userLocationId ?? null;
+  if (!tillLocationId) {
+    return { success: false, error: 'Cannot resolve requester location for till assignment.' };
   }
-  const toAccount = cashierAccountResult.account;
+  const toTill = await resolveTillForUserAndLocation(fr.requestedById, tillLocationId);
 
   // 4-digit receive code for cashier to confirm receipt (double entry happens on receive)
   const receiveCode = String(Math.floor(1000 + Math.random() * 9000));
@@ -318,7 +322,8 @@ export async function approveFloatRequest(
     status: FLOAT_REQUEST_STATUS.APPROVED,
     denominationsApproved: input.denominationsApproved as object,
     fromAccountId: fromAccount.id,
-    toAccountId: toAccount.id,
+    toAccountId: toTill.accountId,
+    toTillId: toTill.tillId,
     approvedAt: new Date(),
     approvedBy: input.approvedBy,
     receiveCode,
@@ -385,7 +390,12 @@ export async function receiveFloatRequest(
 > {
   const fr = await prisma.floatRequest.findUnique({
     where: { id: input.floatRequestId },
-    include: { requestedBy: { select: { id: true, name: true } }, fromAccount: true, toAccount: true },
+    include: {
+      requestedBy: { select: { id: true, name: true } },
+      fromAccount: true,
+      toAccount: true,
+      toTill: { select: { id: true, accountId: true } },
+    },
   });
   if (!fr) return { success: false, error: 'Float request not found' };
   if (normalizeStatus((fr as { status: unknown }).status) !== FLOAT_REQUEST_STATUS.APPROVED) {
@@ -406,15 +416,14 @@ export async function receiveFloatRequest(
   }
 
   // Ensure cashier has a float (CASH) account; use it for the journal (covers edge case where it wasn't created at approve)
-  const cashierAccountResult = await getOrCreateAccount({
-    type: 'CASH',
-    userId: fr.requestedById,
-    name: `Float - ${fr.requestedBy.name}`,
-  });
-  if (!cashierAccountResult.success) {
-    return { success: false, error: cashierAccountResult.error, errorCode: 'CASHIER_ACCOUNT_ERROR' };
+  const toAccountId = fr.toAccountId ?? fr.toTill?.accountId ?? null;
+  if (!toAccountId) {
+    return {
+      success: false,
+      error: 'Approved float request is missing destination till account.',
+      errorCode: 'MISSING_DESTINATION_ACCOUNT',
+    };
   }
-  const toAccountId = cashierAccountResult.account.id;
 
   const approvedDenoms = (fr.denominationsApproved as DenominationEntry[] | null) ?? [];
   const amountCents = lkrToCents(denominationsTotalLKR(approvedDenoms));
@@ -456,6 +465,7 @@ export async function receiveFloatRequest(
     data: {
       status: FLOAT_REQUEST_STATUS.RECEIVED as never,
       toAccountId,
+      toTillId: fr.toTillId ?? fr.toTill?.id ?? null,
       journalId: journalResult.journalId,
       receivedAt: now,
       receivedById: input.receivedById,
@@ -600,6 +610,7 @@ function includeFloatRequest() {
     bulkCashier: { select: { id: true, name: true, email: true } },
     fromAccount: { select: { id: true, name: true, code: true } },
     toAccount: { select: { id: true, name: true, code: true } },
+    toTill: { select: { id: true, locationId: true, accountId: true } },
     receivedBy: { select: { id: true, name: true } },
     shift: { select: { id: true, startedAt: true } },
   };
@@ -622,6 +633,7 @@ function mapFloatRequest(
     denominationsApproved: unknown;
     fromAccountId: string | null;
     toAccountId: string | null;
+    toTillId?: string | null;
     shiftId: string | null;
     approvedAt: Date | null;
     approvedBy: string | null;
@@ -642,6 +654,7 @@ function mapFloatRequest(
     bulkCashier?: { id: string; name: string; email?: string } | null;
     fromAccount?: { id: string; name: string; code: string | null } | null;
     toAccount?: { id: string; name: string; code: string | null } | null;
+    toTill?: { id: string; locationId: string; accountId: string } | null;
     receivedBy?: { id: string; name: string } | null;
     shift?: { id: string; startedAt: Date } | null;
   }
@@ -657,6 +670,7 @@ function mapFloatRequest(
     denominationsApproved: (row.denominationsApproved as DenominationEntry[] | null) ?? null,
     fromAccountId: row.fromAccountId,
     toAccountId: row.toAccountId,
+    toTillId: row.toTillId ?? null,
     shiftId: row.shiftId,
     approvedAt: row.approvedAt,
     approvedBy: row.approvedBy,
@@ -677,6 +691,7 @@ function mapFloatRequest(
     bulkCashier: row.bulkCashier ?? null,
     fromAccount: row.fromAccount ?? null,
     toAccount: row.toAccount ?? null,
+    toTill: row.toTill ?? null,
     receivedBy: row.receivedBy ?? null,
     shift: row.shift ?? null,
   };

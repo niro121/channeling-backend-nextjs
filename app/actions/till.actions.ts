@@ -4,7 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import { getTillBalanceBreakdown, getAccountStatement, getOrCreateAccount } from '@/services/accounting.service';
+import {
+  getTillBalanceBreakdownForAccount,
+  getAccountStatement,
+  ensureTillForUserLocation,
+} from '@/services/accounting.service';
+import {
+  listTillsForUser,
+  resolveActiveTillForUserLocation,
+  resolveTillForUserAndLocation,
+} from '@/services/accounting.service';
 
 export type MyTillBalance = {
   totalCents: number;
@@ -17,6 +26,30 @@ export type MyTillBalance = {
   tillAccountId: string | null;
   tillAccountName: string | null;
   tillAccountCode: string | null;
+  tillLocationId: string | null;
+  tillLocationName: string | null;
+  tillLocationCode: string | null;
+  tillId: string | null;
+  availableTills: Array<{
+    tillId: string;
+    accountId: string;
+    accountName: string | null;
+    accountCode: string | null;
+    locationId: string;
+    locationName: string | null;
+    locationCode: string | null;
+    isActive: boolean;
+    isCurrentAssigned: boolean;
+  }>;
+  otherTills: Array<{
+    tillId: string;
+    accountId: string;
+    accountName: string | null;
+    accountCode: string | null;
+    locationId: string;
+    locationName: string | null;
+    locationCode: string | null;
+  }>;
 };
 
 const STATEMENT_MAX_DAYS = 31;
@@ -80,7 +113,8 @@ export type MyTillStatement = {
 
 export async function getMyTillStatement(
   fromDate?: string | null,
-  toDate?: string | null
+  toDate?: string | null,
+  selectedTillId?: string | null
 ): Promise<{
   success: boolean;
   data?: MyTillStatement | null;
@@ -105,11 +139,11 @@ export async function getMyTillStatement(
         : (toDate as Date).toISOString().slice(0, 10);
   const { from, to } = parseStatementPeriod(fromStr, toStr);
   try {
-    const balance = await getTillBalanceBreakdown(userId);
-    if (!balance.tillAccountId) {
+    const till = await resolveSelectedTill(userId, selectedTillId);
+    if (!till?.accountId) {
       return { success: true, data: null };
     }
-    const st = await getAccountStatement(balance.tillAccountId, from, to);
+    const st = await getAccountStatement(till.accountId, from, to);
     if (!st) {
       return { success: true, data: null };
     }
@@ -144,7 +178,7 @@ export async function getMyTillStatement(
   }
 }
 
-export async function getMyTillBalance(): Promise<{
+export async function getMyTillBalance(selectedTillId?: string | null): Promise<{
   success: boolean;
   data?: MyTillBalance;
   message?: string;
@@ -155,7 +189,48 @@ export async function getMyTillBalance(): Promise<{
     return { success: false, message: 'Not signed in.' };
   }
   try {
-    const balance = await getTillBalanceBreakdown(userId);
+    const activeTill = await resolveActiveTillForUserLocation(userId);
+    const allTills = await listTillsForUser(userId);
+    const selectedTill =
+      (selectedTillId ? allTills.find((t) => t.tillId === selectedTillId) : null) ??
+      (activeTill ? allTills.find((t) => t.tillId === activeTill.tillId) : null) ??
+      allTills[0] ??
+      null;
+    if (!selectedTill) {
+      return {
+        success: true,
+        data: {
+          totalCents: 0,
+          cashCents: 0,
+          cardCents: 0,
+          slipCents: 0,
+          checkCents: 0,
+          creditCents: 0,
+          eWalletCents: 0,
+          tillAccountId: null,
+          tillAccountName: null,
+          tillAccountCode: null,
+          tillLocationId: null,
+          tillLocationName: null,
+          tillLocationCode: null,
+          tillId: null,
+          availableTills: [],
+          otherTills: [],
+        },
+      };
+    }
+    const balance = await getTillBalanceBreakdownForActiveTill(userId, selectedTill.locationId);
+    const otherTills = allTills
+      .filter((t) => t.tillId !== selectedTill.tillId)
+      .map((t) => ({
+        tillId: t.tillId,
+        accountId: t.accountId,
+        accountName: t.accountName,
+        accountCode: t.accountCode,
+        locationId: t.locationId,
+        locationName: t.locationName,
+        locationCode: t.locationCode,
+      }));
     return {
       success: true,
       data: {
@@ -169,6 +244,15 @@ export async function getMyTillBalance(): Promise<{
         tillAccountId: balance.tillAccountId,
         tillAccountName: balance.tillAccountName,
         tillAccountCode: balance.tillAccountCode,
+        tillLocationId: selectedTill.locationId,
+        tillLocationName: selectedTill.locationName,
+        tillLocationCode: selectedTill.locationCode,
+        tillId: selectedTill.tillId,
+        availableTills: allTills.map((t) => ({
+          ...t,
+          isCurrentAssigned: activeTill ? t.tillId === activeTill.tillId : false,
+        })),
+        otherTills,
       },
     };
   } catch (error) {
@@ -191,13 +275,17 @@ export async function createMyTillAccount(): Promise<{
   }
 
   try {
-    const result = await getOrCreateAccount({
-      type: 'CASH',
+    const sessionUser = await getSessionUserLocation(userId);
+    if (!sessionUser.userLocationId) {
+      return { success: false, message: 'Set your default location before creating a till.' };
+    }
+    const till = await ensureTillForUserLocation({
       userId,
-      name: 'Till - Cashier',
+      locationId: sessionUser.userLocationId,
+      isActive: true,
     });
-    if (!result.success) {
-      return { success: false, message: result.error ?? 'Could not create till account.' };
+    if (!till.success) {
+      return { success: false, message: till.error ?? 'Could not create till account.' };
     }
     revalidatePath('/my-till');
     return { success: true, message: 'Till account created. You can edit it from the linked account section.' };
@@ -208,4 +296,32 @@ export async function createMyTillAccount(): Promise<{
       message: error instanceof Error ? error.message : 'Failed to create till account.',
     };
   }
+}
+
+async function getSessionUserLocation(userId: string): Promise<{ userLocationId: string | null }> {
+  const prisma = (await import('@/lib/prisma')).default;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { userLocationId: true },
+  });
+  return { userLocationId: user?.userLocationId ?? null };
+}
+
+async function getTillBalanceBreakdownForActiveTill(userId: string, locationId: string) {
+  const till = await resolveTillForUserAndLocation(userId, locationId);
+  return getTillBalanceBreakdownForAccount(till.accountId);
+}
+
+async function resolveSelectedTill(userId: string, selectedTillId?: string | null) {
+  const allTills = await listTillsForUser(userId);
+  if (selectedTillId) {
+    const selected = allTills.find((t) => t.tillId === selectedTillId);
+    if (selected) return selected;
+  }
+  const activeTill = await resolveActiveTillForUserLocation(userId);
+  if (activeTill) {
+    const activeInList = allTills.find((t) => t.tillId === activeTill.tillId);
+    if (activeInList) return activeInList;
+  }
+  return allTills[0] ?? null;
 }

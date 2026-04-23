@@ -5,6 +5,7 @@ import { getCashBookAccountForBranch, getMainCashBookAccount } from './account.s
 import { getAccountBalance } from './balance-calc.service';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { TILL_PAYMENT_METHOD } from '@/types/accounting';
+import { resolveActiveTillForUserLocation } from './till.service';
 
 // --- getBranchCashBalance ---
 export async function getBranchCashBalance(locationId: string): Promise<number> {
@@ -15,6 +16,10 @@ export async function getBranchCashBalance(locationId: string): Promise<number> 
 
 // --- getCashierFloatBalance: balance of cashier's CASH account (till), 0 if no account ---
 export async function getCashierFloatBalance(userId: string): Promise<number> {
+  const activeTill = await resolveActiveTillForUserLocation(userId);
+  if (activeTill) {
+    return getAccountBalance(activeTill.accountId);
+  }
   const acc = await prisma.account.findFirst({
     where: { type: 'CASH', userId, isActive: true },
     select: { id: true },
@@ -40,8 +45,11 @@ export type TillBalanceBreakdown = {
 // --- getTillBalanceBreakdown: cashier till balance by payment method ---
 // Uses DB aggregation (groupBy + _sum) so it stays fast with millions of lines.
 export async function getTillBalanceBreakdown(userId: string): Promise<TillBalanceBreakdown> {
+  const activeTill = await resolveActiveTillForUserLocation(userId);
   const acc = await prisma.account.findFirst({
-    where: { type: 'CASH', userId, isActive: true },
+    where: activeTill
+      ? { id: activeTill.accountId, isActive: true }
+      : { type: 'CASH', userId, isActive: true },
     select: { id: true, name: true, code: true },
   });
   if (!acc) {
