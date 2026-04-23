@@ -4,7 +4,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Loading from '@/app/(dashboard)/loading';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import {
@@ -21,24 +21,33 @@ type Props = {
   currentUserName: string;
   doctorOptions: Array<{ id: string; name: string }>;
   locationOptions: Array<{ id: string; name: string }>;
+  specialityOptions: Array<{ id: string; name: string }>;
 };
 
-function getDefaultDateRange(): { fromDate: string; toDate: string } {
+/** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm (same as Userwise Cashier report). */
+function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string } {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
-  return { fromDate: `${y}-${m}-01`, toDate: `${y}-${m}-${d}` };
+  return { fromDateTime: `${y}-${m}-${d}T00:00`, toDateTime: `${y}-${m}-${d}T23:59` };
 }
 
-function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props) {
+function ContentInner({
+  currentUserName,
+  doctorOptions,
+  locationOptions,
+  specialityOptions
+}: Props) {
   const searchParams = useSearchParams();
+  const defaultRange = getDefaultDateTimeRange();
 
   const buildQuery = (): WithholdingTaxReportQuery => ({
-    fromDate: searchParams.get('fromDate') ?? '',
-    toDate: searchParams.get('toDate') ?? '',
+    fromDateTime: searchParams.get('fromDateTime') ?? defaultRange.fromDateTime,
+    toDateTime: searchParams.get('toDateTime') ?? defaultRange.toDateTime,
     doctorId: searchParams.get('doctorId') ?? '__all__',
     locationId: searchParams.get('locationId') ?? '__all__',
+    specialityId: searchParams.get('specialityId') ?? '__all__',
     reportType: (searchParams.get('reportType') as 'detail' | 'summary') ?? 'detail'
   });
 
@@ -51,47 +60,61 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
-          const fromDate = values.fromDate ?? '';
-          const toDate = values.toDate ?? '';
+          const fromDateTime = values.fromDateTime ?? '';
+          const toDateTime = values.toDateTime ?? '';
           const doctorId = values.doctorId ?? '__all__';
           const locationId = values.locationId ?? '__all__';
+          const specialityId = values.specialityId ?? '__all__';
           const reportType = (values.reportType ?? 'detail') as 'detail' | 'summary';
           const doctorLabel = doctorId === '__all__' ? 'All Doctors' : (doctorOptions.find((d) => d.id === doctorId)?.name ?? doctorId);
-          const branchLabel = locationId === '__all__' ? 'All Branches' : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId);
+          const branchLabel =
+            locationId === '__all__' ? 'All Branches' : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId);
+          const specialityLabel =
+            specialityId === '__all__'
+              ? 'All Specialities'
+              : (specialityOptions.find((s) => s.id === specialityId)?.name ?? specialityId);
           const typeLabel = reportType === 'summary' ? 'Summary' : 'Detail';
           return (
             <>
-              <div>Range: {formatReportRangeLabel(fromDate, toDate)}</div>
-              <div>Consultant: {doctorLabel} | Branch: {branchLabel} | Report Type: {typeLabel}</div>
+              <div>Range: {formatReportRangeLabel(fromDateTime, toDateTime)}</div>
+              <div>
+                Consultant: {doctorLabel} | Branch: {branchLabel} | Speciality: {specialityLabel} | Report Type: {typeLabel}
+              </div>
             </>
           );
         }
       }}
       initialFilterValues={{
-        ...getDefaultDateRange(),
+        ...getDefaultDateTimeRange(),
         doctorId: '__all__',
         locationId: '__all__',
+        specialityId: '__all__',
         reportType: 'detail'
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-shrink-0">
-            <label className="text-sm font-semibold mb-2 block">Date Range</label>
-            <DateRangePicker
-              from={values.fromDate}
-              to={values.toDate}
-              onChange={({ from, to }) => {
-                setValue('fromDate', from);
-                setValue('toDate', to);
-              }}
-            />
-          </div>
+          <DateTimeRangePicker
+            label="Date & Time Range"
+            from={values.fromDateTime}
+            to={values.toDateTime}
+            onChange={({ from, to }) => {
+              setValue('fromDateTime', from);
+              setValue('toDateTime', to);
+            }}
+          />
           <Combobox
             label="Consultant"
             options={doctorOptions}
             value={values.doctorId ?? '__all__'}
             defaultValue="__all__"
             onChange={(v) => setValue('doctorId', v ?? '__all__')}
+          />
+          <Combobox
+            label="Speciality"
+            options={specialityOptions}
+            value={values.specialityId ?? '__all__'}
+            defaultValue="__all__"
+            onChange={(v) => setValue('specialityId', v ?? '__all__')}
           />
           <Combobox
             label="Branch"
@@ -116,10 +139,11 @@ function ContentInner({ currentUserName, doctorOptions, locationOptions }: Props
       )}
       fetchData={async (params) =>
         getWithholdingTaxReportData({
-          fromDate: params.get('fromDate') ?? '',
-          toDate: params.get('toDate') ?? '',
+          fromDateTime: params.get('fromDateTime') ?? defaultRange.fromDateTime,
+          toDateTime: params.get('toDateTime') ?? defaultRange.toDateTime,
           doctorId: params.get('doctorId') ?? '__all__',
           locationId: params.get('locationId') ?? '__all__',
+          specialityId: params.get('specialityId') ?? '__all__',
           reportType: (params.get('reportType') as 'detail' | 'summary') ?? 'detail'
         })
       }
