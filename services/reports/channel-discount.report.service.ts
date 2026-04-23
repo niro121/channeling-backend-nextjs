@@ -74,6 +74,17 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
     if (query.locationId && query.locationId !== '__all__') {
       where.locationId = query.locationId;
     }
+    if (query.specialityId && query.specialityId !== '__all__') {
+      where.doctor = { is: { specialityId: query.specialityId } };
+    }
+    if (query.discountSchemeId && query.discountSchemeId !== '__all__') {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [{ discountId: query.discountSchemeId }, { autoDiscountId: query.discountSchemeId }]
+        }
+      ];
+    }
 
     const matchedBookingCount = await prisma.booking.count({ where });
     if (matchedBookingCount > MAX_BOOKINGS_SCAN) {

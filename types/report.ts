@@ -518,10 +518,11 @@ export type ConsultantPaymentsReportExportRow = {
 
 // Withholding Tax Report Types
 export type WithholdingTaxReportQuery = {
-  fromDate?: string; // YYYY-MM-DD
-  toDate?: string; // YYYY-MM-DD
+  fromDateTime?: string; // YYYY-MM-DDTHH:mm
+  toDateTime?: string; // YYYY-MM-DDTHH:mm
   doctorId?: string; // '__all__' | doctor id
   locationId?: string; // '__all__' | location id
+  specialityId?: string; // '__all__' | speciality id
   reportType?: 'detail' | 'summary';
 };
 

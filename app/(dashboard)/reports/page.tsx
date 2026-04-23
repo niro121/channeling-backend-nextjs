@@ -123,7 +123,7 @@ const reportsData: ReportListItem[] = [
     id: '27',
     rank: 27,
     masterData: 'Withholding Tax Report',
-    description: 'Shows doctor payments completed with withholding tax (WHT) deductions.',
+    description: 'Doctor payments with WHT; filter by date & time range, consultant, speciality, branch, and detail or summary.',
     route: '/reports/withholding-tax'
   },
   {
