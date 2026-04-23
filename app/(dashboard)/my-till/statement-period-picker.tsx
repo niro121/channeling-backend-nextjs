@@ -18,6 +18,7 @@ export function StatementPeriodPicker() {
   const searchParams = useSearchParams();
   const fromParam = searchParams.get('from') ?? todayStr();
   const toParam = searchParams.get('to') ?? todayStr();
+  const tillParam = searchParams.get('till');
 
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
@@ -48,9 +49,10 @@ export function StatementPeriodPicker() {
     const params = new URLSearchParams();
     params.set('from', from);
     params.set('to', to);
+    if (tillParam) params.set('till', tillParam);
     router.push(`/my-till?${params.toString()}`);
     router.refresh();
-  }, [from, to, router]);
+  }, [from, to, tillParam, router]);
 
   return (
     <div className="flex flex-wrap items-end gap-3">

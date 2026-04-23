@@ -49,7 +49,7 @@ export const CashierDrawerBalanceReportColumns: ColumnDef<CashierDrawerBalanceRe
   },
   {
     accessorKey: 'checkCents',
-    header: () => <span className="text-right block">Check</span>,
+    header: () => <span className="text-right block">Cheque</span>,
     cell: ({ row }) => <span className="text-right tabular-nums block">{formatCents(row.getValue<number>('checkCents') ?? 0)}</span>
   },
   {

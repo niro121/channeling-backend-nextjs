@@ -3,6 +3,7 @@
 import React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
+import { Combobox } from '@/components/common/combobox';
 import { Input } from '@/components/ui/input';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { formatCents } from '@/lib/format-money';
@@ -17,55 +18,86 @@ import {
 } from '@/app/actions/reports/cashier-drawer-balance.report.action';
 import { CashierDrawerBalanceReportColumns } from './columns';
 
-type Props = { currentUserName: string };
+type Props = {
+  currentUserName: string;
+  locationOptions: Array<{ id: string; name: string }>;
+};
 
-function todayLocalYyyyMmDd(): string {
+function todayLocalEndOfDayYyyyMmDdHhMm(): string {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${y}-${m}-${day}T23:59`;
 }
 
-export default function CashierDrawerBalanceReportContent({ currentUserName }: Props) {
+export default function CashierDrawerBalanceReportContent({ currentUserName, locationOptions }: Props) {
   const searchParams = useSearchParams();
+  const defaultAsOf = todayLocalEndOfDayYyyyMmDdHhMm();
 
   const buildQuery = (): CashierDrawerBalanceReportQuery => ({
-    date: searchParams.get('date') ?? ''
+    asOfDateTime: searchParams.get('asOfDateTime') ?? defaultAsOf,
+    locationId: searchParams.get('locationId') ?? '__all__'
   });
 
   return (
     <ReportTemplate<CashierDrawerBalanceReportRow, CashierDrawerBalanceReportExportRow>
       title="Cashier Drawer Balance"
-      description="Shows till balances by payment method as of the selected date (end of day)."
+      description="Shows till balances by payment method as of selected date/time, with optional branch filter."
       filterButtonLabel="Search"
       showBackButton={false}
       containerClassName="w-full py-2 space-y-3"
-      initialFilterValues={{ date: todayLocalYyyyMmDd() }}
+      initialFilterValues={{ asOfDateTime: defaultAsOf, locationId: '__all__' }}
       generationDetails={{
         generatedBy: currentUserName,
-        formatFilters: (values) => <div>Date: {values.date ?? ''}</div>
+        formatFilters: (values) => {
+          const locId = values.locationId ?? '__all__';
+          const locLabel = locId === '__all__'
+            ? 'All Branches'
+            : (locationOptions.find((l) => l.id === locId)?.name ?? locId);
+          return (
+            <>
+              <div>As of: {values.asOfDateTime ?? ''}</div>
+              <div>Branch: {locLabel}</div>
+            </>
+          );
+        }
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
-          <div className="w-[200px]">
-            <label className="text-sm font-semibold mb-2 block">Date</label>
+          <div className="w-[320px]">
+            <label className="text-sm font-semibold mb-2 block">As-of Date & Time</label>
             <Input
-              type="date"
-              value={values.date ?? ''}
-              onChange={(e) => setValue('date', e.target.value)}
+              type="datetime-local"
+              value={values.asOfDateTime ?? defaultAsOf}
+              onChange={(e) => setValue('asOfDateTime', e.target.value)}
               className="h-10 w-full py-0"
+              step="60"
+            />
+          </div>
+          <div className="w-[260px]">
+            <label className="text-sm font-semibold mb-2 block">Branch</label>
+            <Combobox
+              label="Branch"
+              options={locationOptions}
+              value={values.locationId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => setValue('locationId', v ?? '__all__')}
             />
           </div>
         </div>
       )}
       fetchData={async (params) => {
-        const query: CashierDrawerBalanceReportQuery = { date: params.get('date') ?? '' };
+        const query: CashierDrawerBalanceReportQuery = {
+          asOfDateTime: params.get('asOfDateTime') ?? defaultAsOf,
+          locationId: params.get('locationId') ?? '__all__'
+        };
         return getCashierDrawerBalanceReportData(query);
       }}
       exportData={async () => exportCashierDrawerBalanceReportData(buildQuery())}
       columns={CashierDrawerBalanceReportColumns}
-      exportColumns={['Till', 'Cashier', 'Cash', 'Card', 'Credit', 'Slip', 'Check', 'E-Wallet', 'Total']}
+      exportColumns={['Till', 'Cashier', 'Cash', 'Card', 'Credit', 'Slip', 'Cheque', 'E-Wallet', 'Total']}
       exportKeys={
         ['till', 'cashier', 'cash', 'card', 'credit', 'slip', 'check', 'eWallet', 'total'] as (keyof CashierDrawerBalanceReportExportRow)[]
       }
@@ -110,8 +142,8 @@ export default function CashierDrawerBalanceReportContent({ currentUserName }: P
         );
       }}
       skipFetchWhenNoParams={true}
-      initialEmptyMessage="No drawer balances found. Select date and click Search."
-      emptyMessage="No drawer balances found for the selected date."
+      initialEmptyMessage="No drawer balances found. Select date/time and branch, then click Search."
+      emptyMessage="No drawer balances found for the selected filters."
     />
   );
 }

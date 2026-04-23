@@ -27,6 +27,7 @@ export type FloatRequest = {
   denominationsApproved: DenominationEntry[] | null;
   fromAccountId: string | null;
   toAccountId: string | null;
+  toTillId: string | null;
   shiftId: string | null;
   approvedAt: Date | null;
   approvedBy: string | null;
@@ -47,6 +48,7 @@ export type FloatRequest = {
   bulkCashier?: { id: string; name: string; email?: string } | null;
   fromAccount?: { id: string; name: string; code: string | null } | null;
   toAccount?: { id: string; name: string; code: string | null } | null;
+  toTill?: { id: string; locationId: string; accountId: string } | null;
   receivedBy?: { id: string; name: string } | null;
   shift?: { id: string; startedAt: Date } | null;
 };

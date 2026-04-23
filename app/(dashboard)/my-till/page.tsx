@@ -42,7 +42,7 @@ function StatementSectionFallback() {
 }
 
 type PageProps = {
-  searchParams?: Promise<{ from?: string; to?: string }>;
+  searchParams?: Promise<{ from?: string; to?: string; till?: string }>;
 };
 
 export default async function MyTillPage({ searchParams }: PageProps) {
@@ -64,6 +64,7 @@ export default async function MyTillPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const from = params?.from ?? undefined;
   const to = params?.to ?? undefined;
+  const till = params?.till ?? undefined;
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
@@ -83,11 +84,11 @@ export default async function MyTillPage({ searchParams }: PageProps) {
       </div>
 
       <Suspense fallback={<BalanceSectionFallback />}>
-        <TillBalanceSection />
+        <TillBalanceSection tillId={till} from={from} to={to} />
       </Suspense>
 
       <Suspense fallback={<StatementSectionFallback />}>
-        <TillStatementSection from={from} to={to} />
+        <TillStatementSection from={from} to={to} tillId={till} />
       </Suspense>
     </div>
   );

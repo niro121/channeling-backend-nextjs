@@ -56,7 +56,12 @@ export async function exportCashierDrawerBalanceReportData(
         action: 'reports.cashier-drawer-balance.exported',
         entityType: 'Report',
         importance: 'medium',
-        metadata: { date: query.date, count: mapped.length, exportedAt: moment().toISOString() }
+        metadata: {
+          asOfDateTime: query.asOfDateTime,
+          locationId: query.locationId ?? '__all__',
+          count: mapped.length,
+          exportedAt: moment().toISOString()
+        }
       });
     }
 

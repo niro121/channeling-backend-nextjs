@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { fetchServerSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
+import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
 import CashierDrawerBalanceReportContent from './cashier-drawer-balance-report-content';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,10 @@ export default async function CashierDrawerBalanceReportPage() {
   const canView = await checkRouteAccess('/reports/cashier-drawer-balance');
   if (!canView) redirect('/unauthorized-access');
 
-  const session = await fetchServerSession();
+  const [session, ref] = await Promise.all([
+    fetchServerSession(),
+    getReportFilterOptions({ locations: true })
+  ]);
   const currentUser =
     session?.user?.id
       ? await prisma.user.findUnique({
@@ -25,6 +29,10 @@ export default async function CashierDrawerBalanceReportPage() {
     currentUser?.staff?.code
   );
 
-  return <CashierDrawerBalanceReportContent currentUserName={currentUserName} />;
+  const locationOptions = ref.success && ref.locationOptions
+    ? ref.locationOptions
+    : [{ id: '__all__', name: 'All Branches' }];
+
+  return <CashierDrawerBalanceReportContent currentUserName={currentUserName} locationOptions={locationOptions} />;
 }
 
