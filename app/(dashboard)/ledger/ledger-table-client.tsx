@@ -21,6 +21,17 @@ type LedgerTableClientProps = {
   locations: ReferenceSelectOption[]
   agencies: ReferenceSelectOption[]
   banks: Array<{ id: string; name: string }>
+  bankAccounts: Array<{
+    id: string
+    name: string
+    accountNumber: string
+    locationId: string
+    locationName: string
+    locationCode: string
+    glAccountId: string | null
+    glAccountName: string | null
+    glAccountCode: string | null
+  }>
   userLocationId: string | null
   userLocationName: string | null
 }
@@ -37,6 +48,7 @@ export function LedgerTableClient({
   locations,
   agencies,
   banks,
+  bankAccounts,
   userLocationId,
   userLocationName,
 }: LedgerTableClientProps) {
@@ -74,6 +86,7 @@ export function LedgerTableClient({
           locations={locations}
           agencies={agencies}
           banks={banks}
+          bankAccounts={bankAccounts}
           userLocationId={userLocationId}
           userLocationName={userLocationName}
         />

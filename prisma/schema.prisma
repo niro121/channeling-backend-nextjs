@@ -403,7 +403,6 @@ model Location {
   tills                Till[]                @relation("LocationToTill")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
-  bankAccounts         BankAccount[]         @relation("LocationToBankAccount")
 }
 
 model BankAccount {
@@ -412,8 +411,9 @@ model BankAccount {
   accountNumber String
   bankId        String   @db.ObjectId
   bank          Tag      @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
-  locationId    String   @db.ObjectId
-  location      Location @relation("LocationToBankAccount", fields: [locationId], references: [id], onDelete: Restrict)
+  institution   Int
+  accountId     String?  @db.ObjectId
+  account       Account? @relation("BankAccountToAccount", fields: [accountId], references: [id], onDelete: SetNull)
   status        Int      @default(1) // 0 = inactive, 1 = active
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -421,7 +421,8 @@ model BankAccount {
   updatedBy     String?  @db.ObjectId
 
   @@index([bankId])
-  @@index([locationId])
+  @@index([institution])
+  @@index([accountId])
   @@index([status])
 }
 
@@ -1071,6 +1072,7 @@ model Account {
   tills           Till[] @relation("TillToAccount")
   floatRequestsFrom FloatRequest[] @relation("FloatRequestFromAccount")
   floatRequestsTo   FloatRequest[] @relation("FloatRequestToAccount")
+  bankAccounts      BankAccount[]  @relation("BankAccountToAccount")
 }
 
 model Till {

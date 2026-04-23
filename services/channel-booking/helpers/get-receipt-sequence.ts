@@ -23,6 +23,8 @@ function pad(num: number, size: number): string {
  * method 7 → legerwithdraw (agency withdraw), shortcode + 'CHANN-AGN-WD/' + pad(5)
  * method 8 → branchincome, shortcode + 'CHANN-INC/' + pad(5)
  * method 9 → branchexpense, shortcode + 'CHANN-EXP/' + pad(5)
+ * method 10 → bankdeposit, shortcode + 'CHANN-BNK-DP/' + pad(5)
+ * method 11 → bankwithdraw, shortcode + 'CHANN-BNK-WD/' + pad(5)
  * When locationId is null (and no userLocationId for ledger), uses receipt:global and REC- prefix for backward compat.
  */
 export async function getReceiptSequenceInfo(
@@ -91,6 +93,14 @@ export async function getReceiptSequenceInfo(
   } else if (method === RECEIPT_METHOD.BRANCH_EXPENSE) {
     scopeSuffix = "branchexpense"
     prefix = `${shortcode}CHANN-EXP/`
+    padSize = 5
+  } else if (method === RECEIPT_METHOD.BANK_DEPOSIT) {
+    scopeSuffix = "bankdeposit"
+    prefix = `${shortcode}CHANN-BNK-DP/`
+    padSize = 5
+  } else if (method === RECEIPT_METHOD.BANK_WITHDRAW) {
+    scopeSuffix = "bankwithdraw"
+    prefix = `${shortcode}CHANN-BNK-WD/`
     padSize = 5
   } else {
     scopeSuffix = "receipts"

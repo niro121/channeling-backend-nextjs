@@ -27,6 +27,8 @@ const LEDGER_METHODS = [
   RECEIPT_METHOD.AGENCY_WITHDRAW,
   RECEIPT_METHOD.BRANCH_INCOME,
   RECEIPT_METHOD.BRANCH_EXPENSE,
+  RECEIPT_METHOD.BANK_DEPOSIT,
+  RECEIPT_METHOD.BANK_WITHDRAW,
 ] as const
 
 /** Map ledger receipt method to its reverse (for cancel). */
@@ -44,6 +46,10 @@ function getReverseMethod(method: number): number {
       return RECEIPT_METHOD.AGENCY_WITHDRAW
     case RECEIPT_METHOD.AGENCY_WITHDRAW:
       return RECEIPT_METHOD.AGENCY_DEPOSIT
+    case RECEIPT_METHOD.BANK_DEPOSIT:
+      return RECEIPT_METHOD.BANK_WITHDRAW
+    case RECEIPT_METHOD.BANK_WITHDRAW:
+      return RECEIPT_METHOD.BANK_DEPOSIT
     default:
       throw new Error(`Cannot cancel: method ${method} is not a ledger type`)
   }
@@ -118,6 +124,10 @@ export async function cancelLedgerReceiptService(
     createdBy: input.canceledBy,
     agencyId: original.agencyId ?? null,
     needTill: needCashierAccount,
+    bankAccountId:
+      reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
+        ? (original.bankId ?? null)
+        : null,
   })
   if (!accounts) {
     return {
@@ -132,6 +142,10 @@ export async function cancelLedgerReceiptService(
       createdBy: input.canceledBy,
       agencyId: original.agencyId ?? null,
       needTill: needCashierAccount,
+      bankAccountId:
+        reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
+          ? (original.bankId ?? null)
+          : null,
     },
     { needTill: needCashierAccount, isAgent: isAgency }
   )

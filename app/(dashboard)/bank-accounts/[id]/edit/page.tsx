@@ -17,12 +17,12 @@ export default async function BankAccountEditPage({ params }: Props) {
   if (!res.success || !res.data) notFound();
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Edit Bank Account</h2>
-        <BackButton href="/bank-accounts" />
-      </div>
-      <div className="h-full flex-1 flex-col space-y-8">
+    <div className="container mx-auto py-6">
+      <div className="w-full">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Edit Bank Account</h1>
+          <BackButton href="/bank-accounts" />
+        </div>
         <BankAccountForm bankAccount={res.data} />
       </div>
     </div>
