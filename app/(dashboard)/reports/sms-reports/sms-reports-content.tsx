@@ -110,6 +110,7 @@ function SmsReportsContentInner({ currentUserName, locationOptions }: SmsReports
             label="Status"
             options={statusOptions}
             value={values.status ?? 'all'}
+            showDefaultOption={false}
             onChange={(v) => setValue('status', v)}
             className={{
               trigger: 'self-end!',
