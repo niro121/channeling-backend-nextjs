@@ -79,6 +79,41 @@ export async function getAccountCreateNameAndCode(
     }
   }
 
+  // Cashier till: one per user+location. Use location-aware code when available to avoid duplicates.
+  // NOTE: this must run BEFORE branch cash-book naming, because till creation passes both userId and locationId.
+  if (type === 'CASH' && userId) {
+    const userWithStaff = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, staff: { select: { code: true } } },
+    });
+    const staffCode = userWithStaff?.staff?.code;
+    if (!staffCode) {
+      return {
+        success: false,
+        error: 'User must have a linked staff account to create a cashier float account.',
+      };
+    }
+    const location = locationId
+      ? await prisma.location.findUnique({
+          where: { id: locationId },
+          select: { name: true, code: true },
+        })
+      : null;
+    const locationCode = location?.code?.trim() ?? null;
+    const locationName = location?.name?.trim() ?? null;
+    return {
+      success: true,
+      name:
+        locationCode != null && locationCode.length > 0
+          ? `Till - Cashier (${staffCode}) (${locationCode})`
+          : `Till - Cashier (${staffCode})`,
+      code:
+        locationCode != null && locationCode.length > 0
+          ? `STF-${staffCode.trim()}-${locationCode}`
+          : `STF-${staffCode.trim()}`,
+    };
+  }
+
   // Branch cash book: one per location, under main cash book. Seed: "Cash Book - {name}", "CB-{code}".
   if (type === 'CASH' && locationId) {
     const location = await prisma.location.findUnique({
@@ -92,27 +127,6 @@ export async function getAccountCreateNameAndCode(
         code: location.code ? `CB-${location.code}` : null,
       };
     }
-  }
-
-  // Cashier till: one per user (staff). Seed doesn't create these; we use "Till - {user} ({code})", "STF-{code}". Must have staff.
-  if (type === 'CASH' && userId) {
-    const userWithStaff = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, staff: { select: { code: true } } },
-    });
-    const staffCode = userWithStaff?.staff?.code;
-    if (!staffCode) {
-      return {
-        success: false,
-        error: 'User must have a linked staff account to create a cashier float account.',
-      };
-    }
-    const displayName = userWithStaff?.name?.trim() || 'Cashier';
-    return {
-      success: true,
-      name: `Till - ${displayName} (${staffCode})`,
-      code: `STF-${staffCode.trim()}`,
-    };
   }
 
   // Doctor payable: one per doctor. Seed: name = doctor.name, code = "DOC-{doctor.code}".

@@ -8,6 +8,7 @@
 
 import prisma from "@/lib/prisma"
 import { isSeedHelperEnabled, SEED_HELPER_DISABLED_MESSAGE } from "./seed-helper-enabled"
+import { getAccountCreateNameAndCode } from "@/services/accounting/account/get-account-create-name-code.service"
 
 export type SeedAccountingAccountsResult =
   | { success: true; message: string; details: string }
@@ -23,6 +24,7 @@ export async function runSeedAccountingAccounts(
     const lines: string[] = []
 
     const deletedRequests = await prisma.floatRequest.deleteMany({})
+    const deletedTills = await prisma.till.deleteMany({})
     // Break self-relation (forwardedToHandoverId) before deleting handovers
     await prisma.shiftHandover.updateMany({ data: { forwardedToHandoverId: null } })
     const deletedHandovers = await prisma.shiftHandover.deleteMany({})
@@ -33,7 +35,7 @@ export async function runSeedAccountingAccounts(
     await prisma.receipt.updateMany({ data: { shiftId: null } })
     const deletedShifts = await prisma.shift.deleteMany({})
     lines.push(
-      `Removed ${deletedRequests.count} float request(s), ${deletedHandovers.count} handover(s), ${deletedLines.count} journal line(s), ${deletedJournals.count} journal(s), ${deletedAccounts.count} account(s), ${deletedShifts.count} shift(s).`
+      `Removed ${deletedRequests.count} float request(s), ${deletedTills.count} till(s), ${deletedHandovers.count} handover(s), ${deletedLines.count} journal line(s), ${deletedJournals.count} journal(s), ${deletedAccounts.count} account(s), ${deletedShifts.count} shift(s).`
     )
 
     let mainCash = await prisma.account.findFirst({
@@ -162,6 +164,59 @@ export async function runSeedAccountingAccounts(
     lines.push(
       `Location expense accounts: ${locationExpenseCreated} created, ${locationExpenseSkipped} existing.`
     )
+
+    const mainLocation =
+      locations.find((l) => l.code?.toUpperCase() === "MAIN") ??
+      locations[0] ??
+      null
+    if (mainLocation) {
+      const usersAtMain = await prisma.user.findMany({
+        where: { status: 1, userLocationId: mainLocation.id },
+        select: { id: true, name: true, staff: { select: { code: true } } },
+      })
+      let defaultMainTillCount = 0
+      for (const user of usersAtMain) {
+        if (!user.staff?.code) continue
+        const tillNameCode = await getAccountCreateNameAndCode(prisma, {
+          type: "CASH",
+          userId: user.id,
+          locationId: mainLocation.id,
+        })
+        if (!tillNameCode.success) {
+          lines.push(`Skipped default till for ${user.name}: ${tillNameCode.error}`)
+          continue
+        }
+        const code = `STF-${user.staff.code.trim()}-${mainLocation.code}`.slice(0, 64)
+        const account = await prisma.account.create({
+          data: {
+            name: tillNameCode.name,
+            code: tillNameCode.code ?? code,
+            type: "CASH",
+            parentAccountId: mainCash.id,
+            locationId: mainLocation.id,
+            doctorId: null,
+            agencyId: null,
+            userId: user.id,
+            creditCustomerId: null,
+            minBalanceAllowed: null,
+            maxBalanceAllowed: null,
+            isActive: true,
+          },
+        })
+        await prisma.till.create({
+          data: {
+            accountId: account.id,
+            userId: user.id,
+            locationId: mainLocation.id,
+            isActive: true,
+          },
+        })
+        defaultMainTillCount += 1
+      }
+      lines.push(`Default main-branch tills: ${defaultMainTillCount} created.`)
+    } else {
+      lines.push("Default main-branch tills: skipped (no active locations).")
+    }
 
     const agencies = await prisma.agency.findMany({
       where: { status: 1 },

@@ -96,7 +96,7 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
           );
         }
   },
-  {
+  /* {
     accessorKey: 'status',
     header: 'Leave Status',
     cell: ({ row }) => {
@@ -120,5 +120,5 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
         </Badge>
       );
     }
-  }
+  } */
 ];

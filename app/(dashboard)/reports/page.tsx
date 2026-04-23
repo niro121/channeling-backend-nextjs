@@ -50,6 +50,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-income-accounting-wise'
   },
   {
+    id: '9',
+    rank: 9,
+    masterData: 'Channel Discount Report',
+    description: 'Shows billed channel bookings with hospital/professional fee discounts and discount schemes.',
+    route: '/reports/channel-discount'
+  },
+  {
     id: '10',
     rank: 10,
     masterData: 'Consultant Payments Report',
@@ -121,11 +128,18 @@ const reportsData: ReportListItem[] = [
     route: '/reports/cashier-summary'
   },
   {
-    id: '28',
-    rank: 28,
-    masterData: 'SMS Report',
-    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
-    route: '/reports/sms-activity'
+    id: '27',
+    rank: 27,
+    masterData: 'Withholding Tax Report',
+    description: 'Doctor payments with WHT; filter by date & time range, consultant, speciality, branch, and detail or summary.',
+    route: '/reports/withholding-tax'
+  },
+  {
+    id: '29',
+    rank: 29,
+    masterData: 'SMS Reports',
+    description: 'View SMS log entries with date & time range and status filters, with print/PDF/Excel export.',
+    route: '/reports/sms-reports'
   },
   {
     id: '30',
@@ -180,6 +194,13 @@ const reportsData: ReportListItem[] = [
   {
     id: '37',
     rank: 37,
+    masterData: 'Cash Book',
+    description: 'Statement-style report for a selected cash book within a date range.',
+    route: '/reports/cash-book'
+  },
+  {
+    id: '38',
+    rank: 38,
     masterData: 'Agency Balance Confirmation Letter',
     description: 'Check agency balance confirmation letter.',
     route: '/reports/agent-balance-confirmation-letter'
@@ -209,7 +230,9 @@ export default async function ReportsPage() {
     [
       '/reports/channel-patient-count-accounting-wise',
       '/reports/channel-income-accounting-wise',
+      '/reports/channel-discount',
       '/reports/consultant-payments',
+      '/reports/withholding-tax',
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
       '/reports/channel-transfer',
@@ -229,10 +252,10 @@ export default async function ReportsPage() {
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
-    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise'].includes(r.route)
+    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise', '/reports/cash-book'].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
-    ['/reports/sms-activity', '/reports/api-log'].includes(r.route)
+    ['/reports/sms-reports', '/reports/api-log'].includes(r.route)
   );
 
   const sections = [

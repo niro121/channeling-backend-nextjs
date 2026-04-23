@@ -515,3 +515,40 @@ export type ConsultantPaymentsReportExportRow = {
   paidDate: string;
   handedBy: string;
 };
+
+// Withholding Tax Report Types
+export type WithholdingTaxReportQuery = {
+  fromDateTime?: string; // YYYY-MM-DDTHH:mm
+  toDateTime?: string; // YYYY-MM-DDTHH:mm
+  doctorId?: string; // '__all__' | doctor id
+  locationId?: string; // '__all__' | location id
+  specialityId?: string; // '__all__' | speciality id
+  reportType?: 'detail' | 'summary';
+};
+
+export type WithholdingTaxReportRow = {
+  id: string;
+  sNo: number;
+  docDate: Date | null;
+  docNo: string;
+  consultant: string;
+  speciality: string;
+  remarks: string;
+  totalAmt: number;
+  taxPercent: number;
+  holdingTax: number;
+  netAmt: number;
+};
+
+export type WithholdingTaxReportExportRow = {
+  sNo: string;
+  docDate: string;
+  docNo: string;
+  consultant: string;
+  speciality: string;
+  remarks: string;
+  totalAmt: string;
+  taxPercent: string;
+  holdingTax: string;
+  netAmt: string;
+};

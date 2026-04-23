@@ -27,10 +27,11 @@ const PAYMENT_METHOD_LABEL: Record<number, string> = {
 type Props = {
   from?: string;
   to?: string;
+  tillId?: string;
 };
 
-export async function TillStatementSection({ from, to }: Props) {
-  const res = await getMyTillStatement(from, to);
+export async function TillStatementSection({ from, to, tillId }: Props) {
+  const res = await getMyTillStatement(from, to, tillId ?? null);
   if (!res.success) {
     return (
       <Card>
@@ -53,7 +54,7 @@ export async function TillStatementSection({ from, to }: Props) {
           </CardTitle>
           {statement !== null && (
             <Suspense fallback={<div className="h-9" />}>
-              <StatementPeriodPicker key={`${from ?? ''}-${to ?? ''}`} />
+              <StatementPeriodPicker key={`${from ?? ''}-${to ?? ''}-${tillId ?? ''}`} />
             </Suspense>
           )}
         </div>

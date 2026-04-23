@@ -6,10 +6,40 @@ import { getReferenceData } from "@/app/actions/reference/get-reference-data.act
 import { MakeDoctorPaymentClient } from "./make-doctor-payment-client";
 import { fetchServerSession } from "@/lib/session";
 import { BackButton } from "@/components/common/back-button";
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 
 type MakeDoctorPaymentPageProps = {
   searchParams?: Promise<{ doctorId?: string }>;
 };
+
+const VALID_PAYMENT_METHODS = [
+  RECEIPT_PAYMENT_METHOD.CASH,
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.AGENT,
+  RECEIPT_PAYMENT_METHOD.CREDIT,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+] as const;
+
+function getWhtPercentage(): number {
+  const raw = process.env.WHT_PERCENTAGE;
+  if (raw == null || raw === "") return 0;
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+}
+
+function getDoctorPaymentMethodCodes(): number[] {
+  const raw = process.env.DOCTOR_PAYMENT_METHODS;
+  if (raw == null || String(raw).trim() === "") {
+    return [RECEIPT_PAYMENT_METHOD.CASH];
+  }
+  const parsed = String(raw)
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n) && VALID_PAYMENT_METHODS.includes(n as (typeof VALID_PAYMENT_METHODS)[number]));
+  return parsed.length > 0 ? parsed : [RECEIPT_PAYMENT_METHOD.CASH];
+}
 
 export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctorPaymentPageProps) {
   const params = await searchParams;
@@ -51,6 +81,8 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
           userId={userId}
           locationId={userLocationId}
           initialDoctorId={initialDoctorId}
+          whtPercentage={getWhtPercentage()}
+          doctorPaymentMethodCodes={getDoctorPaymentMethodCodes()}
         />
       </div>
     </div>

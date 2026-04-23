@@ -1,6 +1,8 @@
 export type CashierDrawerBalanceReportQuery = {
-  /** YYYY-MM-DD */
-  date: string;
+  /** YYYY-MM-DDTHH:mm */
+  asOfDateTime: string;
+  /** '__all__' or location id */
+  locationId?: string;
 };
 
 export type CashierDrawerBalanceReportRow = {

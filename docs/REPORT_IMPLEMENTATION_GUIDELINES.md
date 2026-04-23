@@ -154,6 +154,7 @@ For `ReportTemplate` reports:
   - tabular nums for numeric columns
 - Keep count columns centered when requested.
 - Keep monetary columns right-aligned by default.
+- If a column's values are right-aligned, its header must also be right-aligned.
 - Make totals row visually stronger (`font-semibold` and muted background).
 
 ## 8) Export / Print Rules
