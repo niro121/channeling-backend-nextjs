@@ -96,29 +96,46 @@ export default async function AccountEditPage({ params }: Props) {
 
         {/* Context: which account is being edited */}
         <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-4 sm:p-6">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div>
-              <span className="text-sm text-muted-foreground">Account</span>
-              <p className="font-medium">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-md border bg-background/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Account</p>
+              <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
                 {account.name}
-                {account.code && (
-                  <span className="ml-2 text-muted-foreground font-normal">({account.code})</span>
-                )}
               </p>
+              {account.code ? (
+                <p className="mt-1 text-xs text-muted-foreground">Code: {account.code}</p>
+              ) : null}
             </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Type</span>
-              <p className="font-medium">{typeLabel}</p>
+
+            <div className="rounded-md border bg-background/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Type</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{typeLabel}</p>
             </div>
-            {account.id && (
-              <Button size="sm" variant="outline" className="gap-1.5 mt-1" asChild>
+
+            {account.userId && account.user ? (
+              <div className="rounded-md border bg-background/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Linked user</p>
+                <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
+                  {account.user.name}
+                  {account.user.staffCode ? (
+                    <span className="ml-1 text-muted-foreground font-medium">({account.user.staffCode})</span>
+                  ) : null}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground break-all">{account.user.email}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {account.id && (
+            <div className="flex justify-start">
+              <Button size="sm" variant="outline" className="gap-1.5" asChild>
                 <Link href={`/accounting/${account.id}/statement`}>
                   <BookOpen className="h-4 w-4" />
                   View statement
                 </Link>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

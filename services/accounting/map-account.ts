@@ -24,6 +24,7 @@ export function mapAccount(
     agency?: { id: string; name: string; code: string | null } | null;
     creditCustomer?: { id: string; name: string; code: string | null } | null;
     parentAccount?: { id: string; name: string; code: string | null } | null;
+    user?: { id: string; name: string; email: string; staff: { code: string } | null } | null;
   }
 ): Account {
   return {
@@ -46,5 +47,13 @@ export function mapAccount(
     doctor: row.doctor ?? null,
     agency: row.agency ?? null,
     creditCustomer: row.creditCustomer ?? null,
+    user: row.user
+      ? {
+          id: row.user.id,
+          name: row.user.name,
+          email: row.user.email,
+          staffCode: row.user.staff?.code ?? null,
+        }
+      : null,
   };
 }

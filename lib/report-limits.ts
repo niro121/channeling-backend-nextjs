@@ -17,7 +17,8 @@ type ReportLimitKey =
   | 'channel_patient_count_accounting_wise'
   | 'channel_income_accounting_wise'
   | 'channel_discount_report'
-  | 'withholding_tax';
+  | 'withholding_tax'
+  | 'cash_book';
 
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);

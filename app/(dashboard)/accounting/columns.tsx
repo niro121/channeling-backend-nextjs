@@ -56,6 +56,26 @@ export const AccountingColumns: ColumnDef<AccountWithBalance>[] = [
     },
   },
   {
+    id: 'linkedUser',
+    header: 'Linked user',
+    cell: ({ row }) => {
+      const acc = row.original;
+      if (!acc.userId) return <span className="text-muted-foreground">-</span>;
+      if (!acc.user) return <span className="text-muted-foreground">{acc.userId}</span>;
+      return (
+        <div className="flex flex-col">
+          <span>
+            {acc.user.name}
+            {acc.user.staffCode ? (
+              <span className="ml-1 text-muted-foreground">({acc.user.staffCode})</span>
+            ) : null}
+          </span>
+          <span className="text-xs text-muted-foreground">{acc.user.email}</span>
+        </div>
+      );
+    },
+  },
+  {
     id: 'minBalanceAllowed',
     header: 'Min balance',
     cell: ({ row }) => {

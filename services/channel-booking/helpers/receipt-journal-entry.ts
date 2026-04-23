@@ -14,6 +14,8 @@ import type { CreateJournalEntryInput } from '@/types/accounting';
 import { REFERENCE_TYPES } from '@/types/accounting';
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type { CreatedReceipt } from './create-receipt-for-booking';
+import { resolveTillForUserAndLocation } from '@/services/accounting/till.service';
+import prisma from '@/lib/prisma';
 
 export type ReceiptJournalAccounts = {
   /** Branch/location cash book (required for cash/liability-only ledger receipts). */
@@ -635,6 +637,8 @@ export function buildReceiptJournalEntryInput(
 export async function resolveReceiptJournalAccounts(params: {
   locationId: string | null;
   createdBy: string | null;
+  /** Prefer this location for till resolution; if not provided we use the user's current userLocationId. */
+  userLocationId?: string | null;
   agencyId: string | null;
   creditCustomerId?: string | null;
   /** When provided (e.g. channel payment with booking), resolve doctor PAYABLE for fee-split journal: branch = hospital fee, doctor = professional fee. */
@@ -669,12 +673,22 @@ export async function resolveReceiptJournalAccounts(params: {
 
   let cashierAccountId: string | null = null;
   if (params.needTill && params.createdBy) {
-    const res = await getOrCreateAccount({
-      type: 'CASH',
-      userId: params.createdBy,
-      name: `Till - Cashier`,
-    });
-    if (res.success) cashierAccountId = res.account.id;
+    let tillLocationId = params.userLocationId ?? null;
+    if (!tillLocationId) {
+      const user = await prisma.user.findUnique({
+        where: { id: params.createdBy },
+        select: { userLocationId: true },
+      });
+      tillLocationId = user?.userLocationId ?? null;
+    }
+    if (!tillLocationId) {
+      tillLocationId = params.locationId;
+    }
+    if (!tillLocationId) {
+      return { error: 'User location is required to resolve till account.', errorCode: 'LOCATION_REQUIRED_FOR_TILL' };
+    }
+    const till = await resolveTillForUserAndLocation(params.createdBy, tillLocationId);
+    cashierAccountId = till.accountId;
   }
 
   let agentAccountId: string | null = null;
@@ -733,6 +747,8 @@ export async function requireReceiptJournalAccounts(
   params: {
     locationId: string | null;
     createdBy: string | null;
+    /** Prefer this location for till resolution; if not provided we use the user's current userLocationId. */
+    userLocationId?: string | null;
     agencyId: string | null;
     creditCustomerId?: string | null;
     /** For channel payment fee-split journal (branch = hospital fee, doctor = professional fee). */
@@ -796,6 +812,8 @@ export async function resolveDoctorPaymentAccounts(params: {
   doctorId: string;
   locationId: string | null;
   createdBy: string | null;
+  /** Prefer this location for till resolution; if not provided we use the user's current userLocationId. */
+  userLocationId?: string | null;
   paymentMethod: number;
 }): Promise<ReceiptJournalAccounts | { error: string }> {
   const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
@@ -812,13 +830,22 @@ export async function resolveDoctorPaymentAccounts(params: {
 
   let cashierAccountId: string | null = null;
   if (params.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH && params.createdBy) {
-    const res = await getOrCreateAccount({
-      type: 'CASH',
-      userId: params.createdBy,
-      name: 'Till - Cashier',
-    });
-    if (!res.success) return { error: res.error };
-    cashierAccountId = res.account.id;
+    let tillLocationId = params.userLocationId ?? null;
+    if (!tillLocationId) {
+      const user = await prisma.user.findUnique({
+        where: { id: params.createdBy },
+        select: { userLocationId: true },
+      });
+      tillLocationId = user?.userLocationId ?? null;
+    }
+    if (!tillLocationId) {
+      tillLocationId = params.locationId;
+    }
+    if (!tillLocationId) {
+      return { error: 'User location is required to resolve till account.' };
+    }
+    const till = await resolveTillForUserAndLocation(params.createdBy, tillLocationId);
+    cashierAccountId = till.accountId;
   }
 
   const doctorRes = await getOrCreateAccount({
