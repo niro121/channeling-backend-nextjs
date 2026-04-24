@@ -38,6 +38,7 @@ import {
   Workflow,
   CheckSquare,
   SlidersHorizontal,
+  LayoutGrid,
 } from "lucide-react";
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -101,10 +102,21 @@ export function DesktopSidebar({
         </Link>
       </div>
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        {(hasAccess("/channel-booking") || hasAccess("/sessions") || hasAccess("/shifts") || hasAccess("/handovers")) && (
+        {(hasAccess("/channel-booking") ||
+          hasAccess("/channel-room-dashboard") ||
+          hasAccess("/sessions") ||
+          hasAccess("/shifts") ||
+          hasAccess("/handovers")) && (
           <SidebarGroup label="Channeling">
             {hasAccess("/channel-booking") && (
               <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />
+            )}
+            {hasAccess("/channel-room-dashboard") && (
+              <NavLink
+                href="/channel-room-dashboard"
+                label="Channel Room Dashboard"
+                icon={<LayoutGrid className="h-5 w-5" />}
+              />
             )}
             {hasAccess("/handovers") && (
               <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />

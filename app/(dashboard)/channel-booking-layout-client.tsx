@@ -10,6 +10,7 @@ import { Session } from "next-auth";
 
 const CHANNEL_BOOKING_PATH = "/channel-booking";
 const REPORTS_PATH = "/reports";
+const CHANNEL_ROOM_DASHBOARD_PATH = "/channel-room-dashboard";
 
 export function ChannelBookingLayoutClient({
   session,
@@ -23,7 +24,8 @@ export function ChannelBookingLayoutClient({
   const pathname = usePathname();
   const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH);
   const isReports = pathname?.startsWith(REPORTS_PATH);
-  const isSidebarAutoCollapsedPage = isChannelBooking || isReports;
+  const isChannelRoomDashboard = pathname?.startsWith(CHANNEL_ROOM_DASHBOARD_PATH);
+  const isSidebarAutoCollapsedPage = isChannelBooking || isReports || isChannelRoomDashboard;
   const [sidebarOpen, setSidebarOpen] = useState(!isSidebarAutoCollapsedPage);
 
   // When navigating to/from focus pages, sync sidebar state

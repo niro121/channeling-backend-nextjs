@@ -7,6 +7,7 @@ export type Room = {
   number: string
   description: string
   status: number // == 0: unpublish, 1: publish == //
+  currentOccupiedSessionId?: string | null
   locationId: string | null
   location?: Location | null
   zoneId: string | null
