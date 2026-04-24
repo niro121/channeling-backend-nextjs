@@ -76,6 +76,21 @@ export const RoomColumns: ColumnDef<Room>[] = [
     }
   },
   {
+    id: 'occupancy',
+    header: 'Occupancy',
+    cell: ({ row }) => {
+      const occupied = Boolean(row.original.currentOccupiedSessionId);
+      return (
+        <Badge
+          variant={occupied ? 'secondary' : 'default'}
+          className={occupied ? 'bg-amber-100 text-amber-800 hover:bg-amber-100' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'}
+        >
+          {occupied ? 'Occupied' : 'Available'}
+        </Badge>
+      );
+    }
+  },
+  {
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => {

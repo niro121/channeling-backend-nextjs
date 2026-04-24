@@ -21,6 +21,7 @@ app.prepare().then(() => {
   })
 
   const CHANNEL_BOOKING_PREFIX = 'channel-booking:'
+  const CHANNEL_ROOM_PREFIX = 'channel-room:'
   const FLOAT_REQUEST_PREFIX = 'float-request:'
   const FLOAT_BALANCE_PREFIX = 'float-balance:'
   const SHIFT_PREFIX = 'shift:'
@@ -31,6 +32,15 @@ app.prepare().then(() => {
       const rooms = Array.from(socket.rooms)
       for (const r of rooms) {
         if (r.startsWith(CHANNEL_BOOKING_PREFIX) && r !== exceptRoom) {
+          socket.leave(r)
+        }
+      }
+    }
+
+    function leaveChannelRoomRoomsExcept(socket, exceptRooms) {
+      const rooms = Array.from(socket.rooms)
+      for (const r of rooms) {
+        if (r.startsWith(CHANNEL_ROOM_PREFIX) && !exceptRooms.has(r)) {
           socket.leave(r)
         }
       }
@@ -53,6 +63,38 @@ app.prepare().then(() => {
       if (doctorId) {
         const room = `${CHANNEL_BOOKING_PREFIX}${doctorId}`
         socket.leave(room)
+      }
+    })
+
+    socket.on('channel-room:subscribe', (payload) => {
+      const { locationIds = [], institutionIds = [] } = payload || {}
+      const joinSet = new Set()
+      for (const id of locationIds) {
+        if (id && String(id).trim()) {
+          joinSet.add(`${CHANNEL_ROOM_PREFIX}location:${String(id).trim()}`)
+        }
+      }
+      for (const raw of institutionIds) {
+        const n = Number(raw)
+        if (Number.isFinite(n)) {
+          joinSet.add(`${CHANNEL_ROOM_PREFIX}institution:${n}`)
+        }
+      }
+      leaveChannelRoomRoomsExcept(socket, joinSet)
+      for (const room of joinSet) {
+        socket.join(room)
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[socket] channel-room:subscribe', { rooms: [...joinSet], socketId: socket.id })
+      }
+    })
+
+    socket.on('channel-room:unsubscribe', () => {
+      const rooms = Array.from(socket.rooms)
+      for (const r of rooms) {
+        if (r.startsWith(CHANNEL_ROOM_PREFIX)) {
+          socket.leave(r)
+        }
       }
     })
 

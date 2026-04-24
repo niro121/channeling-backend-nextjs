@@ -24,6 +24,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import prisma from '@/lib/prisma';
 
 type CreateRoomPayload = RoomFormValues & {
   createdBy?: string;
@@ -442,3 +443,41 @@ export const checkRoomsHaveLinkedRecords = async (
     }
   }
 }
+
+// ==== FORCE RELEASE ROOM OCCUPANCY ==== //
+export const forceReleaseRoom = async (id: string) => {
+  await requirePermission('rooms', 'edit');
+
+  try {
+    const roomModel = (prisma as unknown as {
+      room: {
+        update: (args: object) => Promise<{ id: string; number: string }>
+      }
+    }).room;
+    const room = await roomModel.update({
+      where: { id },
+      data: { currentOccupiedSessionId: null },
+      select: { id: true, number: true }
+    });
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'rooms.room.forceReleased',
+        entityType: 'Room',
+        entityId: id,
+        importance: 'high',
+      });
+    }
+    revalidatePath('/rooms');
+    return { success: true, data: room };
+  } catch (error: any) {
+    console.error('forceReleaseRoom error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to force release room'
+      }
+    };
+  }
+};

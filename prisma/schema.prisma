@@ -324,6 +324,8 @@ model Session {
   status                Int // == 1: ACTIVE. 0: Session unavailable | LEAVE: Doctor leave (DoctorSession status) == //
   remarks               String?
   appointmentNo         Int      @default(0)
+  /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
+  channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
 
   createdBy String?  @db.ObjectId
@@ -431,6 +433,8 @@ model Room {
   number          String
   description     String
   status          Int // == 0: unpublish, 1: publish == //
+  /// Occupancy lock owner session id (nullable). Set on arrival and released on departure/force-release.
+  currentOccupiedSessionId String? @db.ObjectId
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
@@ -979,6 +983,13 @@ model Booking {
   movedBy                   String?   @db.ObjectId
   movedAt                   DateTime?
   movedRemarks              String?
+
+  /// Channel room: null = not marked; 1 = showed; 2 = no-show
+  channelRoomAttendance     Int?
+  channelRoomAttendanceAt   DateTime?
+  channelRoomAttendanceBy   String?   @db.ObjectId
+  /// Channel room attendance activity log: [{ from, to, at, by }]
+  channelRoomAttendanceHistory Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
