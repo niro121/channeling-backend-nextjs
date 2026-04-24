@@ -157,6 +157,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/api-log'
   },
   {
+    id: '40',
+    rank: 40,
+    masterData: 'Receipt Report',
+    description: 'Shows all receipts for a date/time range with type filter (all, channel, other) and receipt number.',
+    route: '/reports/channel-report-receipt-wise'
+  },
+  {
     id: '32',
     rank: 32,
     masterData: 'Agent History(Credit Limit Update)',
@@ -243,6 +250,7 @@ export default async function ReportsPage() {
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
       '/reports/channel-transfer',
+      '/reports/channel-report-receipt-wise',
     ].includes(r.route)
   );
   const agents = reportsData.filter((r) =>
