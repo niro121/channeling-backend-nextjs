@@ -11,7 +11,7 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getCurrentShift } from "@/services/shift.service"
-import { getOrCreateAccount, createJournalEntry } from "@/services/accounting.service"
+import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
@@ -346,15 +346,12 @@ export async function approveHandover(
 
   let journalId: string | null = null
   if (totalCents > 0) {
-    const toAccountResult = await getOrCreateAccount({
-      type: "CASH",
-      userId: handover.toUserId,
-      name: "Till - Cashier",
-    })
-    if (!toAccountResult.success) {
-      return { success: false, error: toAccountResult.error ?? "Could not get or create recipient till." }
+    const recipientTillLocationId = handover.shift.locationId ?? approverShift.locationId ?? null
+    if (!recipientTillLocationId) {
+      return { success: false, error: "Cannot resolve branch location for recipient till." }
     }
-    const toAccountId = toAccountResult.account.id
+    const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
+    const toAccountId = toTill.accountId
 
     const methodAmounts: { method: number; amount: number }[] = [
       { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handover.cashCents },

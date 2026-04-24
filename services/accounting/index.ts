@@ -30,6 +30,13 @@ export {
   type TillBalanceBreakdown,
 } from './balance.service';
 export { getTillBalanceCentsByMethod } from '@/lib/accounting/till-balance-by-method';
+export {
+  ensureTillForUserLocation,
+  resolveActiveTillForUserLocation,
+  resolveTillForUserAndLocation,
+  listTillsForUser,
+  type ResolvedTill,
+} from './till.service';
 
 // Journals
 export {

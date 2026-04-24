@@ -200,7 +200,7 @@ export default function DoctorForm({
                 {doctor.accountId ? (
                   <>
                     <div className={styleClasses.parentDiv}>
-                      <Label className={styleClasses.labelClassName}>Current balance (from account)</Label>
+                      <Label className={styleClasses.labelClassName}>Current cash balance</Label>
                       <div className={styleClasses.inputClassName}>
                         <span className="font-medium tabular-nums">
                           {formatLKR(Number(doctor.balance ?? 0))}
@@ -226,7 +226,7 @@ export default function DoctorForm({
                         </Link>
                       </Button>
                       <Button size="sm" className="gap-1.5" asChild>
-                        <Link href={`/accounting/${doctor.accountId}/statement`} target="_blank" rel="noopener noreferrer">
+                        <Link href={`/accounting/${doctor.accountId}/edit`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-4 w-4" />
                           Open account
                         </Link>

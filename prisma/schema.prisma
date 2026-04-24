@@ -93,6 +93,7 @@ model User {
   staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   bookingLocations        UserBookingLocation[]
   accounts                Account[]                     @relation("UserToAccount")
+  tills                   Till[]                        @relation("UserToTill")
   floatRequestsRequested  FloatRequest[]                @relation("FloatRequestRequestedBy")
   floatRequestsAsBulkCashier FloatRequest[]             @relation("FloatRequestBulkCashier")
   floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
@@ -399,9 +400,9 @@ model Location {
   createdUser          User?                 @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?                 @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
   accounts             Account[]             @relation("LocationToAccount")
+  tills                Till[]                @relation("LocationToTill")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
-  bankAccounts         BankAccount[]         @relation("LocationToBankAccount")
 }
 
 model BankAccount {
@@ -410,8 +411,9 @@ model BankAccount {
   accountNumber String
   bankId        String   @db.ObjectId
   bank          Tag      @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
-  locationId    String   @db.ObjectId
-  location      Location @relation("LocationToBankAccount", fields: [locationId], references: [id], onDelete: Restrict)
+  institution   Int
+  accountId     String?  @db.ObjectId
+  account       Account? @relation("BankAccountToAccount", fields: [accountId], references: [id], onDelete: SetNull)
   status        Int      @default(1) // 0 = inactive, 1 = active
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -419,7 +421,8 @@ model BankAccount {
   updatedBy     String?  @db.ObjectId
 
   @@index([bankId])
-  @@index([locationId])
+  @@index([institution])
+  @@index([accountId])
   @@index([status])
 }
 
@@ -501,6 +504,8 @@ model FloatRequest {
   fromAccount           Account?            @relation("FloatRequestFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
   toAccountId           String?             @db.ObjectId
   toAccount             Account?            @relation("FloatRequestToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
+  toTillId              String?             @db.ObjectId
+  toTill                Till?               @relation("FloatRequestToTill", fields: [toTillId], references: [id], onDelete: SetNull)
   shiftId               String?             @db.ObjectId
   shift                 Shift?              @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   approvedAt             DateTime?
@@ -524,6 +529,7 @@ model FloatRequest {
   @@index([bulkCashierId, status])
   @@index([requestedById])
   @@index([status])
+  @@index([toTillId])
 }
 
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
@@ -1063,8 +1069,31 @@ model Account {
   updatedAt           DateTime     @updatedAt
 
   journalLines    JournalLine[]
+  tills           Till[] @relation("TillToAccount")
   floatRequestsFrom FloatRequest[] @relation("FloatRequestFromAccount")
   floatRequestsTo   FloatRequest[] @relation("FloatRequestToAccount")
+  bankAccounts      BankAccount[]  @relation("BankAccountToAccount")
+}
+
+model Till {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId   String   @db.ObjectId
+  account     Account  @relation("TillToAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  userId      String   @db.ObjectId
+  user        User     @relation("UserToTill", fields: [userId], references: [id], onDelete: Cascade)
+  locationId  String   @db.ObjectId
+  location    Location @relation("LocationToTill", fields: [locationId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(true)
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  floatRequests FloatRequest[] @relation("FloatRequestToTill")
+
+  @@unique([accountId])
+  @@index([userId, locationId, isActive])
+  @@index([locationId, isActive])
 }
 
 model Journal {

@@ -44,6 +44,15 @@ export type Account = {
   doctor?: { id: string; name: string; code: string } | null;
   agency?: { id: string; name: string; code: string | null } | null;
   creditCustomer?: { id: string; name: string; code: string | null } | null;
+  user?: { id: string; name: string; email: string; staffCode: string | null } | null;
+  bankAccounts?: Array<{
+    id: string;
+    name: string;
+    accountNumber: string;
+    bankId: string;
+    bankName: string | null;
+    institution: number;
+  }>;
 };
 
 export type Journal = {

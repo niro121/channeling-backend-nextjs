@@ -24,6 +24,15 @@ export function mapAccount(
     agency?: { id: string; name: string; code: string | null } | null;
     creditCustomer?: { id: string; name: string; code: string | null } | null;
     parentAccount?: { id: string; name: string; code: string | null } | null;
+    user?: { id: string; name: string; email: string; staff: { code: string } | null } | null;
+    bankAccounts?: Array<{
+      id: string;
+      name: string;
+      accountNumber: string;
+      bankId: string;
+      institution: number;
+      bank?: { name: string | null } | null;
+    }>;
   }
 ): Account {
   return {
@@ -46,5 +55,21 @@ export function mapAccount(
     doctor: row.doctor ?? null,
     agency: row.agency ?? null,
     creditCustomer: row.creditCustomer ?? null,
+    user: row.user
+      ? {
+          id: row.user.id,
+          name: row.user.name,
+          email: row.user.email,
+          staffCode: row.user.staff?.code ?? null,
+        }
+      : null,
+    bankAccounts: row.bankAccounts?.map((bankAccount) => ({
+      id: bankAccount.id,
+      name: bankAccount.name,
+      accountNumber: bankAccount.accountNumber,
+      bankId: bankAccount.bankId,
+      bankName: bankAccount.bank?.name ?? null,
+      institution: bankAccount.institution,
+    })) ?? [],
   };
 }

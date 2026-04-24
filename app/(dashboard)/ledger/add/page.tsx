@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import prisma from "@/lib/prisma"
 import { getReferenceData } from "@/app/actions/reference/get-reference-data.action"
 import { getBanksForChannelBooking } from "@/app/actions/channel-booking/get-banks.action"
+import { getActiveBankAccountOptionsForLedger } from "@/app/actions/bank-account.actions"
 import { LedgerTransactionForm } from "../ledger-transaction-form"
 import { BackButton } from "@/components/common/back-button"
 
@@ -32,9 +33,10 @@ export default async function LedgerAddPage() {
     userLocationName = user?.userLocation?.name ?? null
   }
 
-  const [refRes, banksRes] = await Promise.all([
+  const [refRes, banksRes, bankAccountsRes] = await Promise.all([
     getReferenceData({ locations: true, agencies: true }),
     getBanksForChannelBooking(),
+    getActiveBankAccountOptionsForLedger(),
   ])
 
   const locations = refRes.success && refRes.locations ? refRes.locations : []
@@ -44,6 +46,7 @@ export default async function LedgerAddPage() {
     banksRes.success && banksRes.data
       ? banksRes.data.map((b) => ({ id: b.id, name: b.name }))
       : []
+  const bankAccounts = bankAccountsRes.success && bankAccountsRes.data ? bankAccountsRes.data : []
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -56,6 +59,7 @@ export default async function LedgerAddPage() {
           locations={locations}
           agencies={agencies}
           banks={banks}
+          bankAccounts={bankAccounts}
           userLocationId={userLocationId}
           userLocationName={userLocationName}
         />

@@ -106,6 +106,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-bookings'
   },
   {
+    id: '21a',
+    rank: 22,
+    masterData: 'Agent Wise Appointments - Summary and Detail',
+    description:
+      'Agent channel appointments by session date & time with institution, branch, department, and agent filters; summary counts per month or full detail with fee totals.',
+    route: '/reports/agent-wise-appointments'
+  },
+  {
     id: '24',
     rank: 24,
     masterData: 'All Cashier Summary and Detail Report',
@@ -149,6 +157,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/api-log'
   },
   {
+    id: '40',
+    rank: 40,
+    masterData: 'Receipt Report',
+    description: 'Shows all receipts for a date/time range with type filter (all, channel, other) and receipt number.',
+    route: '/reports/channel-report-receipt-wise'
+  },
+  {
     id: '32',
     rank: 32,
     masterData: 'Agent History(Credit Limit Update)',
@@ -186,9 +201,23 @@ const reportsData: ReportListItem[] = [
   {
     id: '37',
     rank: 37,
+    masterData: 'Cash Book',
+    description: 'Statement-style report for a selected cash book within a date range.',
+    route: '/reports/cash-book'
+  },
+  {
+    id: '38',
+    rank: 38,
     masterData: 'Agency Balance Confirmation Letter',
     description: 'Check agency balance confirmation letter.',
     route: '/reports/agent-balance-confirmation-letter'
+  },
+  {
+    id: '39',
+    rank: 39,
+    masterData: 'Bank Deposits',
+    description: 'Lists bank deposit receipts with date/time range and bank account filters.',
+    route: '/reports/bank-deposits'
   }
 ];
 
@@ -221,6 +250,7 @@ export default async function ReportsPage() {
       '/reports/channel-bookings',
       '/reports/channel-schedule-with-charges',
       '/reports/channel-transfer',
+      '/reports/channel-report-receipt-wise',
     ].includes(r.route)
   );
   const agents = reportsData.filter((r) =>
@@ -233,10 +263,18 @@ export default async function ReportsPage() {
       '/reports/agent-history-credit-limit-update',
       '/reports/agent-collection-receipt',
       '/reports/agent-balance-confirmation-letter',
+      '/reports/agent-wise-appointments',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
-    ['/reports/all-cashier-summary-detail', '/reports/cashier-summary', '/reports/cashier-drawer-balance', '/reports/card-summary-bank-wise'].includes(r.route)
+    [
+      '/reports/all-cashier-summary-detail',
+      '/reports/cashier-summary',
+      '/reports/cashier-drawer-balance',
+      '/reports/card-summary-bank-wise',
+      '/reports/cash-book',
+      '/reports/bank-deposits',
+    ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
     ['/reports/sms-reports', '/reports/api-log'].includes(r.route)

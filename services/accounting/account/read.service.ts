@@ -18,6 +18,7 @@ export async function getCashAccountByUserId(userId: string): Promise<Account | 
       location: { select: { id: true, name: true } },
       doctor: { select: { id: true, name: true, code: true } },
       agency: { select: { id: true, name: true, code: true } },
+      user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
     },
   });
   return row ? mapAccount(row) : null;
@@ -33,6 +34,7 @@ export async function getMainCashBookAccount(): Promise<Account | null> {
     },
     include: {
       location: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
     },
   });
   return row ? mapAccount(row) : null;
@@ -50,6 +52,7 @@ export async function getCashBookAccountForBranch(
     },
     include: {
       location: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
     },
   });
   return row ? mapAccount(row) : null;
@@ -65,6 +68,18 @@ export async function getAccountById(id: string): Promise<Account | null> {
       doctor: { select: { id: true, name: true, code: true } },
       agency: { select: { id: true, name: true, code: true } },
       creditCustomer: { select: { id: true, name: true, code: true } },
+      user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
+      bankAccounts: {
+        select: {
+          id: true,
+          name: true,
+          accountNumber: true,
+          bankId: true,
+          institution: true,
+          bank: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
   return row ? mapAccount(row) : null;
@@ -114,6 +129,7 @@ export async function getAllAccounts(
         doctor: { select: { id: true, name: true, code: true } },
         agency: { select: { id: true, name: true, code: true } },
         creditCustomer: { select: { id: true, name: true, code: true } },
+        user: { select: { id: true, name: true, email: true, staff: { select: { code: true } } } },
       },
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
       skip: page * limit,

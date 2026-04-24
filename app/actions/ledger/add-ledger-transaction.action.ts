@@ -22,13 +22,14 @@ const AGENCY_TYPES = [
 
 const addLedgerTransactionSchema = z.object({
   transactionType: z.enum(LEDGER_TRANSACTION_TYPES as unknown as [string, ...string[]]),
-  branchId: z.string().min(1, "Branch is required"),
+  branchId: z.string().optional().nullable(),
   agencyId: z.string().optional().nullable(),
   amount: z.number().positive("Amount must be positive"),
   remarks: z.string().min(1, "Remarks are required").trim(),
   paymentMethod: z.number().optional().nullable(),
   bank: z.string().optional(),
   bankId: z.string().optional().nullable(),
+  bankAccountId: z.string().optional().nullable(),
   cardReference: z.string().optional(),
   slipReference: z.string().optional(),
 })
@@ -58,19 +59,30 @@ export async function addLedgerTransaction(
 
   const { transactionType, branchId: clientBranchId, agencyId, amount, remarks } = parsed.data
   const isAgencyType = (AGENCY_TYPES as readonly string[]).includes(transactionType)
+  const isBankDeposit = transactionType === "BANK_DEPOSIT"
+  let userLocationId: string | null = null
 
-  // For agency types, branch is the user's location (not from form); use DB to avoid trusting client.
-  let branchId = clientBranchId
-  if (isAgencyType) {
+  // For agency and bank-deposit types, branch is the user's location (not from form).
+  let branchId = clientBranchId ?? ""
+  if (isAgencyType || isBankDeposit) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { userLocationId: true },
     })
-    const userLocationId = user?.userLocationId ?? null
+    userLocationId = user?.userLocationId ?? null
     if (!userLocationId?.trim()) {
-      return { success: false, message: "You must have a branch assigned to record agency transactions.", errorCode: "VALIDATION" }
+      return {
+        success: false,
+        message: isBankDeposit
+          ? "You must have a branch assigned to record bank deposits."
+          : "You must have a branch assigned to record agency transactions.",
+        errorCode: "VALIDATION",
+      }
     }
     branchId = userLocationId
+  }
+  if (!isAgencyType && !isBankDeposit && !branchId.trim()) {
+    return { success: false, message: "Branch is required.", errorCode: "VALIDATION" }
   }
 
   if (isAgencyType && !agencyId?.trim()) {
@@ -86,11 +98,15 @@ export async function addLedgerTransaction(
       return { success: false, message: "Bank is required for Card or Slip.", errorCode: "VALIDATION" }
     }
   }
+  if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
+    return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
+  }
 
   try {
     const result = await createLedgerReceipt({
       transactionType: transactionType as LedgerTransactionType,
       branchId,
+      userLocationId,
       agencyId: agencyId ?? null,
       amount,
       remarks,
@@ -98,6 +114,7 @@ export async function addLedgerTransaction(
       paymentMethod: parsed.data.paymentMethod ?? undefined,
       bank: parsed.data.bank,
       bankId: parsed.data.bankId ?? undefined,
+      bankAccountId: parsed.data.bankAccountId ?? undefined,
       cardReference: parsed.data.cardReference,
       slipReference: parsed.data.slipReference,
     })

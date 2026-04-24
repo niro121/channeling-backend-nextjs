@@ -8,28 +8,25 @@ import type {
   CashierDrawerBalanceReportRow
 } from '@/types/reports/cashier-drawer-balance';
 
-function parseLocalDay(dateStr: string): { start: Date; end: Date } | null {
-  const s = (dateStr ?? '').trim();
+function parseAsOfDateTime(value: string): Date | null {
+  const s = (value ?? '').trim();
   if (!s) return null;
-  const [y, m, d] = s.split('-').map(Number);
-  if (!y || !m || !d) return null;
-  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
-  return { start, end };
+  const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? d : null;
 }
 
 export async function getCashierDrawerBalanceReportService(
   query: CashierDrawerBalanceReportQuery
 ): Promise<{ success: boolean; data: CashierDrawerBalanceReportRow[]; totalRecords: number; message?: string }> {
-  const parsed = parseLocalDay(query.date);
-  if (!parsed) {
-    return { success: false, data: [], totalRecords: 0, message: 'Date is required.' };
+  const asOfDateTime = parseAsOfDateTime(query.asOfDateTime);
+  if (!asOfDateTime) {
+    return { success: false, data: [], totalRecords: 0, message: 'As-of date/time is required.' };
   }
 
-  const asOfEnd = parsed.end;
+  const locationId = query.locationId && query.locationId !== '__all__' ? query.locationId : null;
 
   const tills = await prisma.account.findMany({
-    where: { type: 'CASH', isActive: true, userId: { not: null } },
+    where: { type: 'CASH', isActive: true, userId: { not: null }, ...(locationId ? { locationId } : {}) },
     select: {
       id: true,
       name: true,
@@ -46,11 +43,37 @@ export async function getCashierDrawerBalanceReportService(
 
   const accountIds = tills.map((t) => t.id);
 
+  // Mongo-safe two-step date filter: resolve journal ids first, then filter journal lines by journalId.
+  const journals = await prisma.journal.findMany({
+    where: { date: { lte: asOfDateTime } },
+    select: { id: true },
+    orderBy: { date: 'asc' }
+  });
+  const journalIds = journals.map((j) => j.id);
+  if (!journalIds.length) {
+    const data: CashierDrawerBalanceReportRow[] = tills.map((t) => ({
+      tillAccountId: t.id,
+      tillAccountName: t.name ?? null,
+      tillAccountCode: t.code ?? null,
+      cashierUserId: t.userId ?? null,
+      cashierName: t.user?.name ?? null,
+      cashierStaffCode: t.user?.staff?.code ?? null,
+      cashCents: 0,
+      cardCents: 0,
+      slipCents: 0,
+      checkCents: 0,
+      creditCents: 0,
+      eWalletCents: 0,
+      totalCents: 0
+    }));
+    return { success: true, data, totalRecords: data.length };
+  }
+
   const grouped = await prisma.journalLine.groupBy({
     by: ['accountId', 'paymentMethod'],
     where: {
       accountId: { in: accountIds },
-      journal: { date: { lte: asOfEnd } }
+      journalId: { in: journalIds }
     },
     _sum: { debitAmount: true, creditAmount: true }
   });

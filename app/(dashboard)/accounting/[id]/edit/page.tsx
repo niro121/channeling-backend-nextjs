@@ -85,6 +85,46 @@ export default async function AccountEditPage({ params }: Props) {
   ];
 
   const typeLabel = types.find((t) => t.value === account.type)?.label ?? account.type;
+  const linkedEntities: Array<{ label: string; value: string; subValue?: string }> = [];
+  if (account.userId && account.user) {
+    linkedEntities.push({
+      label: 'User',
+      value: account.user.staffCode ? `${account.user.name} (${account.user.staffCode})` : account.user.name,
+      subValue: account.user.email,
+    });
+  }
+  if (account.doctorId && account.doctor) {
+    linkedEntities.push({
+      label: 'Doctor',
+      value: `${account.doctor.name} (${account.doctor.code})`,
+    });
+  }
+  if (account.agencyId && account.agency) {
+    linkedEntities.push({
+      label: 'Agency',
+      value: `${account.agency.name}${account.agency.code ? ` (${account.agency.code})` : ''}`,
+    });
+  }
+  if (account.creditCustomerId && account.creditCustomer) {
+    linkedEntities.push({
+      label: 'Credit customer',
+      value: `${account.creditCustomer.name}${account.creditCustomer.code ? ` (${account.creditCustomer.code})` : ''}`,
+    });
+  }
+  if (account.locationId && account.location) {
+    linkedEntities.push({
+      label: 'Location',
+      value: account.location.name,
+    });
+  }
+  const bankAccountLink = account.bankAccounts?.[0];
+  if (bankAccountLink) {
+    linkedEntities.push({
+      label: 'Bank account',
+      value: `${bankAccountLink.name}${bankAccountLink.bankName ? ` - ${bankAccountLink.bankName}` : ''}`,
+      subValue: `A/C: ${bankAccountLink.accountNumber}`,
+    });
+  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -96,29 +136,49 @@ export default async function AccountEditPage({ params }: Props) {
 
         {/* Context: which account is being edited */}
         <div className="grid gap-4 rounded-lg border-2 border-primary/30 bg-primary/5 p-4 sm:p-6">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div>
-              <span className="text-sm text-muted-foreground">Account</span>
-              <p className="font-medium">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-md border bg-background/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Account</p>
+              <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
                 {account.name}
-                {account.code && (
-                  <span className="ml-2 text-muted-foreground font-normal">({account.code})</span>
-                )}
               </p>
+              {account.code ? (
+                <p className="mt-1 text-xs text-muted-foreground">Code: {account.code}</p>
+              ) : null}
             </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Type</span>
-              <p className="font-medium">{typeLabel}</p>
+
+            <div className="rounded-md border bg-background/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Type</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{typeLabel}</p>
             </div>
-            {account.id && (
-              <Button size="sm" variant="outline" className="gap-1.5 mt-1" asChild>
+
+            {linkedEntities.length > 0 ? (
+              <div className="rounded-md border bg-background/70 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Linked to</p>
+                <div className="mt-1 space-y-1">
+                  {linkedEntities.map((entity) => (
+                    <p key={`${entity.label}-${entity.value}`} className="text-sm leading-snug text-foreground">
+                      <span className="font-semibold">{entity.label}:</span> {entity.value}
+                      {entity.subValue ? (
+                        <span className="ml-1 text-xs text-muted-foreground">{entity.subValue}</span>
+                      ) : null}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {account.id && (
+            <div className="flex justify-start">
+              <Button size="sm" variant="outline" className="gap-1.5" asChild>
                 <Link href={`/accounting/${account.id}/statement`}>
                   <BookOpen className="h-4 w-4" />
                   View statement
                 </Link>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

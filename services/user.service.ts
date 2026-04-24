@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
+import { ensureTillForUserLocation } from "@/services/accounting.service"
 
 // ==== USER: VALIDATION SCHEMA ==== //
 const userSchema = z.object({
@@ -271,6 +272,9 @@ export const saveUser = async (
     });
 
     const userId = result.id;
+    if (userLocationId) {
+      await ensureTillForUserLocation({ userId, locationId: userLocationId, isActive: true });
+    }
     if (data.bookingLocationIds?.length) {
       await prisma.userBookingLocation.createMany({
         data: data.bookingLocationIds.map((locationId) => ({ userId, locationId })),
@@ -383,6 +387,9 @@ export const updateOneUser = async (
         id
       }
     });
+    if (data.userLocationId !== undefined && data.userLocationId) {
+      await ensureTillForUserLocation({ userId: id, locationId: data.userLocationId, isActive: true });
+    }
 
     if (bookingLocationIds !== undefined) {
       await prisma.userBookingLocation.deleteMany({ where: { userId: id } });
