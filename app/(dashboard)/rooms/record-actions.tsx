@@ -6,9 +6,9 @@ import { useToast } from "@/components/hooks/use-toast"
 import { DataTableRowActions } from "@/components/common/custom-table-row-actions"
 import CustomAlertDialogWithWarning from "@/components/common/custom-alert-dialog-with-warning"
 import { Room } from "@/types/room"
-import { deleteRoom, checkRoomHasLinkedRecords } from "@/app/actions/room.actions"
+import { deleteRoom, checkRoomHasLinkedRecords, forceReleaseRoom } from "@/app/actions/room.actions"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2, Loader2 } from "lucide-react"
+import { Pencil, Trash2, Loader2, Unlock } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
@@ -19,7 +19,9 @@ type RoomActionsProps<TData extends Room> = {
 export function RoomRecordActions({ row }: RoomActionsProps<Room>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false)
+  const [showReleaseConfirmation, setShowReleaseConfirmation] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [releaseLoading, setReleaseLoading] = React.useState(false)
   const [fetchingCheck, setFetchingCheck] = React.useState(false)
   const [hasLinkedRecords, setHasLinkedRecords] = React.useState<boolean | null>(null)
   const { toast } = useToast()
@@ -102,6 +104,31 @@ export function RoomRecordActions({ row }: RoomActionsProps<Room>) {
     }
   }
 
+  const onForceReleaseConfirmation = async () => {
+    if (!room.id) return
+    try {
+      setReleaseLoading(true)
+      const result = await forceReleaseRoom(room.id)
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to force release room.")
+      }
+      toast({
+        variant: "success",
+        title: "Success",
+        description: "Room was force released successfully.",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to force release room.",
+      })
+    } finally {
+      setReleaseLoading(false)
+      setShowReleaseConfirmation(false)
+    }
+  }
+
   // Generate description component based on check result
   const getDeleteDescription = () => {
     if (hasLinkedRecords === null) {
@@ -154,6 +181,17 @@ export function RoomRecordActions({ row }: RoomActionsProps<Room>) {
             <span className="sr-only">Delete</span>
           </Button>
         )}
+        {has("rooms", "edit") && room.currentOccupiedSessionId && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowReleaseConfirmation(true)}
+          >
+            <Unlock className="h-4 w-4" />
+            <span className="sr-only">Force Release</span>
+          </Button>
+        )}
       </DataTableRowActions>
 
       <CustomAlertDialogWithWarning
@@ -164,6 +202,15 @@ export function RoomRecordActions({ row }: RoomActionsProps<Room>) {
         description={getDeleteDescription()}
         handleContinue={onDeleteConfirmation}
         hasWarning={hasLinkedRecords === true}
+      />
+      <CustomAlertDialogWithWarning
+        open={showReleaseConfirmation}
+        handleVisibilityChange={setShowReleaseConfirmation}
+        loading={releaseLoading}
+        title="Force release this room?"
+        description="This will clear the room occupancy lock immediately. Historical session room assignment will remain unchanged."
+        handleContinue={onForceReleaseConfirmation}
+        hasWarning={true}
       />
     </>
   )

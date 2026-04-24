@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma"
 import moment from "moment"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
+import { emitChannelRoomUpdate } from "@/services/channel-room/emit-channel-room-update"
 
 export type SetDoctorArrivalInput = {
   sessionId: string
@@ -31,6 +32,43 @@ function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
       typeof (item as ArrivalDepartureEntry).time === "string" &&
       typeof (item as ArrivalDepartureEntry).createdBy === "string"
   )
+}
+
+type ChainSession = {
+  id: string
+  doctorSessionId: string
+  previousDoctorSession: string | null
+}
+
+function buildSessionChain(
+  chainStart: ChainSession,
+  sessionsSameDay: ChainSession[]
+): { chainSessionIds: string[]; anchorSessionId: string } {
+  const byDoctorSessionId = new Map(sessionsSameDay.map((s) => [s.doctorSessionId, s]))
+  const byPreviousDoctorSession = new Map<string, ChainSession>()
+  for (const s of sessionsSameDay) {
+    if (s.previousDoctorSession) byPreviousDoctorSession.set(s.previousDoctorSession, s)
+  }
+
+  const chain = new Map<string, ChainSession>([[chainStart.id, chainStart]])
+  let cursor: ChainSession | undefined = chainStart
+  while (cursor?.previousDoctorSession) {
+    const parent = byDoctorSessionId.get(cursor.previousDoctorSession)
+    if (!parent || chain.has(parent.id)) break
+    chain.set(parent.id, parent)
+    cursor = parent
+  }
+  const anchorSessionId = cursor?.id ?? chainStart.id
+
+  cursor = chainStart
+  while (cursor) {
+    const next = byPreviousDoctorSession.get(cursor.doctorSessionId)
+    if (!next || chain.has(next.id)) break
+    chain.set(next.id, next)
+    cursor = next
+  }
+
+  return { chainSessionIds: [...chain.keys()], anchorSessionId }
 }
 
 const SMS_TEMPLATE_TYPE_ARRIVAL = 0
@@ -62,6 +100,13 @@ export async function setDoctorArrivalService(
   input: SetDoctorArrivalInput,
   userId: string
 ): Promise<SetDoctorArrivalResult> {
+  const roomModel = (prisma as unknown as {
+    room: {
+      findUnique: (args: object) => Promise<{ number: string; currentOccupiedSessionId?: string | null } | null>
+      update: (args: object) => Promise<unknown>
+      updateMany: (args: object) => Promise<unknown>
+    }
+  }).room
   const { sessionId, arrivalStatus, roomId } = input
 
   if (!sessionId) {
@@ -112,6 +157,12 @@ export async function setDoctorArrivalService(
     },
     select: { id: true, doctorSessionId: true, previousDoctorSession: true },
   })
+  const chainStart: ChainSession = {
+    id: session.id,
+    doctorSessionId: sessionWithChain!.doctorSessionId,
+    previousDoctorSession: sessionWithChain!.previousDoctorSession,
+  }
+  const { chainSessionIds, anchorSessionId } = buildSessionChain(chainStart, sessionsSameDay)
 
   const bookingsForSms = await prisma.booking.findMany({
     where: { sessionId, status: { in: [0, 1] } },
@@ -127,10 +178,16 @@ export async function setDoctorArrivalService(
     if (!roomId?.trim()) {
       return { success: false, errorCode: "invalid_input", message: "Room is required for doctor arrival." }
     }
-    const room = await prisma.room.findUnique({
+    const room = await roomModel.findUnique({
       where: { id: roomId },
-      select: { number: true },
+      select: { number: true, currentOccupiedSessionId: true },
     })
+    if (!room) {
+      return { success: false, errorCode: "not_found", message: "Selected room was not found." }
+    }
+    if (room.currentOccupiedSessionId && !chainSessionIds.includes(room.currentOccupiedSessionId)) {
+      return { success: false, errorCode: "room_occupied", message: "Selected room is already occupied." }
+    }
     const roomNumber = room?.number ?? roomId
 
     const doctorArrivalTime = parseArrivalDepartureJson(session.doctorArrivalTime)
@@ -141,44 +198,22 @@ export async function setDoctorArrivalService(
       roomId: roomId.trim(),
     }
 
-    await prisma.session.update({
-      where: { id: sessionId },
+    await prisma.session.updateMany({
+      where: { id: { in: chainSessionIds } },
       data: updatePayload,
     })
-
-    type ChainSession = { id: string; doctorSessionId: string; previousDoctorSession: string | null }
-    const chainStart: ChainSession = {
-      id: session.id,
-      doctorSessionId: (session as { doctorSessionId: string }).doctorSessionId,
-      previousDoctorSession: (session as { previousDoctorSession: string | null }).previousDoctorSession,
-    }
-    let pSession: ChainSession = chainStart
-    let nSession: ChainSession = chainStart
-
-    for (let i = 0; i < sessionsSameDay.length; i++) {
-      let parentSession: (typeof sessionsSameDay)[0] | undefined
-      let nextSession: (typeof sessionsSameDay)[0] | undefined
-
-      parentSession = sessionsSameDay.find((s) => s.doctorSessionId === pSession.previousDoctorSession)
-      if (parentSession) {
-        pSession = parentSession
-        await prisma.session.update({
-          where: { id: parentSession.id },
-          data: updatePayload,
-        })
-      }
-
-      nextSession = sessionsSameDay.find((s) => s.previousDoctorSession === nSession.doctorSessionId)
-      if (nextSession) {
-        nSession = nextSession
-        await prisma.session.update({
-          where: { id: nextSession.id },
-          data: updatePayload,
-        })
-      }
-
-      if (!parentSession && !nextSession) break
-    }
+    await roomModel.update({
+      where: { id: roomId.trim() },
+      data: { currentOccupiedSessionId: anchorSessionId },
+    })
+    await roomModel.updateMany({
+      where: {
+        id: { not: roomId.trim() },
+        locationId: session.locationId ?? undefined,
+        currentOccupiedSessionId: anchorSessionId,
+      },
+      data: { currentOccupiedSessionId: null },
+    })
 
     // SMS: arrival template from SmsTemplate (type 0) or default; placeholders: {doctor}, {room_no}
     const arrivalTemplate =
@@ -198,44 +233,17 @@ export async function setDoctorArrivalService(
       doctorDepatureTime: doctorDepatureTime as unknown as object,
     }
 
-    await prisma.session.update({
-      where: { id: sessionId },
+    await prisma.session.updateMany({
+      where: { id: { in: chainSessionIds } },
       data: updatePayload,
     })
-
-    type ChainSession = { id: string; doctorSessionId: string; previousDoctorSession: string | null }
-    const chainStart: ChainSession = {
-      id: session.id,
-      doctorSessionId: sessionWithChain!.doctorSessionId,
-      previousDoctorSession: sessionWithChain!.previousDoctorSession,
-    }
-    let pSession: ChainSession = chainStart
-    let nSession: ChainSession = chainStart
-
-    for (let i = 0; i < sessionsSameDay.length; i++) {
-      let parentSession: (typeof sessionsSameDay)[0] | undefined
-      let nextSession: (typeof sessionsSameDay)[0] | undefined
-
-      parentSession = sessionsSameDay.find((s) => s.doctorSessionId === pSession.previousDoctorSession)
-      if (parentSession) {
-        pSession = parentSession
-        await prisma.session.update({
-          where: { id: parentSession.id },
-          data: updatePayload,
-        })
-      }
-
-      nextSession = sessionsSameDay.find((s) => s.previousDoctorSession === nSession.doctorSessionId)
-      if (nextSession) {
-        nSession = nextSession
-        await prisma.session.update({
-          where: { id: nextSession.id },
-          data: updatePayload,
-        })
-      }
-
-      if (!parentSession && !nextSession) break
-    }
+    await roomModel.updateMany({
+      where: {
+        locationId: session.locationId ?? undefined,
+        currentOccupiedSessionId: anchorSessionId,
+      },
+      data: { currentOccupiedSessionId: null },
+    })
 
     // SMS: departure template from SmsTemplate (type 1) or default; placeholders: {doctor}, {start_time}
     const startTimeFormatted = moment(session.startTime).format("LT")
@@ -260,6 +268,13 @@ export async function setDoctorArrivalService(
 
   const doctorArrivalTime = parseArrivalDepartureJson(updated?.doctorArrivalTime ?? [])
   const doctorDepatureTime = parseArrivalDepartureJson(updated?.doctorDepatureTime ?? [])
+
+  emitChannelRoomUpdate({
+    kind: "sessions",
+    sessionId,
+    institution: session.institution,
+    locationId: session.locationId ?? null,
+  })
 
   return {
     success: true,

@@ -38,6 +38,7 @@ import {
   Play,
   CheckSquare,
   SlidersHorizontal,
+  LayoutGrid,
 } from 'lucide-react';
 import { UserGroup } from "@/components/icons";
 import { canAccessRoute } from "@/lib/permissions";
@@ -104,11 +105,17 @@ async function MobileNav({
         </div>
         {/* Scrollable menu with groups – only show links the user has view permission for */}
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
-          {(hasAccess('/channel-booking') || hasAccess('/sessions') || hasAccess('/handovers')) && (
+          {(hasAccess('/channel-booking') ||
+            hasAccess('/channel-room-dashboard') ||
+            hasAccess('/sessions') ||
+            hasAccess('/handovers')) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channeling</p>
               <div className="space-y-0.5">
                 {hasAccess('/channel-booking') && <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />}
+                {hasAccess('/channel-room-dashboard') && (
+                  <NavLink href="/channel-room-dashboard" label="Channel Room Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
+                )}
                 {hasAccess('/handovers') && <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
               </div>

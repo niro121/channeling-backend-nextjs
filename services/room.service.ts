@@ -48,6 +48,12 @@ export const getAllRoomsService = async ({
   };
 }> => {
   try {
+    const roomModel = (prisma as unknown as {
+      room: {
+        findMany: (args: object) => Promise<Room[]>
+        count: (args: object) => Promise<number>
+      }
+    }).room;
     const whereClause: Prisma.RoomWhereInput | undefined =
       keyword && keyword.trim() !== ''
         ? {
@@ -77,7 +83,7 @@ export const getAllRoomsService = async ({
 
     const skip = page * limit;
 
-    const records = await prisma.room.findMany({
+    const records = await roomModel.findMany({
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
@@ -90,7 +96,7 @@ export const getAllRoomsService = async ({
       }
     });
 
-    const totalRecords = await prisma.room.count({
+    const totalRecords = await roomModel.count({
       where: whereClause
     });
 
