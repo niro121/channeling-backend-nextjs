@@ -33,3 +33,27 @@ export function floatBalanceRoom(userId: string): string {
 export function shiftUpdateRoom(userId: string): string {
   return `shift:${userId}`
 }
+
+const CHANNEL_ROOM_PREFIX = "channel-room:"
+
+/** Socket room for channel-room dashboard live updates (per location). */
+export function channelRoomLocationRoom(locationId: string): string {
+  return `${CHANNEL_ROOM_PREFIX}location:${locationId}`
+}
+
+/** Fallback when session has no location: broadcast by institution id (int as string). */
+export function channelRoomInstitutionRoom(institution: number): string {
+  return `${CHANNEL_ROOM_PREFIX}institution:${institution}`
+}
+
+export function channelRoomSocketRooms(session: {
+  locationId: string | null
+  institution: number
+}): string[] {
+  const rooms: string[] = []
+  if (session.locationId?.trim()) {
+    rooms.push(channelRoomLocationRoom(session.locationId.trim()))
+  }
+  rooms.push(channelRoomInstitutionRoom(session.institution))
+  return rooms
+}

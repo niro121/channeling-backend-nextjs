@@ -134,6 +134,8 @@ export interface ReportTemplateProps<T, E = T> {
   getTotalNumericValue?: (row: T, columnId: string) => number;
   /** Optional: format totals cell value. */
   formatTotalValue?: (columnId: string, sum: number) => React.ReactNode;
+  /** Optional: return rowSpan per cell; return 0 to suppress rendering that cell. */
+  getCellRowSpan?: (row: T, columnId: string, rowIndex: number, rows: T[]) => number | undefined;
   /** Back button destination (default: /reports) */
   backHref?: string;
   /** Show/hide the back button (default: true). */
@@ -179,6 +181,7 @@ function ReportTemplateContent<T, E = T>({
   totalRowLabel = 'Total',
   getTotalNumericValue,
   formatTotalValue,
+  getCellRowSpan,
   backHref = '/reports',
   showBackButton = true,
   containerClassName = 'container mx-auto py-3 space-y-4',
@@ -500,6 +503,9 @@ function ReportTemplateContent<T, E = T>({
                                 )}
                                 {columns.map((column) => {
                                   const accessorKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+                                  const columnKey = getReportColumnKey(column);
+                                  const rowSpan = getCellRowSpan?.(row, columnKey, idx, rows);
+                                  if (rowSpan === 0) return null;
                                   const cell =
                                     typeof column.cell === 'function'
                                       ? column.cell({
@@ -511,7 +517,7 @@ function ReportTemplateContent<T, E = T>({
                                         } as never)
                                       : accessorKey ? getNestedValue(row, accessorKey) : undefined;
                                   return (
-                                    <TableCell key={column.id ?? accessorKey ?? ''}>
+                                    <TableCell key={column.id ?? accessorKey ?? ''} rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}>
                                       {cell != null && cell !== '' ? cell : '-'}
                                     </TableCell>
                                   );
@@ -525,6 +531,9 @@ function ReportTemplateContent<T, E = T>({
                           <TableRow key={getRowId(row)}>
                             {columns.map((column) => {
                               const accessorKey = (column as ColumnDef<T> & { accessorKey?: string }).accessorKey;
+                              const columnKey = getReportColumnKey(column);
+                              const rowSpan = getCellRowSpan?.(row, columnKey, idx, data);
+                              if (rowSpan === 0) return null;
                               const cell =
                                 typeof column.cell === 'function'
                                   ? column.cell({
@@ -536,7 +545,7 @@ function ReportTemplateContent<T, E = T>({
                                     } as never)
                                   : accessorKey ? getNestedValue(row, accessorKey) : undefined;
                               return (
-                                <TableCell key={column.id ?? accessorKey ?? ''}>
+                                <TableCell key={column.id ?? accessorKey ?? ''} rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}>
                                   {cell != null && cell !== '' ? cell : '-'}
                                 </TableCell>
                               );
