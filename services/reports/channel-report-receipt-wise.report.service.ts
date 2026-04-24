@@ -23,6 +23,10 @@ function mapReceiptCategoryToMethods(category?: string): number[] | null {
   switch (category) {
     case 'channel_txn':
       return [RECEIPT_METHOD.PAYMENT, RECEIPT_METHOD.REFUND];
+    case 'channel_payment':
+      return [RECEIPT_METHOD.PAYMENT];
+    case 'channel_refund':
+      return [RECEIPT_METHOD.REFUND];
     case 'agent_ledger':
       return [
         RECEIPT_METHOD.DEBIT_NOTE,
@@ -30,12 +34,28 @@ function mapReceiptCategoryToMethods(category?: string): number[] | null {
         RECEIPT_METHOD.AGENCY_DEPOSIT,
         RECEIPT_METHOD.AGENCY_WITHDRAW,
       ];
+    case 'agent_deposit':
+      return [RECEIPT_METHOD.AGENCY_DEPOSIT];
+    case 'agent_withdraw':
+      return [RECEIPT_METHOD.AGENCY_WITHDRAW];
     case 'bank_ledger':
       return [RECEIPT_METHOD.BANK_DEPOSIT, RECEIPT_METHOD.BANK_WITHDRAW];
+    case 'bank_deposit':
+      return [RECEIPT_METHOD.BANK_DEPOSIT];
+    case 'bank_withdraw':
+      return [RECEIPT_METHOD.BANK_WITHDRAW];
     case 'doctor_payments':
       return [RECEIPT_METHOD.DOCTOR_PAYMENT, RECEIPT_METHOD.DOCTOR_CANCEL];
+    case 'doctor_payment':
+      return [RECEIPT_METHOD.DOCTOR_PAYMENT];
+    case 'doctor_cancel':
+      return [RECEIPT_METHOD.DOCTOR_CANCEL];
     case 'branch_ledger':
       return [RECEIPT_METHOD.BRANCH_INCOME, RECEIPT_METHOD.BRANCH_EXPENSE];
+    case 'branch_income':
+      return [RECEIPT_METHOD.BRANCH_INCOME];
+    case 'branch_expense':
+      return [RECEIPT_METHOD.BRANCH_EXPENSE];
     default:
       return null;
   }
