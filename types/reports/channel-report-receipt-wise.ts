@@ -54,10 +54,20 @@ export const RECEIPT_SCOPE_OPTIONS = [
 export const RECEIPT_CATEGORY_OPTIONS = [
   { id: '__all__', name: 'All Categories' },
   { id: 'channel_txn', name: 'Channel (Payment/Refund)' },
+  { id: 'channel_payment', name: 'Channel Payment' },
+  { id: 'channel_refund', name: 'Channel Refund' },
   { id: 'agent_ledger', name: 'Agent Ledger (Deposit/Withdraw/Notes)' },
+  { id: 'agent_deposit', name: 'Agent Deposit' },
+  { id: 'agent_withdraw', name: 'Agent Withdraw' },
   { id: 'bank_ledger', name: 'Bank Ledger (Deposit/Withdraw)' },
+  { id: 'bank_deposit', name: 'Bank Deposit' },
+  { id: 'bank_withdraw', name: 'Bank Withdraw' },
   { id: 'doctor_payments', name: 'Doctor Payments' },
+  { id: 'doctor_payment', name: 'Doctor Payment' },
+  { id: 'doctor_cancel', name: 'Doctor Cancel' },
   { id: 'branch_ledger', name: 'Branch Ledger (Income/Expense)' },
+  { id: 'branch_income', name: 'Branch Income' },
+  { id: 'branch_expense', name: 'Branch Expense' },
 ];
 
 export type ChannelReportReceiptWiseContentProps = {
