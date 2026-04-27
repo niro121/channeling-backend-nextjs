@@ -40,6 +40,37 @@ const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4
 const DEFAULT_AGENCY_BALANCE_MESSAGE =
   "Ref: {agency_ref}. Booking with Dr {doctor}, appointment no {appointment_no}, date {date}, time {time}. Amount: {amount}. Your balance: {balance}."
 
+async function buildNormalizedAgencyRef(input: SaveBookingInput): Promise<string> {
+  const rawRef = (input.agency_ref ?? "").toUpperCase().trim()
+  const rawLeaf = (input.agency_leaf ?? "").replace(/\D/g, "")
+
+  const leafPart =
+    rawLeaf.length > 0
+      ? rawLeaf.slice(0, 2).padStart(2, "0")
+      : rawRef.slice(-2).replace(/\D/g, "").slice(0, 2).padStart(2, "0")
+
+  if (!input.agency?.id) {
+    return rawRef
+  }
+
+  if (input.agency_book_id) {
+    const agencyBook = await prisma.agencyBook.findFirst({
+      where: {
+        id: input.agency_book_id,
+        agencyId: input.agency.id,
+        status: 1,
+      },
+      select: { bookNumber: true },
+    })
+    if (agencyBook?.bookNumber) {
+      return `${agencyBook.bookNumber}${leafPart}`
+    }
+  }
+
+  const fallbackBook = rawRef.substring(0, Math.max(0, rawRef.length - 2)).trim()
+  return `${fallbackBook}${leafPart}`
+}
+
 async function getSmsTemplateMessage(type: number): Promise<string | null> {
   const model = (prisma as { smsTemplate?: { findFirst: (args: object) => Promise<{ message: string } | null> } })
     .smsTemplate
@@ -207,8 +238,9 @@ export async function saveBookingService(
   }
 
   // Agent booking: verify agency ref, ensure linked account exists for balance check, and that credit limit is not exceeded.
+  const normalizedAgencyRef = await buildNormalizedAgencyRef(input)
   if (input.agency?.id) {
-    const ref = (input.agency_ref ?? "").toUpperCase().trim()
+    const ref = normalizedAgencyRef
     const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
     if (!refResult.valid) {
       return {
@@ -406,7 +438,7 @@ export async function saveBookingService(
         fees: session.fees as object,
         refund: 0,
         refundAmount: 0,
-        agencyRef: (input.agency_ref ?? "").toUpperCase(),
+        agencyRef: normalizedAgencyRef,
         agencyId: input.agency?.id ?? null,
         creditCustomerId: input.credit_customer?.id ?? null,
         staffId: input.staff?.id ?? null,
@@ -595,7 +627,7 @@ export async function saveBookingService(
                 minimumFractionDigits: 2,
               })
               const text = templateMessage
-                .replace(/{agency_ref}/g, (input.agency_ref ?? "").toUpperCase())
+                .replace(/{agency_ref}/g, normalizedAgencyRef)
                 .replace(/{doctor}/g, doctorName)
                 .replace(/{appointment_no}/g, String(appointmentNo).padStart(2, "0"))
                 .replace(/{date}/g, dateStr)

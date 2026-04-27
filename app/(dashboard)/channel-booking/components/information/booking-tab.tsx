@@ -448,21 +448,18 @@ export function BookingTab() {
                   ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})`
                   : details.agentInfo.agencyName}
               </span>
-              {!agentExpanded && (details.agentInfo.agencyCode || details.agentInfo.agencyRef) && (
+              {!agentExpanded && details.agentInfo.agencyRef && (
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
-                  CODE: {details.agentInfo.agencyCode || details.agentInfo.agencyRef}
+                  REF: {details.agentInfo.agencyRef}
                 </span>
               )}
             </button>
             {agentExpanded && (
               <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
                 <Row
-                  label="Agent Code"
-                  value={details.agentInfo.agencyCode || details.agentInfo.agencyRef || "—"}
+                  label="Agent Ref."
+                  value={details.agentInfo.agencyRef || "—"}
                 />
-                {details.agentInfo.bookNumber && (
-                  <Row label="Book No." value={details.agentInfo.bookNumber} />
-                )}
                 <Row
                   label="Agent"
                   value={details.agentInfo.agencyCode ? `${details.agentInfo.agencyName} (${details.agentInfo.agencyCode})` : details.agentInfo.agencyName}

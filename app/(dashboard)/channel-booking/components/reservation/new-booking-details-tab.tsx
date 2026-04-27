@@ -411,6 +411,10 @@ export function NewBookingDetailsTab() {
         discount_type: discountSchemeId ? discountSchemeId : undefined,
         voucher_code: isVoucherScheme ? voucherCode.trim().toUpperCase() : undefined,
         agency: isAgent && selectedAgency ? { id: selectedAgency.id } : undefined,
+        agency_book_id: isAgent && selectedAgencyBook ? selectedAgencyBook.id : undefined,
+        agency_leaf: isAgent
+          ? agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
+          : undefined,
         agency_ref: isAgent
           ? (selectedAgencyBook?.bookNumber ?? "") + agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
           : undefined,

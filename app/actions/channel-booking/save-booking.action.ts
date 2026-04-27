@@ -29,6 +29,8 @@ const saveBookingSchema = z.object({
   discount_type: z.string().optional(),
   voucher_code: z.string().optional(),
   agency: z.object({ id: z.string() }).optional().nullable(),
+  agency_book_id: z.string().optional(),
+  agency_leaf: z.string().optional(),
   agency_ref: z.string().optional(),
   credit_customer: z.object({ id: z.string() }).optional().nullable(),
   bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
