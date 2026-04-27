@@ -7,6 +7,8 @@ export type BankDepositsReportQuery = {
   bankAccountId?: string;
   /** '__all__' or User.id */
   userId?: string;
+  /** '__all__' or Location.id — branch where the receipt was recorded (matches User Location / Location on the receipt) */
+  locationId?: string;
 };
 
 export type BankDepositsReportRow = {

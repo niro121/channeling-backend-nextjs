@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getReportUserOptionsAction } from '@/app/actions/reports/user-activity.action';
 import BankDepositsReportContent from './bank-deposits-report-content';
+import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ export default async function BankDepositsReportPage() {
 
   const session = await fetchServerSession();
 
-  const [currentUser, bankAccounts, usersRes] = await Promise.all([
+  const [currentUser, bankAccounts, usersRes, locRef] = await Promise.all([
     session?.user?.id
       ? prisma.user.findUnique({
           where: { id: session.user.id },
@@ -32,6 +33,7 @@ export default async function BankDepositsReportPage() {
       orderBy: [{ name: 'asc' }, { accountNumber: 'asc' }],
     }),
     getReportUserOptionsAction(),
+    getReportFilterOptions({ locations: true }),
   ]);
 
   const currentUserName = formatUserDisplayName(
@@ -50,11 +52,17 @@ export default async function BankDepositsReportPage() {
 
   const userOptions = usersRes.success && usersRes.data ? usersRes.data : [];
 
+  const locationOptions =
+    locRef.success && locRef.locationOptions?.length
+      ? locRef.locationOptions
+      : [{ id: '__all__', name: 'All Branches' }];
+
   return (
     <BankDepositsReportContent
       currentUserName={currentUserName}
       bankAccountOptions={bankAccountOptions}
       userOptions={userOptions}
+      locationOptions={locationOptions}
     />
   );
 }

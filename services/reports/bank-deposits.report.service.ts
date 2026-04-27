@@ -1,5 +1,6 @@
 'use server';
 
+import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { RECEIPT_METHOD } from '@/types/receipt';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
@@ -70,12 +71,25 @@ export async function getBankDepositsReportService(
 
   const bankAccountId = normAll(query.bankAccountId);
   const userId = normAll(query.userId);
-  const where: Record<string, unknown> = {
+  const branchLocationId = normAll(query.locationId);
+
+  const where: Prisma.ReceiptWhereInput = {
     method: { in: [RECEIPT_METHOD.BANK_DEPOSIT, RECEIPT_METHOD.BANK_WITHDRAW] },
     createdAt: { gte: from, lte: to },
+    ...(bankAccountId !== '__all__' ? { bankId: bankAccountId } : {}),
+    ...(userId !== '__all__' ? { createdBy: userId } : {}),
+    ...(branchLocationId !== '__all__'
+      ? {
+          /** Same branch as UI column: prefer userLocationId, else locationId */
+          OR: [
+            { userLocationId: branchLocationId },
+            {
+              AND: [{ userLocationId: null }, { locationId: branchLocationId }],
+            },
+          ],
+        }
+      : {}),
   };
-  if (bankAccountId !== '__all__') where.bankId = bankAccountId;
-  if (userId !== '__all__') where.createdBy = userId;
 
   const receipts = await prisma.receipt.findMany({
     where,
