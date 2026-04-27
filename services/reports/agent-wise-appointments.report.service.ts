@@ -37,7 +37,9 @@ function parseDateRange(from?: string, to?: string): { from: Date; to: Date } | 
     if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}/.test(t)) {
       const [dp, tp] = t.split('T');
       const [h = 23, min = 59] = (tp || '').split(':').map(Number);
-      return new Date(`${dp}T${h}:${min}:59.999${SL_OFFSET}`);
+      const hh = String(h).padStart(2, '0');
+      const mm = String(min).padStart(2, '0');
+      return new Date(`${dp}T${hh}:${mm}:59.999${SL_OFFSET}`);
     }
     return new Date(t);
   };

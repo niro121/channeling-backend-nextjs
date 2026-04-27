@@ -62,7 +62,7 @@ export const RECEIPT_CATEGORY_OPTIONS = [
   { id: 'bank_ledger', name: 'Bank Ledger (Deposit/Withdraw)' },
   { id: 'bank_deposit', name: 'Bank Deposit' },
   { id: 'bank_withdraw', name: 'Bank Withdraw' },
-  { id: 'doctor_payments', name: 'Doctor Payments' },
+  { id: 'doctor_payments', name: 'Doctor Ledger (Payment/Cancel)' },
   { id: 'doctor_payment', name: 'Doctor Payment' },
   { id: 'doctor_cancel', name: 'Doctor Cancel' },
   { id: 'branch_ledger', name: 'Branch Ledger (Income/Expense)' },

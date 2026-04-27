@@ -12,18 +12,32 @@ import type {
 const MAX_RANGE_DAYS = getReportMaxRangeDays('no_show_patient', 62);
 const MAX_BOOKINGS_SCAN = getReportMaxRecords('no_show_patient', 50000);
 
-function parseDateOnly(input?: string, asEnd = false): Date | null {
-  const v = input?.trim();
-  if (!v) return null;
-  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
+/**
+ * Parse a date or datetime string into a single moment (aligned with cashier summary report).
+ * - If string contains 'T' (e.g. YYYY-MM-DDTHH:mm): parse as full datetime (local).
+ * - Otherwise (YYYY-MM-DD): date only; if asEnd use end of day, else start of day.
+ */
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('T')) {
+    const d = new Date(trimmed);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const [y, m, d] = trimmed.split('-').map(Number);
+  const year = Number(y);
+  const month = Number(m) - 1;
+  const day = Number(d);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  return asEnd
-    ? new Date(year, month - 1, day, 23, 59, 59, 999)
-    : new Date(year, month - 1, day, 0, 0, 0, 0);
+  if (asEnd) return new Date(year, month, day, 23, 59, 59, 999);
+  return new Date(year, month, day, 0, 0, 0, 0);
+}
+
+function parseFromTo(dateFrom?: string, dateTo?: string): { from: Date; to: Date } | null {
+  const start = parseDateTime(dateFrom ?? '', false);
+  const end = parseDateTime(dateTo ?? '', true);
+  if (!start || !end) return null;
+  return { from: start, to: end };
 }
 
 function toDateKey(d: Date): string {
@@ -74,13 +88,13 @@ export async function getNoShowPatientReportService(
   query: NoShowPatientReportQuery
 ): Promise<NoShowPatientReportResult> {
   try {
-    const from = parseDateOnly(query.fromDate, false);
-    const to = parseDateOnly(query.toDate, true);
-    if (!from || !to) {
+    const range = parseFromTo(query.fromDate, query.toDate);
+    if (!range) {
       return { success: false, message: 'From and To dates are required.' };
     }
+    const { from, to } = range;
     if (from.getTime() > to.getTime()) {
-      return { success: false, message: 'From date must be before or equal to To date.' };
+      return { success: false, message: 'From date/time must be before or equal to To date/time.' };
     }
 
     const daySpan = getInclusiveDaySpan(from, to);
