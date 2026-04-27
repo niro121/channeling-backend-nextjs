@@ -86,6 +86,8 @@ export type SaveBookingInput = {
   payment_method: number
   payment_type: number
   agency?: SaveBookingAgencyRef | null
+  agency_book_id?: string
+  agency_leaf?: string
   agency_ref?: string
   credit_customer?: SaveBookingCreditCustomerRef | null
   bank?: SaveBookingBankRef | null
