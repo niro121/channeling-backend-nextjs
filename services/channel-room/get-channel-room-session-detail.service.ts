@@ -15,6 +15,7 @@ export type ChannelRoomBookingRow = {
 
 export type ChannelRoomSessionDetail = {
   sessionId: string
+  relatedSessionIds: string[]
   institution: number
   locationId: string | null
   channelCurrentPatientNumber: number
@@ -23,7 +24,53 @@ export type ChannelRoomSessionDetail = {
   locationName: string | null
   startTime: Date
   endTime: Date
+  bookingGroups: Array<{
+    sessionId: string
+    startTime: Date
+    endTime: Date
+    bookings: ChannelRoomBookingRow[]
+  }>
   bookings: ChannelRoomBookingRow[]
+}
+
+type ChainSession = {
+  id: string
+  doctorSessionId: string
+  previousDoctorSession: string | null
+  date: Date
+  startTime: Date
+  endTime: Date
+}
+
+function buildSessionChain(
+  chainStart: ChainSession,
+  sessionsSameDay: ChainSession[]
+): { chainSessionIds: string[]; anchorSessionId: string } {
+  const byDoctorSessionId = new Map(sessionsSameDay.map((s) => [s.doctorSessionId, s]))
+  const byPreviousDoctorSession = new Map<string, ChainSession>()
+  for (const s of sessionsSameDay) {
+    if (s.previousDoctorSession) byPreviousDoctorSession.set(s.previousDoctorSession, s)
+  }
+
+  const chain = new Map<string, ChainSession>([[chainStart.id, chainStart]])
+  let cursor: ChainSession | undefined = chainStart
+  while (cursor?.previousDoctorSession) {
+    const parent = byDoctorSessionId.get(cursor.previousDoctorSession)
+    if (!parent || chain.has(parent.id)) break
+    chain.set(parent.id, parent)
+    cursor = parent
+  }
+  const anchorSessionId = cursor?.id ?? chainStart.id
+
+  cursor = chainStart
+  while (cursor) {
+    const next = byPreviousDoctorSession.get(cursor.doctorSessionId)
+    if (!next || chain.has(next.id)) break
+    chain.set(next.id, next)
+    cursor = next
+  }
+
+  return { chainSessionIds: [...chain.keys()], anchorSessionId }
 }
 
 export async function getChannelRoomSessionDetailService(sessionId: string): Promise<{
@@ -64,11 +111,57 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
     }
 
     const sessionDate = session.date instanceof Date ? session.date : new Date(session.date)
+    const dayStart = new Date(sessionDate)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(sessionDate)
+    dayEnd.setHours(23, 59, 59, 999)
+
+    const sessionsSameDayRaw = await prisma.session.findMany({
+      where: {
+        doctorId: session.doctorId ?? undefined,
+        date: { gte: dayStart, lte: dayEnd },
+      },
+      select: {
+        id: true,
+        doctorSessionId: true,
+        previousDoctorSession: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+      },
+    })
+    const sessionsSameDay: ChainSession[] = sessionsSameDayRaw
+      .filter((s): s is ChainSession => Boolean(s.doctorSessionId))
+      .map((s) => ({
+        id: s.id,
+        doctorSessionId: s.doctorSessionId as string,
+        previousDoctorSession: s.previousDoctorSession ?? null,
+        date: s.date,
+        startTime: s.startTime as Date,
+        endTime: s.endTime as Date,
+      }))
+
+    const chainStart: ChainSession = {
+      id: session.id,
+      doctorSessionId: (session as unknown as { doctorSessionId: string }).doctorSessionId,
+      previousDoctorSession: (session as unknown as { previousDoctorSession: string | null }).previousDoctorSession,
+      date: sessionDate,
+      startTime: session.startTime as Date,
+      endTime: session.endTime as Date,
+    }
+    const { chainSessionIds, anchorSessionId } = buildSessionChain(chainStart, sessionsSameDay)
+    const bySession = new Map(sessionsSameDay.map((s) => [s.id, s]))
+    const orderedChain = chainSessionIds
+      .map((id) => bySession.get(id))
+      .filter((s): s is ChainSession => Boolean(s))
+      .sort((a, b) => normalizeSessionTime(a.startTime, a.date).getTime() - normalizeSessionTime(b.startTime, b.date).getTime())
+
     const bookings = await prisma.booking.findMany({
-      where: { sessionId: session.id, status: 1 },
+      where: { sessionId: { in: chainSessionIds }, status: 1 },
       orderBy: { appointmentNo: "asc" },
       select: {
         id: true,
+        sessionId: true,
         appointmentNo: true,
         receiptNoString: true,
         title: true,
@@ -79,8 +172,25 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
 
     const doctorName = [session.doctor?.title, session.doctor?.name].filter(Boolean).join(" ").trim() || "—"
 
+    const bookingGroups = orderedChain.map((s) => ({
+      sessionId: s.id,
+      startTime: normalizeSessionTime(s.startTime, s.date),
+      endTime: normalizeSessionTime(s.endTime, s.date),
+      bookings: bookings
+        .filter((b) => b.sessionId === s.id)
+        .map((b) => ({
+          id: b.id,
+          appointmentNo: b.appointmentNo,
+          receiptNoString: b.receiptNoString ?? null,
+          title: b.title,
+          name: b.name,
+          channelRoomAttendance: b.channelRoomAttendance ?? null,
+        })),
+    }))
+
     const data: ChannelRoomSessionDetail = {
-      sessionId: session.id,
+      sessionId: anchorSessionId,
+      relatedSessionIds: chainSessionIds,
       institution: session.institution,
       locationId: session.locationId ?? null,
       channelCurrentPatientNumber: session.channelCurrentPatientNumber,
@@ -89,6 +199,7 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
       locationName: session.location?.name ?? null,
       startTime: normalizeSessionTime(session.startTime as Date | number, sessionDate),
       endTime: normalizeSessionTime(session.endTime as Date | number, sessionDate),
+      bookingGroups,
       bookings: bookings.map((b) => ({
         id: b.id,
         appointmentNo: b.appointmentNo,

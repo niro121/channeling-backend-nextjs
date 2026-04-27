@@ -79,7 +79,9 @@ export function ChannelRoomSessionClient({ sessionId }: { sessionId: string }) {
     institutionIds: subscribeInsts,
     enabled: Boolean(detail && errorCode !== "doctor_not_arrived"),
     onEvent: (payload) => {
-      if (payload.sessionId === sessionId) void load({ silent: true })
+      if (payload.sessionId === sessionId || (detail?.relatedSessionIds ?? []).includes(payload.sessionId)) {
+        void load({ silent: true })
+      }
     },
   })
 
@@ -103,6 +105,12 @@ export function ChannelRoomSessionClient({ sessionId }: { sessionId: string }) {
             bookings: prev.bookings.map((b) =>
               b.id === bookingId ? { ...b, channelRoomAttendance: attendance } : b
             ),
+            bookingGroups: prev.bookingGroups.map((g) => ({
+              ...g,
+              bookings: g.bookings.map((b) =>
+                b.id === bookingId ? { ...b, channelRoomAttendance: attendance } : b
+              ),
+            })),
           }
         })
       } else {
@@ -199,164 +207,172 @@ export function ChannelRoomSessionClient({ sessionId }: { sessionId: string }) {
           <CardDescription>Mark show or no-show in any order.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 sm:hidden">
-            {detail.bookings.map((b) => {
-              const done = b.channelRoomAttendance != null
-              const busy = submittingId === b.id
-              return (
-                <div key={b.id} className="rounded-lg border p-3 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground tabular-nums">
-                        No. {String(b.appointmentNo).padStart(2, "0")}
-                      </p>
-                      <p className="font-medium">
-                        <span>{b.title}</span> <span>{b.name}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground tabular-nums">{b.receiptNoString ?? "—"}</p>
-                    </div>
-                    <div>
-                      {done ? (
-                        <Badge
-                          variant={b.channelRoomAttendance === 1 ? "default" : "secondary"}
-                          className="font-medium"
-                        >
-                          {attendanceLabel(b.channelRoomAttendance)}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Pending</span>
-                      )}
-                    </div>
-                  </div>
-                  {!done && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="default"
-                        disabled={busy}
-                        className="min-h-10 text-base"
-                        onClick={() => void onMark(b.id, 1)}
-                      >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Show"}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        className="min-h-10 text-base"
-                        onClick={() => void onMark(b.id, 2)}
-                      >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "No-show"}
-                      </Button>
-                    </div>
-                  )}
-                  {done && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      className="w-full min-h-10 text-base"
-                      onClick={() => void onMark(b.id, null)}
-                    >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Revert"}
-                    </Button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="hidden sm:block rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16 text-xs uppercase tracking-wide">No.</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wide">Name / Receipt</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wide">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.bookings.map((b) => {
+          {detail.bookingGroups.map((group, idx) => (
+            <div key={group.sessionId} className="space-y-3">
+              <div className="text-sm font-medium text-muted-foreground">
+                Session {idx + 1}: {formatSessionStartTimeDisplay(group.startTime, today)} -{" "}
+                {formatSessionStartTimeDisplay(group.endTime, today)}
+              </div>
+              <div className="space-y-3 sm:hidden">
+                {group.bookings.map((b) => {
                   const done = b.channelRoomAttendance != null
                   const busy = submittingId === b.id
                   return (
-                    <TableRow key={b.id}>
-                      <TableCell className="tabular-nums font-semibold">
-                        {String(b.appointmentNo).padStart(2, "0")}
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium">
-                            <span>{b.title}</span>{" "}
-                            <span>{b.name}</span>
-                          </span>
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {b.receiptNoString ?? "—"}
-                          </span>
+                    <div key={b.id} className="rounded-lg border p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-foreground tabular-nums">
+                            No. {String(b.appointmentNo).padStart(2, "0")}
+                          </p>
+                          <p className="font-medium">
+                            <span>{b.title}</span> <span>{b.name}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground tabular-nums">{b.receiptNoString ?? "—"}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {done ? (
-                          <Badge
-                            variant={b.channelRoomAttendance === 1 ? "default" : "secondary"}
-                            className="font-medium"
+                        <div>
+                          {done ? (
+                            <Badge
+                              variant={b.channelRoomAttendance === 1 ? "default" : "secondary"}
+                              className="font-medium"
+                            >
+                              {attendanceLabel(b.channelRoomAttendance)}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Pending</span>
+                          )}
+                        </div>
+                      </div>
+                      {!done && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            disabled={busy}
+                            className="min-h-10 text-base"
+                            onClick={() => void onMark(b.id, 1)}
                           >
-                            {attendanceLabel(b.channelRoomAttendance)}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Pending</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {!done && (
-                          <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:justify-end">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="default"
-                              disabled={busy}
-                              className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
-                              onClick={() => void onMark(b.id, 1)}
-                            >
-                              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Show"}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={busy}
-                              className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
-                              onClick={() => void onMark(b.id, 2)}
-                            >
-                              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "No-show"}
-                            </Button>
-                          </div>
-                        )}
-                        {done && (
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Show"}
+                          </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             disabled={busy}
-                            className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
-                            onClick={() => void onMark(b.id, null)}
+                            className="min-h-10 text-base"
+                            onClick={() => void onMark(b.id, 2)}
                           >
-                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Revert"}
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "No-show"}
                           </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                        </div>
+                      )}
+                      {done && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          className="w-full min-h-10 text-base"
+                          onClick={() => void onMark(b.id, null)}
+                        >
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Revert"}
+                        </Button>
+                      )}
+                    </div>
                   )
                 })}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+
+              <div className="hidden sm:block rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16 text-xs uppercase tracking-wide">No.</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide">Name / Receipt</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
+                      <TableHead className="text-right text-xs uppercase tracking-wide">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.bookings.map((b) => {
+                      const done = b.channelRoomAttendance != null
+                      const busy = submittingId === b.id
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="tabular-nums font-semibold">
+                            {String(b.appointmentNo).padStart(2, "0")}
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium">
+                                <span>{b.title}</span>{" "}
+                                <span>{b.name}</span>
+                              </span>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {b.receiptNoString ?? "—"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {done ? (
+                              <Badge
+                                variant={b.channelRoomAttendance === 1 ? "default" : "secondary"}
+                                className="font-medium"
+                              >
+                                {attendanceLabel(b.channelRoomAttendance)}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Pending</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!done && (
+                              <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="default"
+                                  disabled={busy}
+                                  className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
+                                  onClick={() => void onMark(b.id, 1)}
+                                >
+                                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Show"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={busy}
+                                  className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
+                                  onClick={() => void onMark(b.id, 2)}
+                                >
+                                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "No-show"}
+                                </Button>
+                              </div>
+                            )}
+                            {done && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                className="w-full sm:w-auto min-h-10 px-4 text-base sm:text-sm"
+                                onClick={() => void onMark(b.id, null)}
+                              >
+                                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Revert"}
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ))}
           {detail.bookings.length === 0 && (
-            <p className="text-sm text-muted-foreground py-4">No paid bookings for this session.</p>
+            <p className="text-sm text-muted-foreground py-4">No paid bookings for these sessions.</p>
           )}
         </CardContent>
       </Card>

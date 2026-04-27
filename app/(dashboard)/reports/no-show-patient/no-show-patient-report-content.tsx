@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import moment from 'moment';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
 import { Download, Printer, SearchIcon } from 'lucide-react';
@@ -30,12 +30,16 @@ const REPORT_TYPE_OPTIONS = [
   { id: 'by_month', name: 'By Month' },
 ] as const;
 
-function defaultRange() {
+/** Default from = today 00:00, to = today 23:59 (local) in YYYY-MM-DDTHH:mm for datetime-local */
+function getDefaultDateTimeRange(): { from: string; to: string } {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
-  return { from: `${y}-${m}-${d}`, to: `${y}-${m}-${d}` };
+  return {
+    from: `${y}-${m}-${d}T00:00`,
+    to: `${y}-${m}-${d}T23:59`,
+  };
 }
 
 export default function NoShowPatientReportContent({
@@ -68,8 +72,8 @@ export default function NoShowPatientReportContent({
     generatedAt: string;
   } | null>(null);
 
-  const [fromDate, setFromDate] = useState(defaultRange().from);
-  const [toDate, setToDate] = useState(defaultRange().to);
+  const [fromDateTime, setFromDateTime] = useState<string>(getDefaultDateTimeRange().from);
+  const [toDateTime, setToDateTime] = useState<string>(getDefaultDateTimeRange().to);
   const [institutionId, setInstitutionId] = useState('__all__');
   const [locationId, setLocationId] = useState('__all__');
   const [departmentId, setDepartmentId] = useState('__all__');
@@ -81,8 +85,8 @@ export default function NoShowPatientReportContent({
   const optionListsLoading = false;
 
   const buildQuery = (): NoShowPatientReportQuery => ({
-    fromDate,
-    toDate,
+    fromDate: fromDateTime,
+    toDate: toDateTime,
     institutionId: institutionId !== '__all__' ? institutionId : undefined,
     locationId: locationId !== '__all__' ? locationId : undefined,
     departmentId: departmentId !== '__all__' ? departmentId : undefined,
@@ -137,8 +141,8 @@ export default function NoShowPatientReportContent({
       setColumnTotals(res.columnTotals ?? {});
       setGrandTotal(res.grandTotal ?? 0);
       setReportMeta({
-        fromDate,
-        toDate,
+        fromDate: fromDateTime,
+        toDate: toDateTime,
         institutionLabel: labels.institution,
         branchLabel: labels.branch,
         departmentLabel: labels.department,
@@ -256,66 +260,64 @@ export default function NoShowPatientReportContent({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-4 items-start mb-4 pb-3 border-b no-print">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">Date Range</label>
-              <DateRangePicker
-                from={fromDate}
-                to={toDate}
+          <div className="flex flex-wrap items-end gap-4 mb-4 pb-3 border-b no-print">
+            <div className="flex-shrink-0">
+              <DateTimeRangePicker
+                label="Date & time range"
+                from={fromDateTime}
+                to={toDateTime}
                 onChange={({ from, to }) => {
-                  setFromDate(from ?? '');
-                  setToDate(to ?? '');
+                  setFromDateTime(from ?? '');
+                  setToDateTime(to ?? '');
                 }}
               />
             </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <Combobox
-                label="Institution"
-                options={institutionOptions}
-                value={institutionId}
-                defaultValue="__all__"
-                onChange={(v) => setInstitutionId(v ?? '__all__')}
-              />
-              <Combobox
-                label="Branch"
-                options={branchOptions}
-                value={locationId}
-                defaultValue="__all__"
-                onChange={(v) => setLocationId(v ?? '__all__')}
-              />
-              <Combobox
-                label="Department"
-                options={departmentOptions}
-                value={departmentId}
-                defaultValue="__all__"
-                onChange={(v) => setDepartmentId(v ?? '__all__')}
-              />
-              <Combobox
-                label="Speciality"
-                options={specialityOptions}
-                value={specialityId}
-                defaultValue="__all__"
-                onChange={(v) => setSpecialityId(v ?? '__all__')}
-              />
-              <Combobox
-                label="Doctor"
-                options={doctorOptions}
-                value={doctorId}
-                defaultValue="__all__"
-                onChange={(v) => setDoctorId(v ?? '__all__')}
-              />
-              <Selector
-                label="Report Type"
-                options={REPORT_TYPE_OPTIONS.map((x) => ({ id: x.id, name: x.name }))}
-                value={reportType}
-                showDefaultOption={false}
-                onChange={(v) => setReportType((v as NoShowPatientReportType) ?? 'by_date')}
-              />
-              <Button onClick={onSearch} disabled={loading} className="gap-2">
-                <SearchIcon className="h-4 w-4" />
-                Search
-              </Button>
-            </div>
+            <Combobox
+              label="Institution"
+              options={institutionOptions}
+              value={institutionId}
+              defaultValue="__all__"
+              onChange={(v) => setInstitutionId(v ?? '__all__')}
+            />
+            <Combobox
+              label="Branch"
+              options={branchOptions}
+              value={locationId}
+              defaultValue="__all__"
+              onChange={(v) => setLocationId(v ?? '__all__')}
+            />
+            <Combobox
+              label="Department"
+              options={departmentOptions}
+              value={departmentId}
+              defaultValue="__all__"
+              onChange={(v) => setDepartmentId(v ?? '__all__')}
+            />
+            <Combobox
+              label="Speciality"
+              options={specialityOptions}
+              value={specialityId}
+              defaultValue="__all__"
+              onChange={(v) => setSpecialityId(v ?? '__all__')}
+            />
+            <Combobox
+              label="Doctor"
+              options={doctorOptions}
+              value={doctorId}
+              defaultValue="__all__"
+              onChange={(v) => setDoctorId(v ?? '__all__')}
+            />
+            <Selector
+              label="Report Type"
+              options={REPORT_TYPE_OPTIONS.map((x) => ({ id: x.id, name: x.name }))}
+              value={reportType}
+              showDefaultOption={false}
+              onChange={(v) => setReportType((v as NoShowPatientReportType) ?? 'by_date')}
+            />
+            <Button onClick={onSearch} disabled={loading || !fromDateTime || !toDateTime} className="gap-2">
+              <SearchIcon className="h-4 w-4" />
+              Search
+            </Button>
           </div>
 
           {loading ? (

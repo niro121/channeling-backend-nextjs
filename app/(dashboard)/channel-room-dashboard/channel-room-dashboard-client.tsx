@@ -12,7 +12,7 @@ import {
   formatSessionDateShort,
   formatSessionStartTimeDisplay,
 } from "../channel-booking/components/sessions-selection/util"
-import { DoctorDropdown } from "./doctor-dropdown"
+import { Combobox } from "@/components/common/combobox"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -144,6 +144,12 @@ export function ChannelRoomDashboardClient() {
     },
   })
 
+  const resetVisitRoomPicker = useCallback(() => {
+    setPickerDoctorId("")
+    setPickerSessions([])
+    setPickerSessionId("")
+  }, [])
+
   useEffect(() => {
     if (!pickerDoctorId) {
       setPickerSessions([])
@@ -167,6 +173,14 @@ export function ChannelRoomDashboardClient() {
   }, [pickerDoctorId, today, selectedLocationId])
 
   const doctors = initialData?.doctors ?? []
+  const doctorComboboxOptions = useMemo(
+    () =>
+      doctors.map((d) => ({
+        id: d.id,
+        name: [d.title, d.name].filter(Boolean).join(" ").trim() || d.name,
+      })),
+    [doctors]
+  )
   const canReleaseRoom = has("rooms", "edit")
 
   const openReleaseConfirm = (roomId: string, roomNumber: string | null) => {
@@ -261,7 +275,13 @@ export function ChannelRoomDashboardClient() {
           <Button type="button" variant="outline" size="sm" onClick={() => void loadDashboard()}>
             Refresh
           </Button>
-          <Dialog open={visitRoomDialogOpen} onOpenChange={setVisitRoomDialogOpen}>
+          <Dialog
+            open={visitRoomDialogOpen}
+            onOpenChange={(open) => {
+              setVisitRoomDialogOpen(open)
+              if (!open) resetVisitRoomPicker()
+            }}
+          >
             <DialogTrigger asChild>
               <Button type="button" size="sm">
                 Visit Room
@@ -275,7 +295,19 @@ export function ChannelRoomDashboardClient() {
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
-                <DoctorDropdown doctors={doctors} value={pickerDoctorId} onChange={setPickerDoctorId} />
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Doctor</span>
+                  <Combobox
+                    label="Select doctor"
+                    options={doctorComboboxOptions}
+                    value={pickerDoctorId}
+                    defaultValue=""
+                    onChange={setPickerDoctorId}
+                    clearable
+                    triggerClassName="h-9 w-full max-w-none"
+                    popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0"
+                  />
+                </div>
                 <div className="space-y-1.5">
                   <span className="text-xs text-muted-foreground">Today&apos;s session</span>
                   <Select
