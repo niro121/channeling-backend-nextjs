@@ -194,6 +194,13 @@ const reportsData: ReportListItem[] = [
   {
     id: '36',
     rank: 36,
+    masterData: 'Room Occupancy',
+    description: 'Highlights booked room hours by date and shows total booked hours from session start/end time.',
+    route: '/reports/room-occupancy'
+  },
+  {
+    id: '36',
+    rank: 36,
     masterData: 'Agent Collection Receipt Report',
     description: 'Shows agent deposits/withdrawals and cancellations by payment type, with totals.',
     route: '/reports/agent-collection-receipt'
@@ -218,6 +225,13 @@ const reportsData: ReportListItem[] = [
     masterData: 'Bank Deposits',
     description: 'Lists bank deposit receipts with date/time range and bank account filters.',
     route: '/reports/bank-deposits'
+  },
+  {
+    id: '42',
+    rank: 42,
+    masterData: 'No Show Patient Report',
+    description: 'Shows no-show patient counts by speciality and doctor, with by-date or by-month summary.',
+    route: '/reports/no-show-patient'
   }
 ];
 
@@ -251,6 +265,8 @@ export default async function ReportsPage() {
       '/reports/channel-schedule-with-charges',
       '/reports/channel-transfer',
       '/reports/channel-report-receipt-wise',
+      '/reports/room-occupancy',
+      '/reports/no-show-patient',
     ].includes(r.route)
   );
   const agents = reportsData.filter((r) =>

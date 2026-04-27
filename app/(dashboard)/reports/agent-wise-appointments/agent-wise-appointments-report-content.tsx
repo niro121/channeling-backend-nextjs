@@ -34,7 +34,10 @@ import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
 import { SearchIcon } from 'lucide-react';
 import { ReportAgentSelect } from '@/components/common/agent-select';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
-import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import {
+  formatReportRangeLabel,
+  formatReportRangeOrdinalClipToYear
+} from '@/lib/format-report-range-label';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { getAgentWiseAppointmentsReportData } from '@/app/actions/reports/agent-wise-appointments.report.action';
 import type {
@@ -89,6 +92,31 @@ function filterLabel(
   return options.find((o) => o.id === id)?.name ?? id;
 }
 
+/** Month-only label under a year header (same anchor as report service). */
+function monthSubLabelFromKey(key: string): string {
+  const d = new Date(`${key}-15T12:00:00+05:30`);
+  return d.toLocaleString('en-GB', {
+    timeZone: 'Asia/Colombo',
+    month: 'long'
+  });
+}
+
+function groupMonthColumnsByYear(
+  columns: AgentWiseAppointmentsMonthColumn[]
+): Array<{ year: string; columns: AgentWiseAppointmentsMonthColumn[] }> {
+  const groups: Array<{
+    year: string;
+    columns: AgentWiseAppointmentsMonthColumn[];
+  }> = [];
+  for (const c of columns) {
+    const year = c.key.slice(0, 4);
+    const last = groups[groups.length - 1];
+    if (last?.year === year) last.columns.push(c);
+    else groups.push({ year, columns: [c] });
+  }
+  return groups;
+}
+
 export default function AgentWiseAppointmentsReportContent({
   currentUserName,
   institutionOptions,
@@ -106,7 +134,7 @@ export default function AgentWiseAppointmentsReportContent({
   const [departmentId, setDepartmentId] = useState<string>('__all__');
   const [agencyId, setAgencyId] = useState<string>('__all__');
   const [reportType, setReportType] =
-    useState<AgentWiseAppointmentsReportType>('detail');
+    useState<AgentWiseAppointmentsReportType>('summary');
 
   const [monthColumns, setMonthColumns] = useState<
     AgentWiseAppointmentsMonthColumn[]
@@ -232,6 +260,29 @@ export default function AgentWiseAppointmentsReportContent({
       setLoading(false);
     }
   };
+
+  const clearFilters = useCallback(() => {
+    const d = getDefaultDateTimeRange();
+    setFromDateTime(d.from);
+    setToDateTime(d.to);
+    setInstitutionId('__all__');
+    setLocationId('__all__');
+    setDepartmentId('__all__');
+    setAgencyId('__all__');
+    setReportType('summary');
+    setReportMeta(null);
+    setMonthColumns([]);
+    setSummaryRows([]);
+    setDetailRows([]);
+    setSummaryMonthTotals({});
+    setSummaryGrandTotal(0);
+    setDetailTotals({
+      hospitalFee: 0,
+      doctorFee: 0,
+      discount: 0,
+      totalFee: 0
+    });
+  }, []);
 
   const exportColumns = useMemo((): string[] => {
     if (reportType === 'summary') {
@@ -376,6 +427,11 @@ export default function AgentWiseAppointmentsReportContent({
     detailTotals,
   ]);
 
+  const summaryYearGroups = useMemo(
+    () => groupMonthColumnsByYear(monthColumns),
+    [monthColumns]
+  );
+
   return (
     <div className="container mx-auto py-3 space-y-4">
       <div className="flex justify-end">
@@ -418,13 +474,13 @@ export default function AgentWiseAppointmentsReportContent({
                 }}
               />
             </div>
-            <Selector
+            {/* <Selector
               label="Institution"
               options={institutionOptions}
               value={institutionId}
               onChange={(v) => setInstitutionId(v)}
               className={{ trigger: 'w-[220px]' }}
-            />
+            /> */}
             <Combobox
               label="Branch (site)"
               options={branchOpts}
@@ -433,14 +489,14 @@ export default function AgentWiseAppointmentsReportContent({
               clearable
               onChange={(v) => setLocationId(v ?? '__all__')}
             />
-            <Combobox
+            {/* <Combobox
               label="Department"
               options={departmentOptions}
               value={departmentId}
               defaultValue="__all__"
               clearable
               onChange={(v) => setDepartmentId(v ?? '__all__')}
-            />
+            /> */}
             <ReportAgentSelect
               agentOptions={agencyOptions}
               value={agencyId}
@@ -466,15 +522,27 @@ export default function AgentWiseAppointmentsReportContent({
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              size="sm"
-              onClick={runSearch}
-              disabled={loading}
-              className="h-10 gap-2"
-            >
-              <SearchIcon className="h-4 w-4" />
-              Search
-            </Button>
+            <div className="flex items-end gap-2">
+              <Button
+                size="sm"
+                onClick={runSearch}
+                disabled={loading}
+                className="h-10 gap-2"
+              >
+                <SearchIcon className="h-4 w-4" />
+                Search
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                disabled={loading}
+                className="h-10"
+              >
+                Clear
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -546,21 +614,56 @@ export default function AgentWiseAppointmentsReportContent({
               <div className="rounded-md border overflow-x-auto">
                 <Table className={tableCompact}>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Agent name</TableHead>
-                      <TableHead>Agent code</TableHead>
-                      {monthColumns.map((c) => (
-                        <TableHead
-                          key={c.key}
-                          className="text-right tabular-nums whitespace-nowrap"
-                        >
-                          {c.label}
+                    {monthColumns.length === 0 ? (
+                      <TableRow>
+                        <TableHead>Agent name</TableHead>
+                        <TableHead>Agent code</TableHead>
+                        <TableHead className="text-right tabular-nums">
+                          Grand total
                         </TableHead>
-                      ))}
-                      <TableHead className="text-right tabular-nums">
-                        Grand total
-                      </TableHead>
-                    </TableRow>
+                      </TableRow>
+                    ) : (
+                      <>
+                        <TableRow>
+                          <TableHead rowSpan={2}>Agent name</TableHead>
+                          <TableHead rowSpan={2}>Agent code</TableHead>
+                          {summaryYearGroups.map(({ year, columns }) => (
+                            <TableHead
+                              key={year}
+                              colSpan={columns.length}
+                              className="text-center align-top border-b bg-muted/40 px-2 py-1.5 font-semibold"
+                            >
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="tabular-nums">{year}</span>
+                                <span className="max-w-56 whitespace-normal text-center text-[10px] font-normal leading-snug text-muted-foreground">
+                                  {formatReportRangeOrdinalClipToYear(
+                                    year,
+                                    reportMeta.from,
+                                    reportMeta.to
+                                  )}
+                                </span>
+                              </div>
+                            </TableHead>
+                          ))}
+                          <TableHead
+                            rowSpan={2}
+                            className="text-right tabular-nums align-bottom"
+                          >
+                            Grand total
+                          </TableHead>
+                        </TableRow>
+                        <TableRow>
+                          {monthColumns.map((c) => (
+                            <TableHead
+                              key={c.key}
+                              className="text-right tabular-nums whitespace-nowrap"
+                            >
+                              {monthSubLabelFromKey(c.key)}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </>
+                    )}
                   </TableHeader>
                   <TableBody>
                     {summaryRows.length === 0 ? (

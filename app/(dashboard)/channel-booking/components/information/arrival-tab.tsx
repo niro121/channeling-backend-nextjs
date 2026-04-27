@@ -82,9 +82,22 @@ export function ArrivalTab() {
     }
   }, [locationId])
 
+  useEffect(() => {
+    if (!roomId) return
+    const room = rooms.find((r) => r.id === roomId)
+    if (!room?.occupied) return
+    setRoomId("")
+    toast({
+      variant: "destructive",
+      title: "Room unavailable",
+      description: "Selected room is already occupied. Please choose another room.",
+    })
+  }, [rooms, roomId, toast])
+
   const arrivalCount = state?.doctorArrivalTime?.length ?? 0
   const departureCount = state?.doctorDepatureTime?.length ?? 0
   const isArrived = arrivalCount > departureCount
+  const selectedRoom = rooms.find((r) => r.id === roomId)
   const lastArrival = state?.doctorArrivalTime?.length
     ? state.doctorArrivalTime[state.doctorArrivalTime.length - 1]
     : null
@@ -92,7 +105,8 @@ export function ArrivalTab() {
     ? state.doctorDepatureTime[state.doctorDepatureTime.length - 1]
     : null
 
-  const canSetArrival = !isArrived && !!roomId?.trim() && !!selectedSession?.id
+  const canSetArrival =
+    !isArrived && !!roomId?.trim() && !!selectedSession?.id && !selectedRoom?.occupied
   const canSetDeparture = isArrived && !!selectedSession?.id
 
   const refreshSessions = async () => {
@@ -229,8 +243,9 @@ export function ArrivalTab() {
                   </SelectTrigger>
                   <SelectContent>
                     {rooms.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
+                      <SelectItem key={r.id} value={r.id} disabled={r.occupied}>
                         {r.number}
+                        {r.occupied ? " (Occupied)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
