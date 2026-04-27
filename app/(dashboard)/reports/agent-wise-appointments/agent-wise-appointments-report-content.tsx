@@ -67,7 +67,7 @@ function getDefaultDateTimeRange(): { from: string; to: string } {
 }
 
 const tableCompact =
-  'text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:py-1 [&_td]:py-1 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0';
+  'text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:py-1 [&_td]:py-1 [&_th]:border-r [&_thead>tr:first-child_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0';
 
 /** Matches doctor-leave report creator column layout. */
 function CreatorDisplay({ creatorLabel }: { creatorLabel: string }) {
