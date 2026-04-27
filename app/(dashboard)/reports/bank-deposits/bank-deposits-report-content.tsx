@@ -24,9 +24,10 @@ type Props = {
   currentUserName: string;
   bankAccountOptions: Array<{ id: string; name: string }>;
   userOptions: Array<{ id: string; name: string }>;
+  locationOptions: Array<{ id: string; name: string }>;
 };
 
-function getDefaultDateTimeRange(): { dateFrom: string; dateTo: string } {
+function getDefaultFilterValues(): Record<string, string> {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -34,10 +35,11 @@ function getDefaultDateTimeRange(): { dateFrom: string; dateTo: string } {
   return {
     dateFrom: `${y}-${m}-${d}T00:00`,
     dateTo: `${y}-${m}-${d}T23:59`,
+    locationId: '__all__',
   };
 }
 
-function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Props) {
+function ContentInner({ currentUserName, bankAccountOptions, userOptions, locationOptions }: Props) {
   const searchParams = useSearchParams();
 
   const buildQuery = (): BankDepositsReportQuery => ({
@@ -45,12 +47,13 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Prop
     dateTo: searchParams.get('dateTo') ?? '',
     bankAccountId: searchParams.get('bankAccountId') ?? '__all__',
     userId: searchParams.get('userId') ?? '__all__',
+    locationId: searchParams.get('locationId') ?? '__all__',
   });
 
   return (
     <ReportTemplate<BankDepositsReportRow, BankDepositsReportExportRow>
       title="Bank Deposits"
-      description="Lists bank deposit and bank withdraw receipts by date/time range with optional bank account filtering."
+      description="Lists bank deposit and bank withdraw receipts by date/time range with optional branch, bank account, and user filters."
       filterButtonLabel="Search"
       showBackButton={false}
       containerClassName="w-full py-2 space-y-3"
@@ -61,15 +64,22 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Prop
           const dt = values.dateTo ?? '';
           const bankAccountId = values.bankAccountId ?? '__all__';
           const userId = values.userId ?? '__all__';
+          const locationId = values.locationId ?? '__all__';
           const bankAccountLabel =
             bankAccountId === '__all__'
               ? 'All Bank Accounts'
               : bankAccountOptions.find((b) => b.id === bankAccountId)?.name ?? bankAccountId;
           const userLabel = userId === '__all__' ? 'All Users' : userOptions.find((u) => u.id === userId)?.name ?? userId;
+          const branchLabel =
+            locationId === '__all__'
+              ? 'All Branches'
+              : locationOptions.find((l) => l.id === locationId)?.name ?? locationId;
           return (
             <>
               <div>Range: {df} to {dt}</div>
-              <div>Bank Account: {bankAccountLabel} | User: {userLabel}</div>
+              <div>
+                Branch: {branchLabel} | Bank Account: {bankAccountLabel} | User: {userLabel}
+              </div>
             </>
           );
         },
@@ -100,6 +110,18 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Prop
             />
           </div>
 
+          <div className="w-[280px]">
+            <label className="text-sm font-semibold mb-2 block">Branch</label>
+            <Combobox
+              label="Branch"
+              options={locationOptions}
+              value={values.locationId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => setValue('locationId', v ?? '__all__')}
+            />
+          </div>
+
           <ReportUserSelect
             userOptions={userOptions}
             value={values.userId ?? '__all__'}
@@ -115,6 +137,7 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Prop
           dateTo: params.get('dateTo') ?? '',
           bankAccountId: params.get('bankAccountId') ?? '__all__',
           userId: params.get('userId') ?? '__all__',
+          locationId: params.get('locationId') ?? '__all__',
         };
         return getBankDepositsReportData(query);
       }}
@@ -139,7 +162,7 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions }: Prop
         );
       }}
       skipFetchWhenNoParams={true}
-      initialFilterValues={getDefaultDateTimeRange()}
+      initialFilterValues={getDefaultFilterValues()}
       initialEmptyMessage="No bank deposits found. Select filters and click Search."
       emptyMessage="No bank deposits found for the selected filters."
     />

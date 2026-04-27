@@ -53,6 +53,7 @@ export async function exportBankDepositsReportData(
           dateTo: query.dateTo,
           bankAccountId: query.bankAccountId ?? '__all__',
           userId: query.userId ?? '__all__',
+          locationId: query.locationId ?? '__all__',
           count: mapped.length,
         },
       });
