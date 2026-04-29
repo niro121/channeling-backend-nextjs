@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import moment from 'moment';
 import {
   GetActiveSession,
   GetDoctorLeavesQuery,
@@ -660,6 +661,22 @@ export const updateDoctorLeaveService = async (
     }
 
     const data = parsed.data;
+
+    const mergedToDate = data.toDate ?? existing.toDate;
+    if (
+      moment(mergedToDate).startOf('day').valueOf() <
+      moment(existing.toDate).startOf('day').valueOf()
+    ) {
+      return {
+        success: false,
+        error: {
+          message: 'To date cannot be earlier than the current end date',
+          issues: {
+            toDate: ['To date cannot be earlier than the saved end date for this leave']
+          }
+        }
+      };
+    }
     const newSessionIds = effectiveNewIds;
     const lockedIds = await getLockedSessionIdsForDoctor(
       data.doctorId ?? existing.doctorId,

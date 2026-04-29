@@ -166,27 +166,54 @@ export default function DoctorLeaveForm({
     ]
   );
 
-  const validationSchema = Yup.object({
-    doctorId: Yup.string().required(),
+  const isEditingExistingLeave = Boolean(doctorLeave?.id);
+  /** When editing, calendar day of the saved To Date — To Date may only stay the same or move later. */
+  const savedEndDateFloor = React.useMemo(() => {
+    if (!doctorLeave?.toDate) return undefined;
+    return moment(doctorLeave.toDate).startOf('day').toDate();
+  }, [doctorLeave?.id, doctorLeave?.toDate]);
 
-    fromDate: Yup.date().required('From date is required'),
+  const validationSchema = React.useMemo(
+    () =>
+      Yup.object({
+        doctorId: Yup.string().required(),
 
-    toDate: Yup.date()
-      .required('To date is required')
-      .min(Yup.ref('fromDate'), 'To date cannot be before From date'),
+        fromDate: Yup.date().required('From date is required'),
 
-    remarks: Yup.string().required('Remarks is required'),
+        toDate: Yup.date()
+          .required('To date is required')
+          .min(Yup.ref('fromDate'), 'To date cannot be before From date')
+          .test(
+            'edit-to-not-before-saved',
+            'To date cannot be earlier than the current end date',
+            function (value) {
+              if (!isEditingExistingLeave || !savedEndDateFloor || !value) {
+                return true;
+              }
+              return (
+                moment(value).startOf('day').valueOf() >=
+                moment(savedEndDateFloor).startOf('day').valueOf()
+              );
+            }
+          ),
 
-    sesssions: Yup.array()
-      .min(1, 'At least one session must be selected')
-      .required('Sessions is required'),
+        remarks: Yup.string().required('Remarks is required'),
 
-    sendSms: Yup.boolean().required('Send SMS is required'),
+        sesssions: Yup.array()
+          .min(1, 'At least one session must be selected')
+          .required('Sessions is required'),
 
-    status: Yup.number()
-      .oneOf([0, 1], 'Leave status must be Cancelled or Active')
-      .required('This field is mandatory')
-  });
+        sendSms: Yup.boolean().required('Send SMS is required'),
+
+        status: Yup.number()
+          .oneOf([0, 1], 'Leave status must be Cancelled or Active')
+          .required('This field is mandatory')
+      }),
+    [
+      isEditingExistingLeave,
+      savedEndDateFloor
+    ]
+  );
 
   const handleSubmit = async (
     values: DoctorLeaveFormProps,
@@ -569,13 +596,14 @@ export default function DoctorLeaveForm({
                       setDateRange({ ...dateRange, fromDate: date });
                     }}
                     onBlur={formik.handleBlur}
+                    disabled={isEditingExistingLeave}
                     error={
-                      formik.touched.toDate &&
-                      typeof formik.errors.toDate === 'string'
-                        ? formik.errors.toDate
+                      formik.touched.fromDate &&
+                      typeof formik.errors.fromDate === 'string'
+                        ? formik.errors.fromDate
                         : undefined
                     }
-                    touched={!!formik.touched.toDate}
+                    touched={!!formik.touched.fromDate}
                     captionLayout="dropdown"
                     disablePast
                     required
@@ -598,7 +626,8 @@ export default function DoctorLeaveForm({
                     }
                     touched={!!formik.touched.toDate}
                     captionLayout="dropdown"
-                    disablePast
+                    disablePast={!isEditingExistingLeave}
+                    minDate={isEditingExistingLeave ? savedEndDateFloor : undefined}
                     required
                   />
                 </div>
