@@ -5,7 +5,7 @@ import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from 
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
-import { RECEIPT_METHOD_NAMES } from '@/types/receipt';
+import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from '@/types/receipt';
 import type { AgencyStatementQuery, AgencyStatementReportData, AgencyStatementRow } from '@/types/reports/agency-statement';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('agency_statement', 62);
@@ -150,6 +150,7 @@ export async function getAgencyStatementReportService(
             amount: true,
             remarks: true,
             createdBy: true,
+            paymentLines: { select: { paymentMethod: true, amount: true } },
             booking: {
               select: {
                 bookingid_string: true,
@@ -197,6 +198,12 @@ export async function getAgencyStatementReportService(
       const discount = Number(
         ((booking?.hospitalFeeDiscount ?? 0) + (booking?.professionsalFeeDiscount ?? 0)) || booking?.discount || 0
       );
+      const paymentBreakdown =
+        receipt?.paymentLines?.length
+          ? receipt.paymentLines
+              .map((line) => `${PAYMENT_METHOD_NAMES[line.paymentMethod] ?? line.paymentMethod}: ${line.amount}`)
+              .join(', ')
+          : '';
 
       return {
         no: idx + 1,
@@ -211,7 +218,11 @@ export async function getAgencyStatementReportService(
         discount,
         amount: Number(net),
         runningBalance: Number(runningBalanceCents),
-        comments: receipt?.remarks || journal?.description || '',
+        comments:
+          receipt?.remarks ||
+          (paymentBreakdown ? `Payment lines: ${paymentBreakdown}` : '') ||
+          journal?.description ||
+          '',
         createdBy: receipt?.createdBy ? creatorMap.get(receipt.createdBy) || 'Unknown user' : 'System',
       };
     });

@@ -96,6 +96,81 @@ export function buildReceiptJournalEntryInput(
       : receipt.method === RECEIPT_METHOD.BRANCH_EXPENSE
         ? branchExpenseAccountId
         : accounts.branchAccountId;
+  const tillSplitMethods = new Set<number>([
+    RECEIPT_PAYMENT_METHOD.CASH,
+    RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+    RECEIPT_PAYMENT_METHOD.SLIP,
+    RECEIPT_PAYMENT_METHOD.CHECK,
+    RECEIPT_PAYMENT_METHOD.E_WALLET,
+  ]);
+  const rawPaymentLines = Array.isArray(receipt.paymentLines) ? receipt.paymentLines : [];
+  const paymentLineSplits = rawPaymentLines
+    .map((line) => ({
+      paymentMethod: line.paymentMethod,
+      amountCents: Math.round(Math.abs(line.amount) * 100),
+    }))
+    .filter((line) => line.amountCents > 0);
+  const hasOnlyTillPaymentLines =
+    paymentLineSplits.length > 0 &&
+    paymentLineSplits.every((line) => tillSplitMethods.has(line.paymentMethod));
+  const splitTotalCents = paymentLineSplits.reduce((sum, line) => sum + line.amountCents, 0);
+
+  // Channel payment/refund with payment lines: post till-side by each line method.
+  if (
+    isChannelPaymentOrRefund &&
+    accounts.cashierAccountId &&
+    hasOnlyTillPaymentLines &&
+    splitTotalCents === amountCents
+  ) {
+    if (isPayment) {
+      const creditLines = useFeeSplit
+        ? [
+            ...(hospitalFeeCents > 0 ? [{ accountId: branchAccountId, debitAmount: 0, creditAmount: hospitalFeeCents }] : []),
+            ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: 0, creditAmount: professionalFeeCents }] : []),
+          ]
+        : [{ accountId: branchAccountId, debitAmount: 0, creditAmount: amountCents }];
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Channel payment${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          ...paymentLineSplits.map((line) => ({
+            accountId: accounts.cashierAccountId!,
+            debitAmount: line.amountCents,
+            creditAmount: 0,
+            paymentMethod: line.paymentMethod,
+          })),
+          ...creditLines,
+        ],
+      };
+    }
+    const refundDebitLines = useFeeSplit
+      ? [
+          ...(hospitalFeeCents > 0 ? [{ accountId: branchAccountId, debitAmount: hospitalFeeCents, creditAmount: 0 }] : []),
+          ...(professionalFeeCents > 0 ? [{ accountId: accounts.doctorAccountId!, debitAmount: professionalFeeCents, creditAmount: 0 }] : []),
+        ]
+      : [{ accountId: branchAccountId, debitAmount: amountCents, creditAmount: 0 }];
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Channel refund${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        ...refundDebitLines,
+        ...paymentLineSplits.map((line) => ({
+          accountId: accounts.cashierAccountId!,
+          debitAmount: 0,
+          creditAmount: line.amountCents,
+          paymentMethod: line.paymentMethod,
+        })),
+      ],
+    };
+  }
 
   // Till: cash — affect cashier till with paymentMethod 0 (channel payment/refund only)
   if (isCash && accounts.cashierAccountId && isChannelPaymentOrRefund) {
