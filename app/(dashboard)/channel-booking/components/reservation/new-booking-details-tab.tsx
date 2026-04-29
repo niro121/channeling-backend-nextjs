@@ -1091,7 +1091,7 @@ export function NewBookingDetailsTab() {
             (isSlip && (!slipRef.trim() || !bankId))
           }
           onClick={handleBookNow}
-          className="h-8 bg-green-700 hover:bg-green-800 text-white text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
+          className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
         >
           {saving ? (
             <>

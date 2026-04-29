@@ -136,6 +136,7 @@ export function ReceiptViewDialog({
                       <tr className="border-b bg-muted/50">
                         <th className="text-left p-2 font-medium">Account</th>
                         <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">Payment</th>
                         <th className="text-right p-2 font-medium">Debit</th>
                         <th className="text-right p-2 font-medium">Credit</th>
                       </tr>
@@ -162,6 +163,11 @@ export function ReceiptViewDialog({
                             </Link>
                           </td>
                           <td className="p-2 text-muted-foreground">{line.accountType}</td>
+                          <td className="p-2 text-muted-foreground">
+                            {line.paymentMethod != null
+                              ? (PAYMENT_METHOD_NAMES[line.paymentMethod] ?? String(line.paymentMethod))
+                              : "—"}
+                          </td>
                           <td className="p-2 text-right tabular-nums">
                             {line.debitAmount > 0 ? (line.debitAmount / 100).toFixed(2) : "—"}
                           </td>
