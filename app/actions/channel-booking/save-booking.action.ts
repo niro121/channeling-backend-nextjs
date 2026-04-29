@@ -6,6 +6,12 @@ import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { saveBookingService } from "@/services/channel-booking/save-booking.service"
 import type { SaveBookingInput, SaveBookingResult } from "@/types/save-booking"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+} from "@/types/save-booking"
 
 const saveBookingSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -17,6 +23,15 @@ const saveBookingSchema = z.object({
   foriegner: z.boolean(),
   payment_method: z.number().int().min(0),
   payment_type: z.number().int().min(0),
+  payment_lines: z.array(
+    z.object({
+      payment_method: z.number().int().min(0),
+      amount: z.number().positive(),
+      bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
+      slip_ref: z.string().optional(),
+      card: z.string().optional(),
+    })
+  ).optional(),
   session: z.object({ id: z.string() }),
   doctor: z.object({
     id: z.string(),
@@ -43,6 +58,40 @@ const saveBookingSchema = z.object({
   referred_doctor: z.object({ id: z.string() }).optional().nullable(),
   referred_agency: z.object({ id: z.string() }).optional().nullable(),
   referred_staff: z.object({ id: z.string() }).optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return
+  const lines = data.payment_lines ?? []
+  if (lines.length < 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["payment_lines"],
+      message: "At least two payment lines are required for mixed payments.",
+    })
+    return
+  }
+  const allowed = new Set([
+    SAVE_PAYMENT_TYPE_CASH,
+    SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_E_WALLET,
+  ])
+  let total = 0
+  lines.forEach((line, idx) => {
+    total += line.amount
+    if (!allowed.has(line.payment_method)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "payment_method"],
+        message: "Mixed payment lines only support Cash, Credit Card, and E-Wallet.",
+      })
+    }
+  })
+  if (Math.abs(total - data.amount) > 0.01) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["payment_lines"],
+      message: "Mixed payment line total must match amount.",
+    })
+  }
 })
 
 export type SaveBookingActionInput = z.infer<typeof saveBookingSchema>

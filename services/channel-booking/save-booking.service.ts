@@ -2,6 +2,12 @@ import prisma from "@/lib/prisma"
 import moment from "moment"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+} from "@/types/save-booking"
 import { getIO, channelBookingRoom, floatBalanceRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import {
@@ -39,6 +45,38 @@ const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
 const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4
 const DEFAULT_AGENCY_BALANCE_MESSAGE =
   "Ref: {agency_ref}. Booking with Dr {doctor}, appointment no {appointment_no}, date {date}, time {time}. Amount: {amount}. Your balance: {balance}."
+
+function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: number) {
+  if (input.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return null
+  const lines = (input.payment_lines ?? [])
+    .map((line) => ({
+      paymentMethod: line.payment_method,
+      amount: Math.round(line.amount),
+      bank: line.bank?.name ?? "",
+      bankId: line.bank?.id ?? null,
+      cardReference: line.card ?? "",
+      slipReference: line.slip_ref ?? "",
+    }))
+    .filter((line) => line.amount > 0)
+  if (lines.length < 2) {
+    return { error: "At least two payment lines are required for mixed payment." }
+  }
+  const allowed = new Set([
+    SAVE_PAYMENT_TYPE_CASH,
+    SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_E_WALLET,
+  ])
+  for (const line of lines) {
+    if (!allowed.has(line.paymentMethod)) {
+      return { error: "Mixed payment lines only allow Cash, Credit Card, and E-Wallet." }
+    }
+  }
+  const total = lines.reduce((sum, line) => sum + line.amount, 0)
+  if (total !== amountToUse) {
+    return { error: `Mixed payment line total (${total}) must equal booking amount (${amountToUse}).` }
+  }
+  return { lines }
+}
 
 async function buildNormalizedAgencyRef(input: SaveBookingInput): Promise<string> {
   const rawRef = (input.agency_ref ?? "").toUpperCase().trim()
@@ -393,7 +431,7 @@ export async function saveBookingService(
   if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
     const isAgent = input.payment_type === 4
     const isCreditCustomer = input.payment_type === 5
-    const needTill = [0, 1, 2, 3, 6].includes(input.payment_type)
+    const needTill = [0, 1, 2, 3, 6, SAVE_PAYMENT_TYPE_MIXED].includes(input.payment_type)
 
     if (needTill) {
       const reqResult = await requireReceiptJournalAccounts(
@@ -483,8 +521,18 @@ export async function saveBookingService(
       const isCash = input.payment_type === 0
       const isAgent = input.payment_type === 4
       const isCreditCustomer = input.payment_type === 5
-      const needTill = [0, 1, 2, 3, 6].includes(input.payment_type) // cash, card, slip, check, e-wallet (not agent, not credit customer)
+      const isMixed = input.payment_type === SAVE_PAYMENT_TYPE_MIXED
+      const needTill = [0, 1, 2, 3, 6, SAVE_PAYMENT_TYPE_MIXED].includes(input.payment_type) // mixed uses till split lines
       const needJournal = needTill || isAgent || isCreditCustomer
+      const mixedLinesResult = buildMixedLinesFromSaveInput(input, receiptAmount)
+      if (mixedLinesResult?.error) {
+        return {
+          success: false,
+          errorCode: "INVALID_INPUT",
+          message: mixedLinesResult.error,
+        }
+      }
+      const paymentLines = mixedLinesResult?.lines
       try {
         let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
         if (needJournal) {
@@ -553,11 +601,12 @@ export async function saveBookingService(
             createdBy: userId,
             shiftId,
             userLocationId: null,
+            paymentLines,
             getBookingUpdate: (receipt) => ({
               status: 1,
               receiptNo: receipt.receiptNo,
               receiptNoString: receipt.receiptNoString,
-              receiptPaymentMethod: input.payment_type,
+              receiptPaymentMethod: isMixed ? SAVE_PAYMENT_TYPE_MIXED : input.payment_type,
               receiptNoCreatedAt: receipt.createdAt,
               receiptNoId: receipt.id,
               updatedBy: userId,

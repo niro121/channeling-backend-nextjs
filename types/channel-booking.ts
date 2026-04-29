@@ -42,6 +42,7 @@ export const PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: 5, name: "Slip", icon: "Receipt" },
   { id: 6, name: "Credit Customer", icon: "UserCircle" },
   { id: 7, name: "E-wallet", icon: "Wallet" },
+  { id: 8, name: "Mixed", icon: "Wallet" },
 ]
 
 /** Title options: use TITLE_OPTIONS from @/types/title (shared with doctor, patient). */
