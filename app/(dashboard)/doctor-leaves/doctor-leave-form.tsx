@@ -503,7 +503,6 @@ export default function DoctorLeaveForm({
             void formik.setFieldTouched('sesssions', true, false);
           }
           setRemovedSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [...prev, session]));
-          setSessionsTab('active');
         };
 
         const handleAddToLeave = (session: Session) => {
@@ -512,7 +511,6 @@ export default function DoctorLeaveForm({
           if (current.some((s) => getSessionId(s) === session.id)) return;
           formik.setFieldValue('sesssions', [...current, session]);
           setRemovedSessions((prev) => prev.filter((s) => s.id !== session.id));
-          setSessionsTab('selected');
         };
 
         const handleSelectAll = () => {
