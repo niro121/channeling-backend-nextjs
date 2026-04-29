@@ -140,6 +140,8 @@ export default function DoctorLeaveForm({
     toDate: doctorLeave?.toDate ?? new Date()
   });
   const formikRef = React.useRef<any>(null);
+  /** Clears `removedSessions` only when doctor or date range changes — not on every refetch (see sessions fetch effect). */
+  const sessionsFetchKeyRef = React.useRef<string>('');
 
   const initialValues: DoctorLeaveFormProps = React.useMemo(
     () => ({
@@ -343,6 +345,11 @@ export default function DoctorLeaveForm({
 
     const fromStr = moment(dateRange.fromDate).format('YYYY-MM-DD');
     const toStr = moment(dateRange.toDate).format('YYYY-MM-DD');
+    const fetchKey = `${doctorId}|${fromStr}|${toStr}`;
+    if (sessionsFetchKeyRef.current !== fetchKey) {
+      sessionsFetchKeyRef.current = fetchKey;
+      setRemovedSessions([]);
+    }
 
     setSessionsLoading(true);
 
@@ -368,7 +375,6 @@ export default function DoctorLeaveForm({
             ? new Set(lockedRes.data)
             : new Set()
         );
-        setRemovedSessions([]);
         if (!doctorLeave?.id) {
           formikRef.current?.setFieldValue('sesssions', []);
         }
@@ -377,13 +383,14 @@ export default function DoctorLeaveForm({
         setActiveSessionsFromAPI([]);
         setCanceledSessionsFromAPI([]);
         setLockedSessionIds(new Set());
-        setRemovedSessions([]);
         if (!doctorLeave?.id) {
           formikRef.current?.setFieldValue('sesssions', []);
         }
       })
       .finally(() => setSessionsLoading(false));
-  }, [doctorId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id, doctorLeave?.sessions]);
+    // Intentionally omit `doctorLeave?.sessions`: it is a new array reference on many parent renders and
+    // would refetch and previously cleared `removedSessions` after the user deselects on-leave sessions (edit only).
+  }, [doctorId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id]);
 
   return (
     <Formik
