@@ -55,6 +55,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import type { PaymentMethodIconKey } from "@/types/channel-booking"
@@ -80,6 +87,7 @@ const PAYMENT_TYPE_TO_ENUM: Record<number, string> = {
   4: "CASH",
   5: "CASH",
   6: "CASH",
+  7: "CASH",
 }
 
 const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
@@ -91,6 +99,11 @@ const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
   Receipt,
   UserCircle,
   Wallet,
+}
+
+type MixedLine = {
+  payment_method: number
+  amount: string
 }
 
 /**
@@ -117,6 +130,11 @@ export function NewBookingDetailsTab() {
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
+  const [mixedLines, setMixedLines] = useState<MixedLine[]>([
+    { payment_method: 0, amount: "" },
+    { payment_method: 1, amount: "" },
+  ])
   // Booking-type–specific fields (Agent=2, Staff=3, Card=4, Slip=5, Credit Customer=6, E-wallet=7)
   const [agencyId, setAgencyId] = useState<string>("")
   const [agencyBookId, setAgencyBookId] = useState<string>("")
@@ -169,6 +187,7 @@ export function NewBookingDetailsTab() {
   const isSlip = paymentMethodId === "5"
   const isCreditCustomer = paymentMethodId === "6"
   const isEWallet = paymentMethodId === "7"
+  const isMixed = paymentMethodId === "8"
   const selectedAgency = agencies.find((a) => a.id === agencyId)
   const selectedAgencyBook = agencyBooks.find((b) => b.id === agencyBookId)
   const selectedCreditCustomer = creditCustomers.find((c) => c.id === creditCustomerId)
@@ -228,7 +247,7 @@ export function NewBookingDetailsTab() {
   useEffect(() => {
     if (initialDataLoading || appliedDefaultBookingMethod.current) return
     const defaultId = initialData?.defaultBookingMethod
-    if (defaultId != null && defaultId >= 0 && defaultId <= 7) {
+    if (defaultId != null && defaultId >= 0 && defaultId <= 8) {
       setPaymentMethodId(String(defaultId))
       appliedDefaultBookingMethod.current = true
     }
@@ -238,7 +257,7 @@ export function NewBookingDetailsTab() {
   useEffect(() => {
     const defaultId = initialData?.defaultBookingMethod
     setPaymentMethodId(
-      defaultId != null && defaultId >= 0 && defaultId <= 7
+      defaultId != null && defaultId >= 0 && defaultId <= 8
         ? String(defaultId)
         : "0"
     )
@@ -262,6 +281,11 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setMixedDialogOpen(false)
+    setMixedLines([
+      { payment_method: 0, amount: "" },
+      { payment_method: 1, amount: "" },
+    ])
     setAgencyBooks([])
     setSelectedAgencyId(null)
     setReferredDoctorId(null)
@@ -280,6 +304,11 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setMixedDialogOpen(false)
+    setMixedLines([
+      { payment_method: 0, amount: "" },
+      { payment_method: 1, amount: "" },
+    ])
     setAgencyBooks([])
     setSelectedAgencyId(null)
   }, [paymentMethodId, setSelectedAgencyId])
@@ -309,10 +338,120 @@ export function NewBookingDetailsTab() {
   const fieldClass = "h-8 text-xs"
   const smallSelectClass = "h-8 text-xs w-24 shrink-0"
 
+  async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
+    if (!selectedSession || !selectedDoctor || !selectedArea) return
+    const { payment_method, payment_type } = getPaymentMethodAndType(Number(paymentMethodId))
+    setSaving(true)
+    try {
+      const result = await saveBookingAction({
+        name: patientName.trim(),
+        title: titleId,
+        sex: sexId,
+        phone: phoneNumber.trim(),
+        area: { id: selectedArea.id, name: selectedArea.name },
+        remarks: remarks.trim(),
+        foriegner: foreigner,
+        payment_method,
+        payment_type,
+        session: { id: selectedSession.id },
+        doctor: {
+          id: selectedDoctor.id,
+          title: selectedDoctor.title,
+          name: selectedDoctor.name,
+        },
+        amount: amountToPay,
+        discount: computedDiscountAmount,
+        auto_discount_type: firstAutoDiscount?.id ?? undefined,
+        discount_type: discountSchemeId ? discountSchemeId : undefined,
+        voucher_code: isVoucherScheme ? voucherCode.trim().toUpperCase() : undefined,
+        agency: isAgent && selectedAgency ? { id: selectedAgency.id } : undefined,
+        agency_book_id: isAgent && selectedAgencyBook ? selectedAgencyBook.id : undefined,
+        agency_leaf: isAgent
+          ? agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
+          : undefined,
+        agency_ref: isAgent
+          ? (selectedAgencyBook?.bookNumber ?? "") + agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
+          : undefined,
+        credit_customer: isCreditCustomer && selectedCreditCustomer ? { id: selectedCreditCustomer.id } : undefined,
+        staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
+        bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
+        card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
+        slip_ref: isSlip ? slipRef.trim() : undefined,
+        payment_lines: mixedPaymentLines,
+        referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
+        referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
+        referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
+      })
+      if (result.success) {
+        setInvalidFields({})
+        setPaymentMethodId("0")
+        setDiscountSchemeId("")
+        setVoucherCode("")
+        setVoucherValid(null)
+        setVoucherValidationMessage("")
+        setFormResetKey((k) => k + 1)
+        setForeigner(false)
+        setTitleId("")
+        setPatientName("")
+        setSexId("")
+        setPhoneNumber("")
+        setRemarks("")
+        setAreaId("")
+        setAreaOpen(false)
+        setAgencyId("")
+        setAgencyBookId("")
+        setAgencyRef("")
+        setCreditCustomerId("")
+        setStaffId("")
+        setBankId("")
+        setCardLast4("")
+        setSlipRef("")
+        setMixedDialogOpen(false)
+        setMixedLines([
+          { payment_method: 0, amount: "" },
+          { payment_method: 1, amount: "" },
+        ])
+        setAgencyBooks([])
+        setSelectedAgencyId(null)
+        setReferredDoctorId(null)
+        setReferredAgencyId(null)
+        setReferredStaffId(null)
+        toast({
+          title: "Booking saved",
+          description: "The booking was created successfully.",
+        })
+        const newBooking = result.data as ChannelBookingRecord | undefined
+        getBookingsBySession(selectedSession.id).then((res) => {
+          if (res.success && res.data) {
+            setBookings(res.data)
+            if (newBooking?.id) {
+              const selected = res.data.find((b) => b.id === newBooking.id) ?? newBooking
+              setSelectedBooking(selected)
+              setActiveInformationTab("booking")
+            }
+          }
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.message ?? result.errorCode ?? "Failed to save booking.",
+          variant: "destructive",
+        })
+      }
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to save booking.",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleBookNow() {
     if (!selectedSession || !selectedDoctor) return
-    const missingPatient =
-      !patientName.trim() || !titleId || !sexId || !isPhoneValid
+    const missingPatient = !patientName.trim() || !titleId || !sexId || !isPhoneValid
     if (missingPatient || !selectedArea) {
       setInvalidFields({
         name: !patientName.trim(),
@@ -384,109 +523,40 @@ export function NewBookingDetailsTab() {
       return
     }
     setInvalidFields({})
-    const { payment_method, payment_type } = getPaymentMethodAndType(
-      Number(paymentMethodId)
-    )
-    setSaving(true)
-    try {
-      const result = await saveBookingAction({
-        name: patientName.trim(),
-        title: titleId,
-        sex: sexId,
-        phone: phoneNumber.trim(),
-        area: { id: selectedArea.id, name: selectedArea.name },
-        remarks: remarks.trim(),
-        foriegner: foreigner,
-        payment_method,
-        payment_type,
-        session: { id: selectedSession.id },
-        doctor: {
-          id: selectedDoctor.id,
-          title: selectedDoctor.title,
-          name: selectedDoctor.name,
-        },
-        amount: amountToPay,
-        discount: computedDiscountAmount,
-        auto_discount_type: firstAutoDiscount?.id ?? undefined,
-        discount_type: discountSchemeId ? discountSchemeId : undefined,
-        voucher_code: isVoucherScheme ? voucherCode.trim().toUpperCase() : undefined,
-        agency: isAgent && selectedAgency ? { id: selectedAgency.id } : undefined,
-        agency_book_id: isAgent && selectedAgencyBook ? selectedAgencyBook.id : undefined,
-        agency_leaf: isAgent
-          ? agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
-          : undefined,
-        agency_ref: isAgent
-          ? (selectedAgencyBook?.bookNumber ?? "") + agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0")
-          : undefined,
-        credit_customer: isCreditCustomer && selectedCreditCustomer ? { id: selectedCreditCustomer.id } : undefined,
-        staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
-        bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
-        card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
-        slip_ref: isSlip ? slipRef.trim() : undefined,
-        referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
-        referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
-        referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
-      })
-      if (result.success) {
-        setInvalidFields({})
-        setPaymentMethodId("0")
-        setDiscountSchemeId("")
-        setVoucherCode("")
-        setVoucherValid(null)
-        setVoucherValidationMessage("")
-        setFormResetKey((k) => k + 1)
-        setForeigner(false)
-        setTitleId("")
-        setPatientName("")
-        setSexId("")
-        setPhoneNumber("")
-        setRemarks("")
-        setAreaId("")
-        setAreaOpen(false)
-        setAgencyId("")
-        setAgencyBookId("")
-        setAgencyRef("")
-        setCreditCustomerId("")
-        setStaffId("")
-        setBankId("")
-        setCardLast4("")
-        setSlipRef("")
-        setAgencyBooks([])
-        setSelectedAgencyId(null)
-        setReferredDoctorId(null)
-        setReferredAgencyId(null)
-        setReferredStaffId(null)
-        toast({
-          title: "Booking saved",
-          description: "The booking was created successfully.",
-        })
-        const newBooking = result.data as ChannelBookingRecord | undefined
-        getBookingsBySession(selectedSession.id).then((res) => {
-          if (res.success && res.data) {
-            setBookings(res.data)
-            if (newBooking?.id) {
-              const selected = res.data.find((b) => b.id === newBooking.id) ?? newBooking
-              setSelectedBooking(selected)
-              setActiveInformationTab("booking")
-            }
-          }
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: result.message ?? result.errorCode ?? "Failed to save booking.",
-          variant: "destructive",
-        })
-      }
-    } catch (e) {
+    if (isMixed) {
+      setMixedDialogOpen(true)
+      return
+    }
+    await submitBooking()
+  }
+
+  const mixedTotal = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const mixedRemaining = amountToPay - mixedTotal
+
+  async function handleMixedPayNow() {
+    const lines = mixedLines
+      .map((line) => ({
+        payment_method: line.payment_method,
+        amount: Math.round((Number(line.amount) || 0) * 100) / 100,
+      }))
+      .filter((line) => line.amount > 0)
+    if (lines.length < 2) {
       toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to save booking.",
+        title: "Mixed payment lines required",
+        description: "Please add at least two payment lines.",
         variant: "destructive",
       })
-    } finally {
-      setSaving(false)
+      return
     }
+    if (Math.abs(mixedRemaining) > 0.0001) {
+      toast({
+        title: "Amount mismatch",
+        description: "Payment line total must match the full payable amount.",
+        variant: "destructive",
+      })
+      return
+    }
+    await submitBooking(lines)
   }
 
   if (hasSession && selectedSession?.status === 0) {
@@ -1036,6 +1106,104 @@ export function NewBookingDetailsTab() {
           )}
         </Button>
       </div>
+
+      <Dialog open={mixedDialogOpen} onOpenChange={setMixedDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Mixed Payment Breakdown</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {mixedLines.map((line, idx) => (
+              <div key={`mixed-line-${idx}`} className="grid grid-cols-[1fr_120px_32px] gap-2 items-center">
+                <Select
+                  value={String(line.payment_method)}
+                  onValueChange={(v) =>
+                    setMixedLines((prev) =>
+                      prev.map((row, rowIdx) =>
+                        rowIdx === idx ? { ...row, payment_method: Number(v) } : row
+                      )
+                    )
+                  }
+                >
+                  <SelectTrigger className={fieldClass}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0" className="text-xs">Cash</SelectItem>
+                    <SelectItem value="1" className="text-xs">Credit Card</SelectItem>
+                    <SelectItem value="6" className="text-xs">E-Wallet</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className={fieldClass}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={line.amount}
+                  onChange={(e) =>
+                    setMixedLines((prev) =>
+                      prev.map((row, rowIdx) =>
+                        rowIdx === idx ? { ...row, amount: e.target.value } : row
+                      )
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={mixedLines.length <= 2}
+                  onClick={() =>
+                    setMixedLines((prev) => prev.filter((_, rowIdx) => rowIdx !== idx))
+                  }
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() =>
+                setMixedLines((prev) => [...prev, { payment_method: 0, amount: "" }])
+              }
+            >
+              Add payment line
+            </Button>
+            <div className="rounded-md border border-border/60 p-2 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Payable</span>
+                <span>{formatLKR(amountToPay)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Entered</span>
+                <span>{formatLKR(mixedTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Remaining</span>
+                <span className={Math.abs(mixedRemaining) < 0.0001 ? "text-green-600" : "text-red-600"}>
+                  {formatLKR(mixedRemaining)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMixedDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleMixedPayNow}
+              disabled={saving || Math.abs(mixedRemaining) > 0.0001}
+            >
+              Pay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

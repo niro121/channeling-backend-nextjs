@@ -93,6 +93,7 @@ export async function getWithholdingTaxReportService(
         receiptNoString: true,
         createdAt: true,
         amount: true,
+        paymentLines: { select: { amount: true } },
         whd: true,
         whdPercentage: true,
         remarks: true
@@ -143,7 +144,11 @@ export async function getWithholdingTaxReportService(
       .map((r) => {
         const mapped = receiptDoctorMap.get(r.id);
         if (!mapped) return null;
-        const totalAmt = Math.abs(Number(r.amount ?? 0));
+        const lineTotal =
+          r.paymentLines.length > 0
+            ? r.paymentLines.reduce((sum, line) => sum + line.amount, 0)
+            : Number(r.amount ?? 0);
+        const totalAmt = Math.abs(lineTotal);
         const holdingTax = Number(r.whd ?? 0);
         const netAmt = totalAmt - holdingTax;
         return {

@@ -74,11 +74,20 @@ function paymentColumnKey(paymentMethod: number): keyof CashierSummaryPaymentAmo
 function receiptToAmounts(
   paymentMethod: number,
   amount: number,
-  type: number
+  type: number,
+  paymentLines?: Array<{ paymentMethod: number; amount: number }>
 ): CashierSummaryPaymentAmounts {
-  const key = paymentColumnKey(paymentMethod);
-  const value = type === 0 ? -Math.abs(amount) : amount;
-  return { ...ZERO_AMOUNTS, [key]: value };
+  const sign = type === 0 ? -1 : 1;
+  const result = { ...ZERO_AMOUNTS };
+  const normalizedLines =
+    Array.isArray(paymentLines) && paymentLines.length > 0
+      ? paymentLines
+      : [{ paymentMethod, amount }];
+  for (const line of normalizedLines) {
+    const key = paymentColumnKey(line.paymentMethod);
+    result[key] += sign * Math.abs(line.amount);
+  }
+  return result;
 }
 
 function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmounts): CashierSummaryPaymentAmounts {
@@ -169,6 +178,7 @@ export async function getCashierSummaryReportService(
   const isSummary = query.format === 'summary';
 
   const receiptIncludeBookingSessionDoctor = {
+    paymentLines: { select: { paymentMethod: true, amount: true } },
     booking: {
       include: {
         session: { select: { date: true, startTime: true } },
@@ -219,7 +229,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -257,7 +267,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -295,7 +305,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -321,6 +331,7 @@ export async function getCashierSummaryReportService(
   const agentBilled = await prisma.receipt.findMany({
     where: { ...baseWhere, agencyId: { not: null }, method: RECEIPT_METHOD.PAYMENT },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
@@ -331,7 +342,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -362,6 +373,7 @@ export async function getCashierSummaryReportService(
       booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
     },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
@@ -372,7 +384,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -403,6 +415,7 @@ export async function getCashierSummaryReportService(
       booking: { AND: [{ refund: 3 }, { status: 2 }] },
     },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       agency: { select: { name: true } },
       booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
@@ -413,7 +426,7 @@ export async function getCashierSummaryReportService(
     const b = r.booking;
     const sessionDateTime = b?.session ? formatSessionDateTime({ date: b.session.date, startTime: b.session.startTime }) : null;
     const consultant = b?.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : null;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -439,6 +452,7 @@ export async function getCashierSummaryReportService(
   const agentDepositOnly = await prisma.receipt.findMany({
     where: { ...baseWhere, method: RECEIPT_METHOD.AGENCY_DEPOSIT },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       agency: { select: { name: true } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
@@ -447,6 +461,7 @@ export async function getCashierSummaryReportService(
   const agentWithdrawAll = await prisma.receipt.findMany({
     where: { ...baseWhere, method: RECEIPT_METHOD.AGENCY_WITHDRAW, agencyId: { not: null } },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       agency: { select: { name: true } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
@@ -468,7 +483,7 @@ export async function getCashierSummaryReportService(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
   );
   function mapAgentLedgerRow(r: (typeof agentDepositOnly)[0]): CashierSummaryReportLineItem {
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -496,7 +511,7 @@ export async function getCashierSummaryReportService(
     (r) => r.reversedReceiptId != null && agentDepositCancelOrigIds.has(r.reversedReceiptId)
   );
   const agentDepositCanceledRows: CashierSummaryReportLineItem[] = agentDepositCanceledFiltered.map((r) => {
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -525,6 +540,7 @@ export async function getCashierSummaryReportService(
       method: { in: [RECEIPT_METHOD.DOCTOR_PAYMENT, RECEIPT_METHOD.DOCTOR_CANCEL] },
     },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
     orderBy: { createdAt: 'asc' },
@@ -600,7 +616,7 @@ export async function getCashierSummaryReportService(
 
   const doctorPaymentRows: CashierSummaryReportLineItem[] = doctorPayments.map((r) => {
     const consultant = resolveDoctorConsultant(r);
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -629,12 +645,13 @@ export async function getCashierSummaryReportService(
       method: { in: [RECEIPT_METHOD.BRANCH_INCOME, RECEIPT_METHOD.BRANCH_EXPENSE] },
     },
     include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
     },
     orderBy: { createdAt: 'asc' },
   });
   const incomeExpenseRows: CashierSummaryReportLineItem[] = incomeExpense.map((r) => {
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     const typeLabel = r.method === RECEIPT_METHOD.BRANCH_INCOME ? 'Income' : 'Expense';
     return {
       txCreated: r.createdAt,

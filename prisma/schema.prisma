@@ -1025,6 +1025,7 @@ model Receipt {
   location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
   userLocationId String?   @db.ObjectId
   userLocation   Location? @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
+  paymentLines   ReceiptPaymentLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1044,6 +1045,22 @@ model Receipt {
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
   @@index([shiftId])
+}
+
+model ReceiptPaymentLine {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  receiptId     String  @db.ObjectId
+  receipt       Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  paymentMethod Int
+  amount        Int
+  bank          String  @default("")
+  bankId        String? @db.ObjectId
+  cardReference String  @default("")
+  slipReference String  @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([receiptId])
 }
 
 // ==== DOUBLE-ENTRY ACCOUNTING ==== //

@@ -63,6 +63,8 @@ export async function getChannelAgentReceiptReportService(
         id: true,
         receiptNoString: true,
         amount: true,
+        paymentMethod: true,
+        paymentLines: { select: { paymentMethod: true, amount: true } },
         createdAt: true,
         createdBy: true,
         bookingId: true,
@@ -87,6 +89,10 @@ export async function getChannelAgentReceiptReportService(
       const booking = receipt.bookingId ? bookingById.get(receipt.bookingId) : null;
       const patientName = [booking?.title, booking?.name].filter(Boolean).join(' ').trim() || '-';
       const statusNum = Number(booking?.status ?? 0);
+      const lineTotal =
+        receipt.paymentLines.length > 0
+          ? receipt.paymentLines.reduce((sum, line) => sum + line.amount, 0)
+          : Number(receipt.amount ?? 0);
 
       return {
         id: receipt.id,
@@ -97,7 +103,7 @@ export async function getChannelAgentReceiptReportService(
         status: BOOKING_STATUS_LABELS[statusNum] ?? String(statusNum),
         creator: receipt.createdBy ? creatorById.get(receipt.createdBy) || 'Unknown user' : 'System',
         createdDate: receipt.createdAt,
-        billValue: Number(receipt.amount ?? 0),
+        billValue: lineTotal,
       };
     });
 
