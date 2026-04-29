@@ -101,6 +101,7 @@ export async function getBankDepositsReportService(
       receiptNoString: true,
       remarks: true,
       amount: true,
+      paymentLines: { select: { amount: true } },
       createdAt: true,
       locationId: true,
       userLocationId: true,
@@ -163,6 +164,10 @@ export async function getBankDepositsReportService(
   );
 
   const data: BankDepositsReportRow[] = sliced.map((r) => {
+    const totalAmount =
+      r.paymentLines.length > 0
+        ? r.paymentLines.reduce((sum, line) => sum + line.amount, 0)
+        : (r.amount ?? 0)
     const userLocId = r.userLocationId ?? r.locationId ?? null;
     const loc = userLocId ? locationById.get(userLocId) ?? null : null;
     const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
@@ -184,7 +189,7 @@ export async function getBankDepositsReportService(
       createdAt: r.createdAt ?? null,
       bankAccountId: r.bankId ?? null,
       bankAccountName: mappedBankAccountName ?? ((r.bank ?? '').trim() || null),
-      totalAmount: r.amount ?? 0,
+      totalAmount,
       count: 1,
     };
   });

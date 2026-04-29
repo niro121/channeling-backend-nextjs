@@ -28,6 +28,7 @@ export const RECEIPT_PAYMENT_METHOD = {
   AGENT: 4,
   CREDIT: 5,
   E_WALLET: 6,
+  MIXED: 7,
 } as const;
 
 export const PAYMENT_METHOD_NAMES: Record<number, string> = {
@@ -38,6 +39,7 @@ export const PAYMENT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_PAYMENT_METHOD.AGENT]: 'Agent',
   [RECEIPT_PAYMENT_METHOD.CREDIT]: 'Credit Customer',
   [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'E-Wallet',
+  [RECEIPT_PAYMENT_METHOD.MIXED]: 'Mixed',
 };
 
 export const RECEIPT_METHOD_NAMES: Record<number, string> = {

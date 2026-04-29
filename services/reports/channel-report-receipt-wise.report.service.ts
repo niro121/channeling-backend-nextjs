@@ -138,6 +138,7 @@ export async function getChannelReportReceiptWiseService(
         createdAt: true,
         amount: true,
         paymentMethod: true,
+        paymentLines: { select: { paymentMethod: true, amount: true } },
         method: true,
         createdBy: true,
         agency: { select: { name: true } },
@@ -194,7 +195,12 @@ export async function getChannelReportReceiptWiseService(
         receiptScope: booking ? 'Channel' : 'Other',
         receiptNo: receipt.receiptNoString || '-',
         receiptDate: receipt.createdAt,
-        receiptMethod: PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? String(receipt.paymentMethod),
+        receiptMethod:
+          receipt.paymentLines.length > 0
+            ? receipt.paymentLines
+                .map((line) => `${PAYMENT_METHOD_NAMES[line.paymentMethod] ?? String(line.paymentMethod)} ${line.amount}`)
+                .join(' + ')
+            : PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? String(receipt.paymentMethod),
         transactionType: RECEIPT_METHOD_NAMES[receipt.method] ?? String(receipt.method),
         receiptAmount: Number(receipt.amount ?? 0),
         bookingNo: booking?.bookingid_string || '-',

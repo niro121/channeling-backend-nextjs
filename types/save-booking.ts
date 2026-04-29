@@ -18,6 +18,7 @@ export const SAVE_PAYMENT_TYPE_CHEQUE = 3
 export const SAVE_PAYMENT_TYPE_AGENT = 4
 export const SAVE_PAYMENT_TYPE_CREDIT = 5
 export const SAVE_PAYMENT_TYPE_E_WALLET = 6
+export const SAVE_PAYMENT_TYPE_MIXED = 7
 
 /**
  * Maps UI payment dropdown id (PAYMENT_METHODS 0–7: Cash, OnCall, Agent, Staff, Card, Slip, Credit Customer, E-wallet)
@@ -36,6 +37,7 @@ export function getPaymentMethodAndType(uiPaymentId: number): {
     5: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_SLIP },
     6: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CREDIT },
     7: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_E_WALLET },
+    8: { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_MIXED },
   }
   return map[uiPaymentId] ?? { payment_method: SAVE_BOOKING_METHOD_POS, payment_type: SAVE_PAYMENT_TYPE_CASH }
 }
@@ -85,6 +87,13 @@ export type SaveBookingInput = {
   foriegner: boolean
   payment_method: number
   payment_type: number
+  payment_lines?: Array<{
+    payment_method: number
+    amount: number
+    bank?: { id: string; name?: string } | null
+    card?: string
+    slip_ref?: string
+  }>
   agency?: SaveBookingAgencyRef | null
   agency_book_id?: string
   agency_leaf?: string

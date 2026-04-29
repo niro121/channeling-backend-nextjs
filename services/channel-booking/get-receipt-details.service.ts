@@ -14,6 +14,7 @@ export type ReceiptDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
+  paymentLines: Array<{ paymentMethod: number; paymentMethodName: string; amount: number }>
 }
 
 /**
@@ -25,6 +26,7 @@ export async function getReceiptDetailsService(
   try {
     const r = await prisma.receipt.findUnique({
       where: { id: receiptId },
+      include: { paymentLines: true },
     })
     if (!r) {
       return { success: false, message: "Receipt not found." }
@@ -45,6 +47,11 @@ export async function getReceiptDetailsService(
       bank: r.bank ?? "",
       cardReference: r.cardReference ?? "",
       slipReference: r.slipReference ?? "",
+      paymentLines: r.paymentLines.map((line) => ({
+        paymentMethod: line.paymentMethod,
+        paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
+        amount: line.amount,
+      })),
     }
     return { success: true, data }
   } catch (error) {

@@ -1,6 +1,16 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 import { getReceiptSequenceInfo } from "./get-receipt-sequence"
 import { getNextSequenceNumber } from "./sequence"
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+
+export type ReceiptPaymentLineDraft = {
+  paymentMethod: number
+  amount: number
+  bank?: string
+  bankId?: string | null
+  cardReference?: string
+  slipReference?: string
+}
 
 /** Receipt params without sequence (helper resolves receiptNo/receiptNoString from locationId + method). */
 export type CreateReceiptForBookingReceiptParams = {
@@ -23,10 +33,13 @@ export type CreateReceiptForBookingReceiptParams = {
   shiftId?: string | null
   locationId?: string | null
   userLocationId?: string | null
+  paymentLines?: ReceiptPaymentLineDraft[]
 }
 
 /** Minimal receipt shape returned from create; getBookingUpdate receives this. */
-export type CreatedReceipt = Prisma.ReceiptGetPayload<object>
+export type CreatedReceipt = Prisma.ReceiptGetPayload<{
+  include: { paymentLines: true }
+}>
 
 export type CreateReceiptAndUpdateBookingParams = CreateReceiptForBookingReceiptParams & {
   /** Location for receipt sequence scope (null = global). */
@@ -69,11 +82,36 @@ export type CreateReceiptWithoutBookingParams = {
   whdPercentage?: number
   /** Channel booking shift id when receipt is created during a shift (for reconciliation). */
   shiftId?: string | null
+  paymentLines?: ReceiptPaymentLineDraft[]
 }
 
 export type CreateReceiptWithoutBookingResult =
   | { success: true; receipt: CreatedReceipt }
   | { success: false; errorCode: string; message: string }
+
+function normalizeReceiptPaymentLines(
+  paymentMethod: number,
+  amount: number,
+  paymentLines?: ReceiptPaymentLineDraft[]
+): { lines: ReceiptPaymentLineDraft[]; headerPaymentMethod: number } | { error: string } {
+  const normalizedInput = (paymentLines ?? []).filter((line) => Number(line.amount) > 0)
+  const lines =
+    normalizedInput.length > 0
+      ? normalizedInput
+      : [
+          {
+            paymentMethod,
+            amount,
+          },
+        ]
+  const total = lines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
+  if (total !== amount) {
+    return { error: `Receipt payment line total (${total}) must match receipt amount (${amount}).` }
+  }
+  const headerPaymentMethod =
+    lines.length > 1 ? RECEIPT_PAYMENT_METHOD.MIXED : lines[0].paymentMethod
+  return { lines, headerPaymentMethod }
+}
 
 /**
  * Create a receipt without a booking (ledger transactions). Sequence is acquired then receipt created in tx.
@@ -82,6 +120,14 @@ export async function createReceiptWithoutBooking(
   tx: Pick<PrismaClient, "receipt">,
   params: CreateReceiptWithoutBookingParams
 ): Promise<CreateReceiptWithoutBookingResult> {
+  const normalized = normalizeReceiptPaymentLines(
+    params.paymentMethod,
+    params.amount,
+    params.paymentLines
+  )
+  if ("error" in normalized) {
+    return { success: false, errorCode: "invalid_payment_lines", message: normalized.error }
+  }
   const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
     params.locationId,
     params.method,
@@ -98,7 +144,7 @@ export async function createReceiptWithoutBooking(
     data: {
       receiptNo,
       receiptNoString,
-      paymentMethod: params.paymentMethod,
+      paymentMethod: normalized.headerPaymentMethod,
       amount: params.amount,
       bank: params.bank ?? "",
       bankId: params.bankId ?? null,
@@ -115,7 +161,18 @@ export async function createReceiptWithoutBooking(
       shiftId: params.shiftId ?? null,
       locationId: params.locationId ?? null,
       userLocationId: params.userLocationId ?? params.locationId ?? null,
+      paymentLines: {
+        create: normalized.lines.map((line) => ({
+          paymentMethod: line.paymentMethod,
+          amount: line.amount,
+          bank: line.bank ?? "",
+          bankId: line.bankId ?? null,
+          cardReference: line.cardReference ?? "",
+          slipReference: line.slipReference ?? "",
+        })),
+      },
     },
+    include: { paymentLines: true },
   })
 
   return { success: true, receipt }
@@ -129,6 +186,14 @@ export async function createReceiptAndUpdateBooking(
   tx: Tx,
   params: CreateReceiptAndUpdateBookingParams
 ): Promise<CreateReceiptAndUpdateBookingResult> {
+  const normalized = normalizeReceiptPaymentLines(
+    params.paymentMethod,
+    params.amount,
+    params.paymentLines
+  )
+  if ("error" in normalized) {
+    return { success: false, errorCode: "invalid_payment_lines", message: normalized.error }
+  }
   const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
     params.locationId,
     params.receiptSequenceMethod
@@ -144,7 +209,7 @@ export async function createReceiptAndUpdateBooking(
     data: {
       receiptNo,
       receiptNoString,
-      paymentMethod: params.paymentMethod,
+      paymentMethod: normalized.headerPaymentMethod,
       amount: params.amount,
       bank: params.bank ?? "",
       bankId: params.bankId ?? null,
@@ -162,7 +227,18 @@ export async function createReceiptAndUpdateBooking(
       shiftId: params.shiftId ?? null,
       locationId: params.locationId ?? null,
       userLocationId: params.userLocationId ?? null,
+      paymentLines: {
+        create: normalized.lines.map((line) => ({
+          paymentMethod: line.paymentMethod,
+          amount: line.amount,
+          bank: line.bank ?? "",
+          bankId: line.bankId ?? null,
+          cardReference: line.cardReference ?? "",
+          slipReference: line.slipReference ?? "",
+        })),
+      },
     },
+    include: { paymentLines: true },
   })
 
   await tx.booking.update({

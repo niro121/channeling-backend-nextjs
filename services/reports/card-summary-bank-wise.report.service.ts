@@ -67,7 +67,6 @@ export async function getCardSummaryBankWiseReportService(
   const isSummary = query.format === 'summary';
 
   const where: any = {
-    paymentMethod: CARD_PAYMENT_METHOD,
     createdAt: { gte: from, lte: to },
     AND: [
       // Prisma Mongo null semantics can be inconsistent; include both null and not-set.
@@ -80,34 +79,54 @@ export async function getCardSummaryBankWiseReportService(
   }
 
   if (isSummary) {
-    const grouped = await prisma.receipt.groupBy({
-      by: ['bankId'],
+    const receipts = await prisma.receipt.findMany({
       where,
-      _sum: { amount: true },
-      _count: { _all: true },
-      orderBy: { bankId: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { receiptNo: 'asc' }],
       take: MAX_RECORDS + 1,
+      select: {
+        id: true,
+        bankId: true,
+        amount: true,
+        paymentMethod: true,
+        paymentLines: { select: { paymentMethod: true, amount: true } },
+      },
     });
-    const hasMore = grouped.length > MAX_RECORDS;
-    const sliced = hasMore ? grouped.slice(0, MAX_RECORDS) : grouped;
+    const hasMore = receipts.length > MAX_RECORDS;
+    const sliced = hasMore ? receipts.slice(0, MAX_RECORDS) : receipts;
+    const totalsByBank = new Map<string | null, { totalAmount: number; count: number }>();
+    for (const receipt of sliced) {
+      const cardAmount =
+        receipt.paymentLines.length > 0
+          ? receipt.paymentLines
+              .filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
+              .reduce((sum, line) => sum + line.amount, 0)
+          : receipt.paymentMethod === CARD_PAYMENT_METHOD
+            ? receipt.amount
+            : 0;
+      if (cardAmount <= 0) continue;
+      const key = receipt.bankId ?? null;
+      const current = totalsByBank.get(key) ?? { totalAmount: 0, count: 0 };
+      current.totalAmount += cardAmount;
+      current.count += 1;
+      totalsByBank.set(key, current);
+    }
 
     const bankIds = Array.from(
-      new Set(sliced.map((g) => g.bankId).filter((x): x is string => typeof x === 'string' && x.trim() !== ''))
+      new Set(Array.from(totalsByBank.keys()).filter((x): x is string => typeof x === 'string' && x.trim() !== ''))
     );
     const banks = bankIds.length
       ? await prisma.tag.findMany({ where: { id: { in: bankIds } }, select: { id: true, name: true } })
       : [];
     const bankById = new Map(banks.map((b) => [b.id, (b.name ?? '').trim()]));
 
-    const data: CardSummaryBankWiseReportRow[] = sliced.map((g) => {
-      const bid = g.bankId ?? null;
+    const data: CardSummaryBankWiseReportRow[] = Array.from(totalsByBank.entries()).map(([bid, totals]) => {
       const bankName = bid ? bankById.get(bid) ?? null : null;
       return {
         id: bid ?? '__no_bank__',
         bankId: bid,
         bankName,
-        totalAmount: g._sum?.amount ?? 0,
-        count: (g._count as any)?._all ?? 0,
+        totalAmount: totals.totalAmount,
+        count: totals.count,
       };
     });
 
@@ -139,6 +158,8 @@ export async function getCardSummaryBankWiseReportService(
       cardReference: true,
       remarks: true,
       amount: true,
+      paymentMethod: true,
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       receiptNoString: true,
       createdAt: true,
       locationId: true,
@@ -178,17 +199,27 @@ export async function getCardSummaryBankWiseReportService(
   const locationById = new Map(locations.map((l) => [l.id, l]));
   const userById = new Map(users.map((u) => [u.id, u]));
 
-  const data: CardSummaryBankWiseReportRow[] = sliced.map((r) => {
+  const data: CardSummaryBankWiseReportRow[] = []
+  for (const r of sliced) {
+    const cardAmount =
+      r.paymentLines.length > 0
+        ? r.paymentLines
+            .filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
+            .reduce((sum, line) => sum + line.amount, 0)
+        : r.paymentMethod === CARD_PAYMENT_METHOD
+          ? r.amount ?? 0
+          : 0
+    if (cardAmount <= 0) continue
     const userLocId = r.userLocationId ?? r.locationId ?? null;
     const loc = userLocId ? locationById.get(userLocId) ?? null : null;
     const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
-    return {
+    data.push({
       id: r.id,
       bankId: r.bankId ?? null,
       bankName: (r.bank ?? '').trim() || null,
-      totalAmount: r.amount ?? 0,
+      totalAmount: cardAmount,
       count: 1,
       receiptNoString: r.receiptNoString ?? null,
       createdAt: r.createdAt ?? null,
@@ -196,8 +227,8 @@ export async function getCardSummaryBankWiseReportService(
       user: userLabel,
       cardReference: (r.cardReference ?? '').trim() || null,
       remarks: (r.remarks ?? '').trim() || null,
-    };
-  });
+    })
+  }
 
   return {
     success: true,

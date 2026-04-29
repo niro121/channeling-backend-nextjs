@@ -871,6 +871,17 @@ function ReceiptViewDialog({
               <DetailRow label="Type" value={details.type} />
               <DetailRow label="Payment method" value={details.paymentMethodName} />
               <DetailRow label="Amount" value={formatRs(details.amount)} highlight />
+              {details.paymentLines.length > 0 && (
+                <div className="space-y-0.5 py-1">
+                  {details.paymentLines.map((line, idx) => (
+                    <DetailRow
+                      key={`${line.paymentMethod}-${idx}`}
+                      label={`Line: ${line.paymentMethodName}`}
+                      value={formatRs(line.amount)}
+                    />
+                  ))}
+                </div>
+              )}
               {details.bank ? (
                 <DetailRow label="Bank" value={details.bank} />
               ) : null}
