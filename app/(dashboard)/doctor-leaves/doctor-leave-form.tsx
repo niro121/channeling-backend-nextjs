@@ -35,9 +35,16 @@ import { Plus, X } from 'lucide-react';
 import { CustomSwitch } from '@/components/common/custom-switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const SESSION_STARTED_TOOLTIP =
   'This session has already started (or its start time is now or in the past). It cannot be added to or removed from this leave.';
+
+const SAVE_DISABLED_ILLEGAL_TOOLTIP =
+  'The session list cannot be changed to add or remove sessions that have already started. Reload the form and avoid altering those entries.';
+
+const SAVE_DISABLED_NO_SESSIONS_TOOLTIP =
+  'Select at least one session to save this leave. Add sessions from the Active sessions tab to Selected sessions, then try again.';
 
 /** True when the session’s scheduled start (date + start time) is at or before the current time. */
 function isSessionStartOnOrBeforeNow(s: Session): boolean {
@@ -457,7 +464,10 @@ export default function DoctorLeaveForm({
         const handleRemoveFromLeave = (session: Session) => {
           if (isSessionStartOnOrBeforeNow(session)) return;
           const updated = formik.values.sesssions.filter((s) => getSessionId(s) !== session.id);
-          formik.setFieldValue('sesssions', updated);
+          void formik.setFieldValue('sesssions', updated);
+          if (updated.length === 0) {
+            void formik.setFieldTouched('sesssions', true, false);
+          }
           setRemovedSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [...prev, session]));
           setSessionsTab('active');
         };
@@ -500,8 +510,18 @@ export default function DoctorLeaveForm({
             setSessionsTab('selected');
           } else {
             setSessionsTab('active');
+            void formik.setFieldTouched('sesssions', true, false);
           }
         };
+
+        const hasNoSelectedSessions = formik.values.sesssions.length === 0;
+        const saveActionsDisabled =
+          loading || illegalSessionMembershipChange || hasNoSelectedSessions;
+        const showSaveDisabledWhyTooltip =
+          !loading && (illegalSessionMembershipChange || hasNoSelectedSessions);
+        const saveDisabledWhyTooltip = illegalSessionMembershipChange
+          ? SAVE_DISABLED_ILLEGAL_TOOLTIP
+          : SAVE_DISABLED_NO_SESSIONS_TOOLTIP;
 
         return (
           <Form className="w-full">
@@ -581,7 +601,20 @@ export default function DoctorLeaveForm({
                   Sessions<span className="text-red-600"> *</span>
                 </Label>
                 <Card
-                  className={`${styleClasses.inputClassName} p-3 space-y-3`}
+                  id="doctor-leave-sessions-field"
+                  className={cn(
+                    styleClasses.inputClassName,
+                    'p-3 space-y-3',
+                    hasNoSelectedSessions &&
+                      'border-amber-500/50 dark:border-amber-500/40',
+                    hasNoSelectedSessions &&
+                      formik.submitCount > 0 &&
+                      'ring-2 ring-amber-500/30 ring-offset-1 ring-offset-background'
+                  )}
+                  role="group"
+                  aria-describedby={
+                    hasNoSelectedSessions ? 'doctor-leave-sessions-hint' : undefined
+                  }
                 >
                   <Tabs value={sessionsTab} onValueChange={(v) => setSessionsTab(v as 'active' | 'selected')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
@@ -794,6 +827,17 @@ export default function DoctorLeaveForm({
                     </TabsContent>
                   </Tabs>
                 </Card>
+                {hasNoSelectedSessions && (
+                  <p
+                    id="doctor-leave-sessions-hint"
+                    className="col-span-full sm:col-span-3 sm:col-start-2 text-sm text-amber-800 dark:text-amber-200/90 mt-1.5"
+                    role="status"
+                  >
+                    <span className="font-medium">At least one session is required. </span>
+                    Add sessions from the <strong>Active sessions</strong> tab. Save and Save
+                    and Close stay disabled until you select at least one session.
+                  </p>
+                )}
               </div>
 
               <CustomSwitch
@@ -862,71 +906,74 @@ export default function DoctorLeaveForm({
                   <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
-                {illegalSessionMembershipChange && !loading ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex w-full sm:w-auto">
-                        <Button
-                          disabled
-                          size="sm"
-                          type="button"
-                          className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                        >
-                          <Save className="h-4 w-4" />
-                          <span>Save</span>
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      The session list cannot be changed to add or remove sessions that have
-                      already started. Reload the form and avoid altering those entries.
-                    </TooltipContent>
-                  </Tooltip>
+                {showSaveDisabledWhyTooltip ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex w-full sm:w-auto">
+                          <Button
+                            disabled
+                            size="sm"
+                            type="button"
+                            className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                          >
+                            <Save className="h-4 w-4" />
+                            <span>Save</span>
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        className="max-w-xs"
+                      >
+                        {saveDisabledWhyTooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex w-full sm:w-auto">
+                          <Button
+                            disabled
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                            className="w-full sm:w-auto gap-1 px-6"
+                          >
+                            <Save className="h-4 w-4" />
+                            <span>Save and Close</span>
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        className="max-w-56"
+                      >
+                        {saveDisabledWhyTooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
                 ) : (
-                  <Button
-                    disabled={loading || illegalSessionMembershipChange}
-                    size="sm"
-                    type="button"
-                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
-                  >
-                    <Save className="h-4 w-4" />
-                    <span>Save</span>
-                  </Button>
-                )}
-                {illegalSessionMembershipChange && !loading ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex w-full sm:w-auto">
-                        <Button
-                          disabled
-                          size="sm"
-                          type="button"
-                          variant="secondary"
-                          className="w-full sm:w-auto gap-1 px-6"
-                        >
-                          <Save className="h-4 w-4" />
-                          <span>Save and Close</span>
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      The session list cannot be changed to add or remove sessions that have
-                      already started. Reload the form and avoid altering those entries.
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Button
-                    disabled={loading || illegalSessionMembershipChange}
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                    className="w-full sm:w-auto gap-1 px-6"
-                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
-                  >
-                    <Save className="h-4 w-4" />
-                    <span>Save and Close</span>
-                  </Button>
+                  <>
+                    <Button
+                      disabled={saveActionsDisabled}
+                      size="sm"
+                      type="button"
+                      className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                      onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>Save</span>
+                    </Button>
+                    <Button
+                      disabled={saveActionsDisabled}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                      className="w-full sm:w-auto gap-1 px-6"
+                      onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>Save and Close</span>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
