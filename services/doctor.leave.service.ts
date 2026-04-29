@@ -3,11 +3,37 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import moment from 'moment';
 import {
   GetActiveSession,
   GetDoctorLeavesQuery,
   DoctorLeaveFormProps
 } from '@/types/doctor.leave';
+import { SL_OFFSET } from '@/lib/utils';
+
+/** YYYY-MM-DD from filter: start of calendar day (Sri Lanka), same semantics as doctor leave report */
+function parseLeavesListFilterFrom(val: string | undefined): Date | undefined {
+  if (!val?.trim()) return undefined;
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T00:00:00${SL_OFFSET}`);
+  }
+  const d = new Date(trimmed);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+/** YYYY-MM-DD from filter: end of calendar day inclusive (Sri Lanka) */
+function parseLeavesListFilterToInclusive(
+  val: string | undefined
+): Date | undefined {
+  if (!val?.trim()) return undefined;
+  const trimmed = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T23:59:59.999${SL_OFFSET}`);
+  }
+  const d = new Date(trimmed);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
 
 // ==== DOCTOR LEAVE: VALIDATION SCHEMAS ==== //
 const sessionItemSchema = z.object({
@@ -184,16 +210,18 @@ export const getDoctorLeavesService = async ({
       doctorId
     };
 
-    // ==== DATE FILTERING (DateTime fields) ==== //
-    if (fromDate && toDate) {
+    // ==== DATE FILTERING (DateTime fields) — inclusive end calendar day for YYYY-MM-DD ==== //
+    const rangeFrom = parseLeavesListFilterFrom(fromDate);
+    const rangeToInclusive = parseLeavesListFilterToInclusive(toDate);
+    if (rangeFrom && rangeToInclusive) {
       whereClause.AND = [
-        { toDate: { gte: new Date(fromDate) } },
-        { fromDate: { lte: new Date(toDate) } }
+        { toDate: { gte: rangeFrom } },
+        { fromDate: { lte: rangeToInclusive } }
       ];
-    } else if (fromDate) {
-      whereClause.toDate = { gte: new Date(fromDate) };
-    } else if (toDate) {
-      whereClause.fromDate = { lte: new Date(toDate) };
+    } else if (rangeFrom) {
+      whereClause.toDate = { gte: rangeFrom };
+    } else if (rangeToInclusive) {
+      whereClause.fromDate = { lte: rangeToInclusive };
     }
 
     const [records, totalRecords] = await Promise.all([
@@ -660,6 +688,22 @@ export const updateDoctorLeaveService = async (
     }
 
     const data = parsed.data;
+
+    const mergedToDate = data.toDate ?? existing.toDate;
+    if (
+      moment(mergedToDate).startOf('day').valueOf() <
+      moment(existing.toDate).startOf('day').valueOf()
+    ) {
+      return {
+        success: false,
+        error: {
+          message: 'To date cannot be earlier than the current end date',
+          issues: {
+            toDate: ['To date cannot be earlier than the saved end date for this leave']
+          }
+        }
+      };
+    }
     const newSessionIds = effectiveNewIds;
     const lockedIds = await getLockedSessionIdsForDoctor(
       data.doctorId ?? existing.doctorId,
