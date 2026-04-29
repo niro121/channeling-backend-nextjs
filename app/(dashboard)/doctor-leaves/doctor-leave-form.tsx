@@ -36,6 +36,7 @@ import { CustomSwitch } from '@/components/common/custom-switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 
 const SESSION_STARTED_TOOLTIP =
   'This session has already started (or its start time is now or in the past). It cannot be added to or removed from this leave.';
@@ -121,6 +122,7 @@ export default function DoctorLeaveForm({
   const saveAndCloseRef = React.useRef<boolean>(false);
   const { toast } = useToast();
   const router = useRouter();
+  const refetchDoctorLeavesList = useDoctorLeavesRefetch();
   const [sessionsLoading, setSessionsLoading] = React.useState<boolean>(false);
   const [activeSessionsFromAPI, setActiveSessionsFromAPI] = React.useState<
     Session[]
@@ -932,8 +934,19 @@ export default function DoctorLeaveForm({
                   className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   type="button"
                   onClick={() => {
-                    if (onClose) onClose();
-                    else router.push('/doctor-leaves');
+                    // List data lives in client state (DoctorLeavesList); router.refresh alone does not reload it.
+                    refetchDoctorLeavesList();
+                    if (onClose) {
+                      onClose();
+                      router.refresh();
+                    } else {
+                      router.push(
+                        `/doctor-leaves?doctorId=${encodeURIComponent(
+                          doctorId
+                        )}`
+                      );
+                      router.refresh();
+                    }
                   }}
                   disabled={loading}
                 >
