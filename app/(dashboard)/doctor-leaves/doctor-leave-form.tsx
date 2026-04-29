@@ -26,11 +26,66 @@ import {
   updateDoctorLeave
 } from '@/app/actions/doctor.leave.action';
 import moment from 'moment';
-import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
+import {
+  formatSessionTime,
+  getSessionStartAt
+} from '../channel-booking/components/sessions-selection/util';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X } from 'lucide-react';
 import { CustomSwitch } from '@/components/common/custom-switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+const SESSION_STARTED_TOOLTIP =
+  'This session has already started (or its start time is now or in the past). It cannot be added to or removed from this leave.';
+
+/** True when the session’s scheduled start (date + start time) is at or before the current time. */
+function isSessionStartOnOrBeforeNow(s: Session): boolean {
+  if (s.startAt && !Number.isNaN(new Date(s.startAt).getTime())) {
+    return new Date(s.startAt).getTime() <= Date.now();
+  }
+  if (!s.startTime) return false;
+  const m = s.startTime.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (m) {
+    const d = new Date(s.date);
+    const h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (!Number.isNaN(h) && !Number.isNaN(min)) {
+      const start = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        h,
+        min,
+        0,
+        0
+      );
+      return start.getTime() <= Date.now();
+    }
+  }
+  const ampm = s.startTime.trim().match(/^(\d{1,2})\.(\d{2})(AM|PM)$/i);
+  if (ampm) {
+    const d = new Date(s.date);
+    let h = parseInt(ampm[1], 10);
+    const min = parseInt(ampm[2], 10);
+    const p = ampm[3].toUpperCase();
+    if (p === 'PM' && h !== 12) h += 12;
+    if (p === 'AM' && h === 12) h = 0;
+    if (!Number.isNaN(h) && !Number.isNaN(min)) {
+      const start = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        h,
+        min,
+        0,
+        0
+      );
+      return start.getTime() <= Date.now();
+    }
+  }
+  return false;
+}
 
 type LeaveFormProps = {
   doctorId: string;
@@ -251,12 +306,14 @@ export default function DoctorLeaveForm({
   };
 
   function mapApiSessionToItem(raw: any): Session {
+    const date = new Date(raw.date);
     return {
       id: raw.id,
-      date: new Date(raw.date),
+      date,
       location: raw.location?.name ?? '',
       startTime: formatSessionTime(raw.startTime, raw.date),
-      endTime: formatSessionTime(raw.endTime, raw.date)
+      endTime: formatSessionTime(raw.endTime, raw.date),
+      startAt: getSessionStartAt(raw.startTime, date)
     };
   }
 
@@ -340,41 +397,6 @@ export default function DoctorLeaveForm({
         const selectedIds = new Set(formik.values.sesssions.map(getSessionId));
         const removedIds = new Set(removedSessions.map((s) => s.id));
 
-        const handleRemoveFromLeave = (session: Session) => {
-          const updated = formik.values.sesssions.filter((s) => getSessionId(s) !== session.id);
-          formik.setFieldValue('sesssions', updated);
-          setRemovedSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [...prev, session]));
-          setSessionsTab('active');
-        };
-
-        const handleAddToLeave = (session: Session) => {
-          const current = formik.values.sesssions;
-          if (current.some((s) => getSessionId(s) === session.id)) return;
-          formik.setFieldValue('sesssions', [...current, session]);
-          setRemovedSessions((prev) => prev.filter((s) => s.id !== session.id));
-          setSessionsTab('selected');
-        };
-
-        const handleSelectAll = () => {
-          const current = formik.values.sesssions;
-          const toAdd = activeSessions.filter((s) => !selectedIds.has(s.id));
-          if (toAdd.length === 0) return;
-          formik.setFieldValue('sesssions', [...current, ...toAdd]);
-          setRemovedSessions((prev) =>
-            prev.filter((s) => !toAdd.some((a) => a.id === s.id))
-          );
-          setSessionsTab('selected');
-        };
-
-        const handleRemoveAll = () => {
-          const toRemove = selectedSessions;
-          formik.setFieldValue('sesssions', []);
-          setRemovedSessions((prev) =>
-            [...prev, ...toRemove].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
-          );
-          setSessionsTab('active');
-        };
-
         // Active tab: only sessions that are not selected and not locked by another leave
         const activeSessions = [
           ...activeSessionsFromAPI.filter(
@@ -386,7 +408,8 @@ export default function DoctorLeaveForm({
         // Selected tab: resolve to Session objects (form may have IDs from server; display needs full Session)
         const allSessionSources: Session[] = [
           ...activeSessionsFromAPI,
-          ...canceledSessionsFromAPI.filter((s) => !removedIds.has(s.id))
+          ...canceledSessionsFromAPI.filter((s) => !removedIds.has(s.id)),
+          ...removedSessions
         ];
         const byId = new Map<string, Session>();
         allSessionSources.forEach((s) => byId.set(s.id, s));
@@ -394,7 +417,91 @@ export default function DoctorLeaveForm({
           const id = getSessionId(s);
           if (typeof s === 'object' && 'date' in s && s.date) byId.set(id, s as Session);
         });
+        (formik.initialValues.sesssions ?? []).forEach((s) => {
+          const id = getSessionId(s);
+          if (!byId.has(id) && typeof s === 'object' && 'date' in s && s.date) {
+            byId.set(id, s as Session);
+          }
+        });
         const selectedSessions = Array.from(byId.values()).filter((s) => selectedIds.has(s.id));
+
+        const initSessionIds = new Set(
+          (formik.initialValues.sesssions ?? []).map((s) => getSessionId(s))
+        );
+        const currSessionIds = new Set(formik.values.sesssions.map((s) => getSessionId(s)));
+        let illegalSessionMembershipChange = false;
+        for (const id of initSessionIds) {
+          if (currSessionIds.has(id)) continue;
+          const s = byId.get(id);
+          if (s && isSessionStartOnOrBeforeNow(s)) {
+            illegalSessionMembershipChange = true;
+            break;
+          }
+        }
+        if (!illegalSessionMembershipChange) {
+          for (const id of currSessionIds) {
+            if (initSessionIds.has(id)) continue;
+            const s = byId.get(id);
+            if (s && isSessionStartOnOrBeforeNow(s)) {
+              illegalSessionMembershipChange = true;
+              break;
+            }
+          }
+        }
+
+        const canSelectAllActive = activeSessions.some(
+          (s) => !selectedIds.has(s.id) && !isSessionStartOnOrBeforeNow(s)
+        );
+        const canRemoveAll = selectedSessions.some((s) => !isSessionStartOnOrBeforeNow(s));
+
+        const handleRemoveFromLeave = (session: Session) => {
+          if (isSessionStartOnOrBeforeNow(session)) return;
+          const updated = formik.values.sesssions.filter((s) => getSessionId(s) !== session.id);
+          formik.setFieldValue('sesssions', updated);
+          setRemovedSessions((prev) => (prev.some((s) => s.id === session.id) ? prev : [...prev, session]));
+          setSessionsTab('active');
+        };
+
+        const handleAddToLeave = (session: Session) => {
+          if (isSessionStartOnOrBeforeNow(session)) return;
+          const current = formik.values.sesssions;
+          if (current.some((s) => getSessionId(s) === session.id)) return;
+          formik.setFieldValue('sesssions', [...current, session]);
+          setRemovedSessions((prev) => prev.filter((s) => s.id !== session.id));
+          setSessionsTab('selected');
+        };
+
+        const handleSelectAll = () => {
+          const current = formik.values.sesssions;
+          const toAdd = activeSessions.filter(
+            (s) => !selectedIds.has(s.id) && !isSessionStartOnOrBeforeNow(s)
+          );
+          if (toAdd.length === 0) return;
+          formik.setFieldValue('sesssions', [...current, ...toAdd]);
+          setRemovedSessions((prev) =>
+            prev.filter((s) => !toAdd.some((a) => a.id === s.id))
+          );
+          setSessionsTab('selected');
+        };
+
+        const handleRemoveAll = () => {
+          const toRemove = selectedSessions.filter((s) => !isSessionStartOnOrBeforeNow(s));
+          if (toRemove.length === 0) return;
+          const stay = selectedSessions.filter((s) => isSessionStartOnOrBeforeNow(s));
+          const stayIds = new Set(stay.map((s) => s.id));
+          formik.setFieldValue(
+            'sesssions',
+            formik.values.sesssions.filter((s) => stayIds.has(getSessionId(s)))
+          );
+          setRemovedSessions((prev) =>
+            [...prev, ...toRemove].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+          );
+          if (stay.length > 0) {
+            setSessionsTab('selected');
+          } else {
+            setSessionsTab('active');
+          }
+        };
 
         return (
           <Form className="w-full">
@@ -496,16 +603,40 @@ export default function DoctorLeaveForm({
                       </p>
                       {!sessionsLoading && activeSessions.length > 0 && (
                         <div className="flex justify-end mb-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleSelectAll}
-                            className="gap-1.5"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Select All
-                          </Button>
+                          {canSelectAllActive ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleSelectAll}
+                              className="gap-1.5"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Select All
+                            </Button>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    disabled
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Select All
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                className="max-w-56"
+                              >
+                                {SESSION_STARTED_TOOLTIP}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </div>
                       )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
@@ -518,19 +649,49 @@ export default function DoctorLeaveForm({
                             on leave.
                           </p>
                         )}
-                        {activeSessions.map((option) => (
-                          <Badge
-                            key={option.id}
-                            variant="secondary"
-                            className="h-fit flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 cursor-pointer"
-                            onClick={() => handleAddToLeave(option)}
-                          >
-                            {new Date(option.date).toLocaleDateString()} |{' '}
-                            {option.location} | {option.startTime} -{' '}
-                            {option.endTime}
-                            <Plus className="h-3 w-3 ml-0.5" />
-                          </Badge>
-                        ))}
+                        {activeSessions.map((option) => {
+                          const started = isSessionStartOnOrBeforeNow(option);
+                          const label = (
+                            <>
+                              {new Date(option.date).toLocaleDateString()} |{' '}
+                              {option.location} | {option.startTime} -{' '}
+                              {option.endTime}
+                              <Plus className="h-3 w-3 ml-0.5" />
+                            </>
+                          );
+                          if (started) {
+                            return (
+                              <Tooltip key={option.id}>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-not-allowed">
+                                    <Badge
+                                      variant="secondary"
+                                      className="h-fit flex items-center gap-1 bg-muted text-muted-foreground border border-border opacity-70 pointer-events-none"
+                                      aria-disabled
+                                    >
+                                      {label}
+                                    </Badge>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  className="max-w-xs"
+                                >
+                                  {SESSION_STARTED_TOOLTIP}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          }
+                          return (
+                            <Badge
+                              key={option.id}
+                              variant="secondary"
+                              className="h-fit flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 cursor-pointer"
+                              onClick={() => handleAddToLeave(option)}
+                            >
+                              {label}
+                            </Badge>
+                          );
+                        })}
                       </Card>
                     </TabsContent>
                     <TabsContent value="selected" className="mt-3">
@@ -539,16 +700,38 @@ export default function DoctorLeaveForm({
                       </p>
                       {selectedSessions.length > 0 && (
                         <div className="flex justify-end mb-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleRemoveAll}
-                            className="gap-1.5"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            Remove All
-                          </Button>
+                          {canRemoveAll ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleRemoveAll}
+                              className="gap-1.5"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Remove All
+                            </Button>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    disabled
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                    Remove All
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-56">
+                                {SESSION_STARTED_TOOLTIP}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </div>
                       )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
@@ -557,24 +740,56 @@ export default function DoctorLeaveForm({
                             No sessions selected. Add from Active sessions tab.
                           </p>
                         )}
-                        {selectedSessions.map((option) => (
-                          <Badge
-                            key={option.id}
-                            variant="secondary"
-                            className="h-fit flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600"
-                          >
-                            {new Date(option.date).toLocaleDateString()} |{' '}
-                            {option.location} | {option.startTime} -{' '}
-                            {option.endTime}
-                            <X
-                              className="h-3 w-3 cursor-pointer"
-                              onPointerDown={(e) => {
-                                e.preventDefault();
-                                handleRemoveFromLeave(option);
-                              }}
-                            />
-                          </Badge>
-                        ))}
+                        {selectedSessions.map((option) => {
+                          const started = isSessionStartOnOrBeforeNow(option);
+                          const line = (
+                            <>
+                              {new Date(option.date).toLocaleDateString()} |{' '}
+                              {option.location} | {option.startTime} -{' '}
+                              {option.endTime}
+                            </>
+                          );
+                          if (started) {
+                            return (
+                              <Tooltip key={option.id}>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex cursor-not-allowed">
+                                    <Badge
+                                      variant="secondary"
+                                      className="h-fit flex items-center gap-1 bg-muted text-muted-foreground border border-border opacity-80 pointer-events-none"
+                                      aria-disabled
+                                    >
+                                      {line}
+                                      <X
+                                        className="h-3 w-3 opacity-50"
+                                        aria-hidden
+                                      />
+                                    </Badge>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  {SESSION_STARTED_TOOLTIP}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          }
+                          return (
+                            <Badge
+                              key={option.id}
+                              variant="secondary"
+                              className="h-fit flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600"
+                            >
+                              {line}
+                              <X
+                                className="h-3 w-3 cursor-pointer"
+                                onPointerDown={(e) => {
+                                  e.preventDefault();
+                                  handleRemoveFromLeave(option);
+                                }}
+                              />
+                            </Badge>
+                          );
+                        })}
                       </Card>
                     </TabsContent>
                   </Tabs>
@@ -647,27 +862,72 @@ export default function DoctorLeaveForm({
                   <Ban className="h-4 w-4" />
                   <span>Cancel</span>
                 </Button>
-                <Button
-                  disabled={loading}
-                  size="sm"
-                  type="button"
-                  className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                  onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Save</span>
-                </Button>
-                <Button
-                  disabled={loading}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                  className="w-full sm:w-auto gap-1 px-6"
-                  onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Save and Close</span>
-                </Button>
+                {illegalSessionMembershipChange && !loading ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex w-full sm:w-auto">
+                        <Button
+                          disabled
+                          size="sm"
+                          type="button"
+                          className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                        >
+                          <Save className="h-4 w-4" />
+                          <span>Save</span>
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      The session list cannot be changed to add or remove sessions that have
+                      already started. Reload the form and avoid altering those entries.
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    disabled={loading || illegalSessionMembershipChange}
+                    size="sm"
+                    type="button"
+                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>Save</span>
+                  </Button>
+                )}
+                {illegalSessionMembershipChange && !loading ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex w-full sm:w-auto">
+                        <Button
+                          disabled
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                          className="w-full sm:w-auto gap-1 px-6"
+                        >
+                          <Save className="h-4 w-4" />
+                          <span>Save and Close</span>
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      The session list cannot be changed to add or remove sessions that have
+                      already started. Reload the form and avoid altering those entries.
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    disabled={loading || illegalSessionMembershipChange}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto gap-1 px-6"
+                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>Save and Close</span>
+                  </Button>
+                )}
               </div>
             </div>
           </Form>

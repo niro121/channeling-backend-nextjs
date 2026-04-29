@@ -60,6 +60,24 @@ export function formatSessionTime(
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
+/**
+ * Absolute start time of a session (same rules as `formatSessionTime` for raw `value`).
+ * Use for “already started” checks; pairs with `formatSessionTime` for display.
+ */
+export function getSessionStartAt(
+  value: number | string | Date,
+  sessionDate: Date | string
+): Date {
+  if (typeof value === "number" && isUnixSeconds(value)) {
+    return new Date(value < 1e12 ? value * 1000 : value)
+  }
+  const d = typeof sessionDate === "string" ? new Date(sessionDate) : sessionDate
+  const minutes = toMinutesFromMidnight(value, sessionDate)
+  const h = Math.floor(minutes / 60) % 24
+  const m = minutes % 60
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0, 0)
+}
+
 // ==== SESSION DISPLAY NAME ==== //
 export function getSessionDisplayName(session: Session): string {
   if (session.location?.name && session.room?.number) {
