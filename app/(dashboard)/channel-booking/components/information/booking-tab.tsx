@@ -869,7 +869,15 @@ function ReceiptViewDialog({
             <div className="space-y-1">
               <DetailRow label="Receipt No" value={details.receiptNoString} />
               <DetailRow label="Type" value={details.type} />
-              <DetailRow label="Payment method" value={details.paymentMethodName} />
+              <DetailRow
+                label="Payment method"
+                value={details.paymentMethodName}
+                valueClassName={
+                  details.paymentMethodName.toLowerCase() === "mixed"
+                    ? "text-destructive font-semibold"
+                    : undefined
+                }
+              />
               <DetailRow label="Amount" value={formatRs(details.amount)} highlight />
               {details.paymentLines.length > 0 && (
                 <div className="space-y-0.5 py-1">
@@ -878,6 +886,7 @@ function ReceiptViewDialog({
                       key={`${line.paymentMethod}-${idx}`}
                       label={`Line: ${line.paymentMethodName}`}
                       value={formatRs(line.amount)}
+                      lineItem
                     />
                   ))}
                 </div>
@@ -908,20 +917,26 @@ function DetailRow({
   label,
   value,
   highlight,
+  lineItem,
+  valueClassName,
 }: {
   label: string
   value: string
   highlight?: boolean
+  lineItem?: boolean
+  valueClassName?: string
 }) {
   return (
     <div
       className={cn(
-        "flex justify-between gap-4 py-1.5 border-b border-border/40 last:border-0",
-        highlight && "bg-primary/5 -mx-1 px-2 rounded"
+        "flex justify-between gap-4 py-1.5 border-b border-border/40",
+        !lineItem && "last:border-0",
+        highlight && "bg-primary/5 -mx-1 px-2 rounded",
+        lineItem && "bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200/70 dark:border-amber-900/50 -mx-1 px-2 rounded"
       )}
     >
       <dt className="text-xs text-muted-foreground shrink-0">{label}</dt>
-      <dd className="text-xs text-foreground font-medium text-right break-words">
+      <dd className={cn("text-xs text-foreground font-medium text-right break-words", valueClassName)}>
         {value}
       </dd>
     </div>
@@ -938,6 +953,8 @@ function ReceiptCard({
   onViewDetails: () => void
 }) {
   const isRefund = row.type === "Refund"
+  const isMixedPayment =
+    row.paymentMethodName.toLowerCase() === "mixed" || row.paymentMethodName.includes(" + ")
   const cardClass = isRefund
     ? "rounded-lg border border-red-300 dark:border-red-800/60 bg-red-50/80 dark:bg-red-950/30"
     : "rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
@@ -972,6 +989,13 @@ function ReceiptCard({
         {row.receiptNoString}
       </div>
       <div className={`mt-0.5 ${amountClass}`}>{formatRs(row.amount)}</div>
+      {isMixedPayment ? (
+        <div className="mt-0.5">
+          <span className="inline-flex rounded-sm bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+            Mixed Payment
+          </span>
+        </div>
+      ) : null}
       <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400">{row.paymentMethodName}</div>
       {row.remarks ? (
         <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.remarks}>

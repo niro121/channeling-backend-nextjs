@@ -48,6 +48,11 @@ const SETTLE_METHODS = [
 
 type MixedLine = { payment_method: number; amount: string }
 
+const DEFAULT_MIXED_LINES: MixedLine[] = [
+  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "" },
+]
+
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -130,10 +135,12 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const [bankId, setBankId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
-  const [mixedLines, setMixedLines] = useState<MixedLine[]>([
-    { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" },
-    { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "" },
-  ])
+  const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
+
+  function resetMixedDialog() {
+    setMixedDialogOpen(false)
+    setMixedLines(DEFAULT_MIXED_LINES)
+  }
 
   useEffect(() => {
     if (!selectedBooking?.id) {
@@ -281,11 +288,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         setCard("")
         setSlipRef("")
         setBankId("")
-        setMixedDialogOpen(false)
-        setMixedLines([
-          { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" },
-          { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "" },
-        ])
+        resetMixedDialog()
         onSettleSuccess?.()
       } else {
         toast({
@@ -410,7 +413,16 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         {submitting ? "Settling…" : `Settle Now (${formatRs(amount)})`}
       </Button>
 
-      <Dialog open={mixedDialogOpen} onOpenChange={setMixedDialogOpen}>
+      <Dialog
+        open={mixedDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetMixedDialog()
+            return
+          }
+          setMixedDialogOpen(true)
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mixed Settlement Breakdown</DialogTitle>
@@ -492,7 +504,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setMixedDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={resetMixedDialog}>
               Cancel
             </Button>
             <Button
