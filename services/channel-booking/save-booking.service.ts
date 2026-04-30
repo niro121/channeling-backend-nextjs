@@ -7,6 +7,7 @@ import {
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
   SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import { getIO, channelBookingRoom, floatBalanceRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
@@ -61,18 +62,33 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
       cardReference: line.card ?? "",
       slipReference: line.slip_ref ?? "",
     }))
-    .filter((line) => line.amount > 0)
   if (lines.length < 2) {
     return { error: "At least two payment lines are required for mixed payment." }
   }
   const allowed = new Set([
     SAVE_PAYMENT_TYPE_CASH,
     SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_SLIP,
     SAVE_PAYMENT_TYPE_E_WALLET,
   ])
   for (const line of lines) {
+    if (line.amount <= 0) {
+      return { error: "Each mixed payment line amount must be greater than 0.00." }
+    }
     if (!allowed.has(line.paymentMethod)) {
-      return { error: "Mixed payment lines only allow Cash, Credit Card, and E-Wallet." }
+      return { error: "Mixed payment lines only allow Cash, Credit Card, Slip, and E-Wallet." }
+    }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+      (!line.bankId || !line.cardReference.trim())
+    ) {
+      return { error: "Card payment lines require both bank and card reference." }
+    }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
+      (!line.bankId || !line.slipReference.trim())
+    ) {
+      return { error: "Slip payment lines require both bank and slip reference." }
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)

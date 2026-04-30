@@ -14,7 +14,14 @@ export type ReceiptDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
-  paymentLines: Array<{ paymentMethod: number; paymentMethodName: string; amount: number }>
+  paymentLines: Array<{
+    paymentMethod: number
+    paymentMethodName: string
+    amount: number
+    bank: string
+    cardReference: string
+    slipReference: string
+  }>
 }
 
 /**
@@ -51,6 +58,9 @@ export async function getReceiptDetailsService(
         paymentMethod: line.paymentMethod,
         paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
         amount: line.amount,
+        bank: line.bank ?? "",
+        cardReference: line.cardReference ?? "",
+        slipReference: line.slipReference ?? "",
       })),
     }
     return { success: true, data }

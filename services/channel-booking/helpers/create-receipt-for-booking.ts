@@ -96,9 +96,13 @@ export type CreateReceiptWithoutBookingResult =
 function normalizeReceiptPaymentLines(
   paymentMethod: number,
   amount: number,
+  bank?: string,
+  bankId?: string | null,
+  cardReference?: string,
+  slipReference?: string,
   paymentLines?: ReceiptPaymentLineDraft[]
 ): { lines: ReceiptPaymentLineDraft[]; headerPaymentMethod: number } | { error: string } {
-  const normalizedInput = (paymentLines ?? []).filter((line) => Number(line.amount) > 0)
+  const normalizedInput = (paymentLines ?? []).filter((line) => Number(line.amount) !== 0)
   const lines =
     normalizedInput.length > 0
       ? normalizedInput
@@ -106,6 +110,10 @@ function normalizeReceiptPaymentLines(
           {
             paymentMethod,
             amount,
+            bank,
+            bankId,
+            cardReference,
+            slipReference,
           },
         ]
   const total = lines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
@@ -127,6 +135,10 @@ export async function createReceiptWithoutBooking(
   const normalized = normalizeReceiptPaymentLines(
     params.paymentMethod,
     params.amount,
+    params.bank,
+    params.bankId ?? null,
+    params.cardReference,
+    params.slipReference,
     params.paymentLines
   )
   if ("error" in normalized) {
@@ -193,6 +205,10 @@ export async function createReceiptAndUpdateBooking(
   const normalized = normalizeReceiptPaymentLines(
     params.paymentMethod,
     params.amount,
+    params.bank,
+    params.bankId ?? null,
+    params.cardReference,
+    params.slipReference,
     params.paymentLines
   )
   if ("error" in normalized) {

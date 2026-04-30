@@ -884,7 +884,13 @@ function ReceiptViewDialog({
                   {details.paymentLines.map((line, idx) => (
                     <DetailRow
                       key={`${line.paymentMethod}-${idx}`}
-                      label={`Line: ${line.paymentMethodName}`}
+                      label={`Line: ${line.paymentMethodName}${(() => {
+                        const meta: string[] = []
+                        if (line.bank?.trim()) meta.push(line.bank.trim())
+                        if (line.cardReference?.trim()) meta.push(`Card Ref: ${line.cardReference.trim()}`)
+                        if (line.slipReference?.trim()) meta.push(`Slip Ref: ${line.slipReference.trim()}`)
+                        return meta.length > 0 ? ` (${meta.join(" · ")})` : ""
+                      })()}`}
                       value={formatRs(line.amount)}
                       lineItem
                     />

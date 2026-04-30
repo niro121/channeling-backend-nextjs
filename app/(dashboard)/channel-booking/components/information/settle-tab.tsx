@@ -47,10 +47,11 @@ const SETTLE_METHODS = [
 ] as const
 
 type MixedLine = { payment_method: number; amount: string }
+type MixedLineWithMeta = MixedLine & { bank_id: string; card: string; slip_ref: string }
 
-const DEFAULT_MIXED_LINES: MixedLine[] = [
-  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" },
-  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "" },
+const DEFAULT_MIXED_LINES: MixedLineWithMeta[] = [
+  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "", bank_id: "", card: "", slip_ref: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "", bank_id: "", card: "", slip_ref: "" },
 ]
 
 function formatRs(amount: number): string {
@@ -135,7 +136,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const [bankId, setBankId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
-  const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
+  const [mixedLines, setMixedLines] = useState<MixedLineWithMeta[]>(DEFAULT_MIXED_LINES)
 
   function resetMixedDialog() {
     setMixedDialogOpen(false)
@@ -313,12 +314,25 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       .map((line) => ({
         payment_method: line.payment_method,
         amount: Math.round((Number(line.amount) || 0) * 100) / 100,
+        bank: line.bank_id
+          ? { id: line.bank_id, name: banks.find((b) => b.id === line.bank_id)?.name }
+          : null,
+        card: line.card.trim() || undefined,
+        slip_ref: line.slip_ref.trim() || undefined,
       }))
-      .filter((line) => line.amount > 0)
     if (lines.length < 2) {
       toast({
         title: "Mixed payment lines required",
         description: "Please add at least two payment lines.",
+        variant: "destructive",
+      })
+      return
+    }
+    const invalidIdx = lines.findIndex((line) => line.amount <= 0)
+    if (invalidIdx >= 0) {
+      toast({
+        title: "Amount required",
+        description: `Mixed payment line ${invalidIdx + 1} must be greater than 0.00.`,
         variant: "destructive",
       })
       return
@@ -330,6 +344,44 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         variant: "destructive",
       })
       return
+    }
+    for (const [idx, line] of lines.entries()) {
+      if (line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
+        if (!line.bank?.id) {
+          toast({
+            title: "Bank required",
+            description: `Please select a bank for mixed payment line ${idx + 1} (Credit Card).`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.card?.trim()) {
+          toast({
+            title: "Card reference required",
+            description: `Please enter card reference/last 4 digits for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
+      }
+      if (line.payment_method === SAVE_PAYMENT_TYPE_SLIP) {
+        if (!line.bank?.id) {
+          toast({
+            title: "Bank required",
+            description: `Please select a bank for mixed payment line ${idx + 1} (Slip).`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.slip_ref?.trim()) {
+          toast({
+            title: "Slip reference required",
+            description: `Please enter slip reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
+      }
     }
     await handleSettle(lines)
   }
@@ -429,45 +481,142 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           </DialogHeader>
           <div className="space-y-2">
             {mixedLines.map((line, idx) => (
-              <div key={`settle-mixed-${idx}`} className="grid grid-cols-[1fr_120px_32px] gap-2 items-center">
-                <Select
-                  value={String(line.payment_method)}
-                  onValueChange={(v) =>
-                    setMixedLines((prev) =>
-                      prev.map((row, rowIdx) =>
-                        rowIdx === idx ? { ...row, payment_method: Number(v) } : row
-                      )
-                    )
-                  }
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={String(SAVE_PAYMENT_TYPE_CASH)} className="text-xs">Cash</SelectItem>
-                    <SelectItem value={String(SAVE_PAYMENT_TYPE_CREDIT_CARD)} className="text-xs">Credit Card</SelectItem>
-                    <SelectItem value={String(SAVE_PAYMENT_TYPE_E_WALLET)} className="text-xs">E-Wallet</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  className="text-xs"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={line.amount}
-                  onChange={(e) =>
-                    setMixedLines((prev) =>
-                      prev.map((row, rowIdx) =>
-                        rowIdx === idx ? { ...row, amount: e.target.value } : row
-                      )
-                    )
-                  }
-                />
+              <div key={`settle-mixed-${idx}`} className="relative space-y-2 rounded-md border border-border/50 p-2 pr-12">
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">Payment Method</p>
+                      <Select
+                        value={String(line.payment_method)}
+                        onValueChange={(v) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "" }
+                                : row
+                            )
+                          )
+                        }
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={String(SAVE_PAYMENT_TYPE_CASH)} className="text-xs">Cash</SelectItem>
+                          <SelectItem value={String(SAVE_PAYMENT_TYPE_CREDIT_CARD)} className="text-xs">Credit Card</SelectItem>
+                          <SelectItem value={String(SAVE_PAYMENT_TYPE_SLIP)} className="text-xs">Slip</SelectItem>
+                          <SelectItem value={String(SAVE_PAYMENT_TYPE_E_WALLET)} className="text-xs">E-Wallet</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-foreground text-right">Amount</p>
+                      <Input
+                        className="text-xs font-semibold bg-amber-50/60 border-amber-300 focus-visible:ring-amber-500 text-right tabular-nums"
+                        type="text"
+                        inputMode="decimal"
+                        value={line.amount}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d.]/g, "")
+                          if (/^\d*(\.\d{0,2})?$/.test(value)) {
+                            setMixedLines((prev) =>
+                              prev.map((row, rowIdx) =>
+                                rowIdx === idx ? { ...row, amount: value } : row
+                              )
+                            )
+                          }
+                        }}
+                        onFocus={() =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) => {
+                              if (rowIdx !== idx) return row
+                              if (/^\d+$/.test(row.amount)) {
+                                return { ...row, amount: Number(row.amount).toFixed(2) }
+                              }
+                              return row
+                            })
+                          )
+                        }
+                        onBlur={() =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) => {
+                              if (rowIdx !== idx) return row
+                              const num = Number(row.amount)
+                              if (!Number.isFinite(num)) return { ...row, amount: "" }
+                              return { ...row, amount: num.toFixed(2) }
+                            })
+                          )
+                        }
+                      />
+                    </div>
+                </div>
+                {(line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD ||
+                  line.payment_method === SAVE_PAYMENT_TYPE_SLIP) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">Bank</p>
+                      <Select
+                        value={line.bank_id || undefined}
+                        onValueChange={(v) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, bank_id: v } : row
+                            )
+                          )
+                        }
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue placeholder="Select Bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {banks.map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground text-right">
+                        {line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD
+                          ? "Card Ref / Last 4"
+                          : "Slip Reference"}
+                      </p>
+                      {line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD ? (
+                        <Input
+                          className="text-xs"
+                          placeholder="Card reference / last 4"
+                          value={line.card}
+                          onChange={(e) =>
+                            setMixedLines((prev) =>
+                              prev.map((row, rowIdx) =>
+                                rowIdx === idx ? { ...row, card: e.target.value } : row
+                              )
+                            )
+                          }
+                        />
+                      ) : (
+                        <Input
+                          className="text-xs"
+                          placeholder="Slip reference"
+                          value={line.slip_ref}
+                          onChange={(e) =>
+                            setMixedLines((prev) =>
+                              prev.map((row, rowIdx) =>
+                                rowIdx === idx ? { ...row, slip_ref: e.target.value } : row
+                              )
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8"
+                  className="absolute right-2 top-2 h-8 w-8 shrink-0"
                   disabled={mixedLines.length <= 2}
                   onClick={() => setMixedLines((prev) => prev.filter((_, rowIdx) => rowIdx !== idx))}
                 >
@@ -481,7 +630,16 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
               size="sm"
               className="h-8 text-xs"
               onClick={() =>
-                setMixedLines((prev) => [...prev, { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" }])
+                setMixedLines((prev) => [
+                  ...prev,
+                  {
+                    payment_method: SAVE_PAYMENT_TYPE_CASH,
+                    amount: "",
+                    bank_id: "",
+                    card: "",
+                    slip_ref: "",
+                  },
+                ])
               }
             >
               Add payment line
