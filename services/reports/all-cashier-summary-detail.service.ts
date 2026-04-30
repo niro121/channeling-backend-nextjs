@@ -62,10 +62,23 @@ function paymentColumnKey(paymentMethod: number): keyof CashierSummaryPaymentAmo
   return map[paymentMethod] ?? 'cash';
 }
 
-function receiptToAmounts(paymentMethod: number, amount: number, type: number): CashierSummaryPaymentAmounts {
-  const key = paymentColumnKey(paymentMethod);
-  const value = type === 0 ? -Math.abs(amount) : amount;
-  return { ...ZERO_AMOUNTS, [key]: value };
+function receiptToAmounts(
+  paymentMethod: number,
+  amount: number,
+  type: number,
+  paymentLines?: Array<{ paymentMethod: number; amount: number }>
+): CashierSummaryPaymentAmounts {
+  const sign = type === 0 ? -1 : 1;
+  const result = { ...ZERO_AMOUNTS };
+  const normalizedLines =
+    Array.isArray(paymentLines) && paymentLines.length > 0
+      ? paymentLines
+      : [{ paymentMethod, amount }];
+  for (const line of normalizedLines) {
+    const key = paymentColumnKey(line.paymentMethod);
+    result[key] += sign * Math.abs(line.amount);
+  }
+  return result;
 }
 
 function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmounts): CashierSummaryPaymentAmounts {
@@ -188,6 +201,7 @@ export async function getAllCashierSummaryDetailReportService(
       bookingId: true,
       agencyId: true,
       reversedReceiptId: true,
+      paymentLines: { select: { paymentMethod: true, amount: true } },
       booking: { select: { status: true, refund: true } },
     },
     orderBy: { createdAt: 'asc' },
@@ -246,7 +260,7 @@ export async function getAllCashierSummaryDetailReportService(
       });
     }
     const entry = byUser.get(userId)!;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type);
+    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     const section = sectionKeyFromReceipt(r, agentDepositCancelOrigIds);
 
     entry.receiptCount += 1;

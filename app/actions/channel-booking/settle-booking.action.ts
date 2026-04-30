@@ -5,7 +5,13 @@ import prisma from "@/lib/prisma"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { settleBookingService } from "@/services/channel-booking/settle-booking.service"
-import { SAVE_PAYMENT_TYPE_CREDIT_CARD, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
+} from "@/types/save-booking"
 
 const settleBookingSchema = z
   .object({
@@ -16,6 +22,15 @@ const settleBookingSchema = z
     bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
     slip_ref: z.string().optional(),
     card: z.string().optional(),
+    payment_lines: z.array(
+      z.object({
+        payment_method: z.number().int().min(0),
+        amount: z.number().positive(),
+        bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
+        slip_ref: z.string().optional(),
+        card: z.string().optional(),
+      })
+    ).optional(),
   })
   .refine(
     async (data) => {
@@ -123,6 +138,32 @@ const settleBookingSchema = z
           message: "Card reference is required when settling via Credit Card.",
         })
       }
+    }
+
+    if (data.settle_method === SAVE_PAYMENT_TYPE_MIXED) {
+      const lines = data.payment_lines ?? []
+      if (lines.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["payment_lines"],
+          message: "At least two payment lines are required for mixed payments.",
+        })
+        return
+      }
+      const allowed = new Set([
+        SAVE_PAYMENT_TYPE_CASH,
+        SAVE_PAYMENT_TYPE_CREDIT_CARD,
+        SAVE_PAYMENT_TYPE_E_WALLET,
+      ])
+      lines.forEach((line, idx) => {
+        if (!allowed.has(line.payment_method)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "payment_method"],
+            message: "Mixed payment lines only support Cash, Credit Card, and E-Wallet.",
+          })
+        }
+      })
     }
   })
 

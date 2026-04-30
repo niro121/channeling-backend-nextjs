@@ -23,14 +23,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { CheckCircle2, Receipt } from "lucide-react"
-import { SAVE_PAYMENT_TYPE_CASH, SAVE_PAYMENT_TYPE_CREDIT_CARD, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
+} from "@/types/save-booking"
 
 const SETTLE_METHODS = [
   { value: SAVE_PAYMENT_TYPE_CASH, label: "Cash" },
   { value: SAVE_PAYMENT_TYPE_CREDIT_CARD, label: "Credit Card" },
   { value: SAVE_PAYMENT_TYPE_SLIP, label: "Slip" },
+  { value: SAVE_PAYMENT_TYPE_MIXED, label: "Mixed" },
 ] as const
+
+type MixedLine = { payment_method: number; amount: string }
+
+const DEFAULT_MIXED_LINES: MixedLine[] = [
+  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "" },
+]
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -54,6 +75,18 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
         <Row label="Settled at" value={formatSettledAt(settlement.settledAt)} />
         <Row label="Payment method" value={settlement.paymentMethodName} />
         <Row label="Amount paid" value={formatRs(settlement.amount)} highlight />
+        {settlement.paymentLines.length > 0 && (
+          <div className="space-y-1 py-1">
+            <div className="text-[11px] font-medium text-muted-foreground">Payment Lines</div>
+            {settlement.paymentLines.map((line, idx) => (
+              <Row
+                key={`${line.paymentMethod}-${idx}`}
+                label={line.paymentMethodName}
+                value={formatRs(line.amount)}
+              />
+            ))}
+          </div>
+        )}
         {settlement.bank ? <Row label="Bank" value={settlement.bank} /> : null}
         {settlement.cardReference ? (
           <Row label="Card (last 4)" value={settlement.cardReference} />
@@ -101,6 +134,13 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const [slipRef, setSlipRef] = useState("")
   const [bankId, setBankId] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
+  const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
+
+  function resetMixedDialog() {
+    setMixedDialogOpen(false)
+    setMixedLines(DEFAULT_MIXED_LINES)
+  }
 
   useEffect(() => {
     if (!selectedBooking?.id) {
@@ -213,9 +253,12 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const amount = details.billTotal
   const showCard = settleMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD
   const showSlip = settleMethod === SAVE_PAYMENT_TYPE_SLIP
+  const isMixed = settleMethod === SAVE_PAYMENT_TYPE_MIXED
   const showBank = showCard || showSlip
+  const mixedTotal = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
+  const mixedRemaining = amount - mixedTotal
 
-  async function handleSettle() {
+  async function handleSettle(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedBooking || !details) return
     setSubmitting(true)
     try {
@@ -226,6 +269,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         bank: showBank && bankId ? { id: bankId, name: banks.find((b) => b.id === bankId)?.name } : null,
         slip_ref: showSlip ? slipRef : undefined,
         card: showCard ? card : undefined,
+        payment_lines: mixedPaymentLines,
       })
       if (result.success) {
         toast({
@@ -244,6 +288,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         setCard("")
         setSlipRef("")
         setBankId("")
+        resetMixedDialog()
         onSettleSuccess?.()
       } else {
         toast({
@@ -261,6 +306,32 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  async function handleMixedSettleNow() {
+    const lines = mixedLines
+      .map((line) => ({
+        payment_method: line.payment_method,
+        amount: Math.round((Number(line.amount) || 0) * 100) / 100,
+      }))
+      .filter((line) => line.amount > 0)
+    if (lines.length < 2) {
+      toast({
+        title: "Mixed payment lines required",
+        description: "Please add at least two payment lines.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (Math.abs(mixedRemaining) > 0.0001) {
+      toast({
+        title: "Amount mismatch",
+        description: "Payment line total must match the full bill amount.",
+        variant: "destructive",
+      })
+      return
+    }
+    await handleSettle(lines)
   }
 
   return (
@@ -330,11 +401,122 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       )}
       <Button
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-        onClick={handleSettle}
+        onClick={() => {
+          if (isMixed) {
+            setMixedDialogOpen(true)
+            return
+          }
+          void handleSettle()
+        }}
         disabled={submitting}
       >
         {submitting ? "Settling…" : `Settle Now (${formatRs(amount)})`}
       </Button>
+
+      <Dialog
+        open={mixedDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetMixedDialog()
+            return
+          }
+          setMixedDialogOpen(true)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Mixed Settlement Breakdown</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {mixedLines.map((line, idx) => (
+              <div key={`settle-mixed-${idx}`} className="grid grid-cols-[1fr_120px_32px] gap-2 items-center">
+                <Select
+                  value={String(line.payment_method)}
+                  onValueChange={(v) =>
+                    setMixedLines((prev) =>
+                      prev.map((row, rowIdx) =>
+                        rowIdx === idx ? { ...row, payment_method: Number(v) } : row
+                      )
+                    )
+                  }
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={String(SAVE_PAYMENT_TYPE_CASH)} className="text-xs">Cash</SelectItem>
+                    <SelectItem value={String(SAVE_PAYMENT_TYPE_CREDIT_CARD)} className="text-xs">Credit Card</SelectItem>
+                    <SelectItem value={String(SAVE_PAYMENT_TYPE_E_WALLET)} className="text-xs">E-Wallet</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="text-xs"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={line.amount}
+                  onChange={(e) =>
+                    setMixedLines((prev) =>
+                      prev.map((row, rowIdx) =>
+                        rowIdx === idx ? { ...row, amount: e.target.value } : row
+                      )
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  disabled={mixedLines.length <= 2}
+                  onClick={() => setMixedLines((prev) => prev.filter((_, rowIdx) => rowIdx !== idx))}
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() =>
+                setMixedLines((prev) => [...prev, { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "" }])
+              }
+            >
+              Add payment line
+            </Button>
+            <div className="rounded-md border border-border/60 p-2 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Bill</span>
+                <span>{formatRs(amount)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Entered</span>
+                <span>{formatRs(mixedTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Remaining</span>
+                <span className={Math.abs(mixedRemaining) < 0.0001 ? "text-green-600" : "text-red-600"}>
+                  {formatRs(mixedRemaining)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={resetMixedDialog}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={submitting || Math.abs(mixedRemaining) > 0.0001}
+              onClick={() => void handleMixedSettleNow()}
+            >
+              Pay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

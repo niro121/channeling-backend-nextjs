@@ -46,6 +46,7 @@ export type SettlementDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
+  paymentLines: Array<{ paymentMethod: number; paymentMethodName: string; amount: number }>
 }
 
 /** Discount-related info for the Booking tab. */
@@ -179,6 +180,13 @@ function formatAppointmentTime(startTime: Date | number): string {
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
+function formatMoney2(amount: number): string {
+  return Number(amount ?? 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
 /**
  * Load one booking by id with session and doctor for the Information panel Booking tab.
  */
@@ -191,7 +199,10 @@ export async function getBookingDetailsService(
       include: {
         session: true,
         doctor: true,
-        receipts: { orderBy: { createdAt: "desc" } },
+        receipts: {
+          orderBy: { createdAt: "desc" },
+          include: { paymentLines: true },
+        },
         agency: true,
         creditCustomer: true,
         referredStaff: true,
@@ -225,7 +236,12 @@ export async function getBookingDetailsService(
           id: r.id,
           receiptNoString: r.receiptNoString,
           type: RECEIPT_METHOD_NAMES[r.method] ?? "—",
-          paymentMethodName: PAYMENT_METHOD_NAMES[r.paymentMethod] ?? "—",
+          paymentMethodName:
+            r.paymentLines.length > 0
+              ? r.paymentLines
+                  .map((line) => `${PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—"} ${formatMoney2(line.amount)}`)
+                  .join(" + ")
+              : PAYMENT_METHOD_NAMES[r.paymentMethod] ?? "—",
           amount: r.amount,
           remarks: r.remarks ?? "",
           processedBy: createdByStr,
@@ -245,6 +261,11 @@ export async function getBookingDetailsService(
             bank: receipt?.bank ?? "",
             cardReference: receipt?.cardReference ?? "",
             slipReference: receipt?.slipReference ?? "",
+            paymentLines: (receipt?.paymentLines ?? []).map((line) => ({
+              paymentMethod: line.paymentMethod,
+              paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
+              amount: line.amount,
+            })),
           }
         : undefined
 

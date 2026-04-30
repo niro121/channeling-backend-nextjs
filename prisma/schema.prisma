@@ -918,7 +918,7 @@ model Booking {
   session                 Session? @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
   doctorId                String   @db.ObjectId
   doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
-  amount                  Int
+  amount                  Float
   discount                Int      @default(0)
   foriegner               Boolean  @default(false)
   status                  Int      @default(0)
@@ -1001,7 +1001,7 @@ model Receipt {
   receiptNo       Int
   receiptNoString String
   paymentMethod   Int // 0 Cash, 1 Credit Card, 2 Slip, 3 Check, 4 Agent, 5 Credit
-  amount          Int
+  amount          Float
   bank            String  @default("")
   bankId          String? @db.ObjectId
   cardReference   String  @default("")
@@ -1025,6 +1025,7 @@ model Receipt {
   location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
   userLocationId String?   @db.ObjectId
   userLocation   Location? @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
+  paymentLines   ReceiptPaymentLine[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1044,6 +1045,22 @@ model Receipt {
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
   @@index([shiftId])
+}
+
+model ReceiptPaymentLine {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  receiptId     String  @db.ObjectId
+  receipt       Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  paymentMethod Int
+  amount        Float
+  bank          String  @default("")
+  bankId        String? @db.ObjectId
+  cardReference String  @default("")
+  slipReference String  @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([receiptId])
 }
 
 // ==== DOUBLE-ENTRY ACCOUNTING ==== //

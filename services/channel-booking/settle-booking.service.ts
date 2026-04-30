@@ -12,9 +12,19 @@ import {
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
-import { SAVE_PAYMENT_TYPE_CREDIT_CARD, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
+} from "@/types/save-booking"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
+
+function toCents(value: number): number {
+  return Math.round(Number(value || 0) * 100)
+}
 
 function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
   if (!Array.isArray(json)) return []
@@ -29,6 +39,38 @@ function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
   )
 }
 
+function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: number) {
+  if (input.settle_method !== SAVE_PAYMENT_TYPE_MIXED) return null
+  const lines = (input.payment_lines ?? [])
+    .map((line) => ({
+      paymentMethod: line.payment_method,
+      amount: Math.round(line.amount * 100) / 100,
+      bank: line.bank?.name ?? "",
+      bankId: line.bank?.id ?? null,
+      cardReference: line.card ?? "",
+      slipReference: line.slip_ref ?? "",
+    }))
+    .filter((line) => line.amount > 0)
+  if (lines.length < 2) {
+    return { error: "At least two payment lines are required for mixed payment." }
+  }
+  const allowed = new Set([
+    SAVE_PAYMENT_TYPE_CASH,
+    SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_E_WALLET,
+  ])
+  for (const line of lines) {
+    if (!allowed.has(line.paymentMethod)) {
+      return { error: "Mixed payment lines only allow Cash, Credit Card, and E-Wallet." }
+    }
+  }
+  const total = lines.reduce((sum, line) => sum + line.amount, 0)
+  if (toCents(total) !== toCents(amount)) {
+    return { error: `Mixed payment line total (${total}) must equal settlement amount (${amount}).` }
+  }
+  return { lines }
+}
+
 export type SettleBookingInput = {
   booking_id: string
   settle_method: number // 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque
@@ -37,6 +79,13 @@ export type SettleBookingInput = {
   bank?: { id: string; name?: string } | null
   slip_ref?: string
   card?: string
+  payment_lines?: Array<{
+    payment_method: number
+    amount: number
+    bank?: { id: string; name?: string } | null
+    slip_ref?: string
+    card?: string
+  }>
   /** Staff/user location when creating receipt (legacy user_location). */
   user_location_id?: string | null
 }
@@ -175,8 +224,17 @@ export async function settleBookingService(
   }
 
   const amount = booking.amount - discount
+  const mixedLinesResult = buildMixedLinesFromSettleInput(input, amount)
+  if (mixedLinesResult?.error) {
+    return {
+      success: false,
+      errorCode: "invalid_payment_lines",
+      message: mixedLinesResult.error,
+    }
+  }
+  const paymentLines = mixedLinesResult?.lines
 
-  const needTill = [0, 1, 2, 3, 5, 6].includes(input.settle_method) // cash, card, slip, check, credit, e-wallet
+  const needTill = [0, 1, 2, 3, 5, 6, SAVE_PAYMENT_TYPE_MIXED].includes(input.settle_method) // mixed uses till split lines
   const needJournal = needTill
   let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
   if (needJournal) {
@@ -241,6 +299,7 @@ export async function settleBookingService(
       createdBy: userId,
       shiftId,
       userLocationId: input.user_location_id ?? null,
+      paymentLines,
       getBookingUpdate: (receipt) => ({
         status: 1,
         discountDivision,
@@ -250,7 +309,7 @@ export async function settleBookingService(
         autoDiscountId: input.auto_discount_type ?? null,
         receiptNo: receipt.receiptNo,
         receiptNoString: receipt.receiptNoString,
-        receiptPaymentMethod: input.settle_method,
+        receiptPaymentMethod: input.settle_method === SAVE_PAYMENT_TYPE_MIXED ? SAVE_PAYMENT_TYPE_MIXED : input.settle_method,
         receiptNoCreatedAt: receipt.createdAt,
         receiptNoId: receipt.id,
         updatedBy: userId,
