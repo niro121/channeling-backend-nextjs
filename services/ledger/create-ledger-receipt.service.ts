@@ -60,7 +60,7 @@ export type CreateLedgerReceiptInput = {
   amount: number
   remarks?: string
   createdBy: string | null
-  /** For AGENCY_DEPOSIT only: 0 Cash, 1 Credit Card, 2 Slip */
+  /** For AGENCY_DEPOSIT only: 0 Cash, 1 Credit Card, 2 Slip, 3 Cheque, 6 E-Wallet */
   paymentMethod?: number
   bank?: string
   bankId?: string | null
@@ -194,8 +194,18 @@ export async function createLedgerReceipt(
   }
   if (input.transactionType === "AGENCY_DEPOSIT") {
     const pm = input.paymentMethod ?? RECEIPT_PAYMENT_METHOD.CASH
-    if (pm !== RECEIPT_PAYMENT_METHOD.CASH && pm !== RECEIPT_PAYMENT_METHOD.CREDIT_CARD && pm !== RECEIPT_PAYMENT_METHOD.SLIP) {
-      return { success: false, errorCode: "VALIDATION", message: "Payment method must be Cash, Credit Card, or Slip." }
+    if (
+      pm !== RECEIPT_PAYMENT_METHOD.CASH &&
+      pm !== RECEIPT_PAYMENT_METHOD.CREDIT_CARD &&
+      pm !== RECEIPT_PAYMENT_METHOD.SLIP &&
+      pm !== RECEIPT_PAYMENT_METHOD.CHECK &&
+      pm !== RECEIPT_PAYMENT_METHOD.E_WALLET
+    ) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Payment method must be Cash, Credit Card, Slip, Cheque, or E-Wallet.",
+      }
     }
   }
   if (input.transactionType === "BANK_DEPOSIT") {

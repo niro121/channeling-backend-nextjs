@@ -77,7 +77,7 @@ const validationSchema = Yup.object({
     is: (transactionType: string, paymentMethod: number) =>
       transactionType === "AGENCY_DEPOSIT" &&
       paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH,
-    then: (schema) => schema.required("Please select a bank for Card/Slip."),
+    then: (schema) => schema.required("Please select a bank for non-cash payment methods."),
     otherwise: (schema) => schema,
   }),
   cardReference: Yup.string().when(["transactionType", "paymentMethod"], {
@@ -122,6 +122,8 @@ const PAYMENT_OPTIONS = [
   { value: RECEIPT_PAYMENT_METHOD.CASH, label: "Cash" },
   { value: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, label: "Credit Card" },
   { value: RECEIPT_PAYMENT_METHOD.SLIP, label: "Slip" },
+  { value: RECEIPT_PAYMENT_METHOD.CHECK, label: "Cheque" },
+  { value: RECEIPT_PAYMENT_METHOD.E_WALLET, label: "E-Wallet" },
 ]
 
 /** Restrict to non-negative numbers with at most 2 decimal places. */
