@@ -46,7 +46,15 @@ export type SettlementDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
-  paymentLines: Array<{ paymentMethod: number; paymentMethodName: string; amount: number }>
+  paymentLines: Array<{
+    paymentMethod: number
+    paymentMethodName: string
+    amount: number
+    bankId: string | null
+    bank: string
+    cardReference: string
+    slipReference: string
+  }>
 }
 
 /** Discount-related info for the Booking tab. */
@@ -265,6 +273,10 @@ export async function getBookingDetailsService(
               paymentMethod: line.paymentMethod,
               paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
               amount: line.amount,
+              bankId: line.bankId ?? null,
+              bank: line.bank ?? "",
+              cardReference: line.cardReference ?? "",
+              slipReference: line.slipReference ?? "",
             })),
           }
         : undefined

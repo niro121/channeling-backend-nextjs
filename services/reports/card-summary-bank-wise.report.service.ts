@@ -73,7 +73,6 @@ export async function getCardSummaryBankWiseReportService(
       { OR: [{ canceledAt: null }, { canceledAt: { isSet: false } }] },
     ],
   };
-  if (bankId !== '__all__') where.bankId = bankId;
   if (locationId !== '__all__') {
     where.AND.push({ OR: [{ locationId }, { userLocationId: locationId }] });
   }
@@ -86,29 +85,38 @@ export async function getCardSummaryBankWiseReportService(
       select: {
         id: true,
         bankId: true,
+        bank: true,
         amount: true,
         paymentMethod: true,
-        paymentLines: { select: { paymentMethod: true, amount: true } },
+        paymentLines: {
+          select: { paymentMethod: true, amount: true, bankId: true, bank: true },
+        },
       },
     });
     const hasMore = receipts.length > MAX_RECORDS;
     const sliced = hasMore ? receipts.slice(0, MAX_RECORDS) : receipts;
     const totalsByBank = new Map<string | null, { totalAmount: number; count: number }>();
     for (const receipt of sliced) {
-      const cardAmount =
+      const cardLines =
         receipt.paymentLines.length > 0
-          ? receipt.paymentLines
-              .filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
-              .reduce((sum, line) => sum + line.amount, 0)
+          ? receipt.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
           : receipt.paymentMethod === CARD_PAYMENT_METHOD
-            ? receipt.amount
-            : 0;
-      if (cardAmount <= 0) continue;
-      const key = receipt.bankId ?? null;
-      const current = totalsByBank.get(key) ?? { totalAmount: 0, count: 0 };
-      current.totalAmount += cardAmount;
-      current.count += 1;
-      totalsByBank.set(key, current);
+            ? [{ amount: receipt.amount, bankId: receipt.bankId, bank: receipt.bank }]
+            : [];
+      if (cardLines.length === 0) continue;
+      const byBank = new Map<string | null, number>();
+      for (const line of cardLines) {
+        const key = line.bankId ?? receipt.bankId ?? null;
+        byBank.set(key, (byBank.get(key) ?? 0) + Number(line.amount ?? 0));
+      }
+      for (const [key, bankTotal] of byBank.entries()) {
+        if (bankId !== '__all__' && key !== bankId) continue;
+        if (bankTotal <= 0) continue;
+        const current = totalsByBank.get(key) ?? { totalAmount: 0, count: 0 };
+        current.totalAmount += bankTotal;
+        current.count += 1;
+        totalsByBank.set(key, current);
+      }
     }
 
     const bankIds = Array.from(
@@ -159,7 +167,9 @@ export async function getCardSummaryBankWiseReportService(
       remarks: true,
       amount: true,
       paymentMethod: true,
-      paymentLines: { select: { paymentMethod: true, amount: true } },
+      paymentLines: {
+        select: { paymentMethod: true, amount: true, bank: true, bankId: true, cardReference: true },
+      },
       receiptNoString: true,
       createdAt: true,
       locationId: true,
@@ -201,31 +211,47 @@ export async function getCardSummaryBankWiseReportService(
 
   const data: CardSummaryBankWiseReportRow[] = []
   for (const r of sliced) {
-    const cardAmount =
+    const cardLines =
       r.paymentLines.length > 0
-        ? r.paymentLines
-            .filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
-            .reduce((sum, line) => sum + line.amount, 0)
+        ? r.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
         : r.paymentMethod === CARD_PAYMENT_METHOD
-          ? r.amount ?? 0
-          : 0
+          ? [{ amount: r.amount ?? 0, bank: r.bank ?? "", bankId: r.bankId ?? null, cardReference: r.cardReference ?? "" }]
+          : []
+    const cardAmount = cardLines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
     if (cardAmount <= 0) continue
+    const lineBankIds = new Set(cardLines.map((line) => line.bankId).filter((x): x is string => !!x))
+    if (bankId !== '__all__' && !lineBankIds.has(bankId) && r.bankId !== bankId) continue
     const userLocId = r.userLocationId ?? r.locationId ?? null;
     const loc = userLocId ? locationById.get(userLocId) ?? null : null;
     const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
+    const cardRefs = Array.from(
+      new Set(
+        cardLines
+          .map((line) => (line.cardReference ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
+    const banks = Array.from(
+      new Set(
+        cardLines
+          .map((line) => (line.bank ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
     data.push({
       id: r.id,
       bankId: r.bankId ?? null,
-      bankName: (r.bank ?? '').trim() || null,
+      bankName: banks.length > 0 ? banks.join(", ") : (r.bank ?? '').trim() || null,
       totalAmount: cardAmount,
       count: 1,
       receiptNoString: r.receiptNoString ?? null,
       createdAt: r.createdAt ?? null,
       userLocation: userLocationLabel,
       user: userLabel,
-      cardReference: (r.cardReference ?? '').trim() || null,
+      cardReference:
+        cardRefs.length > 0 ? cardRefs.join(", ") : (r.cardReference ?? '').trim() || null,
       remarks: (r.remarks ?? '').trim() || null,
     })
   }

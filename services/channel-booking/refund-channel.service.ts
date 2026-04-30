@@ -16,6 +16,14 @@ import {
 import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import {
+  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
+  SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
+} from "@/types/save-booking"
+import type { ReceiptPaymentLineDraft } from "./helpers/create-receipt-for-booking"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -25,6 +33,13 @@ export type RefundChannelInput = {
   hospital_fee: number
   /** 0 Cash, 1 Card, 2 Slip, 3 Cheque, 4 Agent, 5 Credit Customer, 6 E-wallet */
   refund_to?: number
+  payment_lines?: Array<{
+    payment_method: number
+    amount: number
+    bank?: { id: string; name?: string } | null
+    slip_ref?: string
+    card?: string
+  }>
   remarks?: string
 }
 
@@ -46,6 +61,60 @@ function getRefundMethodLabel(refundTo: number): string {
   return labels[refundTo] ?? "cash"
 }
 
+function toCents(value: number): number {
+  return Math.round(Number(value || 0) * 100)
+}
+
+function buildMixedLinesFromRefundInput(
+  input: RefundChannelInput,
+  totalRefundAmount: number
+): { lines: ReceiptPaymentLineDraft[] } | { error: string } {
+  if (input.refund_to !== SAVE_PAYMENT_TYPE_MIXED) return { lines: [] }
+  const lines = (input.payment_lines ?? [])
+    .map((line) => ({
+      paymentMethod: line.payment_method,
+      amount: -1 * (Math.round(Number(line.amount || 0) * 100) / 100),
+      bank: line.bank?.name ?? "",
+      bankId: line.bank?.id ?? null,
+      cardReference: line.card ?? "",
+      slipReference: line.slip_ref ?? "",
+    }))
+  if (lines.length < 2) {
+    return { error: "At least two payment lines are required for mixed refund." }
+  }
+  const allowed = new Set([
+    SAVE_PAYMENT_TYPE_CASH,
+    SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_SLIP,
+    SAVE_PAYMENT_TYPE_E_WALLET,
+  ])
+  for (const line of lines) {
+    if (line.amount >= 0) {
+      return { error: "Each mixed refund line amount must be greater than 0.00." }
+    }
+    if (!allowed.has(line.paymentMethod)) {
+      return { error: "Mixed refund lines only allow Cash, Credit Card, Slip, and E-Wallet." }
+    }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+      (!line.bankId || !line.cardReference.trim())
+    ) {
+      return { error: "Card refund lines require both bank and card reference." }
+    }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
+      (!line.bankId || !line.slipReference.trim())
+    ) {
+      return { error: "Slip refund lines require both bank and slip reference." }
+    }
+  }
+  const sum = lines.reduce((acc, line) => acc + line.amount, 0)
+  if (toCents(Math.abs(sum)) !== toCents(totalRefundAmount)) {
+    return { error: "Mixed refund line total must match refund amount." }
+  }
+  return { lines }
+}
+
 /**
  * Refund channel: Cancel (refund_type 0) or partial Refund (refund_type 1).
  * Permission must be checked by caller.
@@ -63,7 +132,12 @@ export async function refundChannelService(
     where: { id: input.booking_id },
     include: {
       session: true,
-      receipts: { where: { method: 1 }, orderBy: { createdAt: "desc" }, take: 1 },
+      receipts: {
+        where: { method: 1 },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { paymentLines: true },
+      },
     },
   })
 
@@ -128,6 +202,23 @@ export async function refundChannelService(
       message: "This booking was not paid by Credit Customer. Refund to Credit is only allowed for Credit Customer bookings.",
     }
   }
+  if (refundTo === SAVE_PAYMENT_TYPE_MIXED && input.refund_type !== 0) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "Mixed refund is only allowed for cancel flow.",
+    }
+  }
+  if (
+    refundTo === SAVE_PAYMENT_TYPE_MIXED &&
+    receiptPaymentMethod !== SAVE_PAYMENT_TYPE_MIXED
+  ) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "Mixed refund is only allowed when the original settlement payment method was mixed.",
+    }
+  }
 
   const remarksTrimmed = (input.remarks ?? "").trim()
   if (!remarksTrimmed) {
@@ -152,8 +243,30 @@ export async function refundChannelService(
       const refundAmount = booking.amount
       const isAgent = refundTo === 4
       const isCreditCustomer = refundTo === 5
-      const needTill = [0, 1, 2, 3, 6].includes(refundTo) // cash, card, slip, check, e-wallet (not agent, not credit customer)
+      const needTill = [0, 1, 2, 3, 6, SAVE_PAYMENT_TYPE_MIXED].includes(refundTo) // mixed uses till split lines
       const needJournal = needTill || isAgent || isCreditCustomer
+      const fallbackMixedLines =
+        refundTo === SAVE_PAYMENT_TYPE_MIXED &&
+        (!input.payment_lines || input.payment_lines.length === 0) &&
+        paidReceipt?.paymentLines?.length
+          ? paidReceipt.paymentLines
+              .filter((line) => Number(line.amount) > 0)
+              .map((line) => ({
+                payment_method: line.paymentMethod,
+                amount: Number(line.amount),
+                bank: line.bankId ? { id: line.bankId, name: line.bank ?? "" } : null,
+                card: line.cardReference ?? "",
+                slip_ref: line.slipReference ?? "",
+              }))
+          : undefined
+      const mixedLinesResult = buildMixedLinesFromRefundInput(
+        fallbackMixedLines ? { ...input, payment_lines: fallbackMixedLines } : input,
+        refundAmount
+      )
+      if ("error" in mixedLinesResult) {
+        return { success: false, errorCode: "invalid_input", message: mixedLinesResult.error }
+      }
+      const paymentLines = mixedLinesResult.lines.length > 0 ? mixedLinesResult.lines : undefined
       let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
       if (needJournal) {
         const reqResult = await requireReceiptJournalAccounts(
@@ -197,16 +310,37 @@ export async function refundChannelService(
       if (needTill && accounts?.cashierAccountId) {
         const refundAmountCents = Math.round(Math.abs(refundAmount) * 100)
         const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
-        const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, refundTo)
-        if (tillBalanceCents < refundAmountCents) {
-          const methodLabel = getRefundMethodLabel(refundTo)
-          return {
-            success: false,
-            errorCode: "INSUFFICIENT_TILL_BALANCE",
-            message:
-              tillBalanceCents <= 0
-                ? `Till has no ${methodLabel} balance. Cannot refund until the till has sufficient ${methodLabel}.`
-                : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+        if (refundTo === SAVE_PAYMENT_TYPE_MIXED && paymentLines?.length) {
+          const totalsByMethod = paymentLines.reduce((acc, line) => {
+            acc.set(line.paymentMethod, (acc.get(line.paymentMethod) ?? 0) + toCents(line.amount))
+            return acc
+          }, new Map<number, number>())
+          for (const [method, needed] of totalsByMethod.entries()) {
+            const available = getTillBalanceCentsByMethod(breakdown, method)
+            if (available < needed) {
+              const methodLabel = getRefundMethodLabel(method)
+              return {
+                success: false,
+                errorCode: "INSUFFICIENT_TILL_BALANCE",
+                message:
+                  available <= 0
+                    ? `Till has no ${methodLabel} balance. Cannot refund until the till has sufficient ${methodLabel}.`
+                    : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(available)} LKR, required: ${formatCents(needed)} LKR.`,
+              }
+            }
+          }
+        } else {
+          const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, refundTo)
+          if (tillBalanceCents < refundAmountCents) {
+            const methodLabel = getRefundMethodLabel(refundTo)
+            return {
+              success: false,
+              errorCode: "INSUFFICIENT_TILL_BALANCE",
+              message:
+                tillBalanceCents <= 0
+                  ? `Till has no ${methodLabel} balance. Cannot refund until the till has sufficient ${methodLabel}.`
+                  : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(refundAmountCents)} LKR.`,
+            }
           }
         }
       }
@@ -251,6 +385,7 @@ export async function refundChannelService(
           bankId: refundTo === 1 && paidReceipt ? paidReceipt.bankId : null,
           cardReference: refundTo === 1 && paidReceipt ? paidReceipt.cardReference : "",
           slipReference: "",
+          paymentLines,
           remarks,
           type: 0,
           method: 0,
@@ -333,6 +468,13 @@ export async function refundChannelService(
 
     const isAgent = refundTo === 4
     const isCreditCustomer = refundTo === 5
+    if (refundTo === SAVE_PAYMENT_TYPE_MIXED) {
+      return {
+        success: false,
+        errorCode: "invalid_refund_to",
+        message: "Mixed refund is only allowed for full cancel refunds.",
+      }
+    }
     const needTill = [0, 1, 2, 3, 6].includes(refundTo) // cash, card, slip, check, e-wallet (not agent, not credit customer)
     const needJournal = needTill || isAgent || isCreditCustomer
     let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
