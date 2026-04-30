@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
-import { DateRangePicker } from '@/components/common/date-range-picker';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Input } from '@/components/ui/input';
 import { ReportAgentSelect } from '@/components/common/agent-select';
 import { ReportUserSelect } from '@/components/common/user-select';
@@ -18,6 +18,18 @@ export type ChannelAgentReferenceBookReportContentProps = {
   initialAgencyOptions: Array<{ id: string; name: string }>;
   initialUserOptions: Array<{ id: string; name: string }>;
 };
+
+/** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm for datetime-local */
+function getDefaultDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return {
+    from: `${y}-${m}-${d}T00:00`,
+    to: `${y}-${m}-${d}T23:59`,
+  };
+}
 
 function ChannelAgentReferenceBookReportContentInner({
   initialAgencyOptions,
@@ -45,15 +57,16 @@ function ChannelAgentReferenceBookReportContentInner({
           <div className="basis-full flex flex-wrap items-end gap-3">
             <div className="flex-shrink-0">
               <label className="text-sm text-black font-semibold mb-2 block">
-                Date Range
+                Date & Time Range
               </label>
-              <DateRangePicker
+              <DateTimeRangePicker
                 from={values.fromDate}
                 to={values.toDate}
                 onChange={({ from, to }) => {
                   setValue('fromDate', from);
                   setValue('toDate', to);
                 }}
+                label=""
               />
             </div>
             <div className="flex-shrink-0" style={{ minWidth: '240px' }}>
@@ -176,6 +189,10 @@ function ChannelAgentReferenceBookReportContentInner({
       showPrintButton={true}
       emptyMessage="No channel agent reference books found. Apply filters and click Search."
       skipFetchWhenNoParams={true}
+      initialFilterValues={{
+        fromDate: getDefaultDateTimeRange().from,
+        toDate: getDefaultDateTimeRange().to,
+      }}
     />
   );
 }

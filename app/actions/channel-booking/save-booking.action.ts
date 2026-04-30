@@ -11,6 +11,7 @@ import {
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
   SAVE_PAYMENT_TYPE_MIXED,
+  SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 
 const saveBookingSchema = z.object({
@@ -72,6 +73,7 @@ const saveBookingSchema = z.object({
   const allowed = new Set([
     SAVE_PAYMENT_TYPE_CASH,
     SAVE_PAYMENT_TYPE_CREDIT_CARD,
+    SAVE_PAYMENT_TYPE_SLIP,
     SAVE_PAYMENT_TYPE_E_WALLET,
   ])
   let total = 0
@@ -81,11 +83,51 @@ const saveBookingSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["payment_lines", idx, "payment_method"],
-        message: "Mixed payment lines only support Cash, Credit Card, and E-Wallet.",
+        message: "Mixed payment lines only support Cash, Credit Card, Slip, and E-Wallet.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+      !line.bank?.id?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "bank"],
+        message: "Bank is required for card payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+      !line.card?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "card"],
+        message: "Card reference is required for card payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+      !line.bank?.id?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "bank"],
+        message: "Bank is required for slip payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+      !line.slip_ref?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "slip_ref"],
+        message: "Slip reference is required for slip payment lines.",
       })
     }
   })
-  if (Math.abs(total - data.amount) > 0.01) {
+  if (Math.round(total * 100) !== Math.round(data.amount * 100)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["payment_lines"],

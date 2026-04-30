@@ -46,6 +46,7 @@ export async function exportAgentCollectionReceiptReportData(
       cheque: formatReceiptAmount(r.chequeAmount ?? 0),
       slip: formatReceiptAmount(r.slipAmount ?? 0),
       slipRef: r.slipRef ?? '-',
+      cardRef: r.cardRef ?? '-',
       bankName: r.bankName ?? '-',
     }));
 
