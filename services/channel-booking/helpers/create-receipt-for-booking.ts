@@ -57,6 +57,10 @@ export type CreateReceiptAndUpdateBookingResult =
 /** Transaction client (receipt + booking). */
 type Tx = Pick<PrismaClient, "receipt" | "booking">
 
+function toCents(value: number): number {
+  return Math.round(Number(value || 0) * 100)
+}
+
 /** Params for creating a ledger receipt (no booking). */
 export type CreateReceiptWithoutBookingParams = {
   paymentMethod: number
@@ -105,7 +109,7 @@ function normalizeReceiptPaymentLines(
           },
         ]
   const total = lines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
-  if (total !== amount) {
+  if (toCents(total) !== toCents(amount)) {
     return { error: `Receipt payment line total (${total}) must match receipt amount (${amount}).` }
   }
   const headerPaymentMethod =

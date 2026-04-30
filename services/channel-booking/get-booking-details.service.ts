@@ -180,6 +180,13 @@ function formatAppointmentTime(startTime: Date | number): string {
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
+function formatMoney2(amount: number): string {
+  return Number(amount ?? 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
 /**
  * Load one booking by id with session and doctor for the Information panel Booking tab.
  */
@@ -232,7 +239,7 @@ export async function getBookingDetailsService(
           paymentMethodName:
             r.paymentLines.length > 0
               ? r.paymentLines
-                  .map((line) => `${PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—"} ${line.amount}`)
+                  .map((line) => `${PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—"} ${formatMoney2(line.amount)}`)
                   .join(" + ")
               : PAYMENT_METHOD_NAMES[r.paymentMethod] ?? "—",
           amount: r.amount,

@@ -918,7 +918,7 @@ model Booking {
   session                 Session? @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
   doctorId                String   @db.ObjectId
   doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
-  amount                  Int
+  amount                  Float
   discount                Int      @default(0)
   foriegner               Boolean  @default(false)
   status                  Int      @default(0)
@@ -1001,7 +1001,7 @@ model Receipt {
   receiptNo       Int
   receiptNoString String
   paymentMethod   Int // 0 Cash, 1 Credit Card, 2 Slip, 3 Check, 4 Agent, 5 Credit
-  amount          Int
+  amount          Float
   bank            String  @default("")
   bankId          String? @db.ObjectId
   cardReference   String  @default("")
@@ -1052,7 +1052,7 @@ model ReceiptPaymentLine {
   receiptId     String  @db.ObjectId
   receipt       Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   paymentMethod Int
-  amount        Int
+  amount        Float
   bank          String  @default("")
   bankId        String? @db.ObjectId
   cardReference String  @default("")

@@ -46,12 +46,16 @@ const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4
 const DEFAULT_AGENCY_BALANCE_MESSAGE =
   "Ref: {agency_ref}. Booking with Dr {doctor}, appointment no {appointment_no}, date {date}, time {time}. Amount: {amount}. Your balance: {balance}."
 
+function toCents(value: number): number {
+  return Math.round(Number(value || 0) * 100)
+}
+
 function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: number) {
   if (input.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return null
   const lines = (input.payment_lines ?? [])
     .map((line) => ({
       paymentMethod: line.payment_method,
-      amount: Math.round(line.amount),
+      amount: Math.round(line.amount * 100) / 100,
       bank: line.bank?.name ?? "",
       bankId: line.bank?.id ?? null,
       cardReference: line.card ?? "",
@@ -72,7 +76,7 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
-  if (total !== amountToUse) {
+  if (toCents(total) !== toCents(amountToUse)) {
     return { error: `Mixed payment line total (${total}) must equal booking amount (${amountToUse}).` }
   }
   return { lines }
@@ -250,10 +254,9 @@ export async function saveBookingService(
   )
 
   const baseAmount = professional_fee + hospital_fee
-  const expectedAmount = Math.round(baseAmount - totalDiscount)
+  const expectedAmount = Math.round((baseAmount - totalDiscount) * 100) / 100
   const inputAmountNum = Number(input.amount)
-  const amountTolerance = 1 // Allow Rs 1 rounding difference between client and server.
-  if (Math.abs(inputAmountNum - expectedAmount) > amountTolerance) {
+  if (toCents(inputAmountNum) !== toCents(expectedAmount)) {
     const msg = `Amount does not match server calculation. Received: ${inputAmountNum}, expected: ${expectedAmount}. Please refresh and try again.`
     if (process.env.NODE_ENV !== "production") {
       console.log("[save-booking] amountError", { received: inputAmountNum, expected: expectedAmount, baseAmount, totalDiscount })
