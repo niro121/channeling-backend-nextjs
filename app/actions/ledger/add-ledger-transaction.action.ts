@@ -91,11 +91,25 @@ export async function addLedgerTransaction(
 
   if (transactionType === "AGENCY_DEPOSIT") {
     const pm = parsed.data.paymentMethod ?? RECEIPT_PAYMENT_METHOD.CASH
-    if (pm !== RECEIPT_PAYMENT_METHOD.CASH && pm !== RECEIPT_PAYMENT_METHOD.CREDIT_CARD && pm !== RECEIPT_PAYMENT_METHOD.SLIP) {
-      return { success: false, message: "Payment method must be Cash, Credit Card, or Slip.", errorCode: "VALIDATION" }
+    if (
+      pm !== RECEIPT_PAYMENT_METHOD.CASH &&
+      pm !== RECEIPT_PAYMENT_METHOD.CREDIT_CARD &&
+      pm !== RECEIPT_PAYMENT_METHOD.SLIP &&
+      pm !== RECEIPT_PAYMENT_METHOD.CHECK &&
+      pm !== RECEIPT_PAYMENT_METHOD.E_WALLET
+    ) {
+      return {
+        success: false,
+        message: "Payment method must be Cash, Credit Card, Slip, Cheque, or E-Wallet.",
+        errorCode: "VALIDATION",
+      }
     }
-    if ((pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD || pm === RECEIPT_PAYMENT_METHOD.SLIP) && (!parsed.data.bankId || !parsed.data.bank?.trim())) {
-      return { success: false, message: "Bank is required for Card or Slip.", errorCode: "VALIDATION" }
+    if (pm !== RECEIPT_PAYMENT_METHOD.CASH && (!parsed.data.bankId || !parsed.data.bank?.trim())) {
+      return {
+        success: false,
+        message: "Bank is required for non-cash payment methods.",
+        errorCode: "VALIDATION",
+      }
     }
   }
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
