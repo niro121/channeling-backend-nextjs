@@ -224,6 +224,13 @@ const reportsData: ReportListItem[] = [
     masterData: 'No Show Patient Report',
     description: 'Shows no-show patient counts by speciality and doctor, with by-date or by-month summary.',
     route: '/reports/no-show-patient'
+  },
+  {
+    id: '43',
+    rank: 43,
+    masterData: 'User Activity Report',
+    description: 'View user activity logs with filters for date/time, user, action, and entity details.',
+    route: '/reports/user-activity'
   }
 ];
 
@@ -284,7 +291,7 @@ export default async function ReportsPage() {
     ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>
-    ['/reports/sms-activity', '/reports/api-log'].includes(r.route)
+    ['/reports/sms-activity', '/reports/api-log', '/reports/user-activity'].includes(r.route)
   );
 
   const sections = [
