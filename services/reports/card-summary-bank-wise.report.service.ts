@@ -46,6 +46,7 @@ function normAll(v: string | undefined): string {
 }
 
 type CardLineLike = {
+  paymentMethod?: number | null;
   amount: number | null | undefined;
   bankId?: string | null;
   bank?: string | null;
