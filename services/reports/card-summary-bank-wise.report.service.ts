@@ -45,6 +45,36 @@ function normAll(v: string | undefined): string {
   return s || '__all__';
 }
 
+type CardLineLike = {
+  amount: number | null | undefined;
+  bankId?: string | null;
+  bank?: string | null;
+  cardReference?: string | null;
+};
+
+function getCardLinesForReceipt<T extends {
+  paymentLines: CardLineLike[];
+  paymentMethod?: number | null;
+  amount?: number | null;
+  bankId?: string | null;
+  bank?: string | null;
+  cardReference?: string | null;
+}>(receipt: T): CardLineLike[] {
+  if (receipt.paymentLines.length > 0) {
+    return receipt.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD);
+  }
+  return receipt.paymentMethod === CARD_PAYMENT_METHOD
+    ? [
+        {
+          amount: receipt.amount ?? 0,
+          bankId: receipt.bankId ?? null,
+          bank: receipt.bank ?? '',
+          cardReference: receipt.cardReference ?? '',
+        },
+      ]
+    : [];
+}
+
 export async function getCardSummaryBankWiseReportService(
   query: CardSummaryBankWiseReportQuery
 ): Promise<{ success: boolean; data: CardSummaryBankWiseReportRow[]; totalRecords: number; message?: string }> {
@@ -97,12 +127,7 @@ export async function getCardSummaryBankWiseReportService(
     const sliced = hasMore ? receipts.slice(0, MAX_RECORDS) : receipts;
     const totalsByBank = new Map<string | null, { totalAmount: number; count: number }>();
     for (const receipt of sliced) {
-      const cardLines =
-        receipt.paymentLines.length > 0
-          ? receipt.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
-          : receipt.paymentMethod === CARD_PAYMENT_METHOD
-            ? [{ amount: receipt.amount, bankId: receipt.bankId, bank: receipt.bank }]
-            : [];
+      const cardLines = getCardLinesForReceipt(receipt);
       if (cardLines.length === 0) continue;
       const byBank = new Map<string | null, number>();
       for (const line of cardLines) {
@@ -111,7 +136,6 @@ export async function getCardSummaryBankWiseReportService(
       }
       for (const [key, bankTotal] of byBank.entries()) {
         if (bankId !== '__all__' && key !== bankId) continue;
-        if (bankTotal <= 0) continue;
         const current = totalsByBank.get(key) ?? { totalAmount: 0, count: 0 };
         current.totalAmount += bankTotal;
         current.count += 1;
@@ -211,49 +235,43 @@ export async function getCardSummaryBankWiseReportService(
 
   const data: CardSummaryBankWiseReportRow[] = []
   for (const r of sliced) {
-    const cardLines =
-      r.paymentLines.length > 0
-        ? r.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD)
-        : r.paymentMethod === CARD_PAYMENT_METHOD
-          ? [{ amount: r.amount ?? 0, bank: r.bank ?? "", bankId: r.bankId ?? null, cardReference: r.cardReference ?? "" }]
-          : []
-    const cardAmount = cardLines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
-    if (cardAmount <= 0) continue
-    const lineBankIds = new Set(cardLines.map((line) => line.bankId).filter((x): x is string => !!x))
-    if (bankId !== '__all__' && !lineBankIds.has(bankId) && r.bankId !== bankId) continue
+    const cardLines = getCardLinesForReceipt(r)
+    if (cardLines.length === 0) continue
+    const byBank = new Map<string | null, { totalAmount: number; cardRefs: Set<string>; bankNames: Set<string> }>()
+    for (const line of cardLines) {
+      const key = line.bankId ?? r.bankId ?? null
+      const current = byBank.get(key) ?? { totalAmount: 0, cardRefs: new Set<string>(), bankNames: new Set<string>() }
+      current.totalAmount += Number(line.amount ?? 0)
+      const cardRef = (line.cardReference ?? '').trim()
+      if (cardRef) current.cardRefs.add(cardRef)
+      const bankName = (line.bank ?? '').trim()
+      if (bankName) current.bankNames.add(bankName)
+      byBank.set(key, current)
+    }
     const userLocId = r.userLocationId ?? r.locationId ?? null;
     const loc = userLocId ? locationById.get(userLocId) ?? null : null;
     const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
-    const cardRefs = Array.from(
-      new Set(
-        cardLines
-          .map((line) => (line.cardReference ?? "").trim())
-          .filter((value) => value.length > 0)
-      )
-    )
-    const banks = Array.from(
-      new Set(
-        cardLines
-          .map((line) => (line.bank ?? "").trim())
-          .filter((value) => value.length > 0)
-      )
-    )
-    data.push({
-      id: r.id,
-      bankId: r.bankId ?? null,
-      bankName: banks.length > 0 ? banks.join(", ") : (r.bank ?? '').trim() || null,
-      totalAmount: cardAmount,
-      count: 1,
-      receiptNoString: r.receiptNoString ?? null,
-      createdAt: r.createdAt ?? null,
-      userLocation: userLocationLabel,
-      user: userLabel,
-      cardReference:
-        cardRefs.length > 0 ? cardRefs.join(", ") : (r.cardReference ?? '').trim() || null,
-      remarks: (r.remarks ?? '').trim() || null,
-    })
+    for (const [lineBankId, bucket] of byBank.entries()) {
+      if (bankId !== '__all__' && lineBankId !== bankId) continue
+      const lineBankNames = Array.from(bucket.bankNames)
+      const lineCardRefs = Array.from(bucket.cardRefs)
+      data.push({
+        id: `${r.id}:${lineBankId ?? '__no_bank__'}`,
+        bankId: lineBankId,
+        bankName: lineBankNames.length > 0 ? lineBankNames.join(', ') : (r.bank ?? '').trim() || null,
+        totalAmount: bucket.totalAmount,
+        count: 1,
+        receiptNoString: r.receiptNoString ?? null,
+        createdAt: r.createdAt ?? null,
+        userLocation: userLocationLabel,
+        user: userLabel,
+        cardReference:
+          lineCardRefs.length > 0 ? lineCardRefs.join(', ') : (r.cardReference ?? '').trim() || null,
+        remarks: (r.remarks ?? '').trim() || null,
+      })
+    }
   }
 
   return {

@@ -355,10 +355,10 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           })
           return
         }
-        if (!line.card?.trim()) {
+        if (!/^\d{4}$/.test(line.card ?? "")) {
           toast({
             title: "Card reference required",
-            description: `Please enter card reference/last 4 digits for mixed payment line ${idx + 1}.`,
+            description: `Please enter exactly 4 digits for card reference on mixed payment line ${idx + 1}.`,
             variant: "destructive",
           })
           return
@@ -587,10 +587,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                           className="text-xs"
                           placeholder="Card reference / last 4"
                           value={line.card}
+                          inputMode="numeric"
+                          maxLength={4}
                           onChange={(e) =>
                             setMixedLines((prev) =>
                               prev.map((row, rowIdx) =>
-                                rowIdx === idx ? { ...row, card: e.target.value } : row
+                                rowIdx === idx
+                                  ? { ...row, card: e.target.value.replace(/\D/g, "").slice(0, 4) }
+                                  : row
                               )
                             )
                           }

@@ -68,7 +68,7 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
   return (
     <ReportTemplate<CardSummaryBankWiseReportRow, CardSummaryBankWiseReportExportRow>
       title="Card Summary - Bank Wise"
-      description="Lists card receipts by bank. Use Summary for bank totals, or Detail for receipt-level records."
+      description="Lists card movements by bank, including collections and refunds. Use Summary for bank totals, or Detail for receipt-level records."
       filterButtonLabel="Search"
       showBackButton={false}
       containerClassName="w-full py-2 space-y-3"
@@ -184,8 +184,8 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
       }}
       skipFetchWhenNoParams={true}
       initialFilterValues={getDefaultDateTimeRange()}
-      initialEmptyMessage="No card receipts found. Select filters and click Search."
-      emptyMessage="No card receipts found for the selected filters."
+      initialEmptyMessage="No card movements found. Select filters and click Search."
+      emptyMessage="No card movements found for the selected filters."
     />
   );
 }
