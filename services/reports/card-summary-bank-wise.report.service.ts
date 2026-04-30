@@ -98,13 +98,9 @@ export async function getCardSummaryBankWiseReportService(
 
   const where: any = {
     createdAt: { gte: from, lte: to },
-    AND: [
-      // Prisma Mongo null semantics can be inconsistent; include both null and not-set.
-      { OR: [{ canceledAt: null }, { canceledAt: { isSet: false } }] },
-    ],
   };
   if (locationId !== '__all__') {
-    where.AND.push({ OR: [{ locationId }, { userLocationId: locationId }] });
+    where.AND = [{ OR: [{ locationId }, { userLocationId: locationId }] }];
   }
 
   if (isSummary) {
