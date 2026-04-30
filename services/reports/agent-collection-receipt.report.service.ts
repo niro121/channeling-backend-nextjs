@@ -104,8 +104,11 @@ export async function getAgentCollectionReceiptReportService(
       cancelReason: true,
       amount: true,
       paymentMethod: true,
-      paymentLines: { select: { paymentMethod: true, amount: true, slipReference: true, bank: true } },
+      paymentLines: {
+        select: { paymentMethod: true, amount: true, slipReference: true, cardReference: true, bank: true },
+      },
       slipReference: true,
+      cardReference: true,
       bank: true,
       bankId: true,
     },
@@ -130,7 +133,15 @@ export async function getAgentCollectionReceiptReportService(
     const lines =
       r.paymentLines.length > 0
         ? r.paymentLines
-        : [{ paymentMethod: r.paymentMethod, amount: amt, slipReference: r.slipReference, bank: r.bank }]
+        : [
+            {
+              paymentMethod: r.paymentMethod,
+              amount: amt,
+              slipReference: r.slipReference,
+              cardReference: r.cardReference,
+              bank: r.bank,
+            },
+          ]
     const cashAmount = lines
       .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH)
       .reduce((sum, line) => sum + line.amount, 0)
@@ -143,8 +154,34 @@ export async function getAgentCollectionReceiptReportService(
     const chequeAmount = lines
       .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
       .reduce((sum, line) => sum + line.amount, 0)
-    const slipLine = lines.find((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP)
-    const cardLine = lines.find((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD)
+    const slipRefs = Array.from(
+      new Set(
+        lines
+          .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP)
+          .map((line) => (line.slipReference ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
+    const cardRefs = Array.from(
+      new Set(
+        lines
+          .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD)
+          .map((line) => (line.cardReference ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
+    const bankNames = Array.from(
+      new Set(
+        lines
+          .filter(
+            (line) =>
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+          )
+          .map((line) => (line.bank ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
     return {
       id: r.id,
       createdAt: r.createdAt,
@@ -159,8 +196,18 @@ export async function getAgentCollectionReceiptReportService(
       cardAmount,
       chequeAmount,
       slipAmount,
-      slipRef: (slipLine?.slipReference ?? r.slipReference ?? '').trim() || null,
-      bankName: (cardLine?.bank ?? slipLine?.bank ?? r.bank ?? '').trim() || null,
+      slipRef:
+        slipRefs.length > 0
+          ? slipRefs.join(", ")
+          : (r.slipReference ?? "").trim() || null,
+      cardRef:
+        cardRefs.length > 0
+          ? cardRefs.join(", ")
+          : (r.cardReference ?? "").trim() || null,
+      bankName:
+        bankNames.length > 0
+          ? bankNames.join(", ")
+          : (r.bank ?? "").trim() || null,
     };
   }).filter((row) => {
     if (pm === '__all__') return true

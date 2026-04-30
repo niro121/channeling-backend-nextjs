@@ -89,6 +89,11 @@ export const AgentCollectionReceiptColumns: ColumnDef<AgentCollectionReceiptRepo
     cell: ({ row }) => <span className={isCanceled(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('slipRef') ?? '-'}</span>
   },
   {
+    accessorKey: 'cardRef',
+    header: 'Card Ref',
+    cell: ({ row }) => <span className={isCanceled(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('cardRef') ?? '-'}</span>
+  },
+  {
     accessorKey: 'bankName',
     header: 'Bank Name',
     cell: ({ row }) => <span className={isCanceled(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('bankName') ?? '-'}</span>

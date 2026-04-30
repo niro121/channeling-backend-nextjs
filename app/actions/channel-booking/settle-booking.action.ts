@@ -153,6 +153,7 @@ const settleBookingSchema = z
       const allowed = new Set([
         SAVE_PAYMENT_TYPE_CASH,
         SAVE_PAYMENT_TYPE_CREDIT_CARD,
+        SAVE_PAYMENT_TYPE_SLIP,
         SAVE_PAYMENT_TYPE_E_WALLET,
       ])
       lines.forEach((line, idx) => {
@@ -160,7 +161,47 @@ const settleBookingSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["payment_lines", idx, "payment_method"],
-            message: "Mixed payment lines only support Cash, Credit Card, and E-Wallet.",
+            message: "Mixed payment lines only support Cash, Credit Card, Slip, and E-Wallet.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+          !line.bank?.id?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "bank"],
+            message: "Bank is required for card payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD &&
+          !line.card?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "card"],
+            message: "Card reference is required for card payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+          !line.bank?.id?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "bank"],
+            message: "Bank is required for slip payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+          !line.slip_ref?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "slip_ref"],
+            message: "Slip reference is required for slip payment lines.",
           })
         }
       })
