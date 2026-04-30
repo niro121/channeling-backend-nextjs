@@ -106,6 +106,11 @@ type MixedLine = {
   amount: string
 }
 
+const DEFAULT_MIXED_LINES: MixedLine[] = [
+  { payment_method: 0, amount: "" },
+  { payment_method: 1, amount: "" },
+]
+
 /**
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
@@ -131,10 +136,12 @@ export function NewBookingDetailsTab() {
   const [areaOpen, setAreaOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
-  const [mixedLines, setMixedLines] = useState<MixedLine[]>([
-    { payment_method: 0, amount: "" },
-    { payment_method: 1, amount: "" },
-  ])
+  const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
+  function resetMixedDialog() {
+    setMixedDialogOpen(false)
+    setMixedLines(DEFAULT_MIXED_LINES)
+  }
+
   // Booking-type–specific fields (Agent=2, Staff=3, Card=4, Slip=5, Credit Customer=6, E-wallet=7)
   const [agencyId, setAgencyId] = useState<string>("")
   const [agencyBookId, setAgencyBookId] = useState<string>("")
@@ -281,11 +288,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
-    setMixedDialogOpen(false)
-    setMixedLines([
-      { payment_method: 0, amount: "" },
-      { payment_method: 1, amount: "" },
-    ])
+    resetMixedDialog()
     setAgencyBooks([])
     setSelectedAgencyId(null)
     setReferredDoctorId(null)
@@ -304,11 +307,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
-    setMixedDialogOpen(false)
-    setMixedLines([
-      { payment_method: 0, amount: "" },
-      { payment_method: 1, amount: "" },
-    ])
+    resetMixedDialog()
     setAgencyBooks([])
     setSelectedAgencyId(null)
   }, [paymentMethodId, setSelectedAgencyId])
@@ -406,11 +405,7 @@ export function NewBookingDetailsTab() {
         setBankId("")
         setCardLast4("")
         setSlipRef("")
-        setMixedDialogOpen(false)
-        setMixedLines([
-          { payment_method: 0, amount: "" },
-          { payment_method: 1, amount: "" },
-        ])
+        resetMixedDialog()
         setAgencyBooks([])
         setSelectedAgencyId(null)
         setReferredDoctorId(null)
@@ -1107,7 +1102,16 @@ export function NewBookingDetailsTab() {
         </Button>
       </div>
 
-      <Dialog open={mixedDialogOpen} onOpenChange={setMixedDialogOpen}>
+      <Dialog
+        open={mixedDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetMixedDialog()
+            return
+          }
+          setMixedDialogOpen(true)
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mixed Payment Breakdown</DialogTitle>
@@ -1191,7 +1195,7 @@ export function NewBookingDetailsTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setMixedDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={resetMixedDialog}>
               Cancel
             </Button>
             <Button

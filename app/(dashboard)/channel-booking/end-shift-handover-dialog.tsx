@@ -343,11 +343,12 @@ export function EndShiftHandoverDialog({
   }
 
   const updateCashDenom = (value: number, count: number) => {
+    const normalizedCount = Math.max(0, Math.trunc(Number(count) || 0))
     setCashDenoms((prev) => {
       const i = prev.findIndex((d) => matchDenom(d.value, value))
       if (i < 0) return prev
       const next = [...prev]
-      next[i] = { ...next[i], count }
+      next[i] = { ...next[i], count: normalizedCount }
       return next
     })
   }
@@ -711,7 +712,7 @@ export function EndShiftHandoverDialog({
                                 <td className="py-1 px-1 text-muted-foreground text-center">×</td>
                                 <td className="py-1 px-2 text-right">
                                   <div className="flex justify-end">
-                                    <Input type="number" min={0} step={v < 1 ? 0.01 : 1} className="h-7 w-14 text-right tabular-nums text-sm" value={count} onChange={(e) => updateCashDenom(v, Math.max(0, parseFloat(e.target.value) || 0))} />
+                                    <Input type="number" min={0} step={1} className="h-7 w-14 text-right tabular-nums text-sm" value={count} onChange={(e) => updateCashDenom(v, Math.max(0, parseInt(e.target.value, 10) || 0))} />
                                   </div>
                                 </td>
                               </tr>

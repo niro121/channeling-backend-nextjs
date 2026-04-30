@@ -22,6 +22,10 @@ import {
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
+function toCents(value: number): number {
+  return Math.round(Number(value || 0) * 100)
+}
+
 function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
   if (!Array.isArray(json)) return []
   return json.filter(
@@ -40,7 +44,7 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
   const lines = (input.payment_lines ?? [])
     .map((line) => ({
       paymentMethod: line.payment_method,
-      amount: Math.round(line.amount),
+      amount: Math.round(line.amount * 100) / 100,
       bank: line.bank?.name ?? "",
       bankId: line.bank?.id ?? null,
       cardReference: line.card ?? "",
@@ -61,7 +65,7 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
-  if (total !== amount) {
+  if (toCents(total) !== toCents(amount)) {
     return { error: `Mixed payment line total (${total}) must equal settlement amount (${amount}).` }
   }
   return { lines }
