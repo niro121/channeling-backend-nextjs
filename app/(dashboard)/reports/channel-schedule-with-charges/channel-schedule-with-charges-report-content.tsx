@@ -135,7 +135,7 @@ function ChannelScheduleWithChargesReportContentInner(
               onChange={(v) => setValue('specialityId', v)}
             />
             <Selector
-              label="Report Type"
+              label="All Report Types"
               options={reportTypeOptions}
               value={values.reportType ?? '__all__'}
               onChange={(v) => setValue('reportType', v)}
