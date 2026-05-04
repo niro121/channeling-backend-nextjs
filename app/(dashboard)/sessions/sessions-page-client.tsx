@@ -14,6 +14,8 @@ interface SessionsPageClientProps {
   toDate: string;
   page?: string;
   limit?: string;
+  branchOptions: Option[];
+  branchId?: string;
 }
 
 export default function SessionsPageClient({
@@ -22,7 +24,9 @@ export default function SessionsPageClient({
   fromDate,
   toDate,
   page,
-  limit
+  limit,
+  branchOptions,
+  branchId,
 }: SessionsPageClientProps) {
   const listRef = useRef<SessionsListRef>(null);
 
@@ -52,6 +56,8 @@ export default function SessionsPageClient({
             toDate={toDate}
             page={page}
             limit={limit}
+            branchOptions={branchOptions}
+            branchId={branchId}
           />
         </div>
       </CardContent>

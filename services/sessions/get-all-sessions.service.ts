@@ -11,6 +11,7 @@ export const getAllSessionsService = async ({
   fromDate,
   toDate,
   doctorId,
+  locationId,
 }: {
   page: number;
   limit: number;
@@ -18,6 +19,7 @@ export const getAllSessionsService = async ({
   fromDate?: Date;
   toDate?: Date;
   doctorId?: string;
+  locationId?: string;
 }): Promise<{
   success: boolean;
   data?: {
@@ -33,6 +35,10 @@ export const getAllSessionsService = async ({
 
   try {
     const whereClause: Prisma.SessionWhereInput = {};
+
+    if (locationId) {
+      whereClause.locationId = locationId;
+    }
 
     if (fromDate && toDate) {
       const rangeStart = moment(fromDate).startOf('day').toDate();
