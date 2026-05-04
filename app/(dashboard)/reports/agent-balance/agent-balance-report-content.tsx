@@ -89,8 +89,9 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
         'Agent Name',
         'Agent Phone No',
         'Agent Address',
-        'Max Credit Limit',
-        'Allowed Credit Limit',
+        'Hard credit limit',
+        'Agency credit limit',
+        'Allowed credit limit',
         'Agent Balance',
       ].join(','),
       ...rows.map((r, i) =>
@@ -102,7 +103,8 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
           r.agentName,
           r.agentPhoneNo,
           r.agentAddress,
-          r.maxCreditLimit.toFixed(2),
+          r.hardCreditLimit.toFixed(2),
+          r.agencyCreditLimit.toFixed(2),
           r.allowedCreditLimit.toFixed(2),
           r.agentBalance.toFixed(2),
         ]
@@ -193,8 +195,9 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                         <TableHead>Agent Name</TableHead>
                         <TableHead>Agent Phone No</TableHead>
                         <TableHead>Agent Address</TableHead>
-                        <TableHead className="text-right">Max Credit Limit</TableHead>
-                        <TableHead className="text-right">Allowed Credit Limit</TableHead>
+                        <TableHead className="text-right">Hard credit limit</TableHead>
+                        <TableHead className="text-right">Agency credit limit</TableHead>
+                        <TableHead className="text-right">Allowed credit limit</TableHead>
                         <TableHead className="text-right">Agent Balance</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -218,13 +221,14 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                           <TableCell>{r.agentName}</TableCell>
                           <TableCell>{r.agentPhoneNo}</TableCell>
                           <TableCell>{r.agentAddress}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatLKR(r.maxCreditLimit)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatLKR(r.hardCreditLimit)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatLKR(r.agencyCreditLimit)}</TableCell>
                           <TableCell className="text-right tabular-nums">{formatLKR(r.allowedCreditLimit)}</TableCell>
                           <TableCell className="text-right tabular-nums">{formatLKR(r.agentBalance)}</TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="font-medium bg-muted/50">
-                        <TableCell colSpan={9}>Total</TableCell>
+                        <TableCell colSpan={10}>Total</TableCell>
                         <TableCell className="text-right tabular-nums">{formatLKR(balanceTotal)}</TableCell>
                       </TableRow>
                     </TableBody>
