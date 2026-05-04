@@ -42,6 +42,8 @@ export type getSessionParams = {
   fromDate?: string;
   toDate?: string;
   doctorId?: string;
+  /** Location (branch) filter; omit or `__all__` for all branches. */
+  branchId?: string;
 };
 
 export type getSessionQuery = {
@@ -51,4 +53,6 @@ export type getSessionQuery = {
   fromDate?: Date;
   toDate?: Date;
   doctorId?: string;
+  /** Filter sessions by branch (Location id). */
+  locationId?: string;
 };
