@@ -11,8 +11,12 @@ export type AgentBalanceReportRow = {
   agentName: string;
   agentPhoneNo: string;
   agentAddress: string;
-  maxCreditLimit: number; // hard limit from associated account.maxBalanceAllowed
-  allowedCreditLimit: number; // soft limit from agency.allowedCreditLimit
+  /** Linked PAYABLE account hard cap (same source as Agencies “Hard credit limit”). */
+  hardCreditLimit: number;
+  /** Agency.creditLimit — same as Agencies “Agency credit limit”. */
+  agencyCreditLimit: number;
+  /** Agency.allowedCreditLimit — same as Agencies “Allowed credit limit”. */
+  allowedCreditLimit: number;
   agentBalance: number; // current account balance
 };
 
