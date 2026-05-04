@@ -50,6 +50,7 @@ export async function getAgentBalanceReportService(
         code: true,
         phone: true,
         allowedCreditLimit: true,
+        creditLimit: true,
         parentAgency: { select: { name: true } },
         addressLine1: true,
         addressLine2: true,
@@ -92,7 +93,8 @@ export async function getAgentBalanceReportService(
           agentName: a.name || '-',
           agentPhoneNo: a.phone || '-',
           agentAddress: address || '-',
-          maxCreditLimit: resolveAgencyHardCreditLimitLkr(acc),
+          hardCreditLimit: resolveAgencyHardCreditLimitLkr(acc),
+          agencyCreditLimit: Number(a.creditLimit ?? 0),
           allowedCreditLimit: Number(a.allowedCreditLimit ?? 0),
           agentBalance: Number(balanceCents || 0) / 100,
         };
