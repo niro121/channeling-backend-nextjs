@@ -24,6 +24,8 @@ export type ChannelBookingRecord = {
   movedAt?: Date | null
   /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Transfer tick hidden when !== 0. */
   refund?: number
+  /** Doctor payment completed for this booking. */
+  doctorPayment?: boolean
   [key: string]: unknown
 }
 

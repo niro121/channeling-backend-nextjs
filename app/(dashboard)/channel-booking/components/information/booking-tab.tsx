@@ -11,6 +11,7 @@ import type {
   BookingDetailsView,
   ReceiptRowView,
 } from "@/services/channel-booking/get-booking-details.service"
+import { RECEIPT_METHOD, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import {
   Dialog,
@@ -38,16 +39,33 @@ function formatAppointmentNo(value: string | number): string {
   return String(n).padStart(2, "0")
 }
 
+function doctorPaymentReceiptRow(details: BookingDetailsView): ReceiptRowView | null {
+  if (!details.doctorPaymentReceiptId) return null
+  return {
+    id: details.doctorPaymentReceiptId,
+    receiptNoString: details.doctorPaymentReceiptString ?? "—",
+    type: RECEIPT_METHOD_NAMES[RECEIPT_METHOD.DOCTOR_PAYMENT] ?? "Doctor Payment",
+    paymentMethodName: "—",
+    amount: 0,
+    remarks: "",
+    processedBy: "—",
+    createdAt: details.doctorPaymentAt ?? new Date(),
+  }
+}
+
 function Row({
   label,
   value,
   highlight,
   valueClassName,
+  muted,
 }: {
   label: string
   value: string | number
   highlight?: boolean
   valueClassName?: string
+  /** Softer label + value (e.g. audit metadata). */
+  muted?: boolean
 }) {
   return (
     <div
@@ -59,7 +77,9 @@ function Row({
       <span
         className={cn(
           "text-[11px] shrink-0",
-          highlight ? "font-medium text-foreground" : "text-slate-600 dark:text-slate-400"
+          muted && "text-muted-foreground",
+          !muted && highlight && "font-medium text-foreground",
+          !muted && !highlight && "text-slate-600 dark:text-slate-400"
         )}
       >
         {label}
@@ -67,7 +87,9 @@ function Row({
       <span
         className={cn(
           "text-xs text-right break-words min-w-0",
-          highlight ? "font-semibold text-foreground" : "text-foreground",
+          muted && "text-muted-foreground",
+          !muted && highlight && "font-semibold text-foreground",
+          !muted && !highlight && "text-foreground",
           valueClassName
         )}
       >
@@ -121,6 +143,7 @@ export function BookingTab() {
   const [error, setError] = useState<string | null>(null)
   const [discountExpanded, setDiscountExpanded] = useState(false)
   const [billingExpanded, setBillingExpanded] = useState(false)
+  const [doctorPaymentExpanded, setDoctorPaymentExpanded] = useState(false)
   const [agentExpanded, setAgentExpanded] = useState(false)
   const [creditCustomerExpanded, setCreditCustomerExpanded] = useState(false)
   const [referredExpanded, setReferredExpanded] = useState(false)
@@ -139,6 +162,7 @@ export function BookingTab() {
       setError(null)
       setDiscountExpanded(false)
       setBillingExpanded(false)
+      setDoctorPaymentExpanded(false)
       setAgentExpanded(false)
       setCreditCustomerExpanded(false)
       setReferredExpanded(false)
@@ -154,6 +178,7 @@ export function BookingTab() {
     setError(null)
     setDiscountExpanded(false)
     setBillingExpanded(false)
+    setDoctorPaymentExpanded(false)
     setAgentExpanded(false)
     setCreditCustomerExpanded(false)
     setReferredExpanded(false)
@@ -274,48 +299,196 @@ export function BookingTab() {
             highlight
             valueClassName="text-destructive"
           />
-          <Row label="Date" value={details.appointmentDate} />
-          <Row label="Time" value={details.appointmentTime} />
+          <Row label="Date" value={details.appointmentDate} valueClassName="font-bold" />
+          <Row label="Time" value={details.appointmentTime} valueClassName="font-bold" />
+          <Row label="Created by" value={details.appointmentCreatedBy} muted />
+          <Row
+            label="Created at"
+            value={new Date(details.createdAt).toLocaleString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })}
+            muted
+          />
         </Section>
       </div>
 
-      {/* Billing: compact summary with expand for details (same style as Discount) */}
-      <div className="space-y-1.5">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-          Billing
-        </h3>
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
-          <button
-            type="button"
-            onClick={() => setBillingExpanded((e) => !e)}
+      {/* Billing + Doctor payment (side by side on sm+) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
+        <div className="space-y-1.5 min-w-0">
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            Billing
+          </h3>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30 overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setBillingExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left",
+                "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+              )}
+            >
+              {billingExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+              )}
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Bill No</span>
+              <span className="text-xs font-medium text-foreground min-w-0 truncate">
+                {details.billNo}
+              </span>
+              <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0 ml-auto">Total</span>
+              <span className="text-xs font-semibold text-foreground">
+                {formatRs(details.billTotal)}
+              </span>
+            </button>
+            {billingExpanded && (
+              <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
+                <Row label="Bill No" value={details.billNo} />
+                <Row label="Sub Total" value={formatRs(details.billSubTotal)} />
+                <Row label="Discount" value={formatRs(details.discount)} />
+                <Row label="Bill Total" value={formatRs(details.billTotal)} highlight />
+                <Row label="Billed By" value={details.billedBy} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-1.5 min-w-0">
+          <h3
             className={cn(
-              "w-full flex items-center gap-2 px-2 py-1.5 text-left",
-              "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-slate-400 rounded-t-lg"
+              "text-[10px] font-semibold uppercase tracking-wider",
+              details.doctorPayment
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-slate-600 dark:text-slate-400"
             )}
           >
-            {billingExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+            Doctor payment
+          </h3>
+          <div
+            className={cn(
+              "rounded-lg overflow-hidden shadow-sm",
+              details.doctorPayment
+                ? "border border-emerald-300/80 dark:border-emerald-700/70 bg-emerald-50/95 dark:bg-emerald-950/35 ring-1 ring-emerald-600/10 dark:ring-emerald-500/15"
+                : "border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/30"
             )}
-            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Bill No</span>
-            <span className="text-xs font-medium text-foreground min-w-0 truncate">
-              {details.billNo}
-            </span>
-            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0 ml-auto">Total</span>
-            <span className="text-xs font-semibold text-foreground">
-              {formatRs(details.billTotal)}
-            </span>
-          </button>
-          {billingExpanded && (
-            <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
-              <Row label="Bill No" value={details.billNo} />
-              <Row label="Sub Total" value={formatRs(details.billSubTotal)} />
-              <Row label="Discount" value={formatRs(details.discount)} />
-              <Row label="Bill Total" value={formatRs(details.billTotal)} highlight />
-              <Row label="Billed By" value={details.billedBy} />
-            </div>
-          )}
+          >
+            <button
+              type="button"
+              onClick={() => setDoctorPaymentExpanded((e) => !e)}
+              className={cn(
+                "w-full flex items-center gap-2 px-2 py-1.5 text-left focus:outline-none focus-visible:ring-1 rounded-t-lg",
+                details.doctorPayment
+                  ? "hover:bg-emerald-100/70 dark:hover:bg-emerald-900/45 focus-visible:ring-emerald-500/50"
+                  : "hover:bg-slate-100/80 dark:hover:bg-slate-800/50 focus-visible:ring-slate-400"
+              )}
+            >
+              {doctorPaymentExpanded ? (
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0",
+                    details.doctorPayment
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-slate-500 dark:text-slate-400"
+                  )}
+                />
+              ) : (
+                <ChevronRight
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0",
+                    details.doctorPayment
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-slate-500 dark:text-slate-400"
+                  )}
+                />
+              )}
+              <span
+                className={cn(
+                  "text-[11px] shrink-0",
+                  details.doctorPayment
+                    ? "text-emerald-800/90 dark:text-emerald-300/90"
+                    : "text-slate-600 dark:text-slate-400"
+                )}
+              >
+                Receipt
+              </span>
+              <span
+                className={cn(
+                  "text-xs font-medium min-w-0 truncate",
+                  details.doctorPayment
+                    ? "text-emerald-950 dark:text-emerald-100"
+                    : "text-muted-foreground"
+                )}
+              >
+                {details.doctorPayment ? details.doctorPaymentReceiptString ?? "—" : "—"}
+              </span>
+              <span
+                className={cn(
+                  "text-xs shrink-0 ml-auto text-right max-w-[min(100%,9rem)] truncate",
+                  details.doctorPayment
+                    ? "font-semibold text-emerald-700 dark:text-emerald-300"
+                    : "font-normal text-muted-foreground"
+                )}
+              >
+                {details.doctorPayment ? "Paid" : "Not paid"}
+              </span>
+            </button>
+            {doctorPaymentExpanded && (
+              <div
+                className={cn(
+                  "border-t px-2 py-1.5 space-y-0",
+                  details.doctorPayment
+                    ? "border-emerald-200/90 dark:border-emerald-800/60 bg-emerald-50/90 dark:bg-emerald-950/40"
+                    : "border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/20"
+                )}
+              >
+                {details.doctorPayment ? (
+                  <>
+                    <Row label="Receipt no." value={details.doctorPaymentReceiptString ?? "—"} />
+                    <Row
+                      label="Paid at"
+                      value={
+                        details.doctorPaymentAt
+                          ? new Date(details.doctorPaymentAt).toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                          : "—"
+                      }
+                    />
+                    {details.doctorPaymentReceiptId ? (
+                      <div className="px-1 -mx-1 pt-0.5 border-t border-emerald-200/80 dark:border-emerald-800/50 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const row = doctorPaymentReceiptRow(details)
+                            if (row) {
+                              setSelectedReceipt(row)
+                              setReceiptDialogOpen(true)
+                            }
+                          }}
+                          className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300 hover:underline inline-flex items-center gap-1 py-0.5"
+                        >
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          View receipt details
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground px-1 py-0.5">Not paid</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

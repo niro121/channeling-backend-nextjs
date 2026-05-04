@@ -19,7 +19,7 @@ import {
 import { useToast } from "@/components/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { FileClock, Loader2, MessageCircle } from "lucide-react"
+import { DollarSign, FileClock, Loader2, MessageCircle } from "lucide-react"
 import {
   formatSessionDateShort,
   formatSessionDay,
@@ -242,6 +242,15 @@ export function Bookings() {
                             >
                               {truncateName(displayName, MAX_NAME_CHARS)}
                             </span>
+                            {b.doctorPayment && (
+                              <span
+                                className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/25 dark:bg-emerald-950/50 dark:text-emerald-400 dark:ring-emerald-500/30"
+                                title="Doctor payment completed"
+                                aria-label="Doctor payment completed"
+                              >
+                                <DollarSign className="h-3 w-3" strokeWidth={2.5} />
+                              </span>
+                            )}
                             {b.movedAt && (
                               <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                                 Moved
