@@ -103,6 +103,8 @@ export type BookingDetailsView = {
   appointmentNo: number
   appointmentDate: string
   appointmentTime: string
+  /** Display name of the user who created this booking. */
+  appointmentCreatedBy: string
   phone: string
   bookingMethod: string
   agentRef: string
@@ -156,6 +158,10 @@ export type BookingDetailsView = {
   sessionRefundable?: number
   /** True when doctor has been paid for this booking; refund and cancel are not allowed. */
   doctorPayment?: boolean
+  /** Linked doctor-payment receipt (batch receipt may cover multiple bookings). */
+  doctorPaymentReceiptId?: string | null
+  doctorPaymentReceiptString?: string | null
+  doctorPaymentAt?: Date | null
   /** Session date YYYY-MM-DD for Settle tab (past date = cannot settle). */
   sessionDateForSettle?: string
   /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
@@ -388,6 +394,7 @@ export async function getBookingDetailsService(
       appointmentNo: b.appointmentNo,
       appointmentDate: formatAppointmentDate(sessionDate),
       appointmentTime,
+      appointmentCreatedBy: createdByName?.trim() ? createdByName : "—",
       phone: b.phone,
       bookingMethod: methodName,
       agentRef: b.agencyRef?.trim() ? b.agencyRef : "-",
@@ -440,6 +447,9 @@ export async function getBookingDetailsService(
       sessionStatus: b.session?.status,
       sessionRefundable: b.session?.refundable,
       doctorPayment: b.doctorPayment ?? false,
+      doctorPaymentReceiptId: b.doctorPaymentReceiptId ?? null,
+      doctorPaymentReceiptString: b.doctorPaymentReceiptString ?? null,
+      doctorPaymentAt: b.doctorPaymentAt ?? null,
       sessionDateForSettle: b.session?.date
         ? new Date(b.session.date).toISOString().slice(0, 10)
         : undefined,
