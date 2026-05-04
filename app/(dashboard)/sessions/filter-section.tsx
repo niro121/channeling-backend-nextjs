@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { FilterWrapper } from '../filter-wrapper';
 import { Combobox } from '@/components/common/combobox';
 import { Button } from '@/components/ui/button';
@@ -59,6 +59,7 @@ export default function FilterSection({
   const { has } = usePermissions();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [creating, setCreating] = React.useState(false);
   const [updating, setUpdating] = React.useState(false);
   const [progressOpen, setProgressOpen] = React.useState(false);
@@ -78,6 +79,10 @@ export default function FilterSection({
 
   const pushFilterToUrl = (vals: { doctorId?: string; fromDate?: string; toDate?: string }) => {
     const params = new URLSearchParams();
+    const branchId = searchParams?.get('branchId');
+    if (branchId && /^[a-fA-F0-9]{24}$/.test(branchId)) {
+      params.set('branchId', branchId);
+    }
     if (vals.doctorId && vals.doctorId !== '-1') params.set('doctorId', vals.doctorId);
     if (vals.fromDate) params.set('fromDate', vals.fromDate);
     if (vals.toDate) params.set('toDate', vals.toDate);

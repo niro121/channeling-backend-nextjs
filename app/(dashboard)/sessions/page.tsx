@@ -7,6 +7,7 @@ import SessionsPageClient from './sessions-page-client';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
+import { getLocationsForSelectService } from '@/services/reference/reference-data.service';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -15,6 +16,7 @@ type SearchParams = {
     doctorId?: string;
     fromDate?: string;
     toDate?: string;
+    branchId?: string;
   }>;
 };
 
@@ -41,7 +43,14 @@ export default async function Page({ searchParams }: SearchParams) {
       importance: 'low',
     });
   }
-  const doctorOptions = await getDoctorOptions();
+  const [doctorOptions, locations] = await Promise.all([
+    getDoctorOptions(),
+    getLocationsForSelectService(),
+  ]);
+  const branchOptions = [
+    { id: '__all__', name: 'All branches' },
+    ...locations.map((l) => ({ id: l.id, name: l.name })),
+  ];
   const defaultToday = todayYYYYMMDD();
   const rawFrom = params?.fromDate ?? defaultToday;
   const rawTo = params?.toDate ?? defaultToday;
@@ -65,6 +74,8 @@ export default async function Page({ searchParams }: SearchParams) {
         toDate={toDate}
         page={params?.page}
         limit={params?.limit}
+        branchOptions={branchOptions}
+        branchId={params?.branchId}
       />
     </Suspense>
   );

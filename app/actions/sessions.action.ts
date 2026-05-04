@@ -43,13 +43,21 @@ export const getAllSessions = async (sort: getSessionParams) => {
         ? sort.doctorId
         : undefined;
 
+    const validLocationId =
+      sort.branchId &&
+      sort.branchId !== '__all__' &&
+      /^[a-fA-F0-9]{24}$/.test(sort.branchId)
+        ? sort.branchId
+        : undefined;
+
     const newFilter: getSessionQuery = {
       page: sort.page ? parseInt(sort.page) : parseInt(process.env.DEFAULT_PAGE ?? '0'),
       limit: sort.limit ? parseInt(sort.limit) : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       date: parsedDate,
       fromDate: parsedFrom,
       toDate: parsedTo,
-      doctorId: validDoctorId
+      doctorId: validDoctorId,
+      locationId: validLocationId,
     };
 
     const response = await getAllSessionsService(newFilter);
