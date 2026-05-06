@@ -2,7 +2,12 @@
 
 import prisma from "@/lib/prisma"
 import moment from "moment"
-import { getNextSequenceNumber, getPreviousSessionTransferStatus } from "./helpers"
+import {
+  advanceAppointmentSequenceCursor,
+  countSequentialAutoAssignmentsAvailable,
+  getPreviousSessionTransferStatus,
+  prepareAppointmentNumberForNewBookingTx,
+} from "./helpers"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 
@@ -135,16 +140,19 @@ export async function transferBookingsService(
     }
   }
 
-  // Pre-check: ensure target session has room for all selected bookings (avoid partial transfer)
-  const appointmentScope = `appointment:${sessionId}`
-  const seq = await prisma.sequence.findUnique({
-    where: { scopeKey: appointmentScope },
-    select: { lastValue: true },
-  })
-  const startFrom = targetSession.startingPatientNumber
-  const nextNumber =
-    seq == null ? startFrom : seq.lastValue < startFrom ? startFrom : seq.lastValue + 1
-  const slotsLeft = Math.max(0, targetSession.maxPatientNumber - nextNumber + 1)
+  // Pre-check: ensure target session has room for all selected auto assignments (blocked + occupied + sequence).
+  const slotsLeft = await prisma.$transaction(async (tx) =>
+    countSequentialAutoAssignmentsAvailable(
+      tx,
+      sessionId,
+      {
+        startingPatientNumber: targetSession.startingPatientNumber,
+        maxPatientNumber: targetSession.maxPatientNumber,
+        blockedAppointmentNumbers: targetSession.blockedAppointmentNumbers ?? [],
+      },
+      bookingObjs.length
+    )
+  )
   if (slotsLeft < bookingObjs.length) {
     return {
       success: false,
@@ -192,93 +200,119 @@ export async function transferBookingsService(
       ? moment(targetSession.startTime).format("hh:mm A")
       : moment.unix(targetStartTime).format("hh:mm A")
 
-  let lastAssignedAppointmentNo = 0
-  for (const booking of bookingObjs) {
-    const appointmentResult = await getNextSequenceNumber(`appointment:${sessionId}`, {
-      startFrom: targetSession.startingPatientNumber,
-      max: targetSession.maxPatientNumber,
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const booking of bookingObjs) {
+        const sessionRow = await tx.session.findUnique({
+          where: { id: sessionId },
+          select: {
+            appointmentNo: true,
+            startingPatientNumber: true,
+            maxPatientNumber: true,
+            blockedAppointmentNumbers: true,
+          },
+        })
+        if (!sessionRow) {
+          throw new Error("target_session_missing")
+        }
+        const prep = await prepareAppointmentNumberForNewBookingTx(tx, sessionId, sessionRow, {})
+        if (!prep.ok) {
+          const err = new Error(prep.message) as Error & {
+            transferPrepFail: typeof prep
+          }
+          err.transferPrepFail = prep
+          throw err
+        }
+        const newAppointmentNo = prep.appointmentNo
+
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: {
+            doctorId,
+            sessionId,
+            sessionStartTime: targetStartTime,
+            sessionEndTime: targetEndTime,
+            appointmentNo: newAppointmentNo,
+            movedFromSessionId: currentSessionId,
+            movedFromSessionStartTime: currentStartTime,
+            movedBy: userId ?? undefined,
+            movedAt,
+            movedRemarks: remarks.trim(),
+            updatedBy: userId ?? undefined,
+          },
+        })
+        await advanceAppointmentSequenceCursor(tx, sessionId, newAppointmentNo)
+        await tx.session.update({
+          where: { id: sessionId },
+          data: {
+            appointmentNo: Math.max(sessionRow.appointmentNo, newAppointmentNo),
+          },
+        })
+
+        const bookingName = [booking.title, booking.name].filter(Boolean).join(" ").trim() || "—"
+        const beforeDesc = `Transfer of Appointment No.${String(booking.appointmentNo).padStart(2, "0")} (${bookingName}) from ${currentDoctorName}'s session on ${moment.unix(booking.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
+
+        const updated = await tx.booking.findUnique({
+          where: { id: booking.id },
+          select: { appointmentNo: true, sessionStartTime: true },
+        })
+        const afterDesc = updated
+          ? `Changed to Appointment No.${String(updated.appointmentNo).padStart(2, "0")} (${bookingName}) in ${targetDoctorName}'s session on ${moment.unix(updated.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
+          : ""
+
+        if (userId) {
+          const transferMetadata = {
+            bookingId: booking.id,
+            remarks: remarks.trim(),
+            before: beforeDesc,
+            after: afterDesc,
+            fromSessionId: currentSessionId,
+            toSessionId: sessionId,
+            toDoctorId: doctorId,
+            newAppointmentNo,
+          }
+          logActivityNonBlocking({
+            userId,
+            action: "booking.transferred",
+            entityType: "Booking",
+            entityId: booking.id,
+            metadata: transferMetadata,
+          })
+          logActivityNonBlocking({
+            userId,
+            action: "booking.transferred",
+            entityType: "Session",
+            entityId: currentSessionId,
+            metadata: { ...transferMetadata, direction: "outgoing" },
+          })
+          logActivityNonBlocking({
+            userId,
+            action: "booking.transferred",
+            entityType: "Session",
+            entityId: sessionId,
+            metadata: { ...transferMetadata, direction: "incoming" },
+          })
+        }
+      }
     })
-    if (!appointmentResult.success) {
+  } catch (e: unknown) {
+    const prep = (e as { transferPrepFail?: { ok: false; code: string; message: string } }).transferPrepFail
+    if (prep) {
       return {
         success: false,
-        errorCode: "limitexceeded",
-        message: "Appointment limit exceeded for target session.",
+        errorCode: prep.code === "LIMIT_EXCEEDED" ? "limitexceeded" : "limitexceeded",
+        message: prep.message,
       }
     }
-    const newAppointmentNo = appointmentResult.value
-    lastAssignedAppointmentNo = newAppointmentNo
-
-    const bookingName = [booking.title, booking.name].filter(Boolean).join(" ").trim() || "—"
-    const beforeDesc = `Transfer of Appointment No.${String(booking.appointmentNo).padStart(2, "0")} (${bookingName}) from ${currentDoctorName}'s session on ${moment.unix(booking.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
-
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: {
-        doctorId,
-        sessionId,
-        sessionStartTime: targetStartTime,
-        sessionEndTime: targetEndTime,
-        appointmentNo: newAppointmentNo,
-        movedFromSessionId: currentSessionId,
-        movedFromSessionStartTime: currentStartTime,
-        movedBy: userId ?? undefined,
-        movedAt,
-        movedRemarks: remarks.trim(),
-        updatedBy: userId ?? undefined,
-      },
-    })
-
-    const updated = await prisma.booking.findUnique({
-      where: { id: booking.id },
-      select: { appointmentNo: true, sessionStartTime: true },
-    })
-    const afterDesc = updated
-      ? `Changed to Appointment No.${String(updated.appointmentNo).padStart(2, "0")} (${bookingName}) in ${targetDoctorName}'s session on ${moment.unix(updated.sessionStartTime).format("DD-MM-YYYY hh:mm A")}`
-      : ""
-
-    if (userId) {
-      const transferMetadata = {
-        bookingId: booking.id,
-        remarks: remarks.trim(),
-        before: beforeDesc,
-        after: afterDesc,
-        fromSessionId: currentSessionId,
-        toSessionId: sessionId,
-        toDoctorId: doctorId,
-        newAppointmentNo,
-      }
-      logActivityNonBlocking({
-        userId,
-        action: "booking.transferred",
-        entityType: "Booking",
-        entityId: booking.id,
-        metadata: transferMetadata,
-      })
-      // Log to outgoing session so History for this session shows "booking left"
-      logActivityNonBlocking({
-        userId,
-        action: "booking.transferred",
-        entityType: "Session",
-        entityId: currentSessionId,
-        metadata: { ...transferMetadata, direction: "outgoing" },
-      })
-      // Log to incoming session so History for target session shows "booking arrived"
-      logActivityNonBlocking({
-        userId,
-        action: "booking.transferred",
-        entityType: "Session",
-        entityId: sessionId,
-        metadata: { ...transferMetadata, direction: "incoming" },
-      })
+    if (e instanceof Error && e.message === "target_session_missing") {
+      return { success: false, errorCode: "invalid_session", message: "Target session not found." }
     }
-  }
-
-  // Keep target session's appointmentNo in sync with last assigned number
-  if (lastAssignedAppointmentNo > 0) {
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { appointmentNo: lastAssignedAppointmentNo },
-    })
+    console.error("transferBookingsService transaction error", e)
+    return {
+      success: false,
+      errorCode: "limitexceeded",
+      message: "Appointment limit exceeded for target session.",
+    }
   }
 
   // SMS: template from SmsTemplate (type 3 = Appointment Reschedule) or default; bulk send (phone comma-separated)

@@ -23,6 +23,20 @@ export {
   type GetNextSequenceResult,
   type GetNextSequenceOptions,
 } from "./sequence"
+export {
+  appointmentSequenceScopeKey,
+  getOccupiedAppointmentNumbers,
+  computeNextAutoAppointmentNumber,
+  advanceAppointmentSequenceCursor,
+  getAppointmentSequenceLastValueRaw,
+  effectiveAppointmentSequenceLastValue,
+  countSequentialAutoAssignmentsAvailable,
+  prepareAppointmentNumberForNewBookingTx,
+} from "./appointment-number"
+export type {
+  SessionAppointmentAllocationRow,
+  PrepareAppointmentNumberResult,
+} from "./appointment-number"
 export { getReceiptSequenceInfo } from "./get-receipt-sequence"
 export {
   createReceiptAndUpdateBooking,
