@@ -13,7 +13,7 @@ import DoctorLeaveForm from './doctor-leave-form';
 import { getOneLeaveByID, getSessionsByIds } from '@/app/actions/doctor.leave.action';
 import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 import type { DoctorLeave, Session } from '@/types/doctor.leave';
-import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
+import { formatSessionTime, getSessionStartAt } from '../channel-booking/components/sessions-selection/util';
 import Loading from '../loading';
 
 type EditDoctorLeaveDialogProps = {
@@ -23,12 +23,14 @@ type EditDoctorLeaveDialogProps = {
 };
 
 function mapApiSessionToItem(raw: any): Session {
+  const date = new Date(raw.date);
   return {
     id: raw.id,
-    date: new Date(raw.date),
+    date,
     location: raw.location?.name ?? '',
     startTime: formatSessionTime(raw.startTime, raw.date),
-    endTime: formatSessionTime(raw.endTime, raw.date)
+    endTime: formatSessionTime(raw.endTime, raw.date),
+    startAt: getSessionStartAt(raw.startTime, date)
   };
 }
 

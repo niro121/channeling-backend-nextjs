@@ -106,6 +106,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/channel-bookings'
   },
   {
+    id: '21a',
+    rank: 22,
+    masterData: 'Agent Wise Appointments - Summary and Detail',
+    description:
+      'Agent channel appointments by session date & time with institution, branch, department, and agent filters; summary counts per month or full detail with fee totals.',
+    route: '/reports/agent-wise-appointments'
+  },
+  {
     id: '24',
     rank: 24,
     masterData: 'All Cashier Summary and Detail Report',
@@ -127,11 +135,11 @@ const reportsData: ReportListItem[] = [
     route: '/reports/withholding-tax'
   },
   {
-    id: '28',
-    rank: 28,
-    masterData: 'SMS Report',
-    description: 'Daily SMS statistics, success/failure graph, cost estimate, and breakdown by type',
-    route: '/reports/sms-activity'
+    id: '29',
+    rank: 29,
+    masterData: 'SMS Reports',
+    description: 'View SMS log entries with date & time range and status filters, with print/PDF/Excel export.',
+    route: '/reports/sms-reports'
   },
   {
     id: '30',
@@ -278,6 +286,7 @@ export default async function ReportsPage() {
       '/reports/agent-history-credit-limit-update',
       '/reports/agent-collection-receipt',
       '/reports/agent-balance-confirmation-letter',
+      '/reports/agent-wise-appointments',
     ].includes(r.route)
   );
   const cashier = reportsData.filter((r) =>
