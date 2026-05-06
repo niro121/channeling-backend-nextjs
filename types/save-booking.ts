@@ -114,6 +114,16 @@ export type SaveBookingInput = {
   referred_doctor?: SaveBookingReferredRef | null
   referred_agency?: SaveBookingReferredRef | null
   referred_staff?: SaveBookingReferredRef | null
+  /**
+   * When set, book this exact appointment number. Requires `forceAppointmentNo` when the slot is blocked or below the next auto number.
+   * With `forceAppointmentNo`, the server only accepts numbers that are blocked on the session.
+   */
+  forcedAppointmentNo?: number | null
+  /**
+   * Must be true when forcing a blocked number or a number below the next auto slot.
+   * Server-side: when true, the number must be in the session’s blocked list (forced booking into a blocked slot only).
+   */
+  forceAppointmentNo?: boolean
 }
 
 export type SaveBookingResult = {

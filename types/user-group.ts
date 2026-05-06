@@ -60,6 +60,18 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "users", name: "Users" },
   { id: "channel-booking", name: "Channel Booking" },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
+  {
+    id: "channel-booking-block",
+    name: "Channel Booking – Block numbers",
+    actions: ["view"],
+    actionLabels: { view: "Block / unblock appointment numbers" },
+  },
+  {
+    id: "channel-booking-forced-booking",
+    name: "Channel Booking – Forced bookings",
+    actions: ["view"],
+    actionLabels: { view: "Book into blocked numbers" },
+  },
   { id: "shift", name: "Shift (Channel Booking)" },
   { id: "handover", name: "Handed over to me", actions: ["view"] },
   { id: "shifts", name: "Shifts" },

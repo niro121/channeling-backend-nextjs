@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { CustomMultiSelect } from "@/components/common/custom-mulit-select"
 import { CustomSwitch } from "@/components/common/custom-switch"
+import { signOut } from "next-auth/react"
 
 type LocationOption = { id: string; name: string }
 type StaffOption = { id: string; name: string; code: string }
@@ -205,6 +206,9 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                     : parseInt(values.defaultBookingMethod, 10)
 
             const staffId = values.staffId === "__none__" || values.staffId === "" ? null : values.staffId
+            const previousUserLocationId = (currentUser as any)?.userLocationId ?? user?.userLocationId ?? ""
+            const nextUserLocationId = values.userLocationId ?? ""
+            const didUserLocationChange = previousUserLocationId !== nextUserLocationId
 
             const userPayload: User = {
                 ...currentUser,
@@ -252,6 +256,17 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                 title: "Success",
                 description: "User settings were saved successfully",
             })
+
+            if (didUserLocationChange) {
+                toast({
+                    variant: "success",
+                    title: "Location updated",
+                    description: "Please log in again to continue.",
+                })
+                await signOut({ callbackUrl: "/login" })
+                return
+            }
+
             resetForm({ values: settingsInitialValues })
         } catch (error: any) {
             setLoading(false)

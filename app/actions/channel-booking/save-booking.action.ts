@@ -59,6 +59,8 @@ const saveBookingSchema = z.object({
   referred_doctor: z.object({ id: z.string() }).optional().nullable(),
   referred_agency: z.object({ id: z.string() }).optional().nullable(),
   referred_staff: z.object({ id: z.string() }).optional().nullable(),
+  forcedAppointmentNo: z.number().int().optional(),
+  forceAppointmentNo: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   if (data.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return
   const lines = data.payment_lines ?? []
@@ -155,9 +157,6 @@ export async function saveBookingAction(
     }
   }
 
-  const session = await fetchServerSession()
-  const userId = session?.user?.id ?? null
-
   const parsed = saveBookingSchema.safeParse(raw)
   if (!parsed.success) {
     const first = parsed.error.flatten().fieldErrors
@@ -171,6 +170,21 @@ export async function saveBookingAction(
     }
   }
 
+  if (parsed.data.forceAppointmentNo === true) {
+    try {
+      await requirePermission("channel-booking-forced-booking", "view")
+    } catch {
+      return {
+        success: false,
+        errorCode: "FORBIDDEN",
+        message: "Permission denied for forced booking into a blocked appointment number.",
+      }
+    }
+  }
+
+  const session = await fetchServerSession()
+  const userId = session?.user?.id ?? null
+
   const input: SaveBookingInput = {
     ...parsed.data,
     area: parsed.data.area,
@@ -183,6 +197,8 @@ export async function saveBookingAction(
     referred_doctor: parsed.data.referred_doctor ?? undefined,
     referred_agency: parsed.data.referred_agency ?? undefined,
     referred_staff: parsed.data.referred_staff ?? undefined,
+    forcedAppointmentNo: parsed.data.forcedAppointmentNo,
+    forceAppointmentNo: parsed.data.forceAppointmentNo,
   }
 
   const result = await saveBookingService(input, userId)

@@ -14,7 +14,8 @@
     "migrate:session-datetime": "npx tsx scripts/migrate-session-start-end-to-datetime.ts",
     "seed:receipt-templates": "npx tsx scripts/seed-receipt-templates.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:appointment-logic": "npx tsx scripts/verify-appointment-number-logic.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

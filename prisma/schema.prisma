@@ -324,6 +324,8 @@ model Session {
   status                Int // == 1: ACTIVE. 0: Session unavailable | LEAVE: Doctor leave (DoctorSession status) == //
   remarks               String?
   appointmentNo         Int      @default(0)
+  /// Auto-allocation skips these numbers; unblock only when n > appointment sequence lastValue (see Sequence scope appointment:sessionId).
+  blockedAppointmentNumbers Int[] @default([])
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
   channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
@@ -993,6 +995,8 @@ model Booking {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, appointmentNo])
 }
 
 /// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
