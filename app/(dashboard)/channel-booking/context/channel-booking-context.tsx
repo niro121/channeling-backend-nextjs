@@ -87,7 +87,19 @@ export type ChannelBookingActions = {
   setReferredStaffId: (id: string | null) => void
   setSessions: (sessions: Session[]) => void
   /** Merge a partial update for one session (e.g. from real-time session-update). */
-  updateSessionInList: (sessionId: string, update: Partial<Pick<Session, "appointmentNo" | "paidCount" | "pendingCount">>) => void
+  updateSessionInList: (
+    sessionId: string,
+    update: Partial<
+      Pick<
+        Session,
+        | "appointmentNo"
+        | "paidCount"
+        | "pendingCount"
+        | "blockedAppointmentNumbers"
+        | "appointmentSequenceLastValue"
+      >
+    >
+  ) => void
   setSessionsLoading: (loading: boolean) => void
   setBookings: (bookings: ChannelBookingRecord[]) => void
   setBookingsLoading: (loading: boolean) => void
@@ -212,9 +224,24 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   }, [])
 
   const updateSessionInList = useCallback(
-    (sessionId: string, update: Partial<Pick<Session, "appointmentNo" | "paidCount" | "pendingCount">>) => {
+    (
+      sessionId: string,
+      update: Partial<
+        Pick<
+          Session,
+          | "appointmentNo"
+          | "paidCount"
+          | "pendingCount"
+          | "blockedAppointmentNumbers"
+          | "appointmentSequenceLastValue"
+        >
+      >
+    ) => {
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, ...update } : s))
+      )
+      setSelectedSession((cur) =>
+        cur?.id === sessionId ? { ...cur, ...update } : cur
       )
     },
     []

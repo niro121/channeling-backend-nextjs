@@ -106,3 +106,8 @@ export {
   type SearchBookingsActionParams,
   type SearchBookingsActionResult,
 } from "./search-bookings.action"
+export {
+  addBlockedAppointmentNumbersAction,
+  removeBlockedAppointmentNumbersAction,
+  type ManageSessionAppointmentBlocksActionResult,
+} from "./manage-session-appointment-blocks.action"

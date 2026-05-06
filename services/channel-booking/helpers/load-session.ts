@@ -1,6 +1,10 @@
 import prisma from "@/lib/prisma"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { Session } from "@/types/booking.dashboard"
+import {
+  appointmentSequenceScopeKey,
+  effectiveAppointmentSequenceLastValue,
+} from "./appointment-number"
 
 /**
  * Load session by id for save-booking. Returns session in same shape as get-sessions.
@@ -41,6 +45,7 @@ export async function loadSessionForSaveBooking(
     status: r.status,
     remarks: r.remarks,
     appointmentNo: r.appointmentNo,
+    blockedAppointmentNumbers: r.blockedAppointmentNumbers ?? [],
     isScan: r.isScan,
     doctorId: r.doctorId,
     departmentId: r.departmentId,
@@ -54,6 +59,15 @@ export async function loadSessionForSaveBooking(
     location: r.location ?? undefined,
     room: r.room ?? undefined,
   }
+
+  const seq = await prisma.sequence.findUnique({
+    where: { scopeKey: appointmentSequenceScopeKey(r.id) },
+    select: { lastValue: true },
+  })
+  session.appointmentSequenceLastValue = effectiveAppointmentSequenceLastValue(
+    seq?.lastValue ?? null,
+    r.startingPatientNumber
+  )
 
   const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
   const today = new Date()

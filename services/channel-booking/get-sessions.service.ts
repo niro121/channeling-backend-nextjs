@@ -5,6 +5,10 @@ import { normalizeSessionTime } from "@/lib/utils"
 import { Prisma } from "@prisma/client"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
+import {
+  appointmentSequenceScopeKey,
+  effectiveAppointmentSequenceLastValue,
+} from "./helpers/appointment-number"
 
 /**
  * Fetches Session records (bookable sessions) for a doctor from a given date onward.
@@ -62,6 +66,13 @@ export async function getSessionsForChannelBookingService(
 
     if (records.length === 0) return { success: true, data: [] }
 
+    const scopeKeys = records.map((r) => appointmentSequenceScopeKey(r.id))
+    const seqRows = await prisma.sequence.findMany({
+      where: { scopeKey: { in: scopeKeys } },
+      select: { scopeKey: true, lastValue: true },
+    })
+    const seqLastByScope = new Map(seqRows.map((s) => [s.scopeKey, s.lastValue]))
+
     const countBySession = new Map<string, { paid: number; pending: number }>()
     for (const r of records) {
       countBySession.set(r.id, { paid: 0, pending: 0 })
@@ -98,6 +109,11 @@ export async function getSessionsForChannelBookingService(
         doctorLeaveCreatedAt: r.doctorLeaveCreatedAt ?? null,
         remarks: r.remarks,
         appointmentNo: r.appointmentNo,
+        blockedAppointmentNumbers: r.blockedAppointmentNumbers ?? [],
+        appointmentSequenceLastValue: effectiveAppointmentSequenceLastValue(
+          seqLastByScope.get(appointmentSequenceScopeKey(r.id)) ?? null,
+          r.startingPatientNumber
+        ),
         isScan: r.isScan,
         doctorId: r.doctorId,
         departmentId: r.departmentId,
@@ -165,6 +181,11 @@ export async function getSessionByIdForChannelBookingService(
     ])
     if (!record) return { success: true, data: null }
 
+    const seq = await prisma.sequence.findUnique({
+      where: { scopeKey: appointmentSequenceScopeKey(record.id) },
+      select: { lastValue: true },
+    })
+
     let paid = 0,
       pending = 0
     for (const row of countRows) {
@@ -193,6 +214,11 @@ export async function getSessionByIdForChannelBookingService(
       doctorLeaveCreatedAt: record.doctorLeaveCreatedAt ?? null,
       remarks: record.remarks,
       appointmentNo: record.appointmentNo,
+      blockedAppointmentNumbers: record.blockedAppointmentNumbers ?? [],
+      appointmentSequenceLastValue: effectiveAppointmentSequenceLastValue(
+        seq?.lastValue ?? null,
+        record.startingPatientNumber
+      ),
       isScan: record.isScan,
       doctorId: record.doctorId,
       departmentId: record.departmentId,
