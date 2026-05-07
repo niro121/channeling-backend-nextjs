@@ -21,3 +21,6 @@ export {
   getOrCreateAccount,
   type GetOrCreateAccountParams,
 } from './account/get-or-create.service';
+
+export { getOrCreateWhtPayableAccount } from './account/wht-payable-account.service';
+export { WHT_PAYABLE_ACCOUNT_CODE, WHT_PAYABLE_NAME } from './account/wht-payable-account.constants';

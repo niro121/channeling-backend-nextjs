@@ -44,6 +44,14 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
       agent: r.agencyName ?? '-',
       agentCode: r.agencyCode ?? '-',
       limitType: r.limitType === 'soft' ? 'Soft limit' : 'Hard limit',
+      hardLimitField:
+        r.limitType !== 'hard'
+          ? '-'
+          : r.hardLimitField === 'minBalanceAllowed'
+            ? 'Minimum balance'
+            : r.hardLimitField === 'maxBalanceAllowed'
+              ? 'Maximum balance'
+              : 'Hard limit',
       beforeValue: r.oldValue == null ? '-' : String(r.oldValue.toFixed(2)),
       updatedValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
       delta: r.delta == null ? '-' : String(r.delta.toFixed(2)),

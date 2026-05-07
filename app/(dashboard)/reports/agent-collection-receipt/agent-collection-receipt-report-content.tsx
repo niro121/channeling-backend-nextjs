@@ -160,6 +160,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
         'Cheque',
         'Slip',
         'Slip Ref',
+        'Slip Date',
         'Card Ref',
         'Bank Name'
       ]}
@@ -178,12 +179,14 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
           'cheque',
           'slip',
           'slipRef',
+          'slipDate',
           'cardRef',
           'bankName'
         ] as (keyof AgentCollectionReceiptReportExportRow)[]
       }
       exportTitle="Agent Collection Receipt Report"
       exportFileName="agent-collection-receipt-report"
+      tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       footerRow={(rows) => {
         const totals = rows.reduce(
@@ -207,7 +210,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.card)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.cheque)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.slip)}</TableCell>
-            <TableCell colSpan={3} />
+            <TableCell colSpan={4} />
           </TableRow>
         );
       }}

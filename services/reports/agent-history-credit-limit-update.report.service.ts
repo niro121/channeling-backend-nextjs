@@ -67,6 +67,11 @@ export async function getAgentHistoryCreditLimitUpdateReportService(
         limitType === 'soft' ? (log.entityId ?? null) : (agencyIdFromMetadata ?? null);
       const agencyName = (md?.agencyName as string | undefined) ?? null;
       const agencyCode = (md?.agencyCode as string | undefined) ?? null;
+      const hardLimitFieldRaw = (md?.field as string | undefined) ?? null;
+      const hardLimitField =
+        hardLimitFieldRaw === 'minBalanceAllowed' || hardLimitFieldRaw === 'maxBalanceAllowed'
+          ? (hardLimitFieldRaw as 'minBalanceAllowed' | 'maxBalanceAllowed')
+          : null;
       const oldValue = (md?.oldValue as number | undefined) ?? null;
       const newValue = (md?.newValue as number | undefined) ?? null;
       const delta = (md?.delta as number | undefined) ?? (oldValue != null && newValue != null ? newValue - oldValue : null);
@@ -79,6 +84,7 @@ export async function getAgentHistoryCreditLimitUpdateReportService(
         agencyId: agencyIdResolved,
         agencyName,
         agencyCode,
+        hardLimitField,
         oldValue: typeof oldValue === 'number' ? oldValue : null,
         newValue: typeof newValue === 'number' ? newValue : null,
         delta: typeof delta === 'number' ? delta : null,

@@ -132,13 +132,15 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
 
   try {
     const shouldTrackHardLimitChange =
-      'maxBalanceAllowed' in payload && payload.maxBalanceAllowed !== undefined;
+      ('maxBalanceAllowed' in payload && payload.maxBalanceAllowed !== undefined) ||
+      ('minBalanceAllowed' in payload && payload.minBalanceAllowed !== undefined);
     const beforeHardLimit = shouldTrackHardLimitChange
       ? await prisma.account.findUnique({
           where: { id },
           select: {
             id: true,
             type: true,
+            minBalanceAllowed: true,
             maxBalanceAllowed: true,
             agencyId: true,
             agency: { select: { id: true, name: true, code: true } },
@@ -156,8 +158,9 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
+      const actorUserId = session.user.id;
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: actorUserId,
         action: 'accounting.account.updated',
         entityType: 'Account',
         entityId: id,
@@ -166,16 +169,19 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
       });
 
       if (shouldTrackHardLimitChange && beforeHardLimit?.agencyId) {
-        const oldValueCents = beforeHardLimit.maxBalanceAllowed;
-        const newValueCents = result.account?.maxBalanceAllowed ?? null;
-        if (oldValueCents !== newValueCents) {
+        const track = (
+          field: 'minBalanceAllowed' | 'maxBalanceAllowed',
+          oldValueCents: number | null,
+          newValueCents: number | null
+        ) => {
+          if (oldValueCents === newValueCents) return;
           const oldValue = oldValueCents == null ? null : oldValueCents / 100;
           const newValue = newValueCents == null ? null : newValueCents / 100;
           const delta =
             oldValue != null && newValue != null ? newValue - oldValue : null;
 
           logActivityNonBlocking({
-            userId: session.user.id,
+            userId: actorUserId,
             action: 'agencies.limit.hard_changed',
             entityType: 'Account',
             entityId: id,
@@ -186,7 +192,7 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
               agencyId: beforeHardLimit.agencyId,
               agencyName: beforeHardLimit.agency?.name ?? null,
               agencyCode: beforeHardLimit.agency?.code ?? null,
-              field: 'maxBalanceAllowed',
+              field,
               oldValueCents,
               newValueCents,
               oldValue,
@@ -194,6 +200,13 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
               delta,
             },
           });
+        };
+
+        if ('minBalanceAllowed' in payload && payload.minBalanceAllowed !== undefined) {
+          track('minBalanceAllowed', beforeHardLimit.minBalanceAllowed ?? null, result.account?.minBalanceAllowed ?? null);
+        }
+        if ('maxBalanceAllowed' in payload && payload.maxBalanceAllowed !== undefined) {
+          track('maxBalanceAllowed', beforeHardLimit.maxBalanceAllowed ?? null, result.account?.maxBalanceAllowed ?? null);
         }
       }
     }

@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
-import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { RECEIPT_METHOD } from '@/types/receipt';
 import { REFERENCE_TYPES } from '@/types/accounting';
 import type {
   CashierSummaryReportQuery,
@@ -14,16 +14,12 @@ import type {
   CashierSummaryIncludedShift,
 } from '@/types/report';
 import type { Prisma } from '@prisma/client';
-
-const ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
-  cash: 0,
-  creditCard: 0,
-  slip: 0,
-  cheque: 0,
-  agent: 0,
-  agentCredit: 0,
-  eWallet: 0,
-};
+import {
+  CASHIER_SUMMARY_ZERO_AMOUNTS as ZERO_AMOUNTS,
+  receiptToAmounts,
+  receiptToAmountsDoctorPaymentNet,
+  addCashierSummaryAmounts as addAmounts,
+} from '@/lib/cashier-summary-amounts';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('cashier_summary', 62);
 const MAX_RECEIPTS_SCAN = getReportMaxRecords('cashier_summary', 50000);
@@ -55,51 +51,6 @@ function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date
   const end = parseDateTime(dateTo, true);
   if (!start || !end) return null;
   return { start, end };
-}
-
-function paymentColumnKey(paymentMethod: number): keyof CashierSummaryPaymentAmounts {
-  const map: Record<number, keyof CashierSummaryPaymentAmounts> = {
-    [RECEIPT_PAYMENT_METHOD.CASH]: 'cash',
-    [RECEIPT_PAYMENT_METHOD.CREDIT_CARD]: 'creditCard',
-    [RECEIPT_PAYMENT_METHOD.SLIP]: 'slip',
-    [RECEIPT_PAYMENT_METHOD.CHECK]: 'cheque',
-    [RECEIPT_PAYMENT_METHOD.AGENT]: 'agent',
-    [RECEIPT_PAYMENT_METHOD.CREDIT]: 'agentCredit',
-    [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'eWallet',
-  };
-  return map[paymentMethod] ?? 'cash';
-}
-
-/** Outflows (type 0) show as negative; inflows (type 1) as positive. Use Math.abs so refunds (stored negative) also display as minus. */
-function receiptToAmounts(
-  paymentMethod: number,
-  amount: number,
-  type: number,
-  paymentLines?: Array<{ paymentMethod: number; amount: number }>
-): CashierSummaryPaymentAmounts {
-  const sign = type === 0 ? -1 : 1;
-  const result = { ...ZERO_AMOUNTS };
-  const normalizedLines =
-    Array.isArray(paymentLines) && paymentLines.length > 0
-      ? paymentLines
-      : [{ paymentMethod, amount }];
-  for (const line of normalizedLines) {
-    const key = paymentColumnKey(line.paymentMethod);
-    result[key] += sign * Math.abs(line.amount);
-  }
-  return result;
-}
-
-function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmounts): CashierSummaryPaymentAmounts {
-  return {
-    cash: a.cash + b.cash,
-    creditCard: a.creditCard + b.creditCard,
-    slip: a.slip + b.slip,
-    cheque: a.cheque + b.cheque,
-    agent: a.agent + b.agent,
-    agentCredit: a.agentCredit + b.agentCredit,
-    eWallet: a.eWallet + b.eWallet,
-  };
 }
 
 /** Booking id for display (Bill ID): prefer bookingid_string, then receiptNoString, then id. */
@@ -616,7 +567,13 @@ export async function getCashierSummaryReportService(
 
   const doctorPaymentRows: CashierSummaryReportLineItem[] = doctorPayments.map((r) => {
     const consultant = resolveDoctorConsultant(r);
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
+    const amounts = receiptToAmountsDoctorPaymentNet(
+      r.paymentMethod,
+      r.amount,
+      r.type,
+      r.whd,
+      r.paymentLines
+    );
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -638,11 +595,18 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, doctorPaymentTotals);
 
-  // --- Income / Expense: method BRANCH_INCOME, BRANCH_EXPENSE ---
+  // --- Income / Expense + Bank Ledger: methods BRANCH_INCOME, BRANCH_EXPENSE, BANK_DEPOSIT, BANK_WITHDRAW ---
   const incomeExpense = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
-      method: { in: [RECEIPT_METHOD.BRANCH_INCOME, RECEIPT_METHOD.BRANCH_EXPENSE] },
+      method: {
+        in: [
+          RECEIPT_METHOD.BRANCH_INCOME,
+          RECEIPT_METHOD.BRANCH_EXPENSE,
+          RECEIPT_METHOD.BANK_DEPOSIT,
+          RECEIPT_METHOD.BANK_WITHDRAW,
+        ],
+      },
     },
     include: {
       paymentLines: { select: { paymentMethod: true, amount: true } },
@@ -652,7 +616,14 @@ export async function getCashierSummaryReportService(
   });
   const incomeExpenseRows: CashierSummaryReportLineItem[] = incomeExpense.map((r) => {
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
-    const typeLabel = r.method === RECEIPT_METHOD.BRANCH_INCOME ? 'Income' : 'Expense';
+    const typeLabel =
+      r.method === RECEIPT_METHOD.BRANCH_INCOME
+        ? 'Income'
+        : r.method === RECEIPT_METHOD.BRANCH_EXPENSE
+          ? 'Expense'
+          : r.method === RECEIPT_METHOD.BANK_DEPOSIT
+            ? 'Bank Deposit'
+            : 'Bank Withdraw';
     return {
       txCreated: r.createdAt,
       shiftLabel: formatShiftLabel(r.shift),
@@ -670,7 +641,7 @@ export async function getCashierSummaryReportService(
   const incomeExpenseTotals = incomeExpenseRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
   sections.push({
     key: 'incomeExpense',
-    title: 'Income / Expenses - Bills',
+    title: 'Income / Expenses / Bank Deposits - Bills',
     rows: isSummary ? [] : incomeExpenseRows,
     totals: incomeExpenseTotals,
   });

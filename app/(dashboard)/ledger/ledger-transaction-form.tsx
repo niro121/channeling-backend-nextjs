@@ -42,6 +42,7 @@ type LedgerFormValues = {
   bankId: string
   cardReference: string
   slipReference: string
+  slipDate: string
 }
 
 const validationSchema = Yup.object({
@@ -97,6 +98,13 @@ const validationSchema = Yup.object({
       transactionType === "AGENCY_DEPOSIT" &&
       paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP,
     then: (schema) => schema.required("Enter slip reference."),
+    otherwise: (schema) => schema,
+  }),
+  slipDate: Yup.string().when(["transactionType", "paymentMethod"], {
+    is: (transactionType: string, paymentMethod: number) =>
+      transactionType === "AGENCY_DEPOSIT" &&
+      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP,
+    then: (schema) => schema.required("Select slip date."),
     otherwise: (schema) => schema,
   }),
 })
@@ -197,6 +205,7 @@ export function LedgerTransactionForm({
     bankId: "",
     cardReference: "",
     slipReference: "",
+    slipDate: "",
   }
 
   async function handleSubmit(
@@ -250,6 +259,10 @@ export function LedgerTransactionForm({
           values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
             ? values.slipReference.trim()
             : undefined,
+        slipDate:
+          values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+            ? values.slipDate
+            : undefined,
       })
 
       if (result.success) {
@@ -265,6 +278,7 @@ export function LedgerTransactionForm({
           bankAccountId: "",
           cardReference: "",
           slipReference: "",
+          slipDate: "",
           bankId: "",
         })
         onSuccess?.()
@@ -425,6 +439,7 @@ export function LedgerTransactionForm({
                     formik.setFieldValue("bankId", "")
                     formik.setFieldValue("cardReference", "")
                     formik.setFieldValue("slipReference", "")
+                    formik.setFieldValue("slipDate", "")
                   }}
                 >
                   <SelectTrigger>
@@ -485,18 +500,35 @@ export function LedgerTransactionForm({
                   </div>
                 )}
                 {isSlip && (
-                  <div className="space-y-2">
-                    <Label htmlFor="slipReference">Slip reference</Label>
-                    <Input
-                      id="slipReference"
-                      value={formik.values.slipReference}
-                      onChange={(e) => formik.setFieldValue("slipReference", e.target.value)}
-                      placeholder="Slip reference"
-                    />
-                    {formik.errors.slipReference && (
-                      <p className="text-sm text-destructive">{formik.errors.slipReference}</p>
-                    )}
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="slipReference">Slip reference</Label>
+                      <Input
+                        id="slipReference"
+                        value={formik.values.slipReference}
+                        onChange={(e) => formik.setFieldValue("slipReference", e.target.value)}
+                        placeholder="Slip reference"
+                      />
+                      {formik.errors.slipReference && (
+                        <p className="text-sm text-destructive">{formik.errors.slipReference}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="slipDate">
+                        Slip date <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="slipDate"
+                        type="date"
+                        value={formik.values.slipDate}
+                        onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}
+                        required
+                      />
+                      {formik.errors.slipDate && (
+                        <p className="text-sm text-destructive">{formik.errors.slipDate}</p>
+                      )}
+                    </div>
+                  </>
                 )}
               </>
             )}
