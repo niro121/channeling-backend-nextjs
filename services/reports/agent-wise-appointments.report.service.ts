@@ -288,12 +288,19 @@ export async function getAgentWiseAppointmentsReportService(
       dateRange.to
     );
 
-    const events: Array<{ eventAt: Date; statusLabel: string; sign: 1 | -1; suffix: string }> = [];
+    const events: Array<{
+      eventAt: Date
+      statusLabel: string
+      sign: 1 | -1
+      countDelta: 1 | -1
+      suffix: string
+    }> = [];
     if (paymentEventInRange && b.receiptNoCreatedAt) {
       events.push({
         eventAt: b.receiptNoCreatedAt as Date,
         statusLabel: STATUS_LABELS[1],
         sign: 1,
+        countDelta: 1,
         suffix: 'paid',
       });
     }
@@ -303,6 +310,7 @@ export async function getAgentWiseAppointmentsReportService(
         eventAt: b.refundReceiptCreatedAt as Date,
         statusLabel: isCancel ? STATUS_LABELS[2] : STATUS_LABELS[3],
         sign: -1,
+        countDelta: -1,
         suffix: isCancel ? 'cancel' : 'refund',
       });
     }
@@ -325,9 +333,9 @@ export async function getAgentWiseAppointmentsReportService(
         }
         const agg = byAgency.get(agency.id)!;
         if (monthKeys.has(ymKey)) {
-          agg.monthCounts[ymKey] = (agg.monthCounts[ymKey] ?? 0) + 1;
+          agg.monthCounts[ymKey] = (agg.monthCounts[ymKey] ?? 0) + event.countDelta;
         }
-        agg.total += 1;
+        agg.total += event.countDelta;
       }
 
       if (wantDetail) {
