@@ -82,6 +82,12 @@ function addRowInto(target: ChannelIncomeAccountingWiseRow, row: ChannelIncomeAc
   target.nettAmount += row.nettAmount;
 }
 
+function isWithinRange(date: Date | null | undefined, from: Date, to: Date): boolean {
+  if (!date) return false;
+  const t = date.getTime();
+  return t >= from.getTime() && t <= to.getTime();
+}
+
 export async function getChannelIncomeAccountingWiseService(
   query: ChannelIncomeAccountingWiseQuery
 ): Promise<ChannelIncomeAccountingWiseResult> {
@@ -98,7 +104,7 @@ export async function getChannelIncomeAccountingWiseService(
 
     const dateType = query.dateType === 'session_date' ? 'session_date' : 'transaction_date';
     /**
-     * Unpaid cancellations: key off updatedAt (cancel bumps it); avoids Mongo null/missing canceledAt issues.
+     * Unpaid cancellations: event time is canceledAt, with updatedAt fallback for legacy rows.
      */
     const unpaidCancelInTransactionWindow = {
       AND: [
@@ -106,7 +112,12 @@ export async function getChannelIncomeAccountingWiseService(
         {
           OR: [{ receiptNoString: null }, { receiptNoString: '' }],
         },
-        { updatedAt: { gte: from, lte: to } },
+        {
+          OR: [
+            { canceledAt: { gte: from, lte: to } },
+            { updatedAt: { gte: from, lte: to } },
+          ],
+        },
       ],
     };
 
@@ -115,7 +126,18 @@ export async function getChannelIncomeAccountingWiseService(
         ? {
             OR: [
               { status: 0, createdAt: { gte: from, lte: to } },
-              { status: { in: [1, 2, 3] }, receiptNoCreatedAt: { gte: from, lte: to } },
+              {
+                AND: [
+                  { OR: [{ receiptNoString: { not: null } }, { receiptNoString: { not: '' } }] },
+                  { receiptNoCreatedAt: { gte: from, lte: to } },
+                ],
+              },
+              {
+                AND: [
+                  { refund: { in: [1, 2, 3] } },
+                  { refundReceiptCreatedAt: { gte: from, lte: to } },
+                ],
+              },
               unpaidCancelInTransactionWindow,
             ],
             ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
@@ -143,7 +165,12 @@ export async function getChannelIncomeAccountingWiseService(
         method: true,
         isScan: true,
         status: true,
+        createdAt: true,
+        updatedAt: true,
+        canceledAt: true,
         receiptNoString: true,
+        receiptNoCreatedAt: true,
+        refundReceiptCreatedAt: true,
         receiptPaymentMethod: true,
         refund: true,
         hospitalFee: true,
@@ -175,13 +202,17 @@ export async function getChannelIncomeAccountingWiseService(
       const isFullCancel = b.status === 2 && refundType === 3 && paidReceiptExists;
       const isPartialRefund = paidReceiptExists && (refundType === 1 || refundType === 2);
 
+      const paidInTransactionWindow = paidReceiptExists && isWithinRange(b.receiptNoCreatedAt, from, to);
+      const refundInTransactionWindow = isPartialRefund && isWithinRange(b.refundReceiptCreatedAt, from, to);
+      const fullCancelInTransactionWindow = isFullCancel && isWithinRange(b.refundReceiptCreatedAt, from, to);
+
       const hosFee = includeHos ? Number(b.hospitalFee ?? 0) : 0;
       const hosDis = includeHos ? Number(b.hospitalFeeDiscount ?? 0) : 0;
       const proFee = includePro ? Number(b.professionalFee ?? 0) : 0;
       const proDis = includePro ? Number(b.professionsalFeeDiscount ?? 0) : 0;
 
       // Receipt-based: Total channel/discount are driven by the existence of a payment receipt.
-      if (paidReceiptExists) {
+      if (dateType === 'transaction_date' ? paidInTransactionWindow : paidReceiptExists) {
         row.totalChannel += hosFee + proFee;
         row.discount += hosDis + proDis;
       }
@@ -190,9 +221,9 @@ export async function getChannelIncomeAccountingWiseService(
       const hosRefund = includeHos ? Number(b.refundAmountHospitalFee ?? 0) : 0;
       const proRefund = includePro ? Number(b.refundAmountProfessionalFee ?? 0) : 0;
 
-      if (isFullCancel) {
+      if (dateType === 'transaction_date' ? fullCancelInTransactionWindow : isFullCancel) {
         row.cancel -= hosRefund + proRefund;
-      } else if (isPartialRefund) {
+      } else if (dateType === 'transaction_date' ? refundInTransactionWindow : isPartialRefund) {
         // Refund column should not include full cancels.
         row.refund -= hosRefund + proRefund;
       }

@@ -32,6 +32,7 @@ const addLedgerTransactionSchema = z.object({
   bankAccountId: z.string().optional().nullable(),
   cardReference: z.string().optional(),
   slipReference: z.string().optional(),
+  slipDate: z.string().optional(),
 })
 
 export type AddLedgerTransactionResult =
@@ -111,6 +112,13 @@ export async function addLedgerTransaction(
         errorCode: "VALIDATION",
       }
     }
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !parsed.data.slipDate?.trim()) {
+      return {
+        success: false,
+        message: "Slip date is required for slip payments.",
+        errorCode: "VALIDATION",
+      }
+    }
   }
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
     return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
@@ -131,6 +139,7 @@ export async function addLedgerTransaction(
       bankAccountId: parsed.data.bankAccountId ?? undefined,
       cardReference: parsed.data.cardReference,
       slipReference: parsed.data.slipReference,
+      slipDate: parsed.data.slipDate,
     })
 
     if (!result.success) {

@@ -15,6 +15,13 @@ const MAX_RECORDS = getReportMaxRecords('agent_collection_receipt', 20000);
 const METHOD_AGENCY_DEPOSIT = 6;
 const METHOD_AGENCY_WITHDRAW = 7;
 
+function extractSlipDateFromRemarks(remarks: string | null | undefined): string | null {
+  const text = (remarks ?? '').trim();
+  if (!text) return null;
+  const match = text.match(/(?:^|\|)\s*Slip Date:\s*(\d{4}-\d{2}-\d{2})\s*(?:\||$)/i);
+  return match?.[1] ?? null;
+}
+
 function parseDateTime(value: string, asEnd: boolean): Date | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
@@ -200,6 +207,7 @@ export async function getAgentCollectionReceiptReportService(
         slipRefs.length > 0
           ? slipRefs.join(", ")
           : (r.slipReference ?? "").trim() || null,
+      slipDate: extractSlipDateFromRemarks(r.remarks),
       cardRef:
         cardRefs.length > 0
           ? cardRefs.join(", ")

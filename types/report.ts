@@ -485,6 +485,7 @@ export type ConsultantPaymentsReportRow = {
   modeOfPay: string;
   consultationCharge: number;
   discountAmount: number;
+  whtAmount: number;
   netAmount: number;
   paymentStatus: string;
   paidBy: string;
@@ -509,6 +510,7 @@ export type ConsultantPaymentsReportExportRow = {
   patientName: string;
   modeOfPay: string;
   discountAmount: string;
+  whtAmount: string;
   netAmount: string;
   paymentStatus: string;
   paidBy: string;

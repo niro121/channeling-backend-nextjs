@@ -80,6 +80,7 @@ export async function cancelDoctorPaymentService(
     locationId,
     createdBy: input.canceledBy,
     paymentMethod: original.paymentMethod,
+    includeWhtPayable: (original.whd ?? 0) > 0,
   });
   if ("error" in accountsResult) {
     return {
