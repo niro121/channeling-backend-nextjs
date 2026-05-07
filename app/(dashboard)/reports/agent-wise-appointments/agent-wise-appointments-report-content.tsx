@@ -445,8 +445,8 @@ export default function AgentWiseAppointmentsReportContent({
                 Agent Wise Appointments - Summary and Detail
               </CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                Agent channel bookings by appointment session date & time, with
-                summary counts per month or full detail.
+                Agent channel booking events by receipt/refund transaction date,
+                with summary counts per month or full detail.
               </CardDescription>
             </div>
             <div className="no-print">

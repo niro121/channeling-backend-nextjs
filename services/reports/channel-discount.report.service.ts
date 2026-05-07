@@ -41,6 +41,12 @@ function getBookingType(method: number, isScan: boolean): string {
   }
 }
 
+function isWithinRange(date: Date | null | undefined, from: Date, to: Date): boolean {
+  if (!date) return false;
+  const t = date.getTime();
+  return t >= from.getTime() && t <= to.getTime();
+}
+
 export async function getChannelDiscountReportService(query: ChannelDiscountReportQuery): Promise<ChannelDiscountReportResult> {
   try {
     const from = parseDateTime(query.fromDateTime, false);
@@ -59,12 +65,21 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
     const where: Prisma.BookingWhereInput = {
       status: { in: [1, 2, 3] },
       receiptNoString: { not: null },
-      receiptNoCreatedAt: { gte: from, lte: to },
-      OR: [
-        { hospitalFeeDiscount: { gt: 0 } },
-        { professionsalFeeDiscount: { gt: 0 } },
-        { autoDiscountId: { not: null } },
-        { discountId: { not: null } }
+      AND: [
+        {
+          OR: [
+            { receiptNoCreatedAt: { gte: from, lte: to } },
+            { refundReceiptCreatedAt: { gte: from, lte: to } }
+          ]
+        },
+        {
+          OR: [
+            { hospitalFeeDiscount: { gt: 0 } },
+            { professionsalFeeDiscount: { gt: 0 } },
+            { autoDiscountId: { not: null } },
+            { discountId: { not: null } }
+          ]
+        }
       ]
     };
 
@@ -105,6 +120,8 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
         receiptPaymentMethod: true,
         receiptNoString: true,
         receiptNoCreatedAt: true,
+        refundReceiptCreatedAt: true,
+        refund: true,
         hospitalFee: true,
         hospitalFeeDiscount: true,
         professionalFee: true,
@@ -138,36 +155,74 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
       : [];
     const discountById = new Map(discounts.map((d) => [d.id, d.name]));
 
-    const data: ChannelDiscountReportRow[] = rows.map((r) => {
+    const data: ChannelDiscountReportRow[] = rows.flatMap((r) => {
       const hospitalFee = Number(r.hospitalFee ?? 0);
       const hospitalFeeDiscount = Number(r.hospitalFeeDiscount ?? 0);
       const professionalFee = Number(r.professionalFee ?? 0);
       const professionalFeeDiscount = Number(r.professionsalFeeDiscount ?? 0);
       const discount = hospitalFeeDiscount + professionalFeeDiscount;
+      const refundType = Number(r.refund ?? 0);
+      // Exclude professional-fee-only refunds from this report (refundType=1).
+      const hasRefundEvent = refundType === 2 || refundType === 3;
+      const inPaymentWindow = isWithinRange(r.receiptNoCreatedAt, from, to);
+      const inRefundWindow = hasRefundEvent && isWithinRange(r.refundReceiptCreatedAt, from, to);
       const bookingType = getBookingType(Number(r.method ?? 0), Boolean(r.isScan));
       const paymentType =
         r.receiptPaymentMethod != null
           ? (PAYMENT_METHOD_NAMES[Number(r.receiptPaymentMethod)] ?? String(r.receiptPaymentMethod)).toUpperCase()
           : '-';
 
-      return {
+      const common = {
         id: r.id,
-        bookingDate: r.receiptNoCreatedAt ?? null,
         sessionDate: r.session?.date ?? null,
         sessionStartTime: r.sessionStartTime ?? null,
         sessionEndTime: r.sessionEndTime ?? null,
         billNo: r.receiptNoString ?? '-',
         patientName: `${r.title ?? ''} ${r.name ?? ''}`.trim(),
         doctor: `${r.doctor?.title ?? ''} ${r.doctor?.name ?? ''} (${r.doctor?.code ?? '-'})`.trim(),
-        type: `${bookingType}-${paymentType}`,
-        hospitalFee,
-        hospitalFeeDiscount,
-        professionalFee,
-        professionalFeeDiscount,
-        discount,
         autoDiscountScheme: r.autoDiscountId ? (discountById.get(r.autoDiscountId) ?? '-') : '-',
         discountScheme: r.discountId ? (discountById.get(r.discountId) ?? '-') : '-'
       };
+      const out: ChannelDiscountReportRow[] = [];
+      if (inPaymentWindow) {
+        out.push({
+          ...common,
+          id: `${r.id}-payment`,
+          bookingDate: r.receiptNoCreatedAt ?? null,
+          type: `${bookingType}-${paymentType}`,
+          hospitalFee,
+          hospitalFeeDiscount,
+          professionalFee,
+          professionalFeeDiscount,
+          discount,
+        });
+      }
+      if (inRefundWindow) {
+        const reversalHospitalFee = -hospitalFee;
+        const reversalHospitalFeeDiscount = -hospitalFeeDiscount;
+        const reversalProfessionalFee = refundType === 2 ? professionalFee : -professionalFee;
+        const reversalProfessionalFeeDiscount =
+          refundType === 2 ? professionalFeeDiscount : -professionalFeeDiscount;
+        const reversalDiscount = reversalHospitalFeeDiscount + reversalProfessionalFeeDiscount;
+
+        out.push({
+          ...common,
+          id: `${r.id}-refund`,
+          bookingDate: r.refundReceiptCreatedAt ?? null,
+          type: `${bookingType}-${paymentType}-REVERSAL`,
+          hospitalFee: reversalHospitalFee,
+          hospitalFeeDiscount: reversalHospitalFeeDiscount,
+          professionalFee: reversalProfessionalFee,
+          professionalFeeDiscount: reversalProfessionalFeeDiscount,
+          discount: reversalDiscount,
+        });
+      }
+      return out;
+    }).sort((a, b) => {
+      const ta = a.bookingDate?.getTime() ?? 0;
+      const tb = b.bookingDate?.getTime() ?? 0;
+      if (ta !== tb) return ta - tb;
+      return String(a.billNo).localeCompare(String(b.billNo));
     });
 
     return { success: true, data, totalRecords: data.length };

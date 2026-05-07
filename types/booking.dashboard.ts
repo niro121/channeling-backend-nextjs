@@ -27,6 +27,10 @@ export type Session = {
   doctorLeaveCreatedAt?: number | null; // Unix seconds
   remarks: string | null;
   appointmentNo: number;
+  /** Numbers auto-allocation skips; managed from channel Bookings panel. */
+  blockedAppointmentNumbers?: number[];
+  /** `Sequence.lastValue` for scope `appointment:sessionId`, or `startingPatientNumber - 1` if no row yet. */
+  appointmentSequenceLastValue?: number;
   isScan: boolean;
   doctorId: string | null;
   departmentId: string | null;

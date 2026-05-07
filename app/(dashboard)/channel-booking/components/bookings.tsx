@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -9,17 +9,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { useChannelBooking } from "../context/channel-booking-context"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useChannelBooking } from "../context/channel-booking-context"
+import { usePermissions } from "@/components/hooks/use-permissions"
+import {
+  addBlockedAppointmentNumbersAction,
   getSessionActivityForChannelBooking,
+  removeBlockedAppointmentNumbersAction,
   sendSmsToSessionAction,
   type SessionActivityEntry,
 } from "@/app/actions/channel-booking"
 import { useToast } from "@/components/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { DollarSign, FileClock, Loader2, MessageCircle } from "lucide-react"
+import { Ban, DollarSign, FileClock, Loader2, MessageCircle } from "lucide-react"
 import {
   formatSessionDateShort,
   formatSessionDay,
@@ -53,6 +67,8 @@ function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "session.updated") return "Session updated"
   if (entry.action === "session.deleted") return "Session deleted"
   if (entry.action === "session.created.bulk") return "Sessions created (bulk)"
+  if (entry.action === "session.appointment_blocks_added") return "Appointment blocks added"
+  if (entry.action === "session.appointment_blocks_removed") return "Appointment blocks removed"
   return entry.action
 }
 
@@ -66,7 +82,11 @@ export function Bookings() {
     selectedTransferBookingIds,
     toggleTransferBooking,
     setSelectedTransferBookingIds,
+    updateSessionInList,
   } = useChannelBooking()
+
+  const { has } = usePermissions()
+  const canBlockAppointments = has("channel-booking-block", "view")
 
   const { toast } = useToast()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -75,6 +95,11 @@ export function Bookings() {
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const [smsMessage, setSmsMessage] = useState("")
   const [smsSending, setSmsSending] = useState(false)
+  const [blocksDialogOpen, setBlocksDialogOpen] = useState(false)
+  const [blockNumbersInput, setBlockNumbersInput] = useState("")
+  const [blocksBusy, setBlocksBusy] = useState(false)
+  const [unblockConfirmOpen, setUnblockConfirmOpen] = useState(false)
+  const [pendingUnblockNumber, setPendingUnblockNumber] = useState<number | null>(null)
 
   useEffect(() => {
     if (!historyOpen || !selectedSession?.id) {
@@ -98,6 +123,92 @@ export function Bookings() {
 
   const hasSession = !!selectedSession
 
+  const displayRows = useMemo(() => {
+    if (!selectedSession) return []
+    const blocked = new Set(selectedSession.blockedAppointmentNumbers ?? [])
+    const bookingNos = new Set(bookings.map((b) => b.appointmentNo))
+    type Row =
+      | { kind: "booking"; b: (typeof bookings)[0] }
+      | { kind: "blocked"; n: number }
+    const rows: Row[] = bookings.map((b) => ({ kind: "booking" as const, b }))
+    for (const n of blocked) {
+      if (!bookingNos.has(n)) rows.push({ kind: "blocked", n })
+    }
+    rows.sort((a, b) => {
+      const na = a.kind === "booking" ? a.b.appointmentNo : a.n
+      const nb = b.kind === "booking" ? b.b.appointmentNo : b.n
+      return nb - na
+    })
+    return rows
+  }, [bookings, selectedSession])
+
+  const sequenceLastForUnblock =
+    selectedSession?.appointmentSequenceLastValue ??
+    (selectedSession ? selectedSession.startingPatientNumber - 1 : 0)
+
+  function parseBlockNumbers(raw: string): number[] {
+    return raw
+      .split(/[\s,;]+/)
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n))
+  }
+
+  async function handleAddBlocks() {
+    if (!selectedSession?.id) return
+    const nums = parseBlockNumbers(blockNumbersInput)
+    if (nums.length === 0) {
+      toast({ title: "Nothing to add", description: "Enter one or more numbers.", variant: "destructive" })
+      return
+    }
+    setBlocksBusy(true)
+    try {
+      const res = await addBlockedAppointmentNumbersAction({
+        sessionId: selectedSession.id,
+        numbers: nums,
+      })
+      if (res.success) {
+        setBlockNumbersInput("")
+        updateSessionInList(selectedSession.id, {
+          blockedAppointmentNumbers: res.blockedAppointmentNumbers,
+        })
+        toast({ title: "Blocked", description: "Appointment number(s) updated." })
+      } else {
+        toast({ title: "Could not block", description: res.message, variant: "destructive" })
+      }
+    } finally {
+      setBlocksBusy(false)
+    }
+  }
+
+  function requestUnblockConfirmation(n: number) {
+    setPendingUnblockNumber(n)
+    setUnblockConfirmOpen(true)
+  }
+
+  async function executeConfirmedUnblock() {
+    const n = pendingUnblockNumber
+    if (n == null || !selectedSession?.id) return
+    setBlocksBusy(true)
+    try {
+      const res = await removeBlockedAppointmentNumbersAction({
+        sessionId: selectedSession.id,
+        numbers: [n],
+      })
+      if (res.success) {
+        updateSessionInList(selectedSession.id, {
+          blockedAppointmentNumbers: res.blockedAppointmentNumbers,
+        })
+        toast({ title: "Unblocked", description: `Number ${String(n).padStart(2, "0")} is no longer blocked.` })
+        setUnblockConfirmOpen(false)
+        setPendingUnblockNumber(null)
+      } else {
+        toast({ title: "Could not unblock", description: res.message, variant: "destructive" })
+      }
+    } finally {
+      setBlocksBusy(false)
+    }
+  }
+
   return (
     <Card className="flex flex-col min-h-0 h-full">
       <CardContent className="flex flex-col flex-1 min-h-0 p-2 pt-2">
@@ -114,6 +225,18 @@ export function Bookings() {
             >
               <FileClock className="h-4 w-4" />
             </button>
+            {canBlockAppointments && (
+              <button
+                type="button"
+                className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
+                aria-label="Block appointment numbers"
+                title="Block appointment numbers"
+                disabled={!hasSession}
+                onClick={() => setBlocksDialogOpen(true)}
+              >
+                <Ban className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
@@ -138,7 +261,7 @@ export function Bookings() {
                 aria-label="Loading bookings"
               />
             </div>
-          ) : bookings.length === 0 ? (
+          ) : displayRows.length === 0 ? (
             <div className="flex flex-1 min-h-0 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground px-2">
               No bookings for this session
             </div>
@@ -187,7 +310,50 @@ export function Bookings() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((b) => {
+                  {displayRows.map((row) => {
+                    if (row.kind === "blocked") {
+                      const n = row.n
+                      const canUnblock = n > sequenceLastForUnblock
+                      return (
+                        <tr
+                          key={`blocked-${n}`}
+                          className="border-t border-orange-200/70 bg-orange-50/90 text-muted-foreground dark:border-orange-900/50 dark:bg-orange-950/40"
+                        >
+                          <td className="w-8 px-1 py-1.5" />
+                          <td className="w-8 px-1 py-1.5 tabular-nums font-semibold text-foreground">
+                            {n}
+                          </td>
+                          <td className="min-w-0 px-1 py-1.5">
+                            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-900 dark:bg-orange-950/50 dark:text-orange-200">
+                              Blocked
+                            </span>
+                            {!canUnblock && (
+                              <span className="ml-1 text-[10px] text-muted-foreground">
+                                Unblock only above seq. {sequenceLastForUnblock}
+                              </span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-1 py-1.5">
+                            {canUnblock && canBlockAppointments ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 min-h-6 py-0 px-2 text-[10px] leading-none font-medium"
+                                disabled={blocksBusy}
+                                onClick={() => requestUnblockConfirmation(n)}
+                              >
+                                Unblock
+                              </Button>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-1 py-1.5">—</td>
+                        </tr>
+                      )
+                    }
+                    const b = row.b
                     const isSelected = selectedBooking?.id === b.id
                     const isTransferSelected = selectedTransferBookingIds.includes(b.id)
                     const isCanceledOrRefunded =
@@ -354,6 +520,102 @@ export function Bookings() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={blocksDialogOpen}
+        onOpenChange={(open) => {
+          setBlocksDialogOpen(open)
+          if (!open) setBlockNumbersInput("")
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Block appointment numbers</DialogTitle>
+            {selectedSession && (
+              <p className="text-xs text-muted-foreground pt-1">
+                Session #{selectedSession.startingPatientNumber}–{selectedSession.maxPatientNumber}. Auto
+                booking skips blocked numbers. Sequence cursor: {sequenceLastForUnblock}. You can only
+                unblock blocked numbers strictly above that cursor; for others, add a forced booking for
+                that appointment number.
+              </p>
+            )}
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div>
+              <p className="font-medium text-foreground mb-1">Currently blocked</p>
+              {(selectedSession?.blockedAppointmentNumbers?.length ?? 0) === 0 ? (
+                <p className="text-muted-foreground">None</p>
+              ) : (
+                <ul className="flex flex-wrap gap-1.5">
+                  {(selectedSession?.blockedAppointmentNumbers ?? []).map((n) => (
+                    <li
+                      key={n}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-orange-100 px-2 py-1 tabular-nums text-sm font-semibold text-orange-950 shadow-sm ring-1 ring-orange-200/80 dark:border-orange-700 dark:bg-orange-950/50 dark:text-orange-50 dark:ring-orange-900/60"
+                    >
+                      <span className="min-w-[1.25rem] text-center">{String(n).padStart(2, "0")}</span>
+                      {n > sequenceLastForUnblock ? (
+                        <button
+                          type="button"
+                          className="text-primary hover:underline disabled:opacity-50"
+                          disabled={blocksBusy}
+                          onClick={() => requestUnblockConfirmation(n)}
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">locked</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(selectedSession?.blockedAppointmentNumbers?.length ?? 0) > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+                  Who added or removed blocks appears in{" "}
+                  <span className="font-medium text-foreground/90">Session history</span> (activity log),
+                  not on this list.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Add numbers</label>
+              <Input
+                placeholder="e.g. 2, 3, 4"
+                value={blockNumbersInput}
+                onChange={(e) => setBlockNumbersInput(e.target.value)}
+                disabled={blocksBusy}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setBlocksDialogOpen(false)}
+                disabled={blocksBusy}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={blocksBusy}
+                onClick={() => void handleAddBlocks()}
+              >
+                {blocksBusy ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                    Saving…
+                  </>
+                ) : (
+                  "Add blocks"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={smsDialogOpen} onOpenChange={setSmsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -431,6 +693,53 @@ export function Bookings() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={unblockConfirmOpen}
+        onOpenChange={(open) => {
+          setUnblockConfirmOpen(open)
+          if (!open) setPendingUnblockNumber(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unblock appointment number?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingUnblockNumber != null ? (
+                <>
+                  This removes the block on{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    #{String(pendingUnblockNumber).padStart(2, "0")}
+                  </span>
+                  . Auto booking will use this slot again when it becomes the next available number.
+                </>
+              ) : (
+                "Remove the block on this appointment number?"
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={blocksBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={blocksBusy || pendingUnblockNumber == null}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void executeConfirmedUnblock()
+              }}
+            >
+              {blocksBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5 inline" />
+                  Working…
+                </>
+              ) : (
+                "Unblock"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

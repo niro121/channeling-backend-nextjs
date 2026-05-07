@@ -145,7 +145,14 @@ export function SessionsSelection() {
       socket.once("connect", doSubscribe)
     }
 
-    const onSessionUpdate = (data: { sessionId: string; appointmentNo?: number; paidCount?: number; pendingCount?: number }) => {
+    const onSessionUpdate = (data: {
+      sessionId: string
+      appointmentNo?: number
+      paidCount?: number
+      pendingCount?: number
+      blockedAppointmentNumbers?: number[]
+      appointmentSequenceLastValue?: number
+    }) => {
       if (process.env.NODE_ENV !== "production") {
         console.log("[sessions-selection] session-update received", { doctorId, data })
       }
@@ -154,6 +161,12 @@ export function SessionsSelection() {
           ...(data.appointmentNo !== undefined && { appointmentNo: data.appointmentNo }),
           ...(data.paidCount !== undefined && { paidCount: data.paidCount }),
           ...(data.pendingCount !== undefined && { pendingCount: data.pendingCount }),
+          ...(data.blockedAppointmentNumbers !== undefined && {
+            blockedAppointmentNumbers: data.blockedAppointmentNumbers,
+          }),
+          ...(data.appointmentSequenceLastValue !== undefined && {
+            appointmentSequenceLastValue: data.appointmentSequenceLastValue,
+          }),
         })
       }
     }

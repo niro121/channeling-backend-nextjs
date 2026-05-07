@@ -21,6 +21,9 @@ import {
   getAgentBalance,
   getBookingForSaveBooking,
   getNextSequenceNumber,
+  advanceAppointmentSequenceCursor,
+  prepareAppointmentNumberForNewBookingTx,
+  type PrepareAppointmentNumberResult,
   updateAgentBalance,
   validateVoucherForDiscount,
   getBookingSequenceInfo,
@@ -34,10 +37,26 @@ import {
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
+import { logActivityNonBlocking } from "@/lib/activity-log"
+import { Prisma } from "@prisma/client"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
   | { success: false; errorCode: SaveBookingErrorCode; message: string }
+
+function isPrismaUniqueConstraintError(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002"
+}
+
+function mapPrepareAppointmentFailure(
+  r: Extract<PrepareAppointmentNumberResult, { ok: false }>
+): { errorCode: SaveBookingErrorCode; message: string } {
+  if (r.code === "LIMIT_EXCEEDED") {
+    return { errorCode: "LIMIT_EXCEEDED", message: r.message }
+  }
+  return { errorCode: "INVALID_INPUT", message: r.message }
+}
 
 /** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
 const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
@@ -343,23 +362,6 @@ export async function saveBookingService(
     }
   }
 
-  // Allocate next appointment number for this session (atomic; respects maxPatientNumber).
-  const appointmentResult = await getNextSequenceNumber(
-    `appointment:${sessionId}`,
-    {
-      startFrom: session.startingPatientNumber,
-      max: session.maxPatientNumber,
-    }
-  )
-  if (!appointmentResult.success) {
-    return {
-      success: false,
-      errorCode: "LIMIT_EXCEEDED",
-      message: "Appointment Limit Exceed.",
-    }
-  }
-  const appointmentNo = appointmentResult.value
-
   const sessionDate = session.date instanceof Date ? session.date : new Date(session.date)
   const startDate = normalizeSessionTime(session.startTime as Date | number, sessionDate)
   const endDate = normalizeSessionTime(session.endTime as Date | number, sessionDate)
@@ -475,56 +477,138 @@ export async function saveBookingService(
     }
   }
 
-  try {
-    const booking = await prisma.booking.create({
-      data: {
-        title: input.title,
-        name: input.name.toUpperCase(),
-        phone: input.phone,
-        sex: input.sex,
-        area: input.area.name,
-        remarks: input.remarks ?? "",
-        method: input.payment_method,
-        sessionId,
-        doctorId: input.doctor.id,
-        amount: amountToUse,
-        discount: totalDiscount,
-        foriegner: input.foriegner,
-        status: 0,
-        createdBy: userId,
-        fees: session.fees as object,
-        refund: 0,
-        refundAmount: 0,
-        agencyRef: normalizedAgencyRef,
-        agencyId: input.agency?.id ?? null,
-        creditCustomerId: input.credit_customer?.id ?? null,
-        staffId: input.staff?.id ?? null,
-        discountDivision,
-        hospitalFeeDiscount,
-        professionsalFeeDiscount,
-        professionalFee: professional_fee,
-        hospitalFee: hospital_fee,
-        referredDoctorId: input.referred_doctor?.id ?? null,
-        referredAgencyId: input.referred_agency?.id ?? null,
-        referredStaffId: input.referred_staff?.id ?? null,
-        sessionStartTime,
-        sessionEndTime,
-        isScan: session.isScan,
-        locationId,
-        bookingid,
-        bookingid_string,
-        appointmentNo,
-        discountId: input.discount_type ?? null,
-        autoDiscountId: input.auto_discount_type ?? null,
-      },
-    })
+  const bookingCreateBase = {
+    title: input.title,
+    name: input.name.toUpperCase(),
+    phone: input.phone,
+    sex: input.sex,
+    area: input.area.name,
+    remarks: input.remarks ?? "",
+    method: input.payment_method,
+    sessionId,
+    doctorId: input.doctor.id,
+    amount: amountToUse,
+    discount: totalDiscount,
+    foriegner: input.foriegner,
+    status: 0,
+    createdBy: userId,
+    fees: session.fees as object,
+    refund: 0,
+    refundAmount: 0,
+    agencyRef: normalizedAgencyRef,
+    agencyId: input.agency?.id ?? null,
+    creditCustomerId: input.credit_customer?.id ?? null,
+    staffId: input.staff?.id ?? null,
+    discountDivision,
+    hospitalFeeDiscount,
+    professionsalFeeDiscount,
+    professionalFee: professional_fee,
+    hospitalFee: hospital_fee,
+    referredDoctorId: input.referred_doctor?.id ?? null,
+    referredAgencyId: input.referred_agency?.id ?? null,
+    referredStaffId: input.referred_staff?.id ?? null,
+    sessionStartTime,
+    sessionEndTime,
+    isScan: session.isScan,
+    locationId,
+    bookingid,
+    bookingid_string,
+    discountId: input.discount_type ?? null,
+    autoDiscountId: input.auto_discount_type ?? null,
+  }
 
-    // Keep Session.appointmentNo in sync so the session list and consecutive-session rule
-    // can read the current "last assigned" number without counting bookings.
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { appointmentNo },
-    })
+  const MAX_APPOINTMENT_TX_ATTEMPTS = 2
+  let created: {
+    booking: Awaited<ReturnType<typeof prisma.booking.create>>
+    appointmentNo: number
+  } | null = null
+  let clearedBlockedAppointmentNo: number | null = null
+
+  try {
+    for (let attempt = 0; attempt < MAX_APPOINTMENT_TX_ATTEMPTS; attempt++) {
+      try {
+        const txOut = await prisma.$transaction(async (tx) => {
+          const sessionRow = await tx.session.findUnique({
+            where: { id: sessionId },
+            select: {
+              appointmentNo: true,
+              startingPatientNumber: true,
+              maxPatientNumber: true,
+              blockedAppointmentNumbers: true,
+            },
+          })
+          if (!sessionRow) {
+            return { kind: "session_not_found" as const }
+          }
+          const prep = await prepareAppointmentNumberForNewBookingTx(tx, sessionId, sessionRow, {
+            forcedAppointmentNo: input.forcedAppointmentNo ?? null,
+            forceAppointmentNo: input.forceAppointmentNo === true,
+          })
+          if (!prep.ok) {
+            return { kind: "prep_fail" as const, prep }
+          }
+          const b = await tx.booking.create({
+            data: {
+              ...bookingCreateBase,
+              appointmentNo: prep.appointmentNo,
+            },
+          })
+          await advanceAppointmentSequenceCursor(tx, sessionId, prep.appointmentNo)
+
+          const blockedBefore = sessionRow.blockedAppointmentNumbers ?? []
+          let clearedBlocked: number | null = null
+          let nextBlockedList: number[] | undefined
+          if (
+            input.forceAppointmentNo === true &&
+            blockedBefore.includes(prep.appointmentNo)
+          ) {
+            clearedBlocked = prep.appointmentNo
+            nextBlockedList = blockedBefore
+              .filter((x) => x !== prep.appointmentNo)
+              .sort((a, b) => a - b)
+          }
+
+          await tx.session.update({
+            where: { id: sessionId },
+            data: {
+              appointmentNo: Math.max(sessionRow.appointmentNo, prep.appointmentNo),
+              ...(nextBlockedList !== undefined ? { blockedAppointmentNumbers: nextBlockedList } : {}),
+            },
+          })
+          return {
+            kind: "ok" as const,
+            booking: b,
+            appointmentNo: prep.appointmentNo,
+            clearedBlockedAppointmentNo: clearedBlocked,
+          }
+        })
+        if (txOut.kind === "prep_fail") {
+          const m = mapPrepareAppointmentFailure(txOut.prep)
+          return { success: false, errorCode: m.errorCode, message: m.message }
+        }
+        if (txOut.kind === "session_not_found") {
+          return { success: false, errorCode: "INVALID_SESSION", message: "Session not found." }
+        }
+        created = { booking: txOut.booking, appointmentNo: txOut.appointmentNo }
+        clearedBlockedAppointmentNo = txOut.clearedBlockedAppointmentNo
+        break
+      } catch (e: unknown) {
+        if (attempt < MAX_APPOINTMENT_TX_ATTEMPTS - 1 && isPrismaUniqueConstraintError(e)) {
+          continue
+        }
+        throw e
+      }
+    }
+
+    if (!created) {
+      return {
+        success: false,
+        errorCode: "SERVER_ERROR",
+        message: "Could not assign a unique appointment number. Please try again.",
+      }
+    }
+    const booking = created.booking
+    const appointmentNo = created.appointmentNo
 
     // POS and Agent create a receipt and mark booking as paid (status 1); Credit Customer and E-wallet also create receipt (booked).
     if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
@@ -729,32 +813,50 @@ export async function saveBookingService(
     // Notify real-time listeners so sessions list updates (appointmentNo, paidCount, pendingCount)
     const doctorId = session.doctorId ?? null
     if (doctorId) {
-      const [paidCount, pendingCount] = await Promise.all([
-        prisma.booking.count({ where: { sessionId, status: 1 } }),
-        prisma.booking.count({ where: { sessionId, status: 0 } }),
-      ])
-      const io = getIO()
-      if (io) {
-        const room = channelBookingRoom(doctorId)
-        const socketsInRoom = await io.in(room).fetchSockets()
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[save-booking] session-update emitted", {
-            room,
+      if (clearedBlockedAppointmentNo != null) {
+        await emitSessionUpdateAfterBlocks(sessionId)
+        if (userId) {
+          logActivityNonBlocking({
+            userId,
+            action: "session.appointment_blocks_removed",
+            entityType: "Session",
+            entityId: sessionId,
+            importance: "low",
+            metadata: {
+              numbers: [clearedBlockedAppointmentNo],
+              operation: "remove" as const,
+              reason: "forced_booking",
+            },
+          })
+        }
+      } else {
+        const [paidCount, pendingCount] = await Promise.all([
+          prisma.booking.count({ where: { sessionId, status: 1 } }),
+          prisma.booking.count({ where: { sessionId, status: 0 } }),
+        ])
+        const io = getIO()
+        if (io) {
+          const room = channelBookingRoom(doctorId)
+          const socketsInRoom = await io.in(room).fetchSockets()
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[save-booking] session-update emitted", {
+              room,
+              sessionId,
+              appointmentNo,
+              paidCount,
+              pendingCount,
+              clientsInRoom: socketsInRoom.length,
+            })
+          }
+          io.to(room).emit("session-update", {
             sessionId,
             appointmentNo,
             paidCount,
             pendingCount,
-            clientsInRoom: socketsInRoom.length,
           })
+        } else if (process.env.NODE_ENV !== "production") {
+          console.log("[save-booking] session-update skipped: getIO() is null (not using custom server?)")
         }
-        io.to(room).emit("session-update", {
-          sessionId,
-          appointmentNo,
-          paidCount,
-          pendingCount,
-        })
-      } else if (process.env.NODE_ENV !== "production") {
-        console.log("[save-booking] session-update skipped: getIO() is null (not using custom server?)")
       }
     }
 

@@ -12,6 +12,7 @@ import type { ChannelBookingAreaOption } from "@/services/channel-booking"
 import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
+import { usePermissions } from "@/components/hooks/use-permissions"
 import { useToast } from "@/components/hooks/use-toast"
 import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
 import { formatLKR } from "@/lib/format-money"
@@ -24,6 +25,7 @@ import {
   Banknote,
   CalendarCheck,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   CreditCard,
   MapPin,
@@ -122,8 +124,27 @@ const DEFAULT_MIXED_LINES: MixedLine[] = [
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
 export function NewBookingDetailsTab() {
-  const { initialData, initialDataLoading, selectedSession, selectedDoctor, selectedSpecialityId, reservationDetails, setBookings, setSelectedBooking, setActiveInformationTab, setSelectedAgencyId, referredDoctorId, referredAgencyId, referredStaffId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId } = useChannelBooking()
+  const {
+    initialData,
+    initialDataLoading,
+    selectedSession,
+    selectedDoctor,
+    selectedSpecialityId,
+    reservationDetails,
+    setBookings,
+    setSelectedBooking,
+    setActiveInformationTab,
+    setSelectedAgencyId,
+    referredDoctorId,
+    referredAgencyId,
+    referredStaffId,
+    setReferredDoctorId,
+    setReferredAgencyId,
+    setReferredStaffId,
+  } = useChannelBooking()
   const { toast } = useToast()
+  const { has } = usePermissions()
+  const canForcedBooking = has("channel-booking-forced-booking", "view")
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
@@ -144,6 +165,9 @@ export function NewBookingDetailsTab() {
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
   const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
+  const [forcedApptInput, setForcedApptInput] = useState("")
+  const [forceApptAck, setForceApptAck] = useState(false)
+  const [forcedBookingExpanded, setForcedBookingExpanded] = useState(false)
   function resetMixedDialog() {
     setMixedDialogOpen(false)
     setMixedLines(DEFAULT_MIXED_LINES)
@@ -174,6 +198,8 @@ export function NewBookingDetailsTab() {
       ? (reservationDetails?.amountForeign ?? 0)
       : (reservationDetails?.amountLocal ?? 0)
   const hasSession = !!selectedSession
+  const hasBlockedAppointmentNumbers =
+    (selectedSession?.blockedAppointmentNumbers?.length ?? 0) > 0
   const selectedArea = areas.find((a) => a.id === areaId)
 
   const phoneDigits = phoneNumber.replace(/\D/g, "")
@@ -301,6 +327,9 @@ export function NewBookingDetailsTab() {
     setReferredDoctorId(null)
     setReferredAgencyId(null)
     setReferredStaffId(null)
+    setForcedApptInput("")
+    setForceApptAck(false)
+    setForcedBookingExpanded(false)
     setInvalidFields({})
   }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId])
 
@@ -341,6 +370,14 @@ export function NewBookingDetailsTab() {
     else setAgencyBooks([])
   }, [paymentMethodId, agencyId, fetchAgencyBooks])
 
+  useEffect(() => {
+    if (!hasBlockedAppointmentNumbers) {
+      setForceApptAck(false)
+      setForcedApptInput("")
+      setForcedBookingExpanded(false)
+    }
+  }, [hasBlockedAppointmentNumbers])
+
   const fieldClass = "h-8 text-xs"
   const smallSelectClass = "h-8 text-xs w-24 shrink-0"
 
@@ -349,6 +386,18 @@ export function NewBookingDetailsTab() {
     const { payment_method, payment_type } = getPaymentMethodAndType(Number(paymentMethodId))
     setSaving(true)
     try {
+      const forcedTrim = forcedApptInput.trim()
+      const parsedForced =
+        forcedTrim !== "" ? parseInt(forcedTrim, 10) : NaN
+      const forcedAppointmentPayload =
+        forcedTrim !== "" && Number.isFinite(parsedForced)
+          ? {
+              forcedAppointmentNo: parsedForced,
+              forceAppointmentNo:
+                hasBlockedAppointmentNumbers && forceApptAck && canForcedBooking,
+            }
+          : {}
+
       const result = await saveBookingAction({
         name: patientName.trim(),
         title: titleId,
@@ -387,6 +436,7 @@ export function NewBookingDetailsTab() {
         referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
         referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
         referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
+        ...forcedAppointmentPayload,
       })
       if (result.success) {
         setInvalidFields({})
@@ -418,6 +468,9 @@ export function NewBookingDetailsTab() {
         setReferredDoctorId(null)
         setReferredAgencyId(null)
         setReferredStaffId(null)
+        setForcedApptInput("")
+        setForceApptAck(false)
+        setForcedBookingExpanded(false)
         toast({
           title: "Booking saved",
           description: "The booking was created successfully.",
@@ -1114,6 +1167,68 @@ export function NewBookingDetailsTab() {
           </div>
         </div>
       </div>
+
+      {hasSession && selectedSession && hasBlockedAppointmentNumbers && (
+        <div className="pt-2 border-t border-border/50 text-xs">
+          <button
+            type="button"
+            onClick={() => setForcedBookingExpanded((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 rounded-md py-1.5 text-left hover:bg-muted/50"
+            aria-expanded={forcedBookingExpanded}
+          >
+            <span className="flex flex-col gap-0.5 min-w-0">
+              <span className="font-medium text-foreground">Forced appointment (optional)</span>
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {canForcedBooking
+                  ? "Expand to add a booking to a blocked number."
+                  : "Your role needs the Forced bookings permission to book into blocked slots."}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                forcedBookingExpanded && "rotate-180"
+              )}
+              aria-hidden
+            />
+          </button>
+          {forcedBookingExpanded && (
+            <div className="flex flex-wrap items-end gap-3 pt-2">
+              {canForcedBooking && (
+                <label className="flex items-center gap-2 cursor-pointer max-w-[14rem] leading-tight">
+                  <Checkbox
+                    checked={forceApptAck}
+                    onCheckedChange={(c) => {
+                      const checked = c === true
+                      setForceApptAck(checked)
+                      if (!checked) setForcedApptInput("")
+                    }}
+                    disabled={saving}
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="text-muted-foreground">
+                    Confirm forced booking (blocked number).
+                  </span>
+                </label>
+              )}
+              <div className="flex flex-col gap-0.5 min-w-[8rem]">
+                <span className="text-muted-foreground">Appointment #</span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  className={cn(fieldClass, "w-28")}
+                  placeholder={`${selectedSession.startingPatientNumber}–${selectedSession.maxPatientNumber}`}
+                  value={forcedApptInput}
+                  onChange={(e) => setForcedApptInput(e.target.value)}
+                  disabled={saving || !canForcedBooking || !forceApptAck}
+                  min={selectedSession.startingPatientNumber}
+                  max={selectedSession.maxPatientNumber}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
         <div className="flex flex-col gap-0.5 text-xs">

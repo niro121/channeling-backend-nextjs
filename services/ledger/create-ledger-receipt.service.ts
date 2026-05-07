@@ -66,6 +66,8 @@ export type CreateLedgerReceiptInput = {
   bankId?: string | null
   cardReference?: string
   slipReference?: string
+  /** For agency deposit via slip: slip date (YYYY-MM-DD) */
+  slipDate?: string
 }
 
 export type CreateLedgerReceiptResult =
@@ -167,7 +169,8 @@ function mapToReceiptMethodAndType(
     case "AGENCY_WITHDRAW":
       return { method: RECEIPT_METHOD.AGENCY_WITHDRAW, type: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
     case "BANK_DEPOSIT":
-      return { method: RECEIPT_METHOD.BANK_DEPOSIT, type: 1, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
+      // Bank deposit moves cash out of till into bank ledger (outflow from cashier perspective).
+      return { method: RECEIPT_METHOD.BANK_DEPOSIT, type: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
     default:
       throw new Error(`Unknown transaction type: ${transactionType}`)
   }
@@ -205,6 +208,13 @@ export async function createLedgerReceipt(
         success: false,
         errorCode: "VALIDATION",
         message: "Payment method must be Cash, Credit Card, Slip, Cheque, or E-Wallet.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !input.slipDate?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Slip date is required for slip payments.",
       }
     }
   }
@@ -339,7 +349,8 @@ export async function createLedgerReceipt(
   const isOutflow =
     input.transactionType === "BRANCH_EXPENSE" ||
     input.transactionType === "AGENCY_CREDIT_NOTE" ||
-    input.transactionType === "AGENCY_WITHDRAW";
+    input.transactionType === "AGENCY_WITHDRAW" ||
+    input.transactionType === "BANK_DEPOSIT";
   const receiptAmount = isOutflow ? -1 * Math.round(input.amount) : Math.round(input.amount);
 
   // Branch is always saved in locationId. For sequence: branch income/expense use locationId;
@@ -357,7 +368,12 @@ export async function createLedgerReceipt(
         : (input.bankId ?? null),
     cardReference: input.cardReference ?? "",
     slipReference: input.slipReference ?? "",
-    remarks: input.remarks ?? "",
+    remarks:
+      input.transactionType === "AGENCY_DEPOSIT" &&
+      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP &&
+      input.slipDate?.trim()
+        ? `${input.remarks ?? ""} | Slip Date: ${input.slipDate.trim()}`
+        : (input.remarks ?? ""),
     type,
     method,
     agencyId: input.agencyId ?? null,

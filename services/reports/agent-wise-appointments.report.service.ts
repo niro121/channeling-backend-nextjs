@@ -22,6 +22,12 @@ const STATUS_LABELS: Record<number, string> = {
   3: 'Refund',
 };
 
+function isWithinRange(value: Date | null | undefined, from: Date, to: Date): boolean {
+  if (!value || isNaN(value.getTime())) return false;
+  const ts = value.getTime();
+  return ts >= from.getTime() && ts <= to.getTime();
+}
+
 function parseDateRange(from?: string, to?: string): { from: Date; to: Date } | null {
   if (!from?.trim() || !to?.trim()) return null;
 
@@ -186,12 +192,7 @@ export async function getAgentWiseAppointmentsReportService(
     };
   }
 
-  const sessionWhere: Prisma.SessionWhereInput = {
-    date: {
-      gte: new Date(dateRange.from.getTime() - 24 * 60 * 60 * 1000),
-      lte: new Date(dateRange.to.getTime() + 24 * 60 * 60 * 1000),
-    },
-  };
+  const sessionWhere: Prisma.SessionWhereInput = {};
   if (institutionId && institutionId !== '__all__') {
     const instNum = parseInt(institutionId, 10);
     if (!isNaN(instNum)) sessionWhere.institution = instNum;
@@ -205,6 +206,10 @@ export async function getAgentWiseAppointmentsReportService(
     agencyId: { not: null },
     sessionId: { not: null },
     session: { is: sessionWhere },
+    OR: [
+      { receiptNoCreatedAt: { gte: dateRange.from, lte: dateRange.to } },
+      { refundReceiptCreatedAt: { gte: dateRange.from, lte: dateRange.to } },
+    ],
   };
 
   if (locationId && locationId !== '__all__') {
@@ -249,27 +254,6 @@ export async function getAgentWiseAppointmentsReportService(
     },
   });
 
-  type B = (typeof bookings)[number];
-  const inRange: B[] = [];
-
-  for (const b of bookings) {
-    const session = b.session;
-    if (!session?.date) continue;
-    const sessionDate = session.date instanceof Date ? session.date : new Date(session.date);
-    const apptStart = normalizeSessionTime(session.startTime as Date | number, sessionDate);
-    if (apptStart.getTime() < dateRange.from.getTime() || apptStart.getTime() > dateRange.to.getTime()) {
-      continue;
-    }
-    if (institutionId && institutionId !== '__all__') {
-      const instNum = parseInt(institutionId, 10);
-      if (!isNaN(instNum) && session.institution !== instNum) continue;
-    }
-    if (departmentId && departmentId !== '__all__' && session.departmentId !== departmentId) {
-      continue;
-    }
-    inRange.push(b);
-  }
-
   const monthColumns = enumerateMonthsBetween(dateRange.from, dateRange.to);
   const monthKeys = new Set(monthColumns.map((c) => c.key));
 
@@ -286,67 +270,114 @@ export async function getAgentWiseAppointmentsReportService(
   const wantDetail = reportType === 'detail';
   const wantSummary = reportType === 'summary';
 
-  for (const b of inRange) {
+  for (const b of bookings) {
     const session = b.session!;
     const sessionDate = session.date instanceof Date ? session.date : new Date(session.date);
     const apptStart = normalizeSessionTime(session.startTime as Date | number, sessionDate);
-    const ymKey = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Colombo',
-      year: 'numeric',
-      month: '2-digit',
-    }).format(apptStart);
-
     const agency = b.agency;
     if (!agency?.id) continue;
 
-    if (wantSummary) {
-      if (!byAgency.has(agency.id)) {
-        byAgency.set(agency.id, {
-          name: agency.name,
-          code: agency.code?.trim() ?? '',
-          monthCounts: Object.fromEntries([...monthKeys].map((k) => [k, 0])) as Record<string, number>,
-          total: 0,
-        });
-      }
-      const agg = byAgency.get(agency.id)!;
-      if (monthKeys.has(ymKey)) {
-        agg.monthCounts[ymKey] = (agg.monthCounts[ymKey] ?? 0) + 1;
-      }
-      agg.total += 1;
+    const paymentEventInRange = isWithinRange(
+      b.receiptNoCreatedAt as Date | null | undefined,
+      dateRange.from,
+      dateRange.to
+    );
+    const reversalEventInRange = isWithinRange(
+      b.refundReceiptCreatedAt as Date | null | undefined,
+      dateRange.from,
+      dateRange.to
+    );
+
+    const events: Array<{ eventAt: Date; statusLabel: string; sign: 1 | -1; suffix: string }> = [];
+    if (paymentEventInRange && b.receiptNoCreatedAt) {
+      events.push({
+        eventAt: b.receiptNoCreatedAt as Date,
+        statusLabel: STATUS_LABELS[1],
+        sign: 1,
+        suffix: 'paid',
+      });
+    }
+    if (reversalEventInRange && b.refundReceiptCreatedAt) {
+      const isCancel = b.status === 2;
+      events.push({
+        eventAt: b.refundReceiptCreatedAt as Date,
+        statusLabel: isCancel ? STATUS_LABELS[2] : STATUS_LABELS[3],
+        sign: -1,
+        suffix: isCancel ? 'cancel' : 'refund',
+      });
     }
 
-    if (wantDetail) {
-      const doctor = b.doctor;
-      const patientName = [b.title, b.name].filter(Boolean).join(' ').trim() || '—';
-      const billNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
-      const creatorLabel = formatCreatorBlock(b.createdUser, b.createdAt);
+    for (const event of events) {
+      const ymKey = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Colombo',
+        year: 'numeric',
+        month: '2-digit',
+      }).format(event.eventAt);
 
-      detailRows.push({
-        id: b.id,
-        agentNameWithCode: agentDisplayName(agency.name, agency.code),
-        agentRef: (b.agencyRef ?? '').trim() || '—',
-        consultantNameWithCode: doctor
-          ? consultantDisplayName(doctor.name, doctor.code)
-          : '—',
-        appointmentDateLabel: formatOrdinalDateColombo(apptStart),
-        appointmentTimeLabel: formatTimeAmPm(apptStart),
-        appointmentNo: b.appointmentNo,
-        billNumber,
-        statusLabel: STATUS_LABELS[b.status] ?? String(b.status),
-        patientName,
-        patientPhone: (b.phone ?? '').trim() || '—',
-        creatorLabel,
-        hospitalFee: b.hospitalFee ?? 0,
-        doctorFee: b.professionalFee ?? 0,
-        discount: b.discount ?? 0,
-        totalFee: b.amount ?? 0,
-        appointmentAtMs: apptStart.getTime(),
-      });
+      if (wantSummary) {
+        if (!byAgency.has(agency.id)) {
+          byAgency.set(agency.id, {
+            name: agency.name,
+            code: agency.code?.trim() ?? '',
+            monthCounts: Object.fromEntries([...monthKeys].map((k) => [k, 0])) as Record<string, number>,
+            total: 0,
+          });
+        }
+        const agg = byAgency.get(agency.id)!;
+        if (monthKeys.has(ymKey)) {
+          agg.monthCounts[ymKey] = (agg.monthCounts[ymKey] ?? 0) + 1;
+        }
+        agg.total += 1;
+      }
 
-      sumH += b.hospitalFee ?? 0;
-      sumD += b.professionalFee ?? 0;
-      sumDisc += b.discount ?? 0;
-      sumTot += b.amount ?? 0;
+      if (wantDetail) {
+        const doctor = b.doctor;
+        const patientName = [b.title, b.name].filter(Boolean).join(' ').trim() || '—';
+        const billNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
+        const creatorLabel = formatCreatorBlock(b.createdUser, b.createdAt);
+        const refundType = Number(b.refund ?? 0);
+        const eventHospitalFee =
+          event.sign > 0
+            ? b.hospitalFee ?? 0
+            : refundType === 1
+              ? b.hospitalFee ?? 0
+              : -(b.hospitalFee ?? 0);
+        const eventDoctorFee =
+          event.sign > 0
+            ? b.professionalFee ?? 0
+            : refundType === 2
+              ? b.professionalFee ?? 0
+              : -(b.professionalFee ?? 0);
+        const eventDiscount = (b.discount ?? 0) * event.sign;
+        const eventTotalFee = (b.amount ?? 0) * event.sign;
+
+        detailRows.push({
+          id: `${b.id}:${event.suffix}`,
+          agentNameWithCode: agentDisplayName(agency.name, agency.code),
+          agentRef: (b.agencyRef ?? '').trim() || '—',
+          consultantNameWithCode: doctor
+            ? consultantDisplayName(doctor.name, doctor.code)
+            : '—',
+          appointmentDateLabel: formatOrdinalDateColombo(apptStart),
+          appointmentTimeLabel: formatTimeAmPm(apptStart),
+          appointmentNo: b.appointmentNo,
+          billNumber,
+          statusLabel: event.statusLabel,
+          patientName,
+          patientPhone: (b.phone ?? '').trim() || '—',
+          creatorLabel,
+          hospitalFee: eventHospitalFee,
+          doctorFee: eventDoctorFee,
+          discount: eventDiscount,
+          totalFee: eventTotalFee,
+          appointmentAtMs: event.eventAt.getTime(),
+        });
+
+        sumH += eventHospitalFee;
+        sumD += eventDoctorFee;
+        sumDisc += eventDiscount;
+        sumTot += eventTotalFee;
+      }
     }
   }
 

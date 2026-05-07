@@ -20,6 +20,7 @@ export type ConsultantPaymentsReportExportRow = {
   modeOfPay: string;
   consultationCharge: string;
   discountAmount: string;
+  whtAmount: string;
   netAmount: string;
   paymentStatus: string;
   paidBy: string;
@@ -70,6 +71,7 @@ export async function exportConsultantPaymentsReportData(
         modeOfPay: row.modeOfPay ?? '-',
         consultationCharge: String(row.consultationCharge ?? '0'),
         discountAmount: String(row.discountAmount ?? '0'),
+        whtAmount: String(row.whtAmount ?? '0'),
         netAmount: String(row.netAmount ?? '0'),
         paymentStatus: row.paymentStatus ?? '-',
         paidBy: row.paidBy ?? '-',
