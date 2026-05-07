@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
-import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { RECEIPT_METHOD } from '@/types/receipt';
 import type {
   AllCashierSummaryDetailReportQuery,
   AllCashierSummaryDetailReportResponse,
@@ -12,16 +12,12 @@ import type {
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
 import type { Prisma } from '@prisma/client';
-
-const ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
-  cash: 0,
-  creditCard: 0,
-  slip: 0,
-  cheque: 0,
-  agent: 0,
-  agentCredit: 0,
-  eWallet: 0,
-};
+import {
+  CASHIER_SUMMARY_ZERO_AMOUNTS as ZERO_AMOUNTS,
+  receiptToAmounts,
+  receiptToAmountsDoctorPaymentNet,
+  addCashierSummaryAmounts as addAmounts,
+} from '@/lib/cashier-summary-amounts';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('all_cashier_summary_detail', getReportMaxRangeDays('cashier_summary', 62));
 const MAX_RECEIPTS_SCAN = getReportMaxRecords('all_cashier_summary_detail', getReportMaxRecords('cashier_summary', 50000));
@@ -47,50 +43,6 @@ function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date
   const end = parseDateTime(dateTo, true);
   if (!start || !end) return null;
   return { start, end };
-}
-
-function paymentColumnKey(paymentMethod: number): keyof CashierSummaryPaymentAmounts {
-  const map: Record<number, keyof CashierSummaryPaymentAmounts> = {
-    [RECEIPT_PAYMENT_METHOD.CASH]: 'cash',
-    [RECEIPT_PAYMENT_METHOD.CREDIT_CARD]: 'creditCard',
-    [RECEIPT_PAYMENT_METHOD.SLIP]: 'slip',
-    [RECEIPT_PAYMENT_METHOD.CHECK]: 'cheque',
-    [RECEIPT_PAYMENT_METHOD.AGENT]: 'agent',
-    [RECEIPT_PAYMENT_METHOD.CREDIT]: 'agentCredit',
-    [RECEIPT_PAYMENT_METHOD.E_WALLET]: 'eWallet',
-  };
-  return map[paymentMethod] ?? 'cash';
-}
-
-function receiptToAmounts(
-  paymentMethod: number,
-  amount: number,
-  type: number,
-  paymentLines?: Array<{ paymentMethod: number; amount: number }>
-): CashierSummaryPaymentAmounts {
-  const sign = type === 0 ? -1 : 1;
-  const result = { ...ZERO_AMOUNTS };
-  const normalizedLines =
-    Array.isArray(paymentLines) && paymentLines.length > 0
-      ? paymentLines
-      : [{ paymentMethod, amount }];
-  for (const line of normalizedLines) {
-    const key = paymentColumnKey(line.paymentMethod);
-    result[key] += sign * Math.abs(line.amount);
-  }
-  return result;
-}
-
-function addAmounts(a: CashierSummaryPaymentAmounts, b: CashierSummaryPaymentAmounts): CashierSummaryPaymentAmounts {
-  return {
-    cash: a.cash + b.cash,
-    creditCard: a.creditCard + b.creditCard,
-    slip: a.slip + b.slip,
-    cheque: a.cheque + b.cheque,
-    agent: a.agent + b.agent,
-    agentCredit: a.agentCredit + b.agentCredit,
-    eWallet: a.eWallet + b.eWallet,
-  };
 }
 
 function sectionKeyFromReceipt(
@@ -140,6 +92,12 @@ function sectionKeyFromReceipt(
   }
   if (r.method === RECEIPT_METHOD.BRANCH_INCOME || r.method === RECEIPT_METHOD.BRANCH_EXPENSE) {
     return { key: 'incomeExpense', title: 'Income / Expenses - Bills' };
+  }
+  if (r.method === RECEIPT_METHOD.BANK_DEPOSIT) {
+    return { key: 'bankDeposit', title: 'Bank Deposits - Bills' };
+  }
+  if (r.method === RECEIPT_METHOD.BANK_WITHDRAW) {
+    return { key: 'bankWithdraw', title: 'Bank Withdrawals - Bills' };
   }
   return { key: 'other', title: 'Other Receipts' };
 }
@@ -198,6 +156,7 @@ export async function getAllCashierSummaryDetailReportService(
       amount: true,
       type: true,
       method: true,
+      whd: true,
       bookingId: true,
       agencyId: true,
       reversedReceiptId: true,
@@ -248,6 +207,13 @@ export async function getAllCashierSummaryDetailReportService(
   let totalReceipts = 0;
 
   for (const r of receipts) {
+    // Exclude agent debit/credit notes from this report.
+    if (
+      r.agencyId &&
+      (r.method === RECEIPT_METHOD.DEBIT_NOTE || r.method === RECEIPT_METHOD.CREDIT_NOTE)
+    ) {
+      continue;
+    }
     const userId = r.createdBy || '__unknown__';
     const userName = userNameMap.get(userId) || 'Unknown user';
     if (!byUser.has(userId)) {
@@ -260,7 +226,10 @@ export async function getAllCashierSummaryDetailReportService(
       });
     }
     const entry = byUser.get(userId)!;
-    const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
+    const amounts =
+      r.method === RECEIPT_METHOD.DOCTOR_PAYMENT || r.method === RECEIPT_METHOD.DOCTOR_CANCEL
+        ? receiptToAmountsDoctorPaymentNet(r.paymentMethod, r.amount, r.type, r.whd, r.paymentLines)
+        : receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     const section = sectionKeyFromReceipt(r, agentDepositCancelOrigIds);
 
     entry.receiptCount += 1;

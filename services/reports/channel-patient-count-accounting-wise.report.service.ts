@@ -135,6 +135,12 @@ function addRowInto(target: ChannelPatientCountAccountingWiseRow, row: ChannelPa
   target.pendingRevenueProFee += row.pendingRevenueProFee;
 }
 
+function isWithinRange(date: Date | null | undefined, from: Date, to: Date): boolean {
+  if (!date) return false;
+  const t = date.getTime();
+  return t >= from.getTime() && t <= to.getTime();
+}
+
 export async function getChannelPatientCountAccountingWiseService(
   query: ChannelPatientCountAccountingWiseQuery
 ): Promise<ChannelPatientCountAccountingWiseResult> {
@@ -161,7 +167,12 @@ export async function getChannelPatientCountAccountingWiseService(
         {
           OR: [{ receiptNoString: null }, { receiptNoString: '' }],
         },
-        { updatedAt: { gte: from, lte: to } },
+        {
+          OR: [
+            { canceledAt: { gte: from, lte: to } },
+            { updatedAt: { gte: from, lte: to } },
+          ],
+        },
       ],
     };
 
@@ -170,7 +181,18 @@ export async function getChannelPatientCountAccountingWiseService(
         ? {
             OR: [
               { status: 0, createdAt: { gte: from, lte: to } },
-              { status: { in: [1, 2, 3] }, receiptNoCreatedAt: { gte: from, lte: to } },
+              {
+                AND: [
+                  { OR: [{ receiptNoString: { not: null } }, { receiptNoString: { not: '' } }] },
+                  { receiptNoCreatedAt: { gte: from, lte: to } },
+                ],
+              },
+              {
+                AND: [
+                  { refund: { in: [1, 2, 3] } },
+                  { refundReceiptCreatedAt: { gte: from, lte: to } },
+                ],
+              },
               unpaidCancelInTransactionWindow,
             ],
             ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
@@ -199,7 +221,12 @@ export async function getChannelPatientCountAccountingWiseService(
         method: true,
         isScan: true,
         status: true,
+        createdAt: true,
+        updatedAt: true,
+        canceledAt: true,
         receiptNoString: true,
+        receiptNoCreatedAt: true,
+        refundReceiptCreatedAt: true,
         refund: true,
         hospitalFee: true,
         hospitalFeeDiscount: true,
@@ -234,22 +261,42 @@ export async function getChannelPatientCountAccountingWiseService(
       // Partial refunds (prof-only=1, hosp-only=2) are only possible when a paid receipt exists.
       const isPartialRefund = paidBeforeCancel && (refundType === 1 || refundType === 2);
 
+      const pendingInTransactionWindow = isPending && isWithinRange(b.createdAt, from, to);
+      const paidInTransactionWindow = paidBeforeCancel && isWithinRange(b.receiptNoCreatedAt, from, to);
+      const refundInTransactionWindow = isPartialRefund && isWithinRange(b.refundReceiptCreatedAt, from, to);
+      const fullCancelInTransactionWindow = isFullCancel && isWithinRange(b.refundReceiptCreatedAt, from, to);
+      const pendingCancelInTransactionWindow =
+        isPendingCancel && isWithinRange(b.canceledAt ?? b.updatedAt, from, to);
+
+      const countPaid = dateType === 'transaction_date' ? paidInTransactionWindow : paidBeforeCancel;
+      const countPending = dateType === 'transaction_date' ? pendingInTransactionWindow : isPending;
+      const countCancelPaid = dateType === 'transaction_date' ? fullCancelInTransactionWindow : isFullCancel && paidBeforeCancel;
+      const countCancelPending = dateType === 'transaction_date' ? pendingCancelInTransactionWindow : isPendingCancel;
+      const countRefundHos =
+        dateType === 'transaction_date'
+          ? refundInTransactionWindow && refundType === 2
+          : isPartialRefund && refundType === 2;
+      const countRefundPro =
+        dateType === 'transaction_date'
+          ? refundInTransactionWindow && refundType === 1
+          : isPartialRefund && refundType === 1;
+
       // Receipt-based counts:
       // - Paid bill count = number of payment receipts (receiptNoString exists), regardless of later cancel/refund.
-      row.paidBillPaid += paidBeforeCancel ? 1 : 0;
-      row.paidBillPending += isPending ? 1 : 0;
+      row.paidBillPaid += countPaid ? 1 : 0;
+      row.paidBillPending += countPending ? 1 : 0;
       row.paidBillNet = row.paidBillPaid + row.paidBillPending;
 
       // Cancel bill count:
       // - Paid cancel = full cancel (refund=3) with an original paid receipt.
       // - Pending cancel = canceled booking without any paid receipt.
-      row.cancelBillPaid += isFullCancel && paidBeforeCancel ? 1 : 0;
-      row.cancelBillPending += isPendingCancel ? 1 : 0;
+      row.cancelBillPaid += countCancelPaid ? 1 : 0;
+      row.cancelBillPending += countCancelPending ? 1 : 0;
       row.cancelBillNet = row.cancelBillPaid + row.cancelBillPending;
 
       // Refund bill count should not include canceled bookings (full cancel is handled in Cancel Bill Count).
-      row.refundBillHos += isPartialRefund && refundType === 2 ? 1 : 0;
-      row.refundBillPro += isPartialRefund && refundType === 1 ? 1 : 0;
+      row.refundBillHos += countRefundHos ? 1 : 0;
+      row.refundBillPro += countRefundPro ? 1 : 0;
 
       row.totalCountPaid = row.paidBillPaid - row.cancelBillPaid;
       // Still-open pendings (status 0) only. Do not subtract cancelBillPending: those bookings are no longer
@@ -268,24 +315,24 @@ export async function getChannelPatientCountAccountingWiseService(
       // 1) Any booking with a paid receipt contributes to Paid Revenue first.
       // 2) If that paid booking was fully canceled, the same values are added to Cancel Revenue
       //    so Nett Revenue correctly reflects the reversal once (Paid - Cancel - Refund).
-      if (paidBeforeCancel) {
+      if (countPaid) {
         row.paidRevenueHosFee += hosFee;
         row.paidRevenueHosDis += hosDis;
         row.paidRevenueProFee += proFee;
         row.paidRevenueProDis += proDis;
-      } else if (isPending) {
+      } else if (countPending) {
         // Pending revenue (no receipt yet): use net fee (fee - discount) for visibility.
         row.pendingRevenueHosFee += Math.max(0, hosFee - hosDis);
         row.pendingRevenueProFee += Math.max(0, proFee - proDis);
       }
-      if (isFullCancel && paidBeforeCancel) {
+      if (countCancelPaid) {
         row.cancelRevenueHosFee += hosFee;
         row.cancelRevenueHosDis += hosDis;
         row.cancelRevenueProFee += proFee;
         row.cancelRevenueProDis += proDis;
       }
       // Refund revenue should exclude full cancels (refund=3) since those are treated as Cancel above.
-      if (isPartialRefund) {
+      if (dateType === 'transaction_date' ? refundInTransactionWindow : isPartialRefund) {
         row.refundRevenueHosRefund += hosRefund;
         row.refundRevenueProRefund += proRefund;
       }

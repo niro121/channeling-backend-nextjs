@@ -16,6 +16,7 @@ export type AgentHistoryCreditLimitUpdateReportRow = {
   agencyId: string | null;
   agencyName: string | null;
   agencyCode: string | null;
+  hardLimitField: 'minBalanceAllowed' | 'maxBalanceAllowed' | null;
   oldValue: number | null;
   newValue: number | null;
   delta: number | null;
@@ -30,6 +31,7 @@ export type AgentHistoryCreditLimitUpdateReportExportRow = {
   agent: string;
   agentCode: string;
   limitType: string;
+  hardLimitField: string;
   beforeValue: string;
   updatedValue: string;
   delta: string;

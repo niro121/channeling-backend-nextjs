@@ -138,6 +138,7 @@ export async function processDoctorPaymentService(
     locationId,
     createdBy: userId,
     paymentMethod,
+    includeWhtPayable: wht && whtAmount > 0,
   });
   if ("error" in accountsResult) {
     return {

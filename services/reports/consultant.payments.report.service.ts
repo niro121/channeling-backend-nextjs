@@ -303,14 +303,21 @@ export const getConsultantPaymentsReportService = async ({
 
     let receiptsById = new Map<
       string,
-      { id: string; receiptNoString: string; createdAt: Date; createdBy: string | null; remarks: string | null }
+      {
+        id: string;
+        receiptNoString: string;
+        createdAt: Date;
+        createdBy: string | null;
+        remarks: string | null;
+        whd: number;
+      }
     >();
     let usersById = new Map<string, string>();
 
     if (doctorPaymentReceiptIds.length > 0) {
       const receipts = await prisma.receipt.findMany({
         where: { id: { in: doctorPaymentReceiptIds } },
-        select: { id: true, receiptNoString: true, createdAt: true, createdBy: true, remarks: true }
+        select: { id: true, receiptNoString: true, createdAt: true, createdBy: true, remarks: true, whd: true }
       });
 
       receiptsById = new Map(
@@ -321,7 +328,8 @@ export const getConsultantPaymentsReportService = async ({
             receiptNoString: r.receiptNoString,
             createdAt: r.createdAt,
             createdBy: r.createdBy ?? null,
-            remarks: r.remarks ?? null
+            remarks: r.remarks ?? null,
+            whd: Number(r.whd ?? 0)
           }
         ])
       );
@@ -343,13 +351,53 @@ export const getConsultantPaymentsReportService = async ({
       }
     }
 
+    // Pre-calc net (before WHT) per booking so we can allocate receipt-level WHT proportionally.
+    const netBeforeWhtByBookingId = new Map<string, number>();
+    const sumNetBeforeWhtByReceiptId = new Map<string, number>();
+    for (const b of bookings) {
+      const professionalFee = b.professionalFee ?? 0;
+      const discount = getProfessionalDiscount({
+        discountDivision: b.discountDivision,
+        professionsalFeeDiscount: b.professionsalFeeDiscount
+      });
+      const netBeforeWht = professionalFee - discount;
+      netBeforeWhtByBookingId.set(b.id, netBeforeWht);
+      const rid = b.doctorPaymentReceiptId ?? null;
+      if (rid) {
+        sumNetBeforeWhtByReceiptId.set(rid, (sumNetBeforeWhtByReceiptId.get(rid) ?? 0) + netBeforeWht);
+      }
+    }
+
+    // Allocate WHT per receipt id. Ensure allocation sums exactly to receipt.whd by putting rounding remainder on last booking.
+    const allocatedWhtByBookingId = new Map<string, number>();
+    for (const [rid, sumNetBeforeWht] of sumNetBeforeWhtByReceiptId.entries()) {
+      const receipt = receiptsById.get(rid);
+      const whd = Math.max(0, Number(receipt?.whd ?? 0));
+      if (!receipt || whd <= 0 || sumNetBeforeWht <= 0) continue;
+      const groupBookings = bookings.filter((b) => b.doctorPaymentReceiptId === rid);
+      if (groupBookings.length === 0) continue;
+
+      let allocated = 0;
+      for (let i = 0; i < groupBookings.length; i++) {
+        const b = groupBookings[i]!;
+        const netBeforeWht = netBeforeWhtByBookingId.get(b.id) ?? 0;
+        const isLast = i === groupBookings.length - 1;
+        const portion = isLast ? whd - allocated : Math.round(((netBeforeWht / sumNetBeforeWht) * whd) * 100) / 100;
+        const safePortion = Math.max(0, portion);
+        allocatedWhtByBookingId.set(b.id, safePortion);
+        allocated += safePortion;
+      }
+    }
+
     const rows = bookings.map((b, index) => {
       const professionalFee = b.professionalFee ?? 0;
       const discount = getProfessionalDiscount({
         discountDivision: b.discountDivision,
         professionsalFeeDiscount: b.professionsalFeeDiscount
       });
-      const netAmount = professionalFee - discount;
+      const netBeforeWht = professionalFee - discount;
+      const whtAmount = allocatedWhtByBookingId.get(b.id) ?? 0;
+      const netAmount = netBeforeWht - whtAmount;
 
       const receiptInfo = b.doctorPaymentReceiptId ? receiptsById.get(b.doctorPaymentReceiptId) : undefined;
       const paidByUserName =
@@ -371,6 +419,7 @@ export const getConsultantPaymentsReportService = async ({
         modeOfPay: b.receiptPaymentMethod != null ? (PAYMENT_METHOD_NAMES[b.receiptPaymentMethod] ?? String(b.receiptPaymentMethod)) : '-',
         consultationCharge: professionalFee,
         discountAmount: discount,
+        whtAmount,
         netAmount,
         paymentStatus: b.doctorPayment ? 'Paid' : 'Due Pay',
         paidBy: paidByUserName ?? '',
@@ -378,12 +427,13 @@ export const getConsultantPaymentsReportService = async ({
         handedBy: handedByName ?? '',
         // Store for totals calculation
         _professionalFee: professionalFee,
-        _discount: discount
+        _discount: discount,
+        _wht: whtAmount
       };
     });
 
     // Remove internal fields
-    const cleanRows = rows.map(({ _professionalFee, _discount, ...rest }) => rest);
+    const cleanRows = rows.map(({ _professionalFee, _discount, _wht, ...rest }) => rest);
 
     return {
       success: true,

@@ -65,6 +65,14 @@ export const ConsultantPaymentsReportColumns: ColumnDef<ConsultantPaymentsReport
     }
   },
   {
+    accessorKey: 'whtAmount',
+    header: () => <span className="whitespace-nowrap">WHT</span>,
+    cell: ({ row }) => {
+      const amount = row.getValue<number>('whtAmount');
+      return <span className="text-right tabular-nums block">{formatLKR(amount)}</span>;
+    }
+  },
+  {
     accessorKey: 'netAmount',
     header: () => <span className="whitespace-nowrap">Net Amount</span>,
     cell: ({ row }) => {

@@ -30,6 +30,18 @@ export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditL
     },
   },
   {
+    accessorKey: 'hardLimitField',
+    header: 'Hard Limit Field',
+    cell: ({ row }) => {
+      const limitType = row.getValue<'soft' | 'hard'>('limitType');
+      const field = row.getValue<'minBalanceAllowed' | 'maxBalanceAllowed' | null>('hardLimitField');
+      if (limitType !== 'hard') return '-';
+      if (field === 'minBalanceAllowed') return 'Minimum balance';
+      if (field === 'maxBalanceAllowed') return 'Maximum balance';
+      return 'Hard limit';
+    },
+  },
+  {
     accessorKey: 'oldValue',
     header: 'Before Value',
     cell: ({ row }) => {

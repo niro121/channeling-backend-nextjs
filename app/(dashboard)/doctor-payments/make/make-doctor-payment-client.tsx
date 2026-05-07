@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 function formatSessionTime(unixSec: number): string {
   const d = new Date(unixSec * 1000);
@@ -170,6 +171,7 @@ export function MakeDoctorPaymentClient({
   const payingNum = parseFloat(payingThisTime) || 0;
   const whtAmount = wht ? (payingNum * whtPct) / 100 : 0;
   const netAmount = Math.max(0, payingNum - whtAmount);
+  const confirmShowsWhtBreakdown = wht && whtPct > 0 && payingNum > 0 && whtAmount > 0;
 
   const currentStep = detailRows.length > 0 ? 3 : sessions.length > 0 ? 2 : 1;
 
@@ -705,15 +707,60 @@ export function MakeDoctorPaymentClient({
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirm doctor payment</AlertDialogTitle>
                 <AlertDialogDescription>
-                  You are about to process the doctor payment for {selectedForPaymentIds.size} booking{selectedForPaymentIds.size !== 1 ? "s" : ""} (total {formatLKR(totalDueForPayment)}). This will create a receipt and update the bookings. Continue?
+                  You are about to process the doctor payment for {selectedForPaymentIds.size} booking
+                  {selectedForPaymentIds.size !== 1 ? "s" : ""}. This will create a receipt and update the bookings.
+                  {payingNum > 0 && Math.abs(payingNum - totalDueForPayment) > 0.005 ? (
+                    <>
+                      {" "}
+                      Paying this time ({formatLKR(payingNum)}) differs from the selected bookings total (
+                      {formatLKR(totalDueForPayment)}).
+                    </>
+                  ) : null}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">Amount breakdown</span>
+                  {confirmShowsWhtBreakdown ? (
+                    <Badge variant="secondary" className="font-medium">
+                      WHT deducted
+                    </Badge>
+                  ) : null}
+                </div>
+                <dl className="space-y-2 text-foreground">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Gross (paying this time)</dt>
+                    <dd className="tabular-nums font-medium">Rs. {formatLKR(payingNum)}</dd>
+                  </div>
+                  {confirmShowsWhtBreakdown ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Withholding tax ({whtPct}%)</dt>
+                      <dd className="tabular-nums text-muted-foreground">− Rs. {formatLKR(whtAmount)}</dd>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between gap-4 border-t border-border pt-2 mt-2">
+                    <dt className="font-medium">Net from till</dt>
+                    <dd className="tabular-nums font-semibold">Rs. {formatLKR(netAmount)}</dd>
+                  </div>
+                </dl>
+                {confirmShowsWhtBreakdown ? (
+                  <p className="text-xs text-muted-foreground leading-snug">
+                    The till is reduced by the net amount only; WHT is recorded separately for remittance.
+                  </p>
+                ) : null}
+              </div>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handlePayNow} disabled={submitting} className="cursor-pointer">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Confirm & Pay — Rs. {formatLKR(totalDueForPayment)}
-                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={handlePayNow}
+                  disabled={submitting}
+                  className="cursor-pointer flex flex-col gap-0.5 h-auto py-3 min-h-10"
+                >
+                  <span className="inline-flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : null}
+                    Confirm & Pay — Rs. {formatLKR(netAmount)}
+                  </span>
+                                  </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

@@ -32,6 +32,8 @@ export type ReceiptJournalAccounts = {
   creditCustomerAccountId?: string | null;
   /** Doctor PAYABLE account (required for doctor payment method 4). */
   doctorAccountId?: string | null;
+  /** Institute WHT remittance liability (PAYABLE); used when receipt.whd > 0 on doctor payment / cancel. */
+  whtPayableAccountId?: string | null;
   /** Bank ledger account (for bank deposit/withdraw ledger methods). */
   bankLedgerAccountId?: string | null;
 };
@@ -659,83 +661,81 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Doctor Payment (4): Dr Doctor PAYABLE (reduce liability), Cr Branch/Cashier (cash out). Use net amount (gross - WHT) in cents.
+  // Doctor Payment (4): Dr Doctor PAYABLE (gross liability cleared), Cr Branch/Cashier (net paid out), Cr WHT Payable (withheld).
   if (receipt.method === RECEIPT_METHOD.DOCTOR_PAYMENT && accounts.doctorAccountId) {
     const grossCents = Math.round(Math.abs(receipt.amount) * 100);
-    const whdCents = Math.round((receipt.whd ?? 0) * 100);
-    const netCents = Math.max(0, grossCents - whdCents);
-    if (netCents <= 0) return null;
+    if (grossCents <= 0) return null;
+    const whdFromReceipt = Math.round((receipt.whd ?? 0) * 100);
+    const whdCents = Math.min(whdFromReceipt, grossCents);
+    const netCents = grossCents - whdCents;
+    if (whdCents > 0 && !accounts.whtPayableAccountId) return null;
+    if (netCents <= 0 && whdCents <= 0) return null;
+
     const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
-    if (isCash && accounts.cashierAccountId) {
-      return {
-        date: receipt.createdAt ?? new Date(),
-        description: `Doctor payment (cash)${descSuffix}`,
-        referenceType: REFERENCE_TYPES.Receipt,
-        referenceId: receipt.id,
-        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
-        createdBy: receipt.createdBy ?? null,
-        lines: [
-          { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
-          {
-            accountId: accounts.cashierAccountId,
-            debitAmount: 0,
-            creditAmount: netCents,
-            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
-          },
-        ],
-      };
+    const lines: NonNullable<CreateJournalEntryInput['lines']> = [
+      { accountId: accounts.doctorAccountId, debitAmount: grossCents, creditAmount: 0 },
+    ];
+    if (isCash && accounts.cashierAccountId && netCents > 0) {
+      lines.push({
+        accountId: accounts.cashierAccountId,
+        debitAmount: 0,
+        creditAmount: netCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      });
+    } else if (netCents > 0) {
+      lines.push({ accountId: branchAccountId, debitAmount: 0, creditAmount: netCents });
     }
+    if (whdCents > 0 && accounts.whtPayableAccountId) {
+      lines.push({ accountId: accounts.whtPayableAccountId, debitAmount: 0, creditAmount: whdCents });
+    }
+
     return {
       date: receipt.createdAt ?? new Date(),
-      description: `Doctor payment${descSuffix}`,
+      description: isCash && accounts.cashierAccountId ? `Doctor payment (cash)${descSuffix}` : `Doctor payment${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
-      lines: [
-        { accountId: accounts.doctorAccountId, debitAmount: netCents, creditAmount: 0 },
-        { accountId: branchAccountId, debitAmount: 0, creditAmount: netCents },
-      ],
+      lines,
     };
   }
 
-  // Doctor Cancel (5): reversal of doctor payment — Cr Doctor PAYABLE (restore liability), Dr Branch/Cashier.
+  // Doctor Cancel (5): reversal of doctor payment — Cr Doctor PAYABLE (gross), Dr Branch/Cashier (net), Dr WHT Payable.
   if (receipt.method === RECEIPT_METHOD.DOCTOR_CANCEL && accounts.doctorAccountId) {
     const grossCents = Math.round(Math.abs(receipt.amount) * 100);
-    const whdCents = Math.round((receipt.whd ?? 0) * 100);
-    const netCents = Math.max(0, grossCents - whdCents);
-    if (netCents <= 0) return null;
+    if (grossCents <= 0) return null;
+    const whdFromReceipt = Math.round((receipt.whd ?? 0) * 100);
+    const whdCents = Math.min(whdFromReceipt, grossCents);
+    const netCents = grossCents - whdCents;
+    if (whdCents > 0 && !accounts.whtPayableAccountId) return null;
+    if (netCents <= 0 && whdCents <= 0) return null;
+
     const isCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
-    if (isCash && accounts.cashierAccountId) {
-      return {
-        date: receipt.createdAt ?? new Date(),
-        description: `Doctor payment cancel (cash)${descSuffix}`,
-        referenceType: REFERENCE_TYPES.Receipt,
-        referenceId: receipt.id,
-        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
-        createdBy: receipt.createdBy ?? null,
-        lines: [
-          { accountId: accounts.doctorAccountId, debitAmount: 0, creditAmount: netCents },
-          {
-            accountId: accounts.cashierAccountId,
-            debitAmount: netCents,
-            creditAmount: 0,
-            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
-          },
-        ],
-      };
+    const lines: NonNullable<CreateJournalEntryInput['lines']> = [
+      { accountId: accounts.doctorAccountId, debitAmount: 0, creditAmount: grossCents },
+    ];
+    if (isCash && accounts.cashierAccountId && netCents > 0) {
+      lines.push({
+        accountId: accounts.cashierAccountId,
+        debitAmount: netCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      });
+    } else if (netCents > 0) {
+      lines.push({ accountId: branchAccountId, debitAmount: netCents, creditAmount: 0 });
     }
+    if (whdCents > 0 && accounts.whtPayableAccountId) {
+      lines.push({ accountId: accounts.whtPayableAccountId, debitAmount: whdCents, creditAmount: 0 });
+    }
+
     return {
       date: receipt.createdAt ?? new Date(),
-      description: `Doctor payment cancel${descSuffix}`,
+      description: isCash && accounts.cashierAccountId ? `Doctor payment cancel (cash)${descSuffix}` : `Doctor payment cancel${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
-      lines: [
-        { accountId: accounts.doctorAccountId, debitAmount: 0, creditAmount: netCents },
-        { accountId: branchAccountId, debitAmount: netCents, creditAmount: 0 },
-      ],
+      lines,
     };
   }
 
@@ -945,10 +945,15 @@ export async function resolveDoctorPaymentAccounts(params: {
   /** Prefer this location for till resolution; if not provided we use the user's current userLocationId. */
   userLocationId?: string | null;
   paymentMethod: number;
+  /** When true, ensure system WHT Payable account exists (for journal when WHD > 0). */
+  includeWhtPayable?: boolean;
 }): Promise<ReceiptJournalAccounts | { error: string }> {
-  const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
-    '@/services/accounting.service'
-  );
+  const {
+    getOrCreateAccount,
+    getOrCreateWhtPayableAccount,
+    getCashBookAccountForBranch,
+    getMainCashBookAccount,
+  } = await import('@/services/accounting.service');
   const { RECEIPT_PAYMENT_METHOD } = await import('@/types/receipt');
 
   const branchAccount = params.locationId
@@ -981,9 +986,17 @@ export async function resolveDoctorPaymentAccounts(params: {
   });
   if (!doctorRes.success) return { error: doctorRes.error };
 
+  let whtPayableAccountId: string | undefined;
+  if (params.includeWhtPayable) {
+    const whtRes = await getOrCreateWhtPayableAccount();
+    if (!whtRes.success) return { error: whtRes.error };
+    whtPayableAccountId = whtRes.account.id;
+  }
+
   return {
     branchAccountId: branchAccount.id,
     cashierAccountId: cashierAccountId ?? undefined,
     doctorAccountId: doctorRes.account.id,
+    ...(whtPayableAccountId ? { whtPayableAccountId } : {}),
   };
 }
