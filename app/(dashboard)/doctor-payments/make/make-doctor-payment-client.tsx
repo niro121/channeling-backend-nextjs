@@ -294,7 +294,7 @@ export function MakeDoctorPaymentClient({
       return;
     }
     const selectedStaff = handedStaffId.trim() ? staff.find((s) => s.id === handedStaffId) : null;
-    const handedStaffName = selectedStaff ? formatReferenceLabel(selectedStaff.name, selectedStaff.code) : "";
+    const handedStaffName = selectedStaff?.name?.trim() ?? "";
     setSubmitting(true);
     try {
       const res = await processDoctorPaymentAction({

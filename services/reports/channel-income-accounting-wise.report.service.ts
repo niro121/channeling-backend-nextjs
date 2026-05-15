@@ -1,6 +1,11 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import {
+  bookingHasNoPaymentReceipt,
+  bookingHasNoPaymentReceiptWhere,
+  bookingHasPaymentReceiptWhere,
+} from '@/lib/reports/booking-payment-receipt';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
@@ -109,9 +114,7 @@ export async function getChannelIncomeAccountingWiseService(
     const unpaidCancelInTransactionWindow = {
       AND: [
         { status: 2 },
-        {
-          OR: [{ receiptNoString: null }, { receiptNoString: '' }],
-        },
+        bookingHasNoPaymentReceiptWhere(),
         {
           OR: [
             { canceledAt: { gte: from, lte: to } },
@@ -128,7 +131,7 @@ export async function getChannelIncomeAccountingWiseService(
               { status: 0, createdAt: { gte: from, lte: to } },
               {
                 AND: [
-                  { OR: [{ receiptNoString: { not: null } }, { receiptNoString: { not: '' } }] },
+                  bookingHasPaymentReceiptWhere(),
                   { receiptNoCreatedAt: { gte: from, lte: to } },
                 ],
               },
@@ -197,7 +200,7 @@ export async function getChannelIncomeAccountingWiseService(
       const row = rowsByBucket.get(bucket.key);
       if (!row) continue;
 
-      const paidReceiptExists = Boolean(b.receiptNoString?.trim());
+      const paidReceiptExists = !bookingHasNoPaymentReceipt(b.receiptNoString);
       const refundType = Number(b.refund ?? 0);
       const isFullCancel = b.status === 2 && refundType === 3 && paidReceiptExists;
       const isPartialRefund = paidReceiptExists && (refundType === 1 || refundType === 2);
