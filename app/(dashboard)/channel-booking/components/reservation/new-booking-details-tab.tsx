@@ -14,7 +14,11 @@ import type { DiscountForBookingOption } from "@/services/channel-booking/refere
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { useToast } from "@/components/hooks/use-toast"
-import { computeTotalDiscountClient } from "@/lib/channel-booking-discount"
+import {
+  computeDiscountDivisionClient,
+  formatCategoryDiscountLabel,
+  getDiscountCapExceededMessage,
+} from "@/lib/channel-booking-discount"
 import { formatLKR } from "@/lib/format-money"
 import {
   getPaymentMethodAndType,
@@ -269,15 +273,32 @@ export function NewBookingDetailsTab() {
     if (manualDiscount) list.push(manualDiscount)
     return list
   }, [firstAutoDiscount, manualDiscount])
-  const computedDiscountAmount = useMemo(
+  const discountDivision = useMemo(
     () =>
       selectedSession?.fees != null
-        ? computeTotalDiscountClient(
+        ? computeDiscountDivisionClient(
             selectedSession.fees,
             foreigner,
             discountsToApply
           )
-        : 0,
+        : {
+            total: 0,
+            hospitalFeeDiscount: 0,
+            professionalFeeDiscount: 0,
+            otherDiscount: 0,
+          },
+    [selectedSession?.fees, foreigner, discountsToApply]
+  )
+  const computedDiscountAmount = discountDivision.total
+  const discountCapExceededMessage = useMemo(
+    () =>
+      selectedSession?.fees != null
+        ? getDiscountCapExceededMessage(
+            selectedSession.fees,
+            foreigner,
+            discountsToApply
+          )
+        : null,
     [selectedSession?.fees, foreigner, discountsToApply]
   )
   /** Amount to pay (base − discount). Sent to server and shown on Book button. */
@@ -383,6 +404,14 @@ export function NewBookingDetailsTab() {
 
   async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedSession || !selectedDoctor || !selectedArea) return
+    if (discountCapExceededMessage) {
+      toast({
+        title: "Discount error",
+        description: discountCapExceededMessage,
+        variant: "destructive",
+      })
+      return
+    }
     const { payment_method, payment_type } = getPaymentMethodAndType(Number(paymentMethodId))
     setSaving(true)
     try {
@@ -1231,14 +1260,32 @@ export function NewBookingDetailsTab() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-        <div className="flex flex-col gap-0.5 text-xs">
-          <span className="font-medium text-red-600">
-            Discount : {formatLKR(computedDiscountAmount)}
-          </span>
+        <div className="flex flex-col gap-0.5 text-xs min-w-0">
+          {discountDivision.hospitalFeeDiscount > 0 && (
+            <span className="font-medium text-red-600">
+              {formatCategoryDiscountLabel(
+                "hospital",
+                discountDivision.hospitalFeeDiscount,
+                formatLKR
+              )}
+            </span>
+          )}
+          {discountDivision.professionalFeeDiscount > 0 && (
+            <span className="font-medium text-red-600">
+              {formatCategoryDiscountLabel(
+                "doctor",
+                discountDivision.professionalFeeDiscount,
+                formatLKR
+              )}
+            </span>
+          )}
           {firstAutoDiscount && (
             <span className="text-muted-foreground">
               Auto: {firstAutoDiscount.name}
             </span>
+          )}
+          {discountCapExceededMessage && (
+            <span className="text-destructive font-medium">{discountCapExceededMessage}</span>
           )}
         </div>
         <Button
@@ -1247,6 +1294,7 @@ export function NewBookingDetailsTab() {
           disabled={
             !hasSession ||
             saving ||
+            !!discountCapExceededMessage ||
             !patientName.trim() ||
             !titleId ||
             !sexId ||

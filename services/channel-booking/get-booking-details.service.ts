@@ -57,6 +57,30 @@ export type SettlementDetailsView = {
   }>
 }
 
+/** Discount scheme fields for client-side settle preview (matches DiscountCriteria + eligibility). */
+export type SettleDiscountSchemeView = {
+  id: string
+  name: string
+  discountType: number
+  applyTo: number
+  discountValue: number
+  discountValueForeign: number
+  discountMethod: string[]
+  paymentType: string[]
+}
+
+/** Pending booking: fees and linked discount schemes for Settle tab. */
+export type SettlePreviewView = {
+  bookingMethod: number
+  professionalFee: number
+  hospitalFee: number
+  sessionFees: unknown
+  autoDiscountId: string | null
+  manualDiscountId: string | null
+  autoScheme: SettleDiscountSchemeView | null
+  manualScheme: SettleDiscountSchemeView | null
+}
+
 /** Discount-related info for the Booking tab. */
 export type DiscountInfoView = {
   /** Total discount amount. */
@@ -166,6 +190,8 @@ export type BookingDetailsView = {
   sessionDateForSettle?: string
   /** False if doctor has departed and no arrival after last departure. Settle tab blocks when false. */
   sessionCanSettleArrival?: boolean
+  /** Pending bookings: fee + discount scheme data for settle preview (recomputed by payment method). */
+  settlePreview?: SettlePreviewView
   /** When movedFromSessionId is set: session the booking was moved from. */
   movedFromSession: {
     id: string
@@ -292,7 +318,16 @@ export async function getBookingDetailsService(
       discountIds.length > 0
         ? await prisma.discount.findMany({
             where: { id: { in: discountIds } },
-            select: { id: true, name: true },
+            select: {
+              id: true,
+              name: true,
+              discountType: true,
+              applyTo: true,
+              discountValue: true,
+              discountValueForeign: true,
+              discountMethod: true,
+              paymentType: true,
+            },
           })
         : []
     const manualDiscount = b.discountId
@@ -384,6 +419,44 @@ export async function getBookingDetailsService(
           }
         : null
 
+    const mapSettleScheme = (
+      r: (typeof discountRecords)[number] | undefined
+    ): SettleDiscountSchemeView | null => {
+      if (!r) return null
+      return {
+        id: r.id,
+        name: r.name,
+        discountType: r.discountType,
+        applyTo: r.applyTo,
+        discountValue: r.discountValue,
+        discountValueForeign: r.discountValueForeign,
+        discountMethod: r.discountMethod as string[],
+        paymentType: r.paymentType as string[],
+      }
+    }
+
+    const settlePreview: SettlePreviewView | undefined =
+      b.status === 0
+        ? {
+            bookingMethod: b.method,
+            professionalFee: b.professionalFee ?? 0,
+            hospitalFee: b.hospitalFee ?? 0,
+            sessionFees: b.fees ?? b.session.fees,
+            autoDiscountId: b.autoDiscountId ?? null,
+            manualDiscountId: b.discountId ?? null,
+            autoScheme: mapSettleScheme(
+              autoDiscount
+                ? discountRecords.find((d) => d.id === autoDiscount.id)
+                : undefined
+            ),
+            manualScheme: mapSettleScheme(
+              manualDiscount
+                ? discountRecords.find((d) => d.id === manualDiscount.id)
+                : undefined
+            ),
+          }
+        : undefined
+
     const data: BookingDetailsView = {
       id: b.id,
       name: `${b.title} ${b.name}`.trim(),
@@ -460,6 +533,7 @@ export async function getBookingDetailsService(
         const lastDep = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
         return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
       })(),
+      settlePreview,
     }
     return { success: true, data }
   } catch (error) {

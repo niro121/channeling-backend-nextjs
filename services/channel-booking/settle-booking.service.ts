@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma"
 import {
   createReceiptAndUpdateBooking,
-  getProcessedDiscount,
+  computeBookingDiscounts,
+  getRefundFeeTypes,
   getBookingForSaveBooking,
   getNextSequenceNumber,
   buildReceiptJournalEntryInput,
@@ -209,36 +210,51 @@ export async function settleBookingService(
     }
   }
 
-  let discount = input.discount
-  const discountDivision = {
-    hospital_fee_discount: booking.hospitalFeeDiscount ?? 0,
-    professionsal_fee_discount: booking.professionsalFeeDiscount ?? 0,
-    other_discount: 0,
-  } as { hospital_fee_discount: number; professionsal_fee_discount: number; other_discount: number }
-
-  if (input.auto_discount_type && booking.session) {
-    // getProcessedDiscount only uses session.fees (for professional/hospital fee split).
-    const result = await getProcessedDiscount(
-      input.auto_discount_type,
-      booking.method,
-      input.settle_method,
-      { fees: booking.session.fees },
-      booking.foriegner
-    )
-    if (!result.status) {
-      return {
-        success: false,
-        errorCode: "discountError",
-        message: result.message ?? "Discount error.",
-      }
+  if (!booking.session) {
+    return {
+      success: false,
+      errorCode: "invalid_booking",
+      message: "Booking session not found.",
     }
-    discount = result.discount_value
-    discountDivision.hospital_fee_discount = result.hospital_fee_discount
-    discountDivision.professionsal_fee_discount = result.professionsal_fee_discount
-    discountDivision.other_discount = result.other_discount
   }
 
-  const amount = booking.amount - discount
+  const sessionForDiscount = { fees: booking.session.fees }
+  const { professional_fee, hospital_fee } = getRefundFeeTypes(
+    sessionForDiscount.fees,
+    booking.foriegner
+  )
+  const grossAmount = professional_fee + hospital_fee
+
+  const discountResult = await computeBookingDiscounts({
+    autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+    manualDiscountId: booking.discountId ?? null,
+    payment_method: booking.method,
+    payment_type: input.settle_method,
+    session: sessionForDiscount,
+    foriegner: booking.foriegner,
+    strict: false,
+    rejectExceedsFeeCap: true,
+  })
+  if (!discountResult.success) {
+    return {
+      success: false,
+      errorCode: "discountError",
+      message: discountResult.message,
+    }
+  }
+
+  const discount = discountResult.discount_value
+  const discountDivision = discountResult.discountDivision
+
+  if (Math.abs(input.discount - discount) > 0.009) {
+    return {
+      success: false,
+      errorCode: "discountError",
+      message: "Discount does not match server calculation for this payment method. Please refresh and try again.",
+    }
+  }
+
+  const amount = Math.round((grossAmount - discount) * 100) / 100
   const mixedLinesResult = buildMixedLinesFromSettleInput(input, amount)
   if (mixedLinesResult?.error) {
     return {
@@ -321,7 +337,8 @@ export async function settleBookingService(
         hospitalFeeDiscount: discountDivision.hospital_fee_discount,
         professionsalFeeDiscount: discountDivision.professionsal_fee_discount,
         discount,
-        autoDiscountId: input.auto_discount_type ?? null,
+        autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+        amount,
         receiptNo: receipt.receiptNo,
         receiptNoString: receipt.receiptNoString,
         receiptPaymentMethod: input.settle_method === SAVE_PAYMENT_TYPE_MIXED ? SAVE_PAYMENT_TYPE_MIXED : input.settle_method,
@@ -333,7 +350,7 @@ export async function settleBookingService(
     if (!r.success) return r
     if (accounts && journalNumber > 0) {
       const amountCents = Math.round(amount * 100)
-      const hospitalFeeAfterDiscount = Math.max(0, (booking.hospitalFee ?? 0) - discountDivision.hospital_fee_discount)
+      const hospitalFeeAfterDiscount = Math.max(0, hospital_fee - discountDivision.hospital_fee_discount)
       const hospitalFeeCents = Math.min(Math.round(hospitalFeeAfterDiscount * 100), amountCents)
       const channelPaymentFeeSplit =
         accounts.doctorAccountId && amountCents > 0

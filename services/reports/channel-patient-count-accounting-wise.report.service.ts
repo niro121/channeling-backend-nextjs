@@ -1,6 +1,12 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import {
+  bookingHasNoPaymentReceipt,
+  bookingHasNoPaymentReceiptWhere,
+  bookingHasPaymentReceiptWhere,
+  isUnpaidCancelEventInRange,
+} from '@/lib/reports/booking-payment-receipt';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
@@ -164,9 +170,7 @@ export async function getChannelPatientCountAccountingWiseService(
     const unpaidCancelInTransactionWindow = {
       AND: [
         { status: 2 },
-        {
-          OR: [{ receiptNoString: null }, { receiptNoString: '' }],
-        },
+        bookingHasNoPaymentReceiptWhere(),
         {
           OR: [
             { canceledAt: { gte: from, lte: to } },
@@ -183,7 +187,7 @@ export async function getChannelPatientCountAccountingWiseService(
               { status: 0, createdAt: { gte: from, lte: to } },
               {
                 AND: [
-                  { OR: [{ receiptNoString: { not: null } }, { receiptNoString: { not: '' } }] },
+                  bookingHasPaymentReceiptWhere(),
                   { receiptNoCreatedAt: { gte: from, lte: to } },
                 ],
               },
@@ -254,7 +258,7 @@ export async function getChannelPatientCountAccountingWiseService(
       if (!row) continue;
 
       const isPending = b.status === 0;
-      const paidBeforeCancel = Boolean(b.receiptNoString?.trim());
+      const paidBeforeCancel = !bookingHasNoPaymentReceipt(b.receiptNoString);
       const refundType = Number(b.refund ?? 0);
       const isFullCancel = b.status === 2 && refundType === 3;
       const isPendingCancel = b.status === 2 && !paidBeforeCancel;
@@ -266,7 +270,7 @@ export async function getChannelPatientCountAccountingWiseService(
       const refundInTransactionWindow = isPartialRefund && isWithinRange(b.refundReceiptCreatedAt, from, to);
       const fullCancelInTransactionWindow = isFullCancel && isWithinRange(b.refundReceiptCreatedAt, from, to);
       const pendingCancelInTransactionWindow =
-        isPendingCancel && isWithinRange(b.canceledAt ?? b.updatedAt, from, to);
+        isPendingCancel && isUnpaidCancelEventInRange(b.canceledAt, b.updatedAt, from, to);
 
       const countPaid = dateType === 'transaction_date' ? paidInTransactionWindow : paidBeforeCancel;
       const countPending = dateType === 'transaction_date' ? pendingInTransactionWindow : isPending;
