@@ -84,16 +84,11 @@ export async function getAgentCollectionReceiptReportService(
   const where: any = {
     bookingId: null,
     method: { in: [METHOD_AGENCY_DEPOSIT, METHOD_AGENCY_WITHDRAW] },
-    // Include both receipts created in range and receipts canceled in range (even if created earlier).
-    OR: [{ createdAt: { gte: from, lte: to } }, { canceledAt: { gte: from, lte: to } }],
+    createdAt: { gte: from, lte: to },
   };
   if (agencyId !== '__all__') where.agencyId = agencyId;
   if (locationId !== '__all__') {
-    where.OR = [
-      ...(where.OR ?? []),
-      { locationId },
-      { userLocationId: locationId },
-    ];
+    where.OR = [{ locationId }, { userLocationId: locationId }];
   }
 
   const receipts = await prisma.receipt.findMany({
