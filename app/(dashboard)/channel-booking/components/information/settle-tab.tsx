@@ -1,6 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import {
+  computeDiscountDivisionClient,
+  formatCategoryDiscountLabel,
+  getDiscountCapExceededMessage,
+  isDiscountApplicableForBookingType,
+  type DiscountCriteria,
+} from "@/lib/channel-booking-discount"
+import { formatLKR } from "@/lib/format-money"
+import type { SettleDiscountSchemeView } from "@/services/channel-booking/get-booking-details.service"
 import {
   getBookingDetails,
   getBanksForChannelBooking,
@@ -56,6 +65,73 @@ const DEFAULT_MIXED_LINES: MixedLineWithMeta[] = [
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function schemeToCriteria(scheme: SettleDiscountSchemeView): DiscountCriteria {
+  return {
+    discountType: scheme.discountType,
+    applyTo: scheme.applyTo,
+    discountValue: scheme.discountValue,
+    discountValueForeign: scheme.discountValueForeign,
+  }
+}
+
+function computeSettleAmounts(
+  preview: NonNullable<BookingDetailsView["settlePreview"]>,
+  settleMethod: number,
+  foreigner: boolean
+) {
+  const gross = preview.professionalFee + preview.hospitalFee
+  const applied: Array<{ name: string; amount: number; applyTo: number }> = []
+  const schemes: DiscountCriteria[] = []
+
+  const tryScheme = (scheme: SettleDiscountSchemeView | null) => {
+    if (!scheme) return
+    if (
+      !isDiscountApplicableForBookingType(
+        scheme,
+        preview.bookingMethod,
+        settleMethod
+      )
+    ) {
+      return
+    }
+    const criteria = schemeToCriteria(scheme)
+    const before = computeDiscountDivisionClient(
+      preview.sessionFees,
+      foreigner,
+      schemes
+    )
+    schemes.push(criteria)
+    const after = computeDiscountDivisionClient(
+      preview.sessionFees,
+      foreigner,
+      schemes
+    )
+    const added = Math.round((after.total - before.total) * 100) / 100
+    if (added > 0) {
+      applied.push({ name: scheme.name, amount: added, applyTo: scheme.applyTo })
+    }
+  }
+
+  tryScheme(preview.autoScheme)
+  tryScheme(preview.manualScheme)
+
+  const capExceededMessage = getDiscountCapExceededMessage(
+    preview.sessionFees,
+    foreigner,
+    schemes
+  )
+
+  const division = computeDiscountDivisionClient(
+    preview.sessionFees,
+    foreigner,
+    schemes
+  )
+  const amountToSettle =
+    Math.round((gross - division.total) * 100) / 100
+
+  return { gross, division, amountToSettle, applied, capExceededMessage }
 }
 
 function formatSettledAt(d: Date): string {
@@ -168,6 +244,29 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     })
   }, [])
 
+  const settleAmounts = useMemo(() => {
+    if (!details || details.status !== 0) return null
+    if (!details.settlePreview) {
+      return {
+        gross: details.billSubTotal,
+        amountToSettle: details.billTotal,
+        division: {
+          total: details.discount,
+          hospitalFeeDiscount: details.discountInfo.hospitalFeeDiscount,
+          professionalFeeDiscount: details.discountInfo.professionalFeeDiscount,
+          otherDiscount: details.discountInfo.otherDiscount,
+        },
+        applied: [] as Array<{ name: string; amount: number; applyTo: number }>,
+        capExceededMessage: null as string | null,
+      }
+    }
+    return computeSettleAmounts(
+      details.settlePreview,
+      settleMethod,
+      details.foreigner
+    )
+  }, [details, settleMethod])
+
   if (!selectedBooking) {
     return (
       <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm">
@@ -251,7 +350,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     )
   }
 
-  const amount = details.billTotal
+  const amount = settleAmounts?.amountToSettle ?? details.billTotal
   const showCard = settleMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD
   const showSlip = settleMethod === SAVE_PAYMENT_TYPE_SLIP
   const isMixed = settleMethod === SAVE_PAYMENT_TYPE_MIXED
@@ -261,12 +360,21 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
 
   async function handleSettle(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedBooking || !details) return
+    if (settleAmounts?.capExceededMessage) {
+      toast({
+        title: "Discount error",
+        description: settleAmounts.capExceededMessage,
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await settleBookingAction({
         booking_id: selectedBooking.id,
         settle_method: settleMethod,
-        discount: details.discount,
+        discount: settleAmounts?.division.total ?? details.discount,
+        auto_discount_type: details.settlePreview?.autoDiscountId ?? undefined,
         bank: showBank && bankId ? { id: bankId, name: banks.find((b) => b.id === bankId)?.name } : null,
         slip_ref: showSlip ? slipRef : undefined,
         card: showCard ? card : undefined,
@@ -451,6 +559,61 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           </Select>
         </div>
       )}
+      {settleAmounts && (
+        <div className="rounded-md border border-border/60 bg-muted/20 p-2.5 space-y-1 text-xs">
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground">Doctor fee</span>
+            <span>{formatRs(details.settlePreview?.professionalFee ?? 0)}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground">Hospital fee</span>
+            <span>{formatRs(details.settlePreview?.hospitalFee ?? 0)}</span>
+          </div>
+          <div className="flex justify-between gap-2 border-t border-border/40 pt-1">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>{formatRs(settleAmounts.gross)}</span>
+          </div>
+          {settleAmounts.applied.map((d) => (
+            <div key={d.name} className="text-red-600 dark:text-red-400">
+              <span className="text-muted-foreground">{d.name}: </span>
+              {formatCategoryDiscountLabel(
+                d.applyTo === 0 ? "hospital" : "doctor",
+                d.amount,
+                formatLKR
+              )}
+            </div>
+          ))}
+          {settleAmounts.applied.length === 0 &&
+            settleAmounts.division.hospitalFeeDiscount > 0 && (
+              <div className="text-red-600 dark:text-red-400">
+                {formatCategoryDiscountLabel(
+                  "hospital",
+                  settleAmounts.division.hospitalFeeDiscount,
+                  formatLKR
+                )}
+              </div>
+            )}
+          {settleAmounts.applied.length === 0 &&
+            settleAmounts.division.professionalFeeDiscount > 0 && (
+              <div className="text-red-600 dark:text-red-400">
+                {formatCategoryDiscountLabel(
+                  "doctor",
+                  settleAmounts.division.professionalFeeDiscount,
+                  formatLKR
+                )}
+              </div>
+            )}
+          <div className="flex justify-between gap-2 border-t border-border/40 pt-1 font-semibold">
+            <span>Amount to settle</span>
+            <span>{formatRs(amount)}</span>
+          </div>
+          {settleAmounts.capExceededMessage && (
+            <p className="text-destructive font-medium pt-1">
+              {settleAmounts.capExceededMessage}
+            </p>
+          )}
+        </div>
+      )}
       <Button
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => {
@@ -460,7 +623,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           }
           void handleSettle()
         }}
-        disabled={submitting}
+        disabled={submitting || !!settleAmounts?.capExceededMessage}
       >
         {submitting ? "Settling…" : `Settle Now (${formatRs(amount)})`}
       </Button>
@@ -671,7 +834,11 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
             </Button>
             <Button
               type="button"
-              disabled={submitting || Math.abs(mixedRemaining) > 0.0001}
+              disabled={
+                submitting ||
+                !!settleAmounts?.capExceededMessage ||
+                Math.abs(mixedRemaining) > 0.0001
+              }
               onClick={() => void handleMixedSettleNow()}
             >
               Pay
