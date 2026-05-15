@@ -277,6 +277,8 @@ export async function getAgentWiseAppointmentsReportService(
     const agency = b.agency;
     if (!agency?.id) continue;
 
+    const refundType = Number(b.refund ?? 0); // 0 none, 1 pro, 2 hos, 3 full
+
     const paymentEventInRange = isWithinRange(
       b.receiptNoCreatedAt as Date | null | undefined,
       dateRange.from,
@@ -292,7 +294,7 @@ export async function getAgentWiseAppointmentsReportService(
       eventAt: Date
       statusLabel: string
       sign: 1 | -1
-      countDelta: 1 | -1
+      countDelta: 1 | -1 | 0
       suffix: string
     }> = [];
     if (paymentEventInRange && b.receiptNoCreatedAt) {
@@ -306,11 +308,14 @@ export async function getAgentWiseAppointmentsReportService(
     }
     if (reversalEventInRange && b.refundReceiptCreatedAt) {
       const isCancel = b.status === 2;
+      // Summary channel count: professional-only refund does not reduce; hospital, full, or cancel does.
+      const reversalCountDelta: 1 | -1 | 0 =
+        !isCancel && refundType === 1 ? 0 : -1;
       events.push({
         eventAt: b.refundReceiptCreatedAt as Date,
         statusLabel: isCancel ? STATUS_LABELS[2] : STATUS_LABELS[3],
         sign: -1,
-        countDelta: -1,
+        countDelta: reversalCountDelta,
         suffix: isCancel ? 'cancel' : 'refund',
       });
     }
@@ -343,7 +348,6 @@ export async function getAgentWiseAppointmentsReportService(
         const patientName = [b.title, b.name].filter(Boolean).join(' ').trim() || '—';
         const billNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
         const creatorLabel = formatCreatorBlock(b.createdUser, b.createdAt);
-        const refundType = Number(b.refund ?? 0);
         const eventHospitalFee =
           event.sign > 0
             ? b.hospitalFee ?? 0
