@@ -10,6 +10,11 @@ export {
   type ProcessedDiscountResult,
 } from "./get-processed-discount"
 export {
+  computeBookingDiscounts,
+  type BookingDiscountDivision,
+  type ComputeBookingDiscountsResult,
+} from "./compute-booking-discounts"
+export {
   verifyAgencyReference,
   verifyAgencyReferenceWithReason,
   type VerifyAgencyReferenceResult,

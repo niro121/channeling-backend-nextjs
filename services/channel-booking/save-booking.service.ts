@@ -15,7 +15,7 @@ import {
   createReceiptAndUpdateBooking,
   loadSessionForSaveBooking,
   checkConsecutiveSessionFull,
-  getProcessedDiscount,
+  computeBookingDiscounts,
   getRefundFeeTypes,
   verifyAgencyReferenceWithReason,
   getAgentBalance,
@@ -200,33 +200,6 @@ export async function saveBookingService(
     }
   }
 
-  // Apply auto discount first, then manual (including voucher) if present.
-  let totalDiscount = 0
-  let hospitalFeeDiscount = 0
-  let professionsalFeeDiscount = 0
-  let otherDiscount = 0
-
-  if (input.auto_discount_type) {
-    const result = await getProcessedDiscount(
-      input.auto_discount_type,
-      input.payment_method,
-      input.payment_type,
-      session,
-      input.foriegner
-    )
-    if (!result.status) {
-      return {
-        success: false,
-        errorCode: "DISCOUNT_ERROR",
-        message: result.message ?? "Auto discount error.",
-      }
-    }
-    totalDiscount += result.discount_value
-    hospitalFeeDiscount += result.hospital_fee_discount
-    professionsalFeeDiscount += result.professionsal_fee_discount
-    otherDiscount += result.other_discount
-  }
-
   if (input.discount_type) {
     // Voucher schemes require a valid code before we apply the discount.
     const discountRecord = await prisma.discount.findUnique({
@@ -254,25 +227,28 @@ export async function saveBookingService(
         }
       }
     }
-    const result = await getProcessedDiscount(
-      input.discount_type,
-      input.payment_method,
-      input.payment_type,
-      session,
-      input.foriegner
-    )
-    if (!result.status) {
-      return {
-        success: false,
-        errorCode: "DISCOUNT_ERROR",
-        message: result.message ?? "Discount error.",
-      }
-    }
-    totalDiscount += result.discount_value
-    hospitalFeeDiscount += result.hospital_fee_discount
-    professionsalFeeDiscount += result.professionsal_fee_discount
-    otherDiscount += result.other_discount
   }
+
+  const discountResult = await computeBookingDiscounts({
+    autoDiscountId: input.auto_discount_type ?? null,
+    manualDiscountId: input.discount_type ?? null,
+    payment_method: input.payment_method,
+    payment_type: input.payment_type,
+    session,
+    foriegner: input.foriegner,
+    strict: true,
+  })
+  if (!discountResult.success) {
+    return {
+      success: false,
+      errorCode: "DISCOUNT_ERROR",
+      message: discountResult.message,
+    }
+  }
+  const totalDiscount = discountResult.discount_value
+  const hospitalFeeDiscount = discountResult.hospital_fee_discount
+  const professionsalFeeDiscount = discountResult.professionsal_fee_discount
+  const otherDiscount = discountResult.other_discount
 
   // Reject if client-submitted discount total doesn't match server calculation.
   if (input.discount !== totalDiscount) {
