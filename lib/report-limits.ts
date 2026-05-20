@@ -23,7 +23,8 @@ type ReportLimitKey =
   | 'bank_deposits'
   | 'channel_report_receipt_wise'
   | 'room_occupancy'
-  | 'no_show_patient';
+  | 'no_show_patient'
+  | 'daily_returns_summary';
 
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
