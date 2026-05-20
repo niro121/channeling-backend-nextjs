@@ -185,6 +185,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/cashier-drawer-balance'
   },
   {
+    id: '34a',
+    rank: 34.5,
+    masterData: 'Daily Returns Summary',
+    description:
+      'Receipt-based daily float summary by receipt type (Settlement, Refund, Doctor Payment, Agency Deposit, Branch Income, Bank Deposit, etc.) for a selected date.',
+    route: '/reports/daily-returns-summary'
+  },
+  {
     id: '35',
     rank: 35,
     masterData: 'Card Summary - Bank Wise',
@@ -294,6 +302,7 @@ export default async function ReportsPage() {
       '/reports/all-cashier-summary-detail',
       '/reports/cashier-summary',
       '/reports/cashier-drawer-balance',
+      '/reports/daily-returns-summary',
       '/reports/card-summary-bank-wise',
       '/reports/cash-book',
       '/reports/bank-deposits',

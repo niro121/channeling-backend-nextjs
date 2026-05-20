@@ -36,6 +36,15 @@ function getReportColumnKey<T>(column: ColumnDef<T>): string {
   return String(column.id ?? accStr ?? '');
 }
 
+export type ReportColumnMeta = {
+  headerClassName?: string;
+  cellClassName?: string;
+};
+
+function getReportColumnMeta<T>(column: ColumnDef<T>): ReportColumnMeta {
+  return (column.meta as ReportColumnMeta | undefined) ?? {};
+}
+
 function coerceNumberForTotal(v: unknown): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string' && v.trim() !== '') {
@@ -466,8 +475,12 @@ function ReportTemplateContent<T, E = T>({
                           (typeof header === 'object' && !React.isValidElement(header as React.ReactElement))
                             ? ''
                             : header;
+                        const colMeta = getReportColumnMeta(column);
                         return (
-                          <TableHead key={column.id ?? accKey ?? String(header)}>
+                          <TableHead
+                            key={column.id ?? accKey ?? String(header)}
+                            className={cn(colMeta.headerClassName)}
+                          >
                             {safeHeader}
                           </TableHead>
                         );
@@ -516,8 +529,13 @@ function ReportTemplateContent<T, E = T>({
                                           } as never
                                         } as never)
                                       : accessorKey ? getNestedValue(row, accessorKey) : undefined;
+                                  const colMeta = getReportColumnMeta(column);
                                   return (
-                                    <TableCell key={column.id ?? accessorKey ?? ''} rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}>
+                                    <TableCell
+                                      key={column.id ?? accessorKey ?? ''}
+                                      rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}
+                                      className={cn(colMeta.cellClassName)}
+                                    >
                                       {cell != null && cell !== '' ? cell : '-'}
                                     </TableCell>
                                   );
@@ -544,8 +562,13 @@ function ReportTemplateContent<T, E = T>({
                                       } as never
                                     } as never)
                                   : accessorKey ? getNestedValue(row, accessorKey) : undefined;
+                              const colMeta = getReportColumnMeta(column);
                               return (
-                                <TableCell key={column.id ?? accessorKey ?? ''} rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}>
+                                <TableCell
+                                  key={column.id ?? accessorKey ?? ''}
+                                  rowSpan={rowSpan && rowSpan > 1 ? rowSpan : undefined}
+                                  className={cn(colMeta.cellClassName)}
+                                >
                                   {cell != null && cell !== '' ? cell : '-'}
                                 </TableCell>
                               );
@@ -573,13 +596,15 @@ function ReportTemplateContent<T, E = T>({
                                   ? formatTotalValue(colKey, sum)
                                   : defaultFormatTotal(colKey, sum);
                               }
+                              const colMeta = getReportColumnMeta(column);
                               return (
                                 <TableCell
                                   key={column.id ?? (colKey || colIndex)}
                                   className={cn(
                                     'whitespace-nowrap',
                                     colIndex === 0 && 'text-left font-bold',
-                                    isTotalCol && 'text-right tabular-nums font-bold'
+                                    isTotalCol && 'text-right tabular-nums font-bold',
+                                    colMeta.cellClassName
                                   )}
                                 >
                                   {isTotalCol && content != null ? (
