@@ -13,6 +13,7 @@ All endpoints use `Content-Type: application/json` unless noted otherwise.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/api/doctor-app/auth/check-login` | None | Validate credentials; learn if 2FA is required |
+| `POST` | `/api/doctor-app/auth/change-initial-password` | None | First login: replace admin-set password |
 | `POST` | `/api/doctor-app/auth/request-2fa-code` | None | Send or prepare 2FA code (after check-login) |
 | `POST` | `/api/doctor-app/auth/login` | None | Complete login; returns Bearer JWT + profiles |
 | `GET` | `/api/doctor-app/auth/me` | Bearer | Current user and linked doctor profile |
@@ -74,7 +75,60 @@ Allowed methods for a user come from `userGroup.twoFactorMethods`, or default `[
 
 ---
 
+## First Login – Password Change
+
+When an admin creates a doctor user, `mustChangePassword` is set to `true`. **Login and 2FA are blocked** until the user sets a new password (same as the web dashboard).
+
+Web equivalent: `POST /api/auth/change-initial-password`  
+Doctor app: `POST /api/doctor-app/auth/change-initial-password` (doctor users only, `userType: 3`).
+
+### Detecting the requirement
+
+`check-login` or `login` returns **403**:
+
+```json
+{
+  "requiresPasswordChange": true,
+  "error": "Password change required"
+}
+```
+
+### Flow
+
+1. User enters email/username + **admin-given** password on check-login → `requiresPasswordChange: true`.
+2. App shows “Set new password” screen.
+3. `POST /api/doctor-app/auth/change-initial-password` with current + new password.
+4. User signs in again with the **new** password (normal check-login → login / 2FA flow).
+
+### Password rules
+
+Same as the dashboard (`lib/validations/password.ts`):
+
+- Minimum **8** characters
+- At least one uppercase, lowercase, digit, and special character
+- **No spaces**
+- New password must differ from the current password
+
+---
+
 ## Flow Diagrams
+
+### First login (password change required)
+
+```mermaid
+sequenceDiagram
+  participant App as Doctor App
+  participant API as Backend
+
+  App->>API: POST /doctor-app/auth/check-login
+  API-->>App: 403 requiresPasswordChange
+  App->>API: POST /doctor-app/auth/change-initial-password
+  API-->>App: success
+  App->>API: POST /doctor-app/auth/check-login (new password)
+  API-->>App: requiresTwoFactor or ready to login
+  App->>API: POST /doctor-app/auth/login
+  API-->>App: access_token
+```
 
 ### Login without 2FA
 
@@ -171,7 +225,7 @@ Or:
 |--------|------|---------|
 | `400` | `{ "error": "Email/username and password required" }` | Missing fields |
 | `401` | `{ "error": "Invalid credentials" }` | Wrong id/password or not a doctor user |
-| `403` | `{ "requiresPasswordChange": true }` | Admin flagged `mustChangePassword` (change password via dashboard flow first) |
+| `403` | `{ "requiresPasswordChange": true }` | Call **change-initial-password** before login |
 | `500` | `{ "error": "Server error" }` | Unexpected failure |
 
 ### cURL
@@ -184,7 +238,63 @@ curl -X POST "http://localhost:3000/api/doctor-app/auth/check-login" \
 
 ---
 
-## 2. Request 2FA Code
+## 2. Change Initial Password (first login)
+
+**POST** `/api/doctor-app/auth/change-initial-password`
+
+Replaces the admin-set password when `mustChangePassword` is `true`. Only **doctor** users (`userType: 3`). After success, run **check-login** and **login** with the **new** password.
+
+### Request body
+
+```json
+{
+  "email": "dr@hospital.lk",
+  "currentPassword": "TempPassFromAdmin1!",
+  "newPassword": "MyNewSecure1!",
+  "confirmPassword": "MyNewSecure1!"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `email` or `username` | Yes | Login identifier |
+| `currentPassword` | Yes | Password given by admin |
+| `newPassword` | Yes | New password (see [rules](#first-login--password-change)) |
+| `confirmPassword` | No | If sent, must match `newPassword` |
+
+### Success (200)
+
+```json
+{
+  "success": true,
+  "message": "Password updated. Sign in again with your email/username and new password."
+}
+```
+
+### Errors
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `400` | Validation / no change required / wrong current password | See `error` message |
+| `401` | Invalid credentials | Not a doctor user or wrong identifier |
+| `500` | Server error | — |
+
+### cURL
+
+```bash
+curl -X POST "http://localhost:3000/api/doctor-app/auth/change-initial-password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "DR001",
+    "currentPassword": "TempPassFromAdmin1!",
+    "newPassword": "MyNewSecure1!",
+    "confirmPassword": "MyNewSecure1!"
+  }'
+```
+
+---
+
+## 3. Request 2FA Code
 
 **POST** `/api/doctor-app/auth/request-2fa-code`
 
@@ -256,7 +366,7 @@ curl -X POST "http://localhost:3000/api/doctor-app/auth/request-2fa-code" \
 
 ---
 
-## 3. Login
+## 4. Login
 
 **POST** `/api/doctor-app/auth/login`
 
@@ -363,7 +473,7 @@ curl -X POST "http://localhost:3000/api/doctor-app/auth/login" \
 
 ---
 
-## 4. Current Session (Me)
+## 5. Current Session (Me)
 
 **GET** `/api/doctor-app/auth/me`
 
@@ -435,7 +545,7 @@ If neither matches, `doctor` is `null` but login still succeeds.
 3. Implement the 2FA branch when `check-login` returns `requiresTwoFactor: true`.
 4. For method `1`, keep `twoFactorToken` until `login` completes.
 5. Refresh profile with `GET /me` on app start when a token exists.
-6. Handle `requiresPasswordChange` (user must update password via admin/web before mobile login).
+6. Handle `requiresPasswordChange` with **change-initial-password**, then login with the new password.
 
 ---
 
@@ -448,6 +558,8 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | Login identifier parsing | `lib/helpers/auth/parse-login-identifier.ts` |
 | Business logic | `services/doctor-app-auth.service.ts` |
 | Check login route | `app/api/doctor-app/auth/check-login/route.ts` |
+| Change initial password | `app/api/doctor-app/auth/change-initial-password/route.ts` |
+| Shared password change logic | `lib/helpers/auth/change-initial-password.ts` |
 | Request 2FA route | `app/api/doctor-app/auth/request-2fa-code/route.ts` |
 | Login route | `app/api/doctor-app/auth/login/route.ts` |
 | Me route | `app/api/doctor-app/auth/me/route.ts` |
@@ -467,6 +579,15 @@ If neither matches, `doctor` is `null` but login still succeeds.
    - `doctor_password` — password
    - For 2FA SMS tests: `two_factor_method` = `2`, then set `two_factor_code` after SMS arrives
 3. Run requests in order (see flows below). **Login** requests auto-save `access_token`; **Request 2FA** saves `two_factor_token` for authenticator.
+
+### Flow 0 – First login (password change)
+
+| Step | Request | Expect |
+|------|---------|--------|
+| 1 | **1. Check Login** (admin password) | `403` → `requiresPasswordChange: true` |
+| 2 | **0. Change Initial Password** | `200` → `success: true` |
+| 3 | Update `doctor_password` variable to **new** password | — |
+| 4 | Continue with Flow A or B below | — |
 
 ### Flow A – No 2FA
 
