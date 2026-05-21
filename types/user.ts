@@ -13,7 +13,7 @@ export type User = {
     twoFactorEnabled?: boolean // Admin/user preference: require 2FA at login
     password: string
     confirmPassword?: string
-    userType: number // 1 = admin, 2 = staff
+    userType: number // 1 = admin, 2 = staff, 3 = doctor
     status: number //0 -> inactive, 1 ->  active
     checkedDefaultLocation: boolean // == false: not selected default location | true: selected default selection == //
     defaultLocation?: string | null
