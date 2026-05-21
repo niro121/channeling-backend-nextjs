@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "Doctor Mobile App – Auth",
+    "description": "Doctor app login (userType 3). Set collection variables `doctor_email` (or username), `doctor_password`, then run Check Login → Login (or 2FA flow) → Me.\n\nSee docs/DOCTOR_APP_API.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "doctor_email", "value": "dr@example.com", "description": "Doctor user email OR username" },
+    { "key": "doctor_password", "value": "", "description": "Doctor user password" },
+    { "key": "access_token", "value": "" },
+    { "key": "two_factor_token", "value": "", "description": "From Request 2FA (method 1 only)" },
+    { "key": "two_factor_code", "value": "", "description": "6-digit SMS or authenticator code" },
+    { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" }
+  ],
+  "item": [
+    {
+      "name": "1. Check Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/check-login",
+        "description": "Step 1: If requiresTwoFactor is false, run Login next. If true, run Request 2FA Code then Login with twoFactorCode."
+      }
+    },
+    {
+      "name": "2. Request 2FA Code (if required)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"method\": \"{{two_factor_method}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/request-2fa-code",
+        "description": "Only when Check Login returned requiresTwoFactor: true. Method 2 sends SMS. Method 1 returns twoFactorToken — saved to collection variable automatically."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.twoFactorToken) {",
+              "    pm.collectionVariables.set('two_factor_token', json.twoFactorToken);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login (no 2FA)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/login",
+        "description": "Use when Check Login returned requiresTwoFactor: false. Saves access_token for Me request."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3b. Login (with 2FA)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"twoFactorCode\": \"{{two_factor_code}}\",\n  \"twoFactorToken\": \"{{two_factor_token}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/login",
+        "description": "After Request 2FA Code. Set two_factor_code (SMS from phone, or TOTP from app). For SMS leave two_factor_token empty. For authenticator, two_factor_token is set automatically from step 2."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Me (current session)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{baseUrl}}/api/doctor-app/auth/me",
+        "description": "Requires access_token from Login. Returns user + doctor profile."
+      }
+    }
+  ]
+}

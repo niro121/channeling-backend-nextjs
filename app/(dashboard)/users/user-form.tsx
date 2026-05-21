@@ -128,7 +128,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             .transform((v) => (v === "" ? null : v))
             .test("mobile", MOBILE_VALIDATION_MESSAGE, (v) => v == null || MOBILE_REGEX.test(v)),
         userType: Yup.number()
-            .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
+            .oneOf([1, 2, 3], "User type must be Admin (1), Staff (2), or Doctor (3)")
             .required("This field is mandatory"),
         userLocationId: Yup.string()
             .required("User Location is mandatory")
@@ -176,7 +176,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             .oneOf([Yup.ref("password")], "Passwords must match")
             .required("This field is mandatory"),
         userType: Yup.number()
-            .oneOf([1, 2], "User type must be Admin (1) or Staff (2)")
+            .oneOf([1, 2, 3], "User type must be Admin (1), Staff (2), or Doctor (3)")
             .required("This field is mandatory"),
         userLocationId: Yup.string()
             .required("User Location is mandatory")
@@ -459,7 +459,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 required
                                 options={[
                                     { id: "1", name: "Admin" },
-                                    { id: "2", name: "Staff" }
+                                    { id: "2", name: "Staff" },
+                                    { id: "3", name: "Doctor" },
                                 ]}
                                 styleClasses={styleClasses}
                             />
@@ -681,7 +682,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             required
                                             options={[
                                                 { id: "1", name: "Admin" },
-                                                { id: "2", name: "Staff" }
+                                                { id: "2", name: "Staff" },
+                                                { id: "3", name: "Doctor" },
                                             ]}
                                             styleClasses={styleClasses}
                                         />
