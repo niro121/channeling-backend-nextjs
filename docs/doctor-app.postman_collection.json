@@ -11,9 +11,23 @@
     { "key": "access_token", "value": "" },
     { "key": "two_factor_token", "value": "", "description": "From Request 2FA (method 1 only)" },
     { "key": "two_factor_code", "value": "", "description": "6-digit SMS or authenticator code" },
-    { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" }
+    { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" },
+    { "key": "doctor_new_password", "value": "", "description": "New password after first-login change" }
   ],
   "item": [
+    {
+      "name": "0. Change Initial Password (first login)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"currentPassword\": \"{{doctor_password}}\",\n  \"newPassword\": \"{{doctor_new_password}}\",\n  \"confirmPassword\": \"{{doctor_new_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/change-initial-password",
+        "description": "When Check Login returns requiresPasswordChange. Set doctor_password=admin temp, doctor_new_password=new. Then update doctor_password to new and run Check Login again."
+      }
+    },
     {
       "name": "1. Check Login",
       "request": {
