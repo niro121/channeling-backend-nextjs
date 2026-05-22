@@ -348,20 +348,35 @@ export async function getAgentWiseAppointmentsReportService(
         const patientName = [b.title, b.name].filter(Boolean).join(' ').trim() || '—';
         const billNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
         const creatorLabel = formatCreatorBlock(b.createdUser, b.createdAt);
-        const eventHospitalFee =
-          event.sign > 0
-            ? b.hospitalFee ?? 0
-            : refundType === 1
-              ? b.hospitalFee ?? 0
-              : -(b.hospitalFee ?? 0);
-        const eventDoctorFee =
-          event.sign > 0
-            ? b.professionalFee ?? 0
-            : refundType === 2
-              ? b.professionalFee ?? 0
-              : -(b.professionalFee ?? 0);
-        const eventDiscount = (b.discount ?? 0) * event.sign;
-        const eventTotalFee = (b.amount ?? 0) * event.sign;
+        const hosFee = Number(b.hospitalFee ?? 0);
+        const proFee = Number(b.professionalFee ?? 0);
+        const hosDis = Number(b.hospitalFeeDiscount ?? 0);
+        const proDis = Number(b.professionsalFeeDiscount ?? 0);
+        const bookingDiscount = Number(b.discount ?? 0);
+
+        let eventHospitalFee = 0;
+        let eventDoctorFee = 0;
+        let eventDiscount = 0;
+
+        if (event.sign > 0) {
+          eventHospitalFee = hosFee;
+          eventDoctorFee = proFee;
+          eventDiscount = bookingDiscount;
+        } else {
+          const isFullReversal = event.suffix === 'cancel' || refundType === 3;
+          // Refund/cancel rows: only the reversed fee components are negative; others are 0.
+          if (refundType === 2 || isFullReversal) eventHospitalFee = -hosFee;
+          if (refundType === 1 || isFullReversal) eventDoctorFee = -proFee;
+          if (isFullReversal) {
+            eventDiscount = -bookingDiscount;
+          } else if (refundType === 2) {
+            eventDiscount = -hosDis;
+          } else if (refundType === 1) {
+            eventDiscount = -proDis;
+          }
+        }
+
+        const eventTotalFee = eventHospitalFee + eventDoctorFee - eventDiscount;
 
         detailRows.push({
           id: `${b.id}:${event.suffix}`,
