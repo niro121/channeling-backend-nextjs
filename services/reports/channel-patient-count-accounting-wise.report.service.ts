@@ -180,6 +180,22 @@ export async function getChannelPatientCountAccountingWiseService(
       ],
     };
 
+    /** Paid full cancel / partial refund receipt, or unpaid cancel — keyed by event time in range. */
+    const cancelOrRefundInTransactionWindow = {
+      OR: [
+        {
+          AND: [
+            { refund: { in: [1, 2, 3] } },
+            { refundReceiptCreatedAt: { gte: from, lte: to } },
+          ],
+        },
+        unpaidCancelInTransactionWindow,
+      ],
+    };
+
+    const locationBookingFilter =
+      query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {};
+
     const bookingWhere =
       dateType === 'transaction_date'
         ? {
@@ -191,23 +207,27 @@ export async function getChannelPatientCountAccountingWiseService(
                   { receiptNoCreatedAt: { gte: from, lte: to } },
                 ],
               },
-              {
-                AND: [
-                  { refund: { in: [1, 2, 3] } },
-                  { refundReceiptCreatedAt: { gte: from, lte: to } },
-                ],
-              },
-              unpaidCancelInTransactionWindow,
+              cancelOrRefundInTransactionWindow,
             ],
-            ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+            ...locationBookingFilter,
           }
         : {
-            session: {
-              is: {
-                date: { gte: from, lte: to },
-                ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+            OR: [
+              {
+                session: {
+                  is: {
+                    date: { gte: from, lte: to },
+                    ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+                  },
+                },
               },
-            },
+              {
+                AND: [
+                  ...(Object.keys(locationBookingFilter).length > 0 ? [locationBookingFilter] : []),
+                  cancelOrRefundInTransactionWindow,
+                ],
+              },
+            ],
           };
 
     const matchedBookingCount = await prisma.booking.count({ where: bookingWhere });
@@ -239,6 +259,7 @@ export async function getChannelPatientCountAccountingWiseService(
         refundAmountHospitalFee: true,
         refundAmountProfessionalFee: true,
         receiptPaymentMethod: true,
+        session: { select: { date: true } },
       },
     });
 
@@ -272,18 +293,16 @@ export async function getChannelPatientCountAccountingWiseService(
       const pendingCancelInTransactionWindow =
         isPendingCancel && isUnpaidCancelEventInRange(b.canceledAt, b.updatedAt, from, to);
 
-      const countPaid = dateType === 'transaction_date' ? paidInTransactionWindow : paidBeforeCancel;
-      const countPending = dateType === 'transaction_date' ? pendingInTransactionWindow : isPending;
-      const countCancelPaid = dateType === 'transaction_date' ? fullCancelInTransactionWindow : isFullCancel && paidBeforeCancel;
-      const countCancelPending = dateType === 'transaction_date' ? pendingCancelInTransactionWindow : isPendingCancel;
-      const countRefundHos =
-        dateType === 'transaction_date'
-          ? refundInTransactionWindow && refundType === 2
-          : isPartialRefund && refundType === 2;
-      const countRefundPro =
-        dateType === 'transaction_date'
-          ? refundInTransactionWindow && refundType === 1
-          : isPartialRefund && refundType === 1;
+      const sessionInRange = isWithinRange(b.session?.date, from, to);
+
+      // Session date: paid/pending follow session; cancel/refund follow when the event happened in range.
+      const countPaid =
+        dateType === 'transaction_date' ? paidInTransactionWindow : paidBeforeCancel && sessionInRange;
+      const countPending = dateType === 'transaction_date' ? pendingInTransactionWindow : isPending && sessionInRange;
+      const countCancelPaid = fullCancelInTransactionWindow;
+      const countCancelPending = pendingCancelInTransactionWindow;
+      const countRefundHos = refundInTransactionWindow && refundType === 2;
+      const countRefundPro = refundInTransactionWindow && refundType === 1;
 
       // Receipt-based counts:
       // - Paid bill count = number of payment receipts (receiptNoString exists), regardless of later cancel/refund.
@@ -302,7 +321,8 @@ export async function getChannelPatientCountAccountingWiseService(
       row.refundBillHos += countRefundHos ? 1 : 0;
       row.refundBillPro += countRefundPro ? 1 : 0;
 
-      row.totalCountPaid = row.paidBillPaid - row.cancelBillPaid;
+      // Net paid patients: payment receipts minus full cancels minus hospital-only refunds (pro-only refunds stay).
+      row.totalCountPaid = row.paidBillPaid - row.cancelBillPaid - row.refundBillHos;
       // Still-open pendings (status 0) only. Do not subtract cancelBillPending: those bookings are no longer
       // status 0, so they were never in paidBillPending — subtracting would yield negative totals (e.g. -1).
       row.totalCountPending = row.paidBillPending;
@@ -336,7 +356,7 @@ export async function getChannelPatientCountAccountingWiseService(
         row.cancelRevenueProDis += proDis;
       }
       // Refund revenue should exclude full cancels (refund=3) since those are treated as Cancel above.
-      if (dateType === 'transaction_date' ? refundInTransactionWindow : isPartialRefund) {
+      if (refundInTransactionWindow) {
         row.refundRevenueHosRefund += hosRefund;
         row.refundRevenueProRefund += proRefund;
       }
