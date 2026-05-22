@@ -124,6 +124,22 @@ export async function getChannelIncomeAccountingWiseService(
       ],
     };
 
+    /** Paid full cancel / partial refund receipt, or unpaid cancel — keyed by event time in range. */
+    const cancelOrRefundInTransactionWindow = {
+      OR: [
+        {
+          AND: [
+            { refund: { in: [1, 2, 3] } },
+            { refundReceiptCreatedAt: { gte: from, lte: to } },
+          ],
+        },
+        unpaidCancelInTransactionWindow,
+      ],
+    };
+
+    const locationBookingFilter =
+      query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {};
+
     const bookingWhere =
       dateType === 'transaction_date'
         ? {
@@ -135,23 +151,27 @@ export async function getChannelIncomeAccountingWiseService(
                   { receiptNoCreatedAt: { gte: from, lte: to } },
                 ],
               },
-              {
-                AND: [
-                  { refund: { in: [1, 2, 3] } },
-                  { refundReceiptCreatedAt: { gte: from, lte: to } },
-                ],
-              },
-              unpaidCancelInTransactionWindow,
+              cancelOrRefundInTransactionWindow,
             ],
-            ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+            ...locationBookingFilter,
           }
         : {
-            session: {
-              is: {
-                date: { gte: from, lte: to },
-                ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+            OR: [
+              {
+                session: {
+                  is: {
+                    date: { gte: from, lte: to },
+                    ...(query.locationId && query.locationId !== '__all__' ? { locationId: query.locationId } : {}),
+                  },
+                },
               },
-            },
+              {
+                AND: [
+                  ...(Object.keys(locationBookingFilter).length > 0 ? [locationBookingFilter] : []),
+                  cancelOrRefundInTransactionWindow,
+                ],
+              },
+            ],
           };
 
     const matchedBookingCount = await prisma.booking.count({ where: bookingWhere });
@@ -182,6 +202,7 @@ export async function getChannelIncomeAccountingWiseService(
         professionsalFeeDiscount: true,
         refundAmountHospitalFee: true,
         refundAmountProfessionalFee: true,
+        session: { select: { date: true } },
       },
     });
 
@@ -209,13 +230,18 @@ export async function getChannelIncomeAccountingWiseService(
       const refundInTransactionWindow = isPartialRefund && isWithinRange(b.refundReceiptCreatedAt, from, to);
       const fullCancelInTransactionWindow = isFullCancel && isWithinRange(b.refundReceiptCreatedAt, from, to);
 
+      const sessionInRange = isWithinRange(b.session?.date, from, to);
+
       const hosFee = includeHos ? Number(b.hospitalFee ?? 0) : 0;
       const hosDis = includeHos ? Number(b.hospitalFeeDiscount ?? 0) : 0;
       const proFee = includePro ? Number(b.professionalFee ?? 0) : 0;
       const proDis = includePro ? Number(b.professionsalFeeDiscount ?? 0) : 0;
 
-      // Receipt-based: Total channel/discount are driven by the existence of a payment receipt.
-      if (dateType === 'transaction_date' ? paidInTransactionWindow : paidReceiptExists) {
+      // Session date: total channel/discount follow session; cancel/refund follow event time in range.
+      const countPaid =
+        dateType === 'transaction_date' ? paidInTransactionWindow : paidReceiptExists && sessionInRange;
+
+      if (countPaid) {
         row.totalChannel += hosFee + proFee;
         row.discount += hosDis + proDis;
       }
@@ -224,9 +250,9 @@ export async function getChannelIncomeAccountingWiseService(
       const hosRefund = includeHos ? Number(b.refundAmountHospitalFee ?? 0) : 0;
       const proRefund = includePro ? Number(b.refundAmountProfessionalFee ?? 0) : 0;
 
-      if (dateType === 'transaction_date' ? fullCancelInTransactionWindow : isFullCancel) {
+      if (fullCancelInTransactionWindow) {
         row.cancel -= hosRefund + proRefund;
-      } else if (dateType === 'transaction_date' ? refundInTransactionWindow : isPartialRefund) {
+      } else if (refundInTransactionWindow) {
         // Refund column should not include full cancels.
         row.refund -= hosRefund + proRefund;
       }
