@@ -33,6 +33,14 @@ export type PublicCreateAgentBookingParams = {
   apiClientId?: string | null
 }
 
+export type PublicBookingFeeBreakdown = {
+  professionalFee: number
+  hospitalFee: number
+  discount: number
+  /** Total charged (after discount) */
+  amount: number
+}
+
 export type PublicCreateBookingDto = {
   id: string
   appointmentNo: number
@@ -41,6 +49,7 @@ export type PublicCreateBookingDto = {
   bookingIdString: string | null
   receiptNoString: string | null
   amount: number
+  fees: PublicBookingFeeBreakdown
   session: {
     id: string
     date: string
@@ -106,6 +115,12 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
     bookingIdString: b.bookingid_string != null ? String(b.bookingid_string) : null,
     receiptNoString: b.receiptNoString != null ? String(b.receiptNoString) : null,
     amount: Number(b.amount ?? 0),
+    fees: {
+      professionalFee: Number(b.professionalFee ?? 0),
+      hospitalFee: Number(b.hospitalFee ?? 0),
+      discount: Number(b.discount ?? 0),
+      amount: Number(b.amount ?? 0),
+    },
     session: {
       id: String(session?.id ?? b.sessionId ?? ""),
       date: sessionDate ? moment(sessionDate).format("YYYY-MM-DD") : "",
