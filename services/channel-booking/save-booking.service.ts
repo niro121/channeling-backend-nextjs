@@ -45,6 +45,13 @@ export type SaveBookingServiceResult =
   | { success: true; data: unknown }
   | { success: false; errorCode: SaveBookingErrorCode; message: string }
 
+export type SaveBookingServiceOptions = {
+  /** When false, skip active-shift check even if userId is set (e.g. public API acting user). Default true. */
+  requireActiveShift?: boolean
+  /** Public API: store bookReference as-is (trimmed, uppercased) and only enforce uniqueness. */
+  agencyRefUniqueOnly?: boolean
+}
+
 function isPrismaUniqueConstraintError(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002"
 }
@@ -166,9 +173,11 @@ async function getSmsTemplateMessage(type: number): Promise<string | null> {
  */
 export async function saveBookingService(
   input: SaveBookingInput,
-  userId: string | null
+  userId: string | null,
+  options?: SaveBookingServiceOptions
 ): Promise<SaveBookingServiceResult> {
-  if (userId) await requireActiveShift(userId)
+  const shouldRequireShift = options?.requireActiveShift !== false
+  if (userId && shouldRequireShift) await requireActiveShift(userId)
 
   const sessionId = input.session.id
 
@@ -290,10 +299,14 @@ export async function saveBookingService(
   }
 
   // Agent booking: verify agency ref, ensure linked account exists for balance check, and that credit limit is not exceeded.
-  const normalizedAgencyRef = await buildNormalizedAgencyRef(input)
+  const normalizedAgencyRef = options?.agencyRefUniqueOnly
+    ? (input.agency_ref ?? "").toUpperCase().trim()
+    : await buildNormalizedAgencyRef(input)
   if (input.agency?.id) {
     const ref = normalizedAgencyRef
-    const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id)
+    const refResult = await verifyAgencyReferenceWithReason(ref, input.agency.id, {
+      uniqueOnly: options?.agencyRefUniqueOnly,
+    })
     if (!refResult.valid) {
       return {
         success: false,

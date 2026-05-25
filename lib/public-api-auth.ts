@@ -53,10 +53,19 @@ export async function issuePublicApiToken(
  * and return the clientId (sub). Optionally re-checks ApiClient is not blocked in DB.
  * Returns null if missing, invalid, or blocked.
  */
+export type PublicApiClientContext = {
+  /** OAuth client_id (JWT sub) */
+  clientId: string
+  /** ApiClient document id */
+  id: string
+  /** Public API bookings use this user as createdBy */
+  actingUserId: string
+}
+
 export async function getPublicApiClient(
   headers: Headers,
   options?: { recheckBlocked?: boolean }
-): Promise<{ clientId: string } | null> {
+): Promise<PublicApiClientContext | null> {
   const auth = headers.get("authorization")
   if (!auth?.startsWith("Bearer ")) return null
   const token = auth.slice(7).trim()
@@ -75,12 +84,19 @@ export async function getPublicApiClient(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PrismaClient includes apiClient after generate
       const client = await (prisma as any).apiClient.findUnique({
         where: { clientId },
-        select: { isBlocked: true },
+        select: { id: true, isBlocked: true, actingUserId: true },
       })
       if (!client || client.isBlocked) return null
+      const actingUserId = client.actingUserId as string | null | undefined
+      if (!actingUserId) return null
+      return {
+        clientId,
+        id: client.id as string,
+        actingUserId,
+      }
     }
 
-    return { clientId }
+    return null
   } catch {
     return null
   }

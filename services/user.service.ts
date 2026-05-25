@@ -44,8 +44,8 @@ const userSchema = z.object({
   userType: z
     .number()
     .int()
-    .refine((val) => val === 1 || val === 2 || val === 3, {
-      message: 'User type must be Admin (1), Staff (2), or Doctor (3)'
+    .refine((val) => val === 1 || val === 2 || val === 3 || val === 4, {
+      message: 'User type must be Admin (1), Staff (2), Doctor (3), or API User (4)'
     }),
   status: z
     .number()
