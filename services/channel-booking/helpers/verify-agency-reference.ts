@@ -16,20 +16,23 @@ export async function verifyAgencyReference(
   return !result.valid
 }
 
+export type VerifyAgencyReferenceOptions = {
+  /** Public API: only require non-empty ref and uniqueness per agency (no book/leaf rules). */
+  uniqueOnly?: boolean
+}
+
 /**
  * Same as verifyAgencyReference but returns a reason when invalid (for UI).
  */
 export async function verifyAgencyReferenceWithReason(
   ref: string,
-  agencyId: string
+  agencyId: string,
+  options?: VerifyAgencyReferenceOptions
 ): Promise<VerifyAgencyReferenceResult> {
   const trimmedRef = (ref ?? "").trim()
 
-  if (!trimmedRef || trimmedRef.length <= 3) {
-    return {
-      valid: false,
-      reason: "REF must be at least 3 characters (e.g. book number + 2-digit leaf like 01).",
-    }
+  if (!trimmedRef) {
+    return { valid: false, reason: "Book reference is required." }
   }
 
   const existing = await prisma.booking.findFirst({
@@ -40,7 +43,18 @@ export async function verifyAgencyReferenceWithReason(
     },
   })
   if (existing) {
-    return { valid: false, reason: "This REF is already used on another booking." }
+    return { valid: false, reason: "This book reference is already used on another booking." }
+  }
+
+  if (options?.uniqueOnly) {
+    return { valid: true }
+  }
+
+  if (trimmedRef.length <= 3) {
+    return {
+      valid: false,
+      reason: "REF must be at least 3 characters (e.g. book number + 2-digit leaf like 01).",
+    }
   }
 
   const refbook = trimmedRef.substring(0, trimmedRef.length - 2)

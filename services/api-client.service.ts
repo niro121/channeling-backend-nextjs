@@ -5,14 +5,22 @@ import { z } from "zod"
 import * as argon2 from "argon2"
 import * as crypto from "crypto"
 import type { GetApiClientsQuery, GetApiClientsReturn, ApiClient } from "@/types/api-client"
+import { userTypes } from "@/lib/roles"
+
+const actingUserIdSchema = z
+  .string()
+  .min(1, "User is required")
+  .regex(/^[a-f\d]{24}$/i, "User is required")
 
 const createSchema = z.object({
   name: z.string().min(1, "Name is required").max(150, "Must be less than 150 characters").trim(),
+  actingUserId: actingUserIdSchema,
 })
 
 const updateSchema = z.object({
   name: z.string().min(1, "Name is required").max(150, "Must be less than 150 characters").trim().optional(),
   isBlocked: z.boolean().optional(),
+  actingUserId: actingUserIdSchema,
 })
 
 export type CreateApiClientPayload = z.infer<typeof createSchema>
@@ -21,11 +29,24 @@ export type UpdateApiClientPayload = z.infer<typeof updateSchema>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PrismaClient includes apiClient after generate
 const prismaApiClient = (prisma as any).apiClient
 
+const apiClientSelect = {
+  id: true,
+  clientId: true,
+  name: true,
+  isBlocked: true,
+  actingUserId: true,
+  actingUser: { select: { id: true, name: true } },
+  createdAt: true,
+  updatedAt: true,
+} as const
+
 function toApiClient(row: {
   id: string
   clientId: string
   name: string
   isBlocked: boolean
+  actingUserId: string
+  actingUser: { id: string; name: string }
   createdAt: Date
   updatedAt: Date
 }): ApiClient {
@@ -34,8 +55,48 @@ function toApiClient(row: {
     clientId: row.clientId,
     name: row.name,
     isBlocked: row.isBlocked,
+    actingUserId: row.actingUserId,
+    actingUserName: row.actingUser.name,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+async function resolveActingUserId(
+  actingUserId: string
+): Promise<{ ok: true; value: string } | { ok: false; message: string }> {
+  const trimmed = actingUserId?.trim()
+  if (!trimmed) return { ok: false, message: "User is required" }
+  const user = await prisma.user.findUnique({
+    where: { id: trimmed },
+    select: { id: true, userType: true, status: true },
+  })
+  if (!user) return { ok: false, message: "User not found" }
+  if (user.userType !== userTypes.apiUser) {
+    return { ok: false, message: "Selected user must be API User type" }
+  }
+  if (user.status !== 1) {
+    return { ok: false, message: "Selected user must be active" }
+  }
+  return { ok: true, value: trimmed }
+}
+
+export async function getApiClientUserOptionsService(): Promise<
+  { success: true; data: { id: string; name: string }[] } | { success: false; message: string }
+> {
+  try {
+    const users = await prisma.user.findMany({
+      where: { status: 1, userType: userTypes.apiUser },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    })
+    return { success: true, data: users }
+  } catch (e) {
+    console.error("getApiClientUserOptionsService error", e)
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : "Failed to load users",
+    }
   }
 }
 
@@ -55,14 +116,7 @@ export async function getApiClientsService(
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        select: {
-          id: true,
-          clientId: true,
-          name: true,
-          isBlocked: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: apiClientSelect,
       }),
       prismaApiClient.count({ where }),
     ])
@@ -84,14 +138,7 @@ export async function getApiClientByIdService(
   try {
     const row = await prismaApiClient.findUnique({
       where: { id },
-      select: {
-        id: true,
-        clientId: true,
-        name: true,
-        isBlocked: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: apiClientSelect,
     })
     if (!row) return { success: false, message: "API client not found", code: "NOT_FOUND" }
     return { success: true, data: toApiClient(row) }
@@ -118,21 +165,25 @@ export async function createApiClientService(
   }
 
   try {
-    const { name } = parsed.data
+    const { name, actingUserId: actingUserIdRaw } = parsed.data
+    const actingResolved = await resolveActingUserId(actingUserIdRaw)
+    if (!actingResolved.ok) {
+      return { success: false, message: actingResolved.message }
+    }
+
     const clientId = crypto.randomUUID()
     const clientSecret = crypto.randomBytes(32).toString("hex")
     const clientSecretHash = await argon2.hash(clientSecret)
 
     const row = await prismaApiClient.create({
-      data: { clientId, clientSecretHash, name, isBlocked: false },
-      select: {
-        id: true,
-        clientId: true,
-        name: true,
-        isBlocked: true,
-        createdAt: true,
-        updatedAt: true,
+      data: {
+        clientId,
+        clientSecretHash,
+        name,
+        isBlocked: false,
+        actingUserId: actingResolved.value,
       },
+      select: apiClientSelect,
     })
 
     return {
@@ -166,17 +217,16 @@ export async function updateApiClientService(
   }
 
   try {
+    const { actingUserId: actingUserIdRaw, ...rest } = parsed.data
+    const actingResolved = await resolveActingUserId(actingUserIdRaw)
+    if (!actingResolved.ok) {
+      return { success: false, message: actingResolved.message }
+    }
+
     const row = await prismaApiClient.update({
       where: { id },
-      data: parsed.data,
-      select: {
-        id: true,
-        clientId: true,
-        name: true,
-        isBlocked: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      data: { ...rest, actingUserId: actingResolved.value },
+      select: apiClientSelect,
     })
     return { success: true, data: toApiClient(row) }
   } catch (e: unknown) {

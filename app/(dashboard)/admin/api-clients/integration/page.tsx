@@ -33,7 +33,7 @@ export default async function IntegrationGuidePage() {
           <h1 className="text-2xl font-semibold tracking-tight m-0">Public API Integration Guide</h1>
         </div>
         <p className="text-muted-foreground mt-2">
-          This guide explains how to integrate your application with the Channeling Public API: create an API client, obtain an access token, and call the sessions endpoint.
+          This guide explains how to integrate your application with the Channeling Public API: create an API client, obtain an access token, fetch sessions, and fetch patient bookings for a doctor.
         </p>
 
         {/* Step 1: Create application & get client ID and secret */}
@@ -108,6 +108,30 @@ export default async function IntegrationGuidePage() {
           </CardContent>
         </Card>
 
+        {/* Step 4: Call bookings API */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 4: Call the bookings API</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              To show a doctor who is booked (patient name, contact, queue number), call the bookings endpoint with the token from Step 2.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">GET /api/public/bookings</code></li>
+              <li><strong>Header:</strong> <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;access_token&gt;</code></li>
+              <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">doctorCode</code> (required), plus <code className="rounded bg-muted px-1 py-0.5">sessionId</code> or <code className="rounded bg-muted px-1 py-0.5">date</code> (YYYY-MM-DD)</li>
+              <li><strong>Optional:</strong> <code className="rounded bg-muted px-1 py-0.5">includePending=true</code> to include unpaid bookings</li>
+            </ul>
+            <p>
+              The response contains a <code className="rounded bg-muted px-1 py-0.5">bookings</code> array with appointment number, patient fields (title, name, sex, phone, area, remarks), session time/location, and status. Payment amounts and internal desk fields are not included.
+            </p>
+            <p className="text-muted-foreground">
+              Typical flow: get sessions → pick a <code className="rounded bg-muted px-1 py-0.5">session.id</code> → get bookings for that session. Test in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 3).
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Postman */}
         <Card className="my-6 print:break-inside-avoid">
           <CardHeader>
@@ -115,7 +139,7 @@ export default async function IntegrationGuidePage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              A Postman collection is available so you can run the same requests (token + sessions) from Postman.
+              A Postman collection is available so you can run the same requests (token, sessions, bookings) from Postman.
             </p>
             <ul className="list-disc space-y-1 pl-5">
               <li>
@@ -129,6 +153,9 @@ export default async function IntegrationGuidePage() {
               </li>
               <li>
                 Run <strong>Get Sessions</strong> to call the sessions API with the saved token.
+              </li>
+              <li>
+                Set <code className="rounded bg-muted px-1 py-0.5">session_id</code> from a session response (or enable <code className="rounded bg-muted px-1 py-0.5">date</code> on Get Bookings), then run <strong>Get Bookings</strong>.
               </li>
             </ul>
           </CardContent>
