@@ -19,6 +19,13 @@ export const ApiClientColumns: ColumnDef<ApiClient>[] = [
     ),
   },
   {
+    id: "actingUser",
+    header: "User",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.actingUserName}</span>
+    ),
+  },
+  {
     accessorKey: "isBlocked",
     header: "Status",
     cell: ({ row }) => {

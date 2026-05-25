@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
+import { getUserTypeLabel } from "@/lib/roles"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
     // Check view permission
@@ -470,7 +471,7 @@ export const getUsersExportData = async (keyword?: string) => {
   const mappedUsers = userListResponse.data.map((u: any) => ({
     name: u.name || '-',
     email: u.email || '-',
-    userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
+    userType: getUserTypeLabel(u.userType),
     userGroup: u.userGroup?.name || '-',
     status: u.status === 1 ? 'Active' : 'Inactive'
   }));

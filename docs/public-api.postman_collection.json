@@ -1,14 +1,15 @@
 {
   "info": {
     "name": "Channeling Public API",
-    "description": "OAuth2 client credentials + sessions. Get token first, then call sessions with Bearer token.",
+    "description": "OAuth2 client credentials, sessions, and bookings. Get token first, then call protected endpoints with Bearer token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
     { "key": "client_id", "value": "" },
     { "key": "client_secret", "value": "" },
-    { "key": "access_token", "value": "" }
+    { "key": "access_token", "value": "" },
+    { "key": "session_id", "value": "" }
   ],
   "item": [
     {
@@ -59,6 +60,27 @@
           ]
         },
         "description": "Returns future sessions for a doctor. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
+      "name": "Get Bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/bookings?doctorCode=DR0001&sessionId={{session_id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "bookings"],
+          "query": [
+            { "key": "doctorCode", "value": "DR0001", "description": "Required. Doctor code." },
+            { "key": "sessionId", "value": "{{session_id}}", "description": "Session id from Get Sessions (or use date instead)." },
+            { "key": "date", "value": "", "disabled": true, "description": "YYYY-MM-DD — all paid bookings for doctor on this day." },
+            { "key": "includePending", "value": "false", "disabled": true, "description": "Set to true to include pending (status 0) bookings." }
+          ]
+        },
+        "description": "Returns minimal patient booking data for a doctor session or day. Paid only by default. Requires Bearer token."
       }
     }
   ]

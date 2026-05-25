@@ -8,6 +8,7 @@ import {
   createApiClientService,
   updateApiClientService,
   deleteApiClientByIdService,
+  getApiClientUserOptionsService,
 } from "@/services/api-client.service"
 import type { GetApiClientsParams, ApiClientFormValues } from "@/types/api-client"
 import { requirePermission } from "@/lib/server-permissions"
@@ -50,7 +51,19 @@ export async function getApiClientById(id: string) {
   return { success: true, data: result.data }
 }
 
-export async function createApiClient(payload: { name: string }) {
+export async function getApiClientUserOptions() {
+  await requirePermission("api-clients", "view")
+  const result = await getApiClientUserOptionsService()
+  if (!result.success) {
+    return { success: false, data: [] as { id: string; name: string }[], message: result.message }
+  }
+  return { success: true, data: result.data }
+}
+
+export async function createApiClient(payload: {
+  name: string
+  actingUserId: string
+}) {
   await requirePermission("api-clients", "add")
 
   const result = await createApiClientService(payload)
@@ -82,7 +95,7 @@ export async function createApiClient(payload: { name: string }) {
   }
 }
 
-export async function updateApiClient(id: string, payload: Partial<ApiClientFormValues>) {
+export async function updateApiClient(id: string, payload: ApiClientFormValues) {
   await requirePermission("api-clients", "edit")
 
   const result = await updateApiClientService(id, payload)
