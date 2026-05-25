@@ -75,15 +75,28 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
       "endTime": "2025-02-24T14:00:00.000Z",
       "status": 1,
       "doctorOnLeave": false,
-      "amountLocal": 1500,
-      "amountForeign": 10,
-      "appointmentNo": 0,
+      "minPatientNumber": 1,
+      "maxPatientNumber": 50,
+      "appointmentNo": 12,
+      "isFull": false,
+      "amountLocal": {
+        "professionalFee": 1200,
+        "hospitalFee": 300,
+        "amount": 1500
+      },
+      "amountForeign": {
+        "professionalFee": 8,
+        "hospitalFee": 2,
+        "amount": 10
+      },
       "location": { "id": "...", "name": "OPD" },
       "doctor": { "id": "...", "title": "Dr", "name": "...", "code": "DR0001" }
     }
   ]
 }
 ```
+
+`status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
 
 ---
 
