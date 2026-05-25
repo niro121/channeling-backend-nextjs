@@ -6,7 +6,51 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { Copy, Download, FileText, Key, Loader2, Play } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Copy, Download, FileText, Key, Loader2, LogIn, Play } from "lucide-react"
+
+type ApiResult = { status: number; body: unknown }
+
+function ApiResponseBlock({ result }: { result: ApiResult | null }) {
+  if (!result) return null
+  return (
+    <div className="space-y-2">
+      <Label>Response ({result.status})</Label>
+      <pre className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+        {JSON.stringify(result.body, null, 2)}
+      </pre>
+    </div>
+  )
+}
+
+function CurlExampleBlock({
+  curl,
+  onCopy,
+}: {
+  curl: string
+  onCopy: (text: string) => void
+}) {
+  return (
+    <div className="border-t pt-4">
+      <div className="mb-1 flex items-center justify-between">
+        <Label className="text-xs">cURL request example</Label>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => onCopy(curl)}
+          disabled={!curl}
+        >
+          <Copy className="mr-1 h-3 w-3" />
+          Copy
+        </Button>
+      </div>
+      <pre className="max-h-40 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+        {curl || "(Detecting origin…)"}
+      </pre>
+    </div>
+  )
+}
 
 export function PublicApiPlayground() {
   const [baseUrl, setBaseUrl] = useState("")
@@ -55,6 +99,18 @@ export function PublicApiPlayground() {
     body: unknown
   } | null>(null)
 
+  const [doctorEmail, setDoctorEmail] = useState("")
+  const [doctorPassword, setDoctorPassword] = useState("")
+  const [doctorAccessToken, setDoctorAccessToken] = useState("")
+  const [twoFactorToken, setTwoFactorToken] = useState("")
+  const [twoFactorCode, setTwoFactorCode] = useState("")
+  const [doctorCheckLoading, setDoctorCheckLoading] = useState(false)
+  const [doctorCheckResult, setDoctorCheckResult] = useState<ApiResult | null>(null)
+  const [doctorLoginLoading, setDoctorLoginLoading] = useState(false)
+  const [doctorLoginResult, setDoctorLoginResult] = useState<ApiResult | null>(null)
+  const [doctorMeLoading, setDoctorMeLoading] = useState(false)
+  const [doctorMeResult, setDoctorMeResult] = useState<ApiResult | null>(null)
+
   const curlToken = originForCurl
     ? `curl -X POST "${originForCurl}/api/public/token" \\
   -H "Content-Type: application/json" \\
@@ -87,6 +143,28 @@ export function PublicApiPlayground() {
     "area": "Colombo",
     "foreigner": false
   }'`
+    : ""
+
+  const doctorAuthBase = `${originForCurl}/api/doctor-app/auth`
+  const curlDoctorCheckLogin = originForCurl
+    ? `curl -X POST "${doctorAuthBase}/check-login" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "doctor@example.com",
+    "password": "YOUR_PASSWORD"
+  }'`
+    : ""
+  const curlDoctorLogin = originForCurl
+    ? `curl -X POST "${doctorAuthBase}/login" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "doctor@example.com",
+    "password": "YOUR_PASSWORD"
+  }'`
+    : ""
+  const curlDoctorMe = originForCurl
+    ? `curl -X GET "${doctorAuthBase}/me" \\
+  -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
 
   function copyCurl(text: string) {
@@ -215,6 +293,90 @@ export function PublicApiPlayground() {
 
   function copyToken() {
     if (accessToken) void navigator.clipboard.writeText(accessToken)
+  }
+
+  function copyDoctorToken() {
+    if (doctorAccessToken) void navigator.clipboard.writeText(doctorAccessToken)
+  }
+
+  const doctorIdentifierReady = doctorEmail.trim() && doctorPassword
+
+  async function runDoctorAuthRequest(
+    path: string,
+    options: RequestInit,
+    setLoading: (v: boolean) => void,
+    setResult: (r: ApiResult | null) => void,
+    onSuccess?: (body: Record<string, unknown>) => void
+  ) {
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch(path, options)
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      setResult({ status: res.status, body })
+      if (res.ok && onSuccess) onSuccess(body)
+    } catch (e) {
+      setResult({
+        status: 0,
+        body: { error: "request_failed", error_description: String(e) },
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleDoctorCheckLogin() {
+    void runDoctorAuthRequest(
+      "/api/doctor-app/auth/check-login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: doctorEmail.trim(),
+          password: doctorPassword,
+        }),
+      },
+      setDoctorCheckLoading,
+      setDoctorCheckResult
+    )
+  }
+
+  function handleDoctorLogin() {
+    const payload: Record<string, string> = {
+      email: doctorEmail.trim(),
+      password: doctorPassword,
+    }
+    if (twoFactorCode.trim()) payload.twoFactorCode = twoFactorCode.trim()
+    if (twoFactorToken.trim()) payload.twoFactorToken = twoFactorToken.trim()
+
+    void runDoctorAuthRequest(
+      "/api/doctor-app/auth/login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      setDoctorLoginLoading,
+      setDoctorLoginResult,
+      (body) => {
+        if (typeof body.access_token === "string") {
+          setDoctorAccessToken(body.access_token)
+        }
+      }
+    )
+  }
+
+  function handleDoctorMe() {
+    void runDoctorAuthRequest(
+      "/api/doctor-app/auth/me",
+      {
+        headers: doctorAccessToken
+          ? { Authorization: `Bearer ${doctorAccessToken}` }
+          : {},
+      },
+      setDoctorMeLoading,
+      setDoctorMeResult
+    )
   }
 
   return (
@@ -608,6 +770,174 @@ export function PublicApiPlayground() {
               {curlCreateBooking || "(Detecting origin…)"}
             </pre>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <LogIn className="h-5 w-5" />
+            5. Doctor app login (auth)
+          </CardTitle>
+          <CardDescription>
+            Public doctor-mobile auth under /api/doctor-app/auth — no API client OAuth token.
+            Flow: Check login → Login → Me.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="doctor_email">Email or username</Label>
+              <Input
+                id="doctor_email"
+                placeholder="doctor@example.com or username"
+                value={doctorEmail}
+                onChange={(e) => setDoctorEmail(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="doctor_password">Password</Label>
+              <Input
+                id="doctor_password"
+                type="password"
+                placeholder="Doctor user password"
+                value={doctorPassword}
+                onChange={(e) => setDoctorPassword(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="doctor_access_token">Doctor Bearer token</Label>
+              <Input
+                id="doctor_access_token"
+                type="password"
+                placeholder="From Login tab (access_token)"
+                value={doctorAccessToken}
+                onChange={(e) => setDoctorAccessToken(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+
+          <Tabs defaultValue="check-login" className="w-full">
+            <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted p-1">
+              <TabsTrigger value="check-login" className="text-xs sm:text-sm">
+                Check login
+              </TabsTrigger>
+              <TabsTrigger value="login" className="text-xs sm:text-sm">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="me" className="text-xs sm:text-sm">
+                Me
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="check-login" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">
+                POST /api/doctor-app/auth/check-login — Validates credentials; returns whether 2FA
+                is required before login.
+              </p>
+              <Button
+                onClick={handleDoctorCheckLogin}
+                disabled={doctorCheckLoading || !doctorIdentifierReady}
+              >
+                {doctorCheckLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Requesting…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Check login
+                  </>
+                )}
+              </Button>
+              <ApiResponseBlock result={doctorCheckResult} />
+              <CurlExampleBlock curl={curlDoctorCheckLogin} onCopy={copyCurl} />
+            </TabsContent>
+
+            <TabsContent value="login" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">
+                POST /api/doctor-app/auth/login — Completes login and returns JWT. Omit 2FA fields
+                when check-login did not require 2FA.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="two_factor_code">2FA code (optional)</Label>
+                  <Input
+                    id="two_factor_code"
+                    placeholder="6-digit SMS or TOTP"
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="two_factor_token">2FA token (optional)</Label>
+                  <Input
+                    id="two_factor_token"
+                    placeholder="Optional, if 2FA required"
+                    value={twoFactorToken}
+                    onChange={(e) => setTwoFactorToken(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleDoctorLogin}
+                disabled={doctorLoginLoading || !doctorIdentifierReady}
+              >
+                {doctorLoginLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Requesting…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Login
+                  </>
+                )}
+              </Button>
+              <ApiResponseBlock result={doctorLoginResult} />
+              {doctorLoginResult?.status === 200 &&
+                typeof (doctorLoginResult.body as { access_token?: string }).access_token ===
+                  "string" && (
+                  <Button variant="outline" size="sm" onClick={copyDoctorToken}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy token to Me tab
+                  </Button>
+                )}
+              <CurlExampleBlock curl={curlDoctorLogin} onCopy={copyCurl} />
+            </TabsContent>
+
+            <TabsContent value="me" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">
+                GET /api/doctor-app/auth/me — Current doctor user and profile (Bearer JWT from
+                login).
+              </p>
+              <Button
+                onClick={handleDoctorMe}
+                disabled={doctorMeLoading || !doctorAccessToken.trim()}
+              >
+                {doctorMeLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Requesting…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Get me
+                  </>
+                )}
+              </Button>
+              <ApiResponseBlock result={doctorMeResult} />
+              <CurlExampleBlock curl={curlDoctorMe} onCopy={copyCurl} />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
