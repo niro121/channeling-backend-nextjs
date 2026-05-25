@@ -7,7 +7,8 @@ import {
   getDoctorTwoFactorPolicy,
   resolveDoctorProfileForUser,
   toDoctorAppUserPayload,
-  type DoctorProfileSummary,
+  toDoctorAppDoctorPayload,
+  type DoctorAppDoctorPayload,
   type DoctorUserWithGroup,
 } from "@/lib/helpers/auth/doctor-login"
 import {
@@ -32,7 +33,7 @@ export type DoctorAppLoginResult =
       expiresIn: number
       tokenType: "Bearer"
       user: ReturnType<typeof toDoctorAppUserPayload>
-      doctor: DoctorProfileSummary | null
+      doctor: DoctorAppDoctorPayload | null
     }
   | {
       success: false
@@ -282,14 +283,14 @@ async function completeDoctorAppLogin(
   user: DoctorUserWithGroup
 ): Promise<DoctorAppLoginResult> {
   const { accessToken, expiresIn } = await issueDoctorAppToken(user.id)
-  const doctor = await resolveDoctorProfileForUser(user)
+  const profile = await resolveDoctorProfileForUser(user)
   return {
     success: true,
     accessToken,
     expiresIn,
     tokenType: "Bearer",
     user: toDoctorAppUserPayload(user),
-    doctor,
+    doctor: profile ? toDoctorAppDoctorPayload(profile) : null,
   }
 }
 
@@ -445,7 +446,7 @@ export async function doctorAppGetSession(userId: string): Promise<{
   status: number
   error?: string
   user?: ReturnType<typeof toDoctorAppUserPayload>
-  doctor?: DoctorProfileSummary | null
+  doctor?: DoctorAppDoctorPayload | null
 }> {
   const user = await prisma.user.findFirst({
     where: { id: userId, userType: DOCTOR_USER_TYPE, status: 1 },
@@ -454,11 +455,11 @@ export async function doctorAppGetSession(userId: string): Promise<{
   if (!user) {
     return { success: false, status: 401, error: "Unauthorized" }
   }
-  const doctor = await resolveDoctorProfileForUser(user)
+  const profile = await resolveDoctorProfileForUser(user)
   return {
     success: true,
     status: 200,
     user: toDoctorAppUserPayload(user),
-    doctor,
+    doctor: profile ? toDoctorAppDoctorPayload(profile) : null,
   }
 }
