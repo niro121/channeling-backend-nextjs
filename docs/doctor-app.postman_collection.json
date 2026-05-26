@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Doctor Mobile App – Auth",
-    "description": "Doctor app login (userType 3). Set collection variables `doctor_email` (or username), `doctor_password`, then run Check Login → Login (or 2FA flow) → Me.\n\nSee docs/DOCTOR_APP_API.md.",
+    "name": "Doctor Mobile App API",
+    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Get Sessions.\n\nSee docs/DOCTOR_APP_API.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,7 +12,8 @@
     { "key": "two_factor_token", "value": "", "description": "From Request 2FA (method 1 only)" },
     { "key": "two_factor_code", "value": "", "description": "6-digit SMS or authenticator code" },
     { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" },
-    { "key": "doctor_new_password", "value": "", "description": "New password after first-login change" }
+    { "key": "doctor_new_password", "value": "", "description": "New password after first-login change" },
+    { "key": "from_date", "value": "", "description": "Optional YYYY-MM-DD for sessions; empty = today" }
   ],
   "item": [
     {
@@ -135,6 +136,26 @@
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
         "url": "{{baseUrl}}/api/doctor-app/auth/me",
         "description": "Requires access_token from Login. Returns user + doctor profile."
+      }
+    },
+    {
+      "name": "5. Get Sessions",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/doctor-app/sessions?fromDate={{from_date}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "doctor-app", "sessions"],
+          "query": [
+            {
+              "key": "fromDate",
+              "value": "{{from_date}}",
+              "description": "Optional YYYY-MM-DD; leave empty for today"
+            }
+          ]
+        },
+        "description": "Sessions for the logged-in doctor. Requires access_token from Login. Doctor is resolved from user link — no doctorCode parameter."
       }
     }
   ]

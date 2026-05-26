@@ -90,7 +90,7 @@
     },
     {
       "name": "Doctor App Auth",
-      "description": "Doctor mobile login (userType 3). Set doctor_email and doctor_password, then Check Login → Login → Me. Uses doctor_access_token (not access_token).",
+      "description": "Doctor mobile app (userType 3). Set doctor_email and doctor_password, then Check Login → Login → Me → Sessions. Uses doctor_access_token (not access_token).",
       "item": [
         {
           "name": "Check Login",
@@ -141,6 +141,27 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{doctor_access_token}}" }],
             "url": "{{baseUrl}}/api/doctor-app/auth/me",
             "description": "Requires doctor_access_token from Login. Returns user + doctor profile."
+          }
+        },
+        {
+          "name": "Sessions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{doctor_access_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor-app/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor-app", "sessions"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2025-02-24",
+                  "disabled": true,
+                  "description": "Optional YYYY-MM-DD; omit query for today"
+                }
+              ]
+            },
+            "description": "Sessions for logged-in doctor. Bearer doctor_access_token only (not OAuth access_token)."
           }
         }
       ]

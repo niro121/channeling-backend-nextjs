@@ -110,6 +110,9 @@ export function PublicApiPlayground() {
   const [doctorLoginResult, setDoctorLoginResult] = useState<ApiResult | null>(null)
   const [doctorMeLoading, setDoctorMeLoading] = useState(false)
   const [doctorMeResult, setDoctorMeResult] = useState<ApiResult | null>(null)
+  const [doctorFromDate, setDoctorFromDate] = useState("")
+  const [doctorSessionsLoading, setDoctorSessionsLoading] = useState(false)
+  const [doctorSessionsResult, setDoctorSessionsResult] = useState<ApiResult | null>(null)
 
   const curlToken = originForCurl
     ? `curl -X POST "${originForCurl}/api/public/token" \\
@@ -164,6 +167,10 @@ export function PublicApiPlayground() {
     : ""
   const curlDoctorMe = originForCurl
     ? `curl -X GET "${doctorAuthBase}/me" \\
+  -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
+    : ""
+  const curlDoctorSessions = originForCurl
+    ? `curl -X GET "${originForCurl}/api/doctor-app/sessions?fromDate=2025-02-24" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
 
@@ -362,7 +369,29 @@ export function PublicApiPlayground() {
         if (typeof body.access_token === "string") {
           setDoctorAccessToken(body.access_token)
         }
+        const doctor = body.doctor as { code?: string } | null | undefined
+        if (doctor && typeof doctor.code === "string") {
+          setDoctorCode(doctor.code)
+        }
       }
+    )
+  }
+
+  function handleDoctorSessions() {
+    void runDoctorAuthRequest(
+      (() => {
+        const params = new URLSearchParams()
+        if (doctorFromDate.trim()) params.set("fromDate", doctorFromDate.trim())
+        const qs = params.toString()
+        return `/api/doctor-app/sessions${qs ? `?${qs}` : ""}`
+      })(),
+      {
+        headers: doctorAccessToken
+          ? { Authorization: `Bearer ${doctorAccessToken}` }
+          : {},
+      },
+      setDoctorSessionsLoading,
+      setDoctorSessionsResult
     )
   }
 
@@ -780,8 +809,8 @@ export function PublicApiPlayground() {
             5. Doctor app login (auth)
           </CardTitle>
           <CardDescription>
-            Public doctor-mobile auth under /api/doctor-app/auth — no API client OAuth token.
-            Flow: Check login → Login → Me.
+            Doctor mobile API — use the login JWT only (no OAuth client token).
+            Flow: Check login → Login → Me → Sessions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -821,7 +850,7 @@ export function PublicApiPlayground() {
           </div>
 
           <Tabs defaultValue="check-login" className="w-full">
-            <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted p-1">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted p-1 sm:grid-cols-4">
               <TabsTrigger value="check-login" className="text-xs sm:text-sm">
                 Check login
               </TabsTrigger>
@@ -830,6 +859,9 @@ export function PublicApiPlayground() {
               </TabsTrigger>
               <TabsTrigger value="me" className="text-xs sm:text-sm">
                 Me
+              </TabsTrigger>
+              <TabsTrigger value="sessions" className="text-xs sm:text-sm">
+                Sessions
               </TabsTrigger>
             </TabsList>
 
@@ -907,10 +939,45 @@ export function PublicApiPlayground() {
                   "string" && (
                   <Button variant="outline" size="sm" onClick={copyDoctorToken}>
                     <Copy className="mr-2 h-4 w-4" />
-                    Copy token to Me tab
+                    Copy doctor token
                   </Button>
                 )}
               <CurlExampleBlock curl={curlDoctorLogin} onCopy={copyCurl} />
+            </TabsContent>
+
+            <TabsContent value="sessions" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">
+                GET /api/doctor-app/sessions — Sessions for the logged-in doctor (Bearer JWT from
+                login). Optional fromDate (YYYY-MM-DD); default is today. No doctorCode or OAuth
+                token required.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="doctor_from_date">From date (optional)</Label>
+                <Input
+                  id="doctor_from_date"
+                  placeholder="e.g. 2026-02-24 (empty = today)"
+                  value={doctorFromDate}
+                  onChange={(e) => setDoctorFromDate(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={handleDoctorSessions}
+                disabled={doctorSessionsLoading || !doctorAccessToken.trim()}
+              >
+                {doctorSessionsLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Requesting…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Get sessions
+                  </>
+                )}
+              </Button>
+              <ApiResponseBlock result={doctorSessionsResult} />
+              <CurlExampleBlock curl={curlDoctorSessions} onCopy={copyCurl} />
             </TabsContent>
 
             <TabsContent value="me" className="mt-4 space-y-4">

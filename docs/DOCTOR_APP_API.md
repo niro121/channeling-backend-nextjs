@@ -1,6 +1,8 @@
-# Doctor Mobile App – Authentication API
+# Doctor Mobile App API
 
 REST API for the doctor mobile app. Doctors log in as **Users** with `userType = 3` (Doctor), created in the admin **Users** module. Login accepts **email or username**; when two-factor authentication (2FA) applies, behavior matches the web dashboard (group policy + user preference).
+
+After login, use the **doctor app Bearer token** for protected routes such as sessions. Do **not** use the public OAuth API client token (`/api/public/token`) in the mobile app.
 
 **Base URL:** `http://localhost:3000` (replace for staging/production).
 
@@ -17,6 +19,7 @@ All endpoints use `Content-Type: application/json` unless noted otherwise.
 | `POST` | `/api/doctor-app/auth/request-2fa-code` | None | Send or prepare 2FA code (after check-login) |
 | `POST` | `/api/doctor-app/auth/login` | None | Complete login; returns Bearer JWT + profiles |
 | `GET` | `/api/doctor-app/auth/me` | Bearer | Current user and linked doctor profile |
+| `GET` | `/api/doctor-app/sessions` | Bearer | Sessions for the logged-in doctor (`fromDate` optional) |
 
 Routes live under `/api/` and are **not** protected by NextAuth session middleware (same pattern as `/api/auth/*`).
 
@@ -527,6 +530,90 @@ curl -X GET "http://localhost:3000/api/doctor-app/auth/me" \
 
 ---
 
+## 6. Sessions
+
+**GET** `/api/doctor-app/sessions?fromDate=YYYY-MM-DD`
+
+Returns channel sessions for the **logged-in doctor**. The doctor is resolved from the user’s linked Account or `username` = doctor code (same rules as [Doctor Profile Resolution](#doctor-profile-resolution)). No `doctorCode` query parameter is required.
+
+Uses the same session payload as the public API (`GET /api/public/sessions`), but authenticates with the **doctor app JWT** only.
+
+### Headers
+
+```http
+Authorization: Bearer <access_token>
+```
+
+### Query parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `fromDate` | No | Start date in `YYYY-MM-DD`; default is **today** (server local day). |
+
+### Success (200)
+
+```json
+{
+  "sessions": [
+    {
+      "id": "...",
+      "date": "2025-02-24",
+      "startTime": "2025-02-24T13:00:00.000Z",
+      "startTimeFormatted": "7:00 PM",
+      "endTime": "2025-02-24T14:00:00.000Z",
+      "status": 1,
+      "doctorOnLeave": false,
+      "minPatientNumber": 1,
+      "maxPatientNumber": 50,
+      "appointmentNo": 12,
+      "isFull": false,
+      "amountLocal": {
+        "professionalFee": 0,
+        "hospitalFee": 0,
+        "amount": 2500
+      },
+      "amountForeign": {
+        "professionalFee": 0,
+        "hospitalFee": 0,
+        "amount": 5000
+      },
+      "location": { "id": "...", "name": "Main Hospital" },
+      "doctor": {
+        "id": "...",
+        "title": "Dr.",
+        "name": "Silva",
+        "code": "DR001"
+      }
+    }
+  ]
+}
+```
+
+### Errors
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `400` | `{ "error": "invalid_request", "message": "..." }` | Invalid `fromDate` format |
+| `401` | `{ "error": "Unauthorized" }` | Missing, invalid, or expired token |
+| `404` | `{ "error": "not_linked", "message": "..." }` | User has no linked doctor profile |
+| `500` | `{ "error": "server_error" }` or `{ "error": "Server error" }` | Unexpected failure |
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/doctor-app/sessions?fromDate=2025-02-24" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+Omit `fromDate` to use today:
+
+```bash
+curl -X GET "http://localhost:3000/api/doctor-app/sessions" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+---
+
 ## Doctor Profile Resolution
 
 After login (and on `me`), `doctor` is resolved in order:
@@ -546,6 +633,7 @@ If neither matches, `doctor` is `null` but login still succeeds.
 4. For method `1`, keep `twoFactorToken` until `login` completes.
 5. Refresh profile with `GET /me` on app start when a token exists.
 6. Handle `requiresPasswordChange` with **change-initial-password**, then login with the new password.
+7. Load sessions with `GET /api/doctor-app/sessions` (optional `fromDate`); do not call `/api/public/sessions` from the mobile app.
 
 ---
 
@@ -563,6 +651,9 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | Request 2FA route | `app/api/doctor-app/auth/request-2fa-code/route.ts` |
 | Login route | `app/api/doctor-app/auth/login/route.ts` |
 | Me route | `app/api/doctor-app/auth/me/route.ts` |
+| Sessions route | `app/api/doctor-app/sessions/route.ts` |
+| Sessions logic | `services/doctor-app/sessions.service.ts` |
+| Shared session DTO/query | `services/public/sessions.service.ts` |
 | User type constant | `lib/roles.ts` (`userTypes.doctor = 3`) |
 | Web 2FA reference | [2FA_PROCEDURE.md](./2FA_PROCEDURE.md) |
 
@@ -596,6 +687,7 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | 1 | **1. Check Login** | `200` → `"requiresTwoFactor": false` |
 | 2 | **3. Login (no 2FA)** | `200` → `access_token`, `user`, `doctor` |
 | 3 | **4. Me** | `200` → same profiles (uses saved token) |
+| 4 | **5. Get Sessions** | `200` → `sessions` array (optional `fromDate`) |
 
 ### Flow B – 2FA (SMS)
 
@@ -606,6 +698,7 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | 3 | Set variable `two_factor_code` to the SMS code | — |
 | 4 | **3b. Login (with 2FA)** | `200` → `access_token` |
 | 5 | **4. Me** | `200` |
+| 6 | **5. Get Sessions** | `200` |
 
 ### Flow C – 2FA (Authenticator)
 
@@ -625,6 +718,9 @@ Body (raw JSON): `{ "username": "DR001", "password": "YourPassword1!" }`
 
 **Me:** `GET {{baseUrl}}/api/doctor-app/auth/me`  
 Header: `Authorization` = `Bearer <paste access_token from login response>`
+
+**Sessions:** `GET {{baseUrl}}/api/doctor-app/sessions?fromDate=2025-02-24`  
+Same Bearer header. Omit `fromDate` for today.
 
 ---
 
