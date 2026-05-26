@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDoctorAppUserId } from "@/lib/doctor-app-auth"
-import { getDoctorAppSessions } from "@/services/doctor-app/sessions.service"
+import { listDoctorAppSessionsForUser } from "@/services/doctor-app/list-doctor-app-sessions.service"
 
 /**
- * GET /api/doctor-app/sessions?fromDate=YYYY-MM-DD
- * Returns sessions for the logged-in doctor (Bearer JWT from login).
- * fromDate is optional; default is today.
+ * GET /api/doctor-app/sessions
+ * Mobile app: sessions for the logged-in doctor (Bearer JWT).
+ *
+ * Query (optional):
+ * - (none) — today only (default)
+ * - all=true — from today onward (optional fromDate as start)
+ * - fromDate=YYYY-MM-DD — that day only
+ * - fromDate + toDate — inclusive date range
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,9 +20,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const fromDateParam = searchParams.get("fromDate")?.trim() ?? null
-
-    const result = await getDoctorAppSessions(userId, fromDateParam)
+    const result = await listDoctorAppSessionsForUser(userId, {
+      all: searchParams.get("all") === "true",
+      fromDate: searchParams.get("fromDate"),
+      toDate: searchParams.get("toDate"),
+    })
 
     if (!result.success) {
       return NextResponse.json(
