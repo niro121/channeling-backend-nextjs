@@ -22,6 +22,8 @@ export type User = {
     userLocation?: Location | null
     staffId?: string | null
     staff?: { id: string; name: string; code?: string } | null
+    /** Doctor master id (doctor users); persisted via Account.userId + Account.doctorId */
+    doctorId?: string | null
     bookingLocations?: { locationId: string; location?: Location }[]
     bookingLocationIds?: string[] // form-only: ids for multi-select, synced to bookingLocations
     userGroupId?: string | null
