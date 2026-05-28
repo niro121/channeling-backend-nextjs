@@ -562,7 +562,7 @@ export function PublicApiPlayground() {
             2. Get sessions
           </CardTitle>
           <CardDescription>
-            GET /api/public/sessions?doctorCode=…&fromDate=…&toDate=… — Requires Authorization: Bearer &lt;token&gt;.
+            GET /api/public/sessions?doctorCode=…&fromDate=… — Requires Authorization: Bearer &lt;token&gt;.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -595,7 +595,7 @@ export function PublicApiPlayground() {
               onChange={(e) => setFromDate(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="to_date">To date (optional, YYYY-MM-DD)</Label>
             <Input
               id="to_date"
@@ -603,7 +603,7 @@ export function PublicApiPlayground() {
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
             />
-          </div>
+          </div> */}
           <Button
             onClick={handleGetSessions}
             disabled={sessionsLoading || !doctorCode.trim()}
