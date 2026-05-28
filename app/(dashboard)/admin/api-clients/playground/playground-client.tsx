@@ -420,6 +420,20 @@ export function PublicApiPlayground() {
     )
   }
 
+  function handleDoctorAllSessions() {
+    void runDoctorAuthRequest(
+      "/api/doctor-app/sessions?all=true",
+      {
+        headers: {
+          ...(doctorAccessToken ? { Authorization: `Bearer ${doctorAccessToken}` } : {}),
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
+      },
+      setDoctorSessionsLoading,
+      setDoctorSessionsResult
+    )
+  }
+
   function handleDoctorMe() {
     void runDoctorAuthRequest(
       "/api/doctor-app/auth/me",
@@ -1035,6 +1049,27 @@ export function PublicApiPlayground() {
                     value={doctorToDate}
                     onChange={(e) => setDoctorToDate(e.target.value)}
                   />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    onClick={handleDoctorAllSessions}
+                    disabled={
+                      doctorSessionsLoading || !doctorAccessToken.trim() || !doctorOauthTokenReady
+                    }
+                  >
+                    {doctorSessionsLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Requesting…
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Get all sessions
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
               <Button
