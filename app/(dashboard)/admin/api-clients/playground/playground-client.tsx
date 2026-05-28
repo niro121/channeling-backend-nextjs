@@ -102,6 +102,7 @@ export function PublicApiPlayground() {
 
   const [doctorEmail, setDoctorEmail] = useState("")
   const [doctorPassword, setDoctorPassword] = useState("")
+  const [doctorOauthToken, setDoctorOauthToken] = useState("")
   const [doctorAccessToken, setDoctorAccessToken] = useState("")
   const [twoFactorToken, setTwoFactorToken] = useState("")
   const [twoFactorCode, setTwoFactorCode] = useState("")
@@ -156,6 +157,7 @@ export function PublicApiPlayground() {
   const doctorAuthBase = `${originForCurl}/api/doctor-app/auth`
   const curlDoctorCheckLogin = originForCurl
     ? `curl -X POST "${doctorAuthBase}/check-login" \\
+  -H "X-Client-Access-Token: YOUR_OAUTH_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "email": "doctor@example.com",
@@ -164,6 +166,7 @@ export function PublicApiPlayground() {
     : ""
   const curlDoctorLogin = originForCurl
     ? `curl -X POST "${doctorAuthBase}/login" \\
+  -H "X-Client-Access-Token: YOUR_OAUTH_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "email": "doctor@example.com",
@@ -172,14 +175,17 @@ export function PublicApiPlayground() {
     : ""
   const curlDoctorMe = originForCurl
     ? `curl -X GET "${doctorAuthBase}/me" \\
+  -H "X-Client-Access-Token: YOUR_OAUTH_ACCESS_TOKEN" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
   const curlDoctorSessions = originForCurl
     ? `curl -X GET "${originForCurl}/api/doctor-app/sessions?fromDate=2025-02-24&toDate=2025-02-29" \\
+  -H "X-Client-Access-Token: YOUR_OAUTH_ACCESS_TOKEN" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
   const curlDoctorSessionById = originForCurl
     ? `curl -X GET "${originForCurl}/api/doctor-app/sessions/SESSION_ID" \\
+  -H "X-Client-Access-Token: YOUR_OAUTH_ACCESS_TOKEN" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
 
@@ -317,6 +323,7 @@ export function PublicApiPlayground() {
   }
 
   const doctorIdentifierReady = doctorEmail.trim() && doctorPassword
+  const doctorOauthTokenReady = doctorOauthToken.trim()
 
   async function runDoctorAuthRequest(
     path: string,
@@ -347,7 +354,10 @@ export function PublicApiPlayground() {
       "/api/doctor-app/auth/check-login",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
         body: JSON.stringify({
           email: doctorEmail.trim(),
           password: doctorPassword,
@@ -370,7 +380,10 @@ export function PublicApiPlayground() {
       "/api/doctor-app/auth/login",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
         body: JSON.stringify(payload),
       },
       setDoctorLoginLoading,
@@ -397,9 +410,10 @@ export function PublicApiPlayground() {
         return `/api/doctor-app/sessions${qs ? `?${qs}` : ""}`
       })(),
       {
-        headers: doctorAccessToken
-          ? { Authorization: `Bearer ${doctorAccessToken}` }
-          : {},
+        headers: {
+          ...(doctorAccessToken ? { Authorization: `Bearer ${doctorAccessToken}` } : {}),
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
       },
       setDoctorSessionsLoading,
       setDoctorSessionsResult
@@ -410,9 +424,10 @@ export function PublicApiPlayground() {
     void runDoctorAuthRequest(
       "/api/doctor-app/auth/me",
       {
-        headers: doctorAccessToken
-          ? { Authorization: `Bearer ${doctorAccessToken}` }
-          : {},
+        headers: {
+          ...(doctorAccessToken ? { Authorization: `Bearer ${doctorAccessToken}` } : {}),
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
       },
       setDoctorMeLoading,
       setDoctorMeResult
@@ -426,9 +441,10 @@ export function PublicApiPlayground() {
     void runDoctorAuthRequest(
       `/api/doctor-app/sessions/${encodeURIComponent(trimmedSessionId)}`,
       {
-        headers: doctorAccessToken
-          ? { Authorization: `Bearer ${doctorAccessToken}` }
-          : {},
+        headers: {
+          ...(doctorAccessToken ? { Authorization: `Bearer ${doctorAccessToken}` } : {}),
+          "X-Client-Access-Token": doctorOauthToken.trim(),
+        },
       },
       setDoctorSessionByIdLoading,
       setDoctorSessionByIdResult
@@ -846,12 +862,23 @@ export function PublicApiPlayground() {
             5. Doctor app
           </CardTitle>
           <CardDescription>
-            Doctor mobile API — use the login JWT only (no OAuth client token).
-            Flow: Check login → Login → Me → Sessions.
+            Doctor mobile API playground. Requires OAuth token from step 1 plus doctor login JWT
+            for protected endpoints. Flow: Check login → Login → Me → Sessions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="doctor_oauth_token">Bearer token (from step 1)</Label>
+              <Input
+                id="doctor_oauth_token"
+                type="password"
+                placeholder="Paste access_token from 1. Get access token"
+                value={doctorOauthToken}
+                onChange={(e) => setDoctorOauthToken(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="doctor_email">Email or username</Label>
               <Input
@@ -912,7 +939,7 @@ export function PublicApiPlayground() {
               </p>
               <Button
                 onClick={handleDoctorCheckLogin}
-                disabled={doctorCheckLoading || !doctorIdentifierReady}
+                disabled={doctorCheckLoading || !doctorIdentifierReady || !doctorOauthTokenReady}
               >
                 {doctorCheckLoading ? (
                   <>
@@ -959,7 +986,7 @@ export function PublicApiPlayground() {
               </div>
               <Button
                 onClick={handleDoctorLogin}
-                disabled={doctorLoginLoading || !doctorIdentifierReady}
+                disabled={doctorLoginLoading || !doctorIdentifierReady || !doctorOauthTokenReady}
               >
                 {doctorLoginLoading ? (
                   <>
@@ -989,7 +1016,6 @@ export function PublicApiPlayground() {
               <p className="text-muted-foreground text-sm">
                 GET /api/doctor-app/sessions — Sessions for the logged-in doctor (Bearer JWT from
                 login). Optional fromDate/toDate (YYYY-MM-DD) for date range; default is today.
-                No doctorCode or OAuth token required.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -1013,7 +1039,9 @@ export function PublicApiPlayground() {
               </div>
               <Button
                 onClick={handleDoctorSessions}
-                disabled={doctorSessionsLoading || !doctorAccessToken.trim()}
+                disabled={
+                  doctorSessionsLoading || !doctorAccessToken.trim() || !doctorOauthTokenReady
+                }
               >
                 {doctorSessionsLoading ? (
                   <>
@@ -1049,7 +1077,10 @@ export function PublicApiPlayground() {
               <Button
                 onClick={handleDoctorSessionById}
                 disabled={
-                  doctorSessionByIdLoading || !doctorAccessToken.trim() || !doctorSessionId.trim()
+                  doctorSessionByIdLoading ||
+                  !doctorAccessToken.trim() ||
+                  !doctorSessionId.trim() ||
+                  !doctorOauthTokenReady
                 }
               >
                 {doctorSessionByIdLoading ? (
@@ -1075,7 +1106,7 @@ export function PublicApiPlayground() {
               </p>
               <Button
                 onClick={handleDoctorMe}
-                disabled={doctorMeLoading || !doctorAccessToken.trim()}
+                disabled={doctorMeLoading || !doctorAccessToken.trim() || !doctorOauthTokenReady}
               >
                 {doctorMeLoading ? (
                   <>
