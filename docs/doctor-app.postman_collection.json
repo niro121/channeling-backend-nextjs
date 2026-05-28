@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Doctor Mobile App API",
-    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Get Sessions.\n\nSee docs/DOCTOR_APP_API.md.",
+    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Get Sessions / Get Session By ID. Session responses include bookings for each session.\n\nSee docs/DOCTOR_APP_API.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -156,7 +156,7 @@
             }
           ]
         },
-        "description": "Sessions for the logged-in doctor. Requires access_token from Login. Doctor is resolved from user link — no doctorCode parameter."
+        "description": "Sessions for the logged-in doctor. Requires access_token from Login. Doctor is resolved from user link — no doctorCode parameter. Each session includes its bookings for the selected date/date-range/all filter."
       }
     },
     {
@@ -165,7 +165,7 @@
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
         "url": "{{baseUrl}}/api/doctor-app/sessions/{{session_id}}",
-        "description": "Single session by id for the logged-in doctor. Use session_id from Get Sessions response."
+        "description": "Single session by id for the logged-in doctor. Use session_id from Get Sessions response. Response includes bookings for that session."
       }
     }
   ]

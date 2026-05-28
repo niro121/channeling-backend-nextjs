@@ -19,7 +19,7 @@ All endpoints use `Content-Type: application/json` unless noted otherwise.
 | `POST` | `/api/doctor-app/auth/request-2fa-code` | None | Send or prepare 2FA code (after check-login) |
 | `POST` | `/api/doctor-app/auth/login` | None | Complete login; returns Bearer JWT + profiles |
 | `GET` | `/api/doctor-app/auth/me` | Bearer | Current user and linked doctor profile |
-| `GET` | `/api/doctor-app/sessions` | Bearer | Sessions for the logged-in doctor (`fromDate` optional) |
+| `GET` | `/api/doctor-app/sessions` | Bearer | Sessions for the logged-in doctor (`fromDate` optional) with bookings |
 | `GET` | `/api/doctor-app/sessions/:sessionId` | Bearer | One session by id for the logged-in doctor |
 
 Routes live under `/api/` and are **not** protected by NextAuth session middleware (same pattern as `/api/auth/*`).
@@ -537,7 +537,8 @@ curl -X GET "http://localhost:3000/api/doctor-app/auth/me" \
 
 Returns channel sessions for the **logged-in doctor**. The doctor is resolved from the user’s linked Account or `username` = doctor code (same rules as [Doctor Profile Resolution](#doctor-profile-resolution)). No `doctorCode` query parameter is required.
 
-Uses the same session payload as the public API (`GET /api/public/sessions`), but authenticates with the **doctor app JWT** only.
+Uses the same session payload as the public API (`GET /api/public/sessions`), but authenticates with the **doctor app JWT** only.  
+Each session also includes a `bookings` array for that session (paid + pending bookings).
 
 ### Headers
 
@@ -584,7 +585,24 @@ Authorization: Bearer <access_token>
         "title": "Dr.",
         "name": "Silva",
         "code": "DR001"
-      }
+      },
+      "bookings": [
+        {
+          "id": "BOOKING_ID",
+          "appointmentNo": 12,
+          "status": 1,
+          "statusLabel": "Paid",
+          "patient": {
+            "title": "Mr",
+            "name": "John Doe",
+            "sex": "M",
+            "phone": "0771234567",
+            "area": "Colombo",
+            "remarks": "",
+            "foreigner": false
+          }
+        }
+      ]
     }
   ]
 }
@@ -619,7 +637,8 @@ curl -X GET "http://localhost:3000/api/doctor-app/sessions" \
 
 **GET** `/api/doctor-app/sessions/:sessionId`
 
-Returns one session by id for the **logged-in doctor**. The route enforces ownership (`doctorId`) and returns `404` when the session id does not belong to that doctor.
+Returns one session by id for the **logged-in doctor**. The route enforces ownership (`doctorId`) and returns `404` when the session id does not belong to that doctor.  
+The response includes `bookings` for the requested session.
 
 ### Headers
 
@@ -665,7 +684,24 @@ Authorization: Bearer <access_token>
       "title": "Dr.",
       "name": "Silva",
       "code": "DR001"
-    }
+    },
+    "bookings": [
+      {
+        "id": "BOOKING_ID",
+        "appointmentNo": 12,
+        "status": 1,
+        "statusLabel": "Paid",
+        "patient": {
+          "title": "Mr",
+          "name": "John Doe",
+          "sex": "M",
+          "phone": "0771234567",
+          "area": "Colombo",
+          "remarks": "",
+          "foreigner": false
+        }
+      }
+    ]
   }
 }
 ```

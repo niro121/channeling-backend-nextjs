@@ -9,8 +9,35 @@ import {
 } from "@/services/doctor-app/doctor-app-sessions.repository"
 import { mapDoctorAppSessionsToDto } from "@/services/doctor-app/doctor-app-sessions.mapper"
 
+const BOOKING_STATUS_LABELS: Record<number, string> = {
+  0: "Pending",
+  1: "Paid",
+  2: "Cancel",
+  3: "Refund",
+}
+
+export type DoctorAppSessionBookingDto = {
+  id: string
+  appointmentNo: number
+  status: number
+  statusLabel: string
+  patient: {
+    title: string
+    name: string
+    sex: string
+    phone: string
+    area: string
+    remarks: string
+    foreigner: boolean
+  }
+}
+
+export type DoctorAppSessionWithBookingsDto = PublicSessionDto & {
+  bookings: DoctorAppSessionBookingDto[]
+}
+
 export type ListDoctorAppSessionsResult =
-  | { success: true; status: 200; sessions: PublicSessionDto[] }
+  | { success: true; status: 200; sessions: DoctorAppSessionWithBookingsDto[] }
   | {
       success: false
       status: 401 | 404 | 400 | 500
@@ -137,11 +164,63 @@ export async function listDoctorAppSessionsByDoctorCode(
     }
   }
 
-  return {
-    success: true,
-    status: 200,
-    sessions: mapDoctorAppSessionsToDto(fetchResult.data, doctor),
+  const mappedSessions = mapDoctorAppSessionsToDto(fetchResult.data, doctor)
+  const sessionIds = mappedSessions.map((s) => s.id)
+
+  if (sessionIds.length === 0) {
+    return { success: true, status: 200, sessions: [] }
   }
+
+  const bookingRows = await prisma.booking.findMany({
+    where: {
+      doctorId: doctor.id,
+      sessionId: { in: sessionIds },
+      status: { in: [0, 1] },
+    },
+    orderBy: [{ appointmentNo: "asc" }],
+    select: {
+      id: true,
+      sessionId: true,
+      appointmentNo: true,
+      status: true,
+      title: true,
+      name: true,
+      sex: true,
+      phone: true,
+      area: true,
+      remarks: true,
+      foriegner: true,
+    },
+  })
+
+  const bookingsBySessionId = new Map<string, DoctorAppSessionBookingDto[]>()
+  for (const row of bookingRows) {
+    if (!row.sessionId) continue
+    const list = bookingsBySessionId.get(row.sessionId) ?? []
+    list.push({
+      id: row.id,
+      appointmentNo: row.appointmentNo,
+      status: row.status,
+      statusLabel: BOOKING_STATUS_LABELS[row.status] ?? String(row.status),
+      patient: {
+        title: row.title,
+        name: row.name,
+        sex: row.sex,
+        phone: row.phone,
+        area: row.area,
+        remarks: row.remarks,
+        foreigner: row.foriegner,
+      },
+    })
+    bookingsBySessionId.set(row.sessionId, list)
+  }
+
+  const sessions: DoctorAppSessionWithBookingsDto[] = mappedSessions.map((s) => ({
+    ...s,
+    bookings: bookingsBySessionId.get(s.id) ?? [],
+  }))
+
+  return { success: true, status: 200, sessions }
 }
 
 /**
