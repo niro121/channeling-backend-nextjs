@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Doctor Mobile App API",
-    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Get Sessions / Get Session By ID. Session responses include bookings for each session.\n\nSee docs/DOCTOR_APP_API.md.",
+    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Sessions → Profile update / Password change.\n\nSee docs/DOCTOR_APP_API.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -14,7 +14,17 @@
     { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" },
     { "key": "doctor_new_password", "value": "", "description": "New password after first-login change" },
     { "key": "from_date", "value": "", "description": "Optional YYYY-MM-DD for sessions; empty = today" },
-    { "key": "session_id", "value": "", "description": "Session id for single-session request" }
+    { "key": "session_id", "value": "", "description": "Session id for single-session request" },
+    { "key": "doctor_phone", "value": "", "description": "Doctor phone (optional)" },
+    { "key": "doctor_mobile", "value": "0771234567", "description": "Doctor mobile (required)" },
+    { "key": "doctor_address_line_1", "value": "", "description": "Doctor address line 1 (optional)" },
+    { "key": "doctor_address_line_2", "value": "", "description": "Doctor address line 2 (optional)" },
+    { "key": "doctor_city", "value": "", "description": "Doctor city (optional)" },
+    { "key": "doctor_registration_no", "value": "", "description": "Doctor registration number (optional)" },
+    { "key": "doctor_qualification", "value": "MBBS", "description": "Doctor qualification (required)" },
+    { "key": "current_password", "value": "", "description": "Current account password" },
+    { "key": "new_password", "value": "", "description": "New password" },
+    { "key": "confirm_password", "value": "", "description": "Confirm new password" }
   ],
   "item": [
     {
@@ -166,6 +176,38 @@
         "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
         "url": "{{baseUrl}}/api/doctor-app/sessions/{{session_id}}",
         "description": "Single session by id for the logged-in doctor. Use session_id from Get Sessions response. Response includes bookings for that session."
+      }
+    },
+    {
+      "name": "7. Update Doctor Profile",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"{{doctor_phone}}\",\n  \"mobile\": \"{{doctor_mobile}}\",\n  \"addressLine1\": \"{{doctor_address_line_1}}\",\n  \"addressLine2\": \"{{doctor_address_line_2}}\",\n  \"city\": \"{{doctor_city}}\",\n  \"registrationNumber\": \"{{doctor_registration_no}}\",\n  \"qualification\": \"{{doctor_qualification}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/profile",
+        "description": "Update allowed doctor profile fields only."
+      }
+    },
+    {
+      "name": "8. Change Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"{{current_password}}\",\n  \"newPassword\": \"{{new_password}}\",\n  \"confirmPassword\": \"{{confirm_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/profile/change-password",
+        "description": "Change password in a separate endpoint (current + new + confirm)."
       }
     }
   ]

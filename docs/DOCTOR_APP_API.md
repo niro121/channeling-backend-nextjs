@@ -21,6 +21,8 @@ All endpoints use `Content-Type: application/json` unless noted otherwise.
 | `GET` | `/api/doctor-app/auth/me` | Bearer | Current user and linked doctor profile |
 | `GET` | `/api/doctor-app/sessions` | Bearer | Sessions for the logged-in doctor (`fromDate` optional) with bookings |
 | `GET` | `/api/doctor-app/sessions/:sessionId` | Bearer | One session by id for the logged-in doctor |
+| `PATCH` | `/api/doctor-app/profile` | Bearer | Update doctor profile (only allowed fields) |
+| `POST` | `/api/doctor-app/profile/change-password` | Bearer | Change doctor account password |
 
 Routes live under `/api/` and are **not** protected by NextAuth session middleware (same pattern as `/api/auth/*`).
 
@@ -725,6 +727,159 @@ curl -X GET "http://localhost:3000/api/doctor-app/sessions/SESSION_ID" \
 
 ---
 
+## 8. Update Doctor Profile
+
+**PATCH** `/api/doctor-app/profile`
+
+Updates doctor profile fields for the logged-in doctor user.  
+Only the following fields are accepted:
+
+- `phone`
+- `mobile` (**required**)
+- `addressLine1`
+- `addressLine2`
+- `city`
+- `registrationNumber`
+- `qualification` (**required**)
+
+### Headers
+
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+### Request body
+
+```json
+{
+  "phone": "0412233445",
+  "mobile": "0771234567",
+  "addressLine1": "No 10, Main Street",
+  "addressLine2": "Near Bus Stand",
+  "city": "Galle",
+  "registrationNumber": "SLMC-12345",
+  "qualification": "MBBS, MD"
+}
+```
+
+### Validation rules
+
+- `mobile` is required and must be a valid Sri Lankan mobile number (`07XXXXXXXX`, `94...`, or `+94...`).
+- `qualification` is required and cannot be empty.
+- Optional fields are accepted as empty/null and stored as `null`.
+- Unknown fields are ignored by the endpoint (only allowed fields are used).
+
+### Success (200)
+
+```json
+{
+  "doctor": {
+    "id": "665a...",
+    "code": "DR001",
+    "title": "Dr.",
+    "name": "Silva",
+    "phone": "0412233445",
+    "mobile": "0771234567",
+    "addressLine1": "No 10, Main Street",
+    "addressLine2": "Near Bus Stand",
+    "city": "Galle",
+    "registrationNumber": "SLMC-12345",
+    "qualification": "MBBS, MD"
+  }
+}
+```
+
+### Errors
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `400` | `{ "error": "invalid_request", "message": "...", "issues": {...} }` | Validation failed |
+| `401` | `{ "error": "Unauthorized" }` | Missing/invalid token |
+| `404` | `{ "error": "not_linked", "message": "..." }` | User has no linked doctor profile |
+| `500` | `{ "error": "server_error", "message": "..." }` | Unexpected failure |
+
+### cURL
+
+```bash
+curl -X PATCH "http://localhost:3000/api/doctor-app/profile" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone":"0412233445",
+    "mobile":"0771234567",
+    "addressLine1":"No 10, Main Street",
+    "addressLine2":"Near Bus Stand",
+    "city":"Galle",
+    "registrationNumber":"SLMC-12345",
+    "qualification":"MBBS, MD"
+  }'
+```
+
+---
+
+## 9. Change Password
+
+**POST** `/api/doctor-app/profile/change-password`
+
+Separate endpoint for authenticated password changes.
+
+### Headers
+
+```http
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+### Request body
+
+```json
+{
+  "currentPassword": "OldPass1!",
+  "newPassword": "NewPass1!",
+  "confirmPassword": "NewPass1!"
+}
+```
+
+### Validation rules
+
+- `currentPassword` and `newPassword` are required.
+- `confirmPassword` is optional, but if provided it must match `newPassword`.
+- `newPassword` must be at least 8 chars and include uppercase, lowercase, number, special char (no spaces).
+- `newPassword` must differ from `currentPassword`.
+
+### Success (200)
+
+```json
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+### Errors
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `400` | `{ "error": "..." }` | Validation failed / current password wrong |
+| `401` | `{ "error": "Unauthorized" }` | Missing/invalid token |
+| `500` | `{ "error": "Failed to change password" }` or `{ "error": "Server error" }` | Unexpected failure |
+
+### cURL
+
+```bash
+curl -X POST "http://localhost:3000/api/doctor-app/profile/change-password" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currentPassword":"OldPass1!",
+    "newPassword":"NewPass1!",
+    "confirmPassword":"NewPass1!"
+  }'
+```
+
+---
+
 ## Doctor Profile Resolution
 
 After login (and on `me`), `doctor` is resolved in order:
@@ -766,6 +921,10 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | Session by id route | `app/api/doctor-app/sessions/[sessionId]/route.ts` |
 | Sessions logic | `services/doctor-app/list-doctor-app-sessions.service.ts` |
 | Session by id logic | `services/doctor-app/get-doctor-app-session-by-id.service.ts` |
+| Profile update route | `app/api/doctor-app/profile/route.ts` |
+| Password change route | `app/api/doctor-app/profile/change-password/route.ts` |
+| Profile update logic | `services/doctor-app/update-doctor-profile.service.ts` |
+| Password change logic | `services/doctor-app/change-doctor-app-password.service.ts` |
 | Shared session DTO/query | `services/public/sessions.service.ts` |
 | User type constant | `lib/roles.ts` (`userTypes.doctor = 3`) |
 | Web 2FA reference | [2FA_PROCEDURE.md](./2FA_PROCEDURE.md) |
@@ -802,6 +961,8 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | 3 | **4. Me** | `200` → same profiles (uses saved token) |
 | 4 | **5. Get Sessions** | `200` → `sessions` array (optional `fromDate`) |
 | 5 | **6. Get Session By ID** | `200` → `session` object |
+| 6 | **7. Update Doctor Profile** | `200` → updated `doctor` object |
+| 7 | **8. Change Password** | `200` → success message |
 
 ### Flow B – 2FA (SMS)
 
@@ -838,6 +999,12 @@ Same Bearer header. Omit `fromDate` for today.
 
 **Session by id:** `GET {{baseUrl}}/api/doctor-app/sessions/{{session_id}}`  
 Same Bearer header.
+
+**Update profile:** `PATCH {{baseUrl}}/api/doctor-app/profile`  
+Header: `Authorization: Bearer <access_token>` and `Content-Type: application/json`.
+
+**Change password:** `POST {{baseUrl}}/api/doctor-app/profile/change-password`  
+Header: `Authorization: Bearer <access_token>` and `Content-Type: application/json`.
 
 ---
 
