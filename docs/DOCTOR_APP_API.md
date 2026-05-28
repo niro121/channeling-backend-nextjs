@@ -20,6 +20,7 @@ All endpoints use `Content-Type: application/json` unless noted otherwise.
 | `POST` | `/api/doctor-app/auth/login` | None | Complete login; returns Bearer JWT + profiles |
 | `GET` | `/api/doctor-app/auth/me` | Bearer | Current user and linked doctor profile |
 | `GET` | `/api/doctor-app/sessions` | Bearer | Sessions for the logged-in doctor (`fromDate` optional) |
+| `GET` | `/api/doctor-app/sessions/:sessionId` | Bearer | One session by id for the logged-in doctor |
 
 Routes live under `/api/` and are **not** protected by NextAuth session middleware (same pattern as `/api/auth/*`).
 
@@ -614,6 +615,80 @@ curl -X GET "http://localhost:3000/api/doctor-app/sessions" \
 
 ---
 
+## 7. Session By ID
+
+**GET** `/api/doctor-app/sessions/:sessionId`
+
+Returns one session by id for the **logged-in doctor**. The route enforces ownership (`doctorId`) and returns `404` when the session id does not belong to that doctor.
+
+### Headers
+
+```http
+Authorization: Bearer <access_token>
+```
+
+### Path parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `sessionId` | Yes | Session id from the sessions list response. |
+
+### Success (200)
+
+```json
+{
+  "session": {
+    "id": "...",
+    "date": "2025-02-24",
+    "startTime": "2025-02-24T13:00:00.000Z",
+    "startTimeFormatted": "7:00 PM",
+    "endTime": "2025-02-24T14:00:00.000Z",
+    "status": 1,
+    "doctorOnLeave": false,
+    "minPatientNumber": 1,
+    "maxPatientNumber": 50,
+    "appointmentNo": 12,
+    "isFull": false,
+    "amountLocal": {
+      "professionalFee": 0,
+      "hospitalFee": 0,
+      "amount": 2500
+    },
+    "amountForeign": {
+      "professionalFee": 0,
+      "hospitalFee": 0,
+      "amount": 5000
+    },
+    "location": { "id": "...", "name": "Main Hospital" },
+    "doctor": {
+      "id": "...",
+      "title": "Dr.",
+      "name": "Silva",
+      "code": "DR001"
+    }
+  }
+}
+```
+
+### Errors
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `400` | `{ "error": "invalid_request", "message": "sessionId is required" }` | Empty id |
+| `401` | `{ "error": "Unauthorized" }` | Missing, invalid, or expired token |
+| `404` | `{ "error": "not_found", "message": "Session not found for this doctor" }` | Not found / not owned by doctor |
+| `404` | `{ "error": "not_linked", "message": "..." }` | User has no linked doctor profile |
+| `500` | `{ "error": "server_error" }` or `{ "error": "Server error" }` | Unexpected failure |
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/doctor-app/sessions/SESSION_ID" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+---
+
 ## Doctor Profile Resolution
 
 After login (and on `me`), `doctor` is resolved in order:
@@ -652,7 +727,9 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | Login route | `app/api/doctor-app/auth/login/route.ts` |
 | Me route | `app/api/doctor-app/auth/me/route.ts` |
 | Sessions route | `app/api/doctor-app/sessions/route.ts` |
-| Sessions logic | `services/doctor-app/sessions.service.ts` |
+| Session by id route | `app/api/doctor-app/sessions/[sessionId]/route.ts` |
+| Sessions logic | `services/doctor-app/list-doctor-app-sessions.service.ts` |
+| Session by id logic | `services/doctor-app/get-doctor-app-session-by-id.service.ts` |
 | Shared session DTO/query | `services/public/sessions.service.ts` |
 | User type constant | `lib/roles.ts` (`userTypes.doctor = 3`) |
 | Web 2FA reference | [2FA_PROCEDURE.md](./2FA_PROCEDURE.md) |
@@ -688,6 +765,7 @@ If neither matches, `doctor` is `null` but login still succeeds.
 | 2 | **3. Login (no 2FA)** | `200` → `access_token`, `user`, `doctor` |
 | 3 | **4. Me** | `200` → same profiles (uses saved token) |
 | 4 | **5. Get Sessions** | `200` → `sessions` array (optional `fromDate`) |
+| 5 | **6. Get Session By ID** | `200` → `session` object |
 
 ### Flow B – 2FA (SMS)
 
@@ -721,6 +799,9 @@ Header: `Authorization` = `Bearer <paste access_token from login response>`
 
 **Sessions:** `GET {{baseUrl}}/api/doctor-app/sessions?fromDate=2025-02-24`  
 Same Bearer header. Omit `fromDate` for today.
+
+**Session by id:** `GET {{baseUrl}}/api/doctor-app/sessions/{{session_id}}`  
+Same Bearer header.
 
 ---
 
