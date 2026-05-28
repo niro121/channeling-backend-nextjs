@@ -102,7 +102,7 @@ export function mapDoctorAppSessionsToDto(
       amountLocal,
       amountForeign,
       location: s.location
-        ? { id: s.location.id!, name: s.location.name }
+        ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,
       doctor: {
         id: doctor.id,

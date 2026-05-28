@@ -89,7 +89,7 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
         "hospitalFee": 2,
         "amount": 10
       },
-      "location": { "id": "...", "name": "OPD" },
+      "location": { "id": "...", "name": "OPD", "city": "Colombo" },
       "doctor": { "id": "...", "title": "Dr", "name": "...", "code": "DR0001" }
     }
   ]
