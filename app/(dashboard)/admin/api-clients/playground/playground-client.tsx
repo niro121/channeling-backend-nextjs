@@ -70,6 +70,7 @@ export function PublicApiPlayground() {
   const [accessToken, setAccessToken] = useState("")
   const [doctorCode, setDoctorCode] = useState("")
   const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionsResult, setSessionsResult] = useState<{
     status: number
@@ -111,6 +112,7 @@ export function PublicApiPlayground() {
   const [doctorMeLoading, setDoctorMeLoading] = useState(false)
   const [doctorMeResult, setDoctorMeResult] = useState<ApiResult | null>(null)
   const [doctorFromDate, setDoctorFromDate] = useState("")
+  const [doctorToDate, setDoctorToDate] = useState("")
   const [doctorSessionsLoading, setDoctorSessionsLoading] = useState(false)
   const [doctorSessionsResult, setDoctorSessionsResult] = useState<ApiResult | null>(null)
 
@@ -124,7 +126,7 @@ export function PublicApiPlayground() {
   }'`
     : ""
   const curlSessions = originForCurl
-    ? `curl -X GET "${originForCurl}/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24" \\
+    ? `curl -X GET "${originForCurl}/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24&toDate=2025-02-29" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`
     : ""
   const curlBookings = originForCurl
@@ -170,7 +172,7 @@ export function PublicApiPlayground() {
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
   const curlDoctorSessions = originForCurl
-    ? `curl -X GET "${originForCurl}/api/doctor-app/sessions?fromDate=2025-02-24" \\
+    ? `curl -X GET "${originForCurl}/api/doctor-app/sessions?fromDate=2025-02-24&toDate=2025-02-29" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
 
@@ -213,6 +215,7 @@ export function PublicApiPlayground() {
       const params = new URLSearchParams()
       params.set("doctorCode", doctorCode.trim())
       if (fromDate.trim()) params.set("fromDate", fromDate.trim())
+      if (toDate.trim()) params.set("toDate", toDate.trim())
       const res = await fetch(`/api/public/sessions?${params.toString()}`, {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       })
@@ -382,6 +385,7 @@ export function PublicApiPlayground() {
       (() => {
         const params = new URLSearchParams()
         if (doctorFromDate.trim()) params.set("fromDate", doctorFromDate.trim())
+        if (doctorToDate.trim()) params.set("toDate", doctorToDate.trim())
         const qs = params.toString()
         return `/api/doctor-app/sessions${qs ? `?${qs}` : ""}`
       })(),
@@ -519,7 +523,7 @@ export function PublicApiPlayground() {
             2. Get sessions
           </CardTitle>
           <CardDescription>
-            GET /api/public/sessions?doctorCode=…&fromDate=… — Requires Authorization: Bearer &lt;token&gt;.
+            GET /api/public/sessions?doctorCode=…&fromDate=…&toDate=… — Requires Authorization: Bearer &lt;token&gt;.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -550,6 +554,15 @@ export function PublicApiPlayground() {
               placeholder="e.g. 2026-02-24"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="to_date">To date (optional, YYYY-MM-DD)</Label>
+            <Input
+              id="to_date"
+              placeholder="e.g. 2026-02-29"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
             />
           </div>
           <Button
@@ -948,17 +961,28 @@ export function PublicApiPlayground() {
             <TabsContent value="sessions" className="mt-4 space-y-4">
               <p className="text-muted-foreground text-sm">
                 GET /api/doctor-app/sessions — Sessions for the logged-in doctor (Bearer JWT from
-                login). Optional fromDate (YYYY-MM-DD); default is today. No doctorCode or OAuth
-                token required.
+                login). Optional fromDate/toDate (YYYY-MM-DD) for date range; default is today.
+                No doctorCode or OAuth token required.
               </p>
-              <div className="space-y-2">
-                <Label htmlFor="doctor_from_date">From date (optional)</Label>
-                <Input
-                  id="doctor_from_date"
-                  placeholder="e.g. 2026-02-24 (empty = today)"
-                  value={doctorFromDate}
-                  onChange={(e) => setDoctorFromDate(e.target.value)}
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="doctor_from_date">From date (optional)</Label>
+                  <Input
+                    id="doctor_from_date"
+                    placeholder="e.g. 2026-02-24 (empty = today)"
+                    value={doctorFromDate}
+                    onChange={(e) => setDoctorFromDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="doctor_to_date">To date (optional)</Label>
+                  <Input
+                    id="doctor_to_date"
+                    placeholder="e.g. 2026-02-29"
+                    value={doctorToDate}
+                    onChange={(e) => setDoctorToDate(e.target.value)}
+                  />
+                </div>
               </div>
               <Button
                 onClick={handleDoctorSessions}
