@@ -115,6 +115,9 @@ export function PublicApiPlayground() {
   const [doctorToDate, setDoctorToDate] = useState("")
   const [doctorSessionsLoading, setDoctorSessionsLoading] = useState(false)
   const [doctorSessionsResult, setDoctorSessionsResult] = useState<ApiResult | null>(null)
+  const [doctorSessionId, setDoctorSessionId] = useState("")
+  const [doctorSessionByIdLoading, setDoctorSessionByIdLoading] = useState(false)
+  const [doctorSessionByIdResult, setDoctorSessionByIdResult] = useState<ApiResult | null>(null)
 
   const curlToken = originForCurl
     ? `curl -X POST "${originForCurl}/api/public/token" \\
@@ -173,6 +176,10 @@ export function PublicApiPlayground() {
     : ""
   const curlDoctorSessions = originForCurl
     ? `curl -X GET "${originForCurl}/api/doctor-app/sessions?fromDate=2025-02-24&toDate=2025-02-29" \\
+  -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
+    : ""
+  const curlDoctorSessionById = originForCurl
+    ? `curl -X GET "${originForCurl}/api/doctor-app/sessions/SESSION_ID" \\
   -H "Authorization: Bearer YOUR_DOCTOR_ACCESS_TOKEN"`
     : ""
 
@@ -409,6 +416,22 @@ export function PublicApiPlayground() {
       },
       setDoctorMeLoading,
       setDoctorMeResult
+    )
+  }
+
+  function handleDoctorSessionById() {
+    const trimmedSessionId = doctorSessionId.trim()
+    if (!trimmedSessionId) return
+
+    void runDoctorAuthRequest(
+      `/api/doctor-app/sessions/${encodeURIComponent(trimmedSessionId)}`,
+      {
+        headers: doctorAccessToken
+          ? { Authorization: `Bearer ${doctorAccessToken}` }
+          : {},
+      },
+      setDoctorSessionByIdLoading,
+      setDoctorSessionByIdResult
     )
   }
 
@@ -815,11 +838,12 @@ export function PublicApiPlayground() {
         </CardContent>
       </Card>
 
+      {/* Doctor app */}
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <LogIn className="h-5 w-5" />
-            5. Doctor app login (auth)
+            5. Doctor app
           </CardTitle>
           <CardDescription>
             Doctor mobile API — use the login JWT only (no OAuth client token).
@@ -863,7 +887,7 @@ export function PublicApiPlayground() {
           </div>
 
           <Tabs defaultValue="check-login" className="w-full">
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted p-1 sm:grid-cols-4">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted p-1 sm:grid-cols-5">
               <TabsTrigger value="check-login" className="text-xs sm:text-sm">
                 Check login
               </TabsTrigger>
@@ -875,6 +899,9 @@ export function PublicApiPlayground() {
               </TabsTrigger>
               <TabsTrigger value="sessions" className="text-xs sm:text-sm">
                 Sessions
+              </TabsTrigger>
+              <TabsTrigger value="session-by-id" className="text-xs sm:text-sm">
+                Session by ID
               </TabsTrigger>
             </TabsList>
 
@@ -1002,6 +1029,43 @@ export function PublicApiPlayground() {
               </Button>
               <ApiResponseBlock result={doctorSessionsResult} />
               <CurlExampleBlock curl={curlDoctorSessions} onCopy={copyCurl} />
+            </TabsContent>
+
+            <TabsContent value="session-by-id" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">
+                GET /api/doctor-app/sessions/[sessionId] — Single session details for the logged-in
+                doctor (Bearer JWT from login).
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="doctor_session_id">Session ID</Label>
+                <Input
+                  id="doctor_session_id"
+                  placeholder="Paste session id from Sessions tab"
+                  value={doctorSessionId}
+                  onChange={(e) => setDoctorSessionId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <Button
+                onClick={handleDoctorSessionById}
+                disabled={
+                  doctorSessionByIdLoading || !doctorAccessToken.trim() || !doctorSessionId.trim()
+                }
+              >
+                {doctorSessionByIdLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Requesting…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Get session by ID
+                  </>
+                )}
+              </Button>
+              <ApiResponseBlock result={doctorSessionByIdResult} />
+              <CurlExampleBlock curl={curlDoctorSessionById} onCopy={copyCurl} />
             </TabsContent>
 
             <TabsContent value="me" className="mt-4 space-y-4">
