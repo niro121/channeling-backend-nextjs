@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { SL_OFFSET, normalizeSessionTime } from '@/lib/utils';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import type {
   AgentWiseAppointmentsDetailRow,
@@ -32,22 +33,10 @@ function parseDateRange(from?: string, to?: string): { from: Date; to: Date } | 
   if (!from?.trim() || !to?.trim()) return null;
 
   const parseFrom = (val: string): Date => {
-    const t = val.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return new Date(`${t}T00:00:00${SL_OFFSET}`);
-    if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}/.test(t)) return new Date(t);
-    return new Date(t);
+    return parseReportDateTimeSl(val, false, SL_OFFSET) ?? new Date(val);
   };
   const parseTo = (val: string): Date => {
-    const t = val.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return new Date(`${t}T23:59:59.999${SL_OFFSET}`);
-    if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}/.test(t)) {
-      const [dp, tp] = t.split('T');
-      const [h = 23, min = 59] = (tp || '').split(':').map(Number);
-      const hh = String(h).padStart(2, '0');
-      const mm = String(min).padStart(2, '0');
-      return new Date(`${dp}T${hh}:${mm}:59.999${SL_OFFSET}`);
-    }
-    return new Date(t);
+    return parseReportDateTimeSl(val, true, SL_OFFSET) ?? new Date(val);
   };
 
   const fromDate = parseFrom(from);

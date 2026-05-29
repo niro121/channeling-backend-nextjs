@@ -11,6 +11,14 @@
  * To skip wiping:
  *   npx tsx scripts/migrate-doctor-sessions.ts --no-wipe
  *
+ * Specific-date schedules (dayType 8 / legacy day_type 7) with applyTo before today
+ * (Sri Lanka calendar) are skipped to reduce noise. Use --include-past to import all.
+ *
+ * Default migrate API returns published templates only (status=1). Use --include-unpublished
+ * so sessions that reference inactive legacy templates can resolve (restart Sails after API change).
+ *
+ * Doctors are processed in parallel (default 10 at a time). Override: --concurrency=5
+ *
  * Notes:
  * - This script is best-effort: it resolves `doctor` by DB `migrateSourceId`, and resolves `department` by name,
  *   `location` by code, and `room` by number+location (when present).
@@ -19,7 +27,13 @@
  */
 
 import 'dotenv/config';
+import moment from 'moment';
 import { PrismaClient } from '@prisma/client';
+import { resolveLegacyTemplateTimes } from './lib/resolve-legacy-template-times';
+import {
+  createMigrateReporter,
+  finishMigrateReporter,
+} from './lib/migrate-report';
 
 const prisma = new PrismaClient();
 
@@ -74,24 +88,118 @@ type SourceDoctorSession = {
   previous_schedule_id?: number | string | null;
 };
 
-function parseArgs(): { wipe: boolean; doctorCode?: string } {
+/** dayType 8 = Specific Date Only (legacy day_type 7). */
+const SPECIFIC_DATE_DAY_TYPE = 8;
+const SL_OFFSET_MINUTES = 330;
+const DEFAULT_DOCTOR_CONCURRENCY = 10;
+
+type DoctorRow = { id: string; code: string; migrateSourceId: string | null };
+
+type RefMaps = {
+  departmentsByName: Map<string, string>;
+  locationsByCode: Map<string, string>;
+  locationsByName: Map<string, string>;
+  roomsByKey: Map<string, string>;
+};
+
+type DoctorMigrateStats = {
+  created: number;
+  updated: number;
+  skipped: number;
+  skippedPastSpecificDate: number;
+};
+
+/** Shared fallback when per-doctor API filter returns no rows (single fetch for all doctors). */
+let allDoctorSessionsFallback: Promise<SourceDoctorSession[]> | null = null;
+let allDoctorSessionsFallbackKey = '';
+
+function getAllDoctorSessionsFallback(includeUnpublished: boolean): Promise<SourceDoctorSession[]> {
+  const key = includeUnpublished ? 'unpub' : 'pub';
+  if (!allDoctorSessionsFallback || allDoctorSessionsFallbackKey !== key) {
+    allDoctorSessionsFallbackKey = key;
+    allDoctorSessionsFallback = migrateFetch<SourceDoctorSession>('all-doctor-sessions', 'doctorsessionlist', {
+      include_unpublished: includeUnpublished,
+    });
+  }
+  return allDoctorSessionsFallback;
+}
+
+function todayYmdSriLanka(): string {
+  return moment().utcOffset(SL_OFFSET_MINUTES).format('YYYY-MM-DD');
+}
+
+function applyToYmd(applyTo: Date): string {
+  return applyTo.toISOString().slice(0, 10);
+}
+
+function parseArgs(): {
+  wipe: boolean;
+  doctorCode?: string;
+  includePast: boolean;
+  includeUnpublished: boolean;
+  concurrency: number;
+  verbose: boolean;
+} {
   const argv = process.argv.slice(2);
   const wipe = !(argv.includes('--no-wipe') || argv.includes('--keep'));
+  const includePast = argv.includes('--include-past');
+  const includeUnpublished = argv.includes('--include-unpublished');
+  const verbose = argv.includes('--verbose');
   const doctorCodeArg = argv.find((a) => a.startsWith('--doctor-code='));
   const doctorCode = doctorCodeArg ? doctorCodeArg.split('=')[1]?.trim() : undefined;
-  return { wipe, doctorCode };
+  const concurrencyArg = argv.find((a) => a.startsWith('--concurrency='));
+  let concurrency = DEFAULT_DOCTOR_CONCURRENCY;
+  if (concurrencyArg) {
+    const n = Number(concurrencyArg.split('=')[1]?.trim());
+    if (Number.isFinite(n) && n >= 1) concurrency = Math.floor(n);
+  }
+  return { wipe, doctorCode, includePast, includeUnpublished, concurrency, verbose };
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    batches.push(items.slice(i, i + size));
+  }
+  return batches;
+}
+
+/** Retry Prisma writes on P2034 when running doctors in parallel. */
+async function retryOnConflict<T>(
+  fn: () => Promise<T>,
+  opts: { maxAttempts?: number; delayMs?: number } = {}
+): Promise<T> {
+  const maxAttempts = opts.maxAttempts ?? 5;
+  const delayMs = opts.delayMs ?? 80;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      lastError = e;
+      const code = (e as { code?: string })?.code;
+      if (code === 'P2034' && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, delayMs * attempt));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
 }
 
 async function migrateFetch<T>(
   endpoint: string,
   listKey: string,
-  params?: { id?: string; doctor?: string }
+  params?: { id?: string; doctor?: string; template_id?: string; include_unpublished?: boolean }
 ): Promise<T[]> {
   let url = `${MIGRATE_BASE_URL.replace(/\/$/, '')}/api/v1/migrate/${endpoint}?user_key=${encodeURIComponent(
     MIGRATE_USER_KEY
   )}`;
   if (params?.id) url += `&id=${encodeURIComponent(params.id)}`;
   if (params?.doctor) url += `&doctor=${encodeURIComponent(params.doctor)}`;
+  if (params?.template_id) url += `&template_id=${encodeURIComponent(params.template_id)}`;
+  if (params?.include_unpublished) url += `&include_unpublished=1`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
@@ -152,13 +260,6 @@ function msToDateOrNull(ms: number | string | undefined | null): Date | null {
   return new Date(n);
 }
 
-function msToDateOrInvalid(ms: unknown): Date {
-  if (ms == null) return new Date(NaN);
-  const n = typeof ms === 'number' ? ms : Number(ms);
-  if (!Number.isFinite(n)) return new Date(NaN);
-  return new Date(n);
-}
-
 function toLegacyString(value: unknown): string | null {
   if (value == null) return null;
   const s = typeof value === 'string' ? value : String(value);
@@ -173,13 +274,249 @@ function toLegacyInt(value: unknown): number | null {
   return Math.floor(n);
 }
 
+async function migrateOneDoctor(
+  doctor: DoctorRow,
+  ctx: {
+    maps: RefMaps;
+    importUserId: string;
+    todayYmd: string;
+    includePast: boolean;
+    includeUnpublished: boolean;
+    verbose: boolean;
+  }
+): Promise<DoctorMigrateStats> {
+  const stats: DoctorMigrateStats = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    skippedPastSpecificDate: 0,
+  };
+
+  const doctorSourceId = doctor.migrateSourceId;
+  if (!doctorSourceId) return stats;
+
+  const { maps, importUserId, todayYmd, includePast, includeUnpublished, verbose } = ctx;
+  const { departmentsByName, locationsByCode, locationsByName, roomsByKey } = maps;
+
+  console.log(`[Doctor] code=${doctor.code} migrateSourceId=${doctorSourceId}`);
+
+  let sessionsToUse = await migrateFetch<SourceDoctorSession>(
+    'all-doctor-sessions',
+    'doctorsessionlist',
+    { doctor: doctorSourceId, include_unpublished: includeUnpublished }
+  );
+
+  if (sessionsToUse.length === 0) {
+    const allSessions = await getAllDoctorSessionsFallback(includeUnpublished);
+    sessionsToUse = allSessions.filter((x) => x.doctor === doctor.code);
+    if (verbose) {
+      console.log(`  [${doctor.code}] fallback filter: ${sessionsToUse.length} sessions`);
+    }
+  } else if (verbose) {
+    console.log(`  [${doctor.code}] API sessions: ${sessionsToUse.length}`);
+  }
+
+  const legacyToPrismaSessionId = new Map<string, string>();
+  const linkRequests: Array<{ currentLegacyId: string | null; previousLegacyId: string | null }> =
+    [];
+
+  for (const s of sessionsToUse) {
+    try {
+      const legacyDoctorSessionId =
+        toLegacyString(s.id) ?? toLegacyString(s.doctor_session_id) ?? null;
+      const legacyPreviousDoctorSessionId = toLegacyString(s.previous_doctor_session) ?? null;
+
+      const departmentId = departmentsByName.get(s.department);
+      const locationId =
+        locationsByCode.get(s.location) ?? locationsByName.get(s.location) ?? undefined;
+
+      if (!departmentId || !locationId) {
+        stats.skipped++;
+        console.warn(
+          `  [${doctor.code}] skip ${s.name}: missing department/location ("${s.department}", "${s.location}")`
+        );
+        continue;
+      }
+
+      const roomStr = (s.room ?? '').toString().trim();
+      const roomId =
+        roomStr.length > 0
+          ? roomsByKey.get(`${String(locationId)}::${roomStr}`) ?? undefined
+          : undefined;
+
+      const resolvedTimes = resolveLegacyTemplateTimes({
+        start_time_unix: s.start_time_unix,
+        end_time_unix: s.end_time_unix,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        apply_to: s.apply_to,
+        apply_to_date: s.apply_to_date,
+        duration_minutes: s.duration_minutes,
+        name: s.name,
+      });
+      if (!resolvedTimes) {
+        stats.skipped++;
+        console.warn(
+          `  [${doctor.code}] skip ${s.name}: invalid start/end time (unix=${s.start_time_unix ?? 0} display="${s.start_time}/${s.end_time}")`
+        );
+        continue;
+      }
+      const { startTime, endTime } = resolvedTimes;
+
+      const applyTo =
+        msToDateOrNull(s.apply_to) ?? ymdStringToUtcDateOrNull(s.apply_to_date);
+      const dayType = mapApiDayType(s.day_type);
+
+      if (
+        !includePast &&
+        dayType === SPECIFIC_DATE_DAY_TYPE &&
+        applyTo &&
+        applyToYmd(applyTo) < todayYmd
+      ) {
+        stats.skipped++;
+        stats.skippedPastSpecificDate++;
+        continue;
+      }
+
+      const fees = mapApiFees(s.fees);
+      const feeLocalSum = fees.reduce((acc, f) => acc + (safeNumber(f.localFee) || 0), 0);
+      const feeForeignSum = fees.reduce((acc, f) => acc + (safeNumber(f.foreignFee) || 0), 0);
+      const amountLocal = s.amount_local != null ? safeNumber(s.amount_local) : feeLocalSum;
+      const amountForeign = s.amount_foreign != null ? safeNumber(s.amount_foreign) : feeForeignSum;
+      const legacyScheduleId = toLegacyInt(s.schedule_id);
+
+      let existing: { id: string } | null = null;
+      if (legacyDoctorSessionId) {
+        existing = await prisma.doctorSession.findFirst({
+          where: { migrateSourceId: legacyDoctorSessionId },
+          select: { id: true },
+        });
+      }
+      if (!existing) {
+        existing = await prisma.doctorSession.findFirst({
+          where: {
+            doctorId: doctor.id,
+            startTime,
+            endTime,
+            dayType,
+            institution: safeNumber(s.institution),
+            departmentId,
+            locationId,
+            roomId: roomId ?? null,
+          },
+          select: { id: true },
+        });
+      }
+
+      const scalars = {
+        name: s.name ?? '',
+        institution: safeNumber(s.institution),
+        startTime,
+        endTime,
+        durationMinutes: safeNumber(s.duration_minutes),
+        startingPatientNumber: safeNumber(s.starting_patient_number),
+        maxPatientNumber: safeNumber(s.max_patient_number),
+        refundable: safeNumber(s.refundable),
+        advancedBookingDays: safeNumber(s.advanced_booking_days),
+        fees,
+        amountLocal,
+        amountForeign,
+        applyTo,
+        dayType,
+        status: safeNumber(s.status),
+        ...(legacyScheduleId != null ? { scheduleId: legacyScheduleId } : {}),
+        ...(legacyDoctorSessionId ? { migrateSourceId: legacyDoctorSessionId } : {}),
+      };
+
+      if (existing) {
+        await retryOnConflict(() =>
+          prisma.doctorSession.update({
+            where: { id: existing!.id },
+            data: {
+              doctorId: doctor.id,
+              departmentId,
+              locationId,
+              roomId: roomId ?? null,
+              ...scalars,
+              previousSessionId: null,
+              updatedBy: importUserId,
+            },
+          })
+        );
+        stats.updated++;
+        if (legacyDoctorSessionId != null) {
+          legacyToPrismaSessionId.set(legacyDoctorSessionId, existing.id);
+        }
+      } else {
+        const createdRow = await retryOnConflict(() =>
+          prisma.doctorSession.create({
+            data: {
+              doctorId: doctor.id,
+              departmentId,
+              locationId,
+              roomId: roomId ?? null,
+              ...scalars,
+              createdBy: importUserId,
+              updatedBy: importUserId,
+              previousSessionId: null,
+            },
+            select: { id: true },
+          })
+        );
+        stats.created++;
+        if (legacyDoctorSessionId != null) {
+          legacyToPrismaSessionId.set(legacyDoctorSessionId, createdRow.id);
+        }
+      }
+
+      linkRequests.push({
+        currentLegacyId: legacyDoctorSessionId,
+        previousLegacyId: legacyPreviousDoctorSessionId,
+      });
+    } catch (e) {
+      stats.skipped++;
+      console.error(`  [${doctor.code}] session failed:`, {
+        name: s.name,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  for (const req of linkRequests) {
+    if (req.currentLegacyId == null || req.previousLegacyId == null) continue;
+    const currentId = legacyToPrismaSessionId.get(req.currentLegacyId);
+    const previousId = legacyToPrismaSessionId.get(req.previousLegacyId);
+    if (!currentId) continue;
+    await retryOnConflict(() =>
+      prisma.doctorSession.update({
+        where: { id: currentId },
+        data: { previousSessionId: previousId ?? null },
+      })
+    );
+  }
+
+  console.log(
+    `  [${doctor.code}] done: +${stats.created} ~${stats.updated} skip=${stats.skipped}` +
+      (stats.skippedPastSpecificDate > 0 ? ` pastSpecific=${stats.skippedPastSpecificDate}` : '')
+  );
+
+  return stats;
+}
+
 async function main(): Promise<void> {
   if (!MIGRATE_USER_KEY) {
     console.error('Missing MIGRATE_USER_KEY. Set it in your environment/.env.');
     process.exit(1);
   }
 
-  const { wipe, doctorCode } = parseArgs();
+  const { wipe, doctorCode, includePast, includeUnpublished, concurrency, verbose } = parseArgs();
+  const todayYmd = todayYmdSriLanka();
+  const reporter = createMigrateReporter('migrate-doctor-sessions', {
+    doctorFilter: doctorCode ?? '',
+    includePast: String(includePast),
+    includeUnpublished: String(includeUnpublished),
+    concurrency: String(concurrency),
+  });
 
   const importUser = await prisma.user.findUnique({
     where: { email: IMPORT_USER_EMAIL },
@@ -207,265 +544,109 @@ async function main(): Promise<void> {
     orderBy: { name: 'asc' },
   });
 
-  const doctorsFiltered = doctorCode ? doctors.filter((d) => d.code === doctorCode) : doctors;
-  console.log(`Found ${doctorsFiltered.length} doctors to migrate.`);
+  const doctorsFiltered = (doctorCode ? doctors.filter((d) => d.code === doctorCode) : doctors).filter(
+    (d) => d.migrateSourceId
+  );
+  console.log(
+    `Found ${doctorsFiltered.length} doctors to migrate (concurrency=${concurrency}).`
+  );
 
-  // Resolve reference entities once to avoid N+1 queries.
+  const maps: RefMaps = {
+    departmentsByName: new Map(),
+    locationsByCode: new Map(),
+    locationsByName: new Map(),
+    roomsByKey: new Map(),
+  };
+
+  // Match session import: resolve dept/location by name/code without status filter
+  // (inactive locations like RHM were skipped before, blocking templates while sessions still imported).
   const departments = await prisma.department.findMany({
-    where: { status: 1 },
     select: { id: true, name: true },
   });
-  const departmentsByName = new Map<string, string>(departments.map((d) => [d.name, d.id]));
+  maps.departmentsByName = new Map(departments.map((d) => [d.name, d.id]));
 
   const locations = await prisma.location.findMany({
-    where: { status: 1 },
     select: { id: true, code: true, name: true },
   });
-  const locationsByCode = new Map<string, string>(locations.map((l) => [l.code, l.id]));
-  const locationsByName = new Map<string, string>(locations.map((l) => [l.name, l.id]));
+  maps.locationsByCode = new Map(locations.map((l) => [l.code, l.id]));
+  maps.locationsByName = new Map(locations.map((l) => [l.name, l.id]));
 
   const rooms = await prisma.room.findMany({
     select: { id: true, number: true, locationId: true },
   });
-  const roomsByKey = new Map<string, string>(
-    rooms.map((r) => [`${String(r.locationId)}::${r.number}`, r.id])
-  );
+  maps.roomsByKey = new Map(rooms.map((r) => [`${String(r.locationId)}::${r.number}`, r.id]));
 
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  let skippedPastSpecificDate = 0;
 
-  for (const doctor of doctorsFiltered) {
-    const doctorSourceId = doctor.migrateSourceId;
-    if (!doctorSourceId) continue;
-
-    console.log(`\n[Doctor] code=${doctor.code} prismaDoctorId=${doctor.id} migrateSourceId=${doctorSourceId}`);
-    console.log(`  [API] GET all-doctor-sessions?doctor=${doctorSourceId}`);
-
-    // If the legacy API supports filtering by doctor, pass &id=<doctorSourceId>.
-    // If it does not, this still works because we dedupe by time+dayType+doctorId.
-    const apiSessions = await migrateFetch<SourceDoctorSession>(
-      'all-doctor-sessions',
-      'doctorsessionlist',
-      { doctor: doctorSourceId }
+  if (!includePast) {
+    console.log(
+      `Skipping Specific Date Only schedules (dayType ${SPECIFIC_DATE_DAY_TYPE}) with applyTo before ${todayYmd}. Use --include-past to import all.\n`
     );
+  }
+  if (includeUnpublished) {
+    console.log('Including unpublished/inactive legacy templates (include_unpublished).\n');
+  } else {
+    console.log(
+      'Only published legacy templates (status=1). Use --include-unpublished if sessions fail on missing doctorSession.\n'
+    );
+  }
 
-    console.log(`  sessions received (filtered by id): ${apiSessions.length}`);
+  const ctx = {
+    maps,
+    importUserId: importUser.id,
+    todayYmd,
+    includePast,
+    includeUnpublished,
+    verbose,
+  };
+  const batches = chunk(doctorsFiltered, concurrency);
 
-    // Some legacy deployments may ignore/interpret the `id` filter differently.
-    // If we got nothing, fall back to fetching all sessions and filter by doctor code.
-    let sessionsToUse = apiSessions;
-    if (apiSessions.length === 0) {
-      console.warn(
-        '  [warning] No sessions returned for this doctor with `id=<doctorSourceId>`. Falling back to fetching all sessions and filtering by doctor code...'
-      );
-      const allSessions = await migrateFetch<SourceDoctorSession>(
-        'all-doctor-sessions',
-        'doctorsessionlist'
-      );
-      console.log(`  sessions received (all): ${allSessions.length}`);
-      sessionsToUse = allSessions.filter((x) => x.doctor === doctor.code);
-      console.log(`  sessions after doctor-code filter: ${sessionsToUse.length}`);
-    }
-
-    // Link plan: store legacy previous-id pairs, then apply after we upsert all rows.
-    // Legacy ids are Mongo ObjectId strings from Sails.
-    const legacyToPrismaSessionId = new Map<string, string>();
-    const linkRequests: Array<{ currentLegacyId: string | null; previousLegacyId: string | null }> = [];
-
-    let i = 0;
-    const totalSessions = sessionsToUse.length;
-    for (const s of sessionsToUse) {
-      i++;
-      // One-by-one trail for debugging/migration verification.
-      // (Keeps existing behavior; only adds logs/try-catch.)
-      try {
-      const legacyDoctorSessionId =
-        toLegacyString(s.id) ?? toLegacyString(s.doctor_session_id) ?? null;
-      const legacyPreviousDoctorSessionId = toLegacyString(s.previous_doctor_session) ?? null;
-
-      const departmentId = departmentsByName.get(s.department);
-      const locationId =
-        locationsByCode.get(s.location) ?? locationsByName.get(s.location) ?? undefined;
-
-      if (!departmentId || !locationId) {
-        skipped++;
-        console.warn(
-          `  [skip] ${s.name}: missing department/location mapping (department="${s.department}", location="${s.location}").`
-        );
-        continue;
-      }
-
-      const roomStr = (s.room ?? '').toString().trim();
-      const roomId =
-        roomStr.length > 0
-          ? roomsByKey.get(`${String(locationId)}::${roomStr}`) ?? undefined
-          : undefined;
-
-      // Prefer unix ms fields. The API may also provide `start_time`/`end_time` display strings.
-      const startTime =
-        msToDateOrInvalid(s.start_time_unix ?? (typeof s.start_time === 'number' ? s.start_time : undefined));
-      const endTime =
-        msToDateOrInvalid(s.end_time_unix ?? (typeof s.end_time === 'number' ? s.end_time : undefined));
-      if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-        skipped++;
-        console.warn(`  [skip] ${s.name}: invalid start_time/end_time.`);
-        continue;
-      }
-
-      const applyTo =
-        msToDateOrNull(s.apply_to) ?? ymdStringToUtcDateOrNull(s.apply_to_date);
-      const dayType = mapApiDayType(s.day_type);
-
-      if (dayType === 8 && !applyTo) {
-        console.warn(
-          '  [warning] dayType=Specific Date Only (8) but apply_to is missing/0.',
-          {
-            name: s.name,
-            doctor: s.doctor,
-            legacy_day_type: s.day_type,
-            apply_to: s.apply_to,
-            apply_to_date: s.apply_to_date,
-          }
-        );
-      }
-
-      const fees = mapApiFees(s.fees);
-
-      const feeLocalSum = fees.reduce((acc, f) => acc + (safeNumber(f.localFee) || 0), 0);
-      const feeForeignSum = fees.reduce(
-        (acc, f) => acc + (safeNumber(f.foreignFee) || 0),
-        0
-      );
-
-      const amountLocal = s.amount_local != null ? safeNumber(s.amount_local) : feeLocalSum;
-      const amountForeign = s.amount_foreign != null ? safeNumber(s.amount_foreign) : feeForeignSum;
-
-      const legacyScheduleId = toLegacyInt(s.schedule_id);
-
-      // Dedupe:
-      // - During wipe runs (default), we can safely insert without relying on legacy ids in the DB schema.
-      // - Keep a stable time-based dedupe so re-running (without wipe) avoids duplicates.
-      console.log(
-        `  [Session ${i}/${totalSessions}] importing name="${s.name}" legacyCurrentId=${legacyDoctorSessionId ?? 'null'} previousLegacyId=${
-          legacyPreviousDoctorSessionId ?? 'null'
-        } start=${startTime.toISOString()} end=${endTime.toISOString()} dayType=${dayType} applyTo=${
-          applyTo ? applyTo.toISOString() : 'null'
-        } deptId=${departmentId} locId=${locationId} roomId=${roomId ?? 'null'}`
-      );
-      const existing = await prisma.doctorSession.findFirst({
-        where: {
-          doctorId: doctor.id,
-          startTime,
-          endTime,
-          dayType,
-          institution: safeNumber(s.institution),
-          departmentId,
-          locationId,
-          roomId: roomId ?? null,
-        },
-        select: { id: true },
-      });
-
-      // Capture legacy id->prisma id mapping when possible for second-pass chaining.
-      // If legacy ids are missing for some reason, we won't be able to chain those rows.
-      const scalars = {
-        name: s.name ?? '',
-        institution: safeNumber(s.institution),
-        startTime,
-        endTime,
-        durationMinutes: safeNumber(s.duration_minutes),
-        startingPatientNumber: safeNumber(s.starting_patient_number),
-        maxPatientNumber: safeNumber(s.max_patient_number),
-        refundable: safeNumber(s.refundable),
-        advancedBookingDays: safeNumber(s.advanced_booking_days),
-        fees,
-        amountLocal,
-        amountForeign,
-        applyTo,
-        dayType,
-        status: safeNumber(s.status),
-        ...(legacyScheduleId != null ? { scheduleId: legacyScheduleId } : {}),
-      };
-
-      if (existing) {
-        await prisma.doctorSession.update({
-          where: { id: existing.id },
-          data: {
-            doctorId: doctor.id,
-            departmentId,
-            locationId,
-            roomId: roomId ?? null,
-            ...scalars,
-            previousSessionId: null,
-            updatedBy: importUser.id,
-          },
-        });
-        updated++;
-        console.log(`  [Session] updated prismaDoctorSessionId=${existing.id}`);
-        if (legacyDoctorSessionId != null) {
-          legacyToPrismaSessionId.set(legacyDoctorSessionId, existing.id);
-        }
-      } else {
-        const createdRow = await prisma.doctorSession.create({
-          data: {
-            doctorId: doctor.id,
-            departmentId,
-            locationId,
-            roomId: roomId ?? null,
-            ...scalars,
-            createdBy: importUser.id,
-            updatedBy: importUser.id,
-            previousSessionId: null,
-          },
-          select: { id: true },
-        });
-        created++;
-        console.log(`  [Session] created prismaDoctorSessionId=${createdRow.id}`);
-        if (legacyDoctorSessionId != null) {
-          legacyToPrismaSessionId.set(legacyDoctorSessionId, createdRow.id);
-        }
-      }
-
-      linkRequests.push({ currentLegacyId: legacyDoctorSessionId, previousLegacyId: legacyPreviousDoctorSessionId });
-      } catch (e) {
-        skipped++;
-        const message = e instanceof Error ? e.message : String(e);
-        console.error('  [Session] failed to import:', {
-          name: s.name,
-          legacyCurrentId: s.id ?? s.doctor_session_id ?? null,
-          legacyPreviousId: s.previous_doctor_session ?? null,
-          message,
-        });
-        // continue with next session
-      }
-    }
-
-    // Second pass: set PreviousSession links using legacy Mongo ids -> prisma ids mapping.
-    for (const req of linkRequests) {
-      if (req.currentLegacyId == null || req.previousLegacyId == null) continue;
-      const currentId = legacyToPrismaSessionId.get(req.currentLegacyId);
-      const previousId = legacyToPrismaSessionId.get(req.previousLegacyId);
-      if (!currentId) continue;
-      if (!previousId) {
-        console.warn(
-          '  [warning] previous_doctor_session could not be linked (previousLegacyId not found in this doctor import).',
-          { currentLegacyId: req.currentLegacyId, previousLegacyId: req.previousLegacyId }
-        );
-      }
-      await prisma.doctorSession.update({
-        where: { id: currentId },
-        data: { previousSessionId: previousId ?? null },
-      });
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b];
+    console.log(`\n[Batch ${b + 1}/${batches.length}] ${batch.length} doctors in parallel...`);
+    const results = await Promise.all(batch.map((doctor) => migrateOneDoctor(doctor, ctx)));
+    for (const r of results) {
+      created += r.created;
+      updated += r.updated;
+      skipped += r.skipped;
+      skippedPastSpecificDate += r.skippedPastSpecificDate;
     }
   }
 
   console.log('\nMigration summary');
-  console.log({ created, updated, skipped });
+  console.log({
+    created,
+    updated,
+    skipped,
+    ...(skippedPastSpecificDate > 0
+      ? { skippedPastSpecificDate: `${skippedPastSpecificDate} (applyTo < ${todayYmd})` }
+      : {}),
+  });
+
+  const detectedNote = includeUnpublished
+    ? 'all legacy templates (include_unpublished)'
+    : 'published legacy templates only (status=1)';
+  reporter?.task('doctor-sessions', {
+    detected: doctorsFiltered.length,
+    created,
+    updated,
+    skipped,
+    notes: [
+      detectedNote,
+      !includePast ? `skippedPastSpecificDate=${skippedPastSpecificDate} (applyTo < ${todayYmd})` : undefined,
+      `doctorsProcessed=${doctorsFiltered.length}`,
+    ]
+      .filter(Boolean)
+      .join('; '),
+  });
+  await finishMigrateReporter(reporter);
 }
 
 main()
-  .catch((e) => {
+  .catch(async (e) => {
     console.error(e);
     process.exit(1);
   })

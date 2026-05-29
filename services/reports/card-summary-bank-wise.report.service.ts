@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import type { CardSummaryBankWiseReportQuery, CardSummaryBankWiseReportRow } from '@/types/reports/card-summary-bank-wise';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 
@@ -25,8 +26,7 @@ function parseDateTime(value: string, asEnd: boolean): Date | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   if (trimmed.includes('T')) {
-    const d = new Date(trimmed);
-    return Number.isFinite(d.getTime()) ? d : null;
+    return parseReportDateTime(trimmed, asEnd);
   }
   const day = parseSriLankaDay(trimmed);
   if (!day) return null;

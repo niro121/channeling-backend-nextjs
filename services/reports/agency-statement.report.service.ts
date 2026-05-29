@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
@@ -12,19 +13,7 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('agency_statement', 62);
 const MAX_JOURNALS_SCAN = getReportMaxRecords('agency_statement', 20000);
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  if (trimmed.includes('T')) {
-    const d = new Date(trimmed);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = trimmed.split('-').map(Number);
-  const year = Number(y);
-  const month = Number(m) - 1;
-  const day = Number(d);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  if (asEnd) return new Date(year, month, day, 23, 59, 59, 999);
-  return new Date(year, month, day, 0, 0, 0, 0);
+  return parseReportDateTime(value, asEnd);
 }
 
 function formatSessionDateTime(session: { date: Date; startTime?: Date | null } | null): string | null {

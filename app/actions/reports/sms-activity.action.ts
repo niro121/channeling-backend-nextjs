@@ -4,6 +4,7 @@ import { z } from "zod"
 import { checkRouteAccess } from "@/lib/server-permissions"
 import { getSmsLogRecentService } from "@/services/reports/sms-log-recent.service"
 import { getSmsActivityService } from "@/services/reports/sms-activity.service"
+import { parseReportDateTime } from "@/lib/parse-report-datetime"
 
 const smsActivitySchema = z.object({
   dateFrom: z.string().min(1),
@@ -25,9 +26,9 @@ export async function getSmsActivityAction(
     return { success: false, message: "Invalid date range" }
   }
 
-  const dateFrom = new Date(parsed.data.dateFrom)
-  const dateTo = new Date(parsed.data.dateTo)
-  if (Number.isNaN(dateFrom.getTime()) || Number.isNaN(dateTo.getTime())) {
+  const dateFrom = parseReportDateTime(parsed.data.dateFrom, false)
+  const dateTo = parseReportDateTime(parsed.data.dateTo, true)
+  if (!dateFrom || !dateTo) {
     return { success: false, message: "Invalid date range" }
   }
   if (dateFrom > dateTo) {
