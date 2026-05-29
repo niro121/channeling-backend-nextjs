@@ -4,6 +4,7 @@ import prisma from './prisma';
 import * as argon2 from 'argon2';
 import { Permissions } from '@/types/user-group';
 import { verifyTotp } from '@/lib/helpers/2fa/totp';
+import { isDashboardLoginUserType } from '@/lib/roles';
 
 // Ensure NEXTAUTH_SECRET is set
 const getSecret = () => {
@@ -98,6 +99,9 @@ export const authOptions: NextAuthOptions = {
               if (!user) {
                 throw new Error('Invalid or expired 2FA. Please try again.');
               }
+              if (!isDashboardLoginUserType(user.userType)) {
+                throw new Error('Invalid credentials');
+              }
               const totpSecret =
                 user.twoFactorSecret ??
                 user.twoFactorPendingSecret ??
@@ -153,6 +157,9 @@ export const authOptions: NextAuthOptions = {
             if (!isCorrectPassword) {
               throw new Error('Invalid credentials');
             }
+            if (!isDashboardLoginUserType(user.userType)) {
+              throw new Error('Invalid credentials');
+            }
             if (!user.twoFactorExpires || user.twoFactorExpires < new Date()) {
               throw new Error('2FA code expired. Please log in again.');
             }
@@ -193,6 +200,10 @@ export const authOptions: NextAuthOptions = {
             credentials.password
           );
           if (!isCorrectPassword) {
+            throw new Error('Invalid credentials');
+          }
+
+          if (!isDashboardLoginUserType(user.userType)) {
             throw new Error('Invalid credentials');
           }
 

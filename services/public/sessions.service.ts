@@ -1,7 +1,15 @@
 import prisma from "@/lib/prisma"
 import { getSessionsForChannelBookingService } from "@/services/channel-booking/get-sessions.service"
+import { getRefundFeeTypes } from "@/services/channel-booking/helpers"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
+
+export type PublicSessionFeeBreakdown = {
+  professionalFee: number
+  hospitalFee: number
+  /** professionalFee + hospitalFee */
+  amount: number
+}
 
 /** Public API session DTO (no audit fields, no room/paid/pending counts). */
 export type PublicSessionDto = {
@@ -12,14 +20,21 @@ export type PublicSessionDto = {
   /** Session start time as readable string, e.g. "7:00 PM" */
   startTimeFormatted: string
   endTime: Date
-  /** 1 = bookable, 0 = not bookable (e.g. doctor on leave or previous session not full) */
+  /** 1 = bookable, 0 = disabled (on leave, ended, previous session not full, or at max capacity) */
   status: number
   /** True when this session is marked as doctor on leave in the system */
   doctorOnLeave: boolean
-  amountLocal: number | null
-  amountForeign: number | null
+  /** First appointment number for this session */
+  minPatientNumber: number
+  /** Last bookable appointment number for this session */
+  maxPatientNumber: number
+  /** Highest appointment number issued so far on this session */
   appointmentNo: number
-  location: { id: string; name: string } | null
+  /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
+  isFull: boolean
+  amountLocal: PublicSessionFeeBreakdown
+  amountForeign: PublicSessionFeeBreakdown
+  location: { id: string; name: string; city: string } | null
   doctor: { id: string; title: string; name: string; code: string }
 }
 
@@ -30,6 +45,73 @@ export type GetPublicSessionsResult =
       code: "invalid_request" | "not_found" | "server_error"
       message: string
     }
+
+function mapPublicSessionFees(fees: unknown): {
+  local: PublicSessionFeeBreakdown
+  foreign: PublicSessionFeeBreakdown
+} {
+  const localParts = getRefundFeeTypes(fees, false)
+  const foreignParts = getRefundFeeTypes(fees, true)
+  const localAmount = localParts.professional_fee + localParts.hospital_fee
+  const foreignAmount = foreignParts.professional_fee + foreignParts.hospital_fee
+  return {
+    local: {
+      professionalFee: localParts.professional_fee,
+      hospitalFee: localParts.hospital_fee,
+      amount: localAmount,
+    },
+    foreign: {
+      professionalFee: foreignParts.professional_fee,
+      hospitalFee: foreignParts.hospital_fee,
+      amount: foreignAmount,
+    },
+  }
+}
+
+/** Prefer session.fees breakdown; use stored session totals for `amount` when set. */
+function resolvePublicSessionAmount(
+  sessionTotal: number | null | undefined,
+  parts: PublicSessionFeeBreakdown
+): PublicSessionFeeBreakdown {
+  return {
+    professionalFee: parts.professionalFee,
+    hospitalFee: parts.hospitalFee,
+    amount: sessionTotal ?? parts.amount,
+  }
+}
+
+function sessionDateKey(date: Date | string): string {
+  return moment(date).format("YYYY-MM-DD")
+}
+
+function sessionLookupKey(date: Date | string, doctorSessionId: string): string {
+  return `${sessionDateKey(date)}:${doctorSessionId}`
+}
+
+/**
+ * Same rule as channel booking save/transfer: walk the previousDoctorSession chain
+ * on the same day; every predecessor must be full before this session is bookable.
+ */
+function isConsecutiveChainFull(
+  session: Session,
+  sessionByDoctorSessionOnDate: Map<string, Session>,
+  isSessionFull: (s: Session) => boolean
+): boolean {
+  let previousDoctorSessionId = session.previousDoctorSession
+  while (previousDoctorSessionId) {
+    const previous = sessionByDoctorSessionOnDate.get(
+      sessionLookupKey(session.date, previousDoctorSessionId)
+    )
+    if (!previous) {
+      return true
+    }
+    if (!isSessionFull(previous)) {
+      return false
+    }
+    previousDoctorSessionId = previous.previousDoctorSession
+  }
+  return true
+}
 
 /**
  * Get sessions for public API by doctor code.
@@ -75,23 +157,40 @@ export async function getPublicSessionsByDoctorCode(
   }
 
   const now = new Date()
-  const futureSessions = result.data
-    .filter((s: Session) => new Date(s.startTime) > now)
-    .sort((a, b) => {
-      const dateA = new Date(a.date).getTime()
-      const dateB = new Date(b.date).getTime()
-      if (dateA !== dateB) return dateA - dateB
-      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    })
+  const orderedSessions = [...result.data].sort((a, b) => {
+    const dateA = new Date(a.date).getTime()
+    const dateB = new Date(b.date).getTime()
+    if (dateA !== dateB) return dateA - dateB
+    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  })
 
-  const sameDate = (a: Session, b: Session) =>
-    new Date(a.date).toDateString() === new Date(b.date).toDateString()
   const isFull = (s: Session) => (s.appointmentNo ?? 0) >= (s.maxPatientNumber ?? 0)
+  const isEndTimePassed = (s: Session) => new Date(s.endTime).getTime() <= now.getTime()
 
-  const sessions: PublicSessionDto[] = futureSessions.map((s: Session, i: number) => {
-    const previous = i > 0 && sameDate(futureSessions[i - 1], s) ? futureSessions[i - 1] : null
-    const previousNotFull = previous !== null && !isFull(previous)
-    const status = previousNotFull ? 0 : s.status
+  const sessionByDoctorSessionOnDate = new Map<string, Session>()
+  for (const s of orderedSessions) {
+    sessionByDoctorSessionOnDate.set(
+      sessionLookupKey(s.date, s.doctorSessionId),
+      s
+    )
+  }
+
+  const sessions: PublicSessionDto[] = orderedSessions.map((s: Session) => {
+    const consecutiveChainFull = isConsecutiveChainFull(
+      s,
+      sessionByDoctorSessionOnDate,
+      isFull
+    )
+    const onLeave = s.status === 0
+    const endTimePassed = isEndTimePassed(s)
+    const sessionFull = isFull(s)
+    const bookable =
+      !onLeave && !endTimePassed && consecutiveChainFull && !sessionFull
+    const status = bookable ? 1 : 0
+    const feeBreakdown = mapPublicSessionFees(s.fees)
+    const minPatientNumber = s.startingPatientNumber ?? 0
+    const maxPatientNumber = s.maxPatientNumber ?? 0
+    const appointmentNo = s.appointmentNo ?? 0
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -99,12 +198,15 @@ export async function getPublicSessionsByDoctorCode(
       startTimeFormatted: moment(s.startTime).format("h:mm A"),
       endTime: s.endTime,
       status,
-      doctorOnLeave: s.status === 0,
-      amountLocal: s.amountLocal ?? null,
-      amountForeign: s.amountForeign ?? null,
-      appointmentNo: s.appointmentNo,
+      doctorOnLeave: onLeave,
+      minPatientNumber,
+      maxPatientNumber,
+      appointmentNo,
+      isFull: sessionFull,
+      amountLocal: resolvePublicSessionAmount(s.amountLocal, feeBreakdown.local),
+      amountForeign: resolvePublicSessionAmount(s.amountForeign, feeBreakdown.foreign),
       location: s.location
-        ? { id: s.location.id!, name: s.location.name }
+        ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,
       doctor: {
         id: doctor.id,

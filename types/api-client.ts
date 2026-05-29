@@ -3,6 +3,8 @@ export type ApiClient = {
   clientId: string
   name: string
   isBlocked: boolean
+  actingUserId: string
+  actingUserName: string
   createdAt: string
   updatedAt: string
 }
@@ -10,6 +12,12 @@ export type ApiClient = {
 export type ApiClientFormValues = {
   name: string
   isBlocked: boolean
+  actingUserId: string
+}
+
+export type ApiClientUserOption = {
+  id: string
+  name: string
 }
 
 export type GetApiClientsParams = {

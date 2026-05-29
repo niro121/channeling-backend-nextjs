@@ -33,7 +33,9 @@ export default async function IntegrationGuidePage() {
           <h1 className="text-2xl font-semibold tracking-tight m-0">Public API Integration Guide</h1>
         </div>
         <p className="text-muted-foreground mt-2">
-          This guide explains how to integrate your application with the Channeling Public API: create an API client, obtain an access token, and call the sessions endpoint.
+          This guide explains how to integrate your application with the Channeling APIs: create an
+          API client, obtain an access token, use Public API endpoints, and test Doctor App
+          endpoints.
         </p>
 
         {/* Step 1: Create application & get client ID and secret */}
@@ -108,6 +110,103 @@ export default async function IntegrationGuidePage() {
           </CardContent>
         </Card>
 
+        {/* Step 4: Call bookings API */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 4: Call the bookings API</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              To show a doctor who is booked (patient name, contact, queue number), call the bookings endpoint with the token from Step 2.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">GET /api/public/bookings</code></li>
+              <li><strong>Header:</strong> <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;access_token&gt;</code></li>
+              <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">doctorCode</code> (required), plus <code className="rounded bg-muted px-1 py-0.5">sessionId</code> or <code className="rounded bg-muted px-1 py-0.5">date</code> (YYYY-MM-DD)</li>
+              <li><strong>Optional:</strong> <code className="rounded bg-muted px-1 py-0.5">includePending=true</code> to include unpaid bookings</li>
+            </ul>
+            <p>
+              The response contains a <code className="rounded bg-muted px-1 py-0.5">bookings</code> array with appointment number, patient fields (title, name, sex, phone, area, remarks), session time/location, and status. Payment amounts and internal desk fields are not included.
+            </p>
+            <p className="text-muted-foreground">
+              Typical flow: get sessions → pick a <code className="rounded bg-muted px-1 py-0.5">session.id</code> → get bookings for that session. Test in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 3).
+            </p>
+          </CardContent>
+        </Card>
+        {/* Step 5: Doctor app APIs */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 5: Doctor app APIs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              Doctor App endpoints support doctor mobile authentication and profile/session actions.
+              In this project, requests should include both the OAuth token from Step 2 and the
+              doctor JWT from doctor login where required.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>Required OAuth header (all doctor-app calls):</strong>{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  X-Client-Access-Token: {"<access_token>"}
+                </code>
+              </li>
+              <li>
+                <strong>Doctor auth flow:</strong>{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  POST /api/doctor-app/auth/check-login
+                </code>{" "}
+                →{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  POST /api/doctor-app/auth/request-2fa-code
+                </code>{" "}
+                (if required) →{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  POST /api/doctor-app/auth/login
+                </code>
+              </li>
+              <li>
+                <strong>Auth utility endpoint:</strong>{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  POST /api/doctor-app/auth/change-initial-password
+                </code>{" "}
+                for first-login password reset.
+              </li>
+              <li>
+                <strong>Doctor JWT protected endpoints:</strong>{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  GET /api/doctor-app/auth/me
+                </code>
+                ,{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  GET /api/doctor-app/sessions
+                </code>
+                ,{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  GET /api/doctor-app/sessions/[sessionId]
+                </code>
+                ,{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  PATCH /api/doctor-app/profile
+                </code>
+                , and{" "}
+                <code className="rounded bg-muted px-1 py-0.5">
+                  POST /api/doctor-app/profile/change-password
+                </code>
+                . These also require{" "}
+                <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;doctor_access_token&gt;</code>.
+              </li>
+              <li>
+                Use the{" "}
+                <Link href="/admin/api-clients/playground" className="underline print:no-underline">
+                  API Playground
+                </Link>{" "}
+                Doctor App section (Step 5) for live testing in the same order.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+
         {/* Postman */}
         <Card className="my-6 print:break-inside-avoid">
           <CardHeader>
@@ -115,7 +214,8 @@ export default async function IntegrationGuidePage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              A Postman collection is available so you can run the same requests (token + sessions) from Postman.
+              A Postman collection is available so you can run Public API and Doctor App requests
+              directly from Postman.
             </p>
             <ul className="list-disc space-y-1 pl-5">
               <li>
@@ -129,6 +229,22 @@ export default async function IntegrationGuidePage() {
               </li>
               <li>
                 Run <strong>Get Sessions</strong> to call the sessions API with the saved token.
+              </li>
+              <li>
+                Set <code className="rounded bg-muted px-1 py-0.5">session_id</code> from a session response (or enable <code className="rounded bg-muted px-1 py-0.5">date</code> on Get Bookings), then run <strong>Get Bookings</strong>.
+              </li>
+              <li>
+                For Doctor App flows, use the <strong>Doctor App</strong> folder in this order:
+                <strong> Check Login</strong> → <strong>Request 2FA Code</strong> (if required) →
+                <strong> Login</strong> → <strong>Me</strong> → <strong>Sessions</strong> →
+                <strong>Session by ID</strong>. The same OAuth token is sent as{" "}
+                <code className="rounded bg-muted px-1 py-0.5">X-Client-Access-Token</code>.
+              </li>
+              <li>
+                Additional Doctor App endpoints are included:{" "}
+                <code className="rounded bg-muted px-1 py-0.5">POST /api/doctor-app/auth/change-initial-password</code>,{" "}
+                <code className="rounded bg-muted px-1 py-0.5">PATCH /api/doctor-app/profile</code>, and{" "}
+                <code className="rounded bg-muted px-1 py-0.5">POST /api/doctor-app/profile/change-password</code>.
               </li>
             </ul>
           </CardContent>

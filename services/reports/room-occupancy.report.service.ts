@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import type { RoomOccupancyReportQuery, RoomOccupancyReportRow } from '@/types/reports/room-occupancy';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('room_occupancy', 62);
@@ -10,15 +11,11 @@ const MAX_RECORDS_SCAN = getReportMaxRecords('room_occupancy', 25000);
 const HOUR_MS = 60 * 60 * 1000;
 
 function parseFromBound(val: string): Date {
-  const trimmed = val.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return new Date(`${trimmed}T00:00:00`);
-  return new Date(trimmed);
+  return parseReportDateTime(val, false) ?? new Date(val);
 }
 
 function parseToBound(val: string): Date {
-  const trimmed = val.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return new Date(`${trimmed}T23:59:59.999`);
-  return new Date(trimmed);
+  return parseReportDateTime(val, true) ?? new Date(val);
 }
 
 function getDayBounds(d: Date): { start: Date; end: Date } {

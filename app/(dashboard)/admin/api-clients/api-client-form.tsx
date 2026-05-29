@@ -1,11 +1,16 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { Button } from "@/components/ui/button"
 import { Ban, Save } from "lucide-react"
-import { createApiClient, updateApiClient } from "@/app/actions/api-client.actions"
+import {
+  createApiClient,
+  getApiClientUserOptions,
+  updateApiClient,
+} from "@/app/actions/api-client.actions"
+import CustomSelectField from "@/components/common/custom-select-field"
 import { useToast } from "@/components/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import CustomFormField from "@/components/common/form-field"
@@ -30,17 +35,31 @@ type ApiClientFormProps = {
 type FormValues = {
   name: string
   isBlocked: boolean
+  actingUserId: string
 }
 
 export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClientFormProps) {
   const [loading, setLoading] = useState(false)
   const [createdSecret, setCreatedSecret] = useState<{ clientId: string; clientSecret: string } | null>(null)
+  const [userOptions, setUserOptions] = useState<{ id: string; name: string }[]>([])
+  const [userOptionsLoading, setUserOptionsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+
+  useEffect(() => {
+    const load = async () => {
+      setUserOptionsLoading(true)
+      const res = await getApiClientUserOptions()
+      setUserOptionsLoading(false)
+      if (res.success && res.data) setUserOptions(res.data)
+    }
+    void load()
+  }, [])
 
   const initialValues: FormValues = {
     name: apiClient?.name ?? "",
     isBlocked: apiClient?.isBlocked ?? false,
+    actingUserId: apiClient?.actingUserId ?? "",
   }
 
   const validationSchema = Yup.object({
@@ -49,6 +68,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
       .max(150, "Must be less than 150 characters")
       .trim(),
     isBlocked: Yup.boolean().required(),
+    actingUserId: Yup.string().required("User is required"),
   })
 
   const handleSubmit = async (
@@ -61,6 +81,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
         const respond = await updateApiClient(apiClient.id, {
           name: values.name.trim(),
           isBlocked: values.isBlocked,
+          actingUserId: values.actingUserId.trim(),
         })
         setLoading(false)
 
@@ -98,7 +119,10 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
         })
         router.push("/admin/api-clients")
       } else {
-        const respond = await createApiClient({ name: values.name.trim() })
+        const respond = await createApiClient({
+          name: values.name.trim(),
+          actingUserId: values.actingUserId.trim(),
+        })
         setLoading(false)
 
         if (!respond.success) {
@@ -183,6 +207,29 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
                 styleClasses={styleClasses}
               />
 
+              <CustomSelectField
+                id="actingUserId"
+                label="Select user (required)"
+                placeholder="Choose user"
+                value={formik.values.actingUserId}
+                onChange={(value) => {
+                  formik.setFieldValue("actingUserId", value)
+                  formik.setFieldTouched("actingUserId", true)
+                }}
+                required
+                options={userOptions.map((u) => ({ id: u.id, name: u.name }))}
+                styleClasses={styleClasses}
+                loading={userOptionsLoading}
+              />
+              {formik.touched.actingUserId && formik.errors.actingUserId && (
+                <p className="text-xs text-red-600">{formik.errors.actingUserId}</p>
+              )}
+              {!userOptionsLoading && userOptions.length === 0 && (
+                <p className="text-muted-foreground text-xs">
+                  No API Users found. Create a user with type <strong>API User</strong> under Users first.
+                </p>
+              )}
+
               {isEditPage && (
                 <div className={styleClasses.parentDiv}>
                   <Label className={styleClasses.labelClassName} htmlFor="isBlocked">
@@ -214,7 +261,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
                   <span>Cancel</span>
                 </Button>
                 <Button
-                  disabled={loading}
+                  disabled={loading || !formik.values.actingUserId.trim()}
                   size="sm"
                   type="submit"
                   className="w-full gap-1 px-6 text-white sm:w-auto"

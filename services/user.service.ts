@@ -11,6 +11,11 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library"
 import { z } from "zod"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 import { ensureTillForUserLocation } from "@/services/accounting.service"
+import { userTypes } from "@/lib/roles"
+import {
+  getLinkedDoctorIdForUser,
+  syncDoctorUserAccountLink,
+} from "@/lib/helpers/auth/sync-doctor-user-link"
 
 // ==== USER: VALIDATION SCHEMA ==== //
 const userSchema = z.object({
@@ -44,8 +49,8 @@ const userSchema = z.object({
   userType: z
     .number()
     .int()
-    .refine((val) => val === 1 || val === 2 || val === 3, {
-      message: 'User type must be Admin (1), Staff (2), or Doctor (3)'
+    .refine((val) => val === 1 || val === 2 || val === 3 || val === 4, {
+      message: 'User type must be Admin (1), Staff (2), Doctor (3), or API User (4)'
     }),
   status: z
     .number()
@@ -61,6 +66,7 @@ const userSchema = z.object({
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
   userLocationId: z.string().nullable().optional(),
   staffId: z.string().nullable().optional(),
+  doctorId: z.string().nullable().optional(),
   bookingLocationIds: z.array(z.string()).optional(),
 });
 
@@ -83,6 +89,7 @@ const userUpdateSchema = userSchema.partial().extend({
   defaultBookingMethod: z.number().int().min(0).max(5).nullable().optional(),
   userLocationId: z.string().nullable().optional(),
   staffId: z.string().nullable().optional(),
+  doctorId: z.string().nullable().optional(),
   bookingLocationIds: z.array(z.string()).optional(),
 }).refine(
   (data) => {
@@ -220,6 +227,7 @@ export const saveUser = async (
     userGroupId?: string | null;
     userLocationId?: string | null;
     staffId?: string | null;
+    doctorId?: string | null;
     defaultBookingMethod?: number | null;
     checkedDefaultLocation?: boolean;
     defaultLocation?: string | null;
@@ -248,7 +256,15 @@ export const saveUser = async (
     }
 
     const data = parsed.data;
-    const staffId = data.staffId && data.staffId.trim() !== '' ? data.staffId : null;
+    const isDoctorUser = data.userType === userTypes.doctor;
+    const staffId =
+      !isDoctorUser && data.staffId && data.staffId.trim() !== ""
+        ? data.staffId
+        : null;
+    const doctorId =
+      isDoctorUser && data.doctorId && data.doctorId.trim() !== ""
+        ? data.doctorId.trim()
+        : null;
     const userLocationId = data.userLocationId && data.userLocationId.trim() !== '' ? data.userLocationId : null;
 
     const result = await prisma.user.create({
@@ -272,6 +288,9 @@ export const saveUser = async (
     });
 
     const userId = result.id;
+    if (isDoctorUser) {
+      await syncDoctorUserAccountLink(userId, doctorId);
+    }
     if (userLocationId) {
       await ensureTillForUserLocation({ userId, locationId: userLocationId, isActive: true });
     }
@@ -335,6 +354,7 @@ export const updateOneUser = async (
     defaultBookingMethod?: number | null;
     userLocationId?: string | null;
     staffId?: string | null;
+    doctorId?: string | null;
     bookingLocationIds?: string[];
   }
 ): Promise<{
@@ -377,7 +397,12 @@ export const updateOneUser = async (
     if (data.defaultLocation !== undefined) updateData.defaultLocation = data.defaultLocation ?? null;
     if (data.defaultBookingMethod !== undefined) updateData.defaultBookingMethod = data.defaultBookingMethod ?? null;
     if (data.userLocationId !== undefined && data.userLocationId) updateData.userLocationId = data.userLocationId;
-    if (data.staffId !== undefined) updateData.staffId = data.staffId ?? null;
+    const effectiveUserType = data.userType ?? undefined;
+    if (effectiveUserType === userTypes.doctor) {
+      updateData.staffId = null;
+    } else if (data.staffId !== undefined) {
+      updateData.staffId = data.staffId ?? null;
+    }
     if (data.phone !== undefined) updateData.phone = data.phone ?? null;
     if (data.twoFactorEnabled !== undefined) updateData.twoFactorEnabled = data.twoFactorEnabled;
 
@@ -389,6 +414,24 @@ export const updateOneUser = async (
     });
     if (data.userLocationId !== undefined && data.userLocationId) {
       await ensureTillForUserLocation({ userId: id, locationId: data.userLocationId, isActive: true });
+    }
+
+    const resolvedUserType =
+      data.userType ??
+      (
+        await prisma.user.findUnique({
+          where: { id },
+          select: { userType: true },
+        })
+      )?.userType;
+    if (resolvedUserType === userTypes.doctor) {
+      if (data.doctorId !== undefined) {
+        const doctorId =
+          data.doctorId && data.doctorId.trim() !== "" ? data.doctorId.trim() : null;
+        await syncDoctorUserAccountLink(id, doctorId);
+      }
+    } else if (data.userType !== undefined && data.userType !== userTypes.doctor) {
+      await syncDoctorUserAccountLink(id, null);
     }
 
     if (bookingLocationIds !== undefined) {
@@ -455,7 +498,14 @@ export const getUserById = async (id: string) => {
             },
         })
 
-        return result
+        if (!result) return result
+
+        const doctorId =
+          result.userType === userTypes.doctor
+            ? await getLinkedDoctorIdForUser(result.id)
+            : null
+
+        return { ...result, doctorId }
     } catch (error: any) {
         throw new Error(error.message ?? "")
     }

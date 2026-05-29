@@ -7,6 +7,7 @@ import {
   bookingHasPaymentReceiptWhere,
 } from '@/lib/reports/booking-payment-receipt';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
   ChannelIncomeAccountingWiseQuery,
@@ -18,15 +19,8 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_income_accounting_wise', 6
 const MAX_BOOKINGS_SCAN = getReportMaxRecords('channel_income_accounting_wise', 50000);
 
 function parseDateTime(input?: string, asEnd = false): Date | null {
-  const v = input?.trim();
-  if (!v) return null;
-  if (v.includes('T')) {
-    const d = new Date(v);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = v.split('-').map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return asEnd ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  if (!input?.trim()) return null;
+  return parseReportDateTime(input, asEnd);
 }
 
 type BucketDef = { key: string; label: string; method: number; isScan: boolean };

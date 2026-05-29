@@ -42,7 +42,7 @@ export async function GET() {
   }
 }
 
-/** POST /api/admin/api-clients — create a new API client. Body: { name: string }. Returns clientSecret only once. */
+/** POST /api/admin/api-clients — create. Body: { name, actingUserId }. Returns clientSecret only once. */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin()
   if (auth.error) return auth.error
@@ -50,9 +50,25 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const name = typeof body.name === "string" ? body.name.trim() : ""
+    const actingUserId =
+      typeof body.actingUserId === "string" ? body.actingUserId.trim() : ""
     if (!name) {
       return NextResponse.json(
         { error: "name is required and must be a non-empty string" },
+        { status: 400 }
+      )
+    }
+    if (!actingUserId) {
+      return NextResponse.json({ error: "actingUserId is required" }, { status: 400 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: actingUserId },
+      select: { id: true, userType: true, status: true },
+    })
+    if (!user || user.userType !== userTypes.apiUser || user.status !== 1) {
+      return NextResponse.json(
+        { error: "actingUserId must be an active API User" },
         { status: 400 }
       )
     }
@@ -67,6 +83,7 @@ export async function POST(request: NextRequest) {
         clientSecretHash,
         name,
         isBlocked: false,
+        actingUserId,
       },
       select: {
         id: true,

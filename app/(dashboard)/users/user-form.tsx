@@ -12,17 +12,20 @@ import * as Yup from "yup"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 import { useDialog } from "@/components/common/custom-dialog"
 import { Separator } from "@/components/ui/separator"
-import { createNewUser, updateUser, updateUserPassword, getLocationOptions } from "@/app/actions/user.actions"
+import { createNewUser, updateUser, updateUserPassword, getLocationOptions, getDoctorOptionsForUsers, fetchUserById } from "@/app/actions/user.actions"
 import { getStaffOptionsAction } from "@/app/actions/staff.actions"
+import { Combobox } from "@/components/common/combobox"
 import { useToast } from "@/components/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 import CustomSelectField from "@/components/common/custom-select-field"
 import { CustomMultiSelect } from "@/components/common/custom-mulit-select"
 import { CustomSwitch } from "@/components/common/custom-switch"
 import { signOut } from "next-auth/react"
+import { userTypes, USER_TYPE_OPTIONS } from "@/lib/roles"
 
 type LocationOption = { id: string; name: string }
 type StaffOption = { id: string; name: string; code: string }
+type DoctorOption = { id: string; name: string }
 
 type UserFormProps = {
     user: User | null
@@ -39,6 +42,9 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const [locationOptionsLoading, setLocationOptionsLoading] = useState(false)
     const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
     const [staffOptionsLoading, setStaffOptionsLoading] = useState(false)
+    const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
+    const [doctorOptionsLoading, setDoctorOptionsLoading] = useState(false)
+    const [linkedDoctorId, setLinkedDoctorId] = useState<string>(user?.doctorId ?? "")
     const { setDialogOpen } = useDialog()
     const { toast } = useToast()
 
@@ -62,6 +68,38 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         loadStaffOptions()
     }, [])
 
+    useEffect(() => {
+        const loadDoctorOptions = async () => {
+            setDoctorOptionsLoading(true)
+            const res = await getDoctorOptionsForUsers()
+            setDoctorOptionsLoading(false)
+            if (res.success && res.data) {
+                setDoctorOptions(res.data.map((d) => ({ id: d.id, name: d.name })))
+            }
+        }
+        loadDoctorOptions()
+    }, [])
+
+    useEffect(() => {
+        const loadLinkedDoctor = async () => {
+            if (!isEditMode || !user?.id || user.userType !== userTypes.doctor) {
+                setLinkedDoctorId("")
+                return
+            }
+            if (user.doctorId) {
+                setLinkedDoctorId(user.doctorId)
+                return
+            }
+            try {
+                const full = await fetchUserById(user.id)
+                setLinkedDoctorId((full as User)?.doctorId ?? "")
+            } catch {
+                setLinkedDoctorId("")
+            }
+        }
+        loadLinkedDoctor()
+    }, [isEditMode, user?.id, user?.userType, user?.doctorId])
+
     const bookingLocationIdsFromUser = (u: User | null): string[] => {
         if (!u?.bookingLocations?.length) return []
         return u.bookingLocations.map((b: any) => b.locationId ?? b.location?.id).filter(Boolean)
@@ -82,6 +120,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         defaultBookingMethod: user?.defaultBookingMethod != null ? String(user.defaultBookingMethod) : "__none__",
         userLocationId: user?.userLocationId ?? "",
         staffId: user?.staffId ?? "__none__",
+        doctorId: linkedDoctorId || "",
         bookingLocationIds: bookingLocationIdsFromUser(user),
     }
 
@@ -106,6 +145,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         userGroupId: "",
         userLocationId: "",
         staffId: "",
+        doctorId: "",
         defaultBookingMethod: null,
         checkedDefaultLocation: false,
         bookingLocationIds: [],
@@ -128,11 +168,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             .transform((v) => (v === "" ? null : v))
             .test("mobile", MOBILE_VALIDATION_MESSAGE, (v) => v == null || MOBILE_REGEX.test(v)),
         userType: Yup.number()
-            .oneOf([1, 2, 3], "User type must be Admin (1), Staff (2), or Doctor (3)")
+            .oneOf([1, 2, 3, 4], "User type must be Admin, Staff, Doctor, or API User")
             .required("This field is mandatory"),
-        userLocationId: Yup.string()
-            .required("User Location is mandatory")
-            .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
+        userLocationId: Yup.string().when("userType", {
+            is: (t: number) => t === userTypes.apiUser,
+            then: (schema) => schema.nullable().optional(),
+            otherwise: (schema) =>
+                schema
+                    .required("User Location is mandatory")
+                    .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
+        }),
     })
 
     // Validation schema for password change
@@ -176,11 +221,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             .oneOf([Yup.ref("password")], "Passwords must match")
             .required("This field is mandatory"),
         userType: Yup.number()
-            .oneOf([1, 2, 3], "User type must be Admin (1), Staff (2), or Doctor (3)")
+            .oneOf([1, 2, 3, 4], "User type must be Admin, Staff, Doctor, or API User")
             .required("This field is mandatory"),
-        userLocationId: Yup.string()
-            .required("User Location is mandatory")
-            .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
+        userLocationId: Yup.string().when("userType", {
+            is: (t: number) => t === userTypes.apiUser,
+            then: (schema) => schema.nullable().optional(),
+            otherwise: (schema) =>
+                schema
+                    .required("User Location is mandatory")
+                    .test("not-none", "User Location is mandatory", (v) => !!v && v !== "__none__"),
+        }),
     })
 
     const handleSettingsSubmit = async (
@@ -191,7 +241,6 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
             setLoading(true)
 
             // Fetch current user to get the password
-            const { fetchUserById } = await import("@/app/actions/user.actions")
             const currentUser = await fetchUserById(user!.id!)
             
             // When checkedDefaultLocation is true, set defaultLocation to the first booking location
@@ -206,6 +255,10 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                     : parseInt(values.defaultBookingMethod, 10)
 
             const staffId = values.staffId === "__none__" || values.staffId === "" ? null : values.staffId
+            const doctorId =
+                values.userType === userTypes.doctor && values.doctorId?.trim()
+                    ? values.doctorId.trim()
+                    : null
             const previousUserLocationId = (currentUser as any)?.userLocationId ?? user?.userLocationId ?? ""
             const nextUserLocationId = values.userLocationId ?? ""
             const didUserLocationChange = previousUserLocationId !== nextUserLocationId
@@ -215,7 +268,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                 ...values,
                 defaultLocation: defaultLocation || undefined,
                 defaultBookingMethod: defaultBookingMethod !== undefined && !Number.isNaN(defaultBookingMethod) ? defaultBookingMethod : null,
-                staffId: staffId ?? undefined,
+                staffId: values.userType === userTypes.doctor ? null : staffId ?? undefined,
+                doctorId: doctorId ?? undefined,
                 bookingLocationIds: values.bookingLocationIds,
                 password: "", // Empty password means keep existing
             } as User
@@ -370,6 +424,72 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         inputClassName: "col-span-full sm:col-span-3",
     }
 
+    const handleUserTypeChange = (
+        formik: { setFieldValue: (f: string, v: unknown) => void; setFieldTouched: (f: string, t: boolean) => void },
+        value: string
+    ) => {
+        const userType = parseInt(value, 10)
+        formik.setFieldValue("userType", userType)
+        formik.setFieldTouched("userType", true)
+        if (userType === userTypes.doctor) {
+            formik.setFieldValue("staffId", "")
+        } else {
+            formik.setFieldValue("doctorId", "")
+        }
+    }
+
+    const renderLinkedStaffOrDoctor = (formik: {
+        values: { userType: number; staffId?: string | null; doctorId?: string | null }
+        setFieldValue: (field: string, value: unknown) => void
+        setFieldTouched: (field: string, touched: boolean) => void
+    }) => {
+        if (formik.values.userType === userTypes.doctor) {
+            return (
+                <div className={styleClasses.parentDiv}>
+                    <Label className={styleClasses.labelClassName}>Linked doctor</Label>
+                    <div className={styleClasses.inputClassName}>
+                        <Combobox
+                            label="Linked doctor"
+                            options={doctorOptions}
+                            value={formik.values.doctorId ?? ""}
+                            defaultValue=""
+                            loading={doctorOptionsLoading}
+                            clearable
+                            triggerClassName="w-full max-w-none font-normal!"
+                            popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                            onChange={(value) => {
+                                formik.setFieldValue("doctorId", value)
+                                formik.setFieldValue("staffId", "")
+                                formik.setFieldTouched("doctorId", true)
+                            }}
+                        />
+                    </div>
+                </div>
+            )
+        }
+        return (
+            <CustomSelectField
+                id="staffId"
+                placeholder="Linked staff"
+                value={formik.values.staffId ?? "__none__"}
+                onChange={(value) => {
+                    formik.setFieldValue("staffId", value === "__none__" ? "" : value)
+                    formik.setFieldTouched("staffId", true)
+                }}
+                required={false}
+                options={[
+                    { id: "__none__", name: "None" },
+                    ...staffOptions.map((s) => ({
+                        id: s.id,
+                        name: s.code ? `${s.name} (${s.code})` : s.name,
+                    })),
+                ]}
+                styleClasses={styleClasses}
+                loading={staffOptionsLoading}
+            />
+        )
+    }
+
     // New User Form (single form with password)
     if (!isEditMode) {
         return (
@@ -452,20 +572,16 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 id="userType"
                                 placeholder="User Type"
                                 value={formik.values.userType?.toString()}
-                                onChange={(value) => {
-                                    formik.setFieldValue("userType", parseInt(value));
-                                    formik.setFieldTouched("userType", true);
-                                }}
+                                onChange={(value) => handleUserTypeChange(formik, value)}
                                 required
-                                options={[
-                                    { id: "1", name: "Admin" },
-                                    { id: "2", name: "Staff" },
-                                    { id: "3", name: "Doctor" },
-                                ]}
+                                options={USER_TYPE_OPTIONS.map((o) => ({
+                                    id: String(o.id),
+                                    name: o.name,
+                                }))}
                                 styleClasses={styleClasses}
                             />
 
-                            {userGroupOptions.length > 0 && (
+                            {userGroupOptions.length > 0 && formik.values.userType !== userTypes.apiUser && (
                                 <CustomSelectField
                                     id="userGroupId"
                                     placeholder="User Group"
@@ -483,6 +599,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                 />
                             )}
 
+                            {formik.values.userType !== userTypes.apiUser && (
+                                <>
                                 <CustomSelectField
                                     id="userLocationId"
                                     placeholder="User Location"
@@ -518,23 +636,18 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                     styleClasses={styleClasses}
                                 />
 
-                                <CustomSelectField
-                                    id="staffId"
-                                    placeholder="Linked staff"
-                                    value={formik.values.staffId ?? "__none__"}
-                                    onChange={(value) => {
-                                        formik.setFieldValue("staffId", value === "__none__" ? "" : value);
-                                        formik.setFieldTouched("staffId", true);
-                                    }}
-                                    required={false}
-                                    options={[
-                                        { id: "__none__", name: "None" },
-                                        ...staffOptions.map((s) => ({ id: s.id, name: s.code ? `${s.name} (${s.code})` : s.name })),
-                                    ]}
-                                    styleClasses={styleClasses}
-                                    loading={staffOptionsLoading}
-                                />
+                                {renderLinkedStaffOrDoctor(formik)}
+                                </>
+                            )}
 
+                            {formik.values.userType === userTypes.apiUser && (
+                                <p className="text-muted-foreground text-xs col-span-full">
+                                    API Users are used only as createdBy on public API bookings. They cannot sign in to the dashboard.
+                                </p>
+                            )}
+
+                            {formik.values.userType !== userTypes.apiUser && (
+                                <>
                                 <Separator />
 
                                 <CustomMultiSelect
@@ -575,6 +688,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         </Label>
                                     </div>
                                 )}
+                                </>
+                            )}
 
                             <div className="flex flex-col sm:flex-row justify-end gap-3">
                                 <Button
@@ -675,19 +790,20 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             id="userType"
                                             placeholder="User Type"
                                             value={formik.values.userType?.toString()}
-                                            onChange={(value) => {
-                                                formik.setFieldValue("userType", parseInt(value));
-                                                formik.setFieldTouched("userType", true);
-                                            }}
+                                            onChange={(value) => handleUserTypeChange(formik, value)}
                                             required
-                                            options={[
-                                                { id: "1", name: "Admin" },
-                                                { id: "2", name: "Staff" },
-                                                { id: "3", name: "Doctor" },
-                                            ]}
+                                            options={USER_TYPE_OPTIONS.map((o) => ({
+                                                id: String(o.id),
+                                                name: o.name,
+                                            }))}
                                             styleClasses={styleClasses}
                                         />
-                                        {userGroupOptions.length > 0 && (
+                                        {formik.values.userType === userTypes.apiUser && (
+                                            <p className="text-muted-foreground text-xs md:col-span-2">
+                                                API Users are used only as createdBy on public API bookings. They cannot sign in to the dashboard.
+                                            </p>
+                                        )}
+                                        {userGroupOptions.length > 0 && formik.values.userType !== userTypes.apiUser && (
                                             <CustomSelectField
                                                 id="userGroupId"
                                                 placeholder="User Group"
@@ -704,6 +820,8 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                                 styleClasses={styleClasses}
                                             />
                                         )}
+                                        {formik.values.userType !== userTypes.apiUser && (
+                                        <>
                                         <CustomSelectField
                                             id="userLocationId"
                                             placeholder="User Location"
@@ -740,26 +858,13 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             />
                                         </div>
 
-                                        <CustomSelectField
-                                            id="staffId"
-                                            placeholder="Linked staff"
-                                            value={formik.values.staffId ?? "__none__"}
-                                            onChange={(value) => {
-                                                formik.setFieldValue("staffId", value === "__none__" ? "" : value);
-                                                formik.setFieldTouched("staffId", true);
-                                            }}
-                                            required={false}
-                                            options={[
-                                                { id: "__none__", name: "None" },
-                                                ...staffOptions.map((s) => ({ id: s.id, name: s.code ? `${s.name} (${s.code})` : s.name })),
-                                            ]}
-                                            styleClasses={styleClasses}
-                                            loading={staffOptionsLoading}
-                                        />
+                                        {renderLinkedStaffOrDoctor(formik)}
+                                        </>
+                                        )}
                                     </div>
                                 </section>
 
-                                {/* Locations */}
+                                {formik.values.userType !== userTypes.apiUser && (
                                 <section className="space-y-3">
                                     <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider border-b border-border/60 pb-1">Locations</h3>
                                     <CustomMultiSelect
@@ -782,7 +887,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                             />
                                             <span className="text-muted-foreground text-xs">Auto-select first in Channeling</span>
                                         </div>
-                                        {sessionUserType === 1 && (
+                                        {sessionUserType === 1 && formik.values.userType !== userTypes.apiUser && (
                                             <div className="flex items-center">
                                                 <Checkbox
                                                     id="twoFactorEnabled"
@@ -799,27 +904,29 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                                 </Label>
                                             </div>
                                         )}
-                                        <div className="flex items-center">
-                                            <Checkbox
-                                                id="status"
-                                                checked={formik.values.status === 1 ? true : false}
-                                                onCheckedChange={(value) => {
-                                                    if (value) {
-                                                        formik.setFieldValue("status", 1)
-                                                    } else {
-                                                        formik.setFieldValue("status", 0)
-                                                    }
-                                                }}
-                                            />
-                                            <Label
-                                                htmlFor="status"
-                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
-                                            >
-                                                Active Login
-                                            </Label>
-                                        </div>
                                     </div>
                                 </section>
+                                )}
+
+                                <div className="flex items-center pt-2">
+                                    <Checkbox
+                                        id="status"
+                                        checked={formik.values.status === 1 ? true : false}
+                                        onCheckedChange={(value) => {
+                                            if (value) {
+                                                formik.setFieldValue("status", 1)
+                                            } else {
+                                                formik.setFieldValue("status", 0)
+                                            }
+                                        }}
+                                    />
+                                    <Label
+                                        htmlFor="status"
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ml-1"
+                                    >
+                                        Active
+                                    </Label>
+                                </div>
 
                                 <div className="flex flex-col sm:flex-row justify-end gap-2 pt-1">
                                     <Button

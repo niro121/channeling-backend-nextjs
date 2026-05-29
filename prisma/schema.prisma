@@ -20,7 +20,7 @@ model User {
   // == username optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-username-partial-unique.ts == //
   username               String?  // == Optional; login can use email or username == //
   phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
-  userType               Int // 1 = admin, 2 = staff
+  userType               Int // 1 = admin, 2 = staff, 3 = doctor, 4 = api user
   password               String
   createdAt              DateTime @default(now())
   updatedAt              DateTime @default(now())
@@ -83,6 +83,7 @@ model User {
   shiftsPausedBy          Shift[]                        @relation("ShiftPausedBy")
   shiftsEndedBy           Shift[]                        @relation("ShiftEndedBy")
   activityLogs            ActivityLog[]                  @relation("UserActivityLogs")
+  apiClientsAsActingUser    ApiClient[]                    @relation("ApiClientActingUser")
   createdDoctorLeaves     DoctorLeave[]                  @relation("UserCreatedLeaves")
   updatedDoctorLeaves     DoctorLeave[]                  @relation("UserUpdatedLeaves")
   createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
@@ -329,6 +330,7 @@ model Session {
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
   channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
+  migrateSourceId       String?  // Legacy session_id (Sails) for migrate import lookup
 
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
@@ -351,6 +353,7 @@ model Session {
   updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
+  @@index([migrateSourceId])
 }
 
 model DoctorLeave {
@@ -645,10 +648,14 @@ model ApiClient {
   clientSecretHash String   // hashed secret; plain secret returned only once on create
   name             String   // application name
   isBlocked        Boolean  @default(false)
+  /// User attributed as createdBy on bookings made via this API client (public API). Required.
+  actingUserId     String   @db.ObjectId
+  actingUser       User     @relation("ApiClientActingUser", fields: [actingUserId], references: [id], onDelete: Restrict)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([isBlocked])
+  @@index([actingUserId])
 }
 
 model Patient {
@@ -686,6 +693,7 @@ model Staff {
   address       String    @default("")
   dateJoined    DateTime?
   status        Int       @default(1) // 0 = Inactive, 1 = Active
+  migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
@@ -695,6 +703,8 @@ model Staff {
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
 }
 
 model Tag {
@@ -992,11 +1002,13 @@ model Booking {
   channelRoomAttendanceBy   String?   @db.ObjectId
   /// Channel room attendance activity log: [{ from, to, at, by }]
   channelRoomAttendanceHistory Json?
+  migrateSourceId            String?  // Legacy booking_id (Sails) for migrate import lookup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([sessionId, appointmentNo])
+  @@index([migrateSourceId])
 }
 
 /// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS

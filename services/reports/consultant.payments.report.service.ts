@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import moment from 'moment';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 
 type ExtractWhereInput<T> = T extends { where?: infer W } ? W : never;
 type PrismaBookingWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.booking.findMany>[0]>>;
@@ -14,14 +15,11 @@ const MAX_RECORDS_SCAN = getReportMaxRecords('consultant_payments', 30000);
 
 function parseDateToUnixRange(fromDateTime?: string, toDateTime?: string): { from: number; to: number } | null {
   if (!fromDateTime || !toDateTime) return null;
-  
-  const from = new Date(fromDateTime);
-  const to = new Date(toDateTime);
-  if (isNaN(from.getTime()) || isNaN(to.getTime())) return null;
 
-  // Respect the actual date+time range provided by the UI.
-  // `YYYY-MM-DDTHH:mm` strings are interpreted as local time by JS Date,
-  // which matches what the user selected in the UI.
+  const from = parseReportDateTime(fromDateTime, false);
+  const to = parseReportDateTime(toDateTime, true);
+  if (!from || !to) return null;
+
   const fromUnix = Math.floor(from.getTime() / 1000);
   const toUnix = Math.floor(to.getTime() / 1000);
 

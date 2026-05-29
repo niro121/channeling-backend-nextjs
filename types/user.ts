@@ -13,7 +13,7 @@ export type User = {
     twoFactorEnabled?: boolean // Admin/user preference: require 2FA at login
     password: string
     confirmPassword?: string
-    userType: number // 1 = admin, 2 = staff, 3 = doctor
+    userType: number // 1 = admin, 2 = staff, 3 = doctor, 4 = api user
     status: number //0 -> inactive, 1 ->  active
     checkedDefaultLocation: boolean // == false: not selected default location | true: selected default selection == //
     defaultLocation?: string | null
@@ -22,6 +22,8 @@ export type User = {
     userLocation?: Location | null
     staffId?: string | null
     staff?: { id: string; name: string; code?: string } | null
+    /** Doctor master id (doctor users); persisted via Account.userId + Account.doctorId */
+    doctorId?: string | null
     bookingLocations?: { locationId: string; location?: Location }[]
     bookingLocationIds?: string[] // form-only: ids for multi-select, synced to bookingLocations
     userGroupId?: string | null

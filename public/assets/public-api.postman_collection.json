@@ -1,14 +1,21 @@
 {
   "info": {
     "name": "Channeling Public API",
-    "description": "OAuth2 client credentials + sessions. Get token first, then call sessions with Bearer token.",
+    "description": "OAuth2 client credentials, sessions, bookings, and doctor mobile app auth. For public API: get token first, then Bearer on protected routes. For doctor app auth: use the Doctor App Auth folder (separate JWT in doctor_access_token).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000" },
     { "key": "client_id", "value": "" },
     { "key": "client_secret", "value": "" },
-    { "key": "access_token", "value": "" }
+    { "key": "access_token", "value": "" },
+    { "key": "session_id", "value": "" },
+    { "key": "doctor_email", "value": "", "description": "Doctor user email OR username" },
+    { "key": "doctor_password", "value": "", "description": "Doctor user password" },
+    { "key": "doctor_access_token", "value": "", "description": "JWT from doctor app Login" },
+    { "key": "doctor_session_id", "value": "", "description": "Session id from Doctor App Sessions list" },
+    { "key": "two_factor_token", "value": "", "description": "Optional for Login when 2FA required" },
+    { "key": "two_factor_code", "value": "", "description": "Optional 6-digit SMS or TOTP for Login" }
   ],
   "item": [
     {
@@ -60,6 +67,240 @@
         },
         "description": "Returns future sessions for a doctor. Requires Bearer token from Create Access Token."
       }
+    },
+    {
+      "name": "Get Bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/bookings?doctorCode=DR0001&sessionId={{session_id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "bookings"],
+          "query": [
+            { "key": "doctorCode", "value": "DR0001", "description": "Required. Doctor code." },
+            { "key": "sessionId", "value": "{{session_id}}", "description": "Session id from Get Sessions (or use date instead)." },
+            { "key": "date", "value": "", "disabled": true, "description": "YYYY-MM-DD — all paid bookings for doctor on this day." },
+            { "key": "includePending", "value": "false", "disabled": true, "description": "Set to true to include pending (status 0) bookings." }
+          ]
+        },
+        "description": "Returns minimal patient booking data for a doctor session or day. Paid only by default. Requires Bearer token."
+      }
+    },
+    {
+      "name": "Create Agent Booking (paid)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK01\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"yes\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/bookings",
+        "description": "Agent booking settled (status 1, receipt). Default when paid omitted."
+      }
+    },
+    {
+      "name": "Create Agent Booking (pending)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK02\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"no\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/bookings",
+        "description": "Pending agent booking (status 0, no receipt). Use Get Bookings with includePending=true."
+      }
+      "name": "Doctor App",
+      "description": "Doctor mobile app endpoints. OAuth token from Create Access Token is required in X-Client-Access-Token. Login returns doctor_access_token JWT for doctor-protected endpoints.",
+      "item": [
+        {
+          "name": "Check Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/auth/check-login",
+            "description": "Validates credentials; returns whether 2FA is required before login."
+          }
+        },
+        {
+          "name": "Request 2FA Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"method\": \"1\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/auth/request-2fa-code",
+            "description": "Request/send 2FA code when check-login indicates requiresTwoFactor. method: 1|2|3."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"twoFactorCode\": \"{{two_factor_code}}\",\n  \"twoFactorToken\": \"{{two_factor_token}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/auth/login",
+            "description": "Completes login and returns JWT. Omit or leave empty twoFactorCode/twoFactorToken when 2FA is not required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.access_token) {",
+                  "    pm.collectionVariables.set('doctor_access_token', json.access_token);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Initial Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"currentPassword\": \"{{doctor_password}}\",\n  \"newPassword\": \"NEW_PASSWORD\",\n  \"confirmPassword\": \"NEW_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/auth/change-initial-password",
+            "description": "Used on first login for forced password reset."
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Authorization", "value": "Bearer {{doctor_access_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/doctor-app/auth/me",
+            "description": "Requires doctor_access_token from Login. Returns user + doctor profile."
+          }
+        },
+        {
+          "name": "Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Authorization", "value": "Bearer {{doctor_access_token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor-app/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor-app", "sessions"],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2025-02-24",
+                  "disabled": true,
+                  "description": "Optional YYYY-MM-DD; omit query for today"
+                }
+              ]
+            },
+            "description": "Sessions for logged-in doctor."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const first = json?.sessions?.[0];",
+                  "  if (first?.id) pm.collectionVariables.set('doctor_session_id', first.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Authorization", "value": "Bearer {{doctor_access_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/doctor-app/sessions/{{doctor_session_id}}",
+            "description": "Get one doctor session by id."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Authorization", "value": "Bearer {{doctor_access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"0771234567\",\n  \"qualification\": \"MBBS\",\n  \"city\": \"Colombo\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/profile",
+            "description": "Patch allowed doctor profile fields."
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Access-Token", "value": "{{access_token}}" },
+              { "key": "Authorization", "value": "Bearer {{doctor_access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{doctor_password}}\",\n  \"newPassword\": \"NEW_PASSWORD\",\n  \"confirmPassword\": \"NEW_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/doctor-app/profile/change-password",
+            "description": "Change password for logged-in doctor."
+          }
+        }
+      ]
     }
   ]
 }

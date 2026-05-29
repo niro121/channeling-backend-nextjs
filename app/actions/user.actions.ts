@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { fetchServerSession } from "@/lib/session"
+import { getUserTypeLabel } from "@/lib/roles"
+import { getDoctorsForSelectService } from "@/services/reference/reference-data.service"
 
 export const getAllUsers = async (filter: GetUsersParams) => {
     // Check view permission
@@ -108,6 +110,7 @@ export const createNewUser = async (payload: User) => {
             userGroupId: payload.userGroupId,
             userLocationId: payload.userLocationId ?? null,
             staffId: payload.staffId ?? null,
+            doctorId: payload.doctorId ?? null,
             defaultBookingMethod: payload.defaultBookingMethod ?? null,
             checkedDefaultLocation: payload.checkedDefaultLocation ?? false,
             defaultLocation: payload.defaultLocation ?? null,
@@ -181,6 +184,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
             defaultBookingMethod?: number | null;
             userLocationId?: string | null;
             staffId?: string | null;
+            doctorId?: string | null;
             bookingLocationIds?: string[];
         } = {};
 
@@ -198,6 +202,7 @@ export const updateUser = async (id: string, payload: User, userPWD: string) => 
         if (payload.defaultBookingMethod !== undefined) updatePayload.defaultBookingMethod = payload.defaultBookingMethod ?? null;
         if (payload.userLocationId !== undefined) updatePayload.userLocationId = payload.userLocationId || null;
         if (payload.staffId !== undefined) updatePayload.staffId = payload.staffId ?? null;
+        if (payload.doctorId !== undefined) updatePayload.doctorId = payload.doctorId ?? null;
         if (payload.bookingLocationIds !== undefined) updatePayload.bookingLocationIds = payload.bookingLocationIds;
 
         const result = await updateOneUser(id, updatePayload)
@@ -411,6 +416,23 @@ export const getLocationOptions = async () => {
   }
 };
 
+/** Published doctors for user form (linked doctor when user type is Doctor). */
+export const getDoctorOptionsForUsers = async () => {
+  await requirePermission("users", "view")
+  try {
+    const data = await getDoctorsForSelectService()
+    return { success: true, data }
+  } catch (error: unknown) {
+    console.error("getDoctorOptionsForUsers error", error)
+    return {
+      success: false,
+      data: [] as Awaited<ReturnType<typeof getDoctorsForSelectService>>,
+      message:
+        error instanceof Error ? error.message : "Failed to load doctors",
+    }
+  }
+}
+
 // ==== USERS EXPORT ==== //
 export const getUsersExport = async (params: { keyword?: string; userType?: string }) => {
   try {
@@ -470,7 +492,7 @@ export const getUsersExportData = async (keyword?: string) => {
   const mappedUsers = userListResponse.data.map((u: any) => ({
     name: u.name || '-',
     email: u.email || '-',
-    userType: u.userType === 0 ? 'Admin' : u.userType === 1 ? 'Staff' : u.userType === 2 ? 'Agent' : '-',
+    userType: getUserTypeLabel(u.userType),
     userGroup: u.userGroup?.name || '-',
     status: u.status === 1 ? 'Active' : 'Inactive'
   }));
