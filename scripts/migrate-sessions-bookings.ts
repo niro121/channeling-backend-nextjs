@@ -1403,14 +1403,16 @@ async function loadBookingBatchContext(prismaSessionIds: string[]): Promise<Book
   const existingByMigrateSourceId = new Map<string, ExistingBookingRef>();
   const existingIdBySessionAppt = new Map<string, string>();
   for (const b of existingRows) {
+    const sessionId = b.sessionId;
+    if (!sessionId) continue;
     if (b.migrateSourceId) {
       existingByMigrateSourceId.set(b.migrateSourceId, {
         id: b.id,
-        sessionId: b.sessionId,
+        sessionId,
         appointmentNo: b.appointmentNo,
       });
     }
-    existingIdBySessionAppt.set(sessionApptKey(b.sessionId, b.appointmentNo), b.id);
+    existingIdBySessionAppt.set(sessionApptKey(sessionId, b.appointmentNo), b.id);
   }
 
   return { sessionsById, existingByMigrateSourceId, existingIdBySessionAppt };
