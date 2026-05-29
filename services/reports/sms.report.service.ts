@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { SL_OFFSET } from "@/lib/utils";
+import { parseReportDateTimeSl } from "@/lib/parse-report-datetime";
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from "@/lib/report-limits";
 import { Prisma } from "@prisma/client";
 import { SmsReportQuery, SmsReportRow } from "@/types/reports/sms.report";
@@ -10,29 +11,11 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays("sms_log", 31);
 const MAX_RECORDS_SCAN = getReportMaxRecords("sms_log", 50000);
 
 function parseFromDateTime(value: string): Date {
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return new Date(`${trimmed}T00:00:00${SL_OFFSET}`);
-  }
-  if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}(:\d{2})?/.test(trimmed)) {
-    const base = trimmed.replace(/Z$/i, "").split(":").slice(0, 2).join(":");
-    return new Date(`${base}:00${SL_OFFSET}`);
-  }
-  return new Date(trimmed);
+  return parseReportDateTimeSl(value, false, SL_OFFSET) ?? new Date(value);
 }
 
 function parseToDateTime(value: string): Date {
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return new Date(`${trimmed}T23:59:59.999${SL_OFFSET}`);
-  }
-  if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}(:\d{2})?/.test(trimmed)) {
-    const [datePart, timePart] = trimmed.split("T");
-    const [hour = 23] = (timePart || "").split(":").map(Number);
-    const base = `${datePart}T${hour.toString().padStart(2, "0")}:59:59.999`;
-    return new Date(`${base}${SL_OFFSET}`);
-  }
-  return new Date(trimmed);
+  return parseReportDateTimeSl(value, true, SL_OFFSET) ?? new Date(value);
 }
 
 /**

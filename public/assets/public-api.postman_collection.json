@@ -82,6 +82,38 @@
         },
         "description": "Returns minimal patient booking data for a doctor session or day. Paid only by default. Requires Bearer token."
       }
+    },
+    {
+      "name": "Create Agent Booking (paid)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK01\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"yes\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/bookings",
+        "description": "Agent booking settled (status 1, receipt). Default when paid omitted."
+      }
+    },
+    {
+      "name": "Create Agent Booking (pending)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK02\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"no\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/bookings",
+        "description": "Pending agent booking (status 0, no receipt). Use Get Bookings with includePending=true."
+      }
     }
   ]
 }

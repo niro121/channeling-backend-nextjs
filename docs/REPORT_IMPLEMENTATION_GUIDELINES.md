@@ -79,8 +79,9 @@ Keep style consistent with existing report meta cards:
     - from = `00:00:00.000`
     - to = `23:59:59.999`
 - If report needs time precision:
-  - Use date-time range picker.
-  - Preserve selected from/to time exactly.
+  - Use date-time range picker (`YYYY-MM-DDTHH:mm`).
+  - From = start of selected minute (`HH:mm:00.000`).
+  - To = inclusive end of selected minute (`HH:mm:59.999`) via `parseReportDateTime` / `parseReportDateTimeSl` in `lib/parse-report-datetime.ts`.
 
 Always validate:
 - both values are present

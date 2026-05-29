@@ -27,6 +27,11 @@ export type PublicCreateAgentBookingParams = {
   area: string
   remarks?: string
   foreigner?: boolean
+  /**
+   * When true (default), create receipt and mark booking paid (status 1).
+   * When false, create pending agent booking (status 0, not settled).
+   */
+  paid?: boolean
   /** From ApiClient.actingUserId — sets booking createdBy */
   createdByUserId: string
   /** OAuth API client document id (for activity metadata) */
@@ -41,10 +46,18 @@ export type PublicBookingFeeBreakdown = {
   amount: number
 }
 
+const PUBLIC_BOOKING_STATUS_LABELS: Record<number, string> = {
+  0: "Pending",
+  1: "Paid",
+  2: "Cancel",
+  3: "Refund",
+}
+
 export type PublicCreateBookingDto = {
   id: string
   appointmentNo: number
   status: number
+  statusLabel: string
   agencyRef: string
   bookingIdString: string | null
   receiptNoString: string | null
@@ -107,10 +120,12 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
         ? new Date(String(session.date))
         : null
   const startTime = session?.startTime
+  const status = Number(b.status ?? 0)
   return {
     id: String(b.id ?? ""),
     appointmentNo: Number(b.appointmentNo ?? 0),
-    status: Number(b.status ?? 0),
+    status,
+    statusLabel: PUBLIC_BOOKING_STATUS_LABELS[status] ?? String(status),
     agencyRef: String(b.agencyRef ?? ""),
     bookingIdString: b.bookingid_string != null ? String(b.bookingid_string) : null,
     receiptNoString: b.receiptNoString != null ? String(b.receiptNoString) : null,
@@ -267,9 +282,11 @@ export async function createPublicAgentBooking(
     }
   }
 
+  const paid = params.paid !== false
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
     agencyRefUniqueOnly: true,
+    settleOnCreate: paid,
   })
 
   if (!result.success) {

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { RECEIPT_METHOD } from '@/types/receipt';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import type { BankDepositsReportQuery, BankDepositsReportRow } from '@/types/reports/bank-deposits';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('bank_deposits', 31);
@@ -26,8 +27,7 @@ function parseDateTime(value: string, asEnd: boolean): Date | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   if (trimmed.includes('T')) {
-    const d = new Date(trimmed);
-    return Number.isFinite(d.getTime()) ? d : null;
+    return parseReportDateTime(trimmed, asEnd);
   }
   const day = parseSriLankaDay(trimmed);
   if (!day) return null;

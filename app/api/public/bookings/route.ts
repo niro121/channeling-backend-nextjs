@@ -3,6 +3,7 @@ import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
 import { getPublicBookingsByDoctorCode } from "@/services/public/bookings.service"
 import { createPublicAgentBooking } from "@/services/public/create-booking.service"
+import { parsePublicApiPaidParam } from "@/lib/parse-public-api-paid"
 
 function withCors(res: NextResponse) {
   Object.entries(publicApiCorsHeaders()).forEach(([k, v]) => res.headers.set(k, v))
@@ -80,6 +81,8 @@ type CreateBookingBody = {
   area?: string
   remarks?: string
   foreigner?: boolean
+  /** yes/true (default) = paid/settled; no/false = pending agent booking */
+  paid?: boolean | string | number
 }
 
 /**
@@ -113,6 +116,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const paidParsed = parsePublicApiPaidParam(body.paid)
+  if (!paidParsed.ok) {
+    return withCors(
+      NextResponse.json(
+        { error: "invalid_request", error_description: paidParsed.message },
+        { status: 400 }
+      )
+    )
+  }
+
   const result = await createPublicAgentBooking({
     sessionId: body.sessionId ?? "",
     agencyId: body.agencyId ?? "",
@@ -124,6 +137,7 @@ export async function POST(request: NextRequest) {
     area: body.area ?? "",
     remarks: body.remarks,
     foreigner: body.foreigner,
+    paid: paidParsed.paid,
     createdByUserId: client.actingUserId,
     apiClientId: client.id,
   })

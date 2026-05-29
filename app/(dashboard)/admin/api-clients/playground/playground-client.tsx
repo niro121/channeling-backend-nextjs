@@ -49,6 +49,7 @@ export function PublicApiPlayground() {
   const [createPhone, setCreatePhone] = useState("")
   const [createArea, setCreateArea] = useState("")
   const [createForeigner, setCreateForeigner] = useState(false)
+  const [createPaid, setCreatePaid] = useState(true)
   const [createLoading, setCreateLoading] = useState(false)
   const [createResult, setCreateResult] = useState<{
     status: number
@@ -85,7 +86,8 @@ export function PublicApiPlayground() {
     "sex": "M",
     "phone": "0771234567",
     "area": "Colombo",
-    "foreigner": false
+    "foreigner": false,
+    "paid": "yes"
   }'`
     : ""
 
@@ -190,6 +192,7 @@ export function PublicApiPlayground() {
           phone: createPhone.trim(),
           area: createArea.trim(),
           foreigner: createForeigner,
+          paid: createPaid ? "yes" : "no",
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -508,8 +511,8 @@ export function PublicApiPlayground() {
           </CardTitle>
           <CardDescription>
             POST /api/public/bookings — Agent method only. Uses the same save pipeline as
-            channel booking (receipt, agency balance, ref validation). Requires sessionId from
-            step 2, agencyId, and bookReference.
+            channel booking. Set Paid to No for a pending booking (no receipt; settle later in
+            channel booking). Requires sessionId from step 3, agencyId, and bookReference.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -554,17 +557,31 @@ export function PublicApiPlayground() {
               <Input id="create_area" value={createArea} onChange={(e) => setCreateArea(e.target.value)} />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="create_foreigner"
-              type="checkbox"
-              checked={createForeigner}
-              onChange={(e) => setCreateForeigner(e.target.checked)}
-              className="h-4 w-4 rounded border"
-            />
-            <Label htmlFor="create_foreigner" className="font-normal">
-              Foreigner
-            </Label>
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-2">
+              <input
+                id="create_foreigner"
+                type="checkbox"
+                checked={createForeigner}
+                onChange={(e) => setCreateForeigner(e.target.checked)}
+                className="h-4 w-4 rounded border"
+              />
+              <Label htmlFor="create_foreigner" className="font-normal">
+                Foreigner
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="create_paid"
+                type="checkbox"
+                checked={createPaid}
+                onChange={(e) => setCreatePaid(e.target.checked)}
+                className="h-4 w-4 rounded border"
+              />
+              <Label htmlFor="create_paid" className="font-normal">
+                Paid (settled — creates receipt)
+              </Label>
+            </div>
           </div>
           <p className="text-muted-foreground text-xs">
             Uses Session ID from step 3 field above. Amount is calculated server-side from session fees.

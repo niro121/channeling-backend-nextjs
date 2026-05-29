@@ -164,6 +164,87 @@ curl -X GET "http://localhost:3000/api/public/bookings?doctorCode=DR0001&date=20
 
 ---
 
+## 4. Create agent booking
+
+**POST** `/api/public/bookings`
+
+Creates an agent-method booking (same pipeline as channel booking). Requires Bearer token and API client acting user.
+
+### JSON body
+
+| Field           | Required | Description |
+|----------------|----------|-------------|
+| `sessionId`    | Yes      | Session id from Get Sessions. |
+| `agencyId`     | Yes      | Agency Mongo id. |
+| `bookReference`| Yes      | Full agency ref (e.g. `ABC01`). |
+| `title`, `name`, `sex`, `phone`, `area` | Yes | Patient details. |
+| `remarks`      | No       | Optional remarks. |
+| `foreigner`    | No       | `true` for foreign fee tier. |
+| `paid`         | No       | Default `yes` / `true`: receipt created, **status 1** (settled). `no` / `false`: **pending** agent booking (**status 0**, not settled; settle later in channel booking). |
+
+### cURL (paid — default)
+
+```bash
+curl -X POST "http://localhost:3000/api/public/bookings" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "SESSION_ID",
+    "agencyId": "AGENCY_ID",
+    "bookReference": "BOOK01",
+    "title": "Mr",
+    "name": "PATIENT NAME",
+    "sex": "M",
+    "phone": "0771234567",
+    "area": "Colombo",
+    "paid": "yes"
+  }'
+```
+
+### cURL (pending — not settled)
+
+```bash
+curl -X POST "http://localhost:3000/api/public/bookings" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "SESSION_ID",
+    "agencyId": "AGENCY_ID",
+    "bookReference": "BOOK02",
+    "title": "Mr",
+    "name": "PATIENT NAME",
+    "sex": "M",
+    "phone": "0771234567",
+    "area": "Colombo",
+    "paid": "no"
+  }'
+```
+
+### Example success response (201)
+
+```json
+{
+  "booking": {
+    "id": "...",
+    "appointmentNo": 5,
+    "status": 0,
+    "statusLabel": "Pending",
+    "agencyRef": "BOOK02",
+    "amount": 2000,
+    "fees": {
+      "professionalFee": 1500,
+      "hospitalFee": 500,
+      "discount": 0,
+      "amount": 2000
+    }
+  }
+}
+```
+
+Use **Get Bookings** with `includePending=true` to list pending bookings.
+
+---
+
 ## Postman collection
 
 Import the collection to run these in Postman:

@@ -330,6 +330,7 @@ model Session {
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
   channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
+  migrateSourceId       String?  // Legacy session_id (Sails) for migrate import lookup
 
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
@@ -352,6 +353,7 @@ model Session {
   updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
+  @@index([migrateSourceId])
 }
 
 model DoctorLeave {
@@ -691,6 +693,7 @@ model Staff {
   address       String    @default("")
   dateJoined    DateTime?
   status        Int       @default(1) // 0 = Inactive, 1 = Active
+  migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
 
   bookingsAsStaff     Booking[] @relation("BookingStaff")
   bookingsReferred    Booking[] @relation("BookingReferredStaff")
@@ -700,6 +703,8 @@ model Staff {
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
 }
 
 model Tag {
@@ -997,11 +1002,13 @@ model Booking {
   channelRoomAttendanceBy   String?   @db.ObjectId
   /// Channel room attendance activity log: [{ from, to, at, by }]
   channelRoomAttendanceHistory Json?
+  migrateSourceId            String?  // Legacy booking_id (Sails) for migrate import lookup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([sessionId, appointmentNo])
+  @@index([migrateSourceId])
 }
 
 /// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS

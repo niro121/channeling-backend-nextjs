@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import {DoctorLeaveReportQuery} from '@/types/reports/doctor.leave'
 import { Prisma } from '@prisma/client';
 import { SRI_LANKA_TZ, SL_OFFSET } from '@/lib/utils';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('doctor_leave', 62);
@@ -71,37 +72,10 @@ export const getDoctorLeaveReportService = async ({
     let toDate: Date | null = null;
 
     if (hasDateFilter) {
-      // Date-only (YYYY-MM-DD): use start of day for from, end of day for to
-      // DateTime (YYYY-MM-DDTHH:mm): parse as Sri Lanka time for correct comparison with DB (UTC)
-      const parseFromDate = (val: string): Date => {
-        const trimmed = val.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-          return new Date(`${trimmed}T00:00:00${SL_OFFSET}`);
-        }
-        if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}(:\d{2})?/.test(trimmed)) {
-          const base = trimmed.replace(/Z$/i, '').split(':').slice(0, 2).join(':');
-          return new Date(`${base}:00${SL_OFFSET}`);
-        }
-        return new Date(trimmed);
-      };
-      const parseToDate = (val: string): Date => {
-        const trimmed = val.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-          return new Date(`${trimmed}T23:59:59.999${SL_OFFSET}`);
-        }
-        if (/^\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}(:\d{2})?/.test(trimmed)) {
-          const [datePart, timePart] = trimmed.split('T');
-          const [h = 23, min = 59] = (timePart || '').split(':').map(Number);
-          // End of selected hour: e.g. "2:00 PM" -> 2:59:59.999 PM (inclusive of full hour)
-          const base = `${datePart}T${h.toString().padStart(2, '0')}:59:59.999`;
-          return new Date(`${base}${SL_OFFSET}`);
-        }
-        return new Date(trimmed);
-      };
-      fromDate = parseFromDate(fromDateTime!);
-      toDate = parseToDate(toDateTime!);
+      fromDate = parseReportDateTimeSl(fromDateTime!, false, SL_OFFSET);
+      toDate = parseReportDateTimeSl(toDateTime!, true, SL_OFFSET);
 
-      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      if (!fromDate || !toDate || isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
         return {
           success: false,
           data: [],
