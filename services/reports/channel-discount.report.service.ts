@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import type {
   ChannelDiscountReportQuery,
@@ -14,15 +15,8 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_discount_report', 62);
 const MAX_BOOKINGS_SCAN = getReportMaxRecords('channel_discount_report', 50000);
 
 function parseDateTime(input?: string, isEnd = false): Date | null {
-  const v = input?.trim();
-  if (!v) return null;
-  if (v.includes('T')) {
-    const d = new Date(v);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = v.split('-').map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return isEnd ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  if (!input?.trim()) return null;
+  return parseReportDateTime(input, isEnd);
 }
 
 function getBookingType(method: number, isScan: boolean): string {

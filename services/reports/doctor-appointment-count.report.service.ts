@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import type {
   DoctorAppointmentCountReportQuery,
   DoctorAppointmentCountReportRow,
@@ -12,15 +13,8 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('doctor_appointment_count', 62);
 const MAX_BOOKINGS_SCAN = getReportMaxRecords('doctor_appointment_count', 20000);
 
 function parseDateTime(input?: string, asEnd = false): Date | null {
-  const v = input?.trim();
-  if (!v) return null;
-  if (v.includes('T')) {
-    const d = new Date(v);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = v.split('-').map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return asEnd ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  if (!input?.trim()) return null;
+  return parseReportDateTime(input, asEnd);
 }
 
 function isMorning(dt: Date): boolean {

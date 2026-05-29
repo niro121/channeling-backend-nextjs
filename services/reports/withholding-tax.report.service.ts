@@ -2,21 +2,15 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { WithholdingTaxReportQuery, WithholdingTaxReportRow } from '@/types/report';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { WHT_PAYABLE_ACCOUNT_CODE } from '@/services/accounting/account/wht-payable-account.constants';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('withholding_tax', 62);
 const MAX_RECEIPTS_SCAN = getReportMaxRecords('withholding_tax', 50000);
 
 function parseDateTime(input?: string, isEnd = false): Date | null {
-  const v = input?.trim();
-  if (!v) return null;
-  if (v.includes('T')) {
-    const d = new Date(v);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = v.split('-').map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return isEnd ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  if (!input?.trim()) return null;
+  return parseReportDateTime(input, isEnd);
 }
 
 type ReceiptReportBucket = {

@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
@@ -23,16 +24,7 @@ function extractSlipDateFromRemarks(remarks: string | null | undefined): string 
 }
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  if (trimmed.includes('T')) {
-    const d = new Date(trimmed);
-    return Number.isFinite(d.getTime()) ? d : null;
-  }
-  const [y, m, d] = trimmed.split('-').map(Number);
-  if (!y || !m || !d) return null;
-  if (asEnd) return new Date(y, m - 1, d, 23, 59, 59, 999);
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
+  return parseReportDateTime(value, asEnd);
 }
 
 function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date } | null {

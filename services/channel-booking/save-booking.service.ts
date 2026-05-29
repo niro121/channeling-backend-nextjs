@@ -50,6 +50,11 @@ export type SaveBookingServiceOptions = {
   requireActiveShift?: boolean
   /** Public API: store bookReference as-is (trimmed, uppercased) and only enforce uniqueness. */
   agencyRefUniqueOnly?: boolean
+  /**
+   * When false, leave booking pending (status 0): no receipt, no agency balance debit.
+   * Applies to POS/Agent methods only. Default true.
+   */
+  settleOnCreate?: boolean
 }
 
 function isPrismaUniqueConstraintError(e: unknown): boolean {
@@ -177,6 +182,7 @@ export async function saveBookingService(
   options?: SaveBookingServiceOptions
 ): Promise<SaveBookingServiceResult> {
   const shouldRequireShift = options?.requireActiveShift !== false
+  const settleOnCreate = options?.settleOnCreate !== false
   if (userId && shouldRequireShift) await requireActiveShift(userId)
 
   const sessionId = input.session.id
@@ -373,7 +379,7 @@ export async function saveBookingService(
 
   // Pre-check: agent/credit customer — ensure posting the receipt would not exceed account minBalanceAllowed (credit limit).
   // Fail before creating the booking so we don't create a pending booking that cannot be completed.
-  if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+  if (settleOnCreate && CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
     const isAgent = input.payment_type === 4
     const isCreditCustomer = input.payment_type === 5
     if (isAgent || isCreditCustomer) {
@@ -438,7 +444,7 @@ export async function saveBookingService(
 
   // Pre-check: if this booking/payment method needs a till (cash/card/slip/check/e-wallet),
   // validate till account creation before creating a pending booking row.
-  if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+  if (settleOnCreate && CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
     const isAgent = input.payment_type === 4
     const isCreditCustomer = input.payment_type === 5
     const needTill = [0, 1, 2, 3, 6, SAVE_PAYMENT_TYPE_MIXED].includes(input.payment_type)
@@ -600,7 +606,7 @@ export async function saveBookingService(
     const appointmentNo = created.appointmentNo
 
     // POS and Agent create a receipt and mark booking as paid (status 1); Credit Customer and E-wallet also create receipt (booked).
-    if (CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
+    if (settleOnCreate && CREATE_RECEIPT_METHODS.includes(input.payment_method)) {
       const receiptAmount = amountToUse
       const remarks =
         input.payment_type === 4

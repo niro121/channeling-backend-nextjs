@@ -8,6 +8,7 @@ import {
   ChannelReportReceiptWiseRow,
 } from '@/types/reports/channel-report-receipt-wise';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_report_receipt_wise', 31);
 const MAX_RECORDS_SCAN = getReportMaxRecords('channel_report_receipt_wise', 30000);
@@ -63,9 +64,9 @@ function mapReceiptCategoryToMethods(category?: string): number[] | null {
 
 function parseDateRange(from?: string, to?: string): { from: Date; to: Date } | null {
   if (!from?.trim() || !to?.trim()) return null;
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return null;
+  const fromDate = parseReportDateTime(from, false);
+  const toDate = parseReportDateTime(to, true);
+  if (!fromDate || !toDate) return null;
   if (fromDate.getTime() > toDate.getTime()) return null;
   return { from: fromDate, to: toDate };
 }
