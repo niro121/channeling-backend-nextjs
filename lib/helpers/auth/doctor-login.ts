@@ -46,6 +46,24 @@ export type DoctorProfileSummary = {
   speciality: { id: string; name: string; code: string } | null
 }
 
+/** Doctor master fields returned by doctor-app login and /me. */
+export type DoctorAppDoctorPayload = Pick<
+  DoctorProfileSummary,
+  "id" | "title" | "name" | "code" | "speciality"
+>
+
+export function toDoctorAppDoctorPayload(
+  profile: DoctorProfileSummary
+): DoctorAppDoctorPayload {
+  return {
+    id: profile.id,
+    title: profile.title,
+    name: profile.name,
+    code: profile.code,
+    speciality: profile.speciality,
+  }
+}
+
 /** Resolve Doctor record for a doctor-app user (account link, then username as doctor code). */
 export async function resolveDoctorProfileForUser(
   user: Pick<User, "id" | "username">
