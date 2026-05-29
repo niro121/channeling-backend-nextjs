@@ -44,7 +44,7 @@ export async function getSessionsForChannelBookingService(
         where,
         include: {
           doctor: { select: { id: true, title: true, name: true } },
-          location: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true, city: true } },
           room: { select: { id: true, number: true } },
         },
         orderBy: [{ date: "asc" }, { startTime: "asc" }],
@@ -169,7 +169,7 @@ export async function getSessionByIdForChannelBookingService(
         where: { id: sessionId },
         include: {
           doctor: { select: { id: true, title: true, name: true } },
-          location: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true, city: true } },
           room: { select: { id: true, number: true } },
         },
       }),

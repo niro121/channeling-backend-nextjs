@@ -34,7 +34,7 @@ export type PublicSessionDto = {
   isFull: boolean
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
-  location: { id: string; name: string } | null
+  location: { id: string; name: string; city: string } | null
   doctor: { id: string; title: string; name: string; code: string }
 }
 
@@ -206,7 +206,7 @@ export async function getPublicSessionsByDoctorCode(
       amountLocal: resolvePublicSessionAmount(s.amountLocal, feeBreakdown.local),
       amountForeign: resolvePublicSessionAmount(s.amountForeign, feeBreakdown.foreign),
       location: s.location
-        ? { id: s.location.id!, name: s.location.name }
+        ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,
       doctor: {
         id: doctor.id,
