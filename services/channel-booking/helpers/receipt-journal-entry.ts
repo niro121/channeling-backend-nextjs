@@ -305,7 +305,7 @@ export function buildReceiptJournalEntryInput(
 
   // Till: check — channel payment/refund
   const isCheck = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK;
-  if (isCheck && accounts.cashierAccountId) {
+  if (isCheck && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
       const creditLines = useFeeSplit
         ? [
@@ -423,7 +423,7 @@ export function buildReceiptJournalEntryInput(
 
   // Till: e-wallet — channel payment/refund
   const isEWallet = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET;
-  if (isEWallet && accounts.cashierAccountId) {
+  if (isEWallet && accounts.cashierAccountId && isChannelPaymentOrRefund) {
     if (isPayment) {
       const creditLines = useFeeSplit
         ? [
@@ -603,23 +603,38 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Withdraw (7) - agency takes out (reverse of deposit: Dr Agent, Cr Till). Till only; no branch fallback.
-  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId && accounts.cashierAccountId) {
+  // Ledger: Agency Withdraw (7) - reverse of agency deposit (cash: Cr till; non-cash: Cr branch)
+  if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId) {
+    const isAgencyWithdrawCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
+    if (isAgencyWithdrawCash && accounts.cashierAccountId) {
+      return {
+        date: receipt.createdAt ?? new Date(),
+        description: `Agency withdraw (cash)${descSuffix}`,
+        referenceType: REFERENCE_TYPES.Receipt,
+        referenceId: receipt.id,
+        locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+        createdBy: receipt.createdBy ?? null,
+        lines: [
+          { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
+          {
+            accountId: accounts.cashierAccountId,
+            debitAmount: 0,
+            creditAmount: amountCents,
+            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+          },
+        ],
+      };
+    }
     return {
       date: receipt.createdAt ?? new Date(),
-      description: `Agency withdraw (cash)${descSuffix}`,
+      description: `Agency withdraw${descSuffix}`,
       referenceType: REFERENCE_TYPES.Receipt,
       referenceId: receipt.id,
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        {
-          accountId: accounts.cashierAccountId,
-          debitAmount: 0,
-          creditAmount: amountCents,
-          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
-        },
+        { accountId: branchAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
