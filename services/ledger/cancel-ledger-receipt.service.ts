@@ -99,6 +99,13 @@ export async function cancelLedgerReceiptService(
   if (original.canceledAt != null || original.reverseReceiptId != null) {
     return { success: false, errorCode: "ALREADY_CANCELED", message: "This entry is already canceled." }
   }
+  if (original.reversedReceiptId != null) {
+    return {
+      success: false,
+      errorCode: "INVALID",
+      message: "Reversal entries cannot be canceled.",
+    }
+  }
 
   const reverseMethod = getReverseMethod(original.method)
   const reverseAmount = -original.amount

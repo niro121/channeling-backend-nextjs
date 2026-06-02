@@ -21,7 +21,8 @@ export function LedgerRecordActions({ row, canAdd }: LedgerRecordActionsProps) {
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const r = row.original
   const receiptId = r.id ?? null
-  const canCancel = canAdd && receiptId && !r.canceledAt && !r.reverseReceiptId
+  const canCancel =
+    canAdd && receiptId && !r.canceledAt && !r.reverseReceiptId && !r.reversedReceiptId
 
   const handleCancelSuccess = () => {
     router.refresh()
