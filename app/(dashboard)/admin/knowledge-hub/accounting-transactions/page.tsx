@@ -82,9 +82,9 @@ const SCENARIOS: Scenario[] = [
   {
     title: "Agency Withdraw",
     when: "Ledger receipt method = AGENCY_WITHDRAW",
-    example: "Agency withdraws LKR 2,000 from prepaid.",
+    example: "Agency withdraws LKR 2,000 from prepaid (or reverses a non-cash deposit on cancel).",
     debit: ["Agent PAYABLE"],
-    credit: ["Till CASH"],
+    credit: ["Till CASH (cash method) OR Branch CASH book (non-cash method)"],
   },
   {
     title: "Doctor Payment",
