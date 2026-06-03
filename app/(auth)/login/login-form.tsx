@@ -55,6 +55,7 @@ const LoginForm = () => {
   const [requestingCode, setRequestingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [passwordChangeEmail, setPasswordChangeEmail] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const initialValues: FormValues = {
     email: '',
@@ -67,7 +68,7 @@ const LoginForm = () => {
     setShowPassword((prev) => !prev);
   };
 
-  const handleSubmit = async (values: FormValues, { resetForm, setErrors }: FormikHelpers<FormValues>) => {
+  const handleSubmit = async (values: FormValues, { setErrors }: FormikHelpers<FormValues>) => {
     try {
       if (pending2FA?.selectedMethod) {
         // SMS ('2') does not use twoFactorToken; only AUTH-APP ('1') does (EMAIL '3' currently unavailable in UI)
@@ -83,8 +84,7 @@ const LoginForm = () => {
           setErrors({ invalidCredentials: 'Invalid or expired code. Try again or choose another method.' });
           return;
         }
-        setPending2FA(null);
-        resetForm();
+        setIsRedirecting(true);
         router.replace('/welcome');
         return;
       }
@@ -132,7 +132,7 @@ const LoginForm = () => {
         return;
       }
 
-      resetForm();
+      setIsRedirecting(true);
       router.replace('/welcome');
     } catch (error: any) {
       console.error('auth-error', error);
@@ -225,6 +225,7 @@ const LoginForm = () => {
             });
             return;
           }
+          setIsRedirecting(true);
           router.replace('/welcome');
         }}
       />
@@ -255,7 +256,7 @@ const LoginForm = () => {
 
         <Formik initialValues={initialValues} onSubmit={handleSubmit} enableReinitialize>
           {(formik) => (
-            <Form className="w-full">
+            <Form method="post" action="/login" className="w-full">
               <CardContent className="space-y-4 px-0 pb-0">
                 {!pending2FA ? (
                   <>
@@ -399,7 +400,7 @@ const LoginForm = () => {
                         formik.setFieldError('invalidCredentials', undefined);
                       })
                     }
-                    disabled={formik.isSubmitting || requestingCode}
+                    disabled={formik.isSubmitting || requestingCode || isRedirecting}
                   >
                     {pending2FA.selectedMethod ? 'Choose another method' : 'Back to login'}
                   </Button>
@@ -408,14 +409,14 @@ const LoginForm = () => {
                   <Button
                     className="w-full"
                     type="submit"
-                    disabled={formik.isSubmitting || !formik.values.twoFactorCode.trim()}
+                    disabled={formik.isSubmitting || isRedirecting || !formik.values.twoFactorCode.trim()}
                   >
-                    {formik.isSubmitting ? 'Verifying…' : 'Verify and sign in'}
+                    {formik.isSubmitting || isRedirecting ? 'Signing in…' : 'Verify and sign in'}
                   </Button>
                 )}
                 {!pending2FA && (
-                  <Button className="w-full" type="submit" disabled={formik.isSubmitting}>
-                    {formik.isSubmitting ? 'Signing in…' : 'Sign in'}
+                  <Button className="w-full" type="submit" disabled={formik.isSubmitting || isRedirecting}>
+                    {formik.isSubmitting || isRedirecting ? 'Signing in…' : 'Sign in'}
                   </Button>
                 )}
               </CardFooter>
