@@ -39,6 +39,11 @@ function classifyBucket(method: number): DailyReturnsSummaryBucketKey | null {
   return method as DailyReturnsSummaryBucketKey;
 }
 
+function dailyReturnsMethodLabel(method: DailyReturnsSummaryBucketKey): string {
+  if (method === RECEIPT_METHOD.DOCTOR_CANCEL) return 'Doctor Payment Cancel';
+  return RECEIPT_METHOD_NAMES[method] ?? `Method ${method}`;
+}
+
 export async function getDailyReturnsSummaryReportService(
   query: DailyReturnsSummaryReportQuery
 ): Promise<{
@@ -113,7 +118,7 @@ export async function getDailyReturnsSummaryReportService(
   const data: DailyReturnsSummaryReportRow[] = DAILY_RETURNS_RECEIPT_METHODS.map((method) =>
     rowFromAmounts(
       method,
-      RECEIPT_METHOD_NAMES[method] ?? `Method ${method}`,
+      dailyReturnsMethodLabel(method),
       bucketCounts.get(method) ?? 0,
       bucketAmounts.get(method)!
     )

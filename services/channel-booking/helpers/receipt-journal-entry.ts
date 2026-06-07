@@ -12,10 +12,19 @@
 
 import type { CreateJournalEntryInput } from '@/types/accounting';
 import { REFERENCE_TYPES } from '@/types/accounting';
-import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD, PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import type { CreatedReceipt } from './create-receipt-for-booking';
 import { resolveTillForUserAndLocation } from '@/services/accounting/till.service';
 import prisma from '@/lib/prisma';
+
+/** Payment methods tracked in the cashier till (cash, card, slip, cheque, e-wallet). */
+export const TILL_TRACKED_PAYMENT_METHODS = new Set<number>([
+  RECEIPT_PAYMENT_METHOD.CASH,
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+]);
 
 export type ReceiptJournalAccounts = {
   /** Branch/location cash book (required for cash/liability-only ledger receipts). */
@@ -98,13 +107,6 @@ export function buildReceiptJournalEntryInput(
       : receipt.method === RECEIPT_METHOD.BRANCH_EXPENSE
         ? branchExpenseAccountId
         : accounts.branchAccountId;
-  const tillSplitMethods = new Set<number>([
-    RECEIPT_PAYMENT_METHOD.CASH,
-    RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
-    RECEIPT_PAYMENT_METHOD.SLIP,
-    RECEIPT_PAYMENT_METHOD.CHECK,
-    RECEIPT_PAYMENT_METHOD.E_WALLET,
-  ]);
   const rawPaymentLines = Array.isArray(receipt.paymentLines) ? receipt.paymentLines : [];
   const paymentLineSplits = rawPaymentLines
     .map((line) => ({
@@ -114,7 +116,7 @@ export function buildReceiptJournalEntryInput(
     .filter((line) => line.amountCents > 0);
   const hasOnlyTillPaymentLines =
     paymentLineSplits.length > 0 &&
-    paymentLineSplits.every((line) => tillSplitMethods.has(line.paymentMethod));
+    paymentLineSplits.every((line) => TILL_TRACKED_PAYMENT_METHODS.has(line.paymentMethod));
   const splitTotalCents = paymentLineSplits.reduce((sum, line) => sum + line.amountCents, 0);
 
   // Channel payment/refund with payment lines: post till-side by each line method.
@@ -571,24 +573,28 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Deposit (6) - agency pays in (cash: use cashier; card/slip: branch only)
+  // Ledger: Agency Deposit (6) - agency pays in via till (cash/card/slip/cheque/e-wallet), Cr Agent
   if (receipt.method === RECEIPT_METHOD.AGENCY_DEPOSIT && accounts.agentAccountId) {
-    const isAgencyDepositCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
-    if (isAgencyDepositCash && accounts.cashierAccountId) {
+    if (TILL_TRACKED_PAYMENT_METHODS.has(receipt.paymentMethod) && accounts.cashierAccountId) {
+      const pmLabel = (PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? 'payment').toLowerCase();
       return {
         date: receipt.createdAt ?? new Date(),
-        description: `Agency deposit (cash)${descSuffix}`,
+        description: `Agency deposit (${pmLabel})${descSuffix}`,
         referenceType: REFERENCE_TYPES.Receipt,
         referenceId: receipt.id,
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
         createdBy: receipt.createdBy ?? null,
         lines: [
-          { accountId: accounts.cashierAccountId, debitAmount: amountCents, creditAmount: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH },
+          {
+            accountId: accounts.cashierAccountId,
+            debitAmount: amountCents,
+            creditAmount: 0,
+            paymentMethod: receipt.paymentMethod,
+          },
           { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
         ],
       };
     }
-    // Card/slip: Dr Branch, Cr Agent (no cashier float)
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Agency deposit${descSuffix}`,
@@ -603,13 +609,13 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Withdraw (7) - reverse of agency deposit (cash: Cr till; non-cash: Cr branch)
+  // Ledger: Agency Withdraw (7) - reverse of agency deposit (Cr till by payment method)
   if (receipt.method === RECEIPT_METHOD.AGENCY_WITHDRAW && accounts.agentAccountId) {
-    const isAgencyWithdrawCash = receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
-    if (isAgencyWithdrawCash && accounts.cashierAccountId) {
+    if (TILL_TRACKED_PAYMENT_METHODS.has(receipt.paymentMethod) && accounts.cashierAccountId) {
+      const pmLabel = (PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? 'payment').toLowerCase();
       return {
         date: receipt.createdAt ?? new Date(),
-        description: `Agency withdraw (cash)${descSuffix}`,
+        description: `Agency withdraw (${pmLabel})${descSuffix}`,
         referenceType: REFERENCE_TYPES.Receipt,
         referenceId: receipt.id,
         locationId: receipt.locationId ?? receipt.userLocationId ?? null,
@@ -620,7 +626,7 @@ export function buildReceiptJournalEntryInput(
             accountId: accounts.cashierAccountId,
             debitAmount: 0,
             creditAmount: amountCents,
-            paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+            paymentMethod: receipt.paymentMethod,
           },
         ],
       };

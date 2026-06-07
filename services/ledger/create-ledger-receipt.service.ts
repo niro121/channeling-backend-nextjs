@@ -12,6 +12,7 @@ import {
   buildReceiptJournalEntryInput,
   requireReceiptJournalAccounts,
   resolveReceiptJournalAccounts,
+  TILL_TRACKED_PAYMENT_METHODS,
 } from "@/services/channel-booking/helpers/receipt-journal-entry"
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence"
 import { getAgentBalance } from "@/services/channel-booking/helpers/get-agent-balance"
@@ -251,13 +252,12 @@ export async function createLedgerReceipt(
       ? (input.paymentMethod ?? RECEIPT_PAYMENT_METHOD.CASH)
       : defaultPaymentMethod
 
-  const isCash = paymentMethod === RECEIPT_PAYMENT_METHOD.CASH
   const isAgency = isAgencyType(input.transactionType)
   const isBankDeposit = input.transactionType === "BANK_DEPOSIT"
   const needCashierAccount =
     method === RECEIPT_METHOD.BRANCH_INCOME ||
     method === RECEIPT_METHOD.BRANCH_EXPENSE ||
-    (method === RECEIPT_METHOD.AGENCY_DEPOSIT && isCash) ||
+    (method === RECEIPT_METHOD.AGENCY_DEPOSIT && TILL_TRACKED_PAYMENT_METHODS.has(paymentMethod)) ||
     method === RECEIPT_METHOD.AGENCY_WITHDRAW ||
     method === RECEIPT_METHOD.BANK_DEPOSIT
 
