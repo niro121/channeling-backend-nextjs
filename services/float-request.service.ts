@@ -24,6 +24,7 @@ import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
 import { createNotification } from '@/services/notification.service';
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from '@/types/notification';
+import type { ReferenceSelectOption } from '@/types/reference';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 
