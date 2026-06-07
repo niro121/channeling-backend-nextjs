@@ -31,7 +31,8 @@ import type {
   RejectFloatRequestInput,
   CancelFloatRequestInput,
 } from '@/types/float-request';
-import { requirePermission } from '@/lib/server-permissions';
+import { checkPermission, requirePermission } from '@/lib/server-permissions';
+import { getUsersForSelectService } from '@/services/reference/reference-data.service';
 import { revalidatePath } from 'next/cache';
 
 const denominationEntrySchema = z.object({
@@ -203,8 +204,10 @@ export async function getMyPendingFloatRequestAction() {
 /** List users who can approve float (Float Approve permission). Requires float-request permission. */
 export async function getBulkCashierUsersAction() {
   await requirePermission('bulk-cashier', 'float-request');
+  const session = await fetchServerSession();
+  const currentUserId = session?.user?.id ?? null;
   try {
-    const users = await getBulkCashierUsers();
+    const users = await getBulkCashierUsers(currentUserId);
     return { success: true, data: users };
   } catch (e) {
     console.error('getBulkCashierUsersAction error:', e);
@@ -261,10 +264,16 @@ export async function getFloatRequestsForBulkCashierAction(
 }
 
 /** Float requests for dashboard: today's + all PENDING. Approve/Reject only for ones assigned to you. */
-export async function getAllFloatRequestsForDashboardAction(params: { status?: number }) {
+export async function getAllFloatRequestsForDashboardAction(params: {
+  status?: number;
+  requestedById?: string | null;
+}) {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   try {
-    const list = await getAllFloatRequestsForDashboard({ status: params.status });
+    const list = await getAllFloatRequestsForDashboard({
+      status: params.status,
+      requestedById: params.requestedById,
+    });
     return { success: true, data: list };
   } catch (e) {
     console.error('getAllFloatRequestsForDashboardAction error:', e);
@@ -272,10 +281,34 @@ export async function getAllFloatRequestsForDashboardAction(params: { status?: n
   }
 }
 
+/** User options for float request filters — same list/format as Cashier Summary report. */
+export async function getFloatRequestUserOptionsAction(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  message?: string;
+}> {
+  const canFloatTransfers = await checkPermission('float-transfers', 'view');
+  const canBulkCashier = await checkPermission('bulk-cashier', 'bulk-cashier-dashboard');
+  if (!canFloatTransfers && !canBulkCashier) {
+    return { success: false, data: [], message: 'Unauthorized' };
+  }
+  try {
+    const users = await getUsersForSelectService();
+    return { success: true, data: users.map((u) => ({ id: u.id, name: u.name })) };
+  } catch (e) {
+    console.error('getFloatRequestUserOptionsAction error:', e);
+    return {
+      success: false,
+      data: [],
+      message: e instanceof Error ? e.message : 'Failed to load users',
+    };
+  }
+}
+
 /** Paginated float requests assigned to current user (Float Transfers dashboard). Requires float-transfers view. */
 export async function getFloatRequestsForBulkCashierPaginatedAction(
   bulkCashierId: string,
-  params: { page?: number; limit?: number; status?: number | null }
+  params: { page?: number; limit?: number; status?: number | null; requestedById?: string | null }
 ) {
   await requirePermission('float-transfers', 'view');
   try {

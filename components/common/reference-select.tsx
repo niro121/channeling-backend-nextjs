@@ -25,6 +25,8 @@ export type ReferenceSelectProps = {
   allOptionValue?: string
   allOptionLabel?: string
   disabled?: boolean
+  /** When true, always use the searchable dropdown (default: searchable only when options.length > 10). */
+  searchable?: boolean
 }
 
 /**
@@ -43,8 +45,10 @@ export function ReferenceSelect({
   allOptionValue,
   allOptionLabel,
   disabled,
+  searchable,
 }: ReferenceSelectProps) {
-  const useSearchable = options.length > SEARCHABLE_THRESHOLD
+  const useSearchable =
+    searchable === true || (searchable !== false && options.length > SEARCHABLE_THRESHOLD)
   const selectOptions = useSearchable
     ? options.map((o) => ({ id: o.id, name: o.name }))
     : options

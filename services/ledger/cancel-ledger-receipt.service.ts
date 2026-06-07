@@ -9,7 +9,14 @@ import {
   buildReceiptJournalEntryInput,
   requireReceiptJournalAccounts,
   resolveReceiptJournalAccounts,
+  TILL_TRACKED_PAYMENT_METHODS,
 } from "@/services/channel-booking/helpers/receipt-journal-entry"
+import {
+  getTillBalanceBreakdownForAccount,
+  getTillBalanceCentsByMethod,
+} from "@/services/accounting.service"
+import { formatCents } from "@/lib/format-money"
+import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence"
 import {
   createJournalEntryInTransaction,
@@ -160,6 +167,28 @@ export async function cancelLedgerReceiptService(
     return { success: false, errorCode: reqResult.errorCode ?? "ACCOUNTS", message: reqResult.error ?? "Failed to resolve accounts." }
   }
   accounts = reqResult.accounts
+
+  // Canceling an agency deposit reverses via agency withdraw (pays out from till by payment method).
+  if (
+    original.method === RECEIPT_METHOD.AGENCY_DEPOSIT &&
+    accounts.cashierAccountId &&
+    TILL_TRACKED_PAYMENT_METHODS.has(original.paymentMethod)
+  ) {
+    const amountCents = Math.round(Math.abs(original.amount) * 100)
+    const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+    const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, original.paymentMethod)
+    if (tillBalanceCents < amountCents) {
+      const methodLabel = (PAYMENT_METHOD_NAMES[original.paymentMethod] ?? "payment").toLowerCase()
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_TILL_BALANCE",
+        message:
+          tillBalanceCents <= 0
+            ? `Till has no ${methodLabel} balance. Cannot cancel this deposit until the till has sufficient ${methodLabel}.`
+            : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
+      }
+    }
+  }
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 })
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0

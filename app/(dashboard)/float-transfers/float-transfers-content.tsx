@@ -8,6 +8,7 @@ import {
   rejectFloatRequestAction,
 } from '@/app/actions/float-request.actions';
 import type { FloatRequest, FloatRequestPrintData } from '@/types/float-request';
+import type { ReportUserOption } from '@/components/common/user-select';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { getFloatTransferColumns } from './columns';
 import FloatTransfersFilterSection from './filter-section';
@@ -26,6 +27,8 @@ type FloatTransfersContentProps = {
   page?: string;
   limit?: string;
   status?: string;
+  requestedById?: string;
+  userOptions: ReportUserOption[];
 };
 
 export function FloatTransfersContent({
@@ -35,6 +38,8 @@ export function FloatTransfersContent({
   page,
   limit,
   status,
+  requestedById,
+  userOptions,
 }: FloatTransfersContentProps) {
   const [approveModal, setApproveModal] = useState<FloatRequest | null>(null);
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
@@ -82,7 +87,11 @@ export function FloatTransfersContent({
         limit={limit}
         toolbarLeft={
           <div className="flex flex-wrap items-center gap-3">
-            <FloatTransfersFilterSection status={status} />
+            <FloatTransfersFilterSection
+              status={status}
+              requestedById={requestedById}
+              userOptions={userOptions}
+            />
           </div>
         }
       />

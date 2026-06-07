@@ -28,9 +28,9 @@ import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from '@/types/
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
-export async function getBulkCashierUsers(): Promise<
-  { id: string; name: string; email: string; isBulkCashier: boolean }[]
-> {
+export async function getBulkCashierUsers(
+  excludeUserId?: string | null
+): Promise<{ id: string; name: string; email: string; isBulkCashier: boolean }[]> {
   const groups = await prisma.userGroup.findMany({
     where: { status: 1 },
     select: { id: true, permissions: true },
@@ -63,12 +63,14 @@ export async function getBulkCashierUsers(): Promise<
     orderBy: { name: 'asc' },
   });
 
-  return users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    isBulkCashier: u.userGroupId ? groupIdsWithBulkCashierDashboard.has(u.userGroupId) : false,
-  }));
+  return users
+    .filter((u) => !excludeUserId || u.id !== excludeUserId)
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      isBulkCashier: u.userGroupId ? groupIdsWithBulkCashierDashboard.has(u.userGroupId) : false,
+    }));
 }
 
 // --- createFloatRequest ---
@@ -97,6 +99,12 @@ export async function createFloatRequest(
     select: { id: true },
   });
   if (!bulkCashierUser) return { success: false, error: 'Bulk cashier not found' };
+  if (input.requestedById === input.bulkCashierId) {
+    return {
+      success: false,
+      error: 'You cannot request float from yourself. Select another bulk cashier.',
+    };
+  }
 
   const existingPending = await prisma.floatRequest.findFirst({
     where: { requestedById: input.requestedById, status: FLOAT_REQUEST_STATUS.PENDING as never },
@@ -143,7 +151,64 @@ export async function getFloatRequestsForBulkCashier(
 
 export type GetAllFloatRequestsForDashboardParams = {
   status?: number;
+  requestedById?: string | null;
 };
+
+function applyFloatRequestRequestedByFilter(
+  where: object,
+  requestedById?: string | null
+): object {
+  if (!requestedById) return where;
+  return { AND: [where, { requestedById }] };
+}
+
+type FloatRequestRequesterUser = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  staff: { code: string | null } | null;
+} | null;
+
+function mapFloatRequestRequesterOption(
+  requestedById: string,
+  user: FloatRequestRequesterUser
+): ReferenceSelectOption {
+  return {
+    id: requestedById,
+    name: formatUserDisplayName(
+      user?.name ?? user?.email,
+      requestedById,
+      user?.staff?.code
+    ),
+    code: user?.staff?.code ?? null,
+  };
+}
+
+function collectFloatRequestRequesterOptions(
+  rows: Array<{ requestedById: string; requestedBy: FloatRequestRequesterUser }>
+): ReferenceSelectOption[] {
+  const byId = new Map<string, ReferenceSelectOption>();
+  for (const row of rows) {
+    if (byId.has(row.requestedById)) continue;
+    byId.set(row.requestedById, mapFloatRequestRequesterOption(row.requestedById, row.requestedBy));
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Distinct users who have submitted float requests (Bulk Cashier dashboard filter). */
+export async function getFloatRequestRequestersForDashboard(): Promise<ReferenceSelectOption[]> {
+  const rows = await prisma.floatRequest.findMany({
+    select: {
+      requestedById: true,
+      requestedBy: {
+        select: { id: true, name: true, email: true, staff: { select: { code: true } } },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return collectFloatRequestRequesterOptions(rows);
+}
 
 /**
  * Float requests for Bulk Cashier dashboard: today's requests + all PENDING (any date).
@@ -176,7 +241,7 @@ export async function getAllFloatRequestsForDashboard(
   }
 
   const rows = await prisma.floatRequest.findMany({
-    where: where as never,
+    where: applyFloatRequestRequestedByFilter(where, params.requestedById) as never,
     include: includeFloatRequest(),
     orderBy: { createdAt: 'desc' },
   });
@@ -188,6 +253,7 @@ export type GetFloatRequestsForBulkCashierPaginatedParams = {
   page?: number;
   limit?: number;
   status?: number | null;
+  requestedById?: string | null;
 };
 
 /** Paginated list of float requests assigned to this bulk cashier (for Float Transfers dashboard). */
@@ -197,8 +263,11 @@ export async function getFloatRequestsForBulkCashierPaginated(
 ) {
   const page = Math.max(0, params.page ?? 0);
   const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
-  const where: { bulkCashierId: string; status?: number } = { bulkCashierId };
+  const where: { bulkCashierId: string; status?: number; requestedById?: string } = {
+    bulkCashierId,
+  };
   if (params.status !== undefined && params.status !== null) where.status = params.status;
+  if (params.requestedById) where.requestedById = params.requestedById;
 
   const [totalRecords, rows] = await Promise.all([
     prisma.floatRequest.count({ where: where as never }),

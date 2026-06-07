@@ -3,7 +3,10 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { getFloatRequestsForBulkCashierPaginatedAction } from '@/app/actions/float-request.actions';
+import {
+  getFloatRequestsForBulkCashierPaginatedAction,
+  getFloatRequestUserOptionsAction,
+} from '@/app/actions/float-request.actions';
 import { FloatTransfersContent } from './float-transfers-content';
 import Loading from '../loading';
 
@@ -12,6 +15,7 @@ type SearchParams = {
     page?: string;
     limit?: string;
     status?: string;
+    requestedById?: string;
   }>;
 };
 
@@ -38,14 +42,25 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
       ? parseInt(statusParam, 10)
       : undefined;
 
-  const result = await getFloatRequestsForBulkCashierPaginatedAction(bulkCashierId, {
-    page,
-    limit,
-    status: status ?? null,
-  });
+  const requestedById =
+    params?.requestedById && params.requestedById !== '__all__'
+      ? params.requestedById
+      : null;
+
+  const [result, userOptionsResult] = await Promise.all([
+    getFloatRequestsForBulkCashierPaginatedAction(bulkCashierId, {
+      page,
+      limit,
+      status: status ?? null,
+      requestedById,
+    }),
+    getFloatRequestUserOptionsAction(),
+  ]);
 
   const data = result.success && result.data ? result.data : [];
   const totalRecords = result.success ? result.totalRecords ?? 0 : 0;
+  const userOptions =
+    userOptionsResult.success && userOptionsResult.data ? userOptionsResult.data : [];
 
   return (
     <div className="overflow-hidden">
@@ -54,9 +69,11 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
           bulkCashierId={bulkCashierId}
           initialData={data}
           initialTotalRecords={totalRecords}
+          userOptions={userOptions}
           page={params?.page}
           limit={params?.limit}
           status={params?.status}
+          requestedById={params?.requestedById}
         />
       </Suspense>
     </div>

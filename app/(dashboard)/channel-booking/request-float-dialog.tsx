@@ -44,7 +44,7 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
       .then((res) => {
         if (res.success && res.data) {
           setBulkCashiers(res.data)
-          if (res.data.length > 0) setBulkCashierId(res.data[0].id)
+          setBulkCashierId(res.data[0]?.id ?? "")
         }
       })
       .finally(() => setLoadingUsers(false))
@@ -109,6 +109,10 @@ export function RequestFloatDialog({ open, onOpenChange, shiftId, onSuccess }: R
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading…
               </div>
+            ) : bulkCashiers.length === 0 ? (
+              <p className="text-sm text-muted-foreground rounded-md border border-dashed px-3 py-2">
+                No other bulk cashier is available. Ask an administrator to assign float-approve permission to another user.
+              </p>
             ) : (
               <SearchableUserSelect
                 label="bulk cashier"

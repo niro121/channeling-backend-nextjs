@@ -1,7 +1,7 @@
 'use client';
 
 import { FilterWrapper } from '../filter-wrapper';
-import { Selector } from '@/components/common/selector';
+import { SearchableSelector } from '@/components/common/searchable-selector';
 
 interface AgencyBookFiltersProps {
   agencyOptions: { id: string; name: string }[];
@@ -20,10 +20,12 @@ export default function FilterSection({
     >
       {({ values, setValue }) => (
         <>
-          <Selector
+          <SearchableSelector
             label="All Agencies"
-            options={agencyOptions}
-            value={values.agencyId}
+            placeholder="All Agencies"
+            options={[{ id: '__all__', name: 'All Agencies' }, ...agencyOptions]}
+            value={values.agencyId ?? '__all__'}
+            defaultValue="__all__"
             onChange={(v) => setValue('agencyId', v)}
           />
         </>
