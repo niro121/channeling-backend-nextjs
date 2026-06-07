@@ -5,6 +5,8 @@ import { AgencyBook, AgencyBookFormValues } from '@/types/agencybook';
 import { Form, Formik, FormikHelpers } from 'formik';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
+import { SearchableSelector } from '@/components/common/searchable-selector';
+import { ErrorMessage } from 'formik';
 import { Button } from '@/components/ui/button';
 import { Ban, Save } from 'lucide-react';
 import * as Yup from 'yup';
@@ -139,21 +141,20 @@ const AgencyBookForm = ({
                   Agency Name <span className="text-red-600">*</span>
                 </Label>
                 <div className={styleClasses.inputClassName}>
-                  <CustomSelectField
-                    id="agencyId"
+                  <SearchableSelector
+                    label="Agency"
                     placeholder="Select Agency"
+                    options={agencyOptions}
                     value={formik.values.agencyId || ''}
                     onChange={(value) => {
                       formik.setFieldValue('agencyId', value);
                     }}
-                    required
-                    options={agencyOptions}
-                    styleClasses={{
-                      ...styleClasses,
-                      parentDiv: '',
-                      inputClassName: '',
-                      labelClassName: 'hidden'
-                    }}
+                    className="w-full"
+                  />
+                  <ErrorMessage
+                    name="agencyId"
+                    component="div"
+                    className="text-sm text-red-600 mt-1"
                   />
                 </div>
               </div>

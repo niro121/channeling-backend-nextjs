@@ -125,6 +125,27 @@ function formatFee(value: number | string | null | undefined): string {
   return formatLKR(n);
 }
 
+/** dayType 8 = Specific Date Only (see DAY_TYPES). */
+const SPECIFIC_DATE_DAY_TYPE = 8;
+
+function sortSessionsForDayType(dayType: number, list: SessionRecord[]): SessionRecord[] {
+  if (dayType === SPECIFIC_DATE_DAY_TYPE) {
+    return [...list].sort((a, b) => {
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdB !== createdA) return createdB - createdA;
+      const startA = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const startB = b.startTime ? new Date(b.startTime).getTime() : 0;
+      return startA - startB;
+    });
+  }
+  return [...list].sort((a, b) => {
+    const startA = a.startTime ? new Date(a.startTime).getTime() : 0;
+    const startB = b.startTime ? new Date(b.startTime).getTime() : 0;
+    return startA - startB;
+  });
+}
+
 export default function DoctorSessionsGroupedList({
   sessions,
   bulkDeleteAction
@@ -146,6 +167,9 @@ export default function DoctorSessionsGroupedList({
       if (!map.has(dt)) map.set(dt, []);
       map.get(dt)!.push(s);
     });
+    for (const [dayType, list] of map) {
+      map.set(dayType, sortSessionsForDayType(dayType, list));
+    }
     return map;
   }, [sessions]);
 
