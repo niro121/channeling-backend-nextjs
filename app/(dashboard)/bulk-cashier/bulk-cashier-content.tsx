@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   getAllFloatRequestsForDashboardAction,
+  getFloatRequestUserOptionsAction,
   approveFloatRequestAction,
   rejectFloatRequestAction,
   hasBulkCashierFloatAccountAction,
@@ -49,6 +50,8 @@ import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Bankno
 import { QRCodeSVG } from 'qrcode.react';
 import { formatCents, formatLKR } from '@/lib/format-money';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
+import { ReportUserSelect } from '@/components/common/user-select';
+import type { ReportUserOption } from '@/components/common/user-select';
 
 type BulkCashierContentProps = { bulkCashierId: string };
 
@@ -56,6 +59,8 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const [requests, setRequests] = useState<FloatRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<number | undefined>(FLOAT_REQUEST_STATUS.PENDING);
+  const [requestedByFilter, setRequestedByFilter] = useState('__all__');
+  const [userOptions, setUserOptions] = useState<ReportUserOption[]>([]);
   const [approveModal, setApproveModal] = useState<FloatRequest | null>(null);
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
   const [printSlipData, setPrintSlipData] = useState<FloatRequestPrintData | null>(null);
@@ -103,7 +108,10 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
   const loadRequests = () => {
     setLoading(true);
-    getAllFloatRequestsForDashboardAction({ status: statusFilter })
+    getAllFloatRequestsForDashboardAction({
+      status: statusFilter,
+      requestedById: requestedByFilter !== '__all__' ? requestedByFilter : null,
+    })
       .then((res) => {
         if (res.success && res.data) setRequests(res.data);
       })
@@ -111,8 +119,15 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   };
 
   useEffect(() => {
+    getFloatRequestUserOptionsAction()
+      .then((res) => {
+        if (res.success && res.data) setUserOptions(res.data);
+      });
+  }, [bulkCashierId]);
+
+  useEffect(() => {
     loadRequests();
-  }, [bulkCashierId, statusFilter]);
+  }, [bulkCashierId, statusFilter, requestedByFilter]);
 
   const loadActiveShifts = () => {
     setActiveShiftsLoading(true);
@@ -277,26 +292,36 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
           <p className="text-sm text-muted-foreground mb-3">
             Today&apos;s requests and all pending (any date). You can only approve or reject requests assigned to you.
           </p>
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {[
-              { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
-              { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
-              { value: FLOAT_REQUEST_STATUS.RECEIVED, label: 'RECEIVED' },
-              { value: FLOAT_REQUEST_STATUS.REJECTED, label: 'REJECTED' },
-              { value: FLOAT_REQUEST_STATUS.CANCELLED, label: 'CANCELLED' },
-            ].map(({ value, label }) => (
-              <Button
-                key={value}
-                variant={statusFilter === value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setStatusFilter(value)}
-              >
-                {label}
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <ReportUserSelect
+              userOptions={userOptions}
+              value={requestedByFilter}
+              onChange={setRequestedByFilter}
+              label="Requested by"
+              placeholder="Select user"
+              widthClassName="w-[220px]"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { value: FLOAT_REQUEST_STATUS.PENDING, label: 'PENDING' },
+                { value: FLOAT_REQUEST_STATUS.APPROVED, label: 'APPROVED' },
+                { value: FLOAT_REQUEST_STATUS.RECEIVED, label: 'RECEIVED' },
+                { value: FLOAT_REQUEST_STATUS.REJECTED, label: 'REJECTED' },
+                { value: FLOAT_REQUEST_STATUS.CANCELLED, label: 'CANCELLED' },
+              ].map(({ value, label }) => (
+                <Button
+                  key={value}
+                  variant={statusFilter === value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+              <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
+                All statuses
               </Button>
-            ))}
-            <Button variant="ghost" size="sm" onClick={() => setStatusFilter(undefined)}>
-              All statuses
-            </Button>
+            </div>
           </div>
 
           {loading ? (
