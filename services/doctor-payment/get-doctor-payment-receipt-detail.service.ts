@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { RECEIPT_METHOD } from "@/types/receipt";
+import { resolveDoctorForReceiptId } from "@/services/doctor-payment/resolve-doctors-by-receipt-ids";
 
 export type DoctorPaymentLineItem = {
   date: string;
@@ -52,9 +53,11 @@ export async function getDoctorPaymentReceiptDetail(
   });
 
   const firstBooking = bookings[0];
-  const doctorName = firstBooking?.doctor
+  const doctorFromBooking = firstBooking?.doctor
     ? [firstBooking.doctor.title, firstBooking.doctor.name].filter(Boolean).join(" ").trim() || "—"
-    : "—";
+    : null;
+  const doctorFromReceipt = doctorFromBooking ? null : await resolveDoctorForReceiptId(receiptId);
+  const doctorName = doctorFromBooking ?? doctorFromReceipt?.doctorName ?? "—";
 
   const lineItems: DoctorPaymentLineItem[] = [];
   let totalPatientCount = 0;

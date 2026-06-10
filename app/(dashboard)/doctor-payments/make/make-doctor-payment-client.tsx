@@ -137,6 +137,8 @@ export function MakeDoctorPaymentClient({
   const [wht, setWht] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(String(RECEIPT_PAYMENT_METHOD.CASH));
   const [slipRef, setSlipRef] = useState("");
+  const [cardRef, setCardRef] = useState("");
+  const [ewalletRef, setEwalletRef] = useState("");
   const [handedStaffId, setHandedStaffId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
@@ -278,6 +280,11 @@ export function MakeDoctorPaymentClient({
     }
   };
 
+  const isPaymentCard = paymentMethod === String(RECEIPT_PAYMENT_METHOD.CREDIT_CARD);
+  const isPaymentSlip = paymentMethod === String(RECEIPT_PAYMENT_METHOD.SLIP);
+  const isPaymentEWallet = paymentMethod === String(RECEIPT_PAYMENT_METHOD.E_WALLET);
+  const showPaymentReference = isPaymentCard || isPaymentSlip || isPaymentEWallet;
+
   const handlePayNow = async () => {
     const idsForPayment = Array.from(selectedForPaymentIds);
     if (idsForPayment.length === 0 || !doctorId) {
@@ -287,6 +294,14 @@ export function MakeDoctorPaymentClient({
     const amount = parseFloat(payingThisTime);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast({ title: "Paying This Time must be a positive number.", variant: "destructive" });
+      return;
+    }
+    if (isPaymentEWallet && !ewalletRef.trim()) {
+      toast({ title: "E-wallet reference is required.", variant: "destructive" });
+      return;
+    }
+    if (isPaymentCard && cardRef.replace(/\D/g, "").length !== 4) {
+      toast({ title: "Enter last 4 digits of card.", variant: "destructive" });
       return;
     }
     if (!userId) {
@@ -303,7 +318,9 @@ export function MakeDoctorPaymentClient({
         paymentMethod: Number(paymentMethod),
         amount,
         wht,
-        slip_ref: paymentMethod !== String(RECEIPT_PAYMENT_METHOD.CASH) ? slipRef : "",
+        slip_ref: isPaymentSlip ? slipRef : "",
+        card_ref: isPaymentCard ? cardRef : "",
+        ewallet_ref: isPaymentEWallet ? ewalletRef : "",
         handed_staff: handedStaffName,
         locationId,
         userId,
@@ -636,10 +653,18 @@ export function MakeDoctorPaymentClient({
 
               <div className="rounded-lg border bg-muted/30 p-4 sm:p-5">
                 <h4 className="text-sm font-medium text-foreground mb-4">Payment method & reference</h4>
-                <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${paymentMethod !== String(RECEIPT_PAYMENT_METHOD.CASH) ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
+                <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${showPaymentReference ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
                   <div className="space-y-2">
                     <Label htmlFor="payment-method">Payment method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(v) => {
+                        setPaymentMethod(v);
+                        setSlipRef("");
+                        setCardRef("");
+                        setEwalletRef("");
+                      }}
+                    >
                       <SelectTrigger id="payment-method" className="h-10">
                         <SelectValue />
                       </SelectTrigger>
@@ -652,14 +677,45 @@ export function MakeDoctorPaymentClient({
                       </SelectContent>
                     </Select>
                   </div>
-                  {paymentMethod !== String(RECEIPT_PAYMENT_METHOD.CASH) && (
+                  {isPaymentSlip && (
                     <div className="space-y-2">
                       <Label htmlFor="slip-ref">Slip reference</Label>
                       <input
                         id="slip-ref"
                         value={slipRef}
                         onChange={(e) => setSlipRef(e.target.value)}
-                        placeholder="Optional"
+                        placeholder="Slip reference"
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </div>
+                  )}
+                  {isPaymentCard && (
+                    <div className="space-y-2">
+                      <Label htmlFor="card-ref">
+                        Card (last 4 digits) <span className="text-destructive">*</span>
+                      </Label>
+                      <input
+                        id="card-ref"
+                        value={cardRef}
+                        onChange={(e) => setCardRef(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        placeholder="1234"
+                        maxLength={4}
+                        required
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </div>
+                  )}
+                  {isPaymentEWallet && (
+                    <div className="space-y-2">
+                      <Label htmlFor="ewallet-ref">
+                        E-wallet reference <span className="text-destructive">*</span>
+                      </Label>
+                      <input
+                        id="ewallet-ref"
+                        value={ewalletRef}
+                        onChange={(e) => setEwalletRef(e.target.value)}
+                        placeholder="E-wallet reference"
+                        required
                         className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       />
                     </div>
@@ -673,6 +729,7 @@ export function MakeDoctorPaymentClient({
                       placeholder="Select staff (optional)"
                       label="Handed to staff"
                       className="h-10 w-full"
+                      searchable
                     />
                   </div>
                 </div>

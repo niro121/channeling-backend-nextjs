@@ -48,7 +48,12 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
       amount: Math.round(line.amount * 100) / 100,
       bank: line.bank?.name ?? "",
       bankId: line.bank?.id ?? null,
-      cardReference: line.card ?? "",
+      cardReference:
+        line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD
+          ? (line.card ?? "")
+          : line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET
+            ? (line.ewallet_ref ?? "")
+            : "",
       slipReference: line.slip_ref ?? "",
     }))
   if (lines.length < 2) {
@@ -79,6 +84,9 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
     ) {
       return { error: "Slip payment lines require both bank and slip reference." }
     }
+    if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
+      return { error: "E-wallet payment lines require a reference." }
+    }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
   if (toCents(total) !== toCents(amount)) {
@@ -95,12 +103,14 @@ export type SettleBookingInput = {
   bank?: { id: string; name?: string } | null
   slip_ref?: string
   card?: string
+  ewallet_ref?: string
   payment_lines?: Array<{
     payment_method: number
     amount: number
     bank?: { id: string; name?: string } | null
     slip_ref?: string
     card?: string
+    ewallet_ref?: string
   }>
   /** Staff/user location when creating receipt (legacy user_location). */
   user_location_id?: string | null
@@ -192,6 +202,13 @@ export async function settleBookingService(
         errorCode: "missing_card_reference",
         message: "Card reference is required when settling via Credit Card.",
       }
+    }
+  }
+  if (input.settle_method === SAVE_PAYMENT_TYPE_E_WALLET && !input.ewallet_ref?.trim()) {
+    return {
+      success: false,
+      errorCode: "missing_ewallet_reference",
+      message: "E-wallet reference is required when settling via E-Wallet.",
     }
   }
 
@@ -321,7 +338,10 @@ export async function settleBookingService(
       amount,
       bank: input.bank?.name ?? "",
       bankId: input.bank?.id ?? null,
-      cardReference: input.card ?? "",
+      cardReference:
+        input.settle_method === SAVE_PAYMENT_TYPE_E_WALLET
+          ? (input.ewallet_ref ?? "")
+          : (input.card ?? ""),
       slipReference: input.slip_ref ?? "",
       remarks: "POS PAYMENT", // Settling a pending bill is issued as POS PAYMENT (same as save-booking)
       type: 1,

@@ -47,8 +47,9 @@ function getRefundToOptionsForCancel(
   if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
   if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
   if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
+  if (paymentMethod === SAVE_PAYMENT_TYPE_SLIP) return [cash, { value: SAVE_PAYMENT_TYPE_SLIP, label: "Refund as SLIP" }]
   if (includeMixed) return [cash, { value: SAVE_PAYMENT_TYPE_MIXED, label: "Refund as MIXED PAYMENT" }]
-  // Cash (0), Slip (2), Cheque (3): only Cash refund
+  // Cash (0), Cheque (3): only Cash refund
   return [cash]
 }
 

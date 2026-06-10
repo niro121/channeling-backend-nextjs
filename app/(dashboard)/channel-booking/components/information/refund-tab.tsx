@@ -22,15 +22,17 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Ban } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
+import { SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
 
-/** refund_to: 0 Cash, 1 Card, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
+/** refund_to: 0 Cash, 1 Card, 2 Slip, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
 function getRefundToOptionsForRefund(paymentMethod: number | undefined): { value: number; label: string }[] {
   const cash = { value: 0, label: "Refund as CASH" }
   if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
   if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
   if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
   if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
-  // Cash (0), Slip (2), Cheque (3): only Cash refund
+  if (paymentMethod === SAVE_PAYMENT_TYPE_SLIP) return [cash, { value: SAVE_PAYMENT_TYPE_SLIP, label: "Refund as SLIP" }]
+  // Cash (0), Cheque (3): only Cash refund
   return [cash]
 }
 

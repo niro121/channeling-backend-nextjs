@@ -31,8 +31,9 @@ const saveBookingSchema = z.object({
       bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
       slip_ref: z.string().optional(),
       card: z.string().optional(),
+      ewallet_ref: z.string().optional(),
     })
-  ).optional(),
+    ).optional(),
   session: z.object({ id: z.string() }),
   doctor: z.object({
     id: z.string(),
@@ -52,6 +53,7 @@ const saveBookingSchema = z.object({
   bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
   slip_ref: z.string().optional(),
   card: z.string().optional(),
+  ewallet_ref: z.string().optional(),
   staff: z
     .object({ id: z.string(), working_department: z.string().optional() })
     .optional()
@@ -62,6 +64,14 @@ const saveBookingSchema = z.object({
   forcedAppointmentNo: z.number().int().optional(),
   forceAppointmentNo: z.boolean().optional(),
 }).superRefine((data, ctx) => {
+  if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ewallet_ref"],
+      message: "E-wallet reference is required for E-wallet payment.",
+    })
+  }
+
   if (data.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return
   const lines = data.payment_lines ?? []
   if (lines.length < 2) {
@@ -126,6 +136,16 @@ const saveBookingSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["payment_lines", idx, "slip_ref"],
         message: "Slip reference is required for slip payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
+      !line.ewallet_ref?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "ewallet_ref"],
+        message: "E-wallet reference is required for e-wallet payment lines.",
       })
     }
   })

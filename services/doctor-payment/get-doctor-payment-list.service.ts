@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { RECEIPT_METHOD } from "@/types/receipt";
+import { resolveDoctorsByReceiptIds } from "@/services/doctor-payment/resolve-doctors-by-receipt-ids";
 
 export type DoctorPaymentListItem = {
   id: string;
@@ -151,23 +152,7 @@ export async function getDoctorPaymentListService(
   ]);
 
   const receiptIds = receipts.map((r) => r.id);
-  const bookingsWithDoctor = await prisma.booking.findMany({
-    where: { doctorPaymentReceiptId: { in: receiptIds } },
-    select: {
-      doctorPaymentReceiptId: true,
-      doctorId: true,
-      doctor: { select: { id: true, title: true, name: true } },
-    },
-  });
-  const doctorByReceiptId = new Map<string, { doctorId: string; doctorName: string }>();
-  for (const b of bookingsWithDoctor) {
-    if (!b.doctorPaymentReceiptId) continue;
-    if (doctorByReceiptId.has(b.doctorPaymentReceiptId)) continue;
-    const doctorName = b.doctor
-      ? [b.doctor.title, b.doctor.name].filter(Boolean).join(" ").trim() || "—"
-      : "—";
-    doctorByReceiptId.set(b.doctorPaymentReceiptId, { doctorId: b.doctorId, doctorName });
-  }
+  const doctorByReceiptId = await resolveDoctorsByReceiptIds(receiptIds);
 
   const createdByIds = [...new Set(receipts.map((r) => r.createdBy).filter(Boolean))] as string[];
   let createdByNames: Map<string, string> = new Map();
