@@ -218,6 +218,23 @@ export async function createLedgerReceipt(
         message: "Slip date is required for slip payments.",
       }
     }
+    if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+      const last4 = (input.cardReference ?? "").replace(/\D/g, "")
+      if (last4.length !== 4) {
+        return {
+          success: false,
+          errorCode: "VALIDATION",
+          message: "Enter last 4 digits of card.",
+        }
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET && !input.cardReference?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "E-wallet reference is required.",
+      }
+    }
   }
   if (input.transactionType === "BANK_DEPOSIT") {
     if (!input.bankAccountId?.trim()) {

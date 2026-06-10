@@ -1,6 +1,7 @@
 import { format } from "date-fns"
 import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { LedgerReceiptDetail } from "@/services/ledger/get-ledger-receipt.service"
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import type { DoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service"
 
 /**
@@ -61,6 +62,10 @@ export function buildPlaceholdersForLedger(
     comment,
     bank: receipt.bank ?? "",
     card_reference: receipt.cardReference ?? "",
+    ewallet_reference:
+      receipt.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+        ? (receipt.cardReference ?? "")
+        : "",
     slip_reference: receipt.slipReference ?? "",
   }
 }

@@ -22,6 +22,7 @@ const settleBookingSchema = z
     bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
     slip_ref: z.string().optional(),
     card: z.string().optional(),
+    ewallet_ref: z.string().optional(),
     payment_lines: z.array(
       z.object({
         payment_method: z.number().int().min(0),
@@ -29,6 +30,7 @@ const settleBookingSchema = z
         bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
         slip_ref: z.string().optional(),
         card: z.string().optional(),
+        ewallet_ref: z.string().optional(),
       })
     ).optional(),
   })
@@ -122,6 +124,14 @@ const settleBookingSchema = z
       }
     }
 
+    if (data.settle_method === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ewallet_ref"],
+        message: "E-wallet reference is required when settling via E-Wallet.",
+      })
+    }
+
     // When settling via Credit Card: both bank and card reference are mandatory.
     if (data.settle_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
       if (!bankId) {
@@ -202,6 +212,16 @@ const settleBookingSchema = z
             code: z.ZodIssueCode.custom,
             path: ["payment_lines", idx, "slip_ref"],
             message: "Slip reference is required for slip payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
+          !line.ewallet_ref?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "ewallet_ref"],
+            message: "E-wallet reference is required for e-wallet payment lines.",
           })
         }
       })

@@ -84,13 +84,21 @@ const validationSchema = Yup.object({
   cardReference: Yup.string().when(["transactionType", "paymentMethod"], {
     is: (transactionType: string, paymentMethod: number) =>
       transactionType === "AGENCY_DEPOSIT" &&
-      paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET),
     then: (schema) =>
-      schema.test(
-        "last4",
-        "Enter last 4 digits of card.",
-        (val) => (val?.replace(/\D/g, "") ?? "").length === 4
-      ),
+      schema.test("paymentRef", "", function (val) {
+        const pm = this.parent.paymentMethod
+        if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+          if ((val?.replace(/\D/g, "") ?? "").length !== 4) {
+            return this.createError({ message: "Enter last 4 digits of card." })
+          }
+        }
+        if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET && !val?.trim()) {
+          return this.createError({ message: "Enter e-wallet reference." })
+        }
+        return true
+      }),
     otherwise: (schema) => schema,
   }),
   slipReference: Yup.string().when(["transactionType", "paymentMethod"], {
@@ -252,7 +260,9 @@ export function LedgerTransactionForm({
             ? values.bankAccountId || undefined
             : undefined,
         cardReference:
-          values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET)
             ? values.cardReference.trim()
             : undefined,
         slipReference:
@@ -332,6 +342,7 @@ export function LedgerTransactionForm({
         const showPaymentDetails = isAgencyDeposit
         const showBank = showPaymentDetails && formik.values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
         const isCard = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
+        const isEWallet = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
         const isSlip = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
 
         return (
@@ -493,6 +504,24 @@ export function LedgerTransactionForm({
                       }
                       placeholder="1234"
                       maxLength={4}
+                    />
+                    {formik.errors.cardReference && (
+                      <p className="text-sm text-destructive">{formik.errors.cardReference}</p>
+                    )}
+                  </div>
+                )}
+                {isEWallet && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardReference">
+                      E-wallet reference <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="cardReference"
+                      value={formik.values.cardReference}
+                      onChange={(e) => formik.setFieldValue("cardReference", e.target.value)}
+                      onBlur={formik.handleBlur}
+                      placeholder="E-wallet reference"
+                      required
                     />
                     {formik.errors.cardReference && (
                       <p className="text-sm text-destructive">{formik.errors.cardReference}</p>

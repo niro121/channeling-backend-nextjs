@@ -46,13 +46,26 @@ export function SearchableSelector({
   placeholder,
 }: SearchableSelectorProps) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const selectedOption = options.find((opt) => opt.id === value);
   const emptyLabel = placeholder ?? label;
   const displayValue = value && value !== defaultValue ? selectedOption?.name : emptyLabel;
   const isPlaceholder = !value || value === defaultValue;
 
+  const filteredOptions = React.useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return options;
+    return options.filter((option) => option.name.toLowerCase().includes(query));
+  }, [options, search]);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearch('');
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -70,19 +83,32 @@ export function SearchableSelector({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className={cn("p-0", className)} align="start">
-        <Command>
-          <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
-          <CommandList>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0"
+        align="start"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }}
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            ref={inputRef}
+            placeholder={`Search ${label.toLowerCase()}...`}
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList className="max-h-[300px]">
             <CommandEmpty>No results found.</CommandEmpty>
 
             <CommandGroup>
-              {options.map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.id}
                   value={option.name}
                   onSelect={() => {
                     onChange(option.id);
+                    setSearch('');
                     setOpen(false);
                   }}
                 >

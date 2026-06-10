@@ -152,8 +152,6 @@ export async function cancelDoctorPaymentService(
       data: {
         doctorPayment: false,
         doctorPaymentAt: null,
-        doctorPaymentReceiptId: null,
-        doctorPaymentReceiptString: null,
       },
     });
 

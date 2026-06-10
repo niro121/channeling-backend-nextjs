@@ -61,6 +61,10 @@ export type ProcessDoctorPaymentInput = {
   amount: number; // gross "Paying This Time" in rupees
   wht: boolean;
   slip_ref?: string;
+  /** Credit card last 4 digits */
+  card_ref?: string;
+  /** E-wallet transaction reference */
+  ewallet_ref?: string;
   handed_staff?: string;
   locationId: string | null;
   userId: string | null;
@@ -83,6 +87,8 @@ export async function processDoctorPaymentService(
     amount,
     wht,
     slip_ref = "",
+    card_ref = "",
+    ewallet_ref = "",
     handed_staff = "",
     locationId,
     userId,
@@ -110,6 +116,23 @@ export async function processDoctorPaymentService(
   const methodAllowed = allowedMethods.length > 0 ? allowedMethods.includes(paymentMethod) : paymentMethod === RECEIPT_PAYMENT_METHOD.CASH;
   if (!methodAllowed) {
     return { success: false, errorCode: "VALIDATION", message: "Payment method not allowed for doctor payments." };
+  }
+  if (paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET && !ewallet_ref.trim()) {
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "E-wallet reference is required.",
+    };
+  }
+  if (paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+    const last4 = card_ref.replace(/\D/g, "");
+    if (last4.length !== 4) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Enter last 4 digits of card.",
+      };
+    }
   }
 
   const whtPercentage = getWhtPercentage();
@@ -176,8 +199,13 @@ export async function processDoctorPaymentService(
     paymentMethod,
     amount: -1 * Math.round(amount), // Outflow: store as negative (same convention as refund)
     bank: "",
-    cardReference: "",
-    slipReference: slip_ref,
+    cardReference:
+      paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+        ? ewallet_ref.trim()
+        : paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
+          ? card_ref.replace(/\D/g, "").slice(0, 4)
+          : "",
+    slipReference: paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ? slip_ref : "",
     remarks,
     type: 0, // CREDIT (outflow)
     method: RECEIPT_METHOD.DOCTOR_PAYMENT,

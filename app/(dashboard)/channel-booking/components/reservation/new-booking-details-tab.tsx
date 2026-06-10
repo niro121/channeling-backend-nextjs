@@ -23,6 +23,7 @@ import { formatLKR } from "@/lib/format-money"
 import {
   getPaymentMethodAndType,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
+  SAVE_PAYMENT_TYPE_E_WALLET,
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import {
@@ -117,11 +118,12 @@ type MixedLine = {
   bank_id: string
   card: string
   slip_ref: string
+  ewallet_ref: string
 }
 
 const DEFAULT_MIXED_LINES: MixedLine[] = [
-  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "" },
-  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "" },
+  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
 ]
 
 /**
@@ -186,6 +188,7 @@ export function NewBookingDetailsTab() {
   const [bankId, setBankId] = useState<string>("")
   const [cardLast4, setCardLast4] = useState("")
   const [slipRef, setSlipRef] = useState("")
+  const [ewalletRef, setEwalletRef] = useState("")
   const [agencyBooks, setAgencyBooks] = useState<ChannelBookingAgencyBookOption[]>([])
   const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
   const areas: ChannelBookingAreaOption[] = initialData?.areas ?? []
@@ -222,6 +225,7 @@ export function NewBookingDetailsTab() {
   const bankError = !!invalidFields.bank
   const cardError = !!invalidFields.card
   const slipRefError = !!invalidFields.slip_ref
+  const ewalletRefError = !!invalidFields.ewallet_ref
   const voucherError = !!invalidFields.voucher_code
   const errorClass = "border-red-500 focus-visible:ring-red-500"
 
@@ -342,6 +346,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
     setSelectedAgencyId(null)
@@ -364,6 +369,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
     setSelectedAgencyId(null)
@@ -461,6 +467,7 @@ export function NewBookingDetailsTab() {
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
+        ewallet_ref: isEWallet ? ewalletRef.trim() : undefined,
         payment_lines: mixedPaymentLines,
         referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
         referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
@@ -580,6 +587,7 @@ export function NewBookingDetailsTab() {
       if (!slipRef.trim()) typeErrors.slip_ref = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
+    if (isEWallet && !ewalletRef.trim()) typeErrors.ewallet_ref = true
     if (isVoucherScheme && !voucherCode.trim()) {
       setInvalidFields((prev) => ({ ...prev, voucher_code: true }))
       toast({
@@ -601,7 +609,9 @@ export function NewBookingDetailsTab() {
               ? "Please select Staff Member."
               : isCard
                 ? "Please enter Last 4 Digits and select Bank."
-                : "Please enter Bank Reference and select Bank.",
+                : isEWallet
+                  ? "Please enter E-wallet reference."
+                  : "Please enter Bank Reference and select Bank.",
         variant: "destructive",
       })
       return
@@ -627,6 +637,7 @@ export function NewBookingDetailsTab() {
           : null,
         card: line.card.trim() || undefined,
         slip_ref: line.slip_ref.trim() || undefined,
+        ewallet_ref: line.ewallet_ref.trim() || undefined,
       }))
     if (lines.length < 2) {
       toast({
@@ -689,6 +700,14 @@ export function NewBookingDetailsTab() {
           })
           return
         }
+      }
+      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
+        toast({
+          title: "E-wallet reference required",
+          description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
+          variant: "destructive",
+        })
+        return
       }
     }
     await submitBooking(lines)
@@ -1030,6 +1049,17 @@ export function NewBookingDetailsTab() {
           </div>
         </div>
       )}
+      {isEWallet && (
+        <div className="space-y-0.5">
+          <Input
+            className={`${fieldClass} ${ewalletRefError ? errorClass : ""}`}
+            placeholder="E-wallet reference *"
+            value={ewalletRef}
+            onChange={(e) => setEwalletRef(e.target.value)}
+            required
+          />
+        </div>
+      )}
 
       {/* Row 3: Foreigner only */}
       <div className="flex items-center gap-1.5">
@@ -1304,7 +1334,8 @@ export function NewBookingDetailsTab() {
             (isAgent && (!agencyId || !agencyBookId || !agencyRef.trim())) ||
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
-            (isSlip && (!slipRef.trim() || !bankId))
+            (isSlip && (!slipRef.trim() || !bankId)) ||
+            (isEWallet && !ewalletRef.trim())
           }
           onClick={handleBookNow}
           className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
@@ -1349,7 +1380,7 @@ export function NewBookingDetailsTab() {
                           setMixedLines((prev) =>
                             prev.map((row, rowIdx) =>
                               rowIdx === idx
-                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "" }
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", ewallet_ref: "" }
                                 : row
                             )
                           )
@@ -1474,6 +1505,26 @@ export function NewBookingDetailsTab() {
                     </div>
                   </div>
                 )}
+                {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      E-wallet reference <span className="text-destructive">*</span>
+                    </p>
+                    <Input
+                      className={fieldClass}
+                      placeholder="E-wallet reference"
+                      required
+                      value={line.ewallet_ref}
+                      onChange={(e) =>
+                        setMixedLines((prev) =>
+                          prev.map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                )}
                 <Button
                   type="button"
                   size="icon"
@@ -1496,7 +1547,7 @@ export function NewBookingDetailsTab() {
               onClick={() =>
                 setMixedLines((prev) => [
                   ...prev,
-                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "" },
+                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
                 ])
               }
             >
