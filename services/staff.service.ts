@@ -182,8 +182,8 @@ export async function getStaff(params: GetStaffParams): Promise<{
 }> {
   try {
     const { page = "1", limit = "10", keyword = "" } = params
-    const pageNumber = parseInt(page, 10)
-    const pageSize = parseInt(limit, 10)
+    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1)
+    const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10))
     const skip = (pageNumber - 1) * pageSize
     const whereClause: Prisma.StaffWhereInput = {
       OR: [

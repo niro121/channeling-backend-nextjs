@@ -410,7 +410,9 @@ export const getConsultantPaymentsReportService = async ({
         branch: b.location?.name ?? '-',
         consultant: b.doctor ? `${b.doctor.title} ${b.doctor.name}`.trim() : '-',
         consultantCode: b.doctor?.code ?? '',
-        paymentReceipt: b.doctorPaymentReceiptString ?? receiptInfo?.receiptNoString ?? '',
+        paymentReceipt: b.doctorPayment
+          ? (b.doctorPaymentReceiptString ?? receiptInfo?.receiptNoString ?? '')
+          : '',
         channelReceipt: b.receiptNoString ?? b.bookingid_string ?? '',
         consultationSession: formatSessionLabel(b.sessionStartTime ?? null, b.sessionEndTime ?? null),
         patientName: formatPatientName(b.title, b.name),
@@ -420,9 +422,9 @@ export const getConsultantPaymentsReportService = async ({
         whtAmount,
         netAmount,
         paymentStatus: b.doctorPayment ? 'Paid' : 'Due Pay',
-        paidBy: paidByUserName ?? '',
-        paidDate: receiptInfo?.createdAt ?? b.doctorPaymentAt ?? null,
-        handedBy: handedByName ?? '',
+        paidBy: b.doctorPayment ? (paidByUserName ?? '') : '',
+        paidDate: b.doctorPayment ? (receiptInfo?.createdAt ?? b.doctorPaymentAt ?? null) : null,
+        handedBy: b.doctorPayment ? (handedByName ?? '') : '',
         // Store for totals calculation
         _professionalFee: professionalFee,
         _discount: discount,

@@ -90,7 +90,12 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
       amount: Math.round(line.amount * 100) / 100,
       bank: line.bank?.name ?? "",
       bankId: line.bank?.id ?? null,
-      cardReference: line.card ?? "",
+      cardReference:
+        line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD
+          ? (line.card ?? "")
+          : line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET
+            ? (line.ewallet_ref ?? "")
+            : "",
       slipReference: line.slip_ref ?? "",
     }))
   if (lines.length < 2) {
@@ -120,6 +125,9 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
       (!line.bankId || !line.slipReference.trim())
     ) {
       return { error: "Slip payment lines require both bank and slip reference." }
+    }
+    if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
+      return { error: "E-wallet payment lines require a reference." }
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
@@ -301,6 +309,13 @@ export async function saveBookingService(
       success: false,
       errorCode: "INVALID_INPUT",
       message: "Credit Customer is required for this payment type.",
+    }
+  }
+  if (input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !input.ewallet_ref?.trim()) {
+    return {
+      success: false,
+      errorCode: "INVALID_INPUT",
+      message: "E-wallet reference is required for E-wallet payment.",
     }
   }
 
@@ -689,7 +704,10 @@ export async function saveBookingService(
             amount: receiptAmount,
             bank: input.bank?.name ?? "",
             bankId: input.bank?.id ?? null,
-            cardReference: input.card ?? "",
+            cardReference:
+              input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET
+                ? (input.ewallet_ref ?? "")
+                : (input.card ?? ""),
             slipReference: input.slip_ref ?? "",
             remarks,
             type: 1,

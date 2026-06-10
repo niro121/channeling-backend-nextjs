@@ -178,12 +178,29 @@ export async function refundChannelService(
   const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
   const refundTo = input.refund_to ?? REFUND_TO_DEFAULT
 
-  // Cash (0), Slip (2), Cheque (3): only Cash refund allowed
-  if (receiptPaymentMethod !== null && [0, 2, 3].includes(receiptPaymentMethod) && refundTo !== 0) {
+  if (receiptPaymentMethod === SAVE_PAYMENT_TYPE_CASH && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
     return {
       success: false,
       errorCode: "invalid_refund_to",
-      message: "Bookings paid by Cash, Slip, or Cheque can only be refunded as Cash.",
+      message: "Bookings paid by Cash can only be refunded as Cash.",
+    }
+  }
+  if (receiptPaymentMethod === 3 && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "Bookings paid by Cheque can only be refunded as Cash.",
+    }
+  }
+  if (
+    receiptPaymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
+    refundTo !== SAVE_PAYMENT_TYPE_CASH &&
+    refundTo !== SAVE_PAYMENT_TYPE_SLIP
+  ) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "Bookings paid by Slip can only be refunded as Cash or Slip.",
     }
   }
 
@@ -381,10 +398,19 @@ export async function refundChannelService(
           paymentMethod: refundTo,
           // Outflow: store as negative so receipt.amount and booking.refundAmount are negative (convention for refunds)
           amount: -1 * refundAmount,
-          bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
-          bankId: refundTo === 1 && paidReceipt ? paidReceipt.bankId : null,
-          cardReference: refundTo === 1 && paidReceipt ? paidReceipt.cardReference : "",
-          slipReference: "",
+          bank:
+            paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+              ? paidReceipt.bank
+              : "",
+          bankId:
+            paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+              ? paidReceipt.bankId
+              : null,
+          cardReference:
+            (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_E_WALLET) && paidReceipt
+              ? paidReceipt.cardReference
+              : "",
+          slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
           paymentLines,
           remarks,
           type: 0,
@@ -561,10 +587,19 @@ export async function refundChannelService(
         paymentMethod: refundTo,
         // Outflow: store as negative (same convention as cancel/refund)
         amount: -1 * totalRefund,
-        bank: refundTo === 1 && paidReceipt ? paidReceipt.bank : "",
-        bankId: refundTo === 1 && paidReceipt ? paidReceipt.bankId : null,
-        cardReference: refundTo === 1 && paidReceipt ? paidReceipt.cardReference : "",
-        slipReference: "",
+        bank:
+          paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+            ? paidReceipt.bank
+            : "",
+        bankId:
+          paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+            ? paidReceipt.bankId
+            : null,
+        cardReference:
+          (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_E_WALLET) && paidReceipt
+            ? paidReceipt.cardReference
+            : "",
+        slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
         remarks,
         type: 0,
         method: 0,
