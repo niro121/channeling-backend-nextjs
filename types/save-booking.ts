@@ -93,6 +93,7 @@ export type SaveBookingInput = {
     bank?: { id: string; name?: string } | null
     card?: string
     slip_ref?: string
+    ewallet_ref?: string
   }>
   agency?: SaveBookingAgencyRef | null
   agency_book_id?: string
@@ -102,6 +103,7 @@ export type SaveBookingInput = {
   bank?: SaveBookingBankRef | null
   slip_ref?: string
   card?: string
+  ewallet_ref?: string
   staff?: SaveBookingStaffRef | null
   session: SaveBookingSessionRef
   doctor: SaveBookingDoctorRef

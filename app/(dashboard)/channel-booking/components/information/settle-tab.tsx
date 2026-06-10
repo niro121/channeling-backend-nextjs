@@ -41,26 +41,31 @@ import {
 } from "@/components/ui/dialog"
 import { CheckCircle2, Receipt } from "lucide-react"
 import {
+  SAVE_BOOKING_METHOD_ON_CALL,
+  SAVE_BOOKING_METHOD_STAFF,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
   SAVE_PAYMENT_TYPE_MIXED,
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 
-const SETTLE_METHODS = [
+type SettleMethodOption = { value: number; label: string }
+
+const BASE_SETTLE_METHODS: SettleMethodOption[] = [
   { value: SAVE_PAYMENT_TYPE_CASH, label: "Cash" },
   { value: SAVE_PAYMENT_TYPE_CREDIT_CARD, label: "Credit Card" },
   { value: SAVE_PAYMENT_TYPE_SLIP, label: "Slip" },
   { value: SAVE_PAYMENT_TYPE_MIXED, label: "Mixed" },
-] as const
+]
 
 type MixedLine = { payment_method: number; amount: string }
-type MixedLineWithMeta = MixedLine & { bank_id: string; card: string; slip_ref: string }
+type MixedLineWithMeta = MixedLine & { bank_id: string; card: string; slip_ref: string; ewallet_ref: string }
 
 const DEFAULT_MIXED_LINES: MixedLineWithMeta[] = [
-  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "", bank_id: "", card: "", slip_ref: "" },
-  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "", bank_id: "", card: "", slip_ref: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
 ]
 
 function formatRs(amount: number): string {
@@ -165,8 +170,11 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
           </div>
         )}
         {settlement.bank ? <Row label="Bank" value={settlement.bank} /> : null}
-        {settlement.cardReference ? (
+        {settlement.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD && settlement.cardReference ? (
           <Row label="Card (last 4)" value={settlement.cardReference} />
+        ) : null}
+        {settlement.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET && settlement.cardReference ? (
+          <Row label="E-wallet reference" value={settlement.cardReference} />
         ) : null}
         {settlement.slipReference ? (
           <Row label="Slip reference" value={settlement.slipReference} />
@@ -209,6 +217,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const [settleMethod, setSettleMethod] = useState<number>(SAVE_PAYMENT_TYPE_CASH)
   const [card, setCard] = useState("")
   const [slipRef, setSlipRef] = useState("")
+  const [ewalletRef, setEwalletRef] = useState("")
   const [bankId, setBankId] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
@@ -351,8 +360,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   }
 
   const amount = settleAmounts?.amountToSettle ?? details.billTotal
+  const bookingMethod = details.settlePreview?.bookingMethod
+  const settleMethods = [...BASE_SETTLE_METHODS]
+  if (bookingMethod === SAVE_BOOKING_METHOD_ON_CALL || bookingMethod === SAVE_BOOKING_METHOD_STAFF) {
+    settleMethods.push({ value: SAVE_PAYMENT_TYPE_E_WALLET, label: "E-Wallet" })
+  }
   const showCard = settleMethod === SAVE_PAYMENT_TYPE_CREDIT_CARD
   const showSlip = settleMethod === SAVE_PAYMENT_TYPE_SLIP
+  const showEWallet = settleMethod === SAVE_PAYMENT_TYPE_E_WALLET
   const isMixed = settleMethod === SAVE_PAYMENT_TYPE_MIXED
   const showBank = showCard || showSlip
   const mixedTotal = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
@@ -368,6 +383,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       })
       return
     }
+    if (showEWallet && !ewalletRef.trim()) {
+      toast({
+        title: "E-wallet reference required",
+        description: "Please enter the e-wallet reference before settling.",
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await settleBookingAction({
@@ -378,6 +401,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         bank: showBank && bankId ? { id: bankId, name: banks.find((b) => b.id === bankId)?.name } : null,
         slip_ref: showSlip ? slipRef : undefined,
         card: showCard ? card : undefined,
+        ewallet_ref: showEWallet ? ewalletRef : undefined,
         payment_lines: mixedPaymentLines,
       })
       if (result.success) {
@@ -396,6 +420,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         setSettleMethod(SAVE_PAYMENT_TYPE_CASH)
         setCard("")
         setSlipRef("")
+        setEwalletRef("")
         setBankId("")
         resetMixedDialog()
         onSettleSuccess?.()
@@ -427,6 +452,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           : null,
         card: line.card.trim() || undefined,
         slip_ref: line.slip_ref.trim() || undefined,
+        ewallet_ref: line.ewallet_ref.trim() || undefined,
       }))
     if (lines.length < 2) {
       toast({
@@ -490,6 +516,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           return
         }
       }
+      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
+        toast({
+          title: "E-wallet reference required",
+          description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
+          variant: "destructive",
+        })
+        return
+      }
     }
     await handleSettle(lines)
   }
@@ -505,13 +539,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
             setBankId("")
             setCard("")
             setSlipRef("")
+            setEwalletRef("")
           }}
         >
           <SelectTrigger className="w-full text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SETTLE_METHODS.map((m) => (
+            {settleMethods.map((m) => (
               <SelectItem key={m.value} value={String(m.value)} className="text-xs">
                 {m.label}
               </SelectItem>
@@ -539,6 +574,20 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
             placeholder="Slip Reference"
             value={slipRef}
             onChange={(e) => setSlipRef(e.target.value)}
+          />
+        </div>
+      )}
+      {showEWallet && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-foreground">
+            E-wallet reference <span className="text-destructive">*</span>
+          </label>
+          <Input
+            className="text-xs"
+            placeholder="E-wallet reference"
+            value={ewalletRef}
+            onChange={(e) => setEwalletRef(e.target.value)}
+            required
           />
         </div>
       )}
@@ -617,6 +666,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       <Button
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => {
+          if (showEWallet && !ewalletRef.trim()) {
+            toast({
+              title: "E-wallet reference required",
+              description: "Please enter the e-wallet reference before settling.",
+              variant: "destructive",
+            })
+            return
+          }
           if (isMixed) {
             setMixedDialogOpen(true)
             return
@@ -654,7 +711,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                           setMixedLines((prev) =>
                             prev.map((row, rowIdx) =>
                               rowIdx === idx
-                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "" }
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", ewallet_ref: "" }
                                 : row
                             )
                           )
@@ -779,6 +836,26 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                     </div>
                   </div>
                 )}
+                {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      E-wallet reference <span className="text-destructive">*</span>
+                    </p>
+                    <Input
+                      className="text-xs"
+                      placeholder="E-wallet reference"
+                      required
+                      value={line.ewallet_ref}
+                      onChange={(e) =>
+                        setMixedLines((prev) =>
+                          prev.map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                )}
                 <Button
                   type="button"
                   size="icon"
@@ -805,6 +882,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                     bank_id: "",
                     card: "",
                     slip_ref: "",
+                    ewallet_ref: "",
                   },
                 ])
               }

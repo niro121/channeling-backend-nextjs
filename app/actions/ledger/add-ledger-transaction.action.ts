@@ -119,6 +119,25 @@ export async function addLedgerTransaction(
         errorCode: "VALIDATION",
       }
     }
+    if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+      const last4 = (parsed.data.cardReference ?? "").replace(/\D/g, "")
+      if (last4.length !== 4) {
+        return {
+          success: false,
+          message: "Enter last 4 digits of card.",
+          errorCode: "VALIDATION",
+          issues: { cardReference: ["Enter last 4 digits of card."] },
+        }
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET && !parsed.data.cardReference?.trim()) {
+      return {
+        success: false,
+        message: "E-wallet reference is required.",
+        errorCode: "VALIDATION",
+        issues: { cardReference: ["Enter e-wallet reference."] },
+      }
+    }
   }
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
     return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
