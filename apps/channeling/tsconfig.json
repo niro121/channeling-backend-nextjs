@@ -24,6 +24,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@archmage/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@archmage/ui": [
+        "../../packages/ui/src/index.ts"
       ]
     },
     "target": "ES2017"

@@ -1,59 +1,17 @@
-// EXPORT ALL TYPES RELATED TO USER GROUPS FROM HERE
+import type { ResourceWithOptionalActions } from "@archmage/shared";
 
-export type PermissionAction = "view" | "add" | "edit" | "delete";
-
-/** Standard resources use view/add/edit/delete; resources with customActions use their own action ids */
-export type ResourcePermissions = Record<string, boolean>;
-
-export type Permissions = {
-  [resource: string]: ResourcePermissions;
-};
-
-/** 2FA method IDs: "1" = AUTH-APP, "2" = SMS, "3" = EMAIL (see types/2FA.ts; EMAIL currently unavailable in UI) */
-export type TwoFactorMethodId = string;
-
-export type UserGroup = {
-  id?: string;
-  name: string;
-  description?: string;
-  status: number; // 0 = inactive, 1 = active
-  permissions: Permissions;
-  twoFactorEnabled?: boolean;
-  twoFactorMethods?: TwoFactorMethodId[]; // e.g. ["1", "2", "3"]
-  createdAt?: Date;
-  updatedAt?: Date;
-  createdUser?: { name?: string } | null;
-  updatedUser?: { name?: string } | null;
-};
-
-export type GetUserGroupsParams = {
-  page?: string;
-  limit?: string;
-  keyword?: string;
-};
-
-export type GetUserGroupsQuery = {
-  page: number;
-  limit: number;
-  keyword: string;
-};
-
-export type GetUserGroupsReturn = {
-  data: UserGroup[];
-  totalRecords: number;
-};
-
-// Resource with optional single-action display (e.g. only "Change Date" instead of View/Add/Edit/Delete)
-export type ResourceWithOptionalActions = {
-  id: string
-  name: string
-  /** If set, only these actions are shown in the User Group form for this resource. */
-  actions?: readonly PermissionAction[]
-  /** Custom labels for actions (e.g. view → "Change Date"). */
-  actionLabels?: Partial<Record<PermissionAction, string>>
-  /** Resource-specific permission actions (e.g. Bulk Cashier: Float View, Float Approve, etc.). When set, these replace view/add/edit/delete for this resource. */
-  customActions?: { id: string; name: string }[]
-}
+export {
+  type PermissionAction,
+  type ResourcePermissions,
+  type Permissions,
+  type TwoFactorMethodId,
+  type UserGroup,
+  type GetUserGroupsParams,
+  type GetUserGroupsQuery,
+  type GetUserGroupsReturn,
+  type ResourceWithOptionalActions,
+  PERMISSION_ACTIONS,
+} from "@archmage/shared";
 
 // Available resources in the system
 export const RESOURCES: ResourceWithOptionalActions[] = [
@@ -131,13 +89,6 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     ],
   },
 ];
-
-export const PERMISSION_ACTIONS: { id: PermissionAction; name: string; description: string }[] = [
-  { id: "view", name: "View", description: "View list" },
-  { id: "add", name: "Add", description: "Add new" },
-  { id: "edit", name: "Edit", description: "Edit existing" },
-  { id: "delete", name: "Delete", description: "Delete" },
-] as const;
 
 /** Extended permission actions specific to Bulk Cashier (use with customActions). */
 export const BULK_CASHIER_ACTIONS = [
