@@ -159,6 +159,10 @@ const config = {
         "fromEnvVar": null,
         "value": "darwin-arm64",
         "native": true
+      },
+      {
+        "fromEnvVar": null,
+        "value": "darwin-arm64"
       }
     ],
     "previewFeatures": [],
@@ -166,7 +170,7 @@ const config = {
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": "../../../.env",
+    "rootEnvPath": null,
     "schemaEnvPath": "../../../.env"
   },
   "relativePath": "../../../prisma",
@@ -176,6 +180,7 @@ const config = {
     "db"
   ],
   "activeProvider": "mongodb",
+  "postinstall": false,
   "inlineDatasources": {
     "db": {
       "url": {
@@ -184,8 +189,8 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider = \"prisma-client-js\"\n  output   = \"../src/generated/client\"\n}\n\ndatasource db {\n  provider = \"mongodb\"\n  url      = env(\"AUTH_DATABASE_URL\")\n}\n\nmodel User {\n  id       String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name     String\n  email    String  @unique\n  username String?\n  phone    String?\n\n  password String\n  userType Int // 1 = admin, 2 = staff, 3 = doctor\n  status   Int // 0 = inactive, 1 = active\n\n  // 2FA\n  twoFactorEnabled       Boolean   @default(false)\n  twoFactorMethod        String?\n  twoFactorSecret        String?\n  twoFactorPendingSecret String?\n  twoFactorTempCode      String?\n  twoFactorExpires       DateTime?\n  twoFactorVerified      Boolean   @default(false)\n\n  mustChangePassword Boolean @default(false)\n\n  // Cross-DB references — plain IDs, no Prisma relations across databases\n  staffId  String? @db.ObjectId // → HRM DB: Staff.id\n  doctorId String? @db.ObjectId // → Channeling DB: Doctor.id\n\n  userGroupId String?    @db.ObjectId\n  userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n\nmodel UserGroup {\n  id          String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name        String\n  description String?\n  status      Int // 0 = inactive, 1 = active\n\n  // { \"resource\": { \"view\": true, \"add\": true, \"edit\": true, \"delete\": true } }\n  permissions Json\n\n  twoFactorEnabled Boolean  @default(false)\n  twoFactorMethods String[]\n\n  users User[]\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n",
-  "inlineSchemaHash": "2c3638cf2890c240a94e23238786aac18a97cb0efea3af287089251bb3db457a",
+  "inlineSchema": "generator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"darwin-arm64\"]\n}\n\ndatasource db {\n  provider = \"mongodb\"\n  url      = env(\"AUTH_DATABASE_URL\")\n}\n\nmodel User {\n  id       String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name     String\n  email    String  @unique\n  username String?\n  phone    String?\n\n  password String\n  userType Int // 1 = admin, 2 = staff, 3 = doctor\n  status   Int // 0 = inactive, 1 = active\n\n  // 2FA\n  twoFactorEnabled       Boolean   @default(false)\n  twoFactorMethod        String?\n  twoFactorSecret        String?\n  twoFactorPendingSecret String?\n  twoFactorTempCode      String?\n  twoFactorExpires       DateTime?\n  twoFactorVerified      Boolean   @default(false)\n\n  mustChangePassword Boolean @default(false)\n\n  // Cross-DB references — plain IDs, no Prisma relations across databases\n  staffId  String? @db.ObjectId // → HRM DB: Staff.id\n  doctorId String? @db.ObjectId // → Channeling DB: Doctor.id\n\n  userGroupId String?    @db.ObjectId\n  userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n\nmodel UserGroup {\n  id          String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name        String\n  description String?\n  status      Int // 0 = inactive, 1 = active\n\n  // { \"resource\": { \"view\": true, \"add\": true, \"edit\": true, \"delete\": true } }\n  permissions Json\n\n  twoFactorEnabled Boolean  @default(false)\n  twoFactorMethods String[]\n\n  users User[]\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n",
+  "inlineSchemaHash": "e7813d8c93407560f81408541241c829237618b49470a92451e9dae72e09cbc0",
   "copyEngine": true
 }
 config.dirname = '/'

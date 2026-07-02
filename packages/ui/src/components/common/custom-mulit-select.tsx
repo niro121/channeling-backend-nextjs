@@ -1,3 +1,4 @@
+"use client"
 import * as React from 'react';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';

@@ -1,3 +1,4 @@
+"use client"
 'use client';
 
 import {
@@ -60,4 +61,3 @@ export function NavDropdown({
     </DropdownMenu>
   );
 }
-

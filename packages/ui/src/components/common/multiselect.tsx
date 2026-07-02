@@ -1,3 +1,4 @@
+"use client"
 // src/components/multi-select.tsx
 
 import * as React from "react";

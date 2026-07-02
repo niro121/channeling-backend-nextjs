@@ -1,3 +1,4 @@
+"use client"
 import * as React from 'react';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';

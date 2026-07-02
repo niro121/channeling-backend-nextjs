@@ -1,3 +1,4 @@
+"use client"
 export function UsersIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
