@@ -4,8 +4,8 @@ import { Analytics } from '@vercel/analytics/react';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Ruhunu Channeling System',
-  description: 'Ruhunu Channeling System',
+  title: `${process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'} Channeling`,
+  description: `${process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'} Channeling System`,
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '512x512', type: 'image/x-icon' },

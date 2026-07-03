@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "heroku-postbuild": "npx turbo build --filter=@archmage/$APP_NAME"
   },
   "devDependencies": {
     "turbo": "^2.5.4",

@@ -96,7 +96,7 @@ export function DesktopSidebar({
             <Hospital className="h-4 w-4" />
           </span>
           <span className="min-w-0 flex flex-col items-start">
-            <span className="truncate w-full text-base leading-tight">Ruhunu Hospital</span>
+            <span className="truncate w-full text-base leading-tight">{process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'}</span>
             <span className="text-xs font-normal text-muted-foreground leading-tight">Channeling</span>
           </span>
         </Link>

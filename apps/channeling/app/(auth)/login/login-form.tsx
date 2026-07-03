@@ -230,7 +230,7 @@ const LoginForm = () => {
         }}
       />
       <div className="lg:hidden mb-6 text-center">
-        <span className="text-xl font-semibold text-foreground">Ruhunu</span>
+        <span className="text-xl font-semibold text-foreground">{process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'}</span>
       </div>
       <Card className="w-full border-0 shadow-none bg-transparent p-0">
         <CardHeader className="space-y-1 px-0 pt-0">
