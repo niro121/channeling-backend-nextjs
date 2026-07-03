@@ -9,6 +9,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "type-check": "turbo type-check",
     "heroku-postbuild": "npx turbo build --filter=@archmage/$APP_NAME"
   },
   "devDependencies": {

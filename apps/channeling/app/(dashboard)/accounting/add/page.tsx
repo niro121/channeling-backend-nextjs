@@ -46,7 +46,7 @@ export default async function AccountingAddPage() {
     })) ?? [];
 
   const agencies =
-    agenciesRes?.data?.map((a) => ({
+    agenciesRes?.data?.map((a: { id: string; name: string; code: string | null }) => ({
       id: a.id as string,
       name: a.name,
       code: a.code ?? null,
