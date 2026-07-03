@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "node server.js",
     "build": "next build",
+    "db:generate": "prisma generate",
     "start": "node server.js",
     "type-check": "tsc --noEmit",
     "next:dev": "next dev --turbopack",
