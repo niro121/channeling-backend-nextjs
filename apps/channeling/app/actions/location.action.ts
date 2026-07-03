@@ -31,7 +31,14 @@ type CreateLocationPayload = LocationFormValues & {
 };
 
 // ==== GET ALL LOCATIONS ==== //
-export const getAllLocations = async (sort: getLocationParam) => {
+export const getAllLocations = async (
+  sort: getLocationParam
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: Location[];
+  totalRecords: number;
+}> => {
   // View permission already checked by checkRouteAccess('/locations') on the page; skip duplicate session fetch
 
   try {

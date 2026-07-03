@@ -19,13 +19,21 @@ import type {
   GetCreditCustomersQuery,
   CreditCustomerFormValues,
   UpdateCreditCustomerPayload,
+  CreditCustomer,
 } from '@/types/credit-customer';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // ==== GET ALL ==== //
-export async function getAllCreditCustomers(params: GetCreditCustomersParams) {
+export async function getAllCreditCustomers(
+  params: GetCreditCustomersParams
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: CreditCustomer[];
+  totalRecords: number;
+}> {
   await requirePermission('credit-customers', 'view');
   try {
     const query: GetCreditCustomersQuery = {
@@ -57,7 +65,11 @@ export async function getAllCreditCustomers(params: GetCreditCustomersParams) {
 }
 
 // ==== GET OPTIONS (for dropdowns) ==== //
-export async function getAllCreditCustomersOptions() {
+export async function getAllCreditCustomersOptions(): Promise<{
+  success: boolean;
+  data: { id: string; name: string; code: string | null }[];
+  message?: string;
+}> {
   await requirePermission('credit-customers', 'view');
   try {
     const response = await getAllCreditCustomersOptionsService();
@@ -247,7 +259,12 @@ export async function bulkDeleteCreditCustomers(ids: string[]) {
 }
 
 // ==== EXPORT ==== //
-export async function getCreditCustomersExport(filters: { keyword?: string }) {
+export async function getCreditCustomersExport(filters: { keyword?: string }): Promise<{
+  success: boolean;
+  message?: string;
+  data?: CreditCustomer[];
+  totalRecords?: number;
+}> {
   await requirePermission('credit-customers', 'view');
   try {
     const response = await getAllCreditCustomersExportService(filters.keyword);

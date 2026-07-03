@@ -219,7 +219,14 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
 };
 
 // ==== GET DOCTORS ==== //
-export const getAllDoctors = async (sort: getDoctorParams) => {
+export const getAllDoctors = async (
+  sort: getDoctorParams
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: Doctor[];
+  totalRecords: number;
+}> => {
   // Check view permission
   await requirePermission('doctors', 'view');
 
@@ -253,7 +260,7 @@ export const getAllDoctors = async (sort: getDoctorParams) => {
 
     return {
       success: true,
-      data: response.data?.records ?? [],
+      data: (response.data?.records ?? []) as Doctor[],
       totalRecords: response.data?.totalRecords ?? 0,
       message: response.message
     };
@@ -339,7 +346,12 @@ export async function createDoctorAccount(doctorId: string) {
 }
 
 // ==== GET SPECIALITY OPTIONS ==== //
-export const getAllSpecialityOptions = async () => {
+export const getAllSpecialityOptions = async (): Promise<{
+  success: boolean;
+  data: Speciality[];
+  totalRecords?: number;
+  error?: { message?: string };
+}> => {
   try {
     const response = await getAllSpecialityOptionsService();
 
@@ -352,6 +364,7 @@ export const getAllSpecialityOptions = async () => {
     console.error('getAllSpecialityOptions error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get specialities'
       }

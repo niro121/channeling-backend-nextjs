@@ -309,7 +309,12 @@ export const bulkDeleteDoctorSessions = async (ids: string[]) => {
 };
 
 // ==== GET DOCTOR OPTIONS ==== //
-export const getDoctorOptions = async () => {
+export const getDoctorOptions = async (): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getDoctorOptionsService>>['data'];
+  totalRecords?: number;
+  error?: { message?: string };
+}> => {
   try {
     const response = await getDoctorOptionsService();
 
@@ -322,6 +327,7 @@ export const getDoctorOptions = async () => {
     console.error('getDoctorOptions error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get doctors'
       }
@@ -368,7 +374,12 @@ export const getDoctorById = async (
 };
 
 // ==== GET DEPARTMENT OPTIONS ==== //
-export const getDepartmentOptions = async () => {
+export const getDepartmentOptions = async (): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getDepartmentOptionsService>>['data'];
+  totalRecords?: number;
+  error?: { message?: string };
+}> => {
   try {
     const response = await getDepartmentOptionsService();
 
@@ -381,6 +392,7 @@ export const getDepartmentOptions = async () => {
     console.error('getDepartmentOptions error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get departments'
       }
@@ -389,7 +401,12 @@ export const getDepartmentOptions = async () => {
 };
 
 // ==== GET LOCATION OPTIONS ==== //
-export const getLocationOptions = async () => {
+export const getLocationOptions = async (): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getLocationOptionsService>>['data'];
+  totalRecords?: number;
+  error?: { message?: string };
+}> => {
   try {
     const response = await getLocationOptionsService();
 
@@ -402,6 +419,7 @@ export const getLocationOptions = async () => {
     console.error('getLocationOptions error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get locations'
       }
@@ -410,7 +428,13 @@ export const getLocationOptions = async () => {
 };
 
 // ==== GET ALL ROOMS ==== //
-export const getAllRoomsByLocaionID = async (locationId: string) => {
+export const getAllRoomsByLocaionID = async (
+  locationId: string
+): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getAllRoomsByLocaionIDService>>;
+  error?: { message?: string };
+}> => {
   try {
     const data = await getAllRoomsByLocaionIDService(locationId);
 
@@ -422,6 +446,7 @@ export const getAllRoomsByLocaionID = async (locationId: string) => {
     console.error('getAllRoomsByLocaionID error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get rooms'
       }

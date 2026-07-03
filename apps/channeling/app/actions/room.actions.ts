@@ -290,7 +290,11 @@ export const bulkDeleteRooms = async (ids: string[]) => {
 };
 
 // ==== GET ALL LOCATIONS ==== //
-export const getAllLocations = async () => {
+export const getAllLocations = async (): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getAllLocationsService>>;
+  error?: { message?: string };
+}> => {
   try {
     const data = await getAllLocationsService();
 
@@ -302,6 +306,7 @@ export const getAllLocations = async () => {
     console.error('getAllLocations error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get locations'
       }
@@ -310,7 +315,13 @@ export const getAllLocations = async () => {
 };
 
 // ==== GET ALL ZONES ==== //
-export const getAllZonesByLocaionID = async (locationId: string) => {
+export const getAllZonesByLocaionID = async (
+  locationId: string
+): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getAllZonesByLocaionIDService>>;
+  error?: { message?: string };
+}> => {
   try {
     const data = await getAllZonesByLocaionIDService(locationId);
 
@@ -322,6 +333,7 @@ export const getAllZonesByLocaionID = async (locationId: string) => {
     console.error('getAllZonesByLocaionIDs error', error);
     return {
       success: false,
+      data: [],
       error: {
         message: error.message || 'Failed to get zones'
       }

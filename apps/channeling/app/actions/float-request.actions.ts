@@ -202,7 +202,11 @@ export async function getMyPendingFloatRequestAction() {
 }
 
 /** List users who can approve float (Float Approve permission). Requires float-request permission. */
-export async function getBulkCashierUsersAction() {
+export async function getBulkCashierUsersAction(): Promise<{
+  success: boolean;
+  data: Awaited<ReturnType<typeof getBulkCashierUsers>>;
+  message?: string;
+}> {
   await requirePermission('bulk-cashier', 'float-request');
   const session = await fetchServerSession();
   const currentUserId = session?.user?.id ?? null;

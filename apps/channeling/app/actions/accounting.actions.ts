@@ -15,7 +15,7 @@ import {
   createJournalEntry as createJournalEntryService,
   type GetAllAccountsParams,
 } from '@/services/accounting.service';
-import type { CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
+import type { Account, CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
@@ -29,7 +29,14 @@ export type GetAccountsParams = {
   keyword?: string | null;
 };
 
-export async function getAccounts(params: GetAccountsParams = {}) {
+export async function getAccounts(
+  params: GetAccountsParams = {}
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: Account[];
+  totalRecords: number;
+}> {
   await requirePermission('accounting', 'view');
 
   try {

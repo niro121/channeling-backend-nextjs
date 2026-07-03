@@ -76,7 +76,11 @@ export const getAllAgencies = async (params: GetAgenciesParams) => {
 };
 
 // ==== GET ALL AGENCIES FOR OPTIONS ==== //
-export const getAllAgenciesOptions = async () => {
+export const getAllAgenciesOptions = async (): Promise<{
+  success: boolean;
+  message?: string;
+  data: Awaited<ReturnType<typeof getAllAgenciesOptionsService>>['data'];
+}> => {
   try {
     const response = await getAllAgenciesOptionsService();
 
@@ -946,7 +950,12 @@ export const updateAgencyAllowedCreditLimit = async (
 export const getAgenciesExport = async (filters: {
   keyword?: string;
   parentAgencyId?: string;
-}) => {
+}): Promise<{
+  success: boolean;
+  message?: string;
+  data?: Agency[];
+  totalRecords?: number;
+}> => {
   try {
     const response = await getAllAgenciesExportService({
       keyword: filters.keyword ?? '',

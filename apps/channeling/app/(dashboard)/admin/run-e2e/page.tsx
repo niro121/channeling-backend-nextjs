@@ -49,7 +49,7 @@ export default async function AdminRunE2EPage() {
     doctorsResult.success && doctorsResult.data
       ? doctorsResult.data
           .filter((d: { id?: string }) => d.id)
-          .map((d) => ({
+          .map((d: { id?: string }) => ({
             id: (d as Doctor).id!,
             name: formatDoctorName(d as Doctor),
           }))
