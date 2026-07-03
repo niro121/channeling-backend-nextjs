@@ -62,8 +62,8 @@ export default async function AccountEditPage({ params }: Props) {
       code: d.code,
     })) ?? [];
   const agencies =
-    agenciesRes?.data?.map((a) => ({
-      id: a.id as string,
+    agenciesRes?.data?.map((a: { id: string; name: string; code?: string | null }) => ({
+      id: a.id,
       name: a.name,
       code: a.code ?? null,
     })) ?? [];
