@@ -4,7 +4,7 @@
  *
  * Run: npm run test:e2e -- cancel-booking
  * Pass doctor → session → booking: E2E_DOCTOR_SEARCH=... E2E_DOCTOR_SELECT=... E2E_SESSION=... (substring) E2E_SESSION_INDEX=1|2|… E2E_APPOINTMENT_NO=...
- * Credentials: E2E_USER_EMAIL=... E2E_USER_PASSWORD=...#
+ * Credentials: E2E_USER_EMAIL=... E2E_USER_PASSWORD=.....
  */
 import { test, expect } from "@playwright/test"
 import {
