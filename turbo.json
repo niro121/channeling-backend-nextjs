@@ -1,5 +1,40 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "NEXT_PUBLIC_APP_NAME",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_APP_VERSION",
+    "NEXT_PUBLIC_BRAND_NAME"
+  ],
+  "globalPassThroughEnv": [
+    "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
+    "MONGODB_URI",
+    "AUTH_DATABASE_URL",
+    "JWT_SECRET",
+    "OAUTH_JWT_SECRET",
+    "DOCTOR_APP_JWT_SECRET",
+    "DOCTOR_APP_TOKEN_EXPIRES_SEC",
+    "CRYPTR_SECRET_KEY",
+    "TOTP_SECRET",
+    "TWO_FA_CODE_EXPIRY_MINUTES",
+    "TWO_FA_PENDING_EXPIRY_MINUTES",
+    "MOBITEL_SMS_URL",
+    "MOBITEL_SMS_USER",
+    "MOBITEL_SMS_PASSWORD",
+    "MOBITEL_SMS_API_PASSWORD",
+    "SMS_API_URL",
+    "SMS_API_PASSWORD",
+    "SMS_USER",
+    "SMS_MASK",
+    "SMS_COUNTRY_PREFIX",
+    "SMS_APPEND_TEXT",
+    "SMS_COST_PER_MESSAGE",
+    "SMTP_FROM",
+    "PUBLIC_API_CORS_ORIGINS",
+    "PORT"
+  ],
   "tasks": {
     "db:generate": {
       "cache": false
