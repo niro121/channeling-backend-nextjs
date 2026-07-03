@@ -10,6 +10,8 @@ import { getDoctorOptions } from "@/app/actions/doctor.sessions.action";
 import { formatDoctorName } from "@/lib/helpers/doctor-name.helper";
 import type { Doctor } from "@/types/doctor";
 
+type DoctorOption = { id: string; name: string };
+
 const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
 
@@ -45,12 +47,12 @@ export default async function AdminRunE2EPage() {
   }
 
   const doctorsResult = await getDoctorOptions();
-  const doctorOptions: Array<{ id: string; name: string }> =
+  const doctorOptions: DoctorOption[] =
     doctorsResult.success && doctorsResult.data
-      ? doctorsResult.data
-          .filter((d: { id?: string }) => d.id)
-          .map((d: { id?: string }) => ({
-            id: (d as Doctor).id!,
+      ? (doctorsResult.data as DoctorOption[])
+          .filter((d): d is DoctorOption => Boolean(d.id))
+          .map((d) => ({
+            id: d.id,
             name: formatDoctorName(d as Doctor),
           }))
           .sort((a, b) => a.name.localeCompare(b.name))
