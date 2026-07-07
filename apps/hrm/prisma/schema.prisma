@@ -1,0 +1,36 @@
+// HRM domain database — auth lives in @archmage/db-auth (AUTH_DATABASE_URL).
+// User.staffId in the auth DB references Staff.id here (no cross-DB Prisma relation).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Staff {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  code            String    @unique()
+  title           String    @default("")
+  name            String
+  nic             String
+  dateOfBirth     DateTime?
+  gender          String    @default("")
+  contactMobile   String
+  address         String    @default("")
+  dateJoined      DateTime?
+  status          Int       @default(1) // 0 = Inactive, 1 = Active
+  migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([name])
+}
