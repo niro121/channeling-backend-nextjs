@@ -5,6 +5,24 @@ import { Session } from "next-auth";
 import { NavLink } from "@archmage/ui";
 import { LayoutGrid, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserCircle } from "lucide-react";
+
+function SidebarGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        {label}
+      </p>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
 
 export function DesktopSidebar({ session, className }: { session: Session | null; className?: string }) {
   return (
@@ -25,6 +43,9 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         <div className="space-y-0.5">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
         </div>
+        <SidebarGroup label="People">
+          <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />
+        </SidebarGroup>
       </nav>
 
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">
