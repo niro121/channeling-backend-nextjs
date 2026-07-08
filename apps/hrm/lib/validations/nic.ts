@@ -1,0 +1,1 @@
+export const NIC_REGEX = /^(?:\d{9}[VvXx]|\d{12})$/;
