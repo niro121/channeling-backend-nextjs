@@ -207,6 +207,36 @@ export default async function IntegrationGuidePage() {
           </CardContent>
         </Card>
 
+        {/* Step 6: Get doctors */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 6: Get doctors</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              To fetch published doctors with speciality (for external apps such as DPAY patient
+              bills), call the doctors reference endpoint with the token from Step 2.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">GET /api/public/doctors</code></li>
+              <li><strong>Header:</strong> <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;access_token&gt;</code></li>
+              <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">keyword</code> (optional — filters by name, code, title, or speciality)</li>
+            </ul>
+            <p>
+              The response contains a <code className="rounded bg-muted px-1 py-0.5">doctors</code> array with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">id</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5">title</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5">name</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5">code</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5">specialityId</code>, and{" "}
+              <code className="rounded bg-muted px-1 py-0.5">specialityName</code>.
+            </p>
+            <p className="text-muted-foreground">
+              Test in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 6: Get doctors) or via Postman.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Postman */}
         <Card className="my-6 print:break-inside-avoid">
           <CardHeader>
@@ -232,6 +262,9 @@ export default async function IntegrationGuidePage() {
               </li>
               <li>
                 Set <code className="rounded bg-muted px-1 py-0.5">session_id</code> from a session response (or enable <code className="rounded bg-muted px-1 py-0.5">date</code> on Get Bookings), then run <strong>Get Bookings</strong>.
+              </li>
+              <li>
+                Run <strong>Get Doctors</strong> to list published doctors with speciality (optional <code className="rounded bg-muted px-1 py-0.5">keyword</code> query).
               </li>
               <li>
                 For Doctor App flows, use the <strong>Doctor App</strong> folder in this order:
