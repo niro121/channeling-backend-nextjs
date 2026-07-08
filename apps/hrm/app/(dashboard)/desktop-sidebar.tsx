@@ -6,6 +6,8 @@ import { NavLink } from "@archmage/ui";
 import { LayoutGrid, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserCircle } from "lucide-react";
+import { canAccessRoute } from "@/lib/permissions";
+import { userTypes } from "@archmage/shared";
 
 function SidebarGroup({
   label,
@@ -25,6 +27,14 @@ function SidebarGroup({
 }
 
 export function DesktopSidebar({ session, className }: { session: Session | null; className?: string }) {
+  const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
+
+  const hasAccess = (path: string) => {
+    if (userType === userTypes.admin) return true;
+    if (permissions) return canAccessRoute(permissions, path);
+    return false;
+  };
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-primary/20 bg-secondary overflow-hidden sm:flex", className)}>
       <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">
@@ -44,7 +54,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
         </div>
         <SidebarGroup label="People">
-          <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />
+          {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
         </SidebarGroup>
       </nav>
 

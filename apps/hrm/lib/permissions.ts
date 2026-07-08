@@ -1,6 +1,7 @@
 import { Permissions } from '@archmage/shared';
 
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
+  '/staff': 'staff',
   '/employees': 'employees',
   '/departments': 'departments',
   '/positions': 'positions',
