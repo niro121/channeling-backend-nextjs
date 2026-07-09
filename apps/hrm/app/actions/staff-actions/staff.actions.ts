@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import {
@@ -115,6 +116,16 @@ export async function createStaffAction(data: Staff) {
       };
     }
 
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.created',
+        entityType: 'Staff',
+        entityId: result.data?.id ?? undefined,
+        importance: 'high'
+      });
+    }
+
     revalidatePath('/staff');
     return {
       isError: false,
@@ -155,6 +166,16 @@ export async function updateStaffAction(id: string, data: Partial<Staff>) {
       };
     }
 
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.updated',
+        entityType: 'Staff',
+        entityId: id,
+        importance: 'high'
+      });
+    }
+
     revalidatePath('/staff');
     return {
       isError: false,
@@ -174,9 +195,20 @@ export async function updateStaffAction(id: string, data: Partial<Staff>) {
 export async function deleteStaffAction(id: string) {
   await requirePermission('staff', 'delete');
   try {
+    const auditUser = await getAuditUser();
     const result = await deleteStaff(id);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Error deleting data. Please try again later');
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.deleted',
+        entityType: 'Staff',
+        entityId: id,
+        importance: 'high'
+      });
     }
 
     revalidatePath('/staff');
@@ -194,9 +226,20 @@ export async function deleteStaffAction(id: string) {
 export async function bulkDeleteStaffAction(ids: string[]) {
   await requirePermission('staff', 'delete');
   try {
+    const auditUser = await getAuditUser();
     const result = await deleteStaffs(ids);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Error deleting records. Please try again later');
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.bulkDeleted',
+        entityType: 'Staff',
+        importance: 'high',
+        metadata: { count: ids.length }
+      });
     }
 
     revalidatePath('/staff');

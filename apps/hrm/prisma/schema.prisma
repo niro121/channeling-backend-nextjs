@@ -34,3 +34,22 @@ model Staff {
   @@index([status])
   @@index([name])
 }
+
+// userId references auth DB User.id (no cross-DB Prisma relation).
+model ActivityLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  action     String // e.g. "staff.staff.created", "staff.visited"
+  entityType String // e.g. "Staff"
+  entityId   String?  @db.ObjectId
+  metadata   Json? // optional extra details
+  ipAddress  String? // client IP from x-forwarded-for or x-real-ip when available
+  importance String? // "low" | "medium" | "high" for retention trimming
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([importance, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
