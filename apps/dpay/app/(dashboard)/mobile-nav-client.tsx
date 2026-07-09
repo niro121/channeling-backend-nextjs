@@ -3,9 +3,20 @@
 import Link from 'next/link';
 import { Session } from 'next-auth';
 import { Button, Sheet, SheetContent, SheetTrigger, NavLink } from '@archmage/ui';
-import { PanelLeft, LayoutGrid, Landmark } from 'lucide-react';
+import { PanelLeft, LayoutGrid, Landmark, FileText } from 'lucide-react';
+import { canAccessRoute } from '@/lib/permissions';
+import { userTypes } from '@/lib/roles';
 
 export default function MobileNavClient({ session }: { session: Session | null }) {
+  const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
+
+  const hasAccess = (path: string) => {
+    if (userType === userTypes.admin) return true;
+    if (permissions) return canAccessRoute(permissions, path);
+    return false;
+  };
+
   return (
     <Sheet>
       <div />
@@ -30,6 +41,9 @@ export default function MobileNavClient({ session }: { session: Session | null }
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
           <div className="space-y-0.5">
             <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
+            {hasAccess('/patient-bills') && (
+              <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
+            )}
           </div>
         </nav>
       </SheetContent>

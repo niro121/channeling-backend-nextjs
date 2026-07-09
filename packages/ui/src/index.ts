@@ -49,7 +49,7 @@ export * from "./components/common/custom-checked-field";
 export * from "./components/common/custom-content-alert-dialog";
 export * from "./components/common/custom-data-table-pagination";
 export * from "./components/common/custom-data-table";
-export * from "./components/common/custom-date-picker-field";
+export { default as CustomDatePickerField } from "./components/common/custom-date-picker-field";
 export * from "./components/common/custom-dialog";
 export * from "./components/common/custom-mulit-select";
 export * from "./components/common/custom-pagination";
