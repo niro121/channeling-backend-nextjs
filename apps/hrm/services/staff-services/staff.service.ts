@@ -6,7 +6,7 @@ import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
-import { sriLankaMobileRegex } from '@/lib/validations/phone-mobile';
+import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import type { GetStaffParams, Staff } from '@/types/staff';
 
 const staffSchema = z.object({
@@ -23,7 +23,7 @@ const staffSchema = z.object({
     .string()
     .min(1, 'Contact Mobile is required')
     .max(15, 'Must be less than 15 characters')
-    .regex(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
+    .regex(MOBILE_NUMBER_REGEX, 'Mobile Number Ex: 07x xxxxxxx'),
   address: z.string().min(1, 'Address is required').max(500, 'Must be less than 500 characters'),
   dateJoined: z
     .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
