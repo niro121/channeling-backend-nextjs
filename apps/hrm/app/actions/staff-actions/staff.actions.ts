@@ -13,6 +13,10 @@ import {
   getStaffOptions,
   updateStaff
 } from '@/services/staff-services/staff.service';
+import {
+  syncAllStaffFromChanneling,
+  syncStaffByIdFromChanneling
+} from '@/services/staff-services/staff-sync.service';
 import type { GetStaffParams, Staff } from '@/types/staff';
 
 export async function getStaffOptionsAction(): Promise<{
@@ -247,5 +251,92 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   } catch (error: any) {
     console.error('bulkDeleteStaffAction error:', error);
     throw new Error(error.message ?? 'Error deleting records. Please try again later');
+  }
+}
+
+/** Sync all staff from the Channeling public API. */
+export async function syncStaffFromChannelingAction(keyword = '') {
+  await requirePermission('staff', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await syncAllStaffFromChanneling(auditUser, keyword);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: { message: result.error?.message ?? 'Failed to sync staff from Channeling' }
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.syncedFromChanneling',
+        entityType: 'Staff',
+        importance: 'high',
+        metadata: result.data
+      });
+    }
+
+    revalidatePath('/staff');
+    return {
+      isError: false,
+      data: result.data,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('syncStaffFromChannelingAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to sync staff from Channeling' }
+    };
+  }
+}
+
+/** Sync a staff record by ID from the Channeling public API. */
+export async function syncStaffByIdFromChannelingAction(channelingStaffId: string) {
+  await requirePermission('staff', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await syncStaffByIdFromChanneling(channelingStaffId, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: { message: result.error?.message ?? 'Failed to sync staff from Channeling' }
+      };
+    }
+
+    if (auditUser?.id && result.data?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.syncedFromChanneling',
+        entityType: 'Staff',
+        entityId: result.data.id,
+        importance: 'high',
+        metadata: { channelingStaffId, action: result.action }
+      });
+    }
+
+    revalidatePath('/staff');
+    return {
+      isError: false,
+      data: {
+        id: result.data?.id,
+        action: result.action,
+        message: result.message
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('syncStaffByIdFromChannelingAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to sync staff from Channeling' }
+    };
   }
 }
