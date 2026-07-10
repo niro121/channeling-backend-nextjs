@@ -50,9 +50,14 @@ export async function getStaffOptionsAction(): Promise<{
 }
 
 export async function getStaffAction(params: GetStaffParams) {
+  const newParams: GetStaffParams = {
+    page: params.page ? process.env.DEFAULT_PAGE_SIZE : "0",
+    limit: params.limit ? process.env.DEFAULT_PER_PAGE: "10",
+    keyword: params.keyword ?? ''
+  };
   try {
     await requirePermission('staff', 'view');
-    const result = await getStaff(params);
+    const result = await getStaff(newParams);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Error getting data. Please try again later');
     }

@@ -200,7 +200,7 @@ export async function getStaff(params: GetStaffParams): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const { page = '1', limit = '10', keyword = '' } = params;
+    const { page = process.env.DEFAULT_PAGE_SIZE ?? '0', limit = process.env.DEFAULT_PER_PAGE ?? '10', keyword = '' } = params;
     const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10));
     const skip = (pageNumber - 1) * pageSize;
