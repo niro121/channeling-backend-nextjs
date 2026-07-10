@@ -268,6 +268,7 @@ export async function getStaffOptions(): Promise<{
   }
 }
 
+// ** Delete Staff Service * //
 export async function deleteStaff(id: string): Promise<{
   success: boolean;
   data?: any;
@@ -286,6 +287,7 @@ export async function deleteStaff(id: string): Promise<{
   }
 }
 
+// ** Bulk Delete Staff Service * //
 export async function deleteStaffs(ids: string[]): Promise<{
   success: boolean;
   data?: { count: number };

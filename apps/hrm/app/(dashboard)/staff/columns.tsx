@@ -5,6 +5,8 @@ import { Badge } from '@archmage/ui';
 import { Staff } from '@/types/staff';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { Checkbox } from '@archmage/ui';
+import StaffRecordActions from './record-actions';
 
 function formatDateTime(date?: Date | string | null) {
   if (!date) return '—';
@@ -14,6 +16,30 @@ function formatDateTime(date?: Date | string | null) {
 }
 
 export const staffColumns: ColumnDef<Staff>[] = [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        className="translate-y-[2px]"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false
+  },
   {
     accessorKey: 'code',
     header: 'Code',
@@ -84,5 +110,10 @@ export const staffColumns: ColumnDef<Staff>[] = [
       const date = (row.original as { createdAt?: Date }).createdAt;
       return <span className="text-xs text-muted-foreground">{formatDateTime(date)}</span>;
     }
+  },
+  {
+    id: 'actions',
+    header: () => <div className="text-right">Actions</div>,
+    cell: ({ row }) => <StaffRecordActions row={row} />
   }
 ];

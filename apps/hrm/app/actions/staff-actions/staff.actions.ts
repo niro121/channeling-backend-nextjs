@@ -216,6 +216,7 @@ export async function updateStaffAction(id: string, data: Partial<Staff>) {
   }
 }
 
+// ** Delete Staff Action * //
 export async function deleteStaffAction(id: string) {
   await requirePermission('staff', 'delete');
   try {
@@ -247,6 +248,7 @@ export async function deleteStaffAction(id: string) {
   }
 }
 
+// ** Bulk Delete Staff Action * //
 export async function bulkDeleteStaffAction(ids: string[]) {
   await requirePermission('staff', 'delete');
   try {
@@ -273,6 +275,46 @@ export async function bulkDeleteStaffAction(ids: string[]) {
     throw new Error(error.message ?? 'Error deleting records. Please try again later');
   }
 }
+
+//** Staff Exports */
+export const getStaffExport = async (params: { keyword?: string }) => {
+  try {
+    const response = await getStaffAction({
+      page: "1",
+      limit: process.env.EXPORT_LIMIT ?? "10000", // Get all records
+      keyword: params.keyword ?? ""
+    });
+
+    if (response.isError || !response.data?.data?.length) {
+      return {
+        success: false,
+        message: response.isError 
+          ? (response.errors?.message || 'Error getting data')
+          : 'No staff found'
+      };
+    }
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: "staff.exported",
+        entityType: "Staff",
+        importance: "medium",
+        metadata: { count: response.data?.data?.length ?? 0 },
+      })
+    }
+    return {
+      success: true,
+      data: response.data.data
+    };
+  } catch (error: any) {
+    console.log('getStaffExport error', error);
+    return {
+      success: false,
+      message: 'Error getting data'
+    };
+  }
+};
 
 /** Sync all staff from the Channeling public API. */
 export async function syncStaffFromChannelingAction(keyword = '') {
