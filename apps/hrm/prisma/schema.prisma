@@ -54,3 +54,10 @@ model ActivityLog {
   @@index([importance, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
 }
+
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
