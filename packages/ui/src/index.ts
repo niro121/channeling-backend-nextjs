@@ -53,7 +53,7 @@ export { default as CustomDatePickerField } from "./components/common/custom-dat
 export * from "./components/common/custom-dialog";
 export * from "./components/common/custom-mulit-select";
 export * from "./components/common/custom-pagination";
-export * from "./components/common/custom-select-field";
+export { default as CustomSelectField } from "./components/common/custom-select-field";
 export * from "./components/common/custom-switch";
 export * from "./components/common/custom-tab-component";
 export * from "./components/common/custom-table-row-actions";
