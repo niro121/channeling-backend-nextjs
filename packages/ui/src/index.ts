@@ -44,7 +44,7 @@ export * from "./components/common/add-btn";
 export * from "./components/common/back-button";
 export * from "./components/common/combobox";
 export * from "./components/common/custom-alert-dialog-with-warning";
-export * from "./components/common/custom-alert-dialog";
+export { default as CustomAlertDialog } from "./components/common/custom-alert-dialog";
 export { default as CustomCheckedField } from "./components/common/custom-checked-field";
 export * from "./components/common/custom-content-alert-dialog";
 export * from "./components/common/custom-data-table-pagination";
