@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/lib/prisma';
 import prisma from '@/lib/prisma';
 
 const ACTIVITY_LOG_ENABLED =

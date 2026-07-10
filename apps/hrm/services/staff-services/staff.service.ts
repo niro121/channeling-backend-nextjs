@@ -1,6 +1,6 @@
 'use server';
 
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
@@ -9,6 +9,7 @@ import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import type { GetStaffParams, Staff } from '@/types/staff';
 
+// ** Staff Schema Validation * //
 const staffSchema = z.object({
   code: z.string().min(1, 'Staff Code is required').max(50, 'Must be less than 50 characters'),
   title: z.string().max(50).optional().nullable(),
@@ -44,6 +45,53 @@ function toDate(val: Date | number | string | null | undefined): Date | null {
   if (typeof val === 'number') return new Date(val);
   return new Date(val);
 }
+
+// ** Get Staff List Service * //
+export async function getStaff(params: GetStaffParams): Promise<{
+  success: boolean;
+  data?: { records: any[]; totalRecords: number };
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const { page = process.env.DEFAULT_PAGE_SIZE ?? '0', limit = process.env.DEFAULT_PER_PAGE ?? '10', keyword = '' } = params;
+    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10));
+    const skip = (pageNumber - 1) * pageSize;
+    const whereClause: Prisma.StaffWhereInput = {
+      OR: [
+        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } }
+      ]
+    };
+
+    const [records, totalRecords] = await Promise.all([
+      prisma.staff.findMany({
+        where: whereClause,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.staff.count({ where: whereClause })
+    ]);
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    return {
+      success: true,
+      data: { records: recordsWithUsers, totalRecords },
+      message: 'Staff fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getStaff error:', error);
+    return { success: false, error: { message: error.message || 'Failed to fetch staff' } };
+  }
+}
+
+
+
+
 
 export async function createStaff(
   payload: Staff,
@@ -190,48 +238,6 @@ export async function getStaffById(id: string): Promise<{
   } catch (error: any) {
     console.error('getStaffById error:', error);
     return { success: false, error: { message: error.message || 'Failed to get staff' } };
-  }
-}
-
-export async function getStaff(params: GetStaffParams): Promise<{
-  success: boolean;
-  data?: { records: any[]; totalRecords: number };
-  message?: string;
-  error?: { message?: string };
-}> {
-  try {
-    const { page = process.env.DEFAULT_PAGE_SIZE ?? '0', limit = process.env.DEFAULT_PER_PAGE ?? '10', keyword = '' } = params;
-    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10));
-    const skip = (pageNumber - 1) * pageSize;
-    const whereClause: Prisma.StaffWhereInput = {
-      OR: [
-        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } }
-      ]
-    };
-
-    const [records, totalRecords] = await Promise.all([
-      prisma.staff.findMany({
-        where: whereClause,
-        skip,
-        take: pageSize,
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.staff.count({ where: whereClause })
-    ]);
-
-    const recordsWithUsers = await resolveAuthUsers(records);
-    return {
-      success: true,
-      data: { records: recordsWithUsers, totalRecords },
-      message: 'Staff fetched successfully'
-    };
-  } catch (error: any) {
-    console.error('getStaff error:', error);
-    return { success: false, error: { message: error.message || 'Failed to fetch staff' } };
   }
 }
 

@@ -15,9 +15,54 @@ import {
 } from '@/services/staff-services/staff.service';
 import {
   syncAllStaffFromChanneling,
-  syncStaffByIdFromChanneling
+  // syncStaffByIdFromChanneling
 } from '@/services/staff-services/staff-sync.service';
 import type { GetStaffParams, Staff } from '@/types/staff';
+
+// ** Get Staff List Action * //
+export async function getStaffAction(params: GetStaffParams) {
+  const newParams: GetStaffParams = {
+    page: params.page ? process.env.DEFAULT_PAGE_SIZE : "0",
+    limit: params.limit ? process.env.DEFAULT_PER_PAGE: "10",
+    keyword: params.keyword ?? ''
+  };
+  try {
+    await requirePermission('staff', 'view');
+    const result = await getStaff(newParams);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Error getting data. Please try again later');
+    }
+    return {
+      isError: false,
+      data: {
+        data: result.data?.records ?? [],
+        totalRecords: result.data?.totalRecords ?? 0
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Error getting data. Please try again later' }
+    };
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export async function getStaffOptionsAction(): Promise<{
   isError: boolean;
@@ -45,36 +90,6 @@ export async function getStaffOptionsAction(): Promise<{
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Failed to load staff options' }
-    };
-  }
-}
-
-export async function getStaffAction(params: GetStaffParams) {
-  const newParams: GetStaffParams = {
-    page: params.page ? process.env.DEFAULT_PAGE_SIZE : "0",
-    limit: params.limit ? process.env.DEFAULT_PER_PAGE: "10",
-    keyword: params.keyword ?? ''
-  };
-  try {
-    await requirePermission('staff', 'view');
-    const result = await getStaff(newParams);
-    if (!result.success) {
-      throw new Error(result.error?.message ?? 'Error getting data. Please try again later');
-    }
-    return {
-      isError: false,
-      data: {
-        data: result.data?.records ?? [],
-        totalRecords: result.data?.totalRecords ?? 0
-      },
-      errors: {}
-    };
-  } catch (error: any) {
-    console.error('getStaffAction error', error);
-    return {
-      isError: true,
-      data: null,
-      errors: { message: error.message ?? 'Error getting data. Please try again later' }
     };
   }
 }
@@ -300,8 +315,9 @@ export async function syncStaffFromChannelingAction(keyword = '') {
   }
 }
 
+// NO NEED
 /** Sync a staff record by ID from the Channeling public API. */
-export async function syncStaffByIdFromChannelingAction(channelingStaffId: string) {
+/* export async function syncStaffByIdFromChannelingAction(channelingStaffId: string) {
   await requirePermission('staff', 'add');
   try {
     const auditUser = await getAuditUser();
@@ -344,4 +360,4 @@ export async function syncStaffByIdFromChannelingAction(channelingStaffId: strin
       errors: { message: error.message ?? 'Failed to sync staff from Channeling' }
     };
   }
-}
+} */

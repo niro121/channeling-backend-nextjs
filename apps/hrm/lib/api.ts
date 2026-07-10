@@ -1,4 +1,4 @@
-import 'server-only';
+import "server-only";
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -43,6 +43,11 @@ type TokenCache = {
 };
 
 let tokenCache: TokenCache | null = null;
+
+/** Clear cached OAuth token (e.g. after a 401 from Channeling). */
+export function clearChannelingAccessTokenCache(): void {
+  tokenCache = null;
+}
 
 const DEFAULT_BASE_URL = 'http://localhost:3000';
 
@@ -161,6 +166,21 @@ export async function getChannelingAccessToken(): Promise<string> {
   return accessToken;
 }
 
+function shouldUseClientCredentialsAuth(
+  path: string,
+  options: ChannelingRequestOptions
+): boolean {
+  if (options.token) return false;
+  if (options.auth === true) return true;
+  if (options.auth === false) return false;
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return (
+    normalizedPath.startsWith('/api/public/') &&
+    normalizedPath !== '/api/public/token'
+  );
+}
+
 /** Low-level fetch wrapper for Channeling API requests. */
 export async function channelingFetch<T = unknown>(
   path: string,
@@ -172,11 +192,11 @@ export async function channelingFetch<T = unknown>(
     headers = {},
     searchParams,
     token,
-    auth = false,
     cache,
     next
   } = options;
 
+  const useClientCredentials = shouldUseClientCredentialsAuth(path, options);
   const requestHeaders = new Headers(headers);
   const hasJsonBody = body !== undefined && body !== null;
 
@@ -184,15 +204,16 @@ export async function channelingFetch<T = unknown>(
     requestHeaders.set('Content-Type', 'application/json');
   }
 
+  let accessToken: string | undefined;
   if (token) {
     requestHeaders.set('Authorization', `Bearer ${token}`);
-  } else if (auth) {
-    const accessToken = await getChannelingAccessToken();
+  } else if (useClientCredentials) {
+    accessToken = await getChannelingAccessToken();
     requestHeaders.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  try {
-    const response = await fetch(buildChannelingUrl(path, searchParams), {
+  const executeRequest = () =>
+    fetch(buildChannelingUrl(path, searchParams), {
       method,
       headers: requestHeaders,
       body: hasJsonBody ? JSON.stringify(body) : undefined,
@@ -200,7 +221,22 @@ export async function channelingFetch<T = unknown>(
       next
     });
 
-    const responseBody = await parseResponseBody(response);
+  try {
+    let response = await executeRequest();
+    let responseBody = await parseResponseBody(response);
+
+    if (
+      !response.ok &&
+      response.status === 401 &&
+      useClientCredentials &&
+      accessToken
+    ) {
+      clearChannelingAccessTokenCache();
+      accessToken = await getChannelingAccessToken();
+      requestHeaders.set('Authorization', `Bearer ${accessToken}`);
+      response = await executeRequest();
+      responseBody = await parseResponseBody(response);
+    }
 
     if (!response.ok) {
       const { error, errorDescription } = parseErrorBody(responseBody);

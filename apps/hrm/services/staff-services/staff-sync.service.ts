@@ -4,8 +4,10 @@ import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import {
-  fetchAllChannelingStaff,
-  fetchChannelingStaffById
+  CHANNELING_STAFF_PAGE_SIZE,
+  CHANNELING_STAFF_PAGE_INDEX,
+  // fetchChannelingStaffById,
+  fetchChannelingStaffList
 } from '@/services/staff-services/channeling-staff.service';
 import type {
   ChannelingPublicStaffDto,
@@ -104,8 +106,89 @@ export async function upsertStaffFromChanneling(
   }
 }
 
+/** Sync all staff from the Channeling public API (page by page into HRM DB). */
+export async function syncAllStaffFromChanneling(
+  user?: AuditUser,
+  keyword = ''
+): Promise<{
+  success: boolean;
+  data?: StaffSyncStats;
+  message?: string;
+  error?: { message?: string };
+}> {
+  const stats: StaffSyncStats = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    total: 0,
+    errors: []
+  };
+
+  let page = CHANNELING_STAFF_PAGE_INDEX;
+  let totalRecords = 0;
+  let processed = 0;
+
+  while (true) {
+    const fetchResult = await fetchChannelingStaffList({
+      page,
+      limit: CHANNELING_STAFF_PAGE_SIZE,
+      keyword
+    });
+
+    if (!fetchResult.success || !fetchResult.data) {
+      return {
+        success: false,
+        error: { message: fetchResult.error?.message ?? 'Failed to fetch staff from Channeling' }
+      };
+    }
+
+    const { staff, totalRecords: total } = fetchResult.data;
+    totalRecords = total;
+    stats.total = totalRecords;
+
+    for (const dto of staff) {
+      const result = await upsertStaffFromChanneling(dto, user);
+
+      if (!result.success) {
+        stats.failed += 1;
+        stats.errors.push({
+          id: dto.id,
+          code: dto.code,
+          message: result.error?.message ?? 'Unknown error'
+        });
+        continue;
+      }
+
+      if (result.action === 'created') stats.created += 1;
+      else if (result.action === 'updated') stats.updated += 1;
+      else stats.skipped += 1;
+    }
+
+    processed += staff.length;
+
+    if (processed >= totalRecords || staff.length === 0) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return {
+    success: true,
+    data: stats,
+    message: `Synced ${stats.total} staff record(s): ${stats.created} created, ${stats.updated} updated, ${stats.failed} failed`
+  };
+}
+
+
+
+
+
+
+// NO NEED
 /** Sync a staff record by ID from the Channeling public API. */
-export async function syncStaffByIdFromChanneling(
+/* export async function syncStaffByIdFromChanneling(
   channelingStaffId: string,
   user?: AuditUser
 ): Promise<{
@@ -140,56 +223,4 @@ export async function syncStaffByIdFromChanneling(
         ? 'Staff imported from Channeling'
         : 'Staff updated from Channeling'
   };
-}
-
-/** Sync all staff from the Channeling public API. */
-export async function syncAllStaffFromChanneling(
-  user?: AuditUser,
-  keyword = ''
-): Promise<{
-  success: boolean;
-  data?: StaffSyncStats;
-  message?: string;
-  error?: { message?: string };
-}> {
-  const fetchResult = await fetchAllChannelingStaff(keyword);
-  if (!fetchResult.success || !fetchResult.data) {
-    return {
-      success: false,
-      error: { message: fetchResult.error?.message ?? 'Failed to fetch staff from Channeling' }
-    };
-  }
-
-  const stats: StaffSyncStats = {
-    created: 0,
-    updated: 0,
-    skipped: 0,
-    failed: 0,
-    total: fetchResult.data.length,
-    errors: []
-  };
-
-  for (const dto of fetchResult.data) {
-    const result = await upsertStaffFromChanneling(dto, user);
-
-    if (!result.success) {
-      stats.failed += 1;
-      stats.errors.push({
-        id: dto.id,
-        code: dto.code,
-        message: result.error?.message ?? 'Unknown error'
-      });
-      continue;
-    }
-
-    if (result.action === 'created') stats.created += 1;
-    else if (result.action === 'updated') stats.updated += 1;
-    else stats.skipped += 1;
-  }
-
-  return {
-    success: true,
-    data: stats,
-    message: `Synced ${stats.total} staff record(s): ${stats.created} created, ${stats.updated} updated, ${stats.failed} failed`
-  };
-}
+} */
