@@ -6,26 +6,32 @@ import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
+import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import type { GetStaffParams, Staff } from '@/types/staff';
 
+const STAFF_CODE_PREFIX = 'ST';
+
 // ** Staff Schema Validation * //
 const staffSchema = z.object({
-  code: z.string().min(1, 'Staff Code is required').max(50, 'Must be less than 50 characters'),
+  code: z.string().max(50, 'Must be less than 50 characters').optional(),
   title: z.string().max(50).optional().nullable(),
   name: z.string().min(1, 'Name is required').max(150, 'Must be less than 150 characters'),
-  nic: z.string().min(1, 'NIC is required').max(20, 'Must be less than 20 characters'),
+  nic: z.string().max(20, 'Must be less than 20 characters').optional().nullable(),
   dateOfBirth: z
     .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
     .optional()
     .nullable(),
-  gender: z.string().min(1, 'Gender is required'),
+  gender: z.string().max(50).optional().nullable(),
   contactMobile: z
     .string()
-    .min(1, 'Contact Mobile is required')
     .max(15, 'Must be less than 15 characters')
-    .regex(MOBILE_NUMBER_REGEX, 'Mobile Number Ex: 07x xxxxxxx'),
-  address: z.string().min(1, 'Address is required').max(500, 'Must be less than 500 characters'),
+    .optional()
+    .nullable()
+    .refine((value) => !value || MOBILE_NUMBER_REGEX.test(value), {
+      message: 'Mobile Number Ex: 07x xxxxxxx'
+    }),
+  address: z.string().max(500, 'Must be less than 500 characters').optional().nullable(),
   dateJoined: z
     .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
     .optional()
@@ -89,10 +95,32 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
+// ** Get Staff By ID Service * //
+export async function getStaffById(id: string): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid staff ID' } };
+    }
 
+    const staff = await prisma.staff.findUnique({ where: { id } });
+    if (!staff) {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
 
+    const [record] = await resolveAuthUsers([staff]);
+    return { success: true, data: record, message: 'Staff fetched successfully' };
+  } catch (error: any) {
+    console.error('getStaffById error:', error);
+    return { success: false, error: { message: error.message || 'Failed to get staff' } };
+  }
+}
 
-
+// ** Create Staff Service * //
 export async function createStaff(
   payload: Staff,
   user?: AuditUser
@@ -116,17 +144,32 @@ export async function createStaff(
 
     const data = parsed.data;
     const auditUser = toAuditUser(user);
+
+    let code = data.code?.trim();
+    if (!code) {
+      const generated = await generateRecordCode(STAFF_CODE_PREFIX);
+      if (!generated.success) {
+        return {
+          success: false,
+          error: { message: 'Failed to generate staff code. Please try again.' }
+        };
+      }
+      code = generated.code;
+    }
+
+    // let legacyCode = 
+
     const staff = await prisma.staff.create({
       data: {
-        code: data.code,
+        code,
         title: data.title ?? '',
         name: data.name,
-        nic: data.nic,
+        nic: data.nic ?? '',
         dateOfBirth: toDate(data.dateOfBirth),
-        gender: data.gender,
-        contactMobile: data.contactMobile,
+        gender: data.gender ?? '',
+        contactMobile: data.contactMobile ?? '',
         address: data.address ?? '',
-        dateJoined: toDate(data.dateJoined),
+        dateJoined: toDate(data.dateJoined) ?? new Date(),
         status: data.status,
         ...(auditUser?.id && { createdBy: auditUser.id, updatedBy: auditUser.id })
       }
@@ -151,6 +194,7 @@ export async function createStaff(
   }
 }
 
+// ** Update Staff Service * //
 export async function updateStaff(
   id: string,
   payload: Partial<Staff>,
@@ -179,10 +223,10 @@ export async function updateStaff(
       ...(data.code !== undefined && { code: data.code }),
       ...(data.title !== undefined && { title: data.title ?? '' }),
       ...(data.name !== undefined && { name: data.name }),
-      ...(data.nic !== undefined && { nic: data.nic }),
+      ...(data.nic !== undefined && { nic: data.nic ?? '' }),
       ...(data.dateOfBirth !== undefined && { dateOfBirth: toDate(data.dateOfBirth) }),
-      ...(data.gender !== undefined && { gender: data.gender }),
-      ...(data.contactMobile !== undefined && { contactMobile: data.contactMobile }),
+      ...(data.gender !== undefined && { gender: data.gender ?? '' }),
+      ...(data.contactMobile !== undefined && { contactMobile: data.contactMobile ?? '' }),
       ...(data.address !== undefined && { address: data.address ?? '' }),
       ...(data.dateJoined !== undefined && { dateJoined: toDate(data.dateJoined) }),
       ...(data.status !== undefined && { status: data.status }),
@@ -214,57 +258,6 @@ export async function updateStaff(
       success: false,
       error: { message: error.message || 'Failed to update staff' }
     };
-  }
-}
-
-export async function getStaffById(id: string): Promise<{
-  success: boolean;
-  data?: any;
-  message?: string;
-  error?: { message?: string };
-}> {
-  try {
-    if (!id) {
-      return { success: false, error: { message: 'Invalid staff ID' } };
-    }
-
-    const staff = await prisma.staff.findUnique({ where: { id } });
-    if (!staff) {
-      return { success: false, error: { message: 'Staff not found' } };
-    }
-
-    const [record] = await resolveAuthUsers([staff]);
-    return { success: true, data: record, message: 'Staff fetched successfully' };
-  } catch (error: any) {
-    console.error('getStaffById error:', error);
-    return { success: false, error: { message: error.message || 'Failed to get staff' } };
-  }
-}
-
-export type StaffOption = { id: string; name: string; code: string };
-
-export async function getStaffOptions(): Promise<{
-  success: boolean;
-  data?: StaffOption[];
-  message?: string;
-  error?: { message?: string };
-}> {
-  try {
-    const records = await prisma.staff.findMany({
-      where: { status: 1 },
-      orderBy: { name: 'asc' },
-      take: 500,
-      select: { id: true, name: true, code: true }
-    });
-    const data: StaffOption[] = records.map((record) => ({
-      id: record.id,
-      name: record.name ?? '',
-      code: record.code ?? ''
-    }));
-    return { success: true, data, message: 'Staff options fetched' };
-  } catch (error: any) {
-    console.error('getStaffOptions error:', error);
-    return { success: false, error: { message: error.message || 'Failed to fetch staff options' } };
   }
 }
 
@@ -312,5 +305,39 @@ export async function deleteStaffs(ids: string[]): Promise<{
   } catch (error: any) {
     console.error('deleteStaffs error:', error);
     return { success: false, error: { message: error.message || 'Failed to delete staff' } };
+  }
+}
+
+
+
+
+
+
+
+
+export type StaffOption = { id: string; name: string; code: string };
+
+export async function getStaffOptions(): Promise<{
+  success: boolean;
+  data?: StaffOption[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const records = await prisma.staff.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' },
+      take: 500,
+      select: { id: true, name: true, code: true }
+    });
+    const data: StaffOption[] = records.map((record) => ({
+      id: record.id,
+      name: record.name ?? '',
+      code: record.code ?? ''
+    }));
+    return { success: true, data, message: 'Staff options fetched' };
+  } catch (error: any) {
+    console.error('getStaffOptions error:', error);
+    return { success: false, error: { message: error.message || 'Failed to fetch staff options' } };
   }
 }

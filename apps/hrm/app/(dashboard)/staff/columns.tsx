@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@archmage/ui';
-import { Staff } from '@/types/staff';
+import { StaffWithAuthUsers } from '@/types/staff';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Checkbox } from '@archmage/ui';
@@ -15,7 +15,7 @@ function formatDateTime(date?: Date | string | null) {
   return format(parsed, 'dd/MM/yyyy hh:mm a');
 }
 
-export const staffColumns: ColumnDef<Staff>[] = [
+export const staffColumns: ColumnDef<StaffWithAuthUsers>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -67,12 +67,24 @@ export const staffColumns: ColumnDef<Staff>[] = [
     header: 'NIC',
     cell: ({ row }) => {
       const nic = row.getValue('nic') as string;
-      return nic || <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="text-muted-foreground whitespace-nowrap">
+          {nic || '-'}
+        </span>
+      );
     }
   },
   {
     accessorKey: 'contactMobile',
-    header: 'Contact'
+    header: 'Contact',
+    cell: ({ row }) => {
+      const contactMobile = row.getValue('contactMobile') as string;
+      return (
+        <span className="text-muted-foreground whitespace-nowrap">
+          {contactMobile || '-'}
+        </span>
+      );
+    }
   },
   {
     accessorKey: 'status',
@@ -89,7 +101,11 @@ export const staffColumns: ColumnDef<Staff>[] = [
               : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
           }
         >
-          {isActive ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isActive ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <XCircle className="h-4 w-4" />
+          )}
           {isActive ? 'Published' : 'Unpublished'}
         </Badge>
       );
@@ -99,16 +115,32 @@ export const staffColumns: ColumnDef<Staff>[] = [
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => {
-      const date = (row.original as { updatedAt?: Date }).updatedAt;
-      return <span className="text-xs text-muted-foreground">{formatDateTime(date)}</span>;
+      const date = row.original.updatedAt;
+      const updatedBy = row.original.updatedUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{updatedBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      );
     }
   },
   {
     id: 'created',
     header: 'Created',
     cell: ({ row }) => {
-      const date = (row.original as { createdAt?: Date }).createdAt;
-      return <span className="text-xs text-muted-foreground">{formatDateTime(date)}</span>;
+      const date = row.original.createdAt;
+      const createdBy = row.original.createdUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{createdBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      )
     }
   },
   {

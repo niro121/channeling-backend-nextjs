@@ -50,50 +50,7 @@ export async function getStaffAction(params: GetStaffParams) {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-export async function getStaffOptionsAction(): Promise<{
-  isError: boolean;
-  data: { id: string; name: string; code: string }[] | null;
-  errors: { message?: string };
-}> {
-  try {
-    await requirePermission('staff', 'view');
-    const result = await getStaffOptions();
-    if (!result.success) {
-      return {
-        isError: true,
-        data: null,
-        errors: { message: result.error?.message ?? 'Failed to load staff options' }
-      };
-    }
-    return {
-      isError: false,
-      data: result.data ?? [],
-      errors: {}
-    };
-  } catch (error: any) {
-    console.error('getStaffOptionsAction error', error);
-    return {
-      isError: true,
-      data: null,
-      errors: { message: error.message ?? 'Failed to load staff options' }
-    };
-  }
-}
-
+// ** Get Staff By ID Action * //
 export async function getStaffByIdAction(id: string) {
   try {
     await requirePermission('staff', 'view');
@@ -116,6 +73,7 @@ export async function getStaffByIdAction(id: string) {
   }
 }
 
+// ** Create Staff Action * //
 export async function createStaffAction(data: Staff) {
   await requirePermission('staff', 'add');
   try {
@@ -166,6 +124,7 @@ export async function createStaffAction(data: Staff) {
   }
 }
 
+// ** Update Staff Action * //
 export async function updateStaffAction(id: string, data: Partial<Staff>) {
   await requirePermission('staff', 'edit');
   try {
@@ -273,6 +232,46 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   } catch (error: any) {
     console.error('bulkDeleteStaffAction error:', error);
     throw new Error(error.message ?? 'Error deleting records. Please try again later');
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+export async function getStaffOptionsAction(): Promise<{
+  isError: boolean;
+  data: { id: string; name: string; code: string }[] | null;
+  errors: { message?: string };
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    const result = await getStaffOptions();
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: { message: result.error?.message ?? 'Failed to load staff options' }
+      };
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffOptionsAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to load staff options' }
+    };
   }
 }
 

@@ -1,25 +1,47 @@
+'use client';
+
 import { Button } from '@archmage/ui';
 import { SaveIcon, XIcon } from 'lucide-react';
 
-export function CustomFormSubmitBtns() {
+type CustomFormSubmitBtnsProps = {
+  loading?: boolean;
+  onCancel?: () => void;
+  onSave?: () => void;
+  onSaveAndClose?: () => void;
+};
+
+export function CustomFormSubmitBtns({
+  loading = false,
+  onCancel,
+  onSave,
+  onSaveAndClose
+}: CustomFormSubmitBtnsProps) {
   return (
     <>
       <Button
+        type="button"
         variant="outline"
         className="text-red-500 hover:text-white hover:bg-red-500 transition-colors"
+        onClick={onCancel}
+        disabled={loading}
       >
         <div className="flex items-center gap-2">
           <XIcon className="w-4 h-4" />
           Cancel
         </div>
       </Button>
-      <Button variant="default">
+      <Button type="button" variant="default" onClick={onSave} disabled={loading}>
         <div className="flex items-center gap-2">
           <SaveIcon className="w-4 h-4" />
           Save
         </div>
       </Button>
-      <Button variant="outline">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onSaveAndClose}
+        disabled={loading}
+      >
         <div className="flex items-center gap-2">
           <SaveIcon className="w-4 h-4" />
           Save and Close

@@ -1,12 +1,10 @@
-import type { GetStaffParams, Staff, GENDER_OPTIONS } from '@archmage/shared';
-import type { TITLE_OPTIONS } from '@archmage/shared';
+import type { GetStaffParams, Staff } from '@archmage/shared';
 import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
+import { TITLE_LIST, GENDER_OPTIONS, STAFF_STATUS_OPTIONS } from '@archmage/shared';
 
 export type { GetStaffParams, Staff };
 
-export type { GENDER_OPTIONS };
-
-export type { TITLE_OPTIONS };
+export {TITLE_LIST, GENDER_OPTIONS, STAFF_STATUS_OPTIONS}
 
 export type StaffRecord = Staff & {
   id: string;

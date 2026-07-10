@@ -1,7 +1,9 @@
 'use client';
 
-import { Formik, Form } from 'formik';
+import { useEffect, useRef, type MutableRefObject } from 'react';
+import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -9,7 +11,9 @@ import {
   CustomCheckedField,
   CustomDatePickerField,
   CustomFormField,
-  Label
+  CustomSelectField,
+  Label,
+  useToast
 } from '@archmage/ui';
 import {
   Accordion,
@@ -17,9 +21,25 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
-import { HOME_TELEPHONE_REGEX, MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
-import { GENDER_OPTIONS, STAFF_STATUS_OPTIONS } from '@archmage/shared';
-
+import {
+  HOME_TELEPHONE_REGEX,
+  MOBILE_NUMBER_REGEX
+} from '@/lib/validations/phone-mobile';
+import { NIC_REGEX } from '@/lib/validations/nic';
+import {
+  GENDER_OPTIONS,
+  STAFF_STATUS_OPTIONS,
+  TITLE_LIST,
+  StaffRecord
+} from '@/types/staff';
+import {
+  createStaffAction,
+  updateStaffAction
+} from '@/app/actions/staff-actions/staff.actions';
+import {
+  generalFormValuesToStaff,
+  staffRecordToGeneralFormValues
+} from '@/lib/mappers/staff-general-form.mapper';
 export type GeneralFormValues = {
   staffCode: string;
   title: string;
@@ -48,7 +68,7 @@ export type GeneralFormValues = {
   resignedWithoutNotice: boolean;
   resignedWithNoticeDate: Date | undefined;
   dateRetired: Date | undefined;
-  status: number;
+  status: string;
   speciality: string;
 };
 
@@ -61,47 +81,110 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
+const optionalString = () =>
+  Yup.string()
+    .nullable()
+    .transform((value) => (value === '' ? null : value));
+
+const optionalMaxString = (max: number) =>
+  optionalString().max(max, `Must be less than ${max} characters`);
+
+const optionalPatternString = (pattern: RegExp, message: string) =>
+  optionalString().test('format', message, (value) => !value || pattern.test(value));
+
+const optionalEmail = () =>
+  optionalString().email('Enter a valid email address');
+
+const optionalDate = () =>
+  Yup.date()
+    .nullable()
+    .transform((value, originalValue) =>
+      originalValue === '' || originalValue === undefined ? null : value
+    )
+    .typeError('Enter a valid date');
+
 const validationSchema = Yup.object({
+  staffCode: optionalMaxString(50),
+  title: optionalMaxString(50),
   initials: Yup.string()
     .required('Initials is required')
     .max(50, 'Must be less than 50 characters'),
+  name: optionalMaxString(150),
   firstName: Yup.string()
     .required('First Name is required')
     .max(100, 'Must be less than 100 characters'),
   lastName: Yup.string()
     .required('Last Name is required')
     .max(100, 'Must be less than 100 characters'),
-  homeTelephone: Yup.string()
-    .nullable()
-    .transform((value) => (value === '' ? null : value))
-    .matches(HOME_TELEPHONE_REGEX, 'Enter a valid home telephone number')
-    .notRequired(),
-  secondaryEmail: Yup.string()
-    .nullable()
-    .transform((value) => (value === '' ? null : value))
-    .email('Enter a valid email address')
-    .notRequired(),
-  zoneCode: Yup.string().nullable(),
-  fingerPrintRfid: Yup.string()
-    .nullable()
-    .max(100, 'Must be less than 100 characters'),
-  staffCodeLegacy: Yup.string()
-    .nullable()
-    .max(50, 'Must be less than 50 characters'),
-  epfNumber: Yup.string()
-    .nullable()
-    .max(50, 'Must be less than 50 characters'),
-  etfNumber: Yup.string()
-    .nullable()
-    .max(50, 'Must be less than 50 characters'),
-  registrationNumber: Yup.string()
-    .nullable()
-    .max(50, 'Must be less than 50 characters'),
-  dateResigned: Yup.date().nullable(),
+  nic: optionalPatternString(
+    NIC_REGEX,
+    'Enter a valid NIC (9 digits + V/X or 12 digits)'
+  ),
+  dateOfBirth: optionalDate().max(
+    new Date(),
+    'Date of Birth cannot be in the future'
+  ),
+  gender: optionalString().oneOf(
+    [...GENDER_OPTIONS.map((option) => option.id), null],
+    'Select a valid gender'
+  ),
+  mobileNumber: optionalPatternString(
+    MOBILE_NUMBER_REGEX,
+    'Enter a valid mobile number'
+  ),
+  homeTelephone: optionalPatternString(
+    HOME_TELEPHONE_REGEX,
+    'Enter a valid home telephone number'
+  ),
+  email: optionalEmail(),
+  secondaryEmail: optionalEmail(),
+  address: optionalMaxString(500),
+  zoneCode: optionalString(),
+  fingerPrintRfid: optionalMaxString(100),
+  staffCodeLegacy: optionalMaxString(50),
+  epfNumber: optionalMaxString(50),
+  etfNumber: optionalMaxString(50),
+  registrationNumber: optionalMaxString(50),
+  dateJoined: optionalDate(),
+  dateResigned: optionalDate(),
   resignedWithoutNotice: Yup.boolean(),
-  resignedWithNoticeDate: Yup.date().nullable(),
-  dateRetired: Yup.date().nullable(),
-  speciality: Yup.string().nullable()
+  resignedWithNoticeDate: optionalDate(),
+  dateRetired: optionalDate(),
+  status: Yup.string()
+    .required('Status is required')
+    .oneOf(
+      STAFF_STATUS_OPTIONS.map((option) => option.id),
+      'Select a valid status'
+    ),
+  speciality: optionalString()
+}).test('employment-dates', function validateEmploymentDates(values) {
+  if (!values) return true;
+
+  const { dateJoined, dateResigned, resignedWithNoticeDate, dateRetired } =
+    values;
+
+  if (dateJoined && dateResigned && dateResigned < dateJoined) {
+    return this.createError({
+      path: 'dateResigned',
+      message: 'Date Resigned cannot be before Date Joined'
+    });
+  }
+
+  if (dateJoined && dateRetired && dateRetired < dateJoined) {
+    return this.createError({
+      path: 'dateRetired',
+      message: 'Date Retired cannot be before Date Joined'
+    });
+  }
+
+  if (dateResigned && resignedWithNoticeDate && resignedWithNoticeDate > dateResigned) {
+    return this.createError({
+      path: 'resignedWithNoticeDate',
+      message: 'Resigned with Notice Date cannot be after Date Resigned'
+    });
+  }
+
+  return true;
 });
 
 const initialValues: GeneralFormValues = {
@@ -132,7 +215,7 @@ const initialValues: GeneralFormValues = {
   resignedWithoutNotice: false,
   resignedWithNoticeDate: undefined,
   dateRetired: undefined,
-  status: 1,
+  status: STAFF_STATUS_OPTIONS[1].id,
   speciality: ''
 };
 
@@ -148,25 +231,165 @@ function getNameWithInitials(
   return [initials, firstName, lastName].filter(Boolean).join(' ').trim();
 }
 
-function getGenderLabel(gender: string) {
-  return GENDER_OPTIONS.find((option) => option.id === gender)?.name ?? gender;
+type GeneralFormProps = {
+  staff?: StaffRecord | GeneralFormValues | null;
+  staffId?: string;
+  isEditPage?: boolean;
+  onRegisterActions?: (actions: GeneralFormActions) => void;
+  onLoadingChange?: (loading: boolean) => void;
+};
+
+export type GeneralFormActions = {
+  submit: (saveAndClose: boolean) => void;
+};
+
+function FormActionBridge({
+  onRegisterActions,
+  saveAndCloseRef
+}: {
+  onRegisterActions?: (actions: GeneralFormActions) => void;
+  saveAndCloseRef: MutableRefObject<boolean>;
+}) {
+  const formik = useFormikContext<GeneralFormValues>();
+
+  useEffect(() => {
+    onRegisterActions?.({
+      submit: (saveAndClose) => {
+        saveAndCloseRef.current = saveAndClose;
+        void formik.submitForm();
+      }
+    });
+  }, [formik.submitForm, onRegisterActions, saveAndCloseRef]);
+
+  return null;
 }
 
-function getStatusLabel(status: number) {
-  return (
-    STAFF_STATUS_OPTIONS.find((option) => option.id === String(status))?.name ??
-    String(status)
-  );
-}
+export default function GeneralForm({
+  staff,
+  staffId,
+  isEditPage = false,
+  onRegisterActions,
+  onLoadingChange
+}: GeneralFormProps) {
+  const saveAndCloseRef = useRef(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
-export default function GeneralForm() {
+  const resolvedInitialValues =
+    staff && 'code' in staff
+      ? staffRecordToGeneralFormValues(staff)
+      : (staff ?? initialValues);
+
+  const handleSubmit = async (
+    values: GeneralFormValues,
+    { setErrors, setTouched }: FormikHelpers<GeneralFormValues>
+  ) => {
+    const closeAfterSave = saveAndCloseRef.current;
+
+    try {
+      onLoadingChange?.(true);
+
+      const payload = generalFormValuesToStaff(values);
+      let respond: {
+        isError?: boolean;
+        errors?: Record<string, string | string[]> | { message?: string };
+        data?: { saved?: boolean; id?: string } | null;
+      };
+
+      if (isEditPage && staffId) {
+        respond = await updateStaffAction(staffId, payload);
+      } else {
+        respond = await createStaffAction(payload);
+      }
+
+      if (
+        respond?.isError &&
+        respond?.errors &&
+        typeof respond.errors === 'object' &&
+        !Array.isArray(respond.errors)
+      ) {
+        const fieldErrors: Record<string, string> = {};
+        const errorMap = respond.errors as Record<
+          string,
+          string | string[] | undefined
+        >;
+        const fieldMap: Record<string, keyof GeneralFormValues> = {
+          code: 'staffCode',
+          contactMobile: 'mobileNumber',
+          name: 'firstName'
+        };
+
+        Object.keys(errorMap).forEach((key) => {
+          if (key === 'message') return;
+          const err = errorMap[key];
+          const msg =
+            Array.isArray(err) && err.length > 0
+              ? err[0]
+              : typeof err === 'string'
+                ? err
+                : undefined;
+          if (!msg) return;
+          const formKey = fieldMap[key] ?? key;
+          fieldErrors[formKey] = msg;
+        });
+
+        if (Object.keys(fieldErrors).length > 0) {
+          setErrors(fieldErrors);
+          setTouched(
+            Object.keys(fieldErrors).reduce(
+              (acc, key) => ({ ...acc, [key]: true }),
+              {} as Record<string, boolean>
+            )
+          );
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            ((respond.errors as Record<string, unknown>)?.message as string) ??
+            'Staff save unsuccessful.'
+        });
+        return;
+      }
+
+      if (isEditPage) {
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: 'Staff was updated successfully.'
+        });
+        if (closeAfterSave) router.push('/staff');
+        else router.refresh();
+      } else {
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: 'Staff was created successfully.'
+        });
+        const newId = respond?.data?.id;
+        if (closeAfterSave) router.push('/staff');
+        else if (newId) router.push(`/staff/${newId}/edit`);
+        else router.push('/staff');
+      }
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Staff save unsuccessful.'
+      });
+    } finally {
+      onLoadingChange?.(false);
+    }
+  };
+
   return (
     <Formik
-      initialValues={initialValues}
+      initialValues={resolvedInitialValues}
       validationSchema={validationSchema}
-      onSubmit={() => {
-        // UI only — submit wiring comes later
-      }}
+      onSubmit={handleSubmit}
+      enableReinitialize={isEditPage}
     >
       {(formik) => {
         const fullName = getFullName(
@@ -181,6 +404,10 @@ export default function GeneralForm() {
 
         return (
           <Form className="w-full">
+            <FormActionBridge
+              onRegisterActions={onRegisterActions}
+              saveAndCloseRef={saveAndCloseRef}
+            />
             <Accordion
               multiple
               defaultValue={['personal-information', 'employment-reference']}
@@ -206,7 +433,7 @@ export default function GeneralForm() {
                     <CustomFormField
                       type="text"
                       id="staffCode"
-                      placeholder="Staff Code"
+                      placeholder="Staff Code (Auto Generated)"
                       value={formik.values.staffCode}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
@@ -215,15 +442,16 @@ export default function GeneralForm() {
                       styleClasses={fieldStyleClasses}
                     />
 
-                    <CustomFormField
-                      type="text"
+                    <CustomSelectField
                       id="title"
                       placeholder="Title"
-                      value={formik.values.title}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
+                      options={TITLE_LIST.map((t) => ({
+                        id: t.name,
+                        name: t.name
+                      }))}
+                      value={formik.values.title?.toString() ?? ''}
+                      onChange={(v) => formik.setFieldValue('title', v)}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -241,7 +469,7 @@ export default function GeneralForm() {
                     <CustomFormField
                       type="text"
                       id="name"
-                      placeholder="Name"
+                      placeholder="Name (Channeling Record)"
                       value={formik.values.name}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
@@ -280,7 +508,6 @@ export default function GeneralForm() {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -292,7 +519,6 @@ export default function GeneralForm() {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -304,7 +530,6 @@ export default function GeneralForm() {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -317,22 +542,24 @@ export default function GeneralForm() {
                       }
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
+                      error={formik.errors.dateOfBirth as string | undefined}
+                      touched={formik.touched.dateOfBirth}
                       captionLayout="dropdown"
                       fromYear={1900}
                       toYear={new Date().getFullYear()}
                     />
 
-                    <CustomFormField
-                      type="text"
+                    <CustomSelectField
                       id="gender"
                       placeholder="Gender"
-                      value={getGenderLabel(formik.values.gender)}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
+                      options={GENDER_OPTIONS.map((g) => ({
+                        id: g.id,
+                        name: g.name
+                      }))}
+                      value={formik.values.gender?.toString() ?? ''}
+                  onChange={(v) => formik.setFieldValue('gender', v)}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -344,7 +571,6 @@ export default function GeneralForm() {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -367,7 +593,6 @@ export default function GeneralForm() {
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
-                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -567,8 +792,7 @@ export default function GeneralForm() {
                       styleClasses={fieldStyleClasses}
                       error={
                         formik.errors.resignedWithNoticeDate as
-                          | string
-                          | undefined
+                          string | undefined
                       }
                       touched={formik.touched.resignedWithNoticeDate}
                       captionLayout="dropdown"
@@ -593,15 +817,16 @@ export default function GeneralForm() {
                       toYear={new Date().getFullYear() + 1}
                     />
 
-                    <CustomFormField
-                      type="text"
+                    <CustomSelectField
                       id="status"
                       placeholder="Status"
-                      value={getStatusLabel(formik.values.status)}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required={false}
-                      disabled
+                      options={STAFF_STATUS_OPTIONS.map((s) => ({
+                        id: s.id,
+                        name: s.name
+                      }))}
+                      value={formik.values.status?.toString() ?? ''}
+                  onChange={(v) => formik.setFieldValue('status', parseInt(v, 10))}
+                      required
                       styleClasses={fieldStyleClasses}
                     />
 

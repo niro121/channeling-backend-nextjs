@@ -1,3 +1,7 @@
+'use client';
+
+import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Tabs,
   TabsContent,
@@ -7,33 +11,60 @@ import {
 } from '@archmage/ui';
 import { BriefcaseIcon, FileTextIcon, UserIcon } from 'lucide-react';
 import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
-import GeneralForm from './general-form';
+import GeneralForm, { type GeneralFormActions } from './general-form';
+import type { StaffRecord } from '@/types/staff';
 
-const TABS_LIST = [
-  {
-    label: 'General',
-    value: 'general',
-    icon: <UserIcon className="w-4 h-4" />,
-    form: <GeneralForm />
-  },
-  {
-    label: 'HR Details',
-    value: 'hr-details',
-    icon: <BriefcaseIcon className="w-4 h-4" />
-  },
-  {
-    label: 'Employment',
-    value: 'employment',
-    icon: <BriefcaseIcon className="w-4 h-4" />
-  },
-  {
-    label: 'Additional Details',
-    value: 'additional-details',
-    icon: <FileTextIcon className="w-4 h-4" />
-  }
-];
+type TabLayoutProps = {
+  staff?: StaffRecord | null;
+  staffId?: string;
+  isEditPage?: boolean;
+};
 
-export default function TabLayout() {
+export default function TabLayout({
+  staff,
+  staffId,
+  isEditPage = false
+}: TabLayoutProps) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [formActions, setFormActions] = useState<GeneralFormActions | null>(null);
+
+  const handleRegisterActions = useCallback((actions: GeneralFormActions) => {
+    setFormActions(actions);
+  }, []);
+
+  const TABS_LIST = [
+    {
+      label: 'General',
+      value: 'general',
+      icon: <UserIcon className="w-4 h-4" />,
+      form: (
+        <GeneralForm
+          staff={staff}
+          staffId={staffId}
+          isEditPage={isEditPage}
+          onRegisterActions={handleRegisterActions}
+          onLoadingChange={setLoading}
+        />
+      )
+    },
+    {
+      label: 'HR Details',
+      value: 'hr-details',
+      icon: <BriefcaseIcon className="w-4 h-4" />
+    },
+    {
+      label: 'Employment',
+      value: 'employment',
+      icon: <BriefcaseIcon className="w-4 h-4" />
+    },
+    {
+      label: 'Additional Details',
+      value: 'additional-details',
+      icon: <FileTextIcon className="w-4 h-4" />
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <Tabs defaultValue={TABS_LIST[0].value} className="w-full space-y-6!">
@@ -58,7 +89,12 @@ export default function TabLayout() {
         ))}
       </Tabs>
       <Card className="flex items-center justify-end gap-2 p-6">
-        <CustomFormSubmitBtns />
+        <CustomFormSubmitBtns
+          loading={loading}
+          onCancel={() => router.push('/staff')}
+          onSave={() => formActions?.submit(false)}
+          onSaveAndClose={() => formActions?.submit(true)}
+        />
       </Card>
     </div>
   );
