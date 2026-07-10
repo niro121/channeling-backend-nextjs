@@ -49,3 +49,4 @@ playwright-report/
 
 # prisma generated
 packages\db-auth\src\generated
+apps\hrm\lib\generated
