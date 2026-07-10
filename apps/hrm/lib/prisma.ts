@@ -2,23 +2,21 @@
 // defined in the global scope. This is because the global object is only
 // defined in the global scope in Node.js and not in the browser.
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './generated/prisma-client';
 
-// PrismaClient is attached to the `global` object in development to prevent
-// exhausting your database connection limit.
-//
-// Learn more:
-// https://pris.ly/d/help/next-js-best-practices
+// Isolated HRM Prisma client (see prisma/schema.prisma output) so this app does
+// not share @prisma/client with Channeling or other workspace apps.
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as { hrmPrisma?: PrismaClient };
 
 // Avoid MaxListenersExceededWarning when Prisma (and other libs) register process exit listeners
 if (typeof process !== 'undefined' && process.setMaxListeners) {
   process.setMaxListeners(20);
 }
 
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+export const prisma = globalForPrisma.hrmPrisma ?? new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalForPrisma.hrmPrisma = prisma;
 
 export default prisma;
+export { PrismaClient, Prisma } from './generated/prisma-client';
