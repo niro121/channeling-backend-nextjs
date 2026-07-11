@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Session } from 'next-auth';
 import { Button, Sheet, SheetContent, SheetTrigger, NavLink } from '@archmage/ui';
-import { PanelLeft, LayoutGrid, Landmark, FileText } from 'lucide-react';
+import { PanelLeft, LayoutGrid, Landmark, FileText, Receipt } from 'lucide-react';
 import { canAccessRoute } from '@/lib/permissions';
 import { userTypes } from '@/lib/roles';
 
@@ -39,11 +39,21 @@ export default function MobileNavClient({ session }: { session: Session | null }
           </Link>
         </div>
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
-          <div className="space-y-0.5">
+          <div className="space-y-3">
             <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
-            {hasAccess('/patient-bills') && (
-              <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
-            )}
+            <div>
+              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Finance
+              </p>
+              <div className="space-y-0.5">
+                {hasAccess('/patient-bills') && (
+                  <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
+                )}
+                {hasAccess('/receipts') && (
+                  <NavLink href="/receipts" label="Receipts" icon={<Receipt className="h-5 w-5" />} />
+                )}
+              </div>
+            </div>
           </div>
         </nav>
       </SheetContent>

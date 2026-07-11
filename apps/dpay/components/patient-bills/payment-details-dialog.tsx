@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { format } from 'date-fns';
 import { Info, Printer } from 'lucide-react';
 import {
@@ -11,8 +11,9 @@ import {
   DialogTitle,
 } from '@archmage/ui';
 import type { PatientBillReceipt } from '@/types/patient-bill';
-import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { buildReceiptPrintHtml, printReceiptHtml } from '@/lib/receipts/print-receipt';
 
 type PaymentDetailsDialogProps = {
   receipt: PatientBillReceipt | null;
@@ -20,10 +21,6 @@ type PaymentDetailsDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
-
-function paymentMethodLabel(method: string) {
-  return PATIENT_BILL_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
-}
 
 function DetailRow({
   label,
@@ -46,101 +43,15 @@ function DetailRow({
   );
 }
 
-function buildPrintHtml(receipt: PatientBillReceipt, bxtNumber: string) {
-  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd');
-  const method = paymentMethodLabel(receipt.paymentMethod);
-  const reference = receipt.referenceNumber?.trim() || '—';
-  const remarks = receipt.remarks?.trim() || '—';
-  const escape = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Receipt ${escape(receipt.receiptNumber)}</title>
-    <style>
-      body { font-family: system-ui, sans-serif; padding: 24px; color: #111; max-width: 480px; margin: 0 auto; }
-      h1 { font-size: 18px; margin: 0 0 16px; }
-      .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
-      .label { color: #6b7280; }
-      .value { font-weight: 600; text-align: right; }
-      .highlight { color: #047857; font-weight: 700; }
-    </style>
-  </head>
-  <body>
-    <h1>Payment Receipt</h1>
-    <div class="row"><span class="label">Receipt Number</span><span class="value highlight">${escape(receipt.receiptNumber)}</span></div>
-    <div class="row"><span class="label">BXT Number</span><span class="value">${escape(bxtNumber)}</span></div>
-    <div class="row"><span class="label">Payment Date</span><span class="value">${paymentDate}</span></div>
-    <div class="row"><span class="label">Amount Paid</span><span class="value highlight">${escape(formatLkr(receipt.amountPaid))}</span></div>
-    <div class="row"><span class="label">Payment Method</span><span class="value">${escape(method)}</span></div>
-    <div class="row"><span class="label">Reference Number</span><span class="value">${escape(reference)}</span></div>
-    <div class="row"><span class="label">Remarks</span><span class="value">${escape(remarks)}</span></div>
-  </body>
-</html>`;
-}
-
 export function PaymentDetailsDialog({
   receipt,
   bxtNumber,
   open,
   onOpenChange,
 }: PaymentDetailsDialogProps) {
-  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
-
   const handlePrint = useCallback(() => {
     if (!receipt) return;
-
-    const html = buildPrintHtml(receipt, bxtNumber);
-    const existing = printFrameRef.current;
-    if (existing?.parentNode) {
-      existing.parentNode.removeChild(existing);
-    }
-
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('title', 'Print receipt');
-    iframe.style.position = 'fixed';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
-    printFrameRef.current = iframe;
-
-    const frameWindow = iframe.contentWindow;
-    const frameDoc = frameWindow?.document;
-    if (!frameWindow || !frameDoc) {
-      document.body.removeChild(iframe);
-      return;
-    }
-
-    frameDoc.open();
-    frameDoc.write(html);
-    frameDoc.close();
-
-    const runPrint = () => {
-      try {
-        frameWindow.focus();
-        frameWindow.print();
-      } finally {
-        window.setTimeout(() => {
-          if (iframe.parentNode) {
-            iframe.parentNode.removeChild(iframe);
-          }
-          if (printFrameRef.current === iframe) {
-            printFrameRef.current = null;
-          }
-        }, 1000);
-      }
-    };
-
-    if (frameDoc.readyState === 'complete') {
-      runPrint();
-    } else {
-      iframe.onload = runPrint;
-      window.setTimeout(runPrint, 500);
-    }
+    printReceiptHtml(buildReceiptPrintHtml(receipt, bxtNumber));
   }, [receipt, bxtNumber]);
 
   if (!receipt) return null;
