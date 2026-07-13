@@ -19,6 +19,7 @@ import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequen
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { formatCents } from "@/lib/format-money";
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
+import { parseSlipDateInput } from "@/lib/slip-date";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -61,6 +62,8 @@ export type ProcessDoctorPaymentInput = {
   amount: number; // gross "Paying This Time" in rupees
   wht: boolean;
   slip_ref?: string;
+  /** Slip date YYYY-MM-DD when paymentMethod is Slip */
+  slip_date?: string;
   /** Credit card last 4 digits */
   card_ref?: string;
   /** E-wallet transaction reference */
@@ -87,6 +90,7 @@ export async function processDoctorPaymentService(
     amount,
     wht,
     slip_ref = "",
+    slip_date = "",
     card_ref = "",
     ewallet_ref = "",
     handed_staff = "",
@@ -94,7 +98,20 @@ export async function processDoctorPaymentService(
     userId,
   } = input;
 
-  if (userId) await requireActiveShift(userId);
+  if (userId) {
+    try {
+      await requireActiveShift(userId);
+    } catch (e) {
+      return {
+        success: false,
+        errorCode: "NO_ACTIVE_SHIFT",
+        message:
+          e instanceof Error
+            ? e.message
+            : "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+      };
+    }
+  }
 
   const currentShift = userId ? await getCurrentShift(userId) : null;
   const shiftId = currentShift?.id ?? undefined;
@@ -131,6 +148,22 @@ export async function processDoctorPaymentService(
         success: false,
         errorCode: "VALIDATION",
         message: "Enter last 4 digits of card.",
+      };
+    }
+  }
+  if (paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP) {
+    if (!slip_ref.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Slip reference is required.",
+      };
+    }
+    if (!parseSlipDateInput(slip_date)) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Slip date is required.",
       };
     }
   }
@@ -206,6 +239,8 @@ export async function processDoctorPaymentService(
           ? card_ref.replace(/\D/g, "").slice(0, 4)
           : "",
     slipReference: paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ? slip_ref : "",
+    slipDate:
+      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ? parseSlipDateInput(slip_date) : null,
     remarks,
     type: 0, // CREDIT (outflow)
     method: RECEIPT_METHOD.DOCTOR_PAYMENT,

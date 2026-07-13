@@ -3,10 +3,21 @@
 import Link from "next/link";
 import { Session } from "next-auth";
 import { NavLink } from "@archmage/ui";
-import { LayoutGrid, Landmark } from "lucide-react";
+import { LayoutGrid, Landmark, FileText, Receipt } from "lucide-react";
+import { canAccessRoute } from "@/lib/permissions";
+import { userTypes } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 export function DesktopSidebar({ session, className }: { session: Session | null; className?: string }) {
+  const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
+
+  const hasAccess = (path: string) => {
+    if (userType === userTypes.admin) return true;
+    if (permissions) return canAccessRoute(permissions, path);
+    return false;
+  };
+
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-primary/20 bg-secondary overflow-hidden sm:flex", className)}>
       <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">
@@ -22,8 +33,21 @@ export function DesktopSidebar({ session, className }: { session: Session | null
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        <div className="space-y-0.5">
+        <div className="space-y-3">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
+          <div>
+            <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Finance
+            </p>
+            <div className="space-y-0.5">
+              {hasAccess('/patient-bills') && (
+                <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
+              )}
+              {hasAccess('/receipts') && (
+                <NavLink href="/receipts" label="Receipts" icon={<Receipt className="h-5 w-5" />} />
+              )}
+            </div>
+          </div>
         </div>
       </nav>
 

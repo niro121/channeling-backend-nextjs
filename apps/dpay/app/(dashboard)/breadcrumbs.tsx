@@ -7,6 +7,8 @@ import { usePathname } from 'next/navigation';
 
 const PATH_NAMES = [
   { path: 'welcome', name: 'Dashboard' },
+  { path: 'patient-bills', name: 'Patient Bills' },
+  { path: 'create', name: 'Create Bill' },
   { path: 'doctor-payments', name: 'Doctor Payments' },
   { path: 'payments', name: 'Payments' },
   { path: 'receipts', name: 'Receipts' },

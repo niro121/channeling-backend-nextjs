@@ -22,6 +22,10 @@ import {
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { formatCents } from "@/lib/format-money"
+import {
+  buildCashierSummaryReportUrl,
+  deriveHandoverCashierSummaryFilters,
+} from "@/lib/handover-utils"
 import { formatDenomLabel } from "@/types/float-request"
 import type { CashierSummaryReportSection } from "@/types/report"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -39,10 +43,12 @@ import {
   Smartphone,
   CircleAlert,
   GitBranch,
+  Printer,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
 import { HANDOVER_STATUS } from "@/types/handover"
 import { FileCheck } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
@@ -67,7 +73,12 @@ type EnteredBreakdown = {
   eWalletEntries?: { reference: string; amountCents: number }[]
 }
 
-function fromUserLabel(fromUser: { name: string | null; staff?: { code: string } | null } | null | undefined): string {
+function fromUserLabel(
+  fromUser:
+    | { name: string | null; staff?: { code: string } | null }
+    | null
+    | undefined
+): string {
   if (!fromUser) return "—"
   const name = fromUser.name ?? "—"
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
@@ -76,6 +87,7 @@ function fromUserLabel(fromUser: { name: string | null; staff?: { code: string }
 /** Shape of each item in data.includedHandovers (linked handovers in the chain). */
 type IncludedHandoverRow = {
   id: string
+  fromUserId: string
   fromUser: { name: string | null; staff?: { code: string } | null } | null
   shift?: { startedAt?: Date | string } | null
   totalCents: number
@@ -130,15 +142,26 @@ export default function HandoverDetailPage() {
   useEffect(() => {
     if (!data) return
     const handover = data.handover
-    const shift = handover.shift
-    const from = shift?.startedAt ? new Date(shift.startedAt).toISOString().slice(0, 16) : ""
-    const to = handover.createdAt ? new Date(handover.createdAt).toISOString().slice(0, 16) : ""
-    if (!from || !to || !handover.fromUserId) return
+    const included = (data.includedHandovers ?? []) as IncludedHandoverRow[]
+    const filters = deriveHandoverCashierSummaryFilters(
+      {
+        fromUserId: handover.fromUserId,
+        createdAt: handover.createdAt,
+        shift: handover.shift,
+      },
+      included.map((h) => ({
+        fromUserId: h.fromUserId,
+        createdAt: handover.createdAt,
+        shift: h.shift,
+      }))
+    )
+    if (!filters) return
     setSummaryLoading(true)
     getCashierSummaryReportData({
-      userId: handover.fromUserId,
-      dateFrom: from,
-      dateTo: to,
+      userId: filters.userIds.length === 1 ? filters.userIds[0] : undefined,
+      userIds: filters.userIds.length > 1 ? filters.userIds : undefined,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
       format: "summary",
     })
       .then((r) => {
@@ -265,26 +288,54 @@ export default function HandoverDetailPage() {
     handover.creditCents +
     handover.eWalletCents
 
-  const cashierSummaryUrl = handover.shift?.startedAt && handover.createdAt
-    ? `/reports/cashier-summary?userId=${encodeURIComponent(handover.fromUserId)}&dateFrom=${encodeURIComponent(new Date(handover.shift.startedAt).toISOString().slice(0, 16))}&dateTo=${encodeURIComponent(new Date(handover.createdAt).toISOString().slice(0, 16))}`
+  const includedHandovers = (data.includedHandovers ?? []) as IncludedHandoverRow[]
+  const cashierSummaryFilters = deriveHandoverCashierSummaryFilters(
+    {
+      fromUserId: handover.fromUserId,
+      createdAt: handover.createdAt,
+      shift: handover.shift,
+    },
+    includedHandovers.map((h) => ({
+      fromUserId: h.fromUserId,
+      createdAt: handover.createdAt,
+      shift: h.shift,
+    }))
+  )
+  const cashierSummaryUrl = cashierSummaryFilters
+    ? buildCashierSummaryReportUrl(cashierSummaryFilters, "detail")
     : "/reports/cashier-summary"
 
   const hasIssues = tillBreakdown && METHOD_KEYS.some((key) => (tillBreakdown[key] ?? 0) !== (handover[key] ?? 0))
   const tickProgress = allTickIds.length > 0 ? `${ticked.size} of ${allTickIds.length} checked` : null
 
   const isPending = handover.status === HANDOVER_STATUS.PENDING
+  const isApproved = handover.status === HANDOVER_STATUS.APPROVED
+  const isRejected = handover.status === HANDOVER_STATUS.REJECTED
   const isApprovedNotReconciled =
-    handover.status === HANDOVER_STATUS.APPROVED &&
+    isApproved &&
     !handover.nonCashReconciledAt &&
     handover.forwardedToHandoverId == null &&
     (handover.reconciliationStatus == null || handover.reconciliationStatus === 0)
 
+  const statusLabel =
+    isApproved
+      ? "Approved"
+      : isRejected
+        ? "Rejected"
+        : handover.status === HANDOVER_STATUS.CANCELLED
+          ? "Cancelled"
+          : "Completed"
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-4">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
-      <div className="sticky top-14 z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-3 bg-background border-b border-border">
+      <div className="sticky top-14 z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-3 bg-background border-b border-border print:hidden">
         <BackButton href="/handovers" />
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-1" />
+            Print / PDF
+          </Button>
           {isPending && (
             <>
               <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>
@@ -319,17 +370,96 @@ export default function HandoverDetailPage() {
       </div>
 
       {/* Who & how much: clear at a glance */}
-      <Card className="border-2">
+      <Card className="border-2 print:shadow-none print:break-inside-avoid">
         <CardContent className="pt-6">
           <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
-              <p className="text-xl font-semibold mt-0.5">{fromUserLabel(handover.fromUser)}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Shift: {handover.shift?.startedAt ? new Date(handover.shift.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
-                {" → "}
-                Handover at {handover.createdAt ? new Date(handover.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
-              </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
+                <p className="text-xl font-semibold mt-0.5">{fromUserLabel(handover.fromUser)}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Shift: {handover.shift?.startedAt ? new Date(handover.shift.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                  {" → "}
+                  Handover at {handover.createdAt ? new Date(handover.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                </p>
+                {!isPending && (
+                  <div className="mt-2 space-y-1 text-sm">
+                    {isApproved && (
+                      <>
+                        <p>
+                          <span className="text-muted-foreground">Approved at: </span>
+                          <span className="font-medium">
+                            {handover.approvedAt
+                              ? new Date(handover.approvedAt).toLocaleString(undefined, {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })
+                              : "—"}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="text-muted-foreground">Approved by: </span>
+                          <span className="font-medium">{fromUserLabel(data.approvedByUser)}</span>
+                        </p>
+                        {handover.approvalComments?.trim() ? (
+                          <p>
+                            <span className="text-muted-foreground">Approval comments: </span>
+                            <span>{handover.approvalComments.trim()}</span>
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                    {isRejected && (
+                      <>
+                        <p>
+                          <span className="text-muted-foreground">Rejected at: </span>
+                          <span className="font-medium">
+                            {handover.rejectedAt
+                              ? new Date(handover.rejectedAt).toLocaleString(undefined, {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })
+                              : "—"}
+                          </span>
+                        </p>
+                        <p>
+                          <span className="text-muted-foreground">Rejected by: </span>
+                          <span className="font-medium">{fromUserLabel(data.rejectedByUser)}</span>
+                        </p>
+                        {handover.rejectReason?.trim() ? (
+                          <p>
+                            <span className="text-muted-foreground">Reject reason: </span>
+                            <span>{handover.rejectReason.trim()}</span>
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                    {handover.discrepancyReason?.trim() ? (
+                      <p>
+                        <span className="text-muted-foreground">Cashier discrepancy reason: </span>
+                        <span>{handover.discrepancyReason.trim()}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+              {!isPending && (
+                <div
+                  className={cn(
+                    "shrink-0 self-start rounded-lg border-2 px-4 py-2.5 text-center sm:min-w-[9rem]",
+                    isApproved &&
+                      "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
+                    isRejected &&
+                      "border-destructive bg-destructive/10 text-destructive",
+                    !isApproved &&
+                      !isRejected &&
+                      "border-muted-foreground/40 bg-muted text-muted-foreground"
+                  )}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Status</p>
+                  <p className="text-2xl font-bold leading-tight tracking-tight">{statusLabel}</p>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4">
               <div>
@@ -424,7 +554,7 @@ export default function HandoverDetailPage() {
       )}
 
       {isApprovedNotReconciled && canSendToReconciliation && (
-        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40">
+        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
           <FileCheck className="h-4 w-4" />
           <AlertTitle>Approved — not yet in reconciliation</AlertTitle>
           <AlertDescription>
@@ -433,16 +563,28 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {/* Entries verified at approval: same breakdown as approval page, shown as verified (read-only) when handover is already approved */}
-      {isApprovedNotReconciled && (() => {
-        const breakdown = data.handover.enteredBreakdown as EnteredBreakdown | null | undefined
-        const hasBreakdown = breakdown?.cashDenominations?.length || breakdown?.cardEntries?.length || breakdown?.slipEntries?.length || breakdown?.checkEntries?.length || breakdown?.creditEntries?.length || breakdown?.eWalletEntries?.length
-        if (!hasBreakdown) return null
+      {/* Entries handed over: full breakdown (read-only) for any completed/approved/rejected view */}
+      {!isPending && (() => {
+        const hasBreakdown =
+          breakdown?.cashDenominations?.length ||
+          breakdown?.cardEntries?.length ||
+          breakdown?.slipEntries?.length ||
+          breakdown?.checkEntries?.length ||
+          breakdown?.creditEntries?.length ||
+          breakdown?.eWalletEntries?.length
         return (
           <Card className="border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">Entries verified at approval</CardTitle>
-              <CardDescription>Same breakdown you verified when approving. All entries are marked as checked.</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-base">
+                {handover.status === HANDOVER_STATUS.APPROVED
+                  ? "Entries received"
+                  : "Entries handed over"}
+              </CardTitle>
+              <CardDescription>
+                {hasBreakdown
+                  ? "Same breakdown as when this handover was submitted. Shown read-only for reference."
+                  : "No per-line denomination or reference breakdown was saved for this handover. Totals above still reflect what was handed over."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {breakdown?.cashDenominations?.length ? (
@@ -515,6 +657,22 @@ export default function HandoverDetailPage() {
                       </Table>
                     </div>
                   ) : null
+              )}
+              {!hasBreakdown && (
+                <div className="rounded-md border bg-background/60 p-3">
+                  <p className="text-sm font-medium mb-2">Amounts by method</p>
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                    {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => (
+                      <div key={key}>
+                        <span className="text-muted-foreground">{METHOD_LABELS[key]}: </span>
+                        <span className="font-medium tabular-nums">{formatCents(handover[key] ?? 0)}</span>
+                      </div>
+                    ))}
+                    {METHOD_KEYS.every((k) => (handover[k] ?? 0) === 0) && (
+                      <span className="text-muted-foreground">No method amounts recorded.</span>
+                    )}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -695,7 +853,7 @@ export default function HandoverDetailPage() {
       )}
 
       {/* Need full receipt-level detail: single CTA to summary report */}
-      <Card className="bg-muted/40">
+      <Card className="bg-muted/40 print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -703,9 +861,21 @@ export default function HandoverDetailPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 {summaryLoading
                   ? "Loading…"
-                  : summarySections.length === 0
-                    ? "Open the cashier summary report for this shift to see all receipts and export."
-                    : `This shift has ${summarySections.reduce((n, s) => n + s.rows.length, 0)} receipt(s). Open the report for full detail and export.`}
+                  : !cashierSummaryFilters
+                    ? "Open the cashier summary report for this handover to see all receipts and export."
+                    : (() => {
+                        const receiptCount = summarySections.reduce((n, s) => n + s.rows.length, 0)
+                        const cashierCount = cashierSummaryFilters.userIds.length
+                        const chainNote =
+                          includedHandovers.length > 0
+                            ? ` Covers ${cashierCount} cashier${cashierCount === 1 ? "" : "s"} from earliest shift through handover time (including ${includedHandovers.length} linked handover${includedHandovers.length === 1 ? "" : "s"}).`
+                            : cashierCount > 1
+                              ? ` Covers ${cashierCount} cashiers from shift start through handover time.`
+                              : " Covers this shift from start through handover time."
+                        return summarySections.length === 0
+                          ? `Open the cashier summary report for full detail and export.${chainNote}`
+                          : `This range has ${receiptCount} receipt(s). Open the report for full detail and export.${chainNote}`
+                      })()}
               </p>
             </div>
             <Button asChild className="shrink-0">

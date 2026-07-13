@@ -124,7 +124,7 @@ const reportsData: ReportListItem[] = [
     id: '25',
     rank: 25,
     masterData: 'Userwise Cashier Detail - Channel',
-    description: 'User-wise cashier summary by date range; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
+    description: 'User-wise cashier summary by date range with optional branch and user filters; Summary (refunds in detail) or Detail (all transactions). Print and Download CSV.',
     route: '/reports/cashier-summary'
   },
   {

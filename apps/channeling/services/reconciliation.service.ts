@@ -14,6 +14,7 @@ import { createJournalEntry } from "@/services/accounting.service"
 import { createAccount } from "@/services/accounting/account.service"
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import { receiptAmountToCents } from "@/lib/format-money"
+import { formatSlipDate } from "@/lib/slip-date"
 import { z } from "zod"
 
 const NON_CASH_METHODS = [
@@ -33,6 +34,8 @@ export type ReceiptForReconciliation = {
   createdAt: Date
   cardReference: string
   slipReference: string
+  /** YYYY-MM-DD when set */
+  slipDate: string | null
   /** When set, UI should show this receipt as pre-ticked (already reconciled for this handover). */
   reconciledAt?: Date | null
   reconciledBy?: string | null
@@ -74,6 +77,7 @@ export async function getReceiptsForHandoverReconciliation(
       createdAt: true,
       cardReference: true,
       slipReference: true,
+      slipDate: true,
       canceledAt: true,
       reconciledAt: true,
       reconciledBy: true,
@@ -95,6 +99,7 @@ export async function getReceiptsForHandoverReconciliation(
     createdAt: r.createdAt,
     cardReference: r.cardReference,
     slipReference: r.slipReference,
+    slipDate: formatSlipDate(r.slipDate) ?? null,
     reconciledAt: r.reconciledAt ?? undefined,
     reconciledBy: r.reconciledBy ?? undefined,
   }))

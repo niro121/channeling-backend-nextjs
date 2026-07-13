@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
+import { resolveSlipDateDisplay } from '@/lib/slip-date';
 import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type {
   AgentCollectionReceiptPaymentType,
@@ -15,13 +16,6 @@ const MAX_RANGE_DAYS = getReportMaxRangeDays('agent_collection_receipt', 31);
 const MAX_RECORDS = getReportMaxRecords('agent_collection_receipt', 20000);
 const METHOD_AGENCY_DEPOSIT = 6;
 const METHOD_AGENCY_WITHDRAW = 7;
-
-function extractSlipDateFromRemarks(remarks: string | null | undefined): string | null {
-  const text = (remarks ?? '').trim();
-  if (!text) return null;
-  const match = text.match(/(?:^|\|)\s*Slip Date:\s*(\d{4}-\d{2}-\d{2})\s*(?:\||$)/i);
-  return match?.[1] ?? null;
-}
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
   return parseReportDateTime(value, asEnd);
@@ -99,9 +93,17 @@ export async function getAgentCollectionReceiptReportService(
       amount: true,
       paymentMethod: true,
       paymentLines: {
-        select: { paymentMethod: true, amount: true, slipReference: true, cardReference: true, bank: true },
+        select: {
+          paymentMethod: true,
+          amount: true,
+          slipReference: true,
+          slipDate: true,
+          cardReference: true,
+          bank: true,
+        },
       },
       slipReference: true,
+      slipDate: true,
       cardReference: true,
       bank: true,
       bankId: true,
@@ -132,6 +134,7 @@ export async function getAgentCollectionReceiptReportService(
               paymentMethod: r.paymentMethod,
               amount: amt,
               slipReference: r.slipReference,
+              slipDate: r.slipDate,
               cardReference: r.cardReference,
               bank: r.bank,
             },
@@ -154,6 +157,14 @@ export async function getAgentCollectionReceiptReportService(
           .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP)
           .map((line) => (line.slipReference ?? "").trim())
           .filter((value) => value.length > 0)
+      )
+    )
+    const slipDates = Array.from(
+      new Set(
+        lines
+          .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP)
+          .map((line) => resolveSlipDateDisplay(line.slipDate, null))
+          .filter((value): value is string => !!value)
       )
     )
     const cardRefs = Array.from(
@@ -194,7 +205,10 @@ export async function getAgentCollectionReceiptReportService(
         slipRefs.length > 0
           ? slipRefs.join(", ")
           : (r.slipReference ?? "").trim() || null,
-      slipDate: extractSlipDateFromRemarks(r.remarks),
+      slipDate:
+        slipDates.length > 0
+          ? slipDates.join(", ")
+          : resolveSlipDateDisplay(r.slipDate, r.remarks),
       cardRef:
         cardRefs.length > 0
           ? cardRefs.join(", ")

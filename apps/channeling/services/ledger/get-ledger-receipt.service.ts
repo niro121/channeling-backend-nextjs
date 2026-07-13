@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { RECEIPT_METHOD } from "@/types/receipt"
+import { resolveSlipDateDisplay } from "@/lib/slip-date"
 
 const LEDGER_METHODS: number[] = [
   RECEIPT_METHOD.DEBIT_NOTE,
@@ -22,6 +23,8 @@ export type LedgerReceiptDetail = {
   bank: string
   cardReference: string
   slipReference: string
+  /** YYYY-MM-DD when set */
+  slipDate: string | null
   createdAt: Date
   locationId: string | null
   locationName: string | null
@@ -73,6 +76,7 @@ export async function getLedgerReceiptById(
       bank: r.bank ?? "",
       cardReference: r.cardReference ?? "",
       slipReference: r.slipReference ?? "",
+      slipDate: resolveSlipDateDisplay(r.slipDate, r.remarks),
       createdAt: r.createdAt,
       locationId: r.locationId,
       locationName: loc?.name ?? null,

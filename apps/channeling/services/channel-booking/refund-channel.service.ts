@@ -24,6 +24,7 @@ import {
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import type { ReceiptPaymentLineDraft } from "./helpers/create-receipt-for-booking"
+import { formatSlipDate, parseSlipDateInput } from "@/lib/slip-date"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -38,6 +39,7 @@ export type RefundChannelInput = {
     amount: number
     bank?: { id: string; name?: string } | null
     slip_ref?: string
+    slip_date?: string
     card?: string
   }>
   remarks?: string
@@ -78,6 +80,10 @@ function buildMixedLinesFromRefundInput(
       bankId: line.bank?.id ?? null,
       cardReference: line.card ?? "",
       slipReference: line.slip_ref ?? "",
+      slipDate:
+        line.payment_method === SAVE_PAYMENT_TYPE_SLIP
+          ? parseSlipDateInput(line.slip_date)
+          : null,
     }))
   if (lines.length < 2) {
     return { error: "At least two payment lines are required for mixed refund." }
@@ -274,6 +280,7 @@ export async function refundChannelService(
                 bank: line.bankId ? { id: line.bankId, name: line.bank ?? "" } : null,
                 card: line.cardReference ?? "",
                 slip_ref: line.slipReference ?? "",
+                slip_date: formatSlipDate(line.slipDate) ?? undefined,
               }))
           : undefined
       const mixedLinesResult = buildMixedLinesFromRefundInput(
@@ -411,6 +418,10 @@ export async function refundChannelService(
               ? paidReceipt.cardReference
               : "",
           slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
+          slipDate:
+            refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt
+              ? paidReceipt.slipDate ?? null
+              : null,
           paymentLines,
           remarks,
           type: 0,
@@ -600,6 +611,10 @@ export async function refundChannelService(
             ? paidReceipt.cardReference
             : "",
         slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
+        slipDate:
+          refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt
+            ? paidReceipt.slipDate ?? null
+            : null,
         remarks,
         type: 0,
         method: 0,

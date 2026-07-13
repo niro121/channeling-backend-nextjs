@@ -14,7 +14,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'channel-booking.visited', importance: 'Low', when: 'User opens Channel Booking page' },
   { action: 'channel-booking.booking.created', importance: 'High', when: 'User creates a booking' },
   { action: 'booking.transferred', importance: 'High', when: 'Bookings are transferred (e.g. session/doctor change)' },
-  { action: 'booking.updated', importance: 'High', when: 'Booking details are updated from the Change tab' },
+  { action: 'booking.updated', importance: 'High', when: 'Booking details are updated from the Change tab (stores before/after patient fields)' },
   { action: 'sessions.visited', importance: 'Low', when: 'User opens Sessions page' },
   { action: 'session.created.bulk', importance: 'High', when: 'Sessions created (e.g. bulk creation)' },
   { action: 'session.updated', importance: 'High', when: 'Session updated' },

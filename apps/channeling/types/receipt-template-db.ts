@@ -75,6 +75,7 @@ export const RECEIPT_BODY_PLACEHOLDERS = [
   "bank",
   "card_reference",
   "slip_reference",
+  "slip_date",
 ] as const
 
 export type ReceiptPlaceholderMap = Record<string, string>

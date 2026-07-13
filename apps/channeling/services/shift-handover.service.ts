@@ -16,6 +16,7 @@ import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
 import { normalizedIncludedIds } from "@/lib/handover-utils"
+import { parseReportDateTime } from "@/lib/parse-report-datetime"
 
 export type ShiftHandoverAmounts = {
   cashCents: number
@@ -625,25 +626,78 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
   return filtered
 }
 
-/** Single handover detail for the recipient (toUserId). Returns PENDING handovers or APPROVED handovers not yet reconciled (so bulk cashier can open and "Send to reconciliation"). */
+/** Single handover detail for the recipient (toUserId). Any status is allowed for history/view; approve/reject UI only applies to PENDING. */
 export async function getHandoverByIdForRecipient(handoverId: string, toUserId: string) {
-  const handover = await prisma.shiftHandover.findFirst({
+  return prisma.shiftHandover.findFirst({
     where: { id: handoverId, toUserId },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })
-  if (!handover) return null
-  // Allow PENDING; for APPROVED only allow if not yet reconciled and top-level (check in code so MongoDB null/missing fields match)
-  if (handover.status === HANDOVER_STATUS.PENDING) return handover
-  if (
-    handover.status === HANDOVER_STATUS.APPROVED &&
-    handover.nonCashReconciledAt == null &&
-    handover.forwardedToHandoverId == null
-  )
-    return handover
-  return null
+}
+
+/**
+ * Completed handovers received by me (approved or rejected), with DB pagination and filters.
+ * Date range filters on handover `createdAt` (local calendar days when YYYY-MM-DD).
+ */
+export async function getCompletedHandoversToMe(
+  toUserId: string,
+  params: {
+    page?: number
+    limit?: number
+    dateFrom?: string | null
+    dateTo?: string | null
+    fromUserId?: string | null
+  } = {}
+): Promise<{ data: Awaited<ReturnType<typeof fetchCompletedHandoverPage>>; totalRecords: number }> {
+  const page = Math.max(1, params.page ?? 1)
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20))
+  const skip = (page - 1) * limit
+
+  const and: Prisma.ShiftHandoverWhereInput[] = [
+    { toUserId },
+    { status: { in: [HANDOVER_STATUS.APPROVED, HANDOVER_STATUS.REJECTED] } },
+  ]
+
+  if (params.fromUserId && params.fromUserId.trim() !== "" && params.fromUserId !== "__all__") {
+    and.push({ fromUserId: params.fromUserId.trim() })
+  }
+
+  if (params.dateFrom || params.dateTo) {
+    const from = params.dateFrom ? parseReportDateTime(params.dateFrom.trim(), false) : null
+    const to = params.dateTo ? parseReportDateTime(params.dateTo.trim(), true) : null
+    const createdAt: Prisma.DateTimeFilter = {}
+    if (from) createdAt.gte = from
+    if (to) createdAt.lte = to
+    if (from || to) and.push({ createdAt })
+  }
+
+  const where: Prisma.ShiftHandoverWhereInput = { AND: and }
+
+  const [totalRecords, data] = await Promise.all([
+    prisma.shiftHandover.count({ where }),
+    fetchCompletedHandoverPage(where, skip, limit),
+  ])
+
+  return { data, totalRecords }
+}
+
+async function fetchCompletedHandoverPage(
+  where: Prisma.ShiftHandoverWhereInput,
+  skip: number,
+  take: number
+) {
+  return prisma.shiftHandover.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    skip,
+    take,
+    include: {
+      fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
+    },
+  })
 }
 
 /** Handovers that were received into this shift (toShiftId = shiftId, approved). Used to prepopulate non-cash entries when submitting a new handover. */

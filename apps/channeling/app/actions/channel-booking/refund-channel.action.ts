@@ -25,6 +25,7 @@ const refundChannelSchema = z
         amount: z.number().positive(),
         bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
         slip_ref: z.string().optional(),
+        slip_date: z.string().optional(),
         card: z.string().optional(),
       })
     ).optional(),

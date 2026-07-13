@@ -90,6 +90,24 @@
       }
     },
     {
+      "name": "Get Doctors",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/doctors?keyword=cardio",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "doctors"],
+          "query": [
+            { "key": "keyword", "value": "cardio", "description": "Optional. Filter by name, code, title, or speciality." }
+          ]
+        },
+        "description": "Returns published doctors with speciality for external integrations. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
       "name": "Create Agent Booking (paid)",
       "request": {
         "method": "POST",
@@ -120,6 +138,8 @@
         "url": "{{baseUrl}}/api/public/bookings",
         "description": "Pending agent booking (status 0, no receipt). Use Get Bookings with includePending=true."
       }
+    },
+    {
       "name": "Doctor App",
       "description": "Doctor mobile app endpoints. OAuth token from Create Access Token is required in X-Client-Access-Token. Login returns doctor_access_token JWT for doctor-protected endpoints.",
       "item": [
