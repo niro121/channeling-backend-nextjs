@@ -10,6 +10,7 @@ export type ReceiptPaymentLineDraft = {
   bankId?: string | null
   cardReference?: string
   slipReference?: string
+  slipDate?: Date | null
 }
 
 /** Receipt params without sequence (helper resolves receiptNo/receiptNoString from locationId + method). */
@@ -20,6 +21,7 @@ export type CreateReceiptForBookingReceiptParams = {
   bankId?: string | null
   cardReference?: string
   slipReference?: string
+  slipDate?: Date | null
   remarks: string
   /** 0 CREDIT (refund), 1 DEBIT (payment) */
   type: number
@@ -69,6 +71,7 @@ export type CreateReceiptWithoutBookingParams = {
   bankId?: string | null
   cardReference?: string
   slipReference?: string
+  slipDate?: Date | null
   remarks: string
   /** 0 CREDIT, 1 DEBIT */
   type: number
@@ -100,6 +103,7 @@ function normalizeReceiptPaymentLines(
   bankId?: string | null,
   cardReference?: string,
   slipReference?: string,
+  slipDate?: Date | null,
   paymentLines?: ReceiptPaymentLineDraft[]
 ): { lines: ReceiptPaymentLineDraft[]; headerPaymentMethod: number } | { error: string } {
   const normalizedInput = (paymentLines ?? []).filter((line) => Number(line.amount) !== 0)
@@ -114,6 +118,7 @@ function normalizeReceiptPaymentLines(
             bankId,
             cardReference,
             slipReference,
+            slipDate: slipDate ?? null,
           },
         ]
   const total = lines.reduce((sum, line) => sum + Number(line.amount ?? 0), 0)
@@ -139,6 +144,7 @@ export async function createReceiptWithoutBooking(
     params.bankId ?? null,
     params.cardReference,
     params.slipReference,
+    params.slipDate ?? null,
     params.paymentLines
   )
   if ("error" in normalized) {
@@ -156,6 +162,11 @@ export async function createReceiptWithoutBooking(
   const receiptNo = seqResult.value
   const receiptNoString = formatReceiptNoString(receiptNo)
 
+  const headerSlipDate =
+    params.slipDate ??
+    normalized.lines.find((l) => l.slipDate)?.slipDate ??
+    null
+
   const receipt = await tx.receipt.create({
     data: {
       receiptNo,
@@ -166,6 +177,7 @@ export async function createReceiptWithoutBooking(
       bankId: params.bankId ?? null,
       cardReference: params.cardReference ?? "",
       slipReference: params.slipReference ?? "",
+      slipDate: headerSlipDate,
       remarks: params.remarks,
       type: params.type,
       method: params.method,
@@ -185,6 +197,7 @@ export async function createReceiptWithoutBooking(
           bankId: line.bankId ?? null,
           cardReference: line.cardReference ?? "",
           slipReference: line.slipReference ?? "",
+          slipDate: line.slipDate ?? null,
         })),
       },
     },
@@ -209,6 +222,7 @@ export async function createReceiptAndUpdateBooking(
     params.bankId ?? null,
     params.cardReference,
     params.slipReference,
+    params.slipDate ?? null,
     params.paymentLines
   )
   if ("error" in normalized) {
@@ -225,6 +239,11 @@ export async function createReceiptAndUpdateBooking(
   const receiptNo = seqResult.value
   const receiptNoString = formatReceiptNoString(receiptNo)
 
+  const headerSlipDate =
+    params.slipDate ??
+    normalized.lines.find((l) => l.slipDate)?.slipDate ??
+    null
+
   const receipt = await tx.receipt.create({
     data: {
       receiptNo,
@@ -235,6 +254,7 @@ export async function createReceiptAndUpdateBooking(
       bankId: params.bankId ?? null,
       cardReference: params.cardReference ?? "",
       slipReference: params.slipReference ?? "",
+      slipDate: headerSlipDate,
       remarks: params.remarks,
       type: params.type,
       method: params.method,
@@ -255,6 +275,7 @@ export async function createReceiptAndUpdateBooking(
           bankId: line.bankId ?? null,
           cardReference: line.cardReference ?? "",
           slipReference: line.slipReference ?? "",
+          slipDate: line.slipDate ?? null,
         })),
       },
     },

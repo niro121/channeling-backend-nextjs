@@ -78,6 +78,8 @@ export type HandoverTabData = {
     createdAt: string
     cardReference: string
     slipReference: string
+    /** YYYY-MM-DD when set */
+    slipDate: string | null
     /** When set, receipt was already reconciled for this handover; UI shows it pre-ticked. */
     reconciledAt?: string | null
     reconciledBy?: string | null
@@ -104,6 +106,14 @@ function fromUserLabel(fromUser: HandoverTabData["handover"]["fromUser"]): strin
   if (!fromUser) return "—"
   const name = fromUser.name ?? "—"
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
+}
+
+function formatReceiptReference(r: HandoverTabData["receipts"][number]): string {
+  if (r.cardReference?.trim()) return r.cardReference.trim()
+  const slipRef = r.slipReference?.trim()
+  if (!slipRef) return "—"
+  const slipDate = r.slipDate?.trim()
+  return slipDate ? `${slipRef} · ${slipDate}` : slipRef
 }
 
 const NON_CASH_METHODS_ORDERED: {
@@ -456,7 +466,7 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain }: Props)
                                     <TableCell className="py-1.5 text-right text-xs tabular-nums">
                                       {r.type === 1 ? "" : "−"} {formatReceiptAmount(r.amount)}
                                     </TableCell>
-                                    <TableCell className="py-1.5 text-xs">{r.cardReference || r.slipReference || "—"}</TableCell>
+                                    <TableCell className="py-1.5 text-xs">{formatReceiptReference(r)}</TableCell>
                                   </TableRow>
                                 )
                               })

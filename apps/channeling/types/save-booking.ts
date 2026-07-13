@@ -93,6 +93,8 @@ export type SaveBookingInput = {
     bank?: { id: string; name?: string } | null
     card?: string
     slip_ref?: string
+    /** Slip date YYYY-MM-DD when payment_method is Slip */
+    slip_date?: string
     ewallet_ref?: string
   }>
   agency?: SaveBookingAgencyRef | null
@@ -102,6 +104,8 @@ export type SaveBookingInput = {
   credit_customer?: SaveBookingCreditCustomerRef | null
   bank?: SaveBookingBankRef | null
   slip_ref?: string
+  /** Slip date YYYY-MM-DD when payment_type is Slip */
+  slip_date?: string
   card?: string
   ewallet_ref?: string
   staff?: SaveBookingStaffRef | null
@@ -126,6 +130,10 @@ export type SaveBookingInput = {
    * Server-side: when true, the number must be in the session’s blocked list (forced booking into a blocked slot only).
    */
   forceAppointmentNo?: boolean
+  /** HMIS FHIR Patient id when selected via Search Patient. */
+  hmisPatientId?: string | null
+  /** HMIS MRN when available from FHIR Patient. */
+  hmisMrn?: string | null
 }
 
 export type SaveBookingResult = {

@@ -86,6 +86,13 @@ export function PublicApiPlayground() {
     body: unknown
   } | null>(null)
 
+  const [doctorsKeyword, setDoctorsKeyword] = useState("")
+  const [doctorsLoading, setDoctorsLoading] = useState(false)
+  const [doctorsResult, setDoctorsResult] = useState<{
+    status: number
+    body: unknown
+  } | null>(null)
+
   const [createAgencyId, setCreateAgencyId] = useState("")
   const [createBookRef, setCreateBookRef] = useState("")
   const [createTitle, setCreateTitle] = useState("Mr")
@@ -154,6 +161,10 @@ export function PublicApiPlayground() {
     "foreigner": false,
     "paid": "yes"
   }'`
+    : ""
+  const curlDoctors = originForCurl
+    ? `curl -X GET "${originForCurl}/api/public/doctors?keyword=cardio" \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`
     : ""
 
   const doctorAuthBase = `${originForCurl}/api/doctor-app/auth`
@@ -267,6 +278,28 @@ export function PublicApiPlayground() {
       })
     } finally {
       setBookingsLoading(false)
+    }
+  }
+
+  async function handleGetDoctors() {
+    setDoctorsLoading(true)
+    setDoctorsResult(null)
+    try {
+      const params = new URLSearchParams()
+      if (doctorsKeyword.trim()) params.set("keyword", doctorsKeyword.trim())
+      const qs = params.toString()
+      const res = await fetch(`/api/public/doctors${qs ? `?${qs}` : ""}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      })
+      const body = await res.json().catch(() => ({}))
+      setDoctorsResult({ status: res.status, body })
+    } catch (e) {
+      setDoctorsResult({
+        status: 0,
+        body: { error: "request_failed", error_description: String(e) },
+      })
+    } finally {
+      setDoctorsLoading(false)
     }
   }
 
@@ -1176,6 +1209,59 @@ export function PublicApiPlayground() {
               <CurlExampleBlock curl={curlDoctorMe} onCopy={copyCurl} />
             </TabsContent>
           </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Play className="h-5 w-5" />
+            6. Get doctors
+          </CardTitle>
+          <CardDescription>
+            GET /api/public/doctors?keyword=… — Published doctors with speciality for external
+            integrations (e.g. DPAY). Requires Bearer token from step 1.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-muted-foreground text-sm">
+            Reuses Bearer token from step 1. Optional keyword filters by name, code, title, or
+            speciality.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="doctors_keyword">Keyword (optional)</Label>
+            <Input
+              id="doctors_keyword"
+              placeholder="e.g. cardio or DR0001"
+              value={doctorsKeyword}
+              onChange={(e) => setDoctorsKeyword(e.target.value)}
+            />
+          </div>
+          <Button
+            onClick={handleGetDoctors}
+            disabled={doctorsLoading || !accessToken.trim()}
+          >
+            {doctorsLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Requesting…
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" />
+                Get doctors
+              </>
+            )}
+          </Button>
+          {doctorsResult && (
+            <div className="space-y-2">
+              <Label>Response ({doctorsResult.status})</Label>
+              <pre className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+                {JSON.stringify(doctorsResult.body, null, 2)}
+              </pre>
+            </div>
+          )}
+          <CurlExampleBlock curl={curlDoctors} onCopy={copyCurl} />
         </CardContent>
       </Card>
     </div>

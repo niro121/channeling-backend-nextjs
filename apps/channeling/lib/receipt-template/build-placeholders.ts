@@ -67,6 +67,7 @@ export function buildPlaceholdersForLedger(
         ? (receipt.cardReference ?? "")
         : "",
     slip_reference: receipt.slipReference ?? "",
+    slip_date: receipt.slipDate ?? "",
   }
 }
 
@@ -115,5 +116,6 @@ export function buildPlaceholdersForDoctorPayment(
     duplicate_label: options.duplicateLabel ?? "",
     remarks: detail.remarks,
     slip_reference: detail.slipReference,
+    slip_date: detail.slipDate ?? "",
   }
 }

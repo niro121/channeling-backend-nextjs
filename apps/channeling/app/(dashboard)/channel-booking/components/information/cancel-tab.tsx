@@ -64,6 +64,7 @@ type MixedLine = {
   bank_name?: string
   card?: string
   slip_ref?: string
+  slip_date?: string
   payment_method_label?: string
 }
 
@@ -203,6 +204,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       bank?: { id: string; name?: string } | null
       card?: string
       slip_ref?: string
+      slip_date?: string
     }>
   ) {
     if (!selectedBooking) return
@@ -253,6 +255,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           : null,
         card: line.card?.trim() || undefined,
         slip_ref: line.slip_ref?.trim() || undefined,
+        slip_date: line.slip_date?.trim() || undefined,
       }))
     if (lines.length < 2) {
       toast({
@@ -330,6 +333,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
                 bank_name: line.bank?.trim() || undefined,
                 card: line.cardReference?.trim() || undefined,
                 slip_ref: line.slipReference?.trim() || undefined,
+                slip_date: line.slipDate?.trim() || undefined,
               }))
             if (mappedLines.length < 2) {
               toast({
@@ -393,6 +397,12 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Slip Ref</span>
                     <span className="text-foreground">{line.slip_ref}</span>
+                  </div>
+                ) : null}
+                {line.slip_date?.trim() ? (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Slip Date</span>
+                    <span className="text-foreground">{line.slip_date}</span>
                   </div>
                 ) : null}
               </div>

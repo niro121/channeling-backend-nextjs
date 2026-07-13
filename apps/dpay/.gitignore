@@ -36,5 +36,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma client (generated via npm run db:generate)
+/lib/generated/
+
 # migration reports (generated)
 /temp/

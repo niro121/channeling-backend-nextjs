@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { normalizeSessionTime } from "@/lib/utils"
 import { BOOKING_METHODS } from "@/types/channel-booking"
 import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
+import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
 
 function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
@@ -46,6 +47,8 @@ export type SettlementDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
+  /** YYYY-MM-DD when set */
+  slipDate: string | null
   paymentLines: Array<{
     paymentMethod: number
     paymentMethodName: string
@@ -54,6 +57,8 @@ export type SettlementDetailsView = {
     bank: string
     cardReference: string
     slipReference: string
+    /** YYYY-MM-DD when set */
+    slipDate: string | null
   }>
 }
 
@@ -146,6 +151,10 @@ export type BookingDetailsView = {
   area: string
   foreigner: boolean
   status: number
+  /** HMIS FHIR Patient id when booking was tagged from HMIS search. */
+  hmisPatientId: string | null
+  /** HMIS MRN when available. */
+  hmisMrn: string | null
   /** 0 = none, 1 = prof only, 2 = hosp only, 3 = full. Used with status for canceled/refunded state. */
   refund: number
   createdAt: Date
@@ -301,6 +310,7 @@ export async function getBookingDetailsService(
             bank: receipt?.bank ?? "",
             cardReference: receipt?.cardReference ?? "",
             slipReference: receipt?.slipReference ?? "",
+            slipDate: formatSlipDate(receipt?.slipDate) ?? null,
             paymentLines: (receipt?.paymentLines ?? []).map((line) => ({
               paymentMethod: line.paymentMethod,
               paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
@@ -309,6 +319,7 @@ export async function getBookingDetailsService(
               bank: line.bank ?? "",
               cardReference: line.cardReference ?? "",
               slipReference: line.slipReference ?? "",
+              slipDate: formatSlipDate(line.slipDate) ?? null,
             })),
           }
         : undefined
@@ -487,6 +498,8 @@ export async function getBookingDetailsService(
       area: b.area ?? "",
       foreigner: b.foriegner,
       status: b.status,
+      hmisPatientId: b.hmisPatientId ?? null,
+      hmisMrn: b.hmisMrn ?? null,
       refund: b.refund ?? 0,
       createdAt: b.createdAt,
       discountInfo,

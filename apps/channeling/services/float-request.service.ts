@@ -32,7 +32,7 @@ const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
 export async function getBulkCashierUsers(
   excludeUserId?: string | null
-): Promise<{ id: string; name: string; email: string; isBulkCashier: boolean }[]> {
+): Promise<{ id: string; name: string; email: string; isBulkCashier: boolean; staffCode: string | null }[]> {
   const groups = await prisma.userGroup.findMany({
     where: { status: 1 },
     select: { id: true, permissions: true },
@@ -61,7 +61,13 @@ export async function getBulkCashierUsers(
       userGroupId: { in: groupIdsWithFloatApprove },
       status: 1,
     },
-    select: { id: true, name: true, email: true, userGroupId: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      userGroupId: true,
+      staff: { select: { code: true } },
+    },
     orderBy: { name: 'asc' },
   });
 
@@ -69,9 +75,10 @@ export async function getBulkCashierUsers(
     .filter((u) => !excludeUserId || u.id !== excludeUserId)
     .map((u) => ({
       id: u.id,
-      name: u.name,
+      name: formatUserDisplayName(u.name || u.email, u.id, u.staff?.code),
       email: u.email,
       isBulkCashier: u.userGroupId ? groupIdsWithBulkCashierDashboard.has(u.userGroupId) : false,
+      staffCode: u.staff?.code ?? null,
     }));
 }
 

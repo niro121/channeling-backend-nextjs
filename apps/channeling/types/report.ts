@@ -371,6 +371,10 @@ export type ExportAllDoctorViewData = {
 // Cashier Summary (Userwise Cashier Detail - Channel) Report Types
 export type CashierSummaryReportQuery = {
   userId?: string; // __all__ or specific user id
+  /** When set (length >= 1), filters receipts to these cashiers (createdBy in). Takes precedence over userId. */
+  userIds?: string[];
+  /** '__all__' or specific branch/location id */
+  locationId?: string;
   dateFrom: string;
   dateTo: string;
   format: 'summary' | 'detail';
