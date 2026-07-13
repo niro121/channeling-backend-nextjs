@@ -13,6 +13,7 @@ import {
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -135,7 +136,16 @@ export async function settleBookingService(
   input: SettleBookingInput,
   userId: string | null
 ): Promise<SettleBookingServiceResult> {
-  if (userId) await requireActiveShift(userId)
+  if (userId) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return { success: false, errorCode: e.code, message: e.message }
+      }
+      throw e
+    }
+  }
 
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },

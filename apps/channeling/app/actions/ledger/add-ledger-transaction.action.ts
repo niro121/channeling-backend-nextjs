@@ -119,6 +119,27 @@ export async function addLedgerTransaction(
         errorCode: "VALIDATION",
       }
     }
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !parsed.data.slipReference?.trim()) {
+      return {
+        success: false,
+        message: "Slip reference is required for slip payments.",
+        errorCode: "VALIDATION",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !parsed.data.slipReference?.trim()) {
+      return {
+        success: false,
+        message: "Cheque number is required for cheque payments.",
+        errorCode: "VALIDATION",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !parsed.data.slipDate?.trim()) {
+      return {
+        success: false,
+        message: "Cheque date is required for cheque payments.",
+        errorCode: "VALIDATION",
+      }
+    }
     if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
       const last4 = (parsed.data.cardReference ?? "").replace(/\D/g, "")
       if (last4.length !== 4) {

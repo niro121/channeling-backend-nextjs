@@ -219,6 +219,27 @@ export async function createLedgerReceipt(
         message: "Slip date is required for slip payments.",
       }
     }
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !input.slipReference?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Slip reference is required for slip payments.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !input.slipReference?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Cheque number is required for cheque payments.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !parseSlipDateInput(input.slipDate)) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Cheque date is required for cheque payments.",
+      }
+    }
     if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
       const last4 = (input.cardReference ?? "").replace(/\D/g, "")
       if (last4.length !== 4) {
@@ -387,7 +408,8 @@ export async function createLedgerReceipt(
     cardReference: input.cardReference ?? "",
     slipReference: input.slipReference ?? "",
     slipDate:
-      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+      paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
         ? parseSlipDateInput(input.slipDate)
         : null,
     remarks: input.remarks ?? "",

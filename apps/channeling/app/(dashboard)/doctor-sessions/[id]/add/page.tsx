@@ -8,6 +8,7 @@ import {
   getDepartmentOptions,
   getAllDoctorSessions,
   getDoctorById,
+  getLastDoctorSessionFees,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
 import {
@@ -35,14 +36,18 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
     notFound();
   }
 
-  const departmentOptions = await getDepartmentOptions();
-  const locationOptions = await getLocationOptions();
-  const { data: doctorSessionsList } = await getAllDoctorSessions({
-    doctorId: data.id,
-    page: '0',
-    limit: '1000'
-  });
-  const doctorSessionsForPreviousDropdown = (doctorSessionsList ?? []).map(
+  const [departmentOptions, locationOptions, sessionsRes, lastFeesRes] =
+    await Promise.all([
+      getDepartmentOptions(),
+      getLocationOptions(),
+      getAllDoctorSessions({
+        doctorId: data.id,
+        page: '0',
+        limit: '1000'
+      }),
+      getLastDoctorSessionFees(data.id)
+    ]);
+  const doctorSessionsForPreviousDropdown = (sessionsRes.data ?? []).map(
     (s: { id: string; name: string }) => ({ id: s.id, name: s.name })
   );
 
@@ -59,6 +64,7 @@ export default async function AddDoctorSessionPage({ params }: PageProps) {
           doctorId={data.id}
           doctorSession={null}
           doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
+          lastSessionFees={lastFeesRes.success ? lastFeesRes.data : null}
           institutionOptions={INSTITUTION_OPTIONS}
           departmentOptions={departmentOptions.data}
           locationOptions={locationOptions.data}

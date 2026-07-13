@@ -13,12 +13,14 @@ import DoctorSessionForm from './doctor-session-form';
 import {
   getDepartmentOptions,
   getAllDoctorSessions,
+  getLastDoctorSessionFees,
   getLocationOptions
 } from '@/app/actions/doctor.sessions.action';
 import {
   DAY_TYPES,
   FEE_TYPES,
   INSTITUTION_OPTIONS,
+  LastDoctorSessionFees,
   REFUNDABLE_OPTIONS
 } from '@/types/doctor.session';
 
@@ -50,6 +52,9 @@ export function AddDoctorSessionDialog({
   >(preloadedLocationOptions ?? []);
   const [doctorSessionsForPreviousDropdown, setDoctorSessionsForPreviousDropdown] =
     useState<{ id: string; name: string }[]>([]);
+  const [lastSessionFees, setLastSessionFees] = useState<LastDoctorSessionFees | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,26 +63,38 @@ export function AddDoctorSessionDialog({
     setLoading(true);
     setDepartmentOptions(preloadedDepartmentOptions ?? []);
     setLocationOptions(preloadedLocationOptions ?? []);
+    setLastSessionFees(null);
 
     const hasPreloaded =
       (preloadedDepartmentOptions?.length ?? 0) > 0 &&
       (preloadedLocationOptions?.length ?? 0) > 0;
 
+    const applySessionsAndFees = (
+      sessionsRes: Awaited<ReturnType<typeof getAllDoctorSessions>>,
+      lastFeesRes: Awaited<ReturnType<typeof getLastDoctorSessionFees>>
+    ) => {
+      const list = sessionsRes.data ?? [];
+      setDoctorSessionsForPreviousDropdown(
+        list.map((s: { id: string; name: string }) => ({
+          id: s.id,
+          name: s.name
+        }))
+      );
+      setLastSessionFees(lastFeesRes.success ? (lastFeesRes.data ?? null) : null);
+    };
+
     if (hasPreloaded) {
-      getAllDoctorSessions({
-        doctorId,
-        page: '0',
-        limit: '1000'
-      })
-        .then((sessionsRes) => {
+      Promise.all([
+        getAllDoctorSessions({
+          doctorId,
+          page: '0',
+          limit: '1000'
+        }),
+        getLastDoctorSessionFees(doctorId)
+      ])
+        .then(([sessionsRes, lastFeesRes]) => {
           if (cancelled) return;
-          const list = sessionsRes.data ?? [];
-          setDoctorSessionsForPreviousDropdown(
-            list.map((s: { id: string; name: string }) => ({
-              id: s.id,
-              name: s.name
-            }))
-          );
+          applySessionsAndFees(sessionsRes, lastFeesRes);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -90,19 +107,14 @@ export function AddDoctorSessionDialog({
           doctorId,
           page: '0',
           limit: '1000'
-        })
+        }),
+        getLastDoctorSessionFees(doctorId)
       ])
-        .then(([deptRes, locRes, sessionsRes]) => {
+        .then(([deptRes, locRes, sessionsRes, lastFeesRes]) => {
           if (cancelled) return;
           setDepartmentOptions(deptRes.data ?? []);
           setLocationOptions(locRes.data ?? []);
-          const list = sessionsRes.data ?? [];
-          setDoctorSessionsForPreviousDropdown(
-            list.map((s: { id: string; name: string }) => ({
-              id: s.id,
-              name: s.name
-            }))
-          );
+          applySessionsAndFees(sessionsRes, lastFeesRes);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -139,6 +151,7 @@ export function AddDoctorSessionDialog({
             doctorId={doctorId}
             doctorSession={null}
             doctorSessionsForPreviousDropdown={doctorSessionsForPreviousDropdown}
+            lastSessionFees={lastSessionFees}
             institutionOptions={INSTITUTION_OPTIONS}
             departmentOptions={departmentOptions}
             locationOptions={locationOptions}

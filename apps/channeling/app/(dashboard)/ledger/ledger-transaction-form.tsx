@@ -104,15 +104,37 @@ const validationSchema = Yup.object({
   slipReference: Yup.string().when(["transactionType", "paymentMethod"], {
     is: (transactionType: string, paymentMethod: number) =>
       transactionType === "AGENCY_DEPOSIT" &&
-      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP,
-    then: (schema) => schema.required("Enter slip reference."),
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK),
+    then: (schema) =>
+      schema.test("refRequired", "", function (val) {
+        if (val?.trim()) return true
+        const pm = this.parent.paymentMethod
+        return this.createError({
+          message:
+            pm === RECEIPT_PAYMENT_METHOD.CHECK
+              ? "Enter cheque number."
+              : "Enter slip reference.",
+        })
+      }),
     otherwise: (schema) => schema,
   }),
   slipDate: Yup.string().when(["transactionType", "paymentMethod"], {
     is: (transactionType: string, paymentMethod: number) =>
       transactionType === "AGENCY_DEPOSIT" &&
-      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP,
-    then: (schema) => schema.required("Select slip date."),
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK),
+    then: (schema) =>
+      schema.test("dateRequired", "", function (val) {
+        if (val?.trim()) return true
+        const pm = this.parent.paymentMethod
+        return this.createError({
+          message:
+            pm === RECEIPT_PAYMENT_METHOD.CHECK
+              ? "Select cheque date."
+              : "Select slip date.",
+        })
+      }),
     otherwise: (schema) => schema,
   }),
 })
@@ -266,11 +288,15 @@ export function LedgerTransactionForm({
             ? values.cardReference.trim()
             : undefined,
         slipReference:
-          values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
             ? values.slipReference.trim()
             : undefined,
         slipDate:
-          values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
             ? values.slipDate
             : undefined,
       })
@@ -344,6 +370,7 @@ export function LedgerTransactionForm({
         const isCard = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
         const isEWallet = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
         const isSlip = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+        const isCheque = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
 
         return (
           <Form className="space-y-6 rounded-lg border bg-card p-6 shadow-sm">
@@ -531,7 +558,9 @@ export function LedgerTransactionForm({
                 {isSlip && (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="slipReference">Slip reference</Label>
+                      <Label htmlFor="slipReference">
+                        Slip reference <span className="text-destructive">*</span>
+                      </Label>
                       <Input
                         id="slipReference"
                         value={formik.values.slipReference}
@@ -548,6 +577,40 @@ export function LedgerTransactionForm({
                       </Label>
                       <Input
                         id="slipDate"
+                        type="date"
+                        value={formik.values.slipDate}
+                        onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}
+                        required
+                        className="text-foreground"
+                      />
+                      {formik.errors.slipDate && (
+                        <p className="text-sm text-destructive">{formik.errors.slipDate}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+                {isCheque && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="chequeNumber">
+                        Cheque No <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="chequeNumber"
+                        value={formik.values.slipReference}
+                        onChange={(e) => formik.setFieldValue("slipReference", e.target.value)}
+                        placeholder="Cheque number"
+                      />
+                      {formik.errors.slipReference && (
+                        <p className="text-sm text-destructive">{formik.errors.slipReference}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="chequeDate">
+                        Cheque date <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="chequeDate"
                         type="date"
                         value={formik.values.slipDate}
                         onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}

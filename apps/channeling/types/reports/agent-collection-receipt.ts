@@ -29,6 +29,8 @@ export type AgentCollectionReceiptReportRow = {
   slipAmount: number;
   slipRef: string | null;
   slipDate: string | null;
+  chequeRef: string | null;
+  chequeDate: string | null;
   cardRef: string | null;
   bankName: string | null;
 };
@@ -48,6 +50,8 @@ export type AgentCollectionReceiptReportExportRow = {
   slip: string;
   slipRef: string;
   slipDate: string;
+  chequeRef: string;
+  chequeDate: string;
   cardRef: string;
   bankName: string;
 };

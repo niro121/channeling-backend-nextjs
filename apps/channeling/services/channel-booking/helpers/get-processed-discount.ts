@@ -14,7 +14,7 @@ const PAYMENT_METHOD_TO_ENUM: Record<number, DiscountMethod> = {
   4: DiscountMethod.API,
 }
 
-/** Spec payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet -> Prisma PaymentType (Agent/Credit/E-wallet use CASH for discount) */
+/** Spec payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet, 7=Mixed -> Prisma PaymentType (Agent/Credit map to CASH for discount eligibility) */
 const PAYMENT_TYPE_TO_ENUM: Record<number, PaymentType> = {
   0: PaymentType.CASH,
   1: PaymentType.CREDIT_CARD,
@@ -22,7 +22,8 @@ const PAYMENT_TYPE_TO_ENUM: Record<number, PaymentType> = {
   3: PaymentType.CHEQUE,
   4: PaymentType.CASH,
   5: PaymentType.CASH,
-  6: PaymentType.CASH,
+  6: PaymentType.E_WALLET,
+  7: PaymentType.MIXED,
 }
 
 export type ProcessedDiscountResult = {
@@ -96,10 +97,11 @@ export async function getProcessedDiscount(
 
   if (discount.discountType === 0) {
     if (discount.applyTo === 0) {
-      hospital_fee_discount = Math.round((hospital_fee * value) / 100)
+      // Percent of fee → round to cents (2dp), do not drop to whole rupees
+      hospital_fee_discount = Math.round(((hospital_fee * value) / 100) * 100) / 100
       discount_value = hospital_fee_discount
     } else {
-      professionsal_fee_discount = Math.round((professional_fee * value) / 100)
+      professionsal_fee_discount = Math.round(((professional_fee * value) / 100) * 100) / 100
       discount_value = professionsal_fee_discount
     }
   } else {

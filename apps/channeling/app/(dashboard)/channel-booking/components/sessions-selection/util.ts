@@ -124,10 +124,10 @@ export function formatSessionStartTimeDisplay(
   return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`
 }
 
-/** Local fee with thousands separator, no decimals (e.g. 6190 -> "6,190"). */
+/** Local fee with thousands separator and cents (e.g. 6190.50 -> "6,190.50"). */
 export function formatLocalFee(amount: number | null | undefined): string {
   const n = amount ?? 0
-  return n.toLocaleString("en-US", { maximumFractionDigits: 0, minimumFractionDigits: 0 })
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 }
 
 /** Pad number to at least 2 digits (e.g. 5 -> "05"). */

@@ -8,12 +8,13 @@ import { useRouter } from 'next/navigation';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { Ban, ChevronRight, Save } from 'lucide-react';
+import { Ban, ChevronRight, Download, Loader, Save } from 'lucide-react';
 import {
   ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
   DoctorSessionFormValues,
-  Fee
+  Fee,
+  LastDoctorSessionFees
 } from '@/types/doctor.session';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
@@ -31,7 +32,6 @@ import {
   SRI_LANKA_TZ
 } from '@/lib/utils';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
-import { Loader } from 'lucide-react';
 import { formatLKR } from '@/lib/format-money';
 import { DoctorSessionFeeColumns } from './session-fee-columns';
 import CustomTable from '@/components/common/custom-table';
@@ -42,6 +42,8 @@ type DoctorSessionFormProps = {
   doctorSession: DoctorSession | null;
   /** Same doctor's sessions for Previous Session dropdown (excluding current when editing). When not provided, dropdown is empty/disabled. */
   doctorSessionsForPreviousDropdown?: { id: string; name: string }[];
+  /** When creating: last saved fees for this doctor (auto-prefill + Pull last fees). */
+  lastSessionFees?: LastDoctorSessionFees | null;
   institutionOptions: { id: string; name: string }[];
   departmentOptions: { id: string; name: string }[] | undefined;
   locationOptions: { id: string; name: string }[] | undefined;
@@ -70,6 +72,7 @@ export default function DoctorSessionForm({
   doctorId,
   doctorSession,
   doctorSessionsForPreviousDropdown,
+  lastSessionFees,
   institutionOptions,
   departmentOptions,
   locationOptions,
@@ -91,6 +94,7 @@ export default function DoctorSessionForm({
     doctorSession?.locationId
   );
   const [activeTab, setActiveTab] = React.useState<'details' | 'fees'>('details');
+  const isCreate = !doctorSession?.id;
 
   /** Previous Session dropdown: same doctor's sessions, excluding current when editing. */
   const previousSessionOptions = React.useMemo(() => {
@@ -98,6 +102,12 @@ export default function DoctorSessionForm({
     if (doctorSession?.id) return list.filter((s) => s.id !== doctorSession.id);
     return list;
   }, [doctorSessionsForPreviousDropdown, doctorSession?.id]);
+
+  const defaultFeesForCreate = React.useMemo(() => {
+    if (!isCreate) return feeTypeOptions;
+    if (lastSessionFees?.fees?.length) return lastSessionFees.fees;
+    return feeTypeOptions;
+  }, [isCreate, lastSessionFees, feeTypeOptions]);
 
   const startExtracted = doctorSession?.startTime
     ? extractTime(new Date(doctorSession.startTime), SRI_LANKA_TZ)
@@ -135,9 +145,13 @@ export default function DoctorSessionForm({
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
     status: doctorSession?.status ?? 1,
-    fees: doctorSession?.fees ?? feeTypeOptions,
-    amountLocal: doctorSession?.amountLocal ?? 0,
-    amountForeign: doctorSession?.amountForeign ?? 0
+    fees: doctorSession?.fees ?? defaultFeesForCreate,
+    amountLocal:
+      doctorSession?.amountLocal ??
+      (isCreate && lastSessionFees ? lastSessionFees.amountLocal : 0),
+    amountForeign:
+      doctorSession?.amountForeign ??
+      (isCreate && lastSessionFees ? lastSessionFees.amountForeign : 0)
   };
 
   const validationSchema = Yup.object({
@@ -705,6 +719,43 @@ export default function DoctorSessionForm({
                 </TabsContent>
                 <TabsContent value="fees" className="mt-4">
                   <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                    {lastSessionFees?.fees?.length ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          {isCreate
+                            ? 'Fees prefilled from'
+                            : 'Last saved fees available from'}{' '}
+                          <span className="font-medium text-foreground">
+                            {lastSessionFees.sessionName}
+                          </span>
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 shrink-0"
+                          onClick={() => {
+                            formik.setFieldValue('fees', lastSessionFees.fees);
+                            formik.setFieldValue(
+                              'amountLocal',
+                              lastSessionFees.amountLocal
+                            );
+                            formik.setFieldValue(
+                              'amountForeign',
+                              lastSessionFees.amountForeign
+                            );
+                            toast({
+                              variant: 'success',
+                              title: 'Fees updated',
+                              description: `Pulled fees from “${lastSessionFees.sessionName}”.`
+                            });
+                          }}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Pull last fees
+                        </Button>
+                      </div>
+                    ) : null}
                     <CustomTable
                       columns={DoctorSessionFeeColumns(formik)}
                       data={formik.values.fees}

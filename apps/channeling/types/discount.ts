@@ -98,7 +98,9 @@ export const PAYMENT_METHOD_OPTIONS: PaymentTypeOption[] = [
   { id: '1', type: PaymentType.CASH, name: 'Cash' },
   { id: '2', type: PaymentType.CHEQUE, name: 'Cheque' },
   { id: '3', type: PaymentType.CREDIT_CARD, name: 'Credit Card' },
-  { id: '4', type: PaymentType.SLIP, name: 'Slip' }
+  { id: '4', type: PaymentType.SLIP, name: 'Slip' },
+  { id: '5', type: PaymentType.E_WALLET, name: 'E-Wallet' },
+  { id: '6', type: PaymentType.MIXED, name: 'Mixed Payment' },
 ];
 
 type Option = {
