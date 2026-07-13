@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { Button, Input } from '@archmage/ui';
 import type { BillLineItem } from '@/types/patient-bill';
 import { clampAmount, parseAmountInput } from '@/lib/patient-bills/validations';
+import { DoctorSearchSelect } from './doctor-search-select';
 
 type BillBreakdownRowProps = {
   index: number;
@@ -25,12 +26,12 @@ export function BillBreakdownRow({
   return (
     <tr className="border-b last:border-b-0">
       <td className="px-3 py-3 text-sm text-muted-foreground w-10">{index + 1}</td>
-      <td className="px-3 py-3 min-w-[180px]">
-        <Input
-          placeholder="Dr. Name — Speciality"
+      <td className="px-3 py-3 min-w-[220px]">
+        <DoctorSearchSelect
           value={item.doctorName}
-          onChange={(e) => onChange({ doctorName: e.target.value })}
-          className={errors?.doctorName ? 'border-destructive' : ''}
+          onChange={(doctorName) => onChange({ doctorName })}
+          placeholder="Select doctor..."
+          hasError={Boolean(errors?.doctorName)}
         />
         {errors?.doctorName && (
           <p className="text-xs text-destructive mt-1">{errors.doctorName}</p>
