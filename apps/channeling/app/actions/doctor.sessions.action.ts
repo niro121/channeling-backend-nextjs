@@ -12,14 +12,18 @@ import {
   updateDoctorSessionService,
   getAllDoctorSessionsService,
   getDoctorSessionByIdService,
+  getLastDoctorSessionFeesService,
   deleteDoctorSessionByIdService,
   bulkDeleteDoctorSessionsByIdsService
 } from '@/services/doctor.sessions.service';
 import { Doctor } from '@/types/doctor';
 import {
   CreateDoctorSessionPayload,
+  Fee,
+  FEE_TYPES,
   getDoctorSessionParams,
   getDoctorSessionQuery,
+  LastDoctorSessionFees,
   UpdateDoctorSessionPayload
 } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
@@ -226,6 +230,91 @@ export const getDoctorSessionById = async (
   } catch (error: any) {
     console.error('getDoctorSessionById action error:', error);
 
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Unexpected error occurred'
+      }
+    };
+  }
+};
+
+function normalizeFeeRow(raw: unknown, fallback: Fee): Fee {
+  const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return {
+    id: typeof row.id === 'string' ? row.id : fallback.id,
+    name: typeof row.name === 'string' ? row.name : fallback.name,
+    feeType: typeof row.feeType === 'string' ? row.feeType : fallback.feeType,
+    localFee: Number(row.localFee ?? 0) || 0,
+    foreignFee: Number(row.foreignFee ?? 0) || 0
+  };
+}
+
+/** Merge last-session fee amounts onto the canonical FEE_TYPES rows. */
+function mergeFeesFromLastSession(
+  lastFees: unknown,
+  feeTypeOptions: Fee[] = FEE_TYPES
+): Fee[] {
+  const source = Array.isArray(lastFees) ? lastFees : [];
+  return feeTypeOptions.map((base) => {
+    const match = source.find(
+      (f) =>
+        f &&
+        typeof f === 'object' &&
+        ((f as Fee).id === base.id || (f as Fee).name === base.name)
+    );
+    return match ? normalizeFeeRow(match, base) : { ...base };
+  });
+}
+
+// ==== GET LAST FEES FOR DOCTOR ==== //
+export const getLastDoctorSessionFees = async (
+  doctorId: string
+): Promise<{
+  success: boolean;
+  data?: LastDoctorSessionFees | null;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    const result = await getLastDoctorSessionFeesService(doctorId);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || {
+          message: result.message || 'Failed to fetch last doctor session fees'
+        }
+      };
+    }
+
+    if (!result.data) {
+      return { success: true, data: null, message: result.message };
+    }
+
+    const fees = mergeFeesFromLastSession(result.data.fees);
+    const amountLocal =
+      typeof result.data.amountLocal === 'number'
+        ? result.data.amountLocal
+        : fees.reduce((s, f) => s + Number(f.localFee || 0), 0);
+    const amountForeign =
+      typeof result.data.amountForeign === 'number'
+        ? result.data.amountForeign
+        : fees.reduce((s, f) => s + Number(f.foreignFee || 0), 0);
+
+    return {
+      success: true,
+      data: {
+        sessionId: result.data.sessionId,
+        sessionName: result.data.sessionName,
+        fees,
+        amountLocal,
+        amountForeign
+      },
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('getLastDoctorSessionFees action error:', error);
     return {
       success: false,
       error: {

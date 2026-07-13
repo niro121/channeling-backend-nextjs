@@ -21,10 +21,16 @@ import {
   cancelDoctorPaymentService,
   type CancelDoctorPaymentResult,
 } from "@/services/doctor-payment/cancel-doctor-payment.service";
+import { getEarliestPendingPaymentDateService } from "@/services/doctor-payment/get-earliest-pending-payment-date.service";
 
 export async function getEligibleDoctorPaymentBookings(doctorId: string, dateFrom: string, dateTo: string) {
   await requirePermission("doctor-payments", "view");
   return getEligibleBookingsService({ doctorId, dateFrom, dateTo });
+}
+
+export async function getEarliestPendingDoctorPaymentDate(doctorId: string) {
+  await requirePermission("doctor-payments", "view");
+  return getEarliestPendingPaymentDateService({ doctorId });
 }
 
 export async function getDoctorPaymentBookingDetails(bookingIds: string[]) {

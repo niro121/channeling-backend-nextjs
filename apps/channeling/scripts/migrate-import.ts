@@ -271,7 +271,9 @@ const PAYMENT_TYPE_MAP: Record<number, PaymentType> = {
   0: 'CASH',
   1: 'CREDIT_CARD',
   2: 'SLIP',
-  3: 'CHEQUE'
+  3: 'CHEQUE',
+  6: 'E_WALLET',
+  7: 'MIXED',
 };
 
 /** Build source speciality id -> target id map from DB. Uses migrateSourceId so every migrated speciality is in the map (even if not returned by API). Falls back to code match for records without migrateSourceId. */

@@ -10,7 +10,7 @@ export const SAVE_BOOKING_METHOD_AGENT = 2
 export const SAVE_BOOKING_METHOD_STAFF = 3
 export const SAVE_BOOKING_METHOD_API = 4
 
-/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet */
+/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet, 7=Mixed */
 export const SAVE_PAYMENT_TYPE_CASH = 0
 export const SAVE_PAYMENT_TYPE_CREDIT_CARD = 1
 export const SAVE_PAYMENT_TYPE_SLIP = 2
@@ -52,6 +52,9 @@ export type SaveBookingErrorCode =
   | "DISCOUNT_ERROR"
   | "AMOUNT_ERROR"
   | "LIMIT_EXCEEDED"
+  | "NO_ACTIVE_SHIFT"
+  | "SHIFT_PAUSED"
+  | "HANDOVER_NOT_COMPLETE"
   /** Soft limit: booking amount > agency prepaid (PAYABLE balance) + Agency.allowedCreditLimit (agent only). */
   | "AGENCY_CREDIT_EXCEED"
   | "CREDIT_LIMIT_VIOLATION"

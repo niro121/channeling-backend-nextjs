@@ -410,7 +410,7 @@ export default function CashierSummaryContent({
           row.type ?? '',
           ...PAYMENT_COLUMNS.map((col) => {
             const n = Number(row[col.key]);
-            return String(Number.isFinite(n) ? n / 100 : 0);
+            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
           }),
         ];
         lines.push(cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','));
@@ -428,7 +428,7 @@ export default function CashierSummaryContent({
         '',
         ...PAYMENT_COLUMNS.map((col) => {
             const n = Number(section.totals[col.key]);
-            return String(Number.isFinite(n) ? n / 100 : 0);
+            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
           }),
       ];
       lines.push(totalCells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','));
@@ -450,7 +450,7 @@ export default function CashierSummaryContent({
           '',
           ...PAYMENT_COLUMNS.map((col) => {
             const n = Number(grandTotals[col.key]);
-            return String(Number.isFinite(n) ? n / 100 : 0);
+            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
           }),
         ]
           .map((c) => `"${String(c).replace(/"/g, '""')}"`)
@@ -462,16 +462,16 @@ export default function CashierSummaryContent({
       const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
       lines.push('');
       lines.push('"Credit Summary","","","","","","","","",""');
-      lines.push(`"Slip Total","","","","","","","","","${String(crSlip / 100)}"`);
-      lines.push(`"Credit Total","","","","","","","","","${String(crCust / 100)}"`);
-      lines.push(`"Total (Credit Summary)","","","","","","","","","${String(crTotal / 100)}"`);
+      lines.push(`"Slip Total","","","","","","","","","${crSlip.toFixed(2)}"`);
+      lines.push(`"Credit Total","","","","","","","","","${crCust.toFixed(2)}"`);
+      lines.push(`"Total (Credit Summary)","","","","","","","","","${crTotal.toFixed(2)}"`);
       lines.push('"Cash Summary","","","","","","","","",""');
       for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
         const n = Number(grandTotals[col.key]);
-        lines.push(`"${col.label} Total","","","","","","","","","${String(Number.isFinite(n) ? n / 100 : 0)}"`);
+        lines.push(`"${col.label} Total","","","","","","","","","${Number.isFinite(n) ? n.toFixed(2) : '0.00'}"`);
       }
-      lines.push(`"Total (Cash Summary)","","","","","","","","","${String(cashTotal / 100)}"`);
-      lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${String((crTotal + cashTotal) / 100)}"`);
+      lines.push(`"Total (Cash Summary)","","","","","","","","","${cashTotal.toFixed(2)}"`);
+      lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${(crTotal + cashTotal).toFixed(2)}"`);
     }
 
     const csv = lines.join('\n');

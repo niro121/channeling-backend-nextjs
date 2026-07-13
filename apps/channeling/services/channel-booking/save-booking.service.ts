@@ -37,6 +37,7 @@ import {
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
@@ -196,7 +197,20 @@ export async function saveBookingService(
 ): Promise<SaveBookingServiceResult> {
   const shouldRequireShift = options?.requireActiveShift !== false
   const settleOnCreate = options?.settleOnCreate !== false
-  if (userId && shouldRequireShift) await requireActiveShift(userId)
+  if (userId && shouldRequireShift) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        }
+      }
+      throw e
+    }
+  }
 
   const sessionId = input.session.id
 
@@ -887,6 +901,13 @@ export async function saveBookingService(
     return { success: true, data: fullBooking }
   } catch (e) {
     console.error("saveBookingService create error", e)
+    if (isShiftRequirementError(e)) {
+      return {
+        success: false,
+        errorCode: e.code,
+        message: e.message,
+      }
+    }
     // Return generic message; actual failure may be DB, sequence, or other.
     return {
       success: false,
