@@ -7,11 +7,13 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  Card
+  Card,
+  CardContent
 } from '@archmage/ui';
 import { BriefcaseIcon, FileTextIcon, UserIcon } from 'lucide-react';
 import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
 import GeneralForm, { type GeneralFormActions } from './general-form';
+import HrDetailForm, { type HrDetailFormActions } from './hr-detail-form';
 import type { StaffRecord } from '@/types/staff';
 
 type TabLayoutProps = {
@@ -27,11 +29,41 @@ export default function TabLayout({
 }: TabLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [formActions, setFormActions] = useState<GeneralFormActions | null>(null);
+  const [activeTab, setActiveTab] = useState('general');
+  const [generalActions, setGeneralActions] = useState<GeneralFormActions | null>(null);
+  const [hrDetailActions, setHrDetailActions] = useState<HrDetailFormActions | null>(null);
 
-  const handleRegisterActions = useCallback((actions: GeneralFormActions) => {
-    setFormActions(actions);
+  const handleRegisterGeneralActions = useCallback((actions: GeneralFormActions) => {
+    setGeneralActions(actions);
   }, []);
+
+  const handleRegisterHrDetailActions = useCallback((actions: HrDetailFormActions) => {
+    setHrDetailActions(actions);
+  }, []);
+
+  const handleSave = (saveAndClose: boolean) => {
+    if (activeTab === 'hr-details') {
+      hrDetailActions?.submit(saveAndClose);
+      return;
+    }
+    generalActions?.submit(saveAndClose);
+  };
+
+  const hrDetailsForm =
+    isEditPage && staffId && staff ? (
+      <HrDetailForm
+        staff={staff}
+        staffId={staffId}
+        onRegisterActions={handleRegisterHrDetailActions}
+        onLoadingChange={setLoading}
+      />
+    ) : (
+      <Card>
+        <CardContent className="py-8 text-sm text-muted-foreground">
+          Save the general information first to enable HR details for this staff member.
+        </CardContent>
+      </Card>
+    );
 
   const TABS_LIST = [
     {
@@ -43,7 +75,7 @@ export default function TabLayout({
           staff={staff}
           staffId={staffId}
           isEditPage={isEditPage}
-          onRegisterActions={handleRegisterActions}
+          onRegisterActions={handleRegisterGeneralActions}
           onLoadingChange={setLoading}
         />
       )
@@ -51,7 +83,8 @@ export default function TabLayout({
     {
       label: 'HR Details',
       value: 'hr-details',
-      icon: <BriefcaseIcon className="w-4 h-4" />
+      icon: <BriefcaseIcon className="w-4 h-4" />,
+      form: hrDetailsForm
     },
     {
       label: 'Employment',
@@ -67,7 +100,12 @@ export default function TabLayout({
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue={TABS_LIST[0].value} className="w-full space-y-6!">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        defaultValue={TABS_LIST[0].value}
+        className="w-full space-y-6!"
+      >
         <TabsList className="w-full justify-start gap-5 bg-secondary">
           {TABS_LIST.map((tab) => (
             <TabsTrigger
@@ -92,8 +130,8 @@ export default function TabLayout({
         <CustomFormSubmitBtns
           loading={loading}
           onCancel={() => router.push('/staff')}
-          onSave={() => formActions?.submit(false)}
-          onSaveAndClose={() => formActions?.submit(true)}
+          onSave={() => handleSave(false)}
+          onSaveAndClose={() => handleSave(true)}
         />
       </Card>
     </div>

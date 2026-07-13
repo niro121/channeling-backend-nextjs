@@ -32,6 +32,64 @@ type StaffHrDetails {
   speciality             String?
 }
 
+type StaffPersonalDetails {
+  nationality     String?
+  bloodGroup      String?
+  religion        String?
+  civilStatus     String?
+  gsDivision      String?
+  pollingDivision String?
+  transportMode   String?
+}
+
+type StaffHrContactDetails {
+  permanentAddress String?
+  postalAddress    String?
+  faxNumber        String?
+}
+
+type StaffDependentCounts {
+  maleAbove18   Int @default(0)
+  femaleAbove18 Int @default(0)
+  maleBelow18   Int @default(0)
+  femaleBelow18 Int @default(0)
+}
+
+type StaffFamilyInfo {
+  spouseName            String?
+  spouseOccupation      String?
+  fatherName            String?
+  fatherOccupation      String?
+  motherName            String?
+  motherOccupation      String?
+  guardianName          String?
+  guardianOccupation    String?
+  guardianRelationship  String?
+  guardianAddress       String?
+  guardianContactNumber String?
+  fatherInLawName       String?
+  fatherInLawOccupation String?
+  motherInLawName       String?
+  motherInLawOccupation String?
+  inLawAddress          String?
+  inLawContactNumber    String?
+}
+
+type StaffEmergencyContact {
+  name          String?
+  relationship  String?
+  address       String?
+  contactNumber String?
+}
+
+type StaffPersonnelDetails {
+  personal   StaffPersonalDetails?
+  contact    StaffHrContactDetails?
+  family     StaffFamilyInfo?
+  dependents StaffDependentCounts?
+  emergency  StaffEmergencyContact?
+}
+
 model Staff {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   code            String    @unique()
@@ -46,6 +104,7 @@ model Staff {
   status          Int       @default(1) // 0 = Inactive, 1 = Active
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
   hrDetails       StaffHrDetails?
+  personnelDetails StaffPersonnelDetails?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

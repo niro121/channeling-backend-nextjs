@@ -11,13 +11,14 @@ import {
   getStaff,
   getStaffById,
   getStaffOptions,
-  updateStaff
+  updateStaff,
+  updateStaffPersonnel
 } from '@/services/staff-services/staff.service';
 import {
   syncAllStaffFromChanneling,
   // syncStaffByIdFromChanneling
 } from '@/services/staff-services/staff-sync.service';
-import type { GetStaffParams, StaffCrudOptions, StaffGeneralPayload } from '@/types/staff';
+import type { GetStaffParams, StaffCrudOptions, StaffGeneralPayload, StaffPersonnelPayload } from '@/types/staff';
 import { staffRecordToChannelingPayload } from '@/lib/helpers/staff-channeling-fields.helper';
 import {
   pushStaffBulkDeleteToChanneling,
@@ -27,6 +28,7 @@ import {
   countLinkedChannelingStaff,
   getChannelingStaffIdsByHrmIds
 } from '@/services/staff-services/staff-channeling-push.service';
+import { personnelPayloadToStaffRecordSlice } from '@/lib/mappers/staff-personnel-details.mapper';
 
 // ** Get Staff List Action * //
 export async function getStaffAction(params: GetStaffParams) {
@@ -234,6 +236,87 @@ export async function updateStaffAction(
     };
   } catch (error: any) {
     console.error('updateStaffAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Something went wrong. Please try again later' }
+    };
+  }
+}
+
+// ** Update Staff Personnel (HR Details tab) Action * //
+export async function updateStaffPersonnelAction(
+  id: string,
+  data: StaffPersonnelPayload,
+  options?: StaffCrudOptions
+) {
+  await requirePermission('staff', 'edit');
+  try {
+    const existingResult = await getStaffById(id);
+    const existing = existingResult.data;
+    const auditUser = await getAuditUser();
+    const result = await updateStaffPersonnel(id, data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors:
+          result.error?.issues ??
+          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        data: {}
+      };
+    }
+
+    let channelingWarning: string | undefined;
+
+    if (options?.syncToChanneling && existing) {
+      const updatedSlice = personnelPayloadToStaffRecordSlice(data);
+      const channelingResult = await pushStaffUpdateToChanneling(
+        id,
+        existing.migrateSourceId,
+        {
+          code: existing.code,
+          title: updatedSlice.title ?? existing.title,
+          name: updatedSlice.name ?? existing.name,
+          nic: updatedSlice.nic ?? existing.nic,
+          dateOfBirth: updatedSlice.dateOfBirth ?? existing.dateOfBirth,
+          gender: existing.gender,
+          contactMobile: updatedSlice.contactMobile ?? existing.contactMobile,
+          address: existing.address,
+          dateJoined: existing.dateJoined,
+          status: existing.status
+        }
+      );
+
+      if (!channelingResult.success) {
+        channelingWarning =
+          channelingResult.error?.message ??
+          'Staff HR details were saved in HRM, but Channeling sync failed.';
+      }
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.personnelUpdated',
+        entityType: 'Staff',
+        entityId: id,
+        importance: 'high'
+      });
+    }
+
+    revalidatePath('/staff');
+    return {
+      isError: false,
+      data: {
+        saved: true,
+        channelingSynced: options?.syncToChanneling && !channelingWarning,
+        channelingWarning
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('updateStaffPersonnelAction error:', error);
     return {
       isError: true,
       data: null,

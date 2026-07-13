@@ -8,7 +8,7 @@ import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { channelingStaffPayloadSchema } from '@/lib/helpers/staff-channeling-fields.helper';
-import type { GetStaffParams, StaffGeneralPayload, StaffHrDetails } from '@/types/staff';
+import type { GetStaffParams, StaffGeneralPayload, StaffHrDetails, StaffPersonnelDetails, StaffPersonnelPayload } from '@/types/staff';
 
 const STAFF_CODE_PREFIX = 'ST';
 const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
@@ -67,6 +67,101 @@ const staffGeneralUpdatePayloadSchema = staffSchema.partial().extend({
   hrDetails: staffHrDetailsSchema.optional()
 });
 
+const optionalCount = () =>
+  z
+    .union([z.coerce.number(), z.string()])
+    .optional()
+    .transform((value) => {
+      if (value == null || value === '') return 0;
+      const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
+      return Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+    });
+
+const staffPersonnelDetailsSchema = z.object({
+  personal: z
+    .object({
+      nationality: z.string().optional().nullable(),
+      bloodGroup: z.string().optional().nullable(),
+      religion: z.string().optional().nullable(),
+      civilStatus: z.string().optional().nullable(),
+      gsDivision: z.string().max(100).optional().nullable(),
+      pollingDivision: z.string().max(100).optional().nullable(),
+      transportMode: z.string().optional().nullable()
+    })
+    .optional(),
+  contact: z
+    .object({
+      permanentAddress: z.string().max(500).optional().nullable(),
+      postalAddress: z.string().max(500).optional().nullable(),
+      faxNumber: z.string().max(20).optional().nullable()
+    })
+    .optional(),
+  family: z
+    .object({
+      spouseName: z.string().max(150).optional().nullable(),
+      spouseOccupation: z.string().max(100).optional().nullable(),
+      fatherName: z.string().max(150).optional().nullable(),
+      fatherOccupation: z.string().max(100).optional().nullable(),
+      motherName: z.string().max(150).optional().nullable(),
+      motherOccupation: z.string().max(100).optional().nullable(),
+      guardianName: z.string().max(150).optional().nullable(),
+      guardianOccupation: z.string().max(100).optional().nullable(),
+      guardianRelationship: z.string().optional().nullable(),
+      guardianAddress: z.string().max(500).optional().nullable(),
+      guardianContactNumber: z.string().max(15).optional().nullable(),
+      fatherInLawName: z.string().max(150).optional().nullable(),
+      fatherInLawOccupation: z.string().max(100).optional().nullable(),
+      motherInLawName: z.string().max(150).optional().nullable(),
+      motherInLawOccupation: z.string().max(100).optional().nullable(),
+      inLawAddress: z.string().max(500).optional().nullable(),
+      inLawContactNumber: z.string().max(15).optional().nullable()
+    })
+    .optional(),
+  dependents: z
+    .object({
+      maleAbove18: optionalCount(),
+      femaleAbove18: optionalCount(),
+      maleBelow18: optionalCount(),
+      femaleBelow18: optionalCount()
+    })
+    .optional(),
+  emergency: z
+    .object({
+      name: z.string().max(150).optional().nullable(),
+      relationship: z.string().max(100).optional().nullable(),
+      address: z.string().max(500).optional().nullable(),
+      contactNumber: z.string().max(15).optional().nullable()
+    })
+    .optional()
+});
+
+const staffPersonnelPayloadSchema = z.object({
+  title: z.string().max(50).optional(),
+  name: z.string().max(150).optional(),
+  initials: z.string().max(50).optional().nullable(),
+  firstName: z.string().max(100).optional().nullable(),
+  lastName: z.string().max(100).optional().nullable(),
+  nic: z.string().max(20).optional(),
+  dateOfBirth: z
+    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
+    .optional()
+    .nullable(),
+  contactMobile: z.string().max(15).optional(),
+  homeTelephone: z.string().max(15).optional().nullable(),
+  email: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => !value || z.email().safeParse(value).success, {
+      message: 'Enter a valid email address'
+    }),
+  personnelDetails: staffPersonnelDetailsSchema.optional()
+});
+
+const staffPersonnelUpdatePayloadSchema = staffPersonnelPayloadSchema.extend({
+  id: z.string().min(1, 'Staff ID is required')
+});
+
 function toDate(val: Date | number | string | null | undefined): Date | null {
   if (val == null) return null;
   if (val instanceof Date) return val;
@@ -96,6 +191,68 @@ function toHrDetailsInput(
     resignedWithNoticeDate: toDate(hrDetails.resignedWithNoticeDate),
     dateRetired: toDate(hrDetails.dateRetired),
     speciality: hrDetails.speciality ?? null
+  };
+}
+
+function toPersonnelDetailsInput(
+  personnelDetails: StaffPersonnelDetails
+): Prisma.StaffPersonnelDetailsCreateInput {
+  return {
+    personal: personnelDetails.personal
+      ? {
+          nationality: personnelDetails.personal.nationality ?? null,
+          bloodGroup: personnelDetails.personal.bloodGroup ?? null,
+          religion: personnelDetails.personal.religion ?? null,
+          civilStatus: personnelDetails.personal.civilStatus ?? null,
+          gsDivision: personnelDetails.personal.gsDivision ?? null,
+          pollingDivision: personnelDetails.personal.pollingDivision ?? null,
+          transportMode: personnelDetails.personal.transportMode ?? null
+        }
+      : undefined,
+    contact: personnelDetails.contact
+      ? {
+          permanentAddress: personnelDetails.contact.permanentAddress ?? null,
+          postalAddress: personnelDetails.contact.postalAddress ?? null,
+          faxNumber: personnelDetails.contact.faxNumber ?? null
+        }
+      : undefined,
+    family: personnelDetails.family
+      ? {
+          spouseName: personnelDetails.family.spouseName ?? null,
+          spouseOccupation: personnelDetails.family.spouseOccupation ?? null,
+          fatherName: personnelDetails.family.fatherName ?? null,
+          fatherOccupation: personnelDetails.family.fatherOccupation ?? null,
+          motherName: personnelDetails.family.motherName ?? null,
+          motherOccupation: personnelDetails.family.motherOccupation ?? null,
+          guardianName: personnelDetails.family.guardianName ?? null,
+          guardianOccupation: personnelDetails.family.guardianOccupation ?? null,
+          guardianRelationship: personnelDetails.family.guardianRelationship ?? null,
+          guardianAddress: personnelDetails.family.guardianAddress ?? null,
+          guardianContactNumber: personnelDetails.family.guardianContactNumber ?? null,
+          fatherInLawName: personnelDetails.family.fatherInLawName ?? null,
+          fatherInLawOccupation: personnelDetails.family.fatherInLawOccupation ?? null,
+          motherInLawName: personnelDetails.family.motherInLawName ?? null,
+          motherInLawOccupation: personnelDetails.family.motherInLawOccupation ?? null,
+          inLawAddress: personnelDetails.family.inLawAddress ?? null,
+          inLawContactNumber: personnelDetails.family.inLawContactNumber ?? null
+        }
+      : undefined,
+    dependents: personnelDetails.dependents
+      ? {
+          maleAbove18: personnelDetails.dependents.maleAbove18 ?? 0,
+          femaleAbove18: personnelDetails.dependents.femaleAbove18 ?? 0,
+          maleBelow18: personnelDetails.dependents.maleBelow18 ?? 0,
+          femaleBelow18: personnelDetails.dependents.femaleBelow18 ?? 0
+        }
+      : undefined,
+    emergency: personnelDetails.emergency
+      ? {
+          name: personnelDetails.emergency.name ?? null,
+          relationship: personnelDetails.emergency.relationship ?? null,
+          address: personnelDetails.emergency.address ?? null,
+          contactNumber: personnelDetails.emergency.contactNumber ?? null
+        }
+      : undefined
   };
 }
 
@@ -387,6 +544,95 @@ export async function updateStaff(
     return {
       success: false,
       error: { message: error.message || 'Failed to update staff' }
+    };
+  }
+}
+
+// ** Update Staff Personnel Details Service * //
+export async function updateStaffPersonnel(
+  id: string,
+  payload: StaffPersonnelPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const parsed = staffPersonnelUpdatePayloadSchema.safeParse({ ...payload, id });
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error != null ? (parsed.error.flatten().fieldErrors as Record<string, string[]>) : undefined
+        }
+      };
+    }
+
+    const data = parsed.data;
+    const auditUser = toAuditUser(user);
+    const existing = await prisma.staff.findUnique({
+      where: { id },
+      select: { hrDetails: true }
+    });
+
+    if (!existing) {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+
+    const mergedHrDetails = toHrDetailsInput(
+      {
+        initials: data.initials ?? existing.hrDetails?.initials ?? null,
+        firstName: data.firstName ?? existing.hrDetails?.firstName ?? null,
+        lastName: data.lastName ?? existing.hrDetails?.lastName ?? null,
+        homeTelephone: data.homeTelephone ?? existing.hrDetails?.homeTelephone ?? null,
+        email: data.email ?? existing.hrDetails?.email ?? null,
+        secondaryEmail: existing.hrDetails?.secondaryEmail ?? null,
+        zoneCode: existing.hrDetails?.zoneCode ?? null,
+        fingerPrintRfid: existing.hrDetails?.fingerPrintRfid ?? null,
+        staffCodeLegacy: existing.hrDetails?.staffCodeLegacy ?? null,
+        epfNumber: existing.hrDetails?.epfNumber ?? null,
+        etfNumber: existing.hrDetails?.etfNumber ?? null,
+        registrationNumber: existing.hrDetails?.registrationNumber ?? null,
+        dateResigned: existing.hrDetails?.dateResigned ?? null,
+        resignedWithoutNotice: existing.hrDetails?.resignedWithoutNotice ?? false,
+        resignedWithNoticeDate: existing.hrDetails?.resignedWithNoticeDate ?? null,
+        dateRetired: existing.hrDetails?.dateRetired ?? null,
+        speciality: existing.hrDetails?.speciality ?? null
+      },
+      existing.hrDetails?.staffCodeLegacy ?? null
+    );
+
+    const updateData: Prisma.StaffUpdateInput = {
+      ...(data.title !== undefined && { title: data.title ?? '' }),
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.nic !== undefined && { nic: data.nic ?? '' }),
+      ...(data.dateOfBirth !== undefined && { dateOfBirth: toDate(data.dateOfBirth) }),
+      ...(data.contactMobile !== undefined && { contactMobile: data.contactMobile ?? '' }),
+      hrDetails: mergedHrDetails,
+      ...(data.personnelDetails && {
+        personnelDetails: toPersonnelDetailsInput(data.personnelDetails)
+      }),
+      ...(auditUser?.id && { updatedBy: auditUser.id }),
+      updatedAt: new Date()
+    };
+
+    const staff = await prisma.staff.update({
+      where: { id },
+      data: updateData
+    });
+
+    return { success: true, data: staff, message: 'Staff HR details updated successfully' };
+  } catch (error: any) {
+    console.error('updateStaffPersonnel error:', error);
+    if (error.code === 'P2025') {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to update staff HR details' }
     };
   }
 }
