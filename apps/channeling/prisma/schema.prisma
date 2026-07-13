@@ -751,7 +751,7 @@ model Discount {
   name                 String
   discountType         Int // 0 = percentage, 1 = fixed
   discountMethod       DiscountMethod[] // 1 = POS, 2 = on-call, 3 - agent, 4 - staff, 5 - API
-  paymentType          PaymentType[] // 1 = cash, 2 = credit-card, 3 = slip, 4 = cheque
+  paymentType          PaymentType[] // cash, credit-card, slip, cheque, e-wallet, mixed
   discountValue        Int
   discountValueForeign Int
   fromDate             DateTime
@@ -1004,12 +1004,17 @@ model Booking {
   /// Channel room attendance activity log: [{ from, to, at, by }]
   channelRoomAttendanceHistory Json?
   migrateSourceId            String?  // Legacy booking_id (Sails) for migrate import lookup
+  /// HMIS FHIR Patient id when booking was tagged from HMIS search
+  hmisPatientId              String?
+  /// HMIS Medical Record Number (urn:hmis:mrn) when available
+  hmisMrn                    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([sessionId, appointmentNo])
   @@index([migrateSourceId])
+  @@index([hmisPatientId])
 }
 
 /// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
@@ -1023,6 +1028,8 @@ model Receipt {
   bankId          String? @db.ObjectId
   cardReference   String  @default("")
   slipReference   String  @default("")
+  /// Bank slip date (date-only; time ignored). Required for slip payments going forward.
+  slipDate        DateTime?
   remarks         String  @default("")
   type            Int // 0 CREDIT (decrease), 1 DEBIT (increase)
   method          Int     @default(1) // 0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
@@ -1074,6 +1081,8 @@ model ReceiptPaymentLine {
   bankId        String? @db.ObjectId
   cardReference String  @default("")
   slipReference String  @default("")
+  /// Bank slip date (date-only; time ignored). Required for slip payment lines going forward.
+  slipDate      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1220,6 +1229,8 @@ enum PaymentType {
   CREDIT_CARD
   SLIP
   CHEQUE
+  E_WALLET
+  MIXED
 }
 
 enum LogStatus {

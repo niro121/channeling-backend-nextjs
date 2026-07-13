@@ -16,6 +16,7 @@ import {
 import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -24,6 +25,7 @@ import {
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import type { ReceiptPaymentLineDraft } from "./helpers/create-receipt-for-booking"
+import { formatSlipDate, parseSlipDateInput } from "@/lib/slip-date"
 
 /** refund_type: 0 = Cancel (full or no refund), 1 = Refund (partial) */
 export type RefundChannelInput = {
@@ -38,6 +40,7 @@ export type RefundChannelInput = {
     amount: number
     bank?: { id: string; name?: string } | null
     slip_ref?: string
+    slip_date?: string
     card?: string
   }>
   remarks?: string
@@ -78,6 +81,10 @@ function buildMixedLinesFromRefundInput(
       bankId: line.bank?.id ?? null,
       cardReference: line.card ?? "",
       slipReference: line.slip_ref ?? "",
+      slipDate:
+        line.payment_method === SAVE_PAYMENT_TYPE_SLIP
+          ? parseSlipDateInput(line.slip_date)
+          : null,
     }))
   if (lines.length < 2) {
     return { error: "At least two payment lines are required for mixed refund." }
@@ -123,7 +130,16 @@ export async function refundChannelService(
   input: RefundChannelInput,
   userId: string | null
 ): Promise<RefundChannelResult> {
-  if (userId) await requireActiveShift(userId)
+  if (userId) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return { success: false, errorCode: e.code, message: e.message }
+      }
+      throw e
+    }
+  }
 
   const currentShift = userId ? await getCurrentShift(userId) : null
   const shiftId = currentShift?.id ?? undefined
@@ -274,6 +290,7 @@ export async function refundChannelService(
                 bank: line.bankId ? { id: line.bankId, name: line.bank ?? "" } : null,
                 card: line.cardReference ?? "",
                 slip_ref: line.slipReference ?? "",
+                slip_date: formatSlipDate(line.slipDate) ?? undefined,
               }))
           : undefined
       const mixedLinesResult = buildMixedLinesFromRefundInput(
@@ -411,6 +428,10 @@ export async function refundChannelService(
               ? paidReceipt.cardReference
               : "",
           slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
+          slipDate:
+            refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt
+              ? paidReceipt.slipDate ?? null
+              : null,
           paymentLines,
           remarks,
           type: 0,
@@ -600,6 +621,10 @@ export async function refundChannelService(
             ? paidReceipt.cardReference
             : "",
         slipReference: refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt ? paidReceipt.slipReference : "",
+        slipDate:
+          refundTo === SAVE_PAYMENT_TYPE_SLIP && paidReceipt
+            ? paidReceipt.slipDate ?? null
+            : null,
         remarks,
         type: 0,
         method: 0,

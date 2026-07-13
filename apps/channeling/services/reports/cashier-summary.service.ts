@@ -97,8 +97,17 @@ export async function getCashierSummaryReportService(
   const baseWhere: Prisma.ReceiptWhereInput = {
     createdAt: { gte: from, lte: to },
   };
-  if (query.userId && query.userId.trim() !== '' && query.userId !== '__all__') {
+  const multiUserIds = (query.userIds ?? [])
+    .map((id) => (typeof id === 'string' ? id.trim() : ''))
+    .filter((id) => id !== '' && id !== '__all__');
+  if (multiUserIds.length > 0) {
+    baseWhere.createdBy = { in: [...new Set(multiUserIds)] };
+  } else if (query.userId && query.userId.trim() !== '' && query.userId !== '__all__') {
     baseWhere.createdBy = query.userId.trim();
+  }
+  if (query.locationId && query.locationId.trim() !== '' && query.locationId !== '__all__') {
+    const locationId = query.locationId.trim();
+    baseWhere.OR = [{ locationId }, { userLocationId: locationId }];
   }
   const matchedReceiptCount = await prisma.receipt.count({ where: baseWhere });
   if (matchedReceiptCount > MAX_RECEIPTS_SCAN) {

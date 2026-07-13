@@ -10,7 +10,7 @@ export const SAVE_BOOKING_METHOD_AGENT = 2
 export const SAVE_BOOKING_METHOD_STAFF = 3
 export const SAVE_BOOKING_METHOD_API = 4
 
-/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet */
+/** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet, 7=Mixed */
 export const SAVE_PAYMENT_TYPE_CASH = 0
 export const SAVE_PAYMENT_TYPE_CREDIT_CARD = 1
 export const SAVE_PAYMENT_TYPE_SLIP = 2
@@ -52,6 +52,9 @@ export type SaveBookingErrorCode =
   | "DISCOUNT_ERROR"
   | "AMOUNT_ERROR"
   | "LIMIT_EXCEEDED"
+  | "NO_ACTIVE_SHIFT"
+  | "SHIFT_PAUSED"
+  | "HANDOVER_NOT_COMPLETE"
   /** Soft limit: booking amount > agency prepaid (PAYABLE balance) + Agency.allowedCreditLimit (agent only). */
   | "AGENCY_CREDIT_EXCEED"
   | "CREDIT_LIMIT_VIOLATION"
@@ -93,6 +96,8 @@ export type SaveBookingInput = {
     bank?: { id: string; name?: string } | null
     card?: string
     slip_ref?: string
+    /** Slip date YYYY-MM-DD when payment_method is Slip */
+    slip_date?: string
     ewallet_ref?: string
   }>
   agency?: SaveBookingAgencyRef | null
@@ -102,6 +107,8 @@ export type SaveBookingInput = {
   credit_customer?: SaveBookingCreditCustomerRef | null
   bank?: SaveBookingBankRef | null
   slip_ref?: string
+  /** Slip date YYYY-MM-DD when payment_type is Slip */
+  slip_date?: string
   card?: string
   ewallet_ref?: string
   staff?: SaveBookingStaffRef | null
@@ -126,6 +133,10 @@ export type SaveBookingInput = {
    * Server-side: when true, the number must be in the session’s blocked list (forced booking into a blocked slot only).
    */
   forceAppointmentNo?: boolean
+  /** HMIS FHIR Patient id when selected via Search Patient. */
+  hmisPatientId?: string | null
+  /** HMIS MRN when available from FHIR Patient. */
+  hmisMrn?: string | null
 }
 
 export type SaveBookingResult = {

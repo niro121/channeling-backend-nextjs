@@ -8,6 +8,7 @@ import {
   cancelHandover,
   getHandoversToMe,
   getHandoversApprovedByMeNotReconciled,
+  getCompletedHandoversToMe,
   getHandoverByIdForRecipient,
   getHandoversReceivedByShift,
   getIncludableHandoversForSender,
@@ -20,6 +21,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
+import { HANDOVER_STATUS } from "@/types/handover"
 
 // Shift creation: single "shift" resource; view permission allows all shift actions (start, pause, resume, end).
 // Use under Channel Booking: grant "Shift (Channel Booking)" view to allow shift features.
@@ -222,6 +224,36 @@ export async function getHandoversApprovedByMeNotReconciledAction(): Promise<
   return { success: true, data: list }
 }
 
+/** Completed handovers received by me (approved or rejected) for history / reports. */
+export async function getCompletedHandoversToMeAction(params?: {
+  page?: number
+  limit?: number
+  dateFrom?: string | null
+  dateTo?: string | null
+  fromUserId?: string | null
+}): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getCompletedHandoversToMe>>["data"]; totalRecords: number }
+  | { success: false; data: []; totalRecords: 0; message: string }
+> {
+  await requirePermission("handover", "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false, data: [], totalRecords: 0, message: "Unauthorized" }
+  const result = await getCompletedHandoversToMe(session.user.id, params ?? {})
+  return { success: true, data: result.data, totalRecords: result.totalRecords }
+}
+
+/** Active users for Completed-tab "Handed over by" filter (excludes current user). */
+export async function getHandoverFromUserFilterOptionsAction(): Promise<
+  | { success: true; data: { id: string; name: string }[] }
+  | { success: false; data: []; message: string }
+> {
+  await requirePermission("handover", "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false, data: [], message: "Unauthorized" }
+  const options = await getHandoverUserOptions(session.user.id)
+  return { success: true, data: options }
+}
+
 /** Handovers the current user (sender) has received and not yet forwarded. Shown in end-shift dialog so sender can include them in the chain. */
 export async function getIncludableHandoversForSenderAction(): Promise<
   | { success: true; data: Awaited<ReturnType<typeof getIncludableHandoversForSender>> }
@@ -273,16 +305,39 @@ export async function getHandoverDetailAction(handoverId: string) {
   if (!session?.user?.id) return { success: false, data: null, error: "Unauthorized" }
   const handover = await getHandoverByIdForRecipient(handoverId, session.user.id)
   if (!handover) return { success: false, data: null, error: "Handover not found or you are not the recipient." }
-  const [tillBreakdown, includedHandovers] = await Promise.all([
-    getTillBalanceBreakdown(handover.fromUserId),
+
+  const actorIds = [handover.approvedBy, handover.rejectedBy, handover.cancelledBy].filter(
+    (id): id is string => typeof id === "string" && id.trim() !== ""
+  )
+  const uniqueActorIds = [...new Set(actorIds)]
+
+  const [tillBreakdown, includedHandovers, actors] = await Promise.all([
+    handover.status === HANDOVER_STATUS.PENDING
+      ? getTillBalanceBreakdown(handover.fromUserId)
+      : Promise.resolve(null),
     getIncludedHandoversChain((handover as { includedHandoverIds?: unknown }).includedHandoverIds),
+    uniqueActorIds.length > 0
+      ? prisma.user.findMany({
+          where: { id: { in: uniqueActorIds } },
+          select: { id: true, name: true, staff: { select: { code: true } } },
+        })
+      : Promise.resolve([] as { id: string; name: string | null; staff: { code: string } | null }[]),
   ])
+
+  const actorById = new Map(actors.map((u) => [u.id, u]))
+  const approvedByUser = handover.approvedBy ? actorById.get(handover.approvedBy) ?? null : null
+  const rejectedByUser = handover.rejectedBy ? actorById.get(handover.rejectedBy) ?? null : null
+  const cancelledByUser = handover.cancelledBy ? actorById.get(handover.cancelledBy) ?? null : null
+
   return {
     success: true,
     data: {
       handover,
       tillBreakdown,
       includedHandovers,
+      approvedByUser,
+      rejectedByUser,
+      cancelledByUser,
     },
   }
 }

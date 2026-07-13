@@ -6,10 +6,12 @@ import {
   getBookingsBySession,
   saveBookingAction,
   getAgencyBooksByAgencyForChannelBooking,
+  getAgencyDetailsForChannelBooking,
   validateVoucherAction,
 } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
 import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
+import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { usePermissions } from "@/components/hooks/use-permissions"
@@ -18,6 +20,8 @@ import {
   computeDiscountDivisionClient,
   formatCategoryDiscountLabel,
   getDiscountCapExceededMessage,
+  PAYMENT_METHOD_TO_ENUM,
+  PAYMENT_TYPE_TO_ENUM,
 } from "@/lib/channel-booking-discount"
 import { formatLKR } from "@/lib/format-money"
 import {
@@ -37,6 +41,7 @@ import {
   MessageSquare,
   Phone,
   Receipt,
+  Search,
   User,
   UserCircle,
   Users,
@@ -69,6 +74,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -78,28 +84,10 @@ import { cn } from "@/lib/utils"
 import type { PaymentMethodIconKey } from "@/types/channel-booking"
 import { PAYMENT_METHODS, SEX_OPTIONS } from "@/types/channel-booking"
 import { getSexForTitle, TITLE_OPTIONS } from "@/types/title"
+import type { HmisPatientSearchResult } from "@/types/hmis-patient"
+import { HmisPatientSearchDialog } from "./hmis-patient-search-dialog"
 
 const iconClass = "h-3.5 w-3.5 shrink-0 text-muted-foreground"
-
-/** Map spec payment_method (0–4) to Prisma DiscountMethod enum value for client-side filter */
-const PAYMENT_METHOD_TO_ENUM: Record<number, string> = {
-  0: "POS",
-  1: "ON_CALL",
-  2: "AGENT",
-  3: "STAFF",
-  4: "API",
-}
-/** Map spec payment_type (0–6) to Prisma PaymentType enum value for client-side filter */
-const PAYMENT_TYPE_TO_ENUM: Record<number, string> = {
-  0: "CASH",
-  1: "CREDIT_CARD",
-  2: "SLIP",
-  3: "CHEQUE",
-  4: "CASH",
-  5: "CASH",
-  6: "CASH",
-  7: "CASH",
-}
 
 const PAYMENT_ICON_MAP: Record<PaymentMethodIconKey, LucideIcon> = {
   Banknote,
@@ -118,12 +106,20 @@ type MixedLine = {
   bank_id: string
   card: string
   slip_ref: string
+  slip_date: string
   ewallet_ref: string
 }
 
+type AgentBookingSuccessInfo = {
+  agentLabel: string
+  agencyRef: string
+  bookingAmount: number
+  financials: AgencyDetailsForChannelBooking | null
+}
+
 const DEFAULT_MIXED_LINES: MixedLine[] = [
-  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
-  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
+  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
 ]
 
 /**
@@ -165,9 +161,15 @@ export function NewBookingDetailsTab() {
   const [patientName, setPatientName] = useState("")
   const [sexId, setSexId] = useState<string>("")
   const [phoneNumber, setPhoneNumber] = useState("")
+  const [hmisPatientId, setHmisPatientId] = useState<string | null>(null)
+  const [hmisMrn, setHmisMrn] = useState<string | null>(null)
+  const [hmisSearchOpen, setHmisSearchOpen] = useState(false)
   const [remarks, setRemarks] = useState("")
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
+  const [agencyOpen, setAgencyOpen] = useState(false)
+  const agencyListRef = useRef<HTMLDivElement | null>(null)
+  const [agentBookingSuccess, setAgentBookingSuccess] = useState<AgentBookingSuccessInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
   const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
@@ -188,6 +190,7 @@ export function NewBookingDetailsTab() {
   const [bankId, setBankId] = useState<string>("")
   const [cardLast4, setCardLast4] = useState("")
   const [slipRef, setSlipRef] = useState("")
+  const [slipDate, setSlipDate] = useState("")
   const [ewalletRef, setEwalletRef] = useState("")
   const [agencyBooks, setAgencyBooks] = useState<ChannelBookingAgencyBookOption[]>([])
   const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
@@ -225,6 +228,7 @@ export function NewBookingDetailsTab() {
   const bankError = !!invalidFields.bank
   const cardError = !!invalidFields.card
   const slipRefError = !!invalidFields.slip_ref
+  const slipDateError = !!invalidFields.slip_date
   const ewalletRefError = !!invalidFields.ewallet_ref
   const voucherError = !!invalidFields.voucher_code
   const errorClass = "border-red-500 focus-visible:ring-red-500"
@@ -335,6 +339,8 @@ export function NewBookingDetailsTab() {
     setPatientName("")
     setSexId("")
     setPhoneNumber("")
+    setHmisPatientId(null)
+    setHmisMrn(null)
     setRemarks("")
     setAreaId("")
     setAreaOpen(false)
@@ -346,6 +352,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setSlipDate("")
     setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
@@ -369,6 +376,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setSlipDate("")
     setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
@@ -407,6 +415,34 @@ export function NewBookingDetailsTab() {
 
   const fieldClass = "h-8 text-xs"
   const smallSelectClass = "h-8 text-xs w-24 shrink-0"
+
+  function applyHmisPatient(patient: HmisPatientSearchResult) {
+    if (patient.title) setTitleId(patient.title)
+    setPatientName(patient.name)
+    if (patient.sex) {
+      const sexOption = SEX_OPTIONS.find((s) => s.id === patient.sex)
+      if (sexOption) setSexId(sexOption.id)
+    } else if (patient.title) {
+      const sexForTitle = getSexForTitle(patient.title)
+      if (sexForTitle) {
+        const sexOption = SEX_OPTIONS.find(
+          (s) => s.name.toLowerCase() === sexForTitle.toLowerCase()
+        )
+        if (sexOption) setSexId(sexOption.id)
+      }
+    }
+    if (patient.phone) setPhoneNumber(patient.phone)
+    setHmisPatientId(patient.id)
+    setHmisMrn(patient.mrn)
+    setInvalidFields((prev) => {
+      const next = { ...prev }
+      delete next.name
+      delete next.title
+      delete next.sex
+      delete next.phone
+      return next
+    })
+  }
 
   async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedSession || !selectedDoctor || !selectedArea) return
@@ -467,14 +503,31 @@ export function NewBookingDetailsTab() {
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
+        slip_date: isSlip ? slipDate.trim() : undefined,
         ewallet_ref: isEWallet ? ewalletRef.trim() : undefined,
         payment_lines: mixedPaymentLines,
         referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
         referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
         referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
+        hmisPatientId: hmisPatientId ?? undefined,
+        hmisMrn: hmisMrn ?? undefined,
         ...forcedAppointmentPayload,
       })
       if (result.success) {
+        const agentSuccessSnapshot =
+          isAgent && selectedAgency
+            ? {
+                agencyId: selectedAgency.id,
+                agentLabel: selectedAgency.code
+                  ? `${selectedAgency.name} (${selectedAgency.code})`
+                  : selectedAgency.name,
+                agencyRef:
+                  (selectedAgencyBook?.bookNumber ?? "") +
+                  agencyRef.replace(/\D/g, "").slice(0, 2).padStart(2, "0"),
+                bookingAmount: amountToPay,
+              }
+            : null
+
         setInvalidFields({})
         setPaymentMethodId("0")
         setDiscountSchemeId("")
@@ -487,6 +540,8 @@ export function NewBookingDetailsTab() {
         setPatientName("")
         setSexId("")
         setPhoneNumber("")
+        setHmisPatientId(null)
+        setHmisMrn(null)
         setRemarks("")
         setAreaId("")
         setAreaOpen(false)
@@ -498,6 +553,7 @@ export function NewBookingDetailsTab() {
         setBankId("")
         setCardLast4("")
         setSlipRef("")
+        setSlipDate("")
         resetMixedDialog()
         setAgencyBooks([])
         setSelectedAgencyId(null)
@@ -507,10 +563,30 @@ export function NewBookingDetailsTab() {
         setForcedApptInput("")
         setForceApptAck(false)
         setForcedBookingExpanded(false)
-        toast({
-          title: "Booking saved",
-          description: "The booking was created successfully.",
-        })
+
+        if (agentSuccessSnapshot) {
+          let financials: AgencyDetailsForChannelBooking | null = null
+          try {
+            const agencyRes = await getAgencyDetailsForChannelBooking(
+              agentSuccessSnapshot.agencyId
+            )
+            if (agencyRes.success && agencyRes.data) financials = agencyRes.data
+          } catch {
+            financials = null
+          }
+          setAgentBookingSuccess({
+            agentLabel: agentSuccessSnapshot.agentLabel,
+            agencyRef: agentSuccessSnapshot.agencyRef,
+            bookingAmount: agentSuccessSnapshot.bookingAmount,
+            financials,
+          })
+        } else {
+          toast({
+            title: "Booking saved",
+            description: "The booking was created successfully.",
+          })
+        }
+
         const newBooking = result.data as ChannelBookingRecord | undefined
         getBookingsBySession(selectedSession.id).then((res) => {
           if (res.success && res.data) {
@@ -585,6 +661,7 @@ export function NewBookingDetailsTab() {
     }
     if (isSlip) {
       if (!slipRef.trim()) typeErrors.slip_ref = true
+      if (!slipDate.trim()) typeErrors.slip_date = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
     if (isEWallet && !ewalletRef.trim()) typeErrors.ewallet_ref = true
@@ -611,7 +688,7 @@ export function NewBookingDetailsTab() {
                 ? "Please enter Last 4 Digits and select Bank."
                 : isEWallet
                   ? "Please enter E-wallet reference."
-                  : "Please enter Bank Reference and select Bank.",
+                  : "Please enter Bank Reference, Slip Date, and select Bank.",
         variant: "destructive",
       })
       return
@@ -637,6 +714,7 @@ export function NewBookingDetailsTab() {
           : null,
         card: line.card.trim() || undefined,
         slip_ref: line.slip_ref.trim() || undefined,
+        slip_date: line.slip_date.trim() || undefined,
         ewallet_ref: line.ewallet_ref.trim() || undefined,
       }))
     if (lines.length < 2) {
@@ -696,6 +774,14 @@ export function NewBookingDetailsTab() {
           toast({
             title: "Slip reference required",
             description: `Please enter slip reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.slip_date?.trim()) {
+          toast({
+            title: "Slip date required",
+            description: `Please enter slip date for mixed payment line ${idx + 1}.`,
             variant: "destructive",
           })
           return
@@ -881,28 +967,86 @@ export function NewBookingDetailsTab() {
       {isAgent && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <div className="space-y-0.5">
-            <Select
-              value={agencyId || undefined}
-              onValueChange={(v) => {
-                setAgencyId(v ?? "")
-                setAgencyBookId("")
-                setAgencyRef("")
-                setSelectedAgencyId(v ?? null)
-              }}
-            >
-              <SelectTrigger
-                className={`${fieldClass} ${agencyError ? errorClass : ""} ${!agencyId ? "text-placeholder" : ""}`}
+            <Popover open={agencyOpen} onOpenChange={setAgencyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={agencyOpen}
+                  className={cn(
+                    fieldClass,
+                    "w-full justify-between font-normal",
+                    agencyError && errorClass,
+                    !agencyId && "text-placeholder"
+                  )}
+                >
+                  <span className="min-w-0 truncate">
+                    {selectedAgency
+                      ? selectedAgency.code
+                        ? `${selectedAgency.name} (${selectedAgency.code})`
+                        : selectedAgency.name
+                      : "Select Agency"}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
+                align="start"
               >
-                <SelectValue placeholder="Select Agency" />
-              </SelectTrigger>
-              <SelectContent>
-                {agencies.map((a) => (
-                  <SelectItem key={a.id} value={a.id} className="text-xs">
-                    {a.code ? `${a.name} (${a.code})` : a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Command className="h-auto overflow-hidden rounded-md">
+                  <CommandInput
+                    placeholder="Search agency name or code..."
+                    className="h-8 text-xs"
+                    onValueChange={() => {
+                      // Keep first match visible under the search box (cmdk scrollIntoView can tuck it under the input).
+                      requestAnimationFrame(() => {
+                        setTimeout(() => {
+                          agencyListRef.current?.scrollTo({ top: 0 })
+                        }, 0)
+                      })
+                    }}
+                  />
+                  <CommandList
+                    ref={agencyListRef}
+                    className="max-h-[240px] overflow-y-auto overscroll-contain"
+                  >
+                    <CommandEmpty className="text-xs py-4 text-center text-muted-foreground">
+                      No agency found.
+                    </CommandEmpty>
+                    <CommandGroup className="overflow-visible">
+                      {agencies.map((a) => {
+                        const label = a.code ? `${a.name} (${a.code})` : a.name
+                        return (
+                          <CommandItem
+                            key={a.id}
+                            value={label}
+                            keywords={[a.name, a.code ?? "", label].filter(Boolean)}
+                            className="text-xs scroll-mt-0"
+                            onSelect={() => {
+                              setAgencyId(a.id)
+                              setAgencyBookId("")
+                              setAgencyRef("")
+                              setSelectedAgencyId(a.id)
+                              setAgencyOpen(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-3.5 w-3.5",
+                                agencyId === a.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {label}
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-0.5">
             <Select
@@ -1019,8 +1163,9 @@ export function NewBookingDetailsTab() {
         </div>
       )}
       {isSlip && (
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-3 gap-x-3">
           <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Bank reference *</p>
             <Input
               className={`${fieldClass} ${slipRefError ? errorClass : ""}`}
               placeholder="Bank Reference"
@@ -1029,6 +1174,18 @@ export function NewBookingDetailsTab() {
             />
           </div>
           <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Slip date *</p>
+            <Input
+              type="date"
+              className={`${fieldClass} text-foreground ${slipDateError ? errorClass : ""} ${!slipDate ? "text-muted-foreground" : ""}`}
+              value={slipDate}
+              onChange={(e) => setSlipDate(e.target.value)}
+              aria-label="Slip date"
+              required
+            />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Bank *</p>
             <Select
               value={bankId || undefined}
               onValueChange={setBankId}
@@ -1073,7 +1230,29 @@ export function NewBookingDetailsTab() {
         </span>
       </div>
 
-      {/* Row 3: Title (small) | Patient Name (rest) */}
+      {/* HMIS link badge (above title/name row) */}
+      {hmisPatientId && (
+        <div className="flex items-center gap-1.5">
+          <p className="text-[10px] font-medium text-red-600 dark:text-red-400">
+            HMIS #{hmisPatientId}
+            {hmisMrn ? ` · MRN ${hmisMrn}` : ""}
+          </p>
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-destructive"
+            title="Remove HMIS link"
+            onClick={() => {
+              setHmisPatientId(null)
+              setHmisMrn(null)
+            }}
+          >
+            <X className="h-3 w-3" />
+            Remove
+          </button>
+        </div>
+      )}
+
+      {/* Row 3: Title (small) | Patient Name (rest) | Search HMIS */}
       <div className="flex gap-2 items-stretch">
         <div
           className="space-y-0.5"
@@ -1113,11 +1292,33 @@ export function NewBookingDetailsTab() {
               className={`${fieldClass} min-w-0 w-full pl-8 ${nameError ? errorClass : ""}`}
               placeholder="PATIENT NAME"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setPatientName(e.target.value.toUpperCase())
+                if (hmisPatientId) {
+                  setHmisPatientId(null)
+                  setHmisMrn(null)
+                }
+              }}
             />
           </div>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 gap-1 px-2 text-xs"
+          title="Search HMIS patient"
+          onClick={() => setHmisSearchOpen(true)}
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Search Patient</span>
+        </Button>
       </div>
+      <HmisPatientSearchDialog
+        open={hmisSearchOpen}
+        onOpenChange={setHmisSearchOpen}
+        onSelect={applyHmisPatient}
+      />
 
       {/* Row 4: Sex (small) | Phone (rest) */}
       <div className="flex gap-2 items-stretch">
@@ -1334,7 +1535,7 @@ export function NewBookingDetailsTab() {
             (isAgent && (!agencyId || !agencyBookId || !agencyRef.trim())) ||
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
-            (isSlip && (!slipRef.trim() || !bankId)) ||
+            (isSlip && (!slipRef.trim() || !slipDate.trim() || !bankId)) ||
             (isEWallet && !ewalletRef.trim())
           }
           onClick={handleBookNow}
@@ -1353,6 +1554,83 @@ export function NewBookingDetailsTab() {
           )}
         </Button>
       </div>
+
+      <Dialog
+        open={!!agentBookingSuccess}
+        onOpenChange={(open) => {
+          if (!open) setAgentBookingSuccess(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+              <Check className="h-5 w-5" />
+              Agent booking successful
+            </DialogTitle>
+            <DialogDescription>
+              The booking was created successfully. Updated agent balance is shown below.
+            </DialogDescription>
+          </DialogHeader>
+          {agentBookingSuccess ? (
+            <div className="space-y-3">
+              <div className="rounded-md border border-border/60 bg-muted/10 p-3 space-y-2 text-sm">
+                <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Agent
+                </h3>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Agent</span>
+                  <span className="font-medium text-foreground text-right">
+                    {agentBookingSuccess.agentLabel}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 text-xs border-t border-border/40 pt-2">
+                  <span className="text-muted-foreground">Agent Ref.</span>
+                  <span className="font-medium text-foreground tabular-nums">
+                    {agentBookingSuccess.agencyRef}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 text-xs border-t border-border/40 pt-2">
+                  <span className="text-muted-foreground">Booking amount</span>
+                  <span className="font-medium text-foreground tabular-nums">
+                    {formatLKR(agentBookingSuccess.bookingAmount)}
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-md border border-border/60 bg-green-50/80 dark:bg-green-950/20 p-3 space-y-2">
+                <h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Financial
+                </h3>
+                {agentBookingSuccess.financials ? (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Allowed Credit Limit</span>
+                      <span className="font-medium text-foreground tabular-nums">
+                        {formatLKR(agentBookingSuccess.financials.allowedCreditLimit)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3 border-t border-border/40 pt-2">
+                      <span className="text-muted-foreground">Current Balance</span>
+                      <span className="font-semibold text-foreground tabular-nums text-base">
+                        {formatLKR(agentBookingSuccess.financials.balance)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Booking saved, but latest financial details could not be loaded. Check Agent Book
+                    tab after selecting the agency again.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" onClick={() => setAgentBookingSuccess(null)}>
+              I informed the agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={mixedDialogOpen}
@@ -1380,7 +1658,7 @@ export function NewBookingDetailsTab() {
                           setMixedLines((prev) =>
                             prev.map((row, rowIdx) =>
                               rowIdx === idx
-                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", ewallet_ref: "" }
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", slip_date: "", ewallet_ref: "" }
                                 : row
                             )
                           )
@@ -1505,6 +1783,26 @@ export function NewBookingDetailsTab() {
                     </div>
                   </div>
                 )}
+                {line.payment_method === SAVE_PAYMENT_TYPE_SLIP && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      Slip date <span className="text-destructive">*</span>
+                    </p>
+                    <Input
+                      type="date"
+                      className={`${fieldClass} text-foreground ${!line.slip_date ? "text-muted-foreground" : ""}`}
+                      value={line.slip_date}
+                      onChange={(e) =>
+                        setMixedLines((prev) =>
+                          prev.map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, slip_date: e.target.value } : row
+                          )
+                        )
+                      }
+                      required
+                    />
+                  </div>
+                )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
                   <div className="space-y-1">
                     <p className="text-[11px] text-muted-foreground">
@@ -1547,7 +1845,7 @@ export function NewBookingDetailsTab() {
               onClick={() =>
                 setMixedLines((prev) => [
                   ...prev,
-                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
                 ])
               }
             >

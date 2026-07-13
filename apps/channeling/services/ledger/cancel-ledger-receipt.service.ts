@@ -202,6 +202,7 @@ export async function cancelLedgerReceiptService(
     bankId: original.bankId ?? null,
     cardReference: original.cardReference ?? "",
     slipReference: original.slipReference ?? "",
+    slipDate: original.slipDate ?? null,
     remarks: reversalRemarks,
     type: reverseType,
     method: reverseMethod,

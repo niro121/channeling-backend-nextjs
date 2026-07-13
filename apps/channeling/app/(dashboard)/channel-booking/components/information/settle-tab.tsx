@@ -61,11 +61,17 @@ const BASE_SETTLE_METHODS: SettleMethodOption[] = [
 ]
 
 type MixedLine = { payment_method: number; amount: string }
-type MixedLineWithMeta = MixedLine & { bank_id: string; card: string; slip_ref: string; ewallet_ref: string }
+type MixedLineWithMeta = MixedLine & {
+  bank_id: string
+  card: string
+  slip_ref: string
+  slip_date: string
+  ewallet_ref: string
+}
 
 const DEFAULT_MIXED_LINES: MixedLineWithMeta[] = [
-  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
-  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CASH, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
+  { payment_method: SAVE_PAYMENT_TYPE_CREDIT_CARD, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
 ]
 
 function formatRs(amount: number): string {
@@ -160,13 +166,23 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
         {settlement.paymentLines.length > 0 && (
           <div className="space-y-1 py-1">
             <div className="text-[11px] font-medium text-muted-foreground">Payment Lines</div>
-            {settlement.paymentLines.map((line, idx) => (
-              <Row
-                key={`${line.paymentMethod}-${idx}`}
-                label={line.paymentMethodName}
-                value={formatRs(line.amount)}
-              />
-            ))}
+            {settlement.paymentLines.map((line, idx) => {
+              const meta: string[] = []
+              if (line.bank?.trim()) meta.push(line.bank.trim())
+              if (line.slipReference?.trim()) meta.push(`Ref: ${line.slipReference.trim()}`)
+              if (line.slipDate?.trim()) meta.push(`Date: ${line.slipDate.trim()}`)
+              const label =
+                meta.length > 0
+                  ? `${line.paymentMethodName} (${meta.join(" · ")})`
+                  : line.paymentMethodName
+              return (
+                <Row
+                  key={`${line.paymentMethod}-${idx}`}
+                  label={label}
+                  value={formatRs(line.amount)}
+                />
+              )
+            })}
           </div>
         )}
         {settlement.bank ? <Row label="Bank" value={settlement.bank} /> : null}
@@ -178,6 +194,9 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
         ) : null}
         {settlement.slipReference ? (
           <Row label="Slip reference" value={settlement.slipReference} />
+        ) : null}
+        {settlement.slipDate ? (
+          <Row label="Slip date" value={settlement.slipDate} />
         ) : null}
       </div>
     </div>
@@ -217,6 +236,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const [settleMethod, setSettleMethod] = useState<number>(SAVE_PAYMENT_TYPE_CASH)
   const [card, setCard] = useState("")
   const [slipRef, setSlipRef] = useState("")
+  const [slipDate, setSlipDate] = useState("")
   const [ewalletRef, setEwalletRef] = useState("")
   const [bankId, setBankId] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -391,6 +411,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       })
       return
     }
+    if (showSlip && (!slipRef.trim() || !slipDate.trim() || !bankId)) {
+      toast({
+        title: "Slip details required",
+        description: "Please enter slip reference, slip date, and select a bank.",
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await settleBookingAction({
@@ -400,6 +428,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         auto_discount_type: details.settlePreview?.autoDiscountId ?? undefined,
         bank: showBank && bankId ? { id: bankId, name: banks.find((b) => b.id === bankId)?.name } : null,
         slip_ref: showSlip ? slipRef : undefined,
+        slip_date: showSlip ? slipDate : undefined,
         card: showCard ? card : undefined,
         ewallet_ref: showEWallet ? ewalletRef : undefined,
         payment_lines: mixedPaymentLines,
@@ -420,6 +449,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         setSettleMethod(SAVE_PAYMENT_TYPE_CASH)
         setCard("")
         setSlipRef("")
+        setSlipDate("")
         setEwalletRef("")
         setBankId("")
         resetMixedDialog()
@@ -452,6 +482,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           : null,
         card: line.card.trim() || undefined,
         slip_ref: line.slip_ref.trim() || undefined,
+        slip_date: line.slip_date.trim() || undefined,
         ewallet_ref: line.ewallet_ref.trim() || undefined,
       }))
     if (lines.length < 2) {
@@ -515,6 +546,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           })
           return
         }
+        if (!line.slip_date?.trim()) {
+          toast({
+            title: "Slip date required",
+            description: `Please enter slip date for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
       }
       if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
         toast({
@@ -571,10 +610,24 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           <label className="text-xs font-medium text-foreground">Slip Details</label>
           <Input
             className="text-xs"
-            placeholder="Slip Reference"
+            placeholder="Slip Reference *"
             value={slipRef}
             onChange={(e) => setSlipRef(e.target.value)}
+            required
           />
+          <div className="space-y-1">
+            <label className="text-[11px] text-muted-foreground">
+              Slip date <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="date"
+              className={`text-xs text-foreground ${!slipDate ? "text-muted-foreground" : ""}`}
+              value={slipDate}
+              onChange={(e) => setSlipDate(e.target.value)}
+              aria-label="Slip date"
+              required
+            />
+          </div>
         </div>
       )}
       {showEWallet && (
@@ -711,7 +764,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                           setMixedLines((prev) =>
                             prev.map((row, rowIdx) =>
                               rowIdx === idx
-                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", ewallet_ref: "" }
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", slip_date: "", ewallet_ref: "" }
                                 : row
                             )
                           )
@@ -836,6 +889,26 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                     </div>
                   </div>
                 )}
+                {line.payment_method === SAVE_PAYMENT_TYPE_SLIP && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      Slip date <span className="text-destructive">*</span>
+                    </p>
+                    <Input
+                      type="date"
+                      className={`text-xs text-foreground ${!line.slip_date ? "text-muted-foreground" : ""}`}
+                      value={line.slip_date}
+                      onChange={(e) =>
+                        setMixedLines((prev) =>
+                          prev.map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, slip_date: e.target.value } : row
+                          )
+                        )
+                      }
+                      required
+                    />
+                  </div>
+                )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
                   <div className="space-y-1">
                     <p className="text-[11px] text-muted-foreground">
@@ -882,6 +955,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                     bank_id: "",
                     card: "",
                     slip_ref: "",
+                    slip_date: "",
                     ewallet_ref: "",
                   },
                 ])

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { formatSlipDate } from "@/lib/slip-date";
 import { RECEIPT_METHOD } from "@/types/receipt";
 import { resolveDoctorForReceiptId } from "@/services/doctor-payment/resolve-doctors-by-receipt-ids";
 
@@ -27,6 +28,8 @@ export type DoctorPaymentReceiptDetail = {
   lineItems: DoctorPaymentLineItem[];
   remarks: string;
   slipReference: string;
+  /** YYYY-MM-DD when set */
+  slipDate: string | null;
   createdAt: Date;
   createdByName: string | null;
   createdById: string | null;
@@ -116,6 +119,7 @@ export async function getDoctorPaymentReceiptDetail(
     lineItems,
     remarks: receipt.remarks ?? "",
     slipReference: receipt.slipReference ?? "",
+    slipDate: formatSlipDate(receipt.slipDate) ?? null,
     createdAt: receipt.createdAt,
     createdByName,
     createdById,
@@ -197,6 +201,7 @@ export async function getDoctorCancelReceiptDetail(
     lineItems: [reversalLine],
     remarks: receipt.remarks ?? "",
     slipReference: receipt.slipReference ?? "",
+    slipDate: formatSlipDate(receipt.slipDate) ?? null,
     createdAt: receipt.createdAt,
     createdByName,
     createdById,

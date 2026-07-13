@@ -13,6 +13,7 @@ import {
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -20,6 +21,7 @@ import {
   SAVE_PAYMENT_TYPE_MIXED,
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
+import { parseSlipDateInput } from "@/lib/slip-date"
 
 type ArrivalDepartureEntry = { time: string; createdBy: string }
 
@@ -55,6 +57,10 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
             ? (line.ewallet_ref ?? "")
             : "",
       slipReference: line.slip_ref ?? "",
+      slipDate:
+        line.payment_method === SAVE_PAYMENT_TYPE_SLIP
+          ? parseSlipDateInput(line.slip_date)
+          : null,
     }))
   if (lines.length < 2) {
     return { error: "At least two payment lines are required for mixed payment." }
@@ -80,9 +86,9 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
     }
     if (
       line.paymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
-      (!line.bankId || !line.slipReference.trim())
+      (!line.bankId || !line.slipReference.trim() || !line.slipDate)
     ) {
-      return { error: "Slip payment lines require both bank and slip reference." }
+      return { error: "Slip payment lines require bank, slip reference, and slip date." }
     }
     if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
       return { error: "E-wallet payment lines require a reference." }
@@ -102,6 +108,7 @@ export type SettleBookingInput = {
   auto_discount_type?: string
   bank?: { id: string; name?: string } | null
   slip_ref?: string
+  slip_date?: string
   card?: string
   ewallet_ref?: string
   payment_lines?: Array<{
@@ -109,6 +116,7 @@ export type SettleBookingInput = {
     amount: number
     bank?: { id: string; name?: string } | null
     slip_ref?: string
+    slip_date?: string
     card?: string
     ewallet_ref?: string
   }>
@@ -128,7 +136,16 @@ export async function settleBookingService(
   input: SettleBookingInput,
   userId: string | null
 ): Promise<SettleBookingServiceResult> {
-  if (userId) await requireActiveShift(userId)
+  if (userId) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return { success: false, errorCode: e.code, message: e.message }
+      }
+      throw e
+    }
+  }
 
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
@@ -170,7 +187,7 @@ export async function settleBookingService(
   }
 
   // Server-side mandatory fields:
-  // - Slip settlements require bank + slip reference.
+  // - Slip settlements require bank + slip reference + slip date.
   // - Credit card settlements require bank + card reference.
   if (input.settle_method === SAVE_PAYMENT_TYPE_SLIP) {
     if (!input.bank?.id) {
@@ -185,6 +202,13 @@ export async function settleBookingService(
         success: false,
         errorCode: "missing_slip_reference",
         message: "Slip reference is required when settling via Slip.",
+      }
+    }
+    if (!parseSlipDateInput(input.slip_date)) {
+      return {
+        success: false,
+        errorCode: "missing_slip_date",
+        message: "Slip date is required when settling via Slip.",
       }
     }
   }
@@ -343,6 +367,10 @@ export async function settleBookingService(
           ? (input.ewallet_ref ?? "")
           : (input.card ?? ""),
       slipReference: input.slip_ref ?? "",
+      slipDate:
+        input.settle_method === SAVE_PAYMENT_TYPE_SLIP
+          ? parseSlipDateInput(input.slip_date)
+          : null,
       remarks: "POS PAYMENT", // Settling a pending bill is issued as POS PAYMENT (same as save-booking)
       type: 1,
       method: 1, // PAYMENT RECEIPTS

@@ -37,8 +37,10 @@ import {
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
 import { logActivityNonBlocking } from "@/lib/activity-log"
+import { parseSlipDateInput } from "@/lib/slip-date"
 import { Prisma } from "@prisma/client"
 
 export type SaveBookingServiceResult =
@@ -97,6 +99,10 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
             ? (line.ewallet_ref ?? "")
             : "",
       slipReference: line.slip_ref ?? "",
+      slipDate:
+        line.payment_method === SAVE_PAYMENT_TYPE_SLIP
+          ? parseSlipDateInput(line.slip_date)
+          : null,
     }))
   if (lines.length < 2) {
     return { error: "At least two payment lines are required for mixed payment." }
@@ -122,9 +128,9 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
     }
     if (
       line.paymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
-      (!line.bankId || !line.slipReference.trim())
+      (!line.bankId || !line.slipReference.trim() || !line.slipDate)
     ) {
-      return { error: "Slip payment lines require both bank and slip reference." }
+      return { error: "Slip payment lines require bank, slip reference, and slip date." }
     }
     if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
       return { error: "E-wallet payment lines require a reference." }
@@ -191,7 +197,20 @@ export async function saveBookingService(
 ): Promise<SaveBookingServiceResult> {
   const shouldRequireShift = options?.requireActiveShift !== false
   const settleOnCreate = options?.settleOnCreate !== false
-  if (userId && shouldRequireShift) await requireActiveShift(userId)
+  if (userId && shouldRequireShift) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        }
+      }
+      throw e
+    }
+  }
 
   const sessionId = input.session.id
 
@@ -525,6 +544,8 @@ export async function saveBookingService(
     bookingid_string,
     discountId: input.discount_type ?? null,
     autoDiscountId: input.auto_discount_type ?? null,
+    hmisPatientId: input.hmisPatientId?.trim() || null,
+    hmisMrn: input.hmisMrn?.trim() || null,
   }
 
   const MAX_APPOINTMENT_TX_ATTEMPTS = 2
@@ -709,6 +730,10 @@ export async function saveBookingService(
                 ? (input.ewallet_ref ?? "")
                 : (input.card ?? ""),
             slipReference: input.slip_ref ?? "",
+            slipDate:
+              input.payment_type === SAVE_PAYMENT_TYPE_SLIP
+                ? parseSlipDateInput(input.slip_date)
+                : null,
             remarks,
             type: 1,
             method: 1,
@@ -876,6 +901,13 @@ export async function saveBookingService(
     return { success: true, data: fullBooking }
   } catch (e) {
     console.error("saveBookingService create error", e)
+    if (isShiftRequirementError(e)) {
+      return {
+        success: false,
+        errorCode: e.code,
+        message: e.message,
+      }
+    }
     // Return generic message; actual failure may be DB, sequence, or other.
     return {
       success: false,

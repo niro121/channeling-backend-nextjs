@@ -94,6 +94,16 @@ export const AgentCollectionReceiptColumns: ColumnDef<AgentCollectionReceiptRepo
     cell: ({ row }) => <span className={isNegativeReceipt(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('slipDate') ?? '-'}</span>
   },
   {
+    accessorKey: 'chequeRef',
+    header: 'Cheque No',
+    cell: ({ row }) => <span className={isNegativeReceipt(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('chequeRef') ?? '-'}</span>
+  },
+  {
+    accessorKey: 'chequeDate',
+    header: 'Cheque Date',
+    cell: ({ row }) => <span className={isNegativeReceipt(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('chequeDate') ?? '-'}</span>
+  },
+  {
     accessorKey: 'cardRef',
     header: 'Card Ref',
     cell: ({ row }) => <span className={isNegativeReceipt(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('cardRef') ?? '-'}</span>

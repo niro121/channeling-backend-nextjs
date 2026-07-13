@@ -9,7 +9,7 @@ import { BackButton } from "@/components/common/back-button";
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 
 type MakeDoctorPaymentPageProps = {
-  searchParams?: Promise<{ doctorId?: string }>;
+  searchParams?: Promise<{ doctorId?: string; dateFrom?: string; dateTo?: string }>;
 };
 
 const VALID_PAYMENT_METHODS = [
@@ -44,6 +44,8 @@ function getDoctorPaymentMethodCodes(): number[] {
 export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctorPaymentPageProps) {
   const params = await searchParams;
   const initialDoctorId = params?.doctorId ?? null;
+  const initialDateFrom = params?.dateFrom?.trim() || null;
+  const initialDateTo = params?.dateTo?.trim() || null;
   const canView = await checkRouteAccess("/doctor-payments");
   if (!canView) redirect("/unauthorized-access");
   const canAdd = await checkPermission("doctor-payments", "add");
@@ -81,6 +83,8 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
           userId={userId}
           locationId={userLocationId}
           initialDoctorId={initialDoctorId}
+          initialDateFrom={initialDateFrom}
+          initialDateTo={initialDateTo}
           whtPercentage={getWhtPercentage()}
           doctorPaymentMethodCodes={getDoctorPaymentMethodCodes()}
         />

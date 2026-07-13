@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
+import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
 
 export type ReceiptDetailsView = {
@@ -14,6 +15,8 @@ export type ReceiptDetailsView = {
   bank: string
   cardReference: string
   slipReference: string
+  /** YYYY-MM-DD when set */
+  slipDate: string | null
   paymentLines: Array<{
     paymentMethod: number
     paymentMethodName: string
@@ -21,6 +24,8 @@ export type ReceiptDetailsView = {
     bank: string
     cardReference: string
     slipReference: string
+    /** YYYY-MM-DD when set */
+    slipDate: string | null
   }>
 }
 
@@ -54,6 +59,7 @@ export async function getReceiptDetailsService(
       bank: r.bank ?? "",
       cardReference: r.cardReference ?? "",
       slipReference: r.slipReference ?? "",
+      slipDate: formatSlipDate(r.slipDate) ?? null,
       paymentLines: r.paymentLines.map((line) => ({
         paymentMethod: line.paymentMethod,
         paymentMethodName: PAYMENT_METHOD_NAMES[line.paymentMethod] ?? "—",
@@ -61,6 +67,7 @@ export async function getReceiptDetailsService(
         bank: line.bank ?? "",
         cardReference: line.cardReference ?? "",
         slipReference: line.slipReference ?? "",
+        slipDate: formatSlipDate(line.slipDate) ?? null,
       })),
     }
     return { success: true, data }

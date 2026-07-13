@@ -264,6 +264,18 @@ export function BookingTab() {
           <Row label="Tel" value={details.phone} />
           <Row label="Area" value={details.area} />
           <Row label="Foreigner" value={details.foreigner ? "Yes" : "No"} />
+          {(details.hmisPatientId || details.hmisMrn) && (
+            <Row
+              label="HMIS"
+              value={[
+                details.hmisPatientId ? `#${details.hmisPatientId}` : null,
+                details.hmisMrn ? `MRN ${details.hmisMrn}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              valueClassName="font-medium text-red-600 dark:text-red-400"
+            />
+          )}
         </Section>
         <Section
           title="Appointment"
@@ -1062,6 +1074,7 @@ function ReceiptViewDialog({
                         if (line.bank?.trim()) meta.push(line.bank.trim())
                         if (line.cardReference?.trim()) meta.push(`Card Ref: ${line.cardReference.trim()}`)
                         if (line.slipReference?.trim()) meta.push(`Slip Ref: ${line.slipReference.trim()}`)
+                        if (line.slipDate?.trim()) meta.push(`Slip Date: ${line.slipDate.trim()}`)
                         return meta.length > 0 ? ` (${meta.join(" · ")})` : ""
                       })()}`}
                       value={formatRs(line.amount)}
@@ -1078,6 +1091,9 @@ function ReceiptViewDialog({
               ) : null}
               {details.slipReference ? (
                 <DetailRow label="Slip reference" value={details.slipReference} />
+              ) : null}
+              {details.slipDate ? (
+                <DetailRow label="Slip date" value={details.slipDate} />
               ) : null}
               <DetailRow label="Processed by" value={details.processedBy} />
               <DetailRow label="Created" value={createdAtStr} />

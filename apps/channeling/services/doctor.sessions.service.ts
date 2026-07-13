@@ -437,6 +437,71 @@ export const getDoctorSessionByIdService = async (
   }
 };
 
+// ==== GET LAST FEES FOR DOCTOR (most recently updated session) ==== //
+export const getLastDoctorSessionFeesService = async (
+  doctorId: string
+): Promise<{
+  success: boolean;
+  data?: {
+    sessionId: string;
+    sessionName: string;
+    fees: unknown;
+    amountLocal: number | null;
+    amountForeign: number | null;
+  } | null;
+  message?: string;
+  error?: { message?: string };
+}> => {
+  try {
+    if (!doctorId?.trim()) {
+      return {
+        success: false,
+        error: { message: 'Doctor ID is required' }
+      };
+    }
+
+    const recent = await prisma.doctorSession.findMany({
+      where: { doctorId: doctorId.trim() },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 20,
+      select: {
+        id: true,
+        name: true,
+        fees: true,
+        amountLocal: true,
+        amountForeign: true
+      }
+    });
+
+    const chosen =
+      recent.find((s) => Array.isArray(s.fees) && (s.fees as unknown[]).length > 0) ?? null;
+
+    if (!chosen) {
+      return { success: true, data: null, message: 'No previous fees found for this doctor' };
+    }
+
+    return {
+      success: true,
+      data: {
+        sessionId: chosen.id,
+        sessionName: chosen.name,
+        fees: chosen.fees,
+        amountLocal: chosen.amountLocal,
+        amountForeign: chosen.amountForeign
+      },
+      message: 'Last doctor session fees fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getLastDoctorSessionFeesService error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to get last doctor session fees'
+      }
+    };
+  }
+};
+
 // ==== DELETE DOCTOR SESSION ==== //
 export const deleteDoctorSessionByIdService = async (
   id: string

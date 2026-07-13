@@ -102,6 +102,15 @@ export type getDoctorSessionQuery = {
   institutionId?: string;
 };
 
+/** Fees pulled from the doctor's most recently updated session (for new-session defaults). */
+export type LastDoctorSessionFees = {
+  sessionId: string;
+  sessionName: string;
+  fees: Fee[];
+  amountLocal: number;
+  amountForeign: number;
+};
+
 type Option = {
   id: string;
   name: string;

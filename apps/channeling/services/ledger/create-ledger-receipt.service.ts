@@ -24,6 +24,7 @@ import {
   RECEIPT_PAYMENT_METHOD,
 } from "@/types/receipt"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { parseSlipDateInput } from "@/lib/slip-date"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
 
@@ -211,11 +212,32 @@ export async function createLedgerReceipt(
         message: "Payment method must be Cash, Credit Card, Slip, Cheque, or E-Wallet.",
       }
     }
-    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !input.slipDate?.trim()) {
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !parseSlipDateInput(input.slipDate)) {
       return {
         success: false,
         errorCode: "VALIDATION",
         message: "Slip date is required for slip payments.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.SLIP && !input.slipReference?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Slip reference is required for slip payments.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !input.slipReference?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Cheque number is required for cheque payments.",
+      }
+    }
+    if (pm === RECEIPT_PAYMENT_METHOD.CHECK && !parseSlipDateInput(input.slipDate)) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "Cheque date is required for cheque payments.",
       }
     }
     if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
@@ -385,12 +407,12 @@ export async function createLedgerReceipt(
         : (input.bankId ?? null),
     cardReference: input.cardReference ?? "",
     slipReference: input.slipReference ?? "",
-    remarks:
-      input.transactionType === "AGENCY_DEPOSIT" &&
-      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP &&
-      input.slipDate?.trim()
-        ? `${input.remarks ?? ""} | Slip Date: ${input.slipDate.trim()}`
-        : (input.remarks ?? ""),
+    slipDate:
+      paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+      paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
+        ? parseSlipDateInput(input.slipDate)
+        : null,
+    remarks: input.remarks ?? "",
     type,
     method,
     agencyId: input.agencyId ?? null,
