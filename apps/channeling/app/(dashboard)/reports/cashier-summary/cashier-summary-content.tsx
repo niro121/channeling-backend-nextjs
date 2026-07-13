@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ReportUserSelect } from '@/components/common/user-select';
+import { ReportUserMultiSelect } from '@/components/common/user-select';
 import {
   Table,
   TableBody,
@@ -27,11 +27,12 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { SearchIcon, Printer, Download } from 'lucide-react';
+import { SearchIcon, Printer, Download, X } from 'lucide-react';
 import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summary.action';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import type {
   CashierSummaryReportSection,
   CashierSummaryReportLineItem,
@@ -41,9 +42,12 @@ import type {
 
 type CashierSummaryContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
+  initialLocationOptions: Array<{ id: string; name: string }>;
   currentUserName: string;
   initialFilters?: {
     userId: string;
+    userIds?: string[];
+    locationId?: string;
     dateFrom: string;
     dateTo: string;
     format: 'summary' | 'detail';
@@ -189,6 +193,7 @@ function getDefaultDateTimeRange(): { from: string; to: string } {
 
 export default function CashierSummaryContent({
   initialUserOptions,
+  initialLocationOptions,
   currentUserName,
   initialFilters,
   autoSearchOnLoad = false,
@@ -197,12 +202,25 @@ export default function CashierSummaryContent({
   const [loading, setLoading] = useState(false);
   const [fromDateTime, setFromDateTime] = useState<string>(() => initialFilters?.dateFrom ?? getDefaultDateTimeRange().from);
   const [toDateTime, setToDateTime] = useState<string>(() => initialFilters?.dateTo ?? getDefaultDateTimeRange().to);
-  const [userId, setUserId] = useState<string>(initialFilters?.userId ?? '__all__');
+  /** Empty = all users; one or more = filter to those cashiers. */
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(() => {
+    const multi = (initialFilters?.userIds ?? []).filter((id) => id && id !== '__all__');
+    if (multi.length > 0) return multi;
+    const single = initialFilters?.userId;
+    if (single && single !== '__all__') return [single];
+    return [];
+  });
+  const [locationId, setLocationId] = useState<string>(() =>
+    initialFilters?.locationId && initialFilters.locationId !== '__all__'
+      ? initialFilters.locationId
+      : '__all__'
+  );
   const [format, setFormat] = useState<'summary' | 'detail'>(initialFilters?.format ?? 'summary');
   const [sections, setSections] = useState<CashierSummaryReportSection[]>([]);
   const [grandTotals, setGrandTotals] = useState<CashierSummaryPaymentAmounts | null>(null);
   const [reportMeta, setReportMeta] = useState<{
     userLabel: string;
+    locationLabel: string;
     from: string;
     to: string;
     format: 'summary' | 'detail';
@@ -223,6 +241,7 @@ export default function CashierSummaryContent({
 
   const renderReportMetaCard = (meta: {
     userLabel: string;
+    locationLabel: string;
     from: string;
     to: string;
     format: 'summary' | 'detail';
@@ -238,7 +257,8 @@ export default function CashierSummaryContent({
           label: 'Filters',
           value: (
             <>
-              User: {meta.userLabel} | Range: {formatReportRangeLabel(meta.from, meta.to)} | Format:{' '}
+              User: {meta.userLabel} | Branch: {meta.locationLabel} | Range:{' '}
+              {formatReportRangeLabel(meta.from, meta.to)} | Format:{' '}
               {meta.format === 'detail' ? 'Detail' : 'Summary'}
             </>
           ),
@@ -259,7 +279,22 @@ export default function CashierSummaryContent({
     />
   );
 
-  const userOptions = [{ id: '__all__', name: 'All Users' }, ...initialUserOptions];
+  const userOptions = initialUserOptions;
+  const locationOptions = React.useMemo(
+    () => withAllBranchesOptions(initialLocationOptions),
+    [initialLocationOptions]
+  );
+
+  const selectedUserLabel = React.useMemo(() => {
+    if (selectedUserIds.length === 0) return 'All';
+    return selectedUserIds
+      .map((id) => userOptions.find((u) => u.id === id)?.name ?? id)
+      .join(', ');
+  }, [selectedUserIds, userOptions]);
+
+  const selectedLocationLabel = React.useMemo(() => {
+    return locationOptions.find((l) => l.id === locationId)?.name ?? 'All Branches';
+  }, [locationId, locationOptions]);
 
   const fetchReportData = async () => {
     if (!fromDateTime || !toDateTime) {
@@ -274,7 +309,9 @@ export default function CashierSummaryContent({
     setLoading(true);
     try {
       const result = await getCashierSummaryReportData({
-        userId,
+        userId: selectedUserIds.length === 1 ? selectedUserIds[0] : undefined,
+        userIds: selectedUserIds.length > 1 ? selectedUserIds : undefined,
+        locationId,
         dateFrom: fromDateTime,
         dateTo: toDateTime,
         format,
@@ -283,9 +320,9 @@ export default function CashierSummaryContent({
       if (result.success) {
         setSections(result.sections);
         setGrandTotals(result.grandTotals);
-        const selectedUser = userOptions.find((u) => u.id === userId);
         setReportMeta({
-          userLabel: selectedUser?.name ?? 'All',
+          userLabel: selectedUserLabel,
+          locationLabel: selectedLocationLabel,
           from: fromDateTime,
           to: toDateTime,
           format,
@@ -457,7 +494,7 @@ export default function CashierSummaryContent({
             <div>
               <CardTitle className="text-xl font-bold">Userwise Cashier Detail - Channel</CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                User-wise cashier summary by date range. Summary shows only refunds in detail; Detail shows all transactions.
+                User-wise cashier summary by date range with optional branch filter. Summary shows only refunds in detail; Detail shows all transactions.
               </CardDescription>
             </div>
             <div className="flex gap-2 no-print">
@@ -485,12 +522,43 @@ export default function CashierSummaryContent({
                 }}
               />
             </div>
-            <ReportUserSelect
-              userOptions={userOptions.filter((u) => u.id !== '__all__')}
-              value={userId}
-              onChange={setUserId}
+            <div className="flex-shrink-0">
+              <label className="text-sm font-semibold mb-2 block">Branch</label>
+              <div className="flex items-center gap-1">
+                <Select value={locationId} onValueChange={setLocationId}>
+                  <SelectTrigger className="h-8 w-[200px] px-2 py-1 text-sm shadow-none focus:ring-1 focus:ring-offset-0 [&>span]:block [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locationOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {locationId !== '__all__' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="Clear branch"
+                    onClick={() => setLocationId('__all__')}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <ReportUserMultiSelect
+              userOptions={userOptions}
+              value={selectedUserIds}
+              onChange={setSelectedUserIds}
               label="Select User"
-              widthClassName="w-[200px]"
+              placeholder="All Users"
+              widthClassName="w-[280px]"
+              maxCount={3}
             />
             <div className="flex-shrink-0">
               <label className="text-sm font-semibold mb-2 block">Format</label>
@@ -525,7 +593,7 @@ export default function CashierSummaryContent({
             <div className="max-w-2xl">
               <p className="text-sm font-medium text-muted-foreground">Search to view report details</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Select the date/time range, user, and format, then click <span className="font-medium text-foreground">Search</span> to generate the Userwise Cashier report.
+                Select the date/time range, branch, user, and format, then click <span className="font-medium text-foreground">Search</span> to generate the Userwise Cashier report.
               </p>
             </div>
           </CardContent>
@@ -539,6 +607,8 @@ export default function CashierSummaryContent({
             <CardDescription className="text-xs mt-0.5">
               <span className="font-medium text-foreground">User:</span> {reportMeta.userLabel}
               {'  '}|{'  '}
+              <span className="font-medium text-foreground">Branch:</span> {reportMeta.locationLabel}
+              {'  '}|{'  '}
               <span className="font-medium text-foreground">Range:</span> {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </CardDescription>
           </CardHeader>
@@ -547,7 +617,7 @@ export default function CashierSummaryContent({
               <div className="text-center py-8">Loading...</div>
             ) : !hasData ? (
               <div className="text-center py-8 text-muted-foreground">
-                No data for the selected filters. Try a different date range or user.
+                No data for the selected filters. Try a different date range, branch, or user.
               </div>
             ) : (
               <>

@@ -15,6 +15,50 @@ export type UpdateBookingResult =
   | { success: true; data: unknown }
   | { success: false; errorCode: string; message: string }
 
+type BookingDetailSnapshot = {
+  title: string
+  name: string
+  sex: string
+  phone: string
+  remarks: string
+}
+
+function normalizeBookingDetails(input: {
+  title: string
+  name: string
+  sex: string
+  phone: string
+  remarks?: string | null
+}): BookingDetailSnapshot {
+  return {
+    title: input.title.trim(),
+    name: input.name.trim().toUpperCase(),
+    sex: input.sex.trim(),
+    phone: input.phone.trim(),
+    remarks: (input.remarks ?? "").trim(),
+  }
+}
+
+function formatBookingDetails(details: BookingDetailSnapshot): string {
+  const parts = [
+    details.title || "—",
+    details.name || "—",
+    details.sex || "—",
+    details.phone || "—",
+  ]
+  const base = parts.join(" · ")
+  return details.remarks ? `${base} · Remarks: ${details.remarks}` : base
+}
+
+function getChangedFields(
+  before: BookingDetailSnapshot,
+  after: BookingDetailSnapshot
+): Array<keyof BookingDetailSnapshot> {
+  return (Object.keys(before) as Array<keyof BookingDetailSnapshot>).filter(
+    (key) => before[key] !== after[key]
+  )
+}
+
 /**
  * Update channel booking details (title, name, sex, phone, remarks).
  * Permission must be checked by caller.
@@ -49,20 +93,36 @@ export async function updateBookingService(
     }
   }
 
+  const beforeDetails = normalizeBookingDetails({
+    title: booking.title ?? "",
+    name: booking.name ?? "",
+    sex: booking.sex ?? "",
+    phone: booking.phone ?? "",
+    remarks: booking.remarks ?? "",
+  })
+  const afterDetails = normalizeBookingDetails({
+    title: input.title,
+    name: input.name,
+    sex: input.sex,
+    phone: input.phone,
+    remarks: input.remarks,
+  })
+  const changedFields = getChangedFields(beforeDetails, afterDetails)
+
   await prisma.booking.update({
     where: { id: input.booking_id },
     data: {
-      title: input.title.trim(),
-      name: input.name.trim().toUpperCase(),
-      sex: input.sex.trim(),
-      phone: input.phone.trim(),
-      remarks: input.remarks?.trim() ?? "",
+      title: afterDetails.title,
+      name: afterDetails.name,
+      sex: afterDetails.sex,
+      phone: afterDetails.phone,
+      remarks: afterDetails.remarks,
     },
   })
 
   const data = await getBookingForSaveBooking(input.booking_id)
 
-  if (userId) {
+  if (userId && changedFields.length > 0) {
     logActivityNonBlocking({
       userId,
       action: "booking.updated",
@@ -71,6 +131,15 @@ export async function updateBookingService(
       importance: "high",
       metadata: {
         remarks: "Booking details updated.",
+        before: formatBookingDetails(beforeDetails),
+        after: formatBookingDetails(afterDetails),
+        changedFields,
+        changes: Object.fromEntries(
+          changedFields.map((field) => [
+            field,
+            { from: beforeDetails[field], to: afterDetails[field] },
+          ])
+        ),
       },
     })
   }

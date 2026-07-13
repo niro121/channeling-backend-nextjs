@@ -137,6 +137,7 @@ export function MakeDoctorPaymentClient({
   const [wht, setWht] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(String(RECEIPT_PAYMENT_METHOD.CASH));
   const [slipRef, setSlipRef] = useState("");
+  const [slipDate, setSlipDate] = useState("");
   const [cardRef, setCardRef] = useState("");
   const [ewalletRef, setEwalletRef] = useState("");
   const [handedStaffId, setHandedStaffId] = useState("");
@@ -304,6 +305,10 @@ export function MakeDoctorPaymentClient({
       toast({ title: "Enter last 4 digits of card.", variant: "destructive" });
       return;
     }
+    if (isPaymentSlip && (!slipRef.trim() || !slipDate.trim())) {
+      toast({ title: "Slip reference and slip date are required.", variant: "destructive" });
+      return;
+    }
     if (!userId) {
       toast({ title: "You must be logged in.", variant: "destructive" });
       return;
@@ -319,6 +324,7 @@ export function MakeDoctorPaymentClient({
         amount,
         wht,
         slip_ref: isPaymentSlip ? slipRef : "",
+        slip_date: isPaymentSlip ? slipDate : "",
         card_ref: isPaymentCard ? cardRef : "",
         ewallet_ref: isPaymentEWallet ? ewalletRef : "",
         handed_staff: handedStaffName,
@@ -661,6 +667,7 @@ export function MakeDoctorPaymentClient({
                       onValueChange={(v) => {
                         setPaymentMethod(v);
                         setSlipRef("");
+                        setSlipDate("");
                         setCardRef("");
                         setEwalletRef("");
                       }}
@@ -678,16 +685,34 @@ export function MakeDoctorPaymentClient({
                     </Select>
                   </div>
                   {isPaymentSlip && (
-                    <div className="space-y-2">
-                      <Label htmlFor="slip-ref">Slip reference</Label>
-                      <input
-                        id="slip-ref"
-                        value={slipRef}
-                        onChange={(e) => setSlipRef(e.target.value)}
-                        placeholder="Slip reference"
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      />
-                    </div>
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="slip-ref">
+                          Slip reference <span className="text-destructive">*</span>
+                        </Label>
+                        <input
+                          id="slip-ref"
+                          value={slipRef}
+                          onChange={(e) => setSlipRef(e.target.value)}
+                          placeholder="Slip reference"
+                          required
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="slip-date">
+                          Slip date <span className="text-destructive">*</span>
+                        </Label>
+                        <input
+                          id="slip-date"
+                          type="date"
+                          value={slipDate}
+                          onChange={(e) => setSlipDate(e.target.value)}
+                          required
+                          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background [color-scheme:light] dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        />
+                      </div>
+                    </>
                   )}
                   {isPaymentCard && (
                     <div className="space-y-2">
