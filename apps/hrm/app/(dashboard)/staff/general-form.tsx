@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   Combobox,
+  CustomAlertDialog,
   CustomCheckedField,
   CustomDatePickerField,
   CustomFormField,
@@ -41,6 +42,8 @@ import {
   generalFormValuesToStaffPayload,
   staffRecordToGeneralFormValues
 } from '@/lib/mappers/staff-general-form.mapper';
+import { getChangedChannelingFieldLabels } from '@/lib/helpers/staff-channeling-fields.helper';
+import { buildChannelingSyncDialogDescription } from '@/lib/helpers/staff-channeling-dialog.helper';
 
 export type { GeneralFormValues } from '@/types/staff';
 
@@ -75,6 +78,34 @@ const optionalDate = () =>
     )
     .typeError('Enter a valid date');
 
+const requiredString = (message: string) =>
+  Yup.string().trim().required(message);
+
+const requiredMaxString = (message: string, max: number) =>
+  requiredString(message).max(max, `Must be less than ${max} characters`);
+
+const requiredPatternString = (
+  message: string,
+  pattern: RegExp,
+  patternMessage: string,
+  max?: number
+) => {
+  let schema = requiredString(message).matches(pattern, patternMessage);
+  if (max) {
+    schema = schema.max(max, `Must be less than ${max} characters`);
+  }
+  return schema;
+};
+
+const requiredDate = (message: string) =>
+  Yup.date()
+    .nullable()
+    .transform((value, originalValue) =>
+      originalValue === '' || originalValue === undefined ? null : value
+    )
+    .typeError('Enter a valid date')
+    .required(message);
+
 const validationSchema = Yup.object({
   staffCode: optionalMaxString(50),
   title: optionalMaxString(50),
@@ -88,21 +119,25 @@ const validationSchema = Yup.object({
   lastName: Yup.string()
     .required('Last Name is required')
     .max(100, 'Must be less than 100 characters'),
-  nic: optionalPatternString(
+  nic: requiredPatternString(
+    'NIC is required',
     NIC_REGEX,
-    'Enter a valid NIC (9 digits + V/X or 12 digits)'
+    'Enter a valid NIC (9 digits + V/X or 12 digits)',
+    20
   ),
-  dateOfBirth: optionalDate().max(
+  dateOfBirth: requiredDate('Date of Birth is required').max(
     new Date(),
     'Date of Birth cannot be in the future'
   ),
-  gender: optionalString().oneOf(
-    [...GENDER_OPTIONS.map((option) => option.id), null],
+  gender: requiredString('Gender is required').oneOf(
+    GENDER_OPTIONS.map((option) => option.id),
     'Select a valid gender'
   ),
-  mobileNumber: optionalPatternString(
+  mobileNumber: requiredPatternString(
+    'Mobile Number is required',
     MOBILE_NUMBER_REGEX,
-    'Enter a valid mobile number'
+    'Enter a valid mobile number',
+    15
   ),
   homeTelephone: optionalPatternString(
     HOME_TELEPHONE_REGEX,
@@ -110,14 +145,14 @@ const validationSchema = Yup.object({
   ),
   email: optionalEmail(),
   secondaryEmail: optionalEmail(),
-  address: optionalMaxString(500),
+  address: requiredMaxString('Address is required', 500),
   zoneCode: optionalString(),
   fingerPrintRfid: optionalMaxString(100),
   staffCodeLegacy: optionalMaxString(50),
   epfNumber: optionalMaxString(50),
   etfNumber: optionalMaxString(50),
   registrationNumber: optionalMaxString(50),
-  dateJoined: optionalDate(),
+  dateJoined: requiredDate('Date Joined is required'),
   dateResigned: optionalDate(),
   resignedWithoutNotice: Yup.boolean(),
   resignedWithNoticeDate: optionalDate(),
@@ -182,7 +217,7 @@ const initialValues: GeneralFormValues = {
   epfNumber: '',
   etfNumber: '',
   registrationNumber: '',
-  dateJoined: undefined,
+  dateJoined: new Date(),
   dateResigned: undefined,
   resignedWithoutNotice: false,
   resignedWithNoticeDate: undefined,
@@ -244,34 +279,50 @@ export default function GeneralForm({
   onLoadingChange
 }: GeneralFormProps) {
   const saveAndCloseRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    values: GeneralFormValues;
+    helpers: Pick<FormikHelpers<GeneralFormValues>, 'setErrors' | 'setTouched'>;
+    closeAfterSave: boolean;
+  } | null>(null);
+  const [showChannelingDialog, setShowChannelingDialog] = useState(false);
+  const [channelingDialogDescription, setChannelingDialogDescription] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
-  const resolvedInitialValues =
-    staff && 'code' in staff
-      ? staffRecordToGeneralFormValues(staff)
-      : (staff ?? initialValues);
+  const staffRecord = staff && 'code' in staff ? staff : null;
 
-  const handleSubmit = async (
+  const resolvedInitialValues: GeneralFormValues = staffRecord
+    ? staffRecordToGeneralFormValues(staffRecord)
+    : staff && 'staffCode' in staff
+      ? staff
+      : initialValues;
+
+  const executeSave = async (
     values: GeneralFormValues,
-    { setErrors, setTouched }: FormikHelpers<GeneralFormValues>
+    syncToChanneling: boolean,
+    closeAfterSave: boolean,
+    { setErrors, setTouched }: Pick<FormikHelpers<GeneralFormValues>, 'setErrors' | 'setTouched'>
   ) => {
-    const closeAfterSave = saveAndCloseRef.current;
-
     try {
+      setIsSaving(true);
       onLoadingChange?.(true);
 
       const payload = generalFormValuesToStaffPayload(values);
       let respond: {
         isError?: boolean;
         errors?: Record<string, string | string[]> | { message?: string };
-        data?: { saved?: boolean; id?: string } | null;
+        data?: {
+          saved?: boolean;
+          id?: string;
+          channelingWarning?: string;
+        } | null;
       };
 
       if (isEditPage && staffId) {
-        respond = await updateStaffAction(staffId, payload);
+        respond = await updateStaffAction(staffId, payload, { syncToChanneling });
       } else {
-        respond = await createStaffAction(payload);
+        respond = await createStaffAction(payload, { syncToChanneling });
       }
 
       if (
@@ -288,7 +339,9 @@ export default function GeneralForm({
         const fieldMap: Record<string, keyof GeneralFormValues> = {
           code: 'staffCode',
           contactMobile: 'mobileNumber',
-          name: 'firstName'
+          name: 'firstName',
+          dateOfBirth: 'dateOfBirth',
+          dateJoined: 'dateJoined'
         };
 
         Object.keys(errorMap).forEach((key) => {
@@ -325,11 +378,23 @@ export default function GeneralForm({
         return;
       }
 
+      if (respond?.data?.channelingWarning) {
+        toast({
+          variant: 'destructive',
+          title: 'Channeling sync warning',
+          description: respond.data.channelingWarning
+        });
+      }
+
       if (isEditPage) {
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Staff was updated successfully.'
+          description: respond?.data?.channelingWarning
+            ? 'Staff was updated in HRM.'
+            : syncToChanneling
+              ? 'Staff was updated in HRM and Channeling.'
+              : 'Staff was updated successfully.'
         });
         if (closeAfterSave) router.push('/staff');
         else router.refresh();
@@ -337,7 +402,11 @@ export default function GeneralForm({
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Staff was created successfully.'
+          description: respond?.data?.channelingWarning
+            ? 'Staff was created in HRM.'
+            : syncToChanneling
+              ? 'Staff was created in HRM and Channeling.'
+              : 'Staff was created successfully.'
         });
         const newId = respond?.data?.id;
         if (closeAfterSave) router.push('/staff');
@@ -352,11 +421,81 @@ export default function GeneralForm({
           error instanceof Error ? error.message : 'Staff save unsuccessful.'
       });
     } finally {
+      setIsSaving(false);
       onLoadingChange?.(false);
+      setShowChannelingDialog(false);
+      pendingSubmitRef.current = null;
     }
   };
 
+  const handleSubmit = async (
+    values: GeneralFormValues,
+    helpers: FormikHelpers<GeneralFormValues>
+  ) => {
+    const closeAfterSave = saveAndCloseRef.current;
+    const payload = generalFormValuesToStaffPayload(values);
+
+    const shouldPromptChanneling = isEditPage
+      ? staffRecord
+        ? getChangedChannelingFieldLabels(staffRecord, payload).length > 0 ||
+          !staffRecord.migrateSourceId
+        : false
+      : false;
+
+    if (shouldPromptChanneling) {
+      const changedFields = staffRecord
+        ? getChangedChannelingFieldLabels(staffRecord, payload)
+        : [];
+
+      pendingSubmitRef.current = {
+        values,
+        helpers: {
+          setErrors: helpers.setErrors,
+          setTouched: helpers.setTouched
+        },
+        closeAfterSave
+      };
+      setChannelingDialogDescription(
+        buildChannelingSyncDialogDescription({
+          mode: isEditPage ? 'update' : 'create',
+          changedFields,
+          hasChannelingLink: Boolean(staffRecord?.migrateSourceId)
+        })
+      );
+      setShowChannelingDialog(true);
+      return;
+    }
+
+    await executeSave(values, !isEditPage, closeAfterSave, helpers);
+  };
+
+  const handleChannelingContinue = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(
+      pending.values,
+      true,
+      pending.closeAfterSave,
+      pending.helpers
+    );
+  };
+
+  const handleChannelingDialogVisibility = (open: boolean) => {
+    if (!open && pendingSubmitRef.current) {
+      const pending = pendingSubmitRef.current;
+      void executeSave(
+        pending.values,
+        false,
+        pending.closeAfterSave,
+        pending.helpers
+      );
+      return;
+    }
+    setShowChannelingDialog(open);
+  };
+
   return (
+    <>
     <Formik
       initialValues={resolvedInitialValues}
       validationSchema={validationSchema}
@@ -501,7 +640,7 @@ export default function GeneralForm({
                       value={formik.values.nic}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      required={false}
+                      required
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -513,7 +652,7 @@ export default function GeneralForm({
                         formik.setFieldValue('dateOfBirth', date ?? undefined)
                       }
                       onBlur={formik.handleBlur}
-                      required={false}
+                      required
                       styleClasses={fieldStyleClasses}
                       error={formik.errors.dateOfBirth as string | undefined}
                       touched={formik.touched.dateOfBirth}
@@ -531,7 +670,7 @@ export default function GeneralForm({
                       }))}
                       value={formik.values.gender?.toString() ?? ''}
                   onChange={(v) => formik.setFieldValue('gender', v)}
-                      required={false}
+                      required
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -542,7 +681,7 @@ export default function GeneralForm({
                       value={formik.values.mobileNumber}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      required={false}
+                      required
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -586,8 +725,7 @@ export default function GeneralForm({
                       value={formik.values.address}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      required={false}
-                      disabled
+                      required
                       styleClasses={fieldStyleClasses}
                     />
 
@@ -695,8 +833,7 @@ export default function GeneralForm({
                         formik.setFieldValue('dateJoined', date ?? undefined)
                       }
                       onBlur={formik.handleBlur}
-                      required={false}
-                      disabled
+                      required
                       styleClasses={fieldStyleClasses}
                       captionLayout="dropdown"
                       fromYear={1990}
@@ -798,7 +935,7 @@ export default function GeneralForm({
                         name: s.name
                       }))}
                       value={formik.values.status?.toString() ?? ''}
-                  onChange={(v) => formik.setFieldValue('status', parseInt(v, 10))}
+                      onChange={(v) => formik.setFieldValue('status', v)}
                       required
                       styleClasses={fieldStyleClasses}
                     />
@@ -830,5 +967,15 @@ export default function GeneralForm({
         );
       }}
     </Formik>
+
+    <CustomAlertDialog
+      open={showChannelingDialog}
+      handleVisibilityChange={handleChannelingDialogVisibility}
+      loading={isSaving}
+      title={isEditPage ? 'Update Channeling staff too?' : 'Create Channeling staff too?'}
+      description={`${channelingDialogDescription} Click Cancel to save in HRM only, or Continue to also apply the change in Channeling.`}
+      handleContinue={handleChannelingContinue}
+    />
+    </>
   );
 }

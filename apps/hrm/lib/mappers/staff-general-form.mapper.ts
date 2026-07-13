@@ -71,7 +71,7 @@ export function generalFormValuesToStaffPayload(
     gender: values.gender ?? '',
     contactMobile: values.mobileNumber ?? '',
     address: values.address ?? '',
-    dateJoined: values.dateJoined,
+    dateJoined: values.dateJoined ?? new Date(),
     status: Number.parseInt(values.status, 10) || 1,
     hrDetails: mapFormValuesToHrDetails(values)
   };

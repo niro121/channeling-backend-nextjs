@@ -7,39 +7,15 @@ import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
-import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
+import { channelingStaffPayloadSchema } from '@/lib/helpers/staff-channeling-fields.helper';
 import type { GetStaffParams, StaffGeneralPayload, StaffHrDetails } from '@/types/staff';
 
 const STAFF_CODE_PREFIX = 'ST';
 const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
 
-// ** Staff Schema Validation * //
-const staffSchema = z.object({
-  code: z.string().max(50, 'Must be less than 50 characters').optional(),
-  title: z.string().max(50).optional().nullable(),
-  name: z.string().min(1, 'Name is required').max(150, 'Must be less than 150 characters'),
-  nic: z.string().max(20, 'Must be less than 20 characters').optional().nullable(),
-  dateOfBirth: z
-    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
-    .optional()
-    .nullable(),
-  gender: z.string().max(50).optional().nullable(),
-  contactMobile: z
-    .string()
-    .max(15, 'Must be less than 15 characters')
-    .optional()
-    .nullable()
-    .refine((value) => !value || MOBILE_NUMBER_REGEX.test(value), {
-      message: 'Mobile Number Ex: 07x xxxxxxx'
-    }),
-  address: z.string().max(500, 'Must be less than 500 characters').optional().nullable(),
-  dateJoined: z
-    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
-    .optional()
-    .nullable(),
-  status: z.number().int().refine((val) => val === 0 || val === 1, {
-    message: 'Status must be Inactive (0) or Active (1)'
-  })
+// ** Staff Schema Validation (Channeling-aligned fields + HRM HR details) * //
+const staffSchema = channelingStaffPayloadSchema.extend({
+  code: z.string().max(50, 'Must be less than 50 characters').optional()
 });
 
 const staffHrDetailsSchema = z.object({
@@ -255,11 +231,11 @@ export async function createStaff(
         code,
         title: data.title ?? '',
         name: data.name,
-        nic: data.nic ?? '',
+        nic: data.nic,
         dateOfBirth: toDate(data.dateOfBirth),
-        gender: data.gender ?? '',
-        contactMobile: data.contactMobile ?? '',
-        address: data.address ?? '',
+        gender: data.gender,
+        contactMobile: data.contactMobile,
+        address: data.address,
         dateJoined: toDate(data.dateJoined) ?? new Date(),
         status: data.status,
         hrDetails: toHrDetailsInput(data.hrDetails ?? {}, legacyGenerated.code),
@@ -462,13 +438,7 @@ export async function deleteStaffs(ids: string[]): Promise<{
   }
 }
 
-
-
-
-
-
-
-
+//** Get Staff Options Service * //
 export type StaffOption = { id: string; name: string; code: string };
 
 export async function getStaffOptions(): Promise<{

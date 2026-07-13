@@ -32,6 +32,7 @@ export type StaffGeneralPayload = Staff & {
 
 export type StaffRecord = Staff & {
   id: string;
+  migrateSourceId?: string | null;
   hrDetails?: StaffHrDetails | null;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +43,17 @@ export type StaffRecord = Staff & {
 export type StaffWithAuthUsers = StaffRecord & {
   createdUser: AuthUserSummary | null;
   updatedUser: AuthUserSummary | null;
+};
+
+export type StaffCrudOptions = {
+  syncToChanneling?: boolean;
+};
+
+export type StaffActionResult = {
+  saved: boolean;
+  id?: string;
+  channelingSynced?: boolean;
+  channelingWarning?: string;
 };
 
 export type GeneralFormValues = {

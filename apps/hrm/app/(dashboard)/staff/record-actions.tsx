@@ -1,19 +1,20 @@
 "use client"
 
 import React, { useState } from "react"
-import { Staff } from "@/types/staff"
+import { StaffRecord } from "@/types/staff"
 import { Row } from "@tanstack/react-table"
 import { Button, CustomAlertDialog, DataTableRowActions, useToast } from "@archmage/ui"
 import { deleteStaffAction } from "@/app/actions/staff-actions/staff.actions"
+import { buildChannelingSyncDialogDescription } from "@/lib/helpers/staff-channeling-dialog.helper"
 import { Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 
-interface StaffRecordActionsProps<TData extends Staff> {
+interface StaffRecordActionsProps<TData extends StaffRecord> {
   row: Row<TData>
 }
 
-function StaffRecordActions<TData extends Staff>({ row }: StaffRecordActionsProps<TData>) {
+function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActionsProps<TData>) {
   const [showDeleteConfirmation, setShowDelConfirmation] = useState(false)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
@@ -21,33 +22,110 @@ function StaffRecordActions<TData extends Staff>({ row }: StaffRecordActionsProp
   const { has } = usePermissions()
   const staff = row.original
 
+  const deleteDescription = buildChannelingSyncDialogDescription({
+    mode: "delete",
+    hasChannelingLink: Boolean(staff.migrateSourceId),
+  })
+
   const onDeleteConfirmation = async () => {
-    if (staff.id) {
-      try {
-        setLoading(true)
-        await deleteStaffAction(staff.id)
-        toast({
-          variant: "success",
-          title: "Success",
-          description: "Staff was deleted successfully.",
-        })
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message ?? "Staff deletion unsuccessful.",
-        })
-      } finally {
-        setLoading(false)
-        setShowDelConfirmation(false)
-      }
-    } else {
+    if (!staff.id) {
       toast({
         variant: "destructive",
         title: "Error",
         description: "Staff id not found.",
       })
+      return
     }
+
+    try {
+      setLoading(true)
+      const result = await deleteStaffAction(staff.id, { syncToChanneling: true })
+
+      if (result.isError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.errors?.message ?? "Staff deletion unsuccessful.",
+        })
+        return
+      }
+
+      if (result.data?.channelingWarning) {
+        toast({
+          variant: "destructive",
+          title: "Channeling sync warning",
+          description: result.data.channelingWarning,
+        })
+      } else {
+        toast({
+          variant: "success",
+          title: "Success",
+          description: staff.migrateSourceId
+            ? "Staff was deleted from HRM and Channeling."
+            : "Staff was deleted successfully.",
+        })
+      }
+
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message ?? "Staff deletion unsuccessful.",
+      })
+    } finally {
+      setLoading(false)
+      setShowDelConfirmation(false)
+    }
+  }
+
+  const onDeleteHrmOnly = async () => {
+    if (!staff.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Staff id not found.",
+      })
+      return
+    }
+
+    try {
+      setLoading(true)
+      const result = await deleteStaffAction(staff.id, { syncToChanneling: false })
+
+      if (result.isError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.errors?.message ?? "Staff deletion unsuccessful.",
+        })
+        return
+      }
+
+      toast({
+        variant: "success",
+        title: "Success",
+        description: "Staff was deleted from HRM.",
+      })
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message ?? "Staff deletion unsuccessful.",
+      })
+    } finally {
+      setLoading(false)
+      setShowDelConfirmation(false)
+    }
+  }
+
+  const handleDeleteDialogVisibility = (open: boolean) => {
+    if (!open) {
+      void onDeleteHrmOnly()
+      return
+    }
+    setShowDelConfirmation(open)
   }
 
   return (
@@ -78,10 +156,14 @@ function StaffRecordActions<TData extends Staff>({ row }: StaffRecordActionsProp
       </DataTableRowActions>
       <CustomAlertDialog
         open={showDeleteConfirmation}
-        handleVisibilityChange={setShowDelConfirmation}
+        handleVisibilityChange={handleDeleteDialogVisibility}
         loading={loading}
-        title="Are you absolutely sure?"
-        description="This action cannot be undone. This will permanently delete this staff member and remove the data from our servers."
+        title={
+          staff.migrateSourceId
+            ? 'Delete staff from HRM and Channeling?'
+            : 'Delete staff from HRM?'
+        }
+        description={`${deleteDescription} Click Cancel to delete from HRM only, or Continue to also delete from Channeling.`}
         handleContinue={onDeleteConfirmation}
       />
     </>

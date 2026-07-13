@@ -17,7 +17,16 @@ import {
   syncAllStaffFromChanneling,
   // syncStaffByIdFromChanneling
 } from '@/services/staff-services/staff-sync.service';
-import type { GetStaffParams, StaffGeneralPayload } from '@/types/staff';
+import type { GetStaffParams, StaffCrudOptions, StaffGeneralPayload } from '@/types/staff';
+import { staffRecordToChannelingPayload } from '@/lib/helpers/staff-channeling-fields.helper';
+import {
+  pushStaffBulkDeleteToChanneling,
+  pushStaffCreateToChanneling,
+  pushStaffDeleteToChanneling,
+  pushStaffUpdateToChanneling,
+  countLinkedChannelingStaff,
+  getChannelingStaffIdsByHrmIds
+} from '@/services/staff-services/staff-channeling-push.service';
 
 // ** Get Staff List Action * //
 export async function getStaffAction(params: GetStaffParams) {
@@ -74,7 +83,10 @@ export async function getStaffByIdAction(id: string) {
 }
 
 // ** Create Staff Action * //
-export async function createStaffAction(data: StaffGeneralPayload) {
+export async function createStaffAction(
+  data: StaffGeneralPayload,
+  options?: StaffCrudOptions
+) {
   await requirePermission('staff', 'add');
   try {
     const payload = { ...data };
@@ -98,12 +110,36 @@ export async function createStaffAction(data: StaffGeneralPayload) {
       };
     }
 
+    const hrmStaffId = result.data?.id as string | undefined;
+    let channelingWarning: string | undefined;
+    const shouldSyncToChanneling = options?.syncToChanneling ?? true;
+
+    if (shouldSyncToChanneling && hrmStaffId && result.data) {
+      const channelingResult = await pushStaffCreateToChanneling(
+        hrmStaffId,
+        staffRecordToChannelingPayload(result.data)
+      );
+
+      if (!channelingResult.success) {
+        await deleteStaff(hrmStaffId);
+        return {
+          isError: true,
+          errors: {
+            message:
+              channelingResult.error?.message ??
+              'Staff could not be created in Channeling. No record was saved in HRM.'
+          },
+          data: {}
+        };
+      }
+    }
+
     if (auditUser?.id) {
       logActivityNonBlocking({
         userId: auditUser.id,
         action: 'staff.staff.created',
         entityType: 'Staff',
-        entityId: result.data?.id ?? undefined,
+        entityId: hrmStaffId,
         importance: 'high'
       });
     }
@@ -111,7 +147,12 @@ export async function createStaffAction(data: StaffGeneralPayload) {
     revalidatePath('/staff');
     return {
       isError: false,
-      data: { saved: true, id: result.data?.id },
+      data: {
+        saved: true,
+        id: hrmStaffId,
+        channelingSynced: shouldSyncToChanneling && !channelingWarning,
+        channelingWarning
+      },
       errors: {}
     };
   } catch (error: any) {
@@ -125,7 +166,11 @@ export async function createStaffAction(data: StaffGeneralPayload) {
 }
 
 // ** Update Staff Action * //
-export async function updateStaffAction(id: string, data: Partial<StaffGeneralPayload>) {
+export async function updateStaffAction(
+  id: string,
+  data: Partial<StaffGeneralPayload>,
+  options?: StaffCrudOptions
+) {
   await requirePermission('staff', 'edit');
   try {
     const payload = { ...data };
@@ -137,6 +182,8 @@ export async function updateStaffAction(id: string, data: Partial<StaffGeneralPa
     delete (payload as any).createdUser;
     delete (payload as any).updatedUser;
 
+    const existingResult = await getStaffById(id);
+    const existing = existingResult.data;
     const auditUser = await getAuditUser();
     const result = await updateStaff(id, payload, auditUser);
     if (!result.success) {
@@ -147,6 +194,22 @@ export async function updateStaffAction(id: string, data: Partial<StaffGeneralPa
           { message: result.error?.message ?? 'Something went wrong. Please try again later' },
         data: {}
       };
+    }
+
+    let channelingWarning: string | undefined;
+
+    if (options?.syncToChanneling && result.data) {
+      const channelingResult = await pushStaffUpdateToChanneling(
+        id,
+        existing?.migrateSourceId,
+        staffRecordToChannelingPayload(result.data)
+      );
+
+      if (!channelingResult.success) {
+        channelingWarning =
+          channelingResult.error?.message ??
+          'Staff was updated in HRM, but Channeling sync failed.';
+      }
     }
 
     if (auditUser?.id) {
@@ -162,7 +225,11 @@ export async function updateStaffAction(id: string, data: Partial<StaffGeneralPa
     revalidatePath('/staff');
     return {
       isError: false,
-      data: { saved: true },
+      data: {
+        saved: true,
+        channelingSynced: options?.syncToChanneling && !channelingWarning,
+        channelingWarning
+      },
       errors: {}
     };
   } catch (error: any) {
@@ -176,13 +243,27 @@ export async function updateStaffAction(id: string, data: Partial<StaffGeneralPa
 }
 
 // ** Delete Staff Action * //
-export async function deleteStaffAction(id: string) {
+export async function deleteStaffAction(id: string, options?: StaffCrudOptions) {
   await requirePermission('staff', 'delete');
   try {
+    const existingResult = await getStaffById(id);
+    const migrateSourceId = existingResult.data?.migrateSourceId;
+
     const auditUser = await getAuditUser();
     const result = await deleteStaff(id);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Error deleting data. Please try again later');
+    }
+
+    let channelingWarning: string | undefined;
+
+    if (options?.syncToChanneling) {
+      const channelingResult = await pushStaffDeleteToChanneling(migrateSourceId);
+      if (!channelingResult.success) {
+        channelingWarning =
+          channelingResult.error?.message ??
+          'Staff was deleted in HRM, but Channeling sync failed.';
+      }
     }
 
     if (auditUser?.id) {
@@ -196,7 +277,11 @@ export async function deleteStaffAction(id: string) {
     }
 
     revalidatePath('/staff');
-    return { isError: false, data: null, errors: {} };
+    return {
+      isError: false,
+      data: { channelingWarning },
+      errors: {}
+    };
   } catch (error: any) {
     console.error('deleteStaffAction error:', error);
     return {
@@ -212,9 +297,24 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   await requirePermission('staff', 'delete');
   try {
     const auditUser = await getAuditUser();
+    const linkedRecords = await getChannelingStaffIdsByHrmIds(ids);
+    const migrateSourceIds = linkedRecords
+      .map((record) => record.channelingId)
+      .filter(Boolean);
+
     const result = await deleteStaffs(ids);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Error deleting records. Please try again later');
+    }
+
+    if (migrateSourceIds.length > 0) {
+      const channelingResult = await pushStaffBulkDeleteToChanneling(migrateSourceIds);
+      if (!channelingResult.success) {
+        throw new Error(
+          channelingResult.error?.message ??
+            'Records were deleted in HRM, but Channeling sync failed.'
+        );
+      }
     }
 
     if (auditUser?.id) {
@@ -235,16 +335,23 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   }
 }
 
+/** Build bulk delete dialog copy for staff linked to Channeling. */
+export async function getStaffBulkDeleteDescriptionAction(ids: string[]): Promise<string> {
+  'use server';
 
+  const linkedCount = await countLinkedChannelingStaff(ids);
+  const { buildChannelingSyncDialogDescription } = await import(
+    '@/lib/helpers/staff-channeling-dialog.helper'
+  );
 
+  return buildChannelingSyncDialogDescription({
+    mode: 'bulkDelete',
+    linkedCount,
+    totalCount: ids.length
+  });
+}
 
-
-
-
-
-
-
-
+//** Get Staff Options Action * //
 export async function getStaffOptionsAction(): Promise<{
   isError: boolean;
   data: { id: string; name: string; code: string }[] | null;

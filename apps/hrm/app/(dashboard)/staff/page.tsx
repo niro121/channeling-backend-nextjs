@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import {
   getStaffAction,
   bulkDeleteStaffAction,
+  getStaffBulkDeleteDescriptionAction,
   getStaffExport
 } from '@/app/actions/staff-actions/staff.actions';
 import { SyncStaffButton } from './sync-staff-button';
@@ -85,6 +86,11 @@ export default async function StaffPage({ searchParams }: SearchParams) {
       };
     };
 
+  const getBulkDeleteDescription = async (ids: string[]): Promise<string> => {
+    'use server';
+    return getStaffBulkDeleteDescriptionAction(ids);
+  };
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -97,6 +103,7 @@ export default async function StaffPage({ searchParams }: SearchParams) {
           page={resolvedSearchParams?.page}
           haveBulkDelete={true}
           deleteServerAction={bulkDeleteStaffAction}
+          getBulkDeleteDescription={getBulkDeleteDescription}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row gap-3 items-start">
