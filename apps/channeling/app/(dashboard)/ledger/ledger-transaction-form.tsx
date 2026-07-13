@@ -552,6 +552,7 @@ export function LedgerTransactionForm({
                         value={formik.values.slipDate}
                         onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}
                         required
+                        className="text-foreground"
                       />
                       {formik.errors.slipDate && (
                         <p className="text-sm text-destructive">{formik.errors.slipDate}</p>

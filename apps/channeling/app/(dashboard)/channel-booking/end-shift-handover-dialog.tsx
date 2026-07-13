@@ -105,7 +105,9 @@ export function EndShiftHandoverDialog({
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [balance, setBalance] = useState<MyTillBalance | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
-  const [handoverUsers, setHandoverUsers] = useState<{ id: string; name: string; isBulkCashier?: boolean }[]>([])
+  const [handoverUsers, setHandoverUsers] = useState<
+    { id: string; name: string; isBulkCashier?: boolean; staffCode?: string | null }[]
+  >([])
   const [handoverUsersLoading, setHandoverUsersLoading] = useState(false)
   const [toUserId, setToUserId] = useState("")
   const [discrepancyReason, setDiscrepancyReason] = useState("")
@@ -264,7 +266,12 @@ export function EndShiftHandoverDialog({
           if (res.success && res.data?.length) {
             const list = res.data
               .filter((u) => u.id !== fromUserId)
-              .map((u) => ({ id: u.id, name: u.name || u.email || u.id, isBulkCashier: u.isBulkCashier }))
+              .map((u) => ({
+                id: u.id,
+                name: u.name || u.email || u.id,
+                isBulkCashier: u.isBulkCashier,
+                staffCode: u.staffCode ?? null,
+              }))
             setHandoverUsers(list)
           } else {
             setHandoverUsers([])

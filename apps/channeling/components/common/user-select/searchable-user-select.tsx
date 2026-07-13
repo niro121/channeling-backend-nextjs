@@ -19,6 +19,8 @@ export type SearchableUserOption = {
   id: string
   name: string
   isBulkCashier?: boolean
+  /** Staff code when available; included in search and shown when not already in name. */
+  staffCode?: string | null
 }
 
 type SearchableUserSelectProps = {
@@ -52,6 +54,9 @@ export function SearchableUserSelect({
   const sorted = React.useMemo(() => sortByName(options), [options])
   const selected = sorted.find((o) => o.id === value)
   const displayName = selected?.name || ""
+
+  const optionSearchValue = (option: SearchableUserOption) =>
+    [option.name, option.staffCode].filter(Boolean).join(" ")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -87,7 +92,7 @@ export function SearchableUserSelect({
               {sorted.map((option) => (
                 <CommandItem
                   key={option.id}
-                  value={option.name}
+                  value={optionSearchValue(option)}
                   onSelect={() => {
                     onChange(option.id)
                     setOpen(false)

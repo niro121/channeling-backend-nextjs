@@ -37,7 +37,20 @@ export type CancelDoctorPaymentResult =
 export async function cancelDoctorPaymentService(
   input: CancelDoctorPaymentInput
 ): Promise<CancelDoctorPaymentResult> {
-  if (input.canceledBy) await requireActiveShift(input.canceledBy);
+  if (input.canceledBy) {
+    try {
+      await requireActiveShift(input.canceledBy);
+    } catch (e) {
+      return {
+        success: false,
+        errorCode: "NO_ACTIVE_SHIFT",
+        message:
+          e instanceof Error
+            ? e.message
+            : "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+      };
+    }
+  }
 
   const currentShift = input.canceledBy ? await getCurrentShift(input.canceledBy) : null;
   const shiftId = currentShift?.id ?? undefined;
@@ -101,6 +114,7 @@ export async function cancelDoctorPaymentService(
     bankId: original.bankId ?? null,
     cardReference: original.cardReference ?? "",
     slipReference: original.slipReference ?? "",
+    slipDate: original.slipDate ?? null,
     remarks: reversalRemarks,
     type: 1, // DEBIT (inflow for reversal)
     method: RECEIPT_METHOD.DOCTOR_CANCEL,

@@ -21,6 +21,7 @@ const settleBookingSchema = z
     auto_discount_type: z.string().optional(),
     bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
     slip_ref: z.string().optional(),
+    slip_date: z.string().optional(),
     card: z.string().optional(),
     ewallet_ref: z.string().optional(),
     payment_lines: z.array(
@@ -29,6 +30,7 @@ const settleBookingSchema = z
         amount: z.number().positive(),
         bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
         slip_ref: z.string().optional(),
+        slip_date: z.string().optional(),
         card: z.string().optional(),
         ewallet_ref: z.string().optional(),
       })
@@ -106,7 +108,7 @@ const settleBookingSchema = z
   .superRefine((data, ctx) => {
     const bankId = data.bank?.id?.trim()
 
-    // When settling via Slip: both bank and slip reference are mandatory.
+    // When settling via Slip: bank, slip reference, and slip date are mandatory.
     if (data.settle_method === SAVE_PAYMENT_TYPE_SLIP) {
       if (!bankId) {
         ctx.addIssue({
@@ -120,6 +122,13 @@ const settleBookingSchema = z
           code: z.ZodIssueCode.custom,
           path: ["slip_ref"],
           message: "Slip reference is required when settling via Slip.",
+        })
+      }
+      if (!data.slip_date?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(data.slip_date.trim())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["slip_date"],
+          message: "Slip date is required when settling via Slip.",
         })
       }
     }
@@ -212,6 +221,16 @@ const settleBookingSchema = z
             code: z.ZodIssueCode.custom,
             path: ["payment_lines", idx, "slip_ref"],
             message: "Slip reference is required for slip payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+          (!line.slip_date?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(line.slip_date.trim()))
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "slip_date"],
+            message: "Slip date is required for slip payment lines.",
           })
         }
         if (

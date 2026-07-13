@@ -5,6 +5,7 @@ import { SHIFT_STATUS } from "@/types/shift"
 import { HANDOVER_STATUS } from "@/types/handover"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
+import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
 import { z } from "zod"
 
 const SHIFT_MAX_HOURS =
@@ -186,11 +187,14 @@ export async function getShiftUserOptions() {
 export async function getHandoverUserOptions(excludeUserId: string) {
   const users = await prisma.user.findMany({
     where: { status: 1, id: { not: excludeUserId } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, staff: { select: { code: true } } },
     orderBy: { name: "asc" },
     take: 500,
   })
-  return users.map((u) => ({ id: u.id, name: u.name || u.id }))
+  return users.map((u) => ({
+    id: u.id,
+    name: formatUserDisplayName(u.name, u.id, u.staff?.code),
+  }))
 }
 
 /** All active shifts (status=ACTIVE, endsAt>now) with user and location for bulk cashier dashboard. */

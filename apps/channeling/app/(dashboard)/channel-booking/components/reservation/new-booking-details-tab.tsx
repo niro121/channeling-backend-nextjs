@@ -37,6 +37,7 @@ import {
   MessageSquare,
   Phone,
   Receipt,
+  Search,
   User,
   UserCircle,
   Users,
@@ -78,6 +79,8 @@ import { cn } from "@/lib/utils"
 import type { PaymentMethodIconKey } from "@/types/channel-booking"
 import { PAYMENT_METHODS, SEX_OPTIONS } from "@/types/channel-booking"
 import { getSexForTitle, TITLE_OPTIONS } from "@/types/title"
+import type { HmisPatientSearchResult } from "@/types/hmis-patient"
+import { HmisPatientSearchDialog } from "./hmis-patient-search-dialog"
 
 const iconClass = "h-3.5 w-3.5 shrink-0 text-muted-foreground"
 
@@ -118,12 +121,13 @@ type MixedLine = {
   bank_id: string
   card: string
   slip_ref: string
+  slip_date: string
   ewallet_ref: string
 }
 
 const DEFAULT_MIXED_LINES: MixedLine[] = [
-  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
-  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
+  { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
 ]
 
 /**
@@ -165,6 +169,9 @@ export function NewBookingDetailsTab() {
   const [patientName, setPatientName] = useState("")
   const [sexId, setSexId] = useState<string>("")
   const [phoneNumber, setPhoneNumber] = useState("")
+  const [hmisPatientId, setHmisPatientId] = useState<string | null>(null)
+  const [hmisMrn, setHmisMrn] = useState<string | null>(null)
+  const [hmisSearchOpen, setHmisSearchOpen] = useState(false)
   const [remarks, setRemarks] = useState("")
   const [areaId, setAreaId] = useState<string>("")
   const [areaOpen, setAreaOpen] = useState(false)
@@ -188,6 +195,7 @@ export function NewBookingDetailsTab() {
   const [bankId, setBankId] = useState<string>("")
   const [cardLast4, setCardLast4] = useState("")
   const [slipRef, setSlipRef] = useState("")
+  const [slipDate, setSlipDate] = useState("")
   const [ewalletRef, setEwalletRef] = useState("")
   const [agencyBooks, setAgencyBooks] = useState<ChannelBookingAgencyBookOption[]>([])
   const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
@@ -225,6 +233,7 @@ export function NewBookingDetailsTab() {
   const bankError = !!invalidFields.bank
   const cardError = !!invalidFields.card
   const slipRefError = !!invalidFields.slip_ref
+  const slipDateError = !!invalidFields.slip_date
   const ewalletRefError = !!invalidFields.ewallet_ref
   const voucherError = !!invalidFields.voucher_code
   const errorClass = "border-red-500 focus-visible:ring-red-500"
@@ -335,6 +344,8 @@ export function NewBookingDetailsTab() {
     setPatientName("")
     setSexId("")
     setPhoneNumber("")
+    setHmisPatientId(null)
+    setHmisMrn(null)
     setRemarks("")
     setAreaId("")
     setAreaOpen(false)
@@ -346,6 +357,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setSlipDate("")
     setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
@@ -369,6 +381,7 @@ export function NewBookingDetailsTab() {
     setBankId("")
     setCardLast4("")
     setSlipRef("")
+    setSlipDate("")
     setEwalletRef("")
     resetMixedDialog()
     setAgencyBooks([])
@@ -407,6 +420,34 @@ export function NewBookingDetailsTab() {
 
   const fieldClass = "h-8 text-xs"
   const smallSelectClass = "h-8 text-xs w-24 shrink-0"
+
+  function applyHmisPatient(patient: HmisPatientSearchResult) {
+    if (patient.title) setTitleId(patient.title)
+    setPatientName(patient.name)
+    if (patient.sex) {
+      const sexOption = SEX_OPTIONS.find((s) => s.id === patient.sex)
+      if (sexOption) setSexId(sexOption.id)
+    } else if (patient.title) {
+      const sexForTitle = getSexForTitle(patient.title)
+      if (sexForTitle) {
+        const sexOption = SEX_OPTIONS.find(
+          (s) => s.name.toLowerCase() === sexForTitle.toLowerCase()
+        )
+        if (sexOption) setSexId(sexOption.id)
+      }
+    }
+    if (patient.phone) setPhoneNumber(patient.phone)
+    setHmisPatientId(patient.id)
+    setHmisMrn(patient.mrn)
+    setInvalidFields((prev) => {
+      const next = { ...prev }
+      delete next.name
+      delete next.title
+      delete next.sex
+      delete next.phone
+      return next
+    })
+  }
 
   async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedSession || !selectedDoctor || !selectedArea) return
@@ -467,11 +508,14 @@ export function NewBookingDetailsTab() {
         bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
+        slip_date: isSlip ? slipDate.trim() : undefined,
         ewallet_ref: isEWallet ? ewalletRef.trim() : undefined,
         payment_lines: mixedPaymentLines,
         referred_doctor: referredDoctorId ? { id: referredDoctorId } : undefined,
         referred_agency: referredAgencyId ? { id: referredAgencyId } : undefined,
         referred_staff: referredStaffId ? { id: referredStaffId } : undefined,
+        hmisPatientId: hmisPatientId ?? undefined,
+        hmisMrn: hmisMrn ?? undefined,
         ...forcedAppointmentPayload,
       })
       if (result.success) {
@@ -487,6 +531,8 @@ export function NewBookingDetailsTab() {
         setPatientName("")
         setSexId("")
         setPhoneNumber("")
+        setHmisPatientId(null)
+        setHmisMrn(null)
         setRemarks("")
         setAreaId("")
         setAreaOpen(false)
@@ -498,6 +544,7 @@ export function NewBookingDetailsTab() {
         setBankId("")
         setCardLast4("")
         setSlipRef("")
+        setSlipDate("")
         resetMixedDialog()
         setAgencyBooks([])
         setSelectedAgencyId(null)
@@ -585,6 +632,7 @@ export function NewBookingDetailsTab() {
     }
     if (isSlip) {
       if (!slipRef.trim()) typeErrors.slip_ref = true
+      if (!slipDate.trim()) typeErrors.slip_date = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
     if (isEWallet && !ewalletRef.trim()) typeErrors.ewallet_ref = true
@@ -611,7 +659,7 @@ export function NewBookingDetailsTab() {
                 ? "Please enter Last 4 Digits and select Bank."
                 : isEWallet
                   ? "Please enter E-wallet reference."
-                  : "Please enter Bank Reference and select Bank.",
+                  : "Please enter Bank Reference, Slip Date, and select Bank.",
         variant: "destructive",
       })
       return
@@ -637,6 +685,7 @@ export function NewBookingDetailsTab() {
           : null,
         card: line.card.trim() || undefined,
         slip_ref: line.slip_ref.trim() || undefined,
+        slip_date: line.slip_date.trim() || undefined,
         ewallet_ref: line.ewallet_ref.trim() || undefined,
       }))
     if (lines.length < 2) {
@@ -696,6 +745,14 @@ export function NewBookingDetailsTab() {
           toast({
             title: "Slip reference required",
             description: `Please enter slip reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.slip_date?.trim()) {
+          toast({
+            title: "Slip date required",
+            description: `Please enter slip date for mixed payment line ${idx + 1}.`,
             variant: "destructive",
           })
           return
@@ -1019,8 +1076,9 @@ export function NewBookingDetailsTab() {
         </div>
       )}
       {isSlip && (
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-3 gap-x-3">
           <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Bank reference *</p>
             <Input
               className={`${fieldClass} ${slipRefError ? errorClass : ""}`}
               placeholder="Bank Reference"
@@ -1029,6 +1087,18 @@ export function NewBookingDetailsTab() {
             />
           </div>
           <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Slip date *</p>
+            <Input
+              type="date"
+              className={`${fieldClass} text-foreground ${slipDateError ? errorClass : ""} ${!slipDate ? "text-muted-foreground" : ""}`}
+              value={slipDate}
+              onChange={(e) => setSlipDate(e.target.value)}
+              aria-label="Slip date"
+              required
+            />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] leading-tight text-muted-foreground">Bank *</p>
             <Select
               value={bankId || undefined}
               onValueChange={setBankId}
@@ -1073,7 +1143,29 @@ export function NewBookingDetailsTab() {
         </span>
       </div>
 
-      {/* Row 3: Title (small) | Patient Name (rest) */}
+      {/* HMIS link badge (above title/name row) */}
+      {hmisPatientId && (
+        <div className="flex items-center gap-1.5">
+          <p className="text-[10px] font-medium text-red-600 dark:text-red-400">
+            HMIS #{hmisPatientId}
+            {hmisMrn ? ` · MRN ${hmisMrn}` : ""}
+          </p>
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-destructive"
+            title="Remove HMIS link"
+            onClick={() => {
+              setHmisPatientId(null)
+              setHmisMrn(null)
+            }}
+          >
+            <X className="h-3 w-3" />
+            Remove
+          </button>
+        </div>
+      )}
+
+      {/* Row 3: Title (small) | Patient Name (rest) | Search HMIS */}
       <div className="flex gap-2 items-stretch">
         <div
           className="space-y-0.5"
@@ -1113,11 +1205,33 @@ export function NewBookingDetailsTab() {
               className={`${fieldClass} min-w-0 w-full pl-8 ${nameError ? errorClass : ""}`}
               placeholder="PATIENT NAME"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setPatientName(e.target.value.toUpperCase())
+                if (hmisPatientId) {
+                  setHmisPatientId(null)
+                  setHmisMrn(null)
+                }
+              }}
             />
           </div>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 gap-1 px-2 text-xs"
+          title="Search HMIS patient"
+          onClick={() => setHmisSearchOpen(true)}
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Search Patient</span>
+        </Button>
       </div>
+      <HmisPatientSearchDialog
+        open={hmisSearchOpen}
+        onOpenChange={setHmisSearchOpen}
+        onSelect={applyHmisPatient}
+      />
 
       {/* Row 4: Sex (small) | Phone (rest) */}
       <div className="flex gap-2 items-stretch">
@@ -1334,7 +1448,7 @@ export function NewBookingDetailsTab() {
             (isAgent && (!agencyId || !agencyBookId || !agencyRef.trim())) ||
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
-            (isSlip && (!slipRef.trim() || !bankId)) ||
+            (isSlip && (!slipRef.trim() || !slipDate.trim() || !bankId)) ||
             (isEWallet && !ewalletRef.trim())
           }
           onClick={handleBookNow}
@@ -1380,7 +1494,7 @@ export function NewBookingDetailsTab() {
                           setMixedLines((prev) =>
                             prev.map((row, rowIdx) =>
                               rowIdx === idx
-                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", ewallet_ref: "" }
+                                ? { ...row, payment_method: Number(v), card: "", slip_ref: "", slip_date: "", ewallet_ref: "" }
                                 : row
                             )
                           )
@@ -1505,6 +1619,26 @@ export function NewBookingDetailsTab() {
                     </div>
                   </div>
                 )}
+                {line.payment_method === SAVE_PAYMENT_TYPE_SLIP && (
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      Slip date <span className="text-destructive">*</span>
+                    </p>
+                    <Input
+                      type="date"
+                      className={`${fieldClass} text-foreground ${!line.slip_date ? "text-muted-foreground" : ""}`}
+                      value={line.slip_date}
+                      onChange={(e) =>
+                        setMixedLines((prev) =>
+                          prev.map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, slip_date: e.target.value } : row
+                          )
+                        )
+                      }
+                      required
+                    />
+                  </div>
+                )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
                   <div className="space-y-1">
                     <p className="text-[11px] text-muted-foreground">
@@ -1547,7 +1681,7 @@ export function NewBookingDetailsTab() {
               onClick={() =>
                 setMixedLines((prev) => [
                   ...prev,
-                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", ewallet_ref: "" },
+                  { payment_method: 0, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
                 ])
               }
             >

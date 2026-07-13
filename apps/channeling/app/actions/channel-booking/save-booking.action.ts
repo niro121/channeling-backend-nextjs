@@ -30,6 +30,7 @@ const saveBookingSchema = z.object({
       amount: z.number().positive(),
       bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
       slip_ref: z.string().optional(),
+      slip_date: z.string().optional(),
       card: z.string().optional(),
       ewallet_ref: z.string().optional(),
     })
@@ -52,6 +53,7 @@ const saveBookingSchema = z.object({
   credit_customer: z.object({ id: z.string() }).optional().nullable(),
   bank: z.object({ id: z.string(), name: z.string().optional() }).optional().nullable(),
   slip_ref: z.string().optional(),
+  slip_date: z.string().optional(),
   card: z.string().optional(),
   ewallet_ref: z.string().optional(),
   staff: z
@@ -63,6 +65,8 @@ const saveBookingSchema = z.object({
   referred_staff: z.object({ id: z.string() }).optional().nullable(),
   forcedAppointmentNo: z.number().int().optional(),
   forceAppointmentNo: z.boolean().optional(),
+  hmisPatientId: z.string().optional().nullable(),
+  hmisMrn: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
     ctx.addIssue({
@@ -70,6 +74,30 @@ const saveBookingSchema = z.object({
       path: ["ewallet_ref"],
       message: "E-wallet reference is required for E-wallet payment.",
     })
+  }
+
+  if (data.payment_type === SAVE_PAYMENT_TYPE_SLIP) {
+    if (!data.bank?.id?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bank"],
+        message: "Bank is required for Slip payment.",
+      })
+    }
+    if (!data.slip_ref?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["slip_ref"],
+        message: "Slip reference is required for Slip payment.",
+      })
+    }
+    if (!data.slip_date?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(data.slip_date.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["slip_date"],
+        message: "Slip date is required for Slip payment.",
+      })
+    }
   }
 
   if (data.payment_type !== SAVE_PAYMENT_TYPE_MIXED) return
@@ -136,6 +164,16 @@ const saveBookingSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["payment_lines", idx, "slip_ref"],
         message: "Slip reference is required for slip payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_SLIP &&
+      (!line.slip_date?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(line.slip_date.trim()))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "slip_date"],
+        message: "Slip date is required for slip payment lines.",
       })
     }
     if (
@@ -219,6 +257,8 @@ export async function saveBookingAction(
     referred_staff: parsed.data.referred_staff ?? undefined,
     forcedAppointmentNo: parsed.data.forcedAppointmentNo,
     forceAppointmentNo: parsed.data.forceAppointmentNo,
+    hmisPatientId: parsed.data.hmisPatientId ?? undefined,
+    hmisMrn: parsed.data.hmisMrn ?? undefined,
   }
 
   const result = await saveBookingService(input, userId)

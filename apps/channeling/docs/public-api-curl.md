@@ -100,7 +100,46 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 
 ---
 
-## 3. Get Bookings
+## 3. Get Doctors
+
+**GET** `/api/public/doctors`  
+**GET** `/api/public/doctors?keyword=cardio`  
+
+Returns published doctors with speciality for external integrations (e.g. DPAY patient bills). Requires a valid Bearer token.
+
+### Query parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `keyword` | No | Filter by doctor name, code, title, or speciality name. |
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/public/doctors" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Example success response (200)
+
+```json
+{
+  "doctors": [
+    {
+      "id": "...",
+      "title": "Dr.",
+      "name": "Anura Jayawardena",
+      "code": "DR0001",
+      "specialityId": "...",
+      "specialityName": "Cardiology"
+    }
+  ]
+}
+```
+
+---
+
+## 4. Get Bookings
 
 **GET** `/api/public/bookings?doctorCode=DR0001&sessionId=SESSION_ID`  
 **GET** `/api/public/bookings?doctorCode=DR0001&date=2025-05-25`  
@@ -164,7 +203,7 @@ curl -X GET "http://localhost:3000/api/public/bookings?doctorCode=DR0001&date=20
 
 ---
 
-## 4. Create agent booking
+## 5. Create agent booking
 
 **POST** `/api/public/bookings`
 

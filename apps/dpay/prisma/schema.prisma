@@ -1,0 +1,65 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma"
+  binaryTargets = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model PatientBill {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  bxtNumber        String   @unique
+  billNumber       String   @unique
+  admissionDate    DateTime
+  dischargeDate    DateTime?
+  customerName     String
+  customerNicPhone String?
+  customerAddress  String?
+  totalAmount      Float
+  paidAmount       Float    @default(0)
+  outstandingAmount Float
+  status           String   @default("pending")
+  createdBy        String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  lineItems PatientBillItem[]
+  receipts  PatientBillReceipt[]
+}
+
+model PatientBillItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId      String   @db.ObjectId
+  sortOrder   Int
+  doctorName  String
+  description String
+  amount      Float
+
+  bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+}
+
+model PatientBillReceipt {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId           String   @db.ObjectId
+  receiptNumber    String   @unique
+  amountPaid       Float
+  paymentMethod    String
+  referenceNumber  String?
+  remarks          String?
+  outstandingAfter Float
+  paymentDate      DateTime @default(now())
+  createdBy        String?  @db.ObjectId
+  createdAt        DateTime @default(now())
+
+  bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+}
