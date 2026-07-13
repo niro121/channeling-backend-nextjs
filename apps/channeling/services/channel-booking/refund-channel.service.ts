@@ -16,6 +16,7 @@ import {
 import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -129,7 +130,16 @@ export async function refundChannelService(
   input: RefundChannelInput,
   userId: string | null
 ): Promise<RefundChannelResult> {
-  if (userId) await requireActiveShift(userId)
+  if (userId) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return { success: false, errorCode: e.code, message: e.message }
+      }
+      throw e
+    }
+  }
 
   const currentShift = userId ? await getCurrentShift(userId) : null
   const shiftId = currentShift?.id ?? undefined

@@ -7,6 +7,7 @@ import { ReferenceSelect } from "@/components/common/reference-select";
 import {
   getEligibleDoctorPaymentBookings,
   getDoctorPaymentBookingDetails,
+  getEarliestPendingDoctorPaymentDate,
   processDoctorPaymentAction,
 } from "@/app/actions/doctor-payment/doctor-payment.actions";
 import type { EligibleSessionGroup } from "@/services/doctor-payment/get-eligible-bookings.service";
@@ -58,7 +59,22 @@ function formatSessionDate(d: Date): string {
 }
 
 function getTodayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function isValidISODate(value: string | null | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(d.getTime());
+}
+
+/** Prefer the earlier of two YYYY-MM-DD dates. */
+function earlierISODate(a: string, b: string): string {
+  return a <= b ? a : b;
 }
 
 const STEPS = [
@@ -106,6 +122,10 @@ type MakeDoctorPaymentClientProps = {
   locationId: string | null;
   /** When provided (e.g. from channel-booking Payment tab), pre-select this doctor. */
   initialDoctorId?: string | null;
+  /** Optional from-date hint (e.g. selected session date). Refined to earliest pending when doctor loads. */
+  initialDateFrom?: string | null;
+  /** Optional to-date; defaults to today. */
+  initialDateTo?: string | null;
   whtPercentage: number;
   doctorPaymentMethodCodes: number[];
 };
@@ -117,6 +137,8 @@ export function MakeDoctorPaymentClient({
   userId,
   locationId,
   initialDoctorId,
+  initialDateFrom,
+  initialDateTo,
   whtPercentage,
   doctorPaymentMethodCodes,
 }: MakeDoctorPaymentClientProps) {
@@ -124,9 +146,15 @@ export function MakeDoctorPaymentClient({
   const { toast } = useToast();
   const [doctorId, setDoctorId] = useState(initialDoctorId ?? "");
   const today = getTodayISO();
-  const [dateFrom, setDateFrom] = useState(today);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateFrom, setDateFrom] = useState(() =>
+    isValidISODate(initialDateFrom) ? initialDateFrom : today
+  );
+  const [dateTo, setDateTo] = useState(() =>
+    isValidISODate(initialDateTo) ? initialDateTo : today
+  );
+  const [loadingPendingFromDate, setLoadingPendingFromDate] = useState(false);
   const [loadingEligible, setLoadingEligible] = useState(false);
+  const initialHintAppliedRef = useRef(false);
   const [sessions, setSessions] = useState<EligibleSessionGroup[]>([]);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -158,6 +186,48 @@ export function MakeDoctorPaymentClient({
       setPaymentMethod(allowed[0]);
     }
   }, [paymentMethodOptions, paymentMethod]);
+
+  // When doctor is selected: From = earliest unpaid session (or URL hint), To = today.
+  useEffect(() => {
+    if (!doctorId.trim()) return;
+    let cancelled = false;
+    const todayLocal = getTodayISO();
+    setLoadingPendingFromDate(true);
+    setDateTo(todayLocal);
+
+    const useUrlHint =
+      !initialHintAppliedRef.current &&
+      !!initialDoctorId &&
+      doctorId === initialDoctorId &&
+      isValidISODate(initialDateFrom);
+    initialHintAppliedRef.current = true;
+    const hint = useUrlHint ? initialDateFrom : null;
+
+    void (async () => {
+      try {
+        const res = await getEarliestPendingDoctorPaymentDate(doctorId);
+        if (cancelled) return;
+        if (res.success && res.dateFrom) {
+          setDateFrom(hint ? earlierISODate(res.dateFrom, hint) : res.dateFrom);
+        } else if (hint) {
+          setDateFrom(hint);
+        } else {
+          setDateFrom(todayLocal);
+        }
+      } catch {
+        if (!cancelled) {
+          setDateFrom(hint ?? todayLocal);
+        }
+      } finally {
+        if (!cancelled) setLoadingPendingFromDate(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctorId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -433,6 +503,7 @@ export function MakeDoctorPaymentClient({
           </CardTitle>
           <CardDescription>
             Choose the consultant and date range, then load sessions that have paid bookings with pending doctor payment.
+            From date defaults to the earliest unpaid session for that doctor; To date defaults to today.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -452,13 +523,19 @@ export function MakeDoctorPaymentClient({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="step1-date-from">From date</Label>
-                <input
-                  id="step1-date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
+                <div className="relative">
+                  <input
+                    id="step1-date-from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    disabled={loadingPendingFromDate}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+                  />
+                  {loadingPendingFromDate ? (
+                    <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                  ) : null}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="step1-date-to">To date</Label>
@@ -473,7 +550,7 @@ export function MakeDoctorPaymentClient({
               <div className="flex flex-col gap-2 pt-1 sm:flex-row lg:flex-col lg:pt-0">
                 <Button
                   onClick={handleLoad}
-                  disabled={loadingEligible}
+                  disabled={loadingEligible || loadingPendingFromDate}
                   className="h-10 w-full sm:w-auto lg:w-full"
                 >
                   {loadingEligible ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

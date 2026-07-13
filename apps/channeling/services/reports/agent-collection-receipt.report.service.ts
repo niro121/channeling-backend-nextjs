@@ -167,6 +167,22 @@ export async function getAgentCollectionReceiptReportService(
           .filter((value): value is string => !!value)
       )
     )
+    const chequeRefs = Array.from(
+      new Set(
+        lines
+          .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
+          .map((line) => (line.slipReference ?? "").trim())
+          .filter((value) => value.length > 0)
+      )
+    )
+    const chequeDates = Array.from(
+      new Set(
+        lines
+          .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
+          .map((line) => resolveSlipDateDisplay(line.slipDate, null))
+          .filter((value): value is string => !!value)
+      )
+    )
     const cardRefs = Array.from(
       new Set(
         lines
@@ -181,12 +197,14 @@ export async function getAgentCollectionReceiptReportService(
           .filter(
             (line) =>
               line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
-              line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
           )
           .map((line) => (line.bank ?? "").trim())
           .filter((value) => value.length > 0)
       )
     )
+    const isChequeReceipt = r.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
     return {
       id: r.id,
       createdAt: r.createdAt,
@@ -204,11 +222,27 @@ export async function getAgentCollectionReceiptReportService(
       slipRef:
         slipRefs.length > 0
           ? slipRefs.join(", ")
-          : (r.slipReference ?? "").trim() || null,
+          : !isChequeReceipt
+            ? (r.slipReference ?? "").trim() || null
+            : null,
       slipDate:
         slipDates.length > 0
           ? slipDates.join(", ")
-          : resolveSlipDateDisplay(r.slipDate, r.remarks),
+          : !isChequeReceipt
+            ? resolveSlipDateDisplay(r.slipDate, r.remarks)
+            : null,
+      chequeRef:
+        chequeRefs.length > 0
+          ? chequeRefs.join(", ")
+          : isChequeReceipt
+            ? (r.slipReference ?? "").trim() || null
+            : null,
+      chequeDate:
+        chequeDates.length > 0
+          ? chequeDates.join(", ")
+          : isChequeReceipt
+            ? resolveSlipDateDisplay(r.slipDate, r.remarks)
+            : null,
       cardRef:
         cardRefs.length > 0
           ? cardRefs.join(", ")

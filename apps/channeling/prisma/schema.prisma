@@ -751,7 +751,7 @@ model Discount {
   name                 String
   discountType         Int // 0 = percentage, 1 = fixed
   discountMethod       DiscountMethod[] // 1 = POS, 2 = on-call, 3 - agent, 4 - staff, 5 - API
-  paymentType          PaymentType[] // 1 = cash, 2 = credit-card, 3 = slip, 4 = cheque
+  paymentType          PaymentType[] // cash, credit-card, slip, cheque, e-wallet, mixed
   discountValue        Int
   discountValueForeign Int
   fromDate             DateTime
@@ -1229,6 +1229,8 @@ enum PaymentType {
   CREDIT_CARD
   SLIP
   CHEQUE
+  E_WALLET
+  MIXED
 }
 
 enum LogStatus {

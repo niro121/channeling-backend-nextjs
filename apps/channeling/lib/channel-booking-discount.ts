@@ -18,10 +18,10 @@ export const PAYMENT_TYPE_TO_ENUM: Record<number, string> = {
   1: "CREDIT_CARD",
   2: "SLIP",
   3: "CHEQUE",
-  4: "CASH",
-  5: "CASH",
-  6: "CASH",
-  7: "CASH",
+  4: "CASH", // Agent
+  5: "CASH", // Credit Customer
+  6: "E_WALLET",
+  7: "MIXED",
 }
 
 export type DiscountEligibility = {
@@ -95,10 +95,11 @@ function applyDiscountSplit(
   const value = foriegner ? discount.discountValueForeign : discount.discountValue
   if (discount.discountType === 0) {
     if (discount.applyTo === 0) {
-      const hospital = Math.round((hospital_fee * value) / 100)
+      // Percent of fee → round to cents (2dp), do not drop to whole rupees
+      const hospital = Math.round(((hospital_fee * value) / 100) * 100) / 100
       return { hospital, professional: 0 }
     }
-    const professional = Math.round((professional_fee * value) / 100)
+    const professional = Math.round(((professional_fee * value) / 100) * 100) / 100
     return { hospital: 0, professional }
   }
   if (discount.applyTo === 0) {
