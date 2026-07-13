@@ -8,9 +8,10 @@ import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
-import type { GetStaffParams, Staff } from '@/types/staff';
+import type { GetStaffParams, StaffGeneralPayload, StaffHrDetails } from '@/types/staff';
 
 const STAFF_CODE_PREFIX = 'ST';
+const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
 
 // ** Staff Schema Validation * //
 const staffSchema = z.object({
@@ -41,8 +42,53 @@ const staffSchema = z.object({
   })
 });
 
-const staffUpdateSchema = staffSchema.partial().extend({
-  id: z.string().min(1, 'Staff ID is required')
+const staffHrDetailsSchema = z.object({
+  initials: z.string().max(50).optional().nullable(),
+  firstName: z.string().max(100).optional().nullable(),
+  lastName: z.string().max(100).optional().nullable(),
+  homeTelephone: z.string().max(15).optional().nullable(),
+  email: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => !value || z.email().safeParse(value).success, {
+      message: 'Enter a valid email address'
+    }),
+  secondaryEmail: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => !value || z.email().safeParse(value).success, {
+      message: 'Enter a valid email address'
+    }),
+  zoneCode: z.string().optional().nullable(),
+  fingerPrintRfid: z.string().max(100).optional().nullable(),
+  epfNumber: z.string().max(50).optional().nullable(),
+  etfNumber: z.string().max(50).optional().nullable(),
+  registrationNumber: z.string().max(50).optional().nullable(),
+  dateResigned: z
+    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
+    .optional()
+    .nullable(),
+  resignedWithoutNotice: z.boolean().optional(),
+  resignedWithNoticeDate: z
+    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
+    .optional()
+    .nullable(),
+  dateRetired: z
+    .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
+    .optional()
+    .nullable(),
+  speciality: z.string().optional().nullable()
+});
+
+const staffGeneralPayloadSchema = staffSchema.extend({
+  hrDetails: staffHrDetailsSchema.optional()
+});
+
+const staffGeneralUpdatePayloadSchema = staffSchema.partial().extend({
+  id: z.string().min(1, 'Staff ID is required'),
+  hrDetails: staffHrDetailsSchema.optional()
 });
 
 function toDate(val: Date | number | string | null | undefined): Date | null {
@@ -50,6 +96,45 @@ function toDate(val: Date | number | string | null | undefined): Date | null {
   if (val instanceof Date) return val;
   if (typeof val === 'number') return new Date(val);
   return new Date(val);
+}
+
+function toHrDetailsInput(
+  hrDetails: StaffHrDetails,
+  staffCodeLegacy?: string | null
+): Prisma.StaffHrDetailsCreateInput {
+  return {
+    initials: hrDetails.initials ?? null,
+    firstName: hrDetails.firstName ?? null,
+    lastName: hrDetails.lastName ?? null,
+    homeTelephone: hrDetails.homeTelephone ?? null,
+    email: hrDetails.email ?? null,
+    secondaryEmail: hrDetails.secondaryEmail ?? null,
+    zoneCode: hrDetails.zoneCode ?? null,
+    fingerPrintRfid: hrDetails.fingerPrintRfid ?? null,
+    staffCodeLegacy: staffCodeLegacy ?? hrDetails.staffCodeLegacy ?? null,
+    epfNumber: hrDetails.epfNumber ?? null,
+    etfNumber: hrDetails.etfNumber ?? null,
+    registrationNumber: hrDetails.registrationNumber ?? null,
+    dateResigned: toDate(hrDetails.dateResigned),
+    resignedWithoutNotice: hrDetails.resignedWithoutNotice ?? false,
+    resignedWithNoticeDate: toDate(hrDetails.resignedWithNoticeDate),
+    dateRetired: toDate(hrDetails.dateRetired),
+    speciality: hrDetails.speciality ?? null
+  };
+}
+
+async function generateStaffLegacyCode(): Promise<
+  { success: true; code: string } | { success: false; message: string }
+> {
+  const generated = await generateRecordCode(STAFF_LEGACY_CODE_PREFIX);
+  if (!generated.success) {
+    return {
+      success: false,
+      message: 'Failed to generate legacy staff code. Please try again.'
+    };
+  }
+
+  return { success: true, code: generated.code };
 }
 
 // ** Get Staff List Service * //
@@ -122,7 +207,7 @@ export async function getStaffById(id: string): Promise<{
 
 // ** Create Staff Service * //
 export async function createStaff(
-  payload: Staff,
+  payload: StaffGeneralPayload,
   user?: AuditUser
 ): Promise<{
   success: boolean;
@@ -131,7 +216,7 @@ export async function createStaff(
   error?: { message?: string; issues?: Record<string, string[]> };
 }> {
   try {
-    const parsed = staffSchema.safeParse(payload);
+    const parsed = staffGeneralPayloadSchema.safeParse(payload);
     if (!parsed.success) {
       return {
         success: false,
@@ -157,7 +242,13 @@ export async function createStaff(
       code = generated.code;
     }
 
-    // let legacyCode = 
+    const legacyGenerated = await generateStaffLegacyCode();
+    if (!legacyGenerated.success) {
+      return {
+        success: false,
+        error: { message: legacyGenerated.message }
+      };
+    }
 
     const staff = await prisma.staff.create({
       data: {
@@ -171,6 +262,7 @@ export async function createStaff(
         address: data.address ?? '',
         dateJoined: toDate(data.dateJoined) ?? new Date(),
         status: data.status,
+        hrDetails: toHrDetailsInput(data.hrDetails ?? {}, legacyGenerated.code),
         ...(auditUser?.id && { createdBy: auditUser.id, updatedBy: auditUser.id })
       }
     });
@@ -197,7 +289,7 @@ export async function createStaff(
 // ** Update Staff Service * //
 export async function updateStaff(
   id: string,
-  payload: Partial<Staff>,
+  payload: Partial<StaffGeneralPayload>,
   user?: AuditUser
 ): Promise<{
   success: boolean;
@@ -206,7 +298,7 @@ export async function updateStaff(
   error?: { message?: string; issues?: Record<string, string[]> };
 }> {
   try {
-    const parsed = staffUpdateSchema.safeParse({ ...payload, id });
+    const parsed = staffGeneralUpdatePayloadSchema.safeParse({ ...payload, id });
     if (!parsed.success) {
       return {
         success: false,
@@ -219,6 +311,27 @@ export async function updateStaff(
 
     const data = parsed.data;
     const auditUser = toAuditUser(user);
+    const existing = await prisma.staff.findUnique({
+      where: { id },
+      select: { hrDetails: true }
+    });
+
+    if (!existing) {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+
+    let staffCodeLegacy = existing.hrDetails?.staffCodeLegacy ?? null;
+    if (!staffCodeLegacy && data.hrDetails) {
+      const legacyGenerated = await generateStaffLegacyCode();
+      if (!legacyGenerated.success) {
+        return {
+          success: false,
+          error: { message: legacyGenerated.message }
+        };
+      }
+      staffCodeLegacy = legacyGenerated.code;
+    }
+
     const updateData: Prisma.StaffUpdateInput = {
       ...(data.code !== undefined && { code: data.code }),
       ...(data.title !== undefined && { title: data.title ?? '' }),
@@ -230,6 +343,47 @@ export async function updateStaff(
       ...(data.address !== undefined && { address: data.address ?? '' }),
       ...(data.dateJoined !== undefined && { dateJoined: toDate(data.dateJoined) }),
       ...(data.status !== undefined && { status: data.status }),
+      ...(data.hrDetails && {
+        hrDetails: toHrDetailsInput(
+          {
+            initials: data.hrDetails.initials ?? existing.hrDetails?.initials ?? null,
+            firstName: data.hrDetails.firstName ?? existing.hrDetails?.firstName ?? null,
+            lastName: data.hrDetails.lastName ?? existing.hrDetails?.lastName ?? null,
+            homeTelephone:
+              data.hrDetails.homeTelephone ?? existing.hrDetails?.homeTelephone ?? null,
+            email: data.hrDetails.email ?? existing.hrDetails?.email ?? null,
+            secondaryEmail:
+              data.hrDetails.secondaryEmail ?? existing.hrDetails?.secondaryEmail ?? null,
+            zoneCode: data.hrDetails.zoneCode ?? existing.hrDetails?.zoneCode ?? null,
+            fingerPrintRfid:
+              data.hrDetails.fingerPrintRfid ?? existing.hrDetails?.fingerPrintRfid ?? null,
+            epfNumber: data.hrDetails.epfNumber ?? existing.hrDetails?.epfNumber ?? null,
+            etfNumber: data.hrDetails.etfNumber ?? existing.hrDetails?.etfNumber ?? null,
+            registrationNumber:
+              data.hrDetails.registrationNumber ??
+              existing.hrDetails?.registrationNumber ??
+              null,
+            dateResigned:
+              data.hrDetails.dateResigned !== undefined
+                ? data.hrDetails.dateResigned
+                : (existing.hrDetails?.dateResigned ?? null),
+            resignedWithoutNotice:
+              data.hrDetails.resignedWithoutNotice ??
+              existing.hrDetails?.resignedWithoutNotice ??
+              false,
+            resignedWithNoticeDate:
+              data.hrDetails.resignedWithNoticeDate !== undefined
+                ? data.hrDetails.resignedWithNoticeDate
+                : (existing.hrDetails?.resignedWithNoticeDate ?? null),
+            dateRetired:
+              data.hrDetails.dateRetired !== undefined
+                ? data.hrDetails.dateRetired
+                : (existing.hrDetails?.dateRetired ?? null),
+            speciality: data.hrDetails.speciality ?? existing.hrDetails?.speciality ?? null
+          },
+          staffCodeLegacy
+        )
+      }),
       ...(auditUser?.id && { updatedBy: auditUser.id }),
       updatedAt: new Date()
     };

@@ -17,7 +17,7 @@ import {
   syncAllStaffFromChanneling,
   // syncStaffByIdFromChanneling
 } from '@/services/staff-services/staff-sync.service';
-import type { GetStaffParams, Staff } from '@/types/staff';
+import type { GetStaffParams, StaffGeneralPayload } from '@/types/staff';
 
 // ** Get Staff List Action * //
 export async function getStaffAction(params: GetStaffParams) {
@@ -74,7 +74,7 @@ export async function getStaffByIdAction(id: string) {
 }
 
 // ** Create Staff Action * //
-export async function createStaffAction(data: Staff) {
+export async function createStaffAction(data: StaffGeneralPayload) {
   await requirePermission('staff', 'add');
   try {
     const payload = { ...data };
@@ -125,7 +125,7 @@ export async function createStaffAction(data: Staff) {
 }
 
 // ** Update Staff Action * //
-export async function updateStaffAction(id: string, data: Partial<Staff>) {
+export async function updateStaffAction(id: string, data: Partial<StaffGeneralPayload>) {
   await requirePermission('staff', 'edit');
   try {
     const payload = { ...data };

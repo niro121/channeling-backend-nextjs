@@ -1,6 +1,10 @@
-import type { GeneralFormValues } from '@/app/(dashboard)/staff/general-form';
-import type { Staff } from '@/types/staff';
+import type { GeneralFormValues } from '@/types/staff';
+import type { StaffGeneralPayload, StaffRecord } from '@/types/staff';
 import { STAFF_STATUS_OPTIONS } from '@archmage/shared';
+import {
+  mapFormValuesToHrDetails,
+  mapHrDetailsToFormValues
+} from '@/lib/mappers/staff-hr-details.mapper';
 
 function getFullName(firstName: string, lastName: string) {
   return [firstName, lastName].filter(Boolean).join(' ').trim();
@@ -20,50 +24,37 @@ function toDate(value: Date | string | null | undefined): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-export function staffRecordToGeneralFormValues(
-  staff: Staff & { id?: string }
-): GeneralFormValues {
-  const nameParts = (staff.name ?? '').trim().split(/\s+/).filter(Boolean);
-  const lastName = nameParts.length > 1 ? (nameParts[nameParts.length - 1] ?? '') : '';
-  const firstName =
-    nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : (staff.name ?? '');
+export function staffRecordToGeneralFormValues(staff: StaffRecord): GeneralFormValues {
+  const hrValues = mapHrDetailsToFormValues(staff.hrDetails);
+  const fullName = getFullName(hrValues.firstName, hrValues.lastName);
+  const nameWithInitials = getNameWithInitials(
+    hrValues.initials,
+    hrValues.firstName,
+    hrValues.lastName
+  );
 
   return {
     staffCode: staff.code ?? '',
     title: staff.title ?? '',
-    initials: '',
     name: staff.name ?? '',
-    firstName,
-    lastName,
-    fullName: staff.name ?? '',
-    nameWithInitials: staff.name ?? '',
     nic: staff.nic ?? '',
     dateOfBirth: toDate(staff.dateOfBirth),
     gender: staff.gender ?? '',
     mobileNumber: staff.contactMobile ?? '',
-    homeTelephone: '',
-    email: '',
-    secondaryEmail: '',
     address: staff.address ?? '',
-    zoneCode: '',
-    fingerPrintRfid: '',
-    staffCodeLegacy: '',
-    epfNumber: '',
-    etfNumber: '',
-    registrationNumber: '',
     dateJoined: toDate(staff.dateJoined),
-    dateResigned: undefined,
-    resignedWithoutNotice: false,
-    resignedWithNoticeDate: undefined,
-    dateRetired: undefined,
+    fullName: fullName || staff.name || '',
+    nameWithInitials: nameWithInitials || staff.name || '',
     status:
       STAFF_STATUS_OPTIONS.find((option) => option.id === String(staff.status))?.id ??
       STAFF_STATUS_OPTIONS[1].id,
-    speciality: ''
+    ...hrValues
   };
 }
 
-export function generalFormValuesToStaff(values: GeneralFormValues): Staff {
+export function generalFormValuesToStaffPayload(
+  values: GeneralFormValues
+): StaffGeneralPayload {
   const fullName = getFullName(values.firstName, values.lastName);
   const nameWithInitials = getNameWithInitials(
     values.initials,
@@ -81,6 +72,7 @@ export function generalFormValuesToStaff(values: GeneralFormValues): Staff {
     contactMobile: values.mobileNumber ?? '',
     address: values.address ?? '',
     dateJoined: values.dateJoined,
-    status: Number.parseInt(values.status, 10) || 1
+    status: Number.parseInt(values.status, 10) || 1,
+    hrDetails: mapFormValuesToHrDetails(values)
   };
 }

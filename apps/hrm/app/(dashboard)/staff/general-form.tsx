@@ -32,45 +32,17 @@ import {
   TITLE_LIST,
   StaffRecord
 } from '@/types/staff';
+import type { GeneralFormValues } from '@/types/staff';
 import {
   createStaffAction,
   updateStaffAction
 } from '@/app/actions/staff-actions/staff.actions';
 import {
-  generalFormValuesToStaff,
+  generalFormValuesToStaffPayload,
   staffRecordToGeneralFormValues
 } from '@/lib/mappers/staff-general-form.mapper';
-export type GeneralFormValues = {
-  staffCode: string;
-  title: string;
-  initials: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  nameWithInitials: string;
-  nic: string;
-  dateOfBirth: Date | undefined;
-  gender: string;
-  mobileNumber: string;
-  homeTelephone: string;
-  email: string;
-  secondaryEmail: string;
-  address: string;
-  zoneCode: string;
-  fingerPrintRfid: string;
-  staffCodeLegacy: string;
-  epfNumber: string;
-  etfNumber: string;
-  registrationNumber: string;
-  dateJoined: Date | undefined;
-  dateResigned: Date | undefined;
-  resignedWithoutNotice: boolean;
-  resignedWithNoticeDate: Date | undefined;
-  dateRetired: Date | undefined;
-  status: string;
-  speciality: string;
-};
+
+export type { GeneralFormValues } from '@/types/staff';
 
 const ZONE_CODE_OPTIONS: { id: string; name: string }[] = [];
 const SPECIALITY_OPTIONS: { id: string; name: string }[] = [];
@@ -289,7 +261,7 @@ export default function GeneralForm({
     try {
       onLoadingChange?.(true);
 
-      const payload = generalFormValuesToStaff(values);
+      const payload = generalFormValuesToStaffPayload(values);
       let respond: {
         isError?: boolean;
         errors?: Record<string, string | string[]> | { message?: string };
@@ -673,11 +645,12 @@ export default function GeneralForm({
                     <CustomFormField
                       type="text"
                       id="staffCodeLegacy"
-                      placeholder="Staff Code (Legacy)"
+                      placeholder="Staff Code (Legacy - Auto Generated)"
                       value={formik.values.staffCodeLegacy}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
+                      disabled
                       styleClasses={fieldStyleClasses}
                     />
 

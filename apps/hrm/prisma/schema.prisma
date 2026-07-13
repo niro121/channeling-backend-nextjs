@@ -12,6 +12,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+type StaffHrDetails {
+  initials               String?
+  firstName              String?
+  lastName               String?
+  homeTelephone          String?
+  email                  String?
+  secondaryEmail         String?
+  zoneCode               String?
+  fingerPrintRfid        String?
+  staffCodeLegacy        String?
+  epfNumber              String?
+  etfNumber              String?
+  registrationNumber     String?
+  dateResigned           DateTime?
+  resignedWithoutNotice  Boolean   @default(false)
+  resignedWithNoticeDate DateTime?
+  dateRetired            DateTime?
+  speciality             String?
+}
+
 model Staff {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   code            String    @unique()
@@ -25,6 +45,7 @@ model Staff {
   dateJoined      DateTime?
   status          Int       @default(1) // 0 = Inactive, 1 = Active
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
+  hrDetails       StaffHrDetails?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
