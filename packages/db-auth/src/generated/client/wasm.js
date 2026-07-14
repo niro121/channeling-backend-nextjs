@@ -148,7 +148,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/Users/niro/Desktop/Archmage/next/channeling-backend-nextjs/packages/db-auth/src/generated/client",
+      "value": "/Users/lasika/Desktop/Archmage/NODE/RUHUNU/channeling-backend-nextjs/packages/db-auth/src/generated/client",
       "fromEnvVar": null
     },
     "config": {
@@ -157,21 +157,28 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "darwin-arm64",
+        "value": "darwin",
         "native": true
       },
       {
         "fromEnvVar": null,
         "value": "darwin-arm64"
+      },
+      {
+        "fromEnvVar": null,
+        "value": "darwin"
+      },
+      {
+        "fromEnvVar": null,
+        "value": "debian-openssl-3.0.x"
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/Users/niro/Desktop/Archmage/next/channeling-backend-nextjs/packages/db-auth/prisma/schema.prisma",
+    "sourceFilePath": "/Users/lasika/Desktop/Archmage/NODE/RUHUNU/channeling-backend-nextjs/packages/db-auth/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": null,
-    "schemaEnvPath": "../../../.env"
+    "rootEnvPath": null
   },
   "relativePath": "../../../prisma",
   "clientVersion": "6.19.3",
@@ -189,8 +196,8 @@ const config = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"darwin-arm64\"]\n}\n\ndatasource db {\n  provider = \"mongodb\"\n  url      = env(\"AUTH_DATABASE_URL\")\n}\n\nmodel User {\n  id       String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name     String\n  email    String  @unique\n  username String?\n  phone    String?\n\n  password String\n  userType Int // 1 = admin, 2 = staff, 3 = doctor\n  status   Int // 0 = inactive, 1 = active\n\n  // 2FA\n  twoFactorEnabled       Boolean   @default(false)\n  twoFactorMethod        String?\n  twoFactorSecret        String?\n  twoFactorPendingSecret String?\n  twoFactorTempCode      String?\n  twoFactorExpires       DateTime?\n  twoFactorVerified      Boolean   @default(false)\n\n  mustChangePassword Boolean @default(false)\n\n  // Cross-DB references — plain IDs, no Prisma relations across databases\n  staffId  String? @db.ObjectId // → HRM DB: Staff.id\n  doctorId String? @db.ObjectId // → Channeling DB: Doctor.id\n\n  userGroupId String?    @db.ObjectId\n  userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n\nmodel UserGroup {\n  id          String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name        String\n  description String?\n  status      Int // 0 = inactive, 1 = active\n\n  // { \"resource\": { \"view\": true, \"add\": true, \"edit\": true, \"delete\": true } }\n  permissions Json\n\n  twoFactorEnabled Boolean  @default(false)\n  twoFactorMethods String[]\n\n  users User[]\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n",
-  "inlineSchemaHash": "e7813d8c93407560f81408541241c829237618b49470a92451e9dae72e09cbc0",
+  "inlineSchema": "generator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"darwin-arm64\", \"darwin\", \"debian-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"mongodb\"\n  url      = env(\"AUTH_DATABASE_URL\")\n}\n\nmodel User {\n  id       String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name     String\n  email    String  @unique\n  username String?\n  phone    String?\n\n  password String\n  userType Int // 1 = admin, 2 = staff, 3 = doctor\n  status   Int // 0 = inactive, 1 = active\n\n  // 2FA\n  twoFactorEnabled       Boolean   @default(false)\n  twoFactorMethod        String?\n  twoFactorSecret        String?\n  twoFactorPendingSecret String?\n  twoFactorTempCode      String?\n  twoFactorExpires       DateTime?\n  twoFactorVerified      Boolean   @default(false)\n\n  mustChangePassword Boolean @default(false)\n\n  // Cross-DB references — plain IDs, no Prisma relations across databases\n  staffId  String? @db.ObjectId // → HRM DB: Staff.id\n  doctorId String? @db.ObjectId // → Channeling DB: Doctor.id\n\n  userGroupId String?    @db.ObjectId\n  userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n\nmodel UserGroup {\n  id          String  @id @default(auto()) @map(\"_id\") @db.ObjectId\n  name        String\n  description String?\n  status      Int // 0 = inactive, 1 = active\n\n  // { \"resource\": { \"view\": true, \"add\": true, \"edit\": true, \"delete\": true } }\n  permissions Json\n\n  twoFactorEnabled Boolean  @default(false)\n  twoFactorMethods String[]\n\n  users User[]\n\n  createdAt DateTime @default(now())\n  updatedAt DateTime @default(now())\n}\n",
+  "inlineSchemaHash": "fa872d19a70766ea405e0516dcfceb3a163fbefa85ba26035f85adda7d53c48b",
   "copyEngine": true
 }
 config.dirname = '/'
