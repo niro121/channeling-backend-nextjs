@@ -15,10 +15,11 @@ import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btn
 import GeneralForm, { type GeneralFormActions } from './general-form';
 import HrDetailForm, { type HrDetailFormActions } from './hr-detail-form';
 import EmploymentForm, { type EmploymentFormActions } from './employment-form';
-import type { StaffRecord } from '@/types/staff';
+import AdditionalDetailContent from './additional-detail-content';
+import type { StaffRecord, StaffWithAuthUsers } from '@/types/staff';
 
 type TabLayoutProps = {
-  staff?: StaffRecord | null;
+  staff?: StaffRecord | StaffWithAuthUsers | null;
   staffId?: string;
   isEditPage?: boolean;
 };
@@ -52,6 +53,7 @@ export default function TabLayout({
   );
 
   const handleSave = (saveAndClose: boolean) => {
+    if (activeTab === 'additional-details') return;
     if (activeTab === 'hr-details') {
       hrDetailActions?.submit(saveAndClose);
       return;
@@ -95,6 +97,15 @@ export default function TabLayout({
       saveFirstMessage
     );
 
+  const additionalDetailsForm =
+    isEditPage && staffId && staff ? (
+      <AdditionalDetailContent staff={staff as StaffWithAuthUsers} />
+    ) : (
+      saveFirstMessage
+    );
+
+  const isReadOnlyTab = activeTab === 'additional-details';
+
   const TABS_LIST = [
     {
       label: 'General',
@@ -125,7 +136,8 @@ export default function TabLayout({
     {
       label: 'Additional Details',
       value: 'additional-details',
-      icon: <FileTextIcon className="w-4 h-4" />
+      icon: <FileTextIcon className="w-4 h-4" />,
+      form: additionalDetailsForm
     }
   ];
 
@@ -163,6 +175,7 @@ export default function TabLayout({
           onCancel={() => router.push('/staff')}
           onSave={() => handleSave(false)}
           onSaveAndClose={() => handleSave(true)}
+          showSave={!isReadOnlyTab}
         />
       </Card>
     </div>

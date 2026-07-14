@@ -5,6 +5,7 @@ import { authPrisma } from '@archmage/db-auth';
 export type AuthUserSummary = {
   id: string;
   name: string;
+  email: string;
 };
 
 type AuditFields = {
@@ -24,7 +25,7 @@ export async function resolveAuthUser(
 
   const user = await authPrisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true }
+    select: { id: true, name: true, email: true }
   });
 
   return user ?? null;
@@ -51,7 +52,7 @@ export async function resolveAuthUsers<T extends AuditFields>(
 
   const users = await authPrisma.user.findMany({
     where: { id: { in: [...userIds] } },
-    select: { id: true, name: true }
+    select: { id: true, name: true, email: true }
   });
   const userMap = new Map(users.map((user) => [user.id, user]));
 

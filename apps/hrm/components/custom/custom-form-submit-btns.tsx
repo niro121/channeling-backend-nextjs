@@ -8,13 +8,15 @@ type CustomFormSubmitBtnsProps = {
   onCancel?: () => void;
   onSave?: () => void;
   onSaveAndClose?: () => void;
+  showSave?: boolean;
 };
 
 export function CustomFormSubmitBtns({
   loading = false,
   onCancel,
   onSave,
-  onSaveAndClose
+  onSaveAndClose,
+  showSave = true
 }: CustomFormSubmitBtnsProps) {
   return (
     <>
@@ -30,23 +32,27 @@ export function CustomFormSubmitBtns({
           Cancel
         </div>
       </Button>
-      <Button type="button" variant="default" onClick={onSave} disabled={loading}>
-        <div className="flex items-center gap-2">
-          <SaveIcon className="w-4 h-4" />
-          Save
-        </div>
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onSaveAndClose}
-        disabled={loading}
-      >
-        <div className="flex items-center gap-2">
-          <SaveIcon className="w-4 h-4" />
-          Save and Close
-        </div>
-      </Button>
+      {showSave ? (
+        <>
+          <Button type="button" variant="default" onClick={onSave} disabled={loading}>
+            <div className="flex items-center gap-2">
+              <SaveIcon className="w-4 h-4" />
+              Save
+            </div>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onSaveAndClose}
+            disabled={loading}
+          >
+            <div className="flex items-center gap-2">
+              <SaveIcon className="w-4 h-4" />
+              Save and Close
+            </div>
+          </Button>
+        </>
+      ) : null}
     </>
   );
 }
