@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Session } from "next-auth";
 import { NavLink } from "@archmage/ui";
-import { LayoutGrid, Landmark, FileText, Receipt, Wallet } from "lucide-react";
+import { LayoutGrid, Landmark, FileText, Receipt, Wallet, BarChart3 } from "lucide-react";
 import { canAccessRoute } from "@/lib/permissions";
 import { userTypes } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,9 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               )}
               {hasAccess('/doctor-payments') && (
                 <NavLink href="/doctor-payments" label="Doctor Payments" icon={<Wallet className="h-5 w-5" />} />
+              )}
+              {hasAccess('/reports') && (
+                <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-5 w-5" />} />
               )}
             </div>
           </div>
