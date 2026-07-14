@@ -530,7 +530,7 @@ export default function GeneralForm({
               >
                 <AccordionTrigger className="hover:no-underline">
                   <div className="space-y-1 text-left">
-                    <p className="text-base font-semibold">
+                    <p className="text-xl font-semibold">
                       Personal Information
                     </p>
                     <p className="text-sm font-normal text-muted-foreground">
@@ -539,7 +539,7 @@ export default function GeneralForm({
                     </p>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className="border-t-2 pt-2">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 pb-2">
                     <CustomFormField
                       type="text"
@@ -769,7 +769,7 @@ export default function GeneralForm({
               >
                 <AccordionTrigger className="hover:no-underline">
                   <div className="space-y-1 text-left">
-                    <p className="text-base font-semibold">
+                    <p className="text-xl font-semibold">
                       Employment Reference
                     </p>
                     <p className="text-sm font-normal text-muted-foreground">
@@ -778,7 +778,7 @@ export default function GeneralForm({
                     </p>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className="border-t-2 pt-2">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 pb-2">
                     <CustomFormField
                       type="text"

@@ -495,13 +495,13 @@ export default function HrDetailForm({
                 <AccordionItem value="personal-details" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Personal Details</p>
+                      <p className="text-xl font-semibold">Personal Details</p>
                       <p className="text-sm font-normal text-muted-foreground">
                         Personal information shared with the staff record.
                       </p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomSelectField
                         id="title"
@@ -677,13 +677,13 @@ export default function HrDetailForm({
                 <AccordionItem value="contact-information" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Contact Information</p>
+                      <p className="text-xl font-semibold">Contact Information</p>
                       <p className="text-sm font-normal text-muted-foreground">
                         HRM contact details. Mobile, telephone, and email are shared with the staff record.
                       </p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomFormField
                         type="text"
@@ -752,10 +752,10 @@ export default function HrDetailForm({
                 <AccordionItem value="family-information" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Family Information</p>
+                      <p className="text-xl font-semibold">Family Information</p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomFormField
                         type="text"
@@ -784,13 +784,13 @@ export default function HrDetailForm({
                 <AccordionItem value="dependents" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Dependents</p>
+                      <p className="text-xl font-semibold">Dependents</p>
                       <p className="text-sm font-normal text-muted-foreground">
                         Number of dependents by age and gender.
                       </p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       {(
                         [
@@ -819,10 +819,10 @@ export default function HrDetailForm({
                 <AccordionItem value="parents-guardians" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Parents / Guardians</p>
+                      <p className="text-xl font-semibold">Parents / Guardians</p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomFormField
                         type="text"
@@ -923,10 +923,10 @@ export default function HrDetailForm({
                 <AccordionItem value="in-law-information" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">In-Law Information</p>
+                      <p className="text-xl font-semibold">In-Law Information</p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomFormField
                         type="text"
@@ -995,10 +995,10 @@ export default function HrDetailForm({
                 <AccordionItem value="emergency-contact" className="rounded-lg border px-4">
                   <AccordionTrigger className="hover:no-underline">
                     <div className="space-y-1 text-left">
-                      <p className="text-base font-semibold">Emergency Contact</p>
+                      <p className="text-xl font-semibold">Emergency Contact</p>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent>
+                  <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                       <CustomFormField
                         type="text"

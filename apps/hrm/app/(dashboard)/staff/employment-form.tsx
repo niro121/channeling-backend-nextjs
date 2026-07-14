@@ -296,12 +296,12 @@ export default function EmploymentForm({
             >
               <AccordionTrigger className="hover:no-underline">
                 <div className="space-y-1 text-left">
-                  <p className="text-base font-semibold">
+                  <p className="text-xl font-semibold">
                     Employment Information
                   </p>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                   <CustomSelectField
                     id="institution"
@@ -411,10 +411,10 @@ export default function EmploymentForm({
             >
               <AccordionTrigger className="hover:no-underline">
                 <div className="space-y-1 text-left">
-                  <p className="text-base font-semibold">Payroll Information</p>
+                  <p className="text-xl font-semibold">Payroll Information</p>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                   <CustomSelectField
                     id="payingMethod"
@@ -484,10 +484,10 @@ export default function EmploymentForm({
             >
               <AccordionTrigger className="hover:no-underline">
                 <div className="space-y-1 text-left">
-                  <p className="text-base font-semibold">Working Hours</p>
+                  <p className="text-xl font-semibold">Working Hours</p>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                   <div className="space-y-1">
                     <CustomFormField
@@ -541,10 +541,10 @@ export default function EmploymentForm({
             <AccordionItem value="permissions" className="rounded-lg border px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="space-y-1 text-left">
-                  <p className="text-base font-semibold">Permissions</p>
+                  <p className="text-xl font-semibold">Permissions</p>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
                   <Card>
                     <CardContent className="pt-6">
@@ -613,10 +613,10 @@ export default function EmploymentForm({
             <AccordionItem value="notes" className="rounded-lg border px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="space-y-1 text-left">
-                  <p className="text-base font-semibold">Notes</p>
+                  <p className="text-xl font-semibold">Notes</p>
                 </div>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2">
                   <CustomFormField
                     type="textarea"
