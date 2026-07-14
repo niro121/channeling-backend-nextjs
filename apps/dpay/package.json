@@ -71,5 +71,8 @@
     "singleQuote": true,
     "tabWidth": 2,
     "trailingComma": "none"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "^15.5.20"
   }
 }
