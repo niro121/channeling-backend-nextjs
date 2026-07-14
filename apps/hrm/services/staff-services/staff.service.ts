@@ -8,7 +8,15 @@ import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { channelingStaffPayloadSchema } from '@/lib/helpers/staff-channeling-fields.helper';
-import type { GetStaffParams, StaffGeneralPayload, StaffHrDetails, StaffPersonnelDetails, StaffPersonnelPayload } from '@/types/staff';
+import type {
+  GetStaffParams,
+  StaffEmploymentDetails,
+  StaffEmploymentPayload,
+  StaffGeneralPayload,
+  StaffHrDetails,
+  StaffPersonnelDetails,
+  StaffPersonnelPayload
+} from '@/types/staff';
 
 const STAFF_CODE_PREFIX = 'ST';
 const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
@@ -162,6 +170,73 @@ const staffPersonnelUpdatePayloadSchema = staffPersonnelPayloadSchema.extend({
   id: z.string().min(1, 'Staff ID is required')
 });
 
+const optionalFloat = () =>
+  z
+    .union([z.coerce.number(), z.string(), z.null(), z.undefined()])
+    .optional()
+    .nullable()
+    .transform((value) => {
+      if (value == null || value === '') return null;
+      const parsed = typeof value === 'number' ? value : Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    });
+
+const staffEmploymentDetailsSchema = z.object({
+  welfare: z
+    .object({
+      eligibleValue: optionalFloat(),
+      utilizedThisYear: optionalFloat()
+    })
+    .optional(),
+  employment: z
+    .object({
+      institution: z.string().max(150).optional().nullable(),
+      department: z.string().max(150).optional().nullable(),
+      employeeStatus: z.string().optional().nullable(),
+      staffCategory: z.string().optional().nullable(),
+      staffGrade: z.string().optional().nullable(),
+      staffDesignation: z.string().optional().nullable(),
+      roster: z.string().optional().nullable(),
+      shift: z.string().optional().nullable()
+    })
+    .optional(),
+  payroll: z
+    .object({
+      payingMethod: z.string().optional().nullable(),
+      salaryPaymentMethod: z.string().optional().nullable(),
+      bank: z.string().optional().nullable(),
+      bankBranch: z.string().max(100).optional().nullable(),
+      accountNumber: z.string().max(50).optional().nullable()
+    })
+    .optional(),
+  workingHours: z
+    .object({
+      perWeekStandard: optionalFloat(),
+      perWeekOt: optionalFloat(),
+      perWeekNoPay: optionalFloat()
+    })
+    .optional(),
+  permissions: z
+    .object({
+      allowedLateInLeave: z.boolean().optional(),
+      allowedEarlyOutLeave: z.boolean().optional()
+    })
+    .optional(),
+  notes: z
+    .object({
+      memo: z.string().max(2000).optional().nullable()
+    })
+    .optional()
+});
+
+const staffEmploymentPayloadSchema = z.object({
+  employmentDetails: staffEmploymentDetailsSchema.optional()
+});
+
+const staffEmploymentUpdatePayloadSchema = staffEmploymentPayloadSchema.extend({
+  id: z.string().min(1, 'Staff ID is required')
+});
+
 function toDate(val: Date | number | string | null | undefined): Date | null {
   if (val == null) return null;
   if (val instanceof Date) return val;
@@ -251,6 +326,58 @@ function toPersonnelDetailsInput(
           relationship: personnelDetails.emergency.relationship ?? null,
           address: personnelDetails.emergency.address ?? null,
           contactNumber: personnelDetails.emergency.contactNumber ?? null
+        }
+      : undefined
+  };
+}
+
+function toEmploymentDetailsInput(
+  employmentDetails: StaffEmploymentDetails
+): Prisma.StaffEmploymentDetailsCreateInput {
+  return {
+    welfare: employmentDetails.welfare
+      ? {
+          eligibleValue: employmentDetails.welfare.eligibleValue ?? null,
+          utilizedThisYear: employmentDetails.welfare.utilizedThisYear ?? null
+        }
+      : undefined,
+    employment: employmentDetails.employment
+      ? {
+          institution: employmentDetails.employment.institution ?? null,
+          department: employmentDetails.employment.department ?? null,
+          employeeStatus: employmentDetails.employment.employeeStatus ?? null,
+          staffCategory: employmentDetails.employment.staffCategory ?? null,
+          staffGrade: employmentDetails.employment.staffGrade ?? null,
+          staffDesignation: employmentDetails.employment.staffDesignation ?? null,
+          roster: employmentDetails.employment.roster ?? null,
+          shift: employmentDetails.employment.shift ?? null
+        }
+      : undefined,
+    payroll: employmentDetails.payroll
+      ? {
+          payingMethod: employmentDetails.payroll.payingMethod ?? null,
+          salaryPaymentMethod: employmentDetails.payroll.salaryPaymentMethod ?? null,
+          bank: employmentDetails.payroll.bank ?? null,
+          bankBranch: employmentDetails.payroll.bankBranch ?? null,
+          accountNumber: employmentDetails.payroll.accountNumber ?? null
+        }
+      : undefined,
+    workingHours: employmentDetails.workingHours
+      ? {
+          perWeekStandard: employmentDetails.workingHours.perWeekStandard ?? null,
+          perWeekOt: employmentDetails.workingHours.perWeekOt ?? null,
+          perWeekNoPay: employmentDetails.workingHours.perWeekNoPay ?? null
+        }
+      : undefined,
+    permissions: employmentDetails.permissions
+      ? {
+          allowedLateInLeave: employmentDetails.permissions.allowedLateInLeave ?? false,
+          allowedEarlyOutLeave: employmentDetails.permissions.allowedEarlyOutLeave ?? false
+        }
+      : undefined,
+    notes: employmentDetails.notes
+      ? {
+          memo: employmentDetails.notes.memo ?? null
         }
       : undefined
   };
@@ -633,6 +760,71 @@ export async function updateStaffPersonnel(
     return {
       success: false,
       error: { message: error.message || 'Failed to update staff HR details' }
+    };
+  }
+}
+
+// ** Update Staff Employment Details Service * //
+export async function updateStaffEmployment(
+  id: string,
+  payload: StaffEmploymentPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const parsed = staffEmploymentUpdatePayloadSchema.safeParse({ ...payload, id });
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues:
+            parsed.error != null
+              ? (parsed.error.flatten().fieldErrors as Record<string, string[]>)
+              : undefined
+        }
+      };
+    }
+
+    const data = parsed.data;
+    const auditUser = toAuditUser(user);
+    const existing = await prisma.staff.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+
+    if (!existing) {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+
+    const staff = await prisma.staff.update({
+      where: { id },
+      data: {
+        ...(data.employmentDetails && {
+          employmentDetails: toEmploymentDetailsInput(data.employmentDetails)
+        }),
+        ...(auditUser?.id && { updatedBy: auditUser.id }),
+        updatedAt: new Date()
+      }
+    });
+
+    return {
+      success: true,
+      data: staff,
+      message: 'Staff employment details updated successfully'
+    };
+  } catch (error: any) {
+    console.error('updateStaffEmployment error:', error);
+    if (error.code === 'P2025') {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to update staff employment details' }
     };
   }
 }

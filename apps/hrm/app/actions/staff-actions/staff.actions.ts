@@ -12,13 +12,20 @@ import {
   getStaffById,
   getStaffOptions,
   updateStaff,
+  updateStaffEmployment,
   updateStaffPersonnel
 } from '@/services/staff-services/staff.service';
 import {
   syncAllStaffFromChanneling,
   // syncStaffByIdFromChanneling
 } from '@/services/staff-services/staff-sync.service';
-import type { GetStaffParams, StaffCrudOptions, StaffGeneralPayload, StaffPersonnelPayload } from '@/types/staff';
+import type {
+  GetStaffParams,
+  StaffCrudOptions,
+  StaffEmploymentPayload,
+  StaffGeneralPayload,
+  StaffPersonnelPayload
+} from '@/types/staff';
 import { staffRecordToChannelingPayload } from '@/lib/helpers/staff-channeling-fields.helper';
 import {
   pushStaffBulkDeleteToChanneling,
@@ -317,6 +324,52 @@ export async function updateStaffPersonnelAction(
     };
   } catch (error: any) {
     console.error('updateStaffPersonnelAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Something went wrong. Please try again later' }
+    };
+  }
+}
+
+// ** Update Staff Employment Details Action * //
+export async function updateStaffEmploymentAction(
+  id: string,
+  data: StaffEmploymentPayload
+) {
+  await requirePermission('staff', 'edit');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await updateStaffEmployment(id, data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors:
+          result.error?.issues ??
+          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'staff.staff.employmentUpdated',
+        entityType: 'Staff',
+        entityId: id,
+        importance: 'high'
+      });
+    }
+
+    revalidatePath('/staff');
+    return {
+      isError: false,
+      data: { saved: true },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('updateStaffEmploymentAction error:', error);
     return {
       isError: true,
       data: null,

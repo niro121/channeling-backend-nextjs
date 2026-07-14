@@ -90,6 +90,54 @@ type StaffPersonnelDetails {
   emergency  StaffEmergencyContact?
 }
 
+type StaffWelfareDetails {
+  eligibleValue Float?
+  utilizedThisYear Float?
+}
+
+type StaffEmploymentInfo {
+  institution     String?
+  department      String?
+  employeeStatus  String?
+  staffCategory   String?
+  staffGrade      String?
+  staffDesignation String?
+  roster          String?
+  shift           String?
+}
+
+type StaffPayrollDetails {
+  payingMethod          String?
+  salaryPaymentMethod   String?
+  bank                  String?
+  bankBranch            String?
+  accountNumber         String?
+}
+
+type StaffWorkingHours {
+  perWeekStandard Float?
+  perWeekOt       Float?
+  perWeekNoPay    Float?
+}
+
+type StaffEmploymentPermissions {
+  allowedLateInLeave  Boolean @default(false)
+  allowedEarlyOutLeave Boolean @default(false)
+}
+
+type StaffEmploymentNotes {
+  memo String?
+}
+
+type StaffEmploymentDetails {
+  welfare      StaffWelfareDetails?
+  employment   StaffEmploymentInfo?
+  payroll      StaffPayrollDetails?
+  workingHours StaffWorkingHours?
+  permissions  StaffEmploymentPermissions?
+  notes        StaffEmploymentNotes?
+}
+
 model Staff {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   code            String    @unique()
@@ -105,6 +153,7 @@ model Staff {
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
   hrDetails       StaffHrDetails?
   personnelDetails StaffPersonnelDetails?
+  employmentDetails StaffEmploymentDetails?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

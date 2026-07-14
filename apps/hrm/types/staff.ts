@@ -84,6 +84,58 @@ export type StaffPersonnelDetails = {
   emergency?: StaffEmergencyContact | null;
 };
 
+export type StaffWelfareDetails = {
+  eligibleValue?: number | null;
+  utilizedThisYear?: number | null;
+};
+
+export type StaffEmploymentInfo = {
+  institution?: string | null;
+  department?: string | null;
+  employeeStatus?: string | null;
+  staffCategory?: string | null;
+  staffGrade?: string | null;
+  staffDesignation?: string | null;
+  roster?: string | null;
+  shift?: string | null;
+};
+
+export type StaffPayrollDetails = {
+  payingMethod?: string | null;
+  salaryPaymentMethod?: string | null;
+  bank?: string | null;
+  bankBranch?: string | null;
+  accountNumber?: string | null;
+};
+
+export type StaffWorkingHours = {
+  perWeekStandard?: number | null;
+  perWeekOt?: number | null;
+  perWeekNoPay?: number | null;
+};
+
+export type StaffEmploymentPermissions = {
+  allowedLateInLeave?: boolean;
+  allowedEarlyOutLeave?: boolean;
+};
+
+export type StaffEmploymentNotes = {
+  memo?: string | null;
+};
+
+export type StaffEmploymentDetails = {
+  welfare?: StaffWelfareDetails | null;
+  employment?: StaffEmploymentInfo | null;
+  payroll?: StaffPayrollDetails | null;
+  workingHours?: StaffWorkingHours | null;
+  permissions?: StaffEmploymentPermissions | null;
+  notes?: StaffEmploymentNotes | null;
+};
+
+export type StaffEmploymentPayload = {
+  employmentDetails?: StaffEmploymentDetails;
+};
+
 export type StaffPersonnelPayload = {
   title?: string;
   name?: string;
@@ -107,6 +159,7 @@ export type StaffRecord = Staff & {
   migrateSourceId?: string | null;
   hrDetails?: StaffHrDetails | null;
   personnelDetails?: StaffPersonnelDetails | null;
+  employmentDetails?: StaffEmploymentDetails | null;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string | null;
@@ -208,4 +261,28 @@ export type HrDetailFormValues = {
   emergencyRelationship: string;
   emergencyAddress: string;
   emergencyContactNumber: string;
+};
+
+export type EmploymentFormValues = {
+  eligibleWelfareValue: string;
+  utilizedThisYear: string;
+  institution: string;
+  department: string;
+  employeeStatus: string;
+  staffCategory: string;
+  staffGrade: string;
+  staffDesignation: string;
+  roster: string;
+  shift: string;
+  payingMethod: string;
+  salaryPaymentMethod: string;
+  bank: string;
+  bankBranch: string;
+  accountNumber: string;
+  perWeekStandard: string;
+  perWeekOt: string;
+  perWeekNoPay: string;
+  allowedLateInLeave: boolean;
+  allowedEarlyOutLeave: boolean;
+  memo: string;
 };

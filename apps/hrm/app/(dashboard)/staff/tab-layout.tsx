@@ -14,6 +14,7 @@ import { BriefcaseIcon, FileTextIcon, UserIcon } from 'lucide-react';
 import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
 import GeneralForm, { type GeneralFormActions } from './general-form';
 import HrDetailForm, { type HrDetailFormActions } from './hr-detail-form';
+import EmploymentForm, { type EmploymentFormActions } from './employment-form';
 import type { StaffRecord } from '@/types/staff';
 
 type TabLayoutProps = {
@@ -32,6 +33,8 @@ export default function TabLayout({
   const [activeTab, setActiveTab] = useState('general');
   const [generalActions, setGeneralActions] = useState<GeneralFormActions | null>(null);
   const [hrDetailActions, setHrDetailActions] = useState<HrDetailFormActions | null>(null);
+  const [employmentActions, setEmploymentActions] =
+    useState<EmploymentFormActions | null>(null);
 
   const handleRegisterGeneralActions = useCallback((actions: GeneralFormActions) => {
     setGeneralActions(actions);
@@ -41,13 +44,32 @@ export default function TabLayout({
     setHrDetailActions(actions);
   }, []);
 
+  const handleRegisterEmploymentActions = useCallback(
+    (actions: EmploymentFormActions) => {
+      setEmploymentActions(actions);
+    },
+    []
+  );
+
   const handleSave = (saveAndClose: boolean) => {
     if (activeTab === 'hr-details') {
       hrDetailActions?.submit(saveAndClose);
       return;
     }
+    if (activeTab === 'employment') {
+      employmentActions?.submit(saveAndClose);
+      return;
+    }
     generalActions?.submit(saveAndClose);
   };
+
+  const saveFirstMessage = (
+    <Card>
+      <CardContent className="py-8 text-sm text-muted-foreground">
+        Save the general information first to enable this tab for this staff member.
+      </CardContent>
+    </Card>
+  );
 
   const hrDetailsForm =
     isEditPage && staffId && staff ? (
@@ -58,11 +80,19 @@ export default function TabLayout({
         onLoadingChange={setLoading}
       />
     ) : (
-      <Card>
-        <CardContent className="py-8 text-sm text-muted-foreground">
-          Save the general information first to enable HR details for this staff member.
-        </CardContent>
-      </Card>
+      saveFirstMessage
+    );
+
+  const employmentForm =
+    isEditPage && staffId && staff ? (
+      <EmploymentForm
+        staff={staff}
+        staffId={staffId}
+        onRegisterActions={handleRegisterEmploymentActions}
+        onLoadingChange={setLoading}
+      />
+    ) : (
+      saveFirstMessage
     );
 
   const TABS_LIST = [
@@ -89,7 +119,8 @@ export default function TabLayout({
     {
       label: 'Employment',
       value: 'employment',
-      icon: <BriefcaseIcon className="w-4 h-4" />
+      icon: <BriefcaseIcon className="w-4 h-4" />,
+      form: employmentForm
     },
     {
       label: 'Additional Details',
