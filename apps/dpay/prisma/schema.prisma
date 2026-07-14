@@ -17,35 +17,39 @@ model Sequence {
 }
 
 model PatientBill {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  bxtNumber        String   @unique
-  billNumber       String   @unique
-  admissionDate    DateTime
-  dischargeDate    DateTime?
-  customerName     String
-  customerNicPhone String?
-  customerAddress  String?
-  totalAmount      Float
-  paidAmount       Float    @default(0)
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  bxtNumber         String   @unique
+  billNumber        String   @unique
+  admissionDate     DateTime
+  dischargeDate     DateTime?
+  customerName      String
+  customerNicPhone  String?
+  customerAddress   String?
+  totalAmount       Float
+  paidAmount        Float    @default(0)
   outstandingAmount Float
-  status           String   @default("pending")
-  createdBy        String?  @db.ObjectId
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  status            String   @default("pending")
+  createdBy         String?  @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  lineItems PatientBillItem[]
-  receipts  PatientBillReceipt[]
+  lineItems           PatientBillItem[]
+  receipts            PatientBillReceipt[]
+  doctorPaymentItems  DoctorPaymentItem[]
 }
 
 model PatientBillItem {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  billId      String   @db.ObjectId
-  sortOrder   Int
-  doctorName  String
-  description String
-  amount      Float
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  billId          String    @db.ObjectId
+  sortOrder       Int
+  doctorName      String
+  description     String
+  amount          Float
+  doctorPaymentId String?   @db.ObjectId
+  doctorPaidAt    DateTime?
 
-  bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  bill          PatientBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  doctorPayment DoctorPayment? @relation(fields: [doctorPaymentId], references: [id])
 }
 
 model PatientBillReceipt {
@@ -62,4 +66,49 @@ model PatientBillReceipt {
   createdAt        DateTime @default(now())
 
   bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+}
+
+model DoctorPayment {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNumber        String    @unique
+  doctorName           String
+  paymentMethod        String
+  referenceNumber      String?
+  remarks              String?
+  totalAmount          Float
+  whtAmount            Float     @default(0)
+  whtPercentage        Float     @default(0)
+  netAmount            Float
+  applyWht             Boolean   @default(false)
+  status               String    @default("paid")
+  cancelReason         String?
+  cancelReceiptNumber  String?
+  canceledAt           DateTime?
+  canceledBy           String?   @db.ObjectId
+  canceledByName       String?
+  createdBy            String?   @db.ObjectId
+  createdByName        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  items     DoctorPaymentItem[]
+  lineItems PatientBillItem[]
+}
+
+model DoctorPaymentItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  doctorPaymentId String   @db.ObjectId
+  patientBillId   String   @db.ObjectId
+  billNumber      String
+  patientName     String
+  admissionDate   DateTime
+  doctorName      String
+  doctorFee       Float
+  discount        Float    @default(0)
+  refund          Float    @default(0)
+  payableAmount   Float
+  lineItemIds     String[] @db.ObjectId
+
+  doctorPayment DoctorPayment @relation(fields: [doctorPaymentId], references: [id], onDelete: Cascade)
+  patientBill   PatientBill   @relation(fields: [patientBillId], references: [id])
 }

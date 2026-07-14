@@ -10,6 +10,7 @@ const PATH_NAMES = [
   { path: 'patient-bills', name: 'Patient Bills' },
   { path: 'create', name: 'Create Bill' },
   { path: 'doctor-payments', name: 'Doctor Payments' },
+  { path: 'make', name: 'Make' },
   { path: 'payments', name: 'Payments' },
   { path: 'receipts', name: 'Receipts' },
   { path: 'bank-accounts', name: 'Bank Accounts' },
