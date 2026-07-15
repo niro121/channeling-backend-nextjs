@@ -78,9 +78,9 @@ export type GetPatientBillsParams = {
   page?: number;
   limit?: number;
   keyword?: string;
-  patientId?: string;
   status?: PatientBillStatus;
-  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type GetPatientBillsResult = {
