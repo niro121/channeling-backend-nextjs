@@ -3,20 +3,22 @@ import { getNextSequenceNumber } from '@/lib/patient-bills/sequence';
 
 const BILL_SCOPE_KEY = 'patient-bill-bill';
 
-function bxtScopeKey(year: number) {
+function bhtScopeKey(year: number) {
+  // Keep legacy scope key so numbering continues from historical BXT counters.
   return `patient-bill-bxt-${year}`;
 }
 
 /**
- * Reserves the next bill numbers in the database sequence.
- * Called when opening the create form so displayed numbers match saved values.
+ * Reserves the next BHT + Bill numbers.
+ * Call this at save time so concurrent create-page opens do not burn numbers.
+ * Each counter uses an atomic $inc, so concurrent callers never share a value.
  */
 export async function generateBillNumbers(): Promise<GeneratedBillNumbers> {
   const year = new Date().getFullYear();
 
-  const bxtResult = await getNextSequenceNumber(bxtScopeKey(year), { startFrom: 1 });
-  if (!bxtResult.success) {
-    throw new Error('Unable to generate BXT number');
+  const bhtResult = await getNextSequenceNumber(bhtScopeKey(year), { startFrom: 1 });
+  if (!bhtResult.success) {
+    throw new Error('Unable to generate BHT number');
   }
 
   const billResult = await getNextSequenceNumber(BILL_SCOPE_KEY, { startFrom: 1 });
@@ -25,7 +27,7 @@ export async function generateBillNumbers(): Promise<GeneratedBillNumbers> {
   }
 
   return {
-    bxtNumber: `BXT-${year}-${String(bxtResult.value).padStart(6, '0')}`,
+    bxtNumber: `BHT-${year}-${String(bhtResult.value).padStart(6, '0')}`,
     billNumber: `BILL-${String(billResult.value).padStart(6, '0')}`,
   };
 }

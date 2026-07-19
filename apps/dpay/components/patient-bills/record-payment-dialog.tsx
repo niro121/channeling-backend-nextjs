@@ -24,7 +24,6 @@ import {
   hasRecordPaymentErrors,
   validateRecordPaymentForm,
 } from '@/lib/patient-bills/payment-validations';
-import { generateReceiptNumberAction } from '@/app/actions/patient-bills/generate-receipt-number.action';
 import { recordPatientBillPaymentAction } from '@/app/actions/patient-bills/patient-bills.actions';
 
 type RecordPaymentDialogProps = {
@@ -52,13 +51,11 @@ function BillInfoLabel({ children }: { children: string }) {
 export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [receiptNumber, setReceiptNumber] = useState('');
   const [amountReceived, setAmountReceived] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PatientBillPaymentMethod | ''>('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [remarks, setRemarks] = useState('');
   const [errors, setErrors] = useState<ReturnType<typeof validateRecordPaymentForm>>({});
-  const [loadingReceipt, setLoadingReceipt] = useState(false);
   const [isSaving, startSaveTransition] = useTransition();
 
   useEffect(() => {
@@ -69,32 +66,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
     setReferenceNumber('');
     setRemarks('');
     setErrors({});
-
-    let cancelled = false;
-    setLoadingReceipt(true);
-
-    generateReceiptNumberAction()
-      .then((result) => {
-        if (!cancelled) setReceiptNumber(result.receiptNumber);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Unable to generate receipt number.',
-          });
-          onOpenChange(false);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingReceipt(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, bill.outstandingAmount, onOpenChange, toast]);
+  }, [open, bill.outstandingAmount]);
 
   const handleSave = () => {
     const validationErrors = validateRecordPaymentForm({
@@ -104,7 +76,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
     });
     setErrors(validationErrors);
 
-    if (hasRecordPaymentErrors(validationErrors) || !receiptNumber) {
+    if (hasRecordPaymentErrors(validationErrors)) {
       toast({
         variant: 'destructive',
         title: 'Validation failed',
@@ -116,7 +88,6 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
     startSaveTransition(async () => {
       const result = await recordPatientBillPaymentAction({
         billId: bill.id,
-        receiptNumber,
         amountReceived: Number(amountReceived),
         paymentMethod: paymentMethod as PatientBillPaymentMethod,
         referenceNumber,
@@ -134,7 +105,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
 
       toast({
         title: 'Payment recorded',
-        description: `Receipt ${receiptNumber} has been saved.`,
+        description: `Receipt ${result.receiptNumber} has been saved.`,
       });
       onOpenChange(false);
       router.refresh();
@@ -153,7 +124,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
               <BillInfoLabel>Receipt No</BillInfoLabel>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-base font-bold text-emerald-700 tabular-nums">
-                  {loadingReceipt ? 'Generating…' : receiptNumber || '—'}
+                  Assigned on save
                 </span>
                 <Badge
                   variant="secondary"
@@ -165,7 +136,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
             </div>
 
             <div className="space-y-1.5">
-              <BillInfoLabel>BXT No</BillInfoLabel>
+              <BillInfoLabel>BHT No</BillInfoLabel>
               <p className="text-base font-bold text-foreground tabular-nums">{bill.bxtNumber}</p>
             </div>
           </div>
@@ -293,7 +264,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isSaving || loadingReceipt || !receiptNumber}
+            disabled={isSaving}
             className="gap-1.5 bg-emerald-800 hover:bg-emerald-900"
           >
             {isSaving ? (

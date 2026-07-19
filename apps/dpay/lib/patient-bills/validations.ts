@@ -32,6 +32,10 @@ function validateLineItem(item: BillLineItem): {
   return errors;
 }
 
+/**
+ * Validates patient + admission. Doctor line items are optional (draft admission).
+ * Any partially filled line item must still be complete.
+ */
 export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFormErrors {
   const errors: PatientBillFormErrors = {};
 
@@ -53,14 +57,6 @@ export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFor
       lineItemErrors[item.id] = itemErrors;
     }
   });
-
-  const hasFilledLine = draft.lineItems.some(isLineItemFilled);
-  if (!hasFilledLine) {
-    const firstItem = draft.lineItems[0];
-    if (firstItem) {
-      lineItemErrors[firstItem.id] = validateLineItem(firstItem);
-    }
-  }
 
   if (Object.keys(lineItemErrors).length > 0) {
     errors.lineItems = lineItemErrors;
