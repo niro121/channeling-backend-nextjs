@@ -21,7 +21,14 @@ type SearchParams = {
   }>;
 };
 
-const VALID_STATUSES: PatientBillStatus[] = ['pending', 'partial', 'paid', 'closed'];
+const VALID_STATUSES: PatientBillStatus[] = [
+  'draft',
+  'pending',
+  'partial',
+  'paid',
+  'closed',
+  'cancelled',
+];
 
 export default async function PatientBillsPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/patient-bills');

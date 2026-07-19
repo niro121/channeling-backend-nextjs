@@ -1,4 +1,4 @@
-import type { BillLineItem, GeneratedBillNumbers, PatientBillDraft } from '@/types/patient-bill';
+import type { BillLineItem, PatientBillDraft } from '@/types/patient-bill';
 
 export function createEmptyLineItem(): BillLineItem {
   return {
@@ -9,10 +9,10 @@ export function createEmptyLineItem(): BillLineItem {
   };
 }
 
-export function createInitialDraft(numbers: GeneratedBillNumbers): PatientBillDraft {
+export function createInitialDraft(): PatientBillDraft {
   return {
-    bxtNumber: numbers.bxtNumber,
-    billNumber: numbers.billNumber,
+    bxtNumber: '',
+    billNumber: '',
     admissionDate: null,
     dischargeDate: null,
     customerName: '',

@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Row } from '@tanstack/react-table';
 import { Button } from '@archmage/ui';
-import { Download, Eye, Printer } from 'lucide-react';
+import { Ban, Download, Eye, Printer } from 'lucide-react';
 import type { ReceiptListItem } from '@/types/receipt';
 import type { PatientBillReceipt } from '@/types/patient-bill';
 import {
@@ -10,6 +11,7 @@ import {
   downloadReceiptPdf,
   printReceiptHtml,
 } from '@/lib/receipts/print-receipt';
+import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
 import { useReceiptsView } from './receipts-view-context';
 
 type ReceiptRecordActionsProps = {
@@ -26,6 +28,11 @@ function toPatientBillReceipt(item: ReceiptListItem): PatientBillReceipt {
     remarks: item.remarks,
     outstandingAfter: item.outstandingAfter,
     paymentDate: item.paymentDate,
+    status: item.status,
+    cancelReason: item.cancelReason,
+    canceledAt: item.canceledAt,
+    canceledByName: item.canceledByName,
+    createdByName: item.createdByName,
   };
 }
 
@@ -33,6 +40,8 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
   const openView = useReceiptsView()?.openView;
   const item = row.original;
   const receipt = toPatientBillReceipt(item);
+  const isCancelled = item.status === 'cancelled';
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const handlePrint = () => {
     printReceiptHtml(buildReceiptPrintHtml(receipt, item.bxtNumber));
@@ -74,6 +83,27 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         <Download className="h-4 w-4" />
         <span className="sr-only">Download</span>
       </Button>
+      {!isCancelled && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          title="Cancel receipt"
+          type="button"
+          onClick={() => setCancelOpen(true)}
+        >
+          <Ban className="h-3.5 w-3.5" />
+          Cancel
+        </Button>
+      )}
+      <CancelPatientBillReceiptDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        receiptId={item.id}
+        receiptNumber={item.receiptNumber}
+        amountPaid={item.amountPaid}
+        billNumber={item.billNumber}
+      />
     </div>
   );
 }

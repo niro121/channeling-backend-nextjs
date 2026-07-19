@@ -28,8 +28,13 @@ model PatientBill {
   totalAmount       Float
   paidAmount        Float    @default(0)
   outstandingAmount Float
-  status            String   @default("pending")
+  status            String   @default("draft")
+  cancelReason      String?
+  canceledAt        DateTime?
+  canceledBy        String?  @db.ObjectId
+  canceledByName    String?
   createdBy         String?  @db.ObjectId
+  createdByName     String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -47,23 +52,57 @@ model PatientBillItem {
   amount          Float
   doctorPaymentId String?   @db.ObjectId
   doctorPaidAt    DateTime?
+  createdBy       String?   @db.ObjectId
+  createdByName   String?
+  createdAt       DateTime  @default(now())
+  updatedBy       String?   @db.ObjectId
+  updatedByName   String?
+  updatedAt       DateTime  @updatedAt
 
   bill          PatientBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
   doctorPayment DoctorPayment? @relation(fields: [doctorPaymentId], references: [id])
 }
 
+/// Append-only audit log for bill line items. Kept independent of item deletes.
+model PatientBillItemHistory {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId              String   @db.ObjectId
+  lineItemId          String   @db.ObjectId
+  action              String
+  changedAt           DateTime @default(now())
+  changedBy           String?  @db.ObjectId
+  changedByName       String?
+  doctorName          String?
+  description         String?
+  amount              Float?
+  sortOrder           Int?
+  previousDoctorName  String?
+  previousDescription String?
+  previousAmount      Float?
+  previousSortOrder   Int?
+
+  @@index([lineItemId, changedAt])
+  @@index([billId])
+}
+
 model PatientBillReceipt {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  billId           String   @db.ObjectId
-  receiptNumber    String   @unique
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  billId           String    @db.ObjectId
+  receiptNumber    String    @unique
   amountPaid       Float
   paymentMethod    String
   referenceNumber  String?
   remarks          String?
   outstandingAfter Float
-  paymentDate      DateTime @default(now())
-  createdBy        String?  @db.ObjectId
-  createdAt        DateTime @default(now())
+  paymentDate      DateTime  @default(now())
+  status           String    @default("active")
+  cancelReason     String?
+  canceledAt       DateTime?
+  canceledBy       String?   @db.ObjectId
+  canceledByName   String?
+  createdBy        String?   @db.ObjectId
+  createdByName    String?
+  createdAt        DateTime  @default(now())
 
   bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
 }

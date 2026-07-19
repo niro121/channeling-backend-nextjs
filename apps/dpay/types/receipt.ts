@@ -1,4 +1,7 @@
-import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import type {
+  PatientBillPaymentMethod,
+  PatientBillReceiptStatus,
+} from '@/types/patient-bill';
 
 export type ReceiptListItem = {
   id: string;
@@ -13,6 +16,11 @@ export type ReceiptListItem = {
   remarks?: string | null;
   amountPaid: number;
   outstandingAfter: number;
+  status: PatientBillReceiptStatus;
+  cancelReason?: string | null;
+  canceledAt?: string | null;
+  canceledByName?: string | null;
+  createdByName?: string | null;
 };
 
 export type GetReceiptsParams = {
@@ -20,6 +28,7 @@ export type GetReceiptsParams = {
   limit?: number;
   keyword?: string;
   method?: string;
+  status?: string;
   dateFrom?: string;
   dateTo?: string;
 };
@@ -37,4 +46,9 @@ export type ReceiptExportRow = {
   paymentMethod: string;
   referenceNumber: string;
   amountPaid: string;
+  createdBy: string;
+  status: string;
+  cancelReason: string;
+  canceledAt: string;
+  canceledBy: string;
 };

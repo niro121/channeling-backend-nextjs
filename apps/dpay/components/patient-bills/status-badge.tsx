@@ -1,16 +1,37 @@
 'use client';
 
 import { Badge } from '@archmage/ui';
+import { cn } from '@/lib/utils';
 import type { PatientBillStatus } from '@/types/patient-bill';
 
 const STATUS_CONFIG: Record<
   PatientBillStatus,
-  { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
+  { label: string; className: string }
 > = {
-  pending: { label: 'Pending', variant: 'secondary' },
-  partial: { label: 'Partial', variant: 'outline' },
-  paid: { label: 'Paid', variant: 'default' },
-  closed: { label: 'Closed', variant: 'secondary' },
+  draft: {
+    label: 'Draft',
+    className: 'border-transparent bg-sky-100 text-sky-900 hover:bg-sky-100',
+  },
+  pending: {
+    label: 'Pending',
+    className: 'border-transparent bg-slate-100 text-slate-800 hover:bg-slate-100',
+  },
+  partial: {
+    label: 'Partial',
+    className: 'border-transparent bg-amber-100 text-amber-900 hover:bg-amber-100',
+  },
+  paid: {
+    label: 'Paid',
+    className: 'border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
+  },
+  closed: {
+    label: 'Closed',
+    className: 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    className: 'border-transparent bg-red-100 text-red-800 hover:bg-red-100',
+  },
 };
 
 type StatusBadgeProps = {
@@ -19,10 +40,10 @@ type StatusBadgeProps = {
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const { label, variant } = STATUS_CONFIG[status];
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
   return (
-    <Badge variant={variant} className={className}>
-      {label}
+    <Badge variant="outline" className={cn('font-medium', config.className, className)}>
+      {config.label}
     </Badge>
   );
 }

@@ -22,6 +22,7 @@ function toDateString(date: Date | null): string | null {
 }
 
 function AutoNumberField({ id, label, value }: { id: string; label: string; value: string }) {
+  const displayValue = value.trim() || 'Assigned on save';
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -30,7 +31,7 @@ function AutoNumberField({ id, label, value }: { id: string; label: string; valu
         <Input
           id={id}
           readOnly
-          value={value}
+          value={displayValue}
           className="h-10 bg-emerald-50/80 pl-9 pr-16 font-medium text-foreground"
         />
         <Badge
@@ -50,12 +51,12 @@ export function BillInformationSection({ draft, errors, onChange }: BillInformat
       <div>
         <h2 className="text-base font-semibold">Bill Information</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Auto-generated identifiers and admission details.
+          Identifiers are assigned automatically on save, plus admission details.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <AutoNumberField id="bxt-number" label="BXT Number" value={draft.bxtNumber} />
+        <AutoNumberField id="bht-number" label="BHT Number" value={draft.bxtNumber} />
         <AutoNumberField id="bill-number" label="Bill Number" value={draft.billNumber} />
       </div>
 

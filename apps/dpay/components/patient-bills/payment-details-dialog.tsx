@@ -14,6 +14,7 @@ import type { PatientBillReceipt } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import { buildReceiptPrintHtml, printReceiptHtml } from '@/lib/receipts/print-receipt';
+import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 
 type PaymentDetailsDialogProps = {
   receipt: PatientBillReceipt | null;
@@ -56,9 +57,16 @@ export function PaymentDetailsDialog({
 
   if (!receipt) return null;
 
-  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd');
+  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd HH:mm:ss');
   const reference = receipt.referenceNumber?.trim() || '—';
   const remarks = receipt.remarks?.trim() || '—';
+  const status = receipt.status ?? 'active';
+  const cancelReason = receipt.cancelReason?.trim();
+  const canceledAt = receipt.canceledAt
+    ? format(new Date(receipt.canceledAt), 'yyyy-MM-dd HH:mm:ss')
+    : null;
+  const canceledBy = receipt.canceledByName?.trim() || null;
+  const createdBy = receipt.createdByName?.trim() || null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,15 +75,31 @@ export function PaymentDetailsDialog({
           <DialogTitle className="text-base">Payment Details</DialogTitle>
         </DialogHeader>
 
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Status</span>
+            <ReceiptStatusBadge status={status} />
+          </div>
           <div className="rounded-md border border-border/70 bg-muted/20 px-3">
             <DetailRow label="Receipt Number" value={receipt.receiptNumber} highlight />
-            <DetailRow label="BXT Number" value={bxtNumber} />
+            <DetailRow label="BHT Number" value={bxtNumber} />
             <DetailRow label="Payment Date" value={paymentDate} />
             <DetailRow label="Amount Paid" value={formatLkr(receipt.amountPaid)} highlight />
             <DetailRow label="Payment Method" value={paymentMethodLabel(receipt.paymentMethod)} />
             <DetailRow label="Reference Number" value={reference} />
             <DetailRow label="Remarks" value={remarks} />
+            <DetailRow label="Created By" value={createdBy || '—'} />
+            {status === 'cancelled' ? (
+              <>
+                {cancelReason ? (
+                  <DetailRow label="Cancel Reason" value={cancelReason} />
+                ) : null}
+                {canceledAt ? (
+                  <DetailRow label="Cancelled At" value={canceledAt} />
+                ) : null}
+                <DetailRow label="Cancelled By" value={canceledBy || '—'} />
+              </>
+            ) : null}
           </div>
         </div>
 

@@ -41,7 +41,7 @@ export function BillBreakdownSection({
         <div>
           <h2 className="text-base font-semibold">Bill Breakdown</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Each row is a service provided by a specific doctor (selected from channeling).
+            Optional on admission — leave empty to save as Draft, then add doctor charges later.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={addRow}>

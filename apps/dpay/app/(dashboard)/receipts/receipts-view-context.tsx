@@ -36,6 +36,11 @@ function toPatientBillReceipt(item: ReceiptListItem): PatientBillReceipt {
     remarks: item.remarks,
     outstandingAfter: item.outstandingAfter,
     paymentDate: item.paymentDate,
+    status: item.status,
+    cancelReason: item.cancelReason,
+    canceledAt: item.canceledAt,
+    canceledByName: item.canceledByName,
+    createdByName: item.createdByName,
   };
 }
 
