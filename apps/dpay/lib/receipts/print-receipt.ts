@@ -8,11 +8,63 @@ function escapeHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function buildReceiptPrintHtml(receipt: PatientBillReceipt, bxtNumber: string) {
-  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd');
+type ReceiptDetailRow = {
+  label: string;
+  value: string;
+  highlight?: boolean;
+};
+
+/** Same fields as Payment Details dialog — shared by print HTML and PDF. */
+function getReceiptDetailRows(
+  receipt: PatientBillReceipt,
+  bxtNumber: string
+): ReceiptDetailRow[] {
+  const status = receipt.status ?? 'active';
+  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd HH:mm:ss');
   const method = paymentMethodLabel(receipt.paymentMethod);
   const reference = receipt.referenceNumber?.trim() || '—';
   const remarks = receipt.remarks?.trim() || '—';
+  const createdBy = receipt.createdByName?.trim() || '—';
+
+  const rows: ReceiptDetailRow[] = [
+    { label: 'Status', value: status === 'cancelled' ? 'Cancelled' : 'Active' },
+    { label: 'Receipt Number', value: receipt.receiptNumber, highlight: true },
+    { label: 'BHT Number', value: bxtNumber },
+    { label: 'Payment Date', value: paymentDate },
+    { label: 'Amount Paid', value: formatLkr(receipt.amountPaid), highlight: true },
+    { label: 'Payment Method', value: method },
+    { label: 'Reference Number', value: reference },
+    { label: 'Remarks', value: remarks },
+    { label: 'Created By', value: createdBy },
+  ];
+
+  if (status === 'cancelled') {
+    const cancelReason = receipt.cancelReason?.trim();
+    if (cancelReason) {
+      rows.push({ label: 'Cancel Reason', value: cancelReason });
+    }
+    if (receipt.canceledAt) {
+      rows.push({
+        label: 'Cancelled At',
+        value: format(new Date(receipt.canceledAt), 'yyyy-MM-dd HH:mm:ss'),
+      });
+    }
+    rows.push({
+      label: 'Cancelled By',
+      value: receipt.canceledByName?.trim() || '—',
+    });
+  }
+
+  return rows;
+}
+
+export function buildReceiptPrintHtml(receipt: PatientBillReceipt, bxtNumber: string) {
+  const rowsHtml = getReceiptDetailRows(receipt, bxtNumber)
+    .map((row) => {
+      const valueClass = row.highlight ? 'value highlight' : 'value';
+      return `<div class="row"><span class="label">${escapeHtml(row.label)}</span><span class="${valueClass}">${escapeHtml(row.value)}</span></div>`;
+    })
+    .join('\n    ');
 
   return `<!DOCTYPE html>
 <html>
@@ -30,13 +82,7 @@ export function buildReceiptPrintHtml(receipt: PatientBillReceipt, bxtNumber: st
   </head>
   <body>
     <h1>Payment Receipt</h1>
-    <div class="row"><span class="label">Receipt Number</span><span class="value highlight">${escapeHtml(receipt.receiptNumber)}</span></div>
-    <div class="row"><span class="label">BXT Number</span><span class="value">${escapeHtml(bxtNumber)}</span></div>
-    <div class="row"><span class="label">Payment Date</span><span class="value">${paymentDate}</span></div>
-    <div class="row"><span class="label">Amount Paid</span><span class="value highlight">${escapeHtml(formatLkr(receipt.amountPaid))}</span></div>
-    <div class="row"><span class="label">Payment Method</span><span class="value">${escapeHtml(method)}</span></div>
-    <div class="row"><span class="label">Reference Number</span><span class="value">${escapeHtml(reference)}</span></div>
-    <div class="row"><span class="label">Remarks</span><span class="value">${escapeHtml(remarks)}</span></div>
+    ${rowsHtml}
   </body>
 </html>`;
 }
@@ -83,23 +129,6 @@ export function printReceiptHtml(html: string) {
   }
 }
 
-function getReceiptDetailRows(receipt: PatientBillReceipt, bxtNumber: string) {
-  const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd');
-  const method = paymentMethodLabel(receipt.paymentMethod);
-  const reference = receipt.referenceNumber?.trim() || '—';
-  const remarks = receipt.remarks?.trim() || '—';
-
-  return [
-    ['Receipt Number', receipt.receiptNumber],
-    ['BXT Number', bxtNumber],
-    ['Payment Date', paymentDate],
-    ['Amount Paid', formatLkr(receipt.amountPaid)],
-    ['Payment Method', method],
-    ['Reference Number', reference],
-    ['Remarks', remarks],
-  ] as const;
-}
-
 export function downloadReceiptPdf(receipt: PatientBillReceipt, bxtNumber: string) {
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const pageWidth =
@@ -116,11 +145,11 @@ export function downloadReceiptPdf(receipt: PatientBillReceipt, bxtNumber: strin
   let y = 48;
   doc.setFontSize(11);
 
-  getReceiptDetailRows(receipt, bxtNumber).forEach(([label, value]) => {
+  getReceiptDetailRows(receipt, bxtNumber).forEach(({ label, value, highlight }) => {
     doc.setTextColor(107, 114, 128);
     doc.text(label, margin, y);
-    doc.setTextColor(label === 'Amount Paid' ? 4 : 17, label === 'Amount Paid' ? 120 : 24, label === 'Amount Paid' ? 87 : 39);
-    doc.setFont('helvetica', label === 'Receipt Number' || label === 'Amount Paid' ? 'bold' : 'normal');
+    doc.setTextColor(highlight ? 4 : 17, highlight ? 120 : 24, highlight ? 87 : 39);
+    doc.setFont('helvetica', highlight ? 'bold' : 'normal');
     doc.text(value, valueX, y, { align: 'right', maxWidth: pageWidth - margin * 2 - 70 });
     doc.setFont('helvetica', 'normal');
     y += 12;

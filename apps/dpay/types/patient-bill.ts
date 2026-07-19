@@ -1,4 +1,6 @@
-export type PatientBillStatus = 'pending' | 'partial' | 'paid' | 'closed';
+export type PatientBillStatus = 'draft' | 'pending' | 'partial' | 'paid' | 'closed' | 'cancelled';
+
+export type PatientBillReceiptStatus = 'active' | 'cancelled';
 
 export type PatientBillPaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'cheque' | 'other';
 
@@ -22,11 +24,17 @@ export type PatientBillReceipt = {
   remarks?: string | null;
   outstandingAfter: number;
   paymentDate: string;
+  status?: PatientBillReceiptStatus;
+  cancelReason?: string | null;
+  canceledAt?: string | null;
+  canceledByName?: string | null;
+  createdByName?: string | null;
 };
 
 export type RecordPatientBillPaymentInput = {
   billId: string;
-  receiptNumber: string;
+  /** Optional — generated server-side on save when omitted. */
+  receiptNumber?: string;
   amountReceived: number;
   paymentMethod: PatientBillPaymentMethod;
   referenceNumber?: string;
@@ -54,6 +62,8 @@ export type PatientBill = {
   paidAmount: number;
   outstandingAmount: number;
   status: PatientBillStatus;
+  createdAt: string;
+  createdByName?: string | null;
 };
 
 export type PatientBillDetail = {
@@ -69,7 +79,11 @@ export type PatientBillDetail = {
   paidAmount: number;
   outstandingAmount: number;
   status: PatientBillStatus;
+  cancelReason?: string | null;
+  canceledAt?: string | null;
+  canceledByName?: string | null;
   createdAt: string;
+  createdByName?: string | null;
   lineItems: BillLineItem[];
   receipts: PatientBillReceipt[];
 };
@@ -93,6 +107,23 @@ export type BillLineItem = {
   doctorName: string;
   description: string;
   amount: number;
+};
+
+export type BillLineItemHistoryAction = 'created' | 'updated' | 'deleted';
+
+export type BillLineItemHistoryEntry = {
+  id: string;
+  action: BillLineItemHistoryAction;
+  changedAt: string;
+  changedByName?: string | null;
+  doctorName?: string | null;
+  description?: string | null;
+  amount?: number | null;
+  sortOrder?: number | null;
+  previousDoctorName?: string | null;
+  previousDescription?: string | null;
+  previousAmount?: number | null;
+  previousSortOrder?: number | null;
 };
 
 export type GeneratedBillNumbers = {

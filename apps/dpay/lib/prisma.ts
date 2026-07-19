@@ -13,7 +13,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump when Prisma schema fields change so HMR does not keep a stale client. */
-const PRISMA_SCHEMA_VERSION = 'doctor-payment-cancel-v1';
+const PRISMA_SCHEMA_VERSION = 'receipt-canceled-by-v1';
 
 // Avoid MaxListenersExceededWarning when Prisma (and other libs) register process exit listeners
 if (typeof process !== 'undefined' && process.setMaxListeners) {

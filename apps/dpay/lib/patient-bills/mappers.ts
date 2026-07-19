@@ -19,6 +19,8 @@ type BillWithItems = {
   paidAmount: number;
   outstandingAmount: number;
   status: string;
+  createdAt: Date;
+  createdByName?: string | null;
   lineItems: Array<{ doctorName: string; sortOrder: number }>;
 };
 
@@ -35,7 +37,11 @@ type BillDetailRecord = {
   paidAmount: number;
   outstandingAmount: number;
   status: string;
+  cancelReason?: string | null;
+  canceledAt?: Date | null;
+  canceledByName?: string | null;
   createdAt: Date;
+  createdByName?: string | null;
   lineItems: Array<{
     id: string;
     doctorName: string;
@@ -52,6 +58,11 @@ type BillDetailRecord = {
     remarks: string | null;
     outstandingAfter: number;
     paymentDate: Date;
+    status?: string | null;
+    cancelReason?: string | null;
+    canceledAt?: Date | null;
+    canceledByName?: string | null;
+    createdByName?: string | null;
   }>;
 };
 
@@ -80,6 +91,11 @@ function mapReceipts(receipts: BillDetailRecord['receipts']): PatientBillReceipt
       remarks: receipt.remarks,
       outstandingAfter: receipt.outstandingAfter,
       paymentDate: receipt.paymentDate.toISOString(),
+      status: (receipt.status as PatientBillReceipt['status']) || 'active',
+      cancelReason: receipt.cancelReason ?? null,
+      canceledAt: receipt.canceledAt?.toISOString() ?? null,
+      canceledByName: receipt.canceledByName ?? null,
+      createdByName: receipt.createdByName ?? null,
     }));
 }
 
@@ -103,6 +119,8 @@ export function mapPatientBillRecord(record: BillWithItems): PatientBill {
     paidAmount: record.paidAmount,
     outstandingAmount: record.outstandingAmount,
     status: record.status as PatientBill['status'],
+    createdAt: record.createdAt.toISOString(),
+    createdByName: record.createdByName ?? null,
   };
 }
 
@@ -120,7 +138,11 @@ export function mapPatientBillDetail(record: BillDetailRecord): PatientBillDetai
     paidAmount: record.paidAmount,
     outstandingAmount: record.outstandingAmount,
     status: record.status as PatientBillDetail['status'],
+    cancelReason: record.cancelReason ?? null,
+    canceledAt: record.canceledAt?.toISOString() ?? null,
+    canceledByName: record.canceledByName ?? null,
     createdAt: record.createdAt.toISOString(),
+    createdByName: record.createdByName ?? null,
     lineItems: mapLineItems(record.lineItems),
     receipts: mapReceipts(record.receipts),
   };
@@ -141,6 +163,7 @@ export function recordToDraft(record: PatientBillDetail): PatientBillDraft {
 
 function buildLineItemPayload(draft: PatientBillDraft) {
   return draft.lineItems.filter(isLineItemFilled).map((item, index) => ({
+    id: item.id,
     sortOrder: index,
     doctorName: item.doctorName.trim(),
     description: item.description.trim(),
@@ -163,7 +186,7 @@ export function draftToCreatePayload(draft: PatientBillDraft) {
     totalAmount,
     paidAmount: 0,
     outstandingAmount: totalAmount,
-    status: 'pending' as const,
+    status: computeBillPaymentStatus(0, totalAmount),
     lineItems,
   };
 }

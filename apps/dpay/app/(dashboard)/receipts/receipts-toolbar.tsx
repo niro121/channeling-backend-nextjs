@@ -11,6 +11,11 @@ const EXPORT_COLUMNS = [
   'Method',
   'Reference',
   'Amount',
+  'Created By',
+  'Status',
+  'Cancel Reason',
+  'Cancelled At',
+  'Cancelled By',
 ];
 
 const EXPORT_KEYS: (keyof ReceiptExportRow)[] = [
@@ -21,6 +26,11 @@ const EXPORT_KEYS: (keyof ReceiptExportRow)[] = [
   'paymentMethod',
   'referenceNumber',
   'amountPaid',
+  'createdBy',
+  'status',
+  'cancelReason',
+  'canceledAt',
+  'canceledBy',
 ];
 
 type ReceiptsToolbarProps = {

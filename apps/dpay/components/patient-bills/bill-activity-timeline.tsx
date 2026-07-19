@@ -1,13 +1,17 @@
 import { format } from 'date-fns';
-import { CheckCircle2, Clock, Plus, Receipt } from 'lucide-react';
-import type { PatientBillReceipt } from '@/types/patient-bill';
+import { CheckCircle2, Clock, Plus, Receipt, XCircle } from 'lucide-react';
+import type { PatientBillReceipt, PatientBillStatus } from '@/types/patient-bill';
 import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 
 type BillActivityTimelineProps = {
   createdAt: string;
+  createdByName?: string | null;
   outstandingAmount: number;
   receipts?: PatientBillReceipt[];
+  status?: PatientBillStatus;
+  canceledAt?: string | null;
+  canceledByName?: string | null;
 };
 
 function paymentMethodLabel(method: string) {
@@ -59,14 +63,25 @@ function TimelineItem({
 
 export function BillActivityTimeline({
   createdAt,
+  createdByName,
   outstandingAmount,
   receipts = [],
+  status,
+  canceledAt,
+  canceledByName,
 }: BillActivityTimelineProps) {
-  const createdLabel = format(new Date(createdAt), 'yyyy-MM-dd');
+  const createdWhen = format(new Date(createdAt), 'yyyy-MM-dd HH:mm');
+  const createdWho = createdByName?.trim();
+  const createdSubtitle = createdWho
+    ? `${createdWhen} • by ${createdWho}`
+    : createdWhen;
   const paymentEvents = [...receipts].sort(
     (a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
   );
-  const isFullySettled = outstandingAmount <= 0 && paymentEvents.length > 0;
+  const isCancelled = status === 'cancelled';
+  const isClosed = status === 'closed';
+  const isFullySettled =
+    !isCancelled && !isClosed && outstandingAmount <= 0 && paymentEvents.length > 0;
 
   const items: {
     key: string;
@@ -79,7 +94,7 @@ export function BillActivityTimeline({
       key: 'created',
       icon: <Plus className="h-4 w-4" />,
       title: 'Bill Created',
-      subtitle: createdLabel,
+      subtitle: createdSubtitle,
     },
     ...paymentEvents.map((receipt) => ({
       key: receipt.id,
@@ -89,7 +104,32 @@ export function BillActivityTimeline({
     })),
   ];
 
-  if (isFullySettled) {
+  if (isCancelled) {
+    const when = canceledAt
+      ? format(new Date(canceledAt), 'yyyy-MM-dd HH:mm')
+      : null;
+    const who = canceledByName?.trim();
+    const subtitleParts = [
+      when,
+      who ? `by ${who}` : null,
+    ].filter(Boolean);
+
+    items.push({
+      key: 'cancelled',
+      icon: <XCircle className="h-4 w-4" />,
+      title: 'Bill Cancelled',
+      subtitle: subtitleParts.join(' • ') || 'Cancelled',
+      iconClassName: 'bg-red-600 text-white',
+    });
+  } else if (isClosed) {
+    items.push({
+      key: 'closed',
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      title: 'Bill Closed',
+      subtitle: 'Bill is locked and cannot be modified',
+      iconClassName: 'bg-slate-700 text-white',
+    });
+  } else if (isFullySettled) {
     const lastPayment = paymentEvents[paymentEvents.length - 1];
     items.push({
       key: 'settled',
@@ -98,6 +138,14 @@ export function BillActivityTimeline({
       subtitle: lastPayment
         ? `Ready to close • ${format(new Date(lastPayment.paymentDate), 'yyyy-MM-dd')}`
         : 'Ready to close',
+    });
+  } else if (status === 'draft') {
+    items.push({
+      key: 'draft',
+      icon: <Clock className="h-4 w-4" />,
+      title: 'Awaiting doctor charges',
+      subtitle: 'Draft admission — add line items to continue billing',
+      iconClassName: 'bg-sky-600 text-white',
     });
   } else if (outstandingAmount > 0) {
     items.push({

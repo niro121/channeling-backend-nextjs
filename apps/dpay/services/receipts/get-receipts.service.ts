@@ -1,17 +1,26 @@
 import prisma from '@/lib/prisma';
 import type { GetReceiptsParams, GetReceiptsResult, ReceiptListItem } from '@/types/receipt';
-import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import type {
+  PatientBillPaymentMethod,
+  PatientBillReceiptStatus,
+} from '@/types/patient-bill';
 import { formatDoctorNames } from '@/lib/receipts/helpers';
 import type { Prisma } from '@/lib/generated/prisma';
 
 const EXPORT_LIMIT = 10000;
 
-function buildWhere(params: Pick<GetReceiptsParams, 'keyword' | 'method' | 'dateFrom' | 'dateTo'>) {
+function buildWhere(
+  params: Pick<GetReceiptsParams, 'keyword' | 'method' | 'status' | 'dateFrom' | 'dateTo'>
+) {
   const where: Prisma.PatientBillReceiptWhereInput = {};
   const keyword = params.keyword?.trim();
 
   if (params.method && params.method !== '__all__') {
     where.paymentMethod = params.method;
+  }
+
+  if (params.status && params.status !== '__all__') {
+    where.status = params.status;
   }
 
   if (params.dateFrom) {
@@ -48,6 +57,11 @@ const receiptSelect = {
   remarks: true,
   outstandingAfter: true,
   paymentDate: true,
+  status: true,
+  cancelReason: true,
+  canceledAt: true,
+  canceledByName: true,
+  createdByName: true,
   bill: {
     select: {
       id: true,
@@ -77,6 +91,11 @@ function mapReceiptRecord(record: ReceiptRecord): ReceiptListItem {
     remarks: record.remarks,
     amountPaid: record.amountPaid,
     outstandingAfter: record.outstandingAfter,
+    status: (record.status as PatientBillReceiptStatus) || 'active',
+    cancelReason: record.cancelReason,
+    canceledAt: record.canceledAt?.toISOString() ?? null,
+    canceledByName: record.canceledByName,
+    createdByName: record.createdByName,
   };
 }
 
