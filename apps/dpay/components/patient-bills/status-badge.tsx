@@ -17,7 +17,7 @@ const STATUS_CONFIG: Record<
     className: 'border-transparent bg-slate-100 text-slate-800 hover:bg-slate-100',
   },
   partial: {
-    label: 'Partial',
+    label: 'Partially Paid',
     className: 'border-transparent bg-amber-100 text-amber-900 hover:bg-amber-100',
   },
   paid: {
@@ -26,7 +26,7 @@ const STATUS_CONFIG: Record<
   },
   closed: {
     label: 'Closed',
-    className: 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-100',
+    className: 'border-transparent bg-indigo-100 text-indigo-900 hover:bg-indigo-100',
   },
   cancelled: {
     label: 'Cancelled',

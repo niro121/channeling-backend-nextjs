@@ -87,7 +87,9 @@ export const authOptions: NextAuthOptions = {
                 userType: user.userType,
                 name: user.name,
                 email: user.email,
-                permissions: user.userGroup?.permissions as Permissions ?? null
+                permissions: user.userGroup?.permissions as Permissions ?? null,
+                userLocationId: user.userLocationId ?? null,
+                locationCode: user.locationCode ?? null
               };
             }
 
@@ -111,7 +113,9 @@ export const authOptions: NextAuthOptions = {
               userType: user.userType,
               name: user.name,
               email: user.email,
-              permissions: user.userGroup?.permissions as Permissions ?? null
+              permissions: user.userGroup?.permissions as Permissions ?? null,
+              userLocationId: user.userLocationId ?? null,
+              locationCode: user.locationCode ?? null
             };
           }
 
@@ -131,7 +135,9 @@ export const authOptions: NextAuthOptions = {
             userType: user.userType,
             name: user.name,
             email: user.email,
-            permissions: group?.permissions as Permissions ?? null
+            permissions: group?.permissions as Permissions ?? null,
+            userLocationId: user.userLocationId ?? null,
+            locationCode: user.locationCode ?? null
           };
         } catch (error: any) {
           console.error('[dpay auth]', error);
@@ -148,6 +154,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.userType = user.userType;
         token.permissions = user.permissions ?? null;
+        token.userLocationId = user.userLocationId ?? null;
+        token.locationCode = user.locationCode ?? null;
       }
       return token;
     },
@@ -156,6 +164,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.userType = token.userType;
         session.user.permissions = token.permissions ?? null;
+        session.user.userLocationId = token.userLocationId ?? null;
+        session.user.locationCode = token.locationCode ?? null;
       }
       return session;
     }

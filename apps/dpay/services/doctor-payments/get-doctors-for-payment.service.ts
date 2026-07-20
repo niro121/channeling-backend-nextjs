@@ -1,10 +1,14 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { DoctorOption } from '@/types/doctor-payment';
+import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
 
 /** Line items not yet paid out to the doctor (null or field unset on older docs). */
 const unpaidDoctorLineWhere: Prisma.PatientBillItemWhereInput = {
-  OR: [{ doctorPaymentId: null }, { doctorPaymentId: { isSet: false } }],
+  AND: [
+    activeLineItemWhere,
+    { OR: [{ doctorPaymentId: null }, { doctorPaymentId: { isSet: false } }] },
+  ],
 };
 
 /**

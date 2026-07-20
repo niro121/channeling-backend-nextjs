@@ -10,7 +10,7 @@ export type ReceiptReportRow = {
   billId: string;
   billNumber: string;
   paymentDate: string;
-  paymentMethod: PatientBillPaymentMethod;
+  paymentMethod: PatientBillPaymentMethod | string;
   amountPaid: number;
 };
 

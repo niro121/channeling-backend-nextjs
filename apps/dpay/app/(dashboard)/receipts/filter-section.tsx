@@ -12,13 +12,17 @@ import { FilterWrapper } from '../filter-wrapper';
 
 const METHOD_OPTIONS = [
   { value: '__all__', label: 'All Methods' },
-  ...PATIENT_BILL_PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label })),
+  ...PATIENT_BILL_PAYMENT_METHODS.map((m) => ({
+    value: String(m.value),
+    label: m.label,
+  })),
 ];
 
 const STATUS_OPTIONS = [
   { value: '__all__', label: 'All Status' },
   { value: 'active', label: 'Active' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'refund', label: 'Refund' },
 ];
 
 type ReceiptsFilterSectionProps = {

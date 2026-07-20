@@ -64,7 +64,7 @@ function mapRow(record: ReceiptRecord): ReceiptReportRow {
     billId: record.bill.id,
     billNumber: record.bill.billNumber,
     paymentDate: record.paymentDate.toISOString(),
-    paymentMethod: record.paymentMethod as PatientBillPaymentMethod,
+    paymentMethod: record.paymentMethod as PatientBillPaymentMethod | string,
     amountPaid: record.amountPaid,
   };
 }

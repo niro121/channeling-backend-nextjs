@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import type { PatientBillDraft } from '@/types/patient-bill';
 import { draftToCreatePayload } from '@/lib/patient-bills/mappers';
+import { BILL_LINE_ITEM_STATUS } from '@/lib/patient-bills/line-item-status';
 import { isUniqueConstraintError } from '@/lib/patient-bills/sequence';
 import { generateBillNumbers } from './generate-bill-numbers.service';
 
@@ -38,12 +39,15 @@ export async function createPatientBill(
               status: payload.status,
               createdBy: createdBy ?? undefined,
               createdByName: createdByName ?? undefined,
+              updatedBy: createdBy ?? undefined,
+              updatedByName: createdByName ?? undefined,
               lineItems: {
                 create: payload.lineItems.map((item) => ({
                   sortOrder: item.sortOrder,
                   doctorName: item.doctorName,
                   description: item.description,
                   amount: item.amount,
+                  status: BILL_LINE_ITEM_STATUS.active,
                   createdBy: createdBy ?? undefined,
                   createdByName: createdByName ?? undefined,
                 })),

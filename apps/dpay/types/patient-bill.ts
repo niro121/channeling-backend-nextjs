@@ -1,30 +1,72 @@
+import {
+  PAYMENT_METHOD_NAMES,
+  RECEIPT_PAYMENT_METHOD,
+  type ReceiptPaymentMethod,
+} from '@archmage/shared';
+
 export type PatientBillStatus = 'draft' | 'pending' | 'partial' | 'paid' | 'closed' | 'cancelled';
 
-export type PatientBillReceiptStatus = 'active' | 'cancelled';
+export type PatientBillReceiptStatus = 'active' | 'cancelled' | 'refund';
 
-export type PatientBillPaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'cheque' | 'other';
+/** Shared receipt payment codes used by DPAY (Agent + Mixed excluded). */
+export type PatientBillPaymentMethod =
+  | typeof RECEIPT_PAYMENT_METHOD.CASH
+  | typeof RECEIPT_PAYMENT_METHOD.CREDIT_CARD
+  | typeof RECEIPT_PAYMENT_METHOD.SLIP
+  | typeof RECEIPT_PAYMENT_METHOD.CHECK
+  | typeof RECEIPT_PAYMENT_METHOD.CREDIT
+  | typeof RECEIPT_PAYMENT_METHOD.E_WALLET;
 
 export const PATIENT_BILL_PAYMENT_METHODS: {
   value: PatientBillPaymentMethod;
   label: string;
-}[] = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'cheque', label: 'Cheque' },
-  { value: 'other', label: 'Other' },
-];
+}[] = (
+  [
+    RECEIPT_PAYMENT_METHOD.CASH,
+    RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+    RECEIPT_PAYMENT_METHOD.SLIP,
+    RECEIPT_PAYMENT_METHOD.CHECK,
+    RECEIPT_PAYMENT_METHOD.CREDIT,
+    RECEIPT_PAYMENT_METHOD.E_WALLET,
+  ] as const
+).map((value) => ({
+  value,
+  label: PAYMENT_METHOD_NAMES[value] ?? String(value),
+}));
+
+export const PATIENT_BILL_PAYMENT_METHOD_SET = new Set<number>(
+  PATIENT_BILL_PAYMENT_METHODS.map((m) => m.value)
+);
+
+export function isPatientBillPaymentMethod(
+  value: unknown
+): value is PatientBillPaymentMethod {
+  return typeof value === 'number' && PATIENT_BILL_PAYMENT_METHOD_SET.has(value);
+}
+
+export type { ReceiptPaymentMethod };
 
 export type PatientBillReceipt = {
   id: string;
   receiptNumber: string;
   amountPaid: number;
-  paymentMethod: PatientBillPaymentMethod;
+  /** Shared numeric code, or legacy string label on older rows. */
+  paymentMethod: PatientBillPaymentMethod | string;
   referenceNumber?: string | null;
+  bank?: string | null;
+  bankId?: string | null;
+  cardReference?: string | null;
+  slipReference?: string | null;
+  slipDate?: string | null;
+  locationId?: string | null;
+  locationCode?: string | null;
+  locationName?: string | null;
   remarks?: string | null;
   outstandingAfter: number;
   paymentDate: string;
   status?: PatientBillReceiptStatus;
+  cancelReceiptNumber?: string | null;
+  refundOfReceiptId?: string | null;
   cancelReason?: string | null;
   canceledAt?: string | null;
   canceledByName?: string | null;
@@ -37,7 +79,11 @@ export type RecordPatientBillPaymentInput = {
   receiptNumber?: string;
   amountReceived: number;
   paymentMethod: PatientBillPaymentMethod;
-  referenceNumber?: string;
+  bank?: string;
+  bankId?: string;
+  cardReference?: string;
+  slipReference?: string;
+  slipDate?: string;
   remarks?: string;
 };
 
@@ -64,6 +110,8 @@ export type PatientBill = {
   status: PatientBillStatus;
   createdAt: string;
   createdByName?: string | null;
+  updatedAt: string;
+  updatedByName?: string | null;
 };
 
 export type PatientBillDetail = {
@@ -84,6 +132,8 @@ export type PatientBillDetail = {
   canceledByName?: string | null;
   createdAt: string;
   createdByName?: string | null;
+  updatedAt: string;
+  updatedByName?: string | null;
   lineItems: BillLineItem[];
   receipts: PatientBillReceipt[];
 };
@@ -102,11 +152,30 @@ export type GetPatientBillsResult = {
   totalRecords: number;
 };
 
+export type BillLineItemStatus = 'active' | 'deleted';
+
 export type BillLineItem = {
   id: string;
   doctorName: string;
   description: string;
   amount: number;
+  status?: BillLineItemStatus;
+  doctorPaymentId?: string | null;
+  deletedAt?: string | null;
+  deletedByName?: string | null;
+};
+
+export type AddPatientBillLineItemInput = {
+  billId: string;
+  doctorName: string;
+  description: string;
+  amount: number;
+};
+
+export type LineItemFormErrors = {
+  doctorName?: string;
+  description?: string;
+  amount?: string;
 };
 
 export type BillLineItemHistoryAction = 'created' | 'updated' | 'deleted';
@@ -152,5 +221,5 @@ export type PatientBillSummary = {
 export type PatientBillFormErrors = {
   admissionDate?: string;
   customerName?: string;
-  lineItems?: Record<string, { doctorName?: string; description?: string; amount?: string }>;
+  lineItems?: Record<string, LineItemFormErrors>;
 };

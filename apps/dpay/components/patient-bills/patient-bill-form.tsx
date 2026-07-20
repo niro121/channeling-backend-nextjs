@@ -13,11 +13,16 @@ import type {
 import { calculatePatientBillSummary } from '@/lib/patient-bills/calculations';
 import { createInitialDraft } from '@/lib/patient-bills/form-utils';
 import { recordToDraft } from '@/lib/patient-bills/mappers';
-import { hasValidationErrors, validatePatientBillForm } from '@/lib/patient-bills/validations';
+import {
+  hasPatientBillDetailsErrors,
+  hasValidationErrors,
+  validatePatientBillDetailsForm,
+  validatePatientBillForm,
+} from '@/lib/patient-bills/validations';
 import { usePatientBillDraft } from '@/hooks/patient-bills/use-patient-bill-draft';
 import {
   createPatientBillAction,
-  updatePatientBillAction,
+  updatePatientBillDetailsAction,
 } from '@/app/actions/patient-bills/patient-bills.actions';
 import { BillInformationSection } from './bill-information-section';
 import { BillSummaryCard } from './bill-summary-card';
@@ -73,9 +78,16 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
   };
 
   const handleSaveBill = () => {
-    const validationErrors = validatePatientBillForm(draft);
+    const validationErrors = isEditPage
+      ? validatePatientBillDetailsForm(draft)
+      : validatePatientBillForm(draft);
     setErrors(validationErrors);
-    if (hasValidationErrors(validationErrors)) {
+
+    const hasErrors = isEditPage
+      ? hasPatientBillDetailsErrors(validationErrors)
+      : hasValidationErrors(validationErrors);
+
+    if (hasErrors) {
       toast({
         variant: 'destructive',
         title: 'Validation failed',
@@ -86,7 +98,13 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
 
     startSaveTransition(async () => {
       if (isEditPage) {
-        const result = await updatePatientBillAction(bill!.id, draft);
+        const result = await updatePatientBillDetailsAction(bill!.id, {
+          admissionDate: draft.admissionDate,
+          dischargeDate: draft.dischargeDate,
+          customerName: draft.customerName,
+          customerNicPhone: draft.customerNicPhone,
+          customerAddress: draft.customerAddress,
+        });
         if (!result.success) {
           toast({
             variant: 'destructive',
@@ -123,7 +141,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
           ? `Saved as ${result.bxtNumber} · ${result.billNumber}. Add doctor charges when ready.`
           : `Saved as ${result.bxtNumber} · ${result.billNumber}`,
       });
-      router.push('/patient-bills');
+      router.push(`/patient-bills/${result.id}`);
       router.refresh();
     });
   };
@@ -145,7 +163,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               {isEditPage
-                ? 'Update admission details and bill line items.'
+                ? 'Update admission and customer details. Manage doctor charges from the bill detail page.'
                 : 'BHT and Bill numbers are assigned on save. Save admission details alone as Draft, then add doctor charges later.'}
             </p>
           </div>
@@ -176,19 +194,21 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className={`grid gap-6 ${isEditPage ? '' : 'lg:grid-cols-3'}`}>
+        <div className={isEditPage ? '' : 'lg:col-span-2'}>
           <BillInformationSection draft={draft} errors={errors} onChange={updateDraft} />
         </div>
-        <BillSummaryCard summary={summary} />
+        {!isEditPage && <BillSummaryCard summary={summary} />}
       </div>
 
-      <BillBreakdownSection
-        lineItems={draft.lineItems}
-        summary={summary}
-        errors={errors}
-        onChange={updateLineItems}
-      />
+      {!isEditPage && (
+        <BillBreakdownSection
+          lineItems={draft.lineItems}
+          summary={summary}
+          errors={errors}
+          onChange={updateLineItems}
+        />
+      )}
 
       {!isEditPage && (
         <p className="text-xs text-muted-foreground">

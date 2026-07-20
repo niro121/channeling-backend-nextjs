@@ -13,8 +13,8 @@ import {
   TableRow,
 } from '@archmage/ui';
 import type { PatientBillReceipt } from '@/types/patient-bill';
-import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
 import { PaymentDetailsButton, PaymentDetailsDialog } from './payment-details-dialog';
@@ -25,10 +25,6 @@ type BillPaymentHistoryProps = {
   billNumber?: string;
   billCancelled?: boolean;
 };
-
-function paymentMethodLabel(method: string) {
-  return PATIENT_BILL_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
-}
 
 export function BillPaymentHistory({
   receipts,
@@ -78,12 +74,18 @@ export function BillPaymentHistory({
                 </TableRow>
               ) : (
                 sortedReceipts.map((receipt) => {
-                  const isCancelled = receipt.status === 'cancelled';
+                  const status = receipt.status ?? 'active';
+                  const isInactive = status === 'cancelled' || status === 'refund';
+                  const canCancel =
+                    status === 'active' &&
+                    !receipt.cancelReceiptNumber &&
+                    !receipt.refundOfReceiptId &&
+                    !billCancelled;
                   return (
                     <TableRow key={receipt.id}>
                       <TableCell
                         className={
-                          isCancelled
+                          isInactive
                             ? 'font-medium text-muted-foreground'
                             : 'font-medium text-emerald-700'
                         }
@@ -91,14 +93,14 @@ export function BillPaymentHistory({
                         {receipt.receiptNumber}
                       </TableCell>
                       <TableCell>
-                        <ReceiptStatusBadge status={receipt.status ?? 'active'} />
+                        <ReceiptStatusBadge status={status} />
                       </TableCell>
                       <TableCell>
                         {format(new Date(receipt.paymentDate), 'yyyy-MM-dd')}
                       </TableCell>
                       <TableCell
                         className={
-                          isCancelled
+                          isInactive
                             ? 'tabular-nums font-medium text-muted-foreground line-through'
                             : 'tabular-nums font-medium text-emerald-700'
                         }
@@ -112,7 +114,7 @@ export function BillPaymentHistory({
                       <TableCell className="text-right">
                         <div className="inline-flex items-center justify-end gap-1">
                           <PaymentDetailsButton onClick={() => openDetails(receipt)} />
-                          {!isCancelled && !billCancelled && (
+                          {canCancel && (
                             <Button
                               type="button"
                               variant="outline"
@@ -151,6 +153,7 @@ export function BillPaymentHistory({
           receiptNumber={cancelReceipt.receiptNumber}
           amountPaid={cancelReceipt.amountPaid}
           billNumber={billNumber}
+          originalPaymentMethod={cancelReceipt.paymentMethod}
         />
       ) : null}
     </>

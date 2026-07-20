@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { Badge } from '@archmage/ui';
 import type { ReceiptListItem } from '@/types/receipt';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { ReceiptRecordActions } from './record-actions';
 import { useReceiptsView } from './receipts-view-context';
@@ -80,7 +80,7 @@ export const receiptColumns: ColumnDef<ReceiptListItem>[] = [
     header: 'Reference',
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
-        {row.original.referenceNumber?.trim() || '—'}
+        {paymentReferenceDisplay(row.original)}
       </span>
     ),
   },
