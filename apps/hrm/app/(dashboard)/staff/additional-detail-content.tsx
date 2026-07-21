@@ -66,13 +66,13 @@ export default function AdditionalDetailContent({
       <AccordionItem value="audit-information" className="rounded-lg border px-4">
         <AccordionTrigger className="hover:no-underline">
           <div className="space-y-1 text-left">
-            <p className="text-base font-semibold">Audit Information</p>
+            <p className="text-xl font-semibold">Audit Information</p>
             <p className="text-sm font-normal text-muted-foreground">
               Read-only system tracking populated from the database.
             </p>
           </div>
         </AccordionTrigger>
-        <AccordionContent>
+        <AccordionContent className="border-t-2 pt-2">
           <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
             <ReadOnlyField
               id="auditStaffId"
