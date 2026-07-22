@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@archmage/ui';
+import { Card, CardContent, cn } from '@archmage/ui';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 
 type BillDetailSummaryCardsProps = {
@@ -16,6 +16,8 @@ export function BillDetailSummaryCards({
   lineItemCount,
   receiptCount = 0,
 }: BillDetailSummaryCardsProps) {
+  const isFullyPaid = outstandingAmount <= 0;
+
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       <Card>
@@ -47,7 +49,12 @@ export function BillDetailSummaryCards({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Outstanding
           </p>
-          <p className="mt-2 text-2xl font-bold tabular-nums text-primary">
+          <p
+            className={cn(
+              'mt-2 text-2xl font-bold tabular-nums',
+              isFullyPaid ? 'text-emerald-700' : 'text-destructive'
+            )}
+          >
             {formatLkr(outstandingAmount)}
           </p>
         </CardContent>

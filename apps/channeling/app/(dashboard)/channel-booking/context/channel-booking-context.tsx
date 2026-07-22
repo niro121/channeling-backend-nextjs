@@ -48,6 +48,8 @@ export type ChannelBookingState = {
   initialData: ChannelBookingInitialData | null
   initialDataLoading: boolean
   selectedSpecialityId: string | null
+  /** Shared branch filter (consultants list + sessions section). */
+  selectedBranchId: string | null
   selectedDoctor: ChannelBookingDoctorOption | null
   selectedSession: Session | null
   selectedBooking: ChannelBookingRecord | null
@@ -77,6 +79,7 @@ export type ChannelBookingState = {
 
 export type ChannelBookingActions = {
   setSelectedSpecialityId: (id: string | null) => void
+  setSelectedBranchId: (id: string | null) => void
   setSelectedDoctor: (doctor: ChannelBookingDoctorOption | null) => void
   setSelectedSession: (session: Session | null) => void
   setSelectedBooking: (booking: ChannelBookingRecord | null) => void
@@ -172,6 +175,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [initialData, setInitialData] = useState<ChannelBookingInitialData | null>(null)
   const [initialDataLoading, setInitialDataLoading] = useState(true)
   const [selectedSpecialityId, setSelectedSpecialityId] = useState<string | null>(null)
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null)
   const [selectedDoctor, setSelectedDoctor] = useState<ChannelBookingDoctorOption | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<ChannelBookingRecord | null>(null)
@@ -191,7 +195,21 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
     let cancelled = false
     getChannelBookingInitialData().then((res) => {
       if (cancelled) return
-      if (res.success && res.data) setInitialData(res.data)
+      if (res.success && res.data) {
+        setInitialData(res.data)
+        // Pre-select user's default booking location as the shared branch filter
+        if (res.data.userUseDefaultLocation && res.data.userDefaultLocationId) {
+          const allowed = res.data.userBookingLocationIds ?? []
+          const locations = res.data.locations ?? []
+          const defaultId = res.data.userDefaultLocationId
+          const isAllowed =
+            allowed.length === 0 || allowed.includes(defaultId)
+          const exists = locations.some((l) => l.id === defaultId)
+          if (isAllowed && exists) {
+            setSelectedBranchId(defaultId)
+          }
+        }
+      }
       setInitialDataLoading(false)
     })
     return () => {
@@ -271,6 +289,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       initialData,
       initialDataLoading,
       selectedSpecialityId,
+      selectedBranchId,
       selectedDoctor,
       selectedSession,
       selectedBooking,
@@ -287,6 +306,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       referredStaffId,
       selectedTransferBookingIds,
       setSelectedSpecialityId,
+      setSelectedBranchId,
       setActiveInformationTab,
       setSelectedAgencyId,
       setReferredDoctorId,
@@ -312,6 +332,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
       initialData,
       initialDataLoading,
       selectedSpecialityId,
+      selectedBranchId,
       selectedDoctor,
       selectedSession,
       selectedBooking,

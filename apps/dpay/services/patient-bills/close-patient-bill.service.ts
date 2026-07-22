@@ -8,7 +8,11 @@ export type ClosePatientBillResult =
  * Permanently close a fully paid patient bill.
  * Only allowed when status is `paid`. Closed bills cannot be edited or modified.
  */
-export async function closePatientBill(billId: string): Promise<ClosePatientBillResult> {
+export async function closePatientBill(
+  billId: string,
+  updatedBy?: string | null,
+  updatedByName?: string | null
+): Promise<ClosePatientBillResult> {
   if (!billId?.trim()) {
     return { success: false, message: 'Bill id is required.' };
   }
@@ -40,7 +44,11 @@ export async function closePatientBill(billId: string): Promise<ClosePatientBill
 
     await prisma.patientBill.update({
       where: { id: bill.id },
-      data: { status: 'closed' },
+      data: {
+        status: 'closed',
+        updatedBy: updatedBy ?? undefined,
+        updatedByName: updatedByName ?? undefined,
+      },
     });
 
     return { success: true };

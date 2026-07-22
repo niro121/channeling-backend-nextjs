@@ -1,9 +1,14 @@
-import type { BillLineItem, PatientBillDraft, PatientBillFormErrors } from '@/types/patient-bill';
+import type {
+  BillLineItem,
+  LineItemFormErrors,
+  PatientBillDraft,
+  PatientBillFormErrors,
+} from '@/types/patient-bill';
 import { isLineItemFilled } from '@/lib/patient-bills/calculations';
 
 export function clampAmount(value: number): number {
   if (!Number.isFinite(value) || value < 0) return 0;
-  return value;
+  return Math.round(value * 100) / 100;
 }
 
 export function parseAmountInput(raw: string): number {
@@ -12,12 +17,13 @@ export function parseAmountInput(raw: string): number {
   return clampAmount(parsed);
 }
 
-function validateLineItem(item: BillLineItem): {
-  doctorName?: string;
-  description?: string;
-  amount?: string;
-} {
-  const errors: { doctorName?: string; description?: string; amount?: string } = {};
+/** Always two decimal places for amount inputs (e.g. 100.00). */
+export function formatAmountFixed(amount: number): string {
+  return clampAmount(amount).toFixed(2);
+}
+
+function validateLineItem(item: BillLineItem): LineItemFormErrors {
+  const errors: LineItemFormErrors = {};
 
   if (!item.doctorName.trim()) {
     errors.doctorName = 'Doctor name is required';
@@ -30,6 +36,46 @@ function validateLineItem(item: BillLineItem): {
   }
 
   return errors;
+}
+
+export function validateLineItemInput(input: {
+  doctorName: string;
+  description: string;
+  amount: number;
+}): LineItemFormErrors {
+  return validateLineItem({
+    id: 'new',
+    doctorName: input.doctorName,
+    description: input.description,
+    amount: input.amount,
+  });
+}
+
+export function hasLineItemErrors(errors: LineItemFormErrors): boolean {
+  return Boolean(errors.doctorName || errors.description || errors.amount);
+}
+
+/**
+ * Validates admission and customer fields only (edit bill page).
+ */
+export function validatePatientBillDetailsForm(
+  draft: Pick<PatientBillDraft, 'admissionDate' | 'customerName'>
+): PatientBillFormErrors {
+  const errors: PatientBillFormErrors = {};
+
+  if (!draft.admissionDate) {
+    errors.admissionDate = 'Admission date is required';
+  }
+
+  if (!draft.customerName.trim()) {
+    errors.customerName = 'Customer name is required';
+  }
+
+  return errors;
+}
+
+export function hasPatientBillDetailsErrors(errors: PatientBillFormErrors): boolean {
+  return Boolean(errors.admissionDate || errors.customerName);
 }
 
 /**

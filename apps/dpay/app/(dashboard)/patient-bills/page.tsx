@@ -1,13 +1,13 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CustomDataTable, Button, SearchInput } from '@archmage/ui';
+import { Button, SearchInput } from '@archmage/ui';
 import { Plus } from 'lucide-react';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { getPatientBillsAction } from '@/app/actions/patient-bills/patient-bills.actions';
 import type { PatientBillStatus } from '@/types/patient-bill';
-import { patientBillColumns } from './columns';
 import PatientBillsFilterSection from './filter-section';
+import { PatientBillsTable } from './patient-bills-table';
 import Loading from '../loading';
 
 type SearchParams = {
@@ -55,13 +55,9 @@ export default async function PatientBillsPage({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
-          heading="Patient Bills"
-          subHeading="Bills raised for admitted patients."
-          columns={patientBillColumns}
+        <PatientBillsTable
           data={data}
-          rowCount={totalRecords}
-          haveBulkDelete={false}
+          totalRecords={totalRecords}
           page={params?.page}
           limit={params?.limit}
           headingRight={

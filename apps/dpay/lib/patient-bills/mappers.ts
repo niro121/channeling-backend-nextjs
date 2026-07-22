@@ -7,6 +7,7 @@ import type {
 } from '@/types/patient-bill';
 import { calculateSubtotal, isLineItemFilled } from '@/lib/patient-bills/calculations';
 import { computeBillPaymentStatus } from '@/lib/patient-bills/payment-status';
+import { normalizeLineItemStatus } from '@/lib/patient-bills/line-item-status';
 
 type BillWithItems = {
   id: string;
@@ -21,6 +22,8 @@ type BillWithItems = {
   status: string;
   createdAt: Date;
   createdByName?: string | null;
+  updatedAt: Date;
+  updatedByName?: string | null;
   lineItems: Array<{ doctorName: string; sortOrder: number }>;
 };
 
@@ -42,12 +45,18 @@ type BillDetailRecord = {
   canceledByName?: string | null;
   createdAt: Date;
   createdByName?: string | null;
+  updatedAt: Date;
+  updatedByName?: string | null;
   lineItems: Array<{
     id: string;
     doctorName: string;
     description: string;
     amount: number;
     sortOrder: number;
+    status?: string | null;
+    doctorPaymentId?: string | null;
+    deletedAt?: Date | null;
+    deletedByName?: string | null;
   }>;
   receipts: Array<{
     id: string;
@@ -55,11 +64,21 @@ type BillDetailRecord = {
     amountPaid: number;
     paymentMethod: string;
     referenceNumber: string | null;
+    bank?: string | null;
+    bankId?: string | null;
+    cardReference?: string | null;
+    slipReference?: string | null;
+    slipDate?: Date | null;
+    locationId?: string | null;
+    locationCode?: string | null;
+    locationName?: string | null;
     remarks: string | null;
     outstandingAfter: number;
     paymentDate: Date;
     status?: string | null;
     cancelReason?: string | null;
+    cancelReceiptNumber?: string | null;
+    refundOfReceiptId?: string | null;
     canceledAt?: Date | null;
     canceledByName?: string | null;
     createdByName?: string | null;
@@ -76,6 +95,10 @@ function mapLineItems(
       doctorName: item.doctorName,
       description: item.description,
       amount: item.amount,
+      status: normalizeLineItemStatus(item.status),
+      doctorPaymentId: item.doctorPaymentId ?? null,
+      deletedAt: item.deletedAt?.toISOString() ?? null,
+      deletedByName: item.deletedByName ?? null,
     }));
 }
 
@@ -86,12 +109,22 @@ function mapReceipts(receipts: BillDetailRecord['receipts']): PatientBillReceipt
       id: receipt.id,
       receiptNumber: receipt.receiptNumber,
       amountPaid: receipt.amountPaid,
-      paymentMethod: receipt.paymentMethod as PatientBillPaymentMethod,
+      paymentMethod: receipt.paymentMethod as PatientBillPaymentMethod | string,
       referenceNumber: receipt.referenceNumber,
+      bank: receipt.bank ?? null,
+      bankId: receipt.bankId ?? null,
+      cardReference: receipt.cardReference ?? null,
+      slipReference: receipt.slipReference ?? null,
+      slipDate: receipt.slipDate?.toISOString() ?? null,
+      locationId: receipt.locationId ?? null,
+      locationCode: receipt.locationCode ?? null,
+      locationName: receipt.locationName ?? null,
       remarks: receipt.remarks,
       outstandingAfter: receipt.outstandingAfter,
       paymentDate: receipt.paymentDate.toISOString(),
       status: (receipt.status as PatientBillReceipt['status']) || 'active',
+      cancelReceiptNumber: receipt.cancelReceiptNumber ?? null,
+      refundOfReceiptId: receipt.refundOfReceiptId ?? null,
       cancelReason: receipt.cancelReason ?? null,
       canceledAt: receipt.canceledAt?.toISOString() ?? null,
       canceledByName: receipt.canceledByName ?? null,
@@ -121,6 +154,8 @@ export function mapPatientBillRecord(record: BillWithItems): PatientBill {
     status: record.status as PatientBill['status'],
     createdAt: record.createdAt.toISOString(),
     createdByName: record.createdByName ?? null,
+    updatedAt: record.updatedAt.toISOString(),
+    updatedByName: record.updatedByName ?? record.createdByName ?? null,
   };
 }
 
@@ -143,6 +178,8 @@ export function mapPatientBillDetail(record: BillDetailRecord): PatientBillDetai
     canceledByName: record.canceledByName ?? null,
     createdAt: record.createdAt.toISOString(),
     createdByName: record.createdByName ?? null,
+    updatedAt: record.updatedAt.toISOString(),
+    updatedByName: record.updatedByName ?? record.createdByName ?? null,
     lineItems: mapLineItems(record.lineItems),
     receipts: mapReceipts(record.receipts),
   };

@@ -53,7 +53,8 @@ export async function cancelDoctorPayment(
   ];
 
   try {
-    const cancelReceiptNumber = await generateDoctorPaymentCancelReceiptNumber();
+    const generated = await generateDoctorPaymentCancelReceiptNumber(input.canceledBy);
+    const cancelReceiptNumber = generated.receiptNumber;
 
     await prisma.$transaction(async (tx) => {
       await tx.doctorPayment.update({

@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button, Input } from '@archmage/ui';
 import type { BillLineItem } from '@/types/patient-bill';
-import { clampAmount, parseAmountInput } from '@/lib/patient-bills/validations';
+import { formatAmountFixed, parseAmountInput } from '@/lib/patient-bills/validations';
 import { DoctorSearchSelect } from './doctor-search-select';
 
 type BillBreakdownRowProps = {
@@ -23,6 +24,14 @@ export function BillBreakdownRow({
   onChange,
   onDelete,
 }: BillBreakdownRowProps) {
+  const [amountDraft, setAmountDraft] = useState(
+    item.amount === 0 ? '' : formatAmountFixed(item.amount)
+  );
+
+  useEffect(() => {
+    setAmountDraft(item.amount === 0 ? '' : formatAmountFixed(item.amount));
+  }, [item.id, item.amount]);
+
   return (
     <tr className="border-b last:border-b-0">
       <td className="px-3 py-3 text-sm text-muted-foreground w-10">{index + 1}</td>
@@ -50,14 +59,20 @@ export function BillBreakdownRow({
       </td>
       <td className="px-3 py-3 w-36">
         <Input
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="0"
-          value={item.amount === 0 ? '' : item.amount}
-          onChange={(e) => onChange({ amount: parseAmountInput(e.target.value) })}
-          onBlur={(e) => onChange({ amount: clampAmount(parseAmountInput(e.target.value)) })}
-          className={errors?.amount ? 'border-destructive' : ''}
+          type="text"
+          inputMode="decimal"
+          placeholder="0.00"
+          value={amountDraft}
+          onChange={(e) => {
+            setAmountDraft(e.target.value);
+            onChange({ amount: parseAmountInput(e.target.value) });
+          }}
+          onBlur={() => {
+            const next = parseAmountInput(amountDraft);
+            onChange({ amount: next });
+            setAmountDraft(next === 0 ? '' : formatAmountFixed(next));
+          }}
+          className={errors?.amount ? 'border-destructive tabular-nums' : 'tabular-nums'}
         />
         {errors?.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
       </td>

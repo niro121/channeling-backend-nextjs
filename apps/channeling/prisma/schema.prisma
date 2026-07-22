@@ -40,6 +40,8 @@ model User {
   twoFactorVerified      Boolean @default(false)
   twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
   mustChangePassword     Boolean @default(false) // == When true, user must set a new password on first login (admin-created account) == //
+  /// Bumped on each successful login; JWT must match or session is invalidated (single active session).
+  sessionVersion         Int     @default(0)
 
   // ==== RELATIONS ==== //
   createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
@@ -141,6 +143,20 @@ model UserBookingLocation {
   @@unique([userId, locationId]) // prevent duplicate assignments
 }
 
+model DoctorLocation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // ==== RELATIONS ==== //
+  doctorId   String @db.ObjectId
+  doctor     Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  locationId String @db.ObjectId
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, locationId])
+}
+
 model Department {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
@@ -212,6 +228,7 @@ model Doctor {
   sessions       Session[]       @relation("DoctorToSession")
   bookings       Booking[]       @relation("DoctorToBooking")
   doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
+  doctorLocations DoctorLocation[]
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
   accounts       Account[]       @relation("DoctorToAccount")
@@ -388,6 +405,10 @@ model Location {
   branchType      Int
   status          Int // == 0: unpublish, 1: publish == //
   code            String   @unique()
+  /** Display order in branch dropdowns (lower first). */
+  order           Int      @default(0)
+  /** Hex color for branch UI (e.g. #22c55e). Optional. */
+  color           String?
   migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
@@ -405,12 +426,15 @@ model Location {
   receiptsUserLocation Receipt[]             @relation("ReceiptUserLocation")
   userLocation         User[]                @relation("LocationToUser")
   bookingUsers         UserBookingLocation[]
+  doctors              DoctorLocation[]
   createdUser          User?                 @relation("UserCreatedLocations", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser          User?                 @relation("UserUpdatedLocations", fields: [updatedBy], references: [id], onDelete: SetNull)
   accounts             Account[]             @relation("LocationToAccount")
   tills                Till[]                @relation("LocationToTill")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
+
+  @@index([order])
 }
 
 model BankAccount {

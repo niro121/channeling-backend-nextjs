@@ -27,7 +27,7 @@ export function ReportsTabs({ activeTab }: ReportsTabsProps) {
     params.set('tab', tab);
     params.delete('page');
     params.delete('keyword');
-    return `/reports?${params.toString()}`;
+    return `/reports/financial?${params.toString()}`;
   }
 
   return (

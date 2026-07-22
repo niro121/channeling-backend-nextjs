@@ -68,6 +68,25 @@ type FormSubmissionValues = DoctorSessionFormValues & {
   endMeridiem: any;
 };
 
+/** Fields validated on Session Details before advancing to fees (Next). */
+const DETAILS_FIELD_KEYS = [
+  'name',
+  'institution',
+  'departmentId',
+  'locationId',
+  'roomId',
+  'startTimeValue',
+  'endTimeValue',
+  'startTime',
+  'endTime',
+  'durationMinutes',
+  'dayType',
+  'applyTo',
+  'startingPatientNumber',
+  'maxPatientNumber',
+  'advancedBookingDays'
+] as const;
+
 export default function DoctorSessionForm({
   doctorId,
   doctorSession,
@@ -94,7 +113,29 @@ export default function DoctorSessionForm({
     doctorSession?.locationId
   );
   const [activeTab, setActiveTab] = React.useState<'details' | 'fees'>('details');
+  /** Ref so submit handler always sees the current tab (avoids accidental save from details). */
+  const activeTabRef = React.useRef(activeTab);
+  activeTabRef.current = activeTab;
   const isCreate = !doctorSession?.id;
+
+  const advanceToFeesIfDetailsValid = async (
+    validateForm: () => Promise<Record<string, unknown>>,
+    setErrors: (errors: Record<string, unknown>) => void,
+    setTouched: (touched: Record<string, boolean>) => void
+  ) => {
+    const errors = await validateForm();
+    const detailsKeys = new Set<string>(DETAILS_FIELD_KEYS);
+    const detailsErrors = Object.fromEntries(
+      Object.entries(errors).filter(([k]) => detailsKeys.has(k))
+    );
+    setErrors(detailsErrors);
+    setTouched(Object.fromEntries(DETAILS_FIELD_KEYS.map((k) => [k, true])));
+    if (Object.keys(detailsErrors).length === 0) {
+      setActiveTab('fees');
+      return true;
+    }
+    return false;
+  };
 
   /** Previous Session dropdown: same doctor's sessions, excluding current when editing. */
   const previousSessionOptions = React.useMemo(() => {
@@ -238,8 +279,19 @@ export default function DoctorSessionForm({
 
   const handleSubmit = async (
     values: FormSubmissionValues,
-    { resetForm }: FormikHelpers<FormSubmissionValues>
+    helpers: FormikHelpers<FormSubmissionValues>
   ) => {
+    // Never persist from Session Details — Enter / implicit submit must only advance to fees.
+    if (activeTabRef.current !== 'fees') {
+      helpers.setSubmitting(false);
+      await advanceToFeesIfDetailsValid(
+        helpers.validateForm as () => Promise<Record<string, unknown>>,
+        helpers.setErrors as (errors: Record<string, unknown>) => void,
+        helpers.setTouched as (touched: Record<string, boolean>) => void
+      );
+      return;
+    }
+
     try {
       const startTime = buildDateFromTime(
         values.startTimeValue,
@@ -795,39 +847,13 @@ export default function DoctorSessionForm({
                     type="button"
                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                     disabled={loading}
-                    onClick={async () => {
-                      const errors = await formik.validateForm();
-                      const detailsOnlyKeys = new Set([
-                        'name',
-                        'institution',
-                        'departmentId',
-                        'locationId',
-                        'roomId',
-                        'startTimeValue',
-                        'endTimeValue',
-                        'startTime',
-                        'endTime',
-                        'durationMinutes',
-                        'dayType',
-                        'applyTo',
-                        'startingPatientNumber',
-                        'maxPatientNumber',
-                        'advancedBookingDays'
-                      ]);
-                      const detailsErrors = Object.fromEntries(
-                        Object.entries(errors).filter(([k]) =>
-                          detailsOnlyKeys.has(k)
-                        )
-                      );
-                      formik.setErrors(detailsErrors);
-                      const detailTouched = Object.fromEntries(
-                        [...detailsOnlyKeys].map((k) => [k, true])
-                      );
-                      formik.setTouched(detailTouched);
-                      if (Object.keys(detailsErrors).length === 0) {
-                        setActiveTab('fees');
-                      }
-                    }}
+                    onClick={() =>
+                      advanceToFeesIfDetailsValid(
+                        formik.validateForm as () => Promise<Record<string, unknown>>,
+                        formik.setErrors as (errors: Record<string, unknown>) => void,
+                        formik.setTouched as (touched: Record<string, boolean>) => void
+                      )
+                    }
                   >
                     <span>Next</span>
                     <ChevronRight className="h-4 w-4" />

@@ -2,11 +2,11 @@
   "name": "@archmage/dpay",
   "private": true,
   "scripts": {
-    "dev": "prisma generate && next dev --turbopack --port 3002",
-    "build": "prisma generate && next build",
+    "dev": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma && next dev --turbopack --port 3002",
+    "build": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma && next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma",
     "db:push": "prisma db push"
   },
   "dependencies": {

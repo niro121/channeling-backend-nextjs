@@ -44,7 +44,10 @@ export type CreatedReceipt = Prisma.ReceiptGetPayload<{
 }>
 
 export type CreateReceiptAndUpdateBookingParams = CreateReceiptForBookingReceiptParams & {
-  /** Location for receipt sequence scope (null = global). */
+  /**
+   * Fallback location for receipt sequence / billing (usually session/booking location).
+   * When userLocationId is set, that is preferred for bill prefix and receipt.locationId.
+   */
   locationId: string | null
   /** Receipt sequence method: 0 REFUND, 1 PAYMENT, etc. (passed to getReceiptSequenceInfo). */
   receiptSequenceMethod: number
@@ -228,9 +231,12 @@ export async function createReceiptAndUpdateBooking(
   if ("error" in normalized) {
     return { success: false, errorCode: "invalid_payment_lines", message: normalized.error }
   }
+  // Bill number + receipt.locationId follow cashier location when available (not session location).
+  const billingLocationId = params.userLocationId ?? params.locationId ?? null
   const { scopeKey, formatReceiptNoString } = await getReceiptSequenceInfo(
     params.locationId,
-    params.receiptSequenceMethod
+    params.receiptSequenceMethod,
+    params.userLocationId
   )
   const seqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
   if (!seqResult.success) {
@@ -265,8 +271,8 @@ export async function createReceiptAndUpdateBooking(
       creditCustomerId: params.creditCustomerId ?? null,
       createdBy: params.createdBy ?? null,
       shiftId: params.shiftId ?? null,
-      locationId: params.locationId ?? null,
-      userLocationId: params.userLocationId ?? null,
+      locationId: billingLocationId,
+      userLocationId: params.userLocationId ?? billingLocationId,
       paymentLines: {
         create: normalized.lines.map((line) => ({
           paymentMethod: line.paymentMethod,

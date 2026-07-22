@@ -23,6 +23,10 @@ const page = async ({ searchParams }: PageProps) => {
 
   const session = await fetchServerSession();
 
+  if (session?.error === 'SessionInvalidated') {
+    return redirect('/session-ended', RedirectType.replace);
+  }
+
   if (session) {
     return redirect('/welcome', RedirectType.replace);
   }
