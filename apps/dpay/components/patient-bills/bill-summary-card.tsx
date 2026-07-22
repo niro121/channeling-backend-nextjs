@@ -35,8 +35,8 @@ export function BillSummaryCard({ summary }: BillSummaryCardProps) {
       </div>
 
       <div className="mt-4 rounded-md bg-emerald-50 border border-emerald-100 p-3 text-xs text-emerald-900 leading-relaxed">
-        Line items are grouped by doctor and automatically generate a separate Doctor Invoice for
-        each doctor.
+        Leave doctor charges empty to save as Draft. Once line items are added, the bill becomes
+        Pending and is ready for payment.
       </div>
     </div>
   );

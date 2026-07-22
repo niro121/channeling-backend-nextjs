@@ -5,6 +5,8 @@ import * as argon2 from 'argon2';
 import { Permissions } from '@/types/user-group';
 import { verifyTotp } from '@/lib/helpers/2fa/totp';
 import { isDashboardLoginUserType } from '@/lib/roles';
+import { bumpSessionVersion, getUserSessionVersion } from '@/lib/auth-session-version';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 
 // Ensure NEXTAUTH_SECRET is set
 const getSecret = () => {
@@ -21,6 +23,26 @@ const getSecret = () => {
     'NEXTAUTH_SECRET environment variable is required in production'
   );
 };
+
+type AuthUserPayload = {
+  id: string;
+  userType: number;
+  name: string;
+  email: string;
+  permissions: Permissions | null;
+  sessionVersion: number;
+};
+
+async function finalizeSuccessfulLogin(user: {
+  id: string;
+  userType: number;
+  name: string;
+  email: string;
+  permissions: Permissions | null;
+}): Promise<AuthUserPayload> {
+  const sessionVersion = await bumpSessionVersion(user.id);
+  return { ...user, sessionVersion };
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -133,13 +155,13 @@ export const authOptions: NextAuthOptions = {
               const permissions = user.userGroup?.permissions
                 ? (user.userGroup.permissions as Permissions)
                 : null;
-              return {
+              return finalizeSuccessfulLogin({
                 id: user.id,
                 userType: user.userType,
                 name: user.name,
                 email: user.email,
                 permissions
-              };
+              });
             }
 
             // SMS/EMAIL: find by email or username + password, then verify stored code
@@ -176,13 +198,13 @@ export const authOptions: NextAuthOptions = {
             const permissions = user.userGroup?.permissions
               ? (user.userGroup.permissions as Permissions)
               : null;
-            return {
+            return finalizeSuccessfulLogin({
               id: user.id,
               userType: user.userType,
               name: user.name,
               email: user.email,
               permissions
-            };
+            });
           }
 
           // --- Step 1: Validate password, then require 2FA or return user ---
@@ -224,13 +246,13 @@ export const authOptions: NextAuthOptions = {
           if (group?.permissions) {
             permissions = group.permissions as Permissions;
           }
-          return {
+          return finalizeSuccessfulLogin({
             id: user.id,
             userType: user.userType,
             name: user.name,
             email: user.email,
             permissions
-          };
+          });
         } catch (error: any) {
           console.log('auth error', error);
           if (
@@ -241,6 +263,10 @@ export const authOptions: NextAuthOptions = {
               'Database configuration error: Please check your MONGODB_URI includes a database name'
             );
           }
+          // Surface real auth failures (e.g. invalid 2FA) instead of a silent null.
+          if (typeof error?.message === 'string' && error.message.length > 0) {
+            throw error;
+          }
         }
         return null;
       }
@@ -250,6 +276,22 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login'
   },
+  events: {
+    async signIn({ user }) {
+      if (!user?.id) return;
+      logActivityNonBlocking({
+        userId: user.id,
+        action: 'auth.login',
+        entityType: 'User',
+        entityId: user.id,
+        metadata: {
+          email: user.email ?? null,
+          name: user.name ?? null
+        },
+        importance: 'high'
+      });
+    }
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user && token) {
@@ -257,20 +299,51 @@ export const authOptions: NextAuthOptions = {
         token.userType = user.userType;
         token.permissions = user.permissions || null;
         token.email = (user as { email?: string }).email ?? null;
+        // Prefer authorize payload; fall back to DB (NextAuth may omit custom user fields).
+        let version = user.sessionVersion;
+        if (version == null && user.id) {
+          const dbUser = await getUserSessionVersion(user.id);
+          version = dbUser?.sessionVersion ?? 0;
+        }
+        token.sessionVersion = version ?? 0;
+        delete token.error;
+        return token;
       }
-      // console.log('TOKEN ====>',token);
+
+      if (!token?.id) return token;
+
+      // Already marked invalid — keep flag so middleware can show the block screen.
+      if (token.error === 'SessionInvalidated') return token;
+
+      try {
+        const dbUser = await getUserSessionVersion(token.id as string);
+        if (
+          !dbUser ||
+          dbUser.status !== 1 ||
+          dbUser.sessionVersion !== (token.sessionVersion ?? 0)
+        ) {
+          return { ...token, error: 'SessionInvalidated' as const };
+        }
+      } catch (err) {
+        console.error('[auth] sessionVersion check failed:', err);
+      }
 
       return token;
     },
 
     async session({ session, token }) {
+      if (token?.error === 'SessionInvalidated') {
+        session.error = 'SessionInvalidated';
+        // Clear user so server actions treat this as unauthenticated until they hit /session-ended.
+        delete (session as { user?: unknown }).user;
+        return session;
+      }
       if (session?.user) {
         session.user.id = token.id;
         session.user.userType = token.userType;
         session.user.permissions = token.permissions || null;
         session.user.email = (token.email as string) ?? undefined;
       }
-      // console.log('SESSION ====>',session);
       return session;
     }
   }

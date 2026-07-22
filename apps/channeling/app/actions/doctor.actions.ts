@@ -219,6 +219,18 @@ export const bulkDeleteDoctors = async (ids: string[]) => {
 };
 
 // ==== GET DOCTORS ==== //
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+
+function parseLocationIdsParam(value?: string | string[]): string[] | undefined {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  const ids = [...new Set(raw.map((id) => id.trim()).filter((id) => OBJECT_ID_RE.test(id)))];
+  return ids.length > 0 ? ids : undefined;
+}
+
 export const getAllDoctors = async (
   sort: getDoctorParams
 ): Promise<{
@@ -232,7 +244,7 @@ export const getAllDoctors = async (
 
   try {
     const validSpecialityId =
-      sort.specialityId && /^[a-fA-F0-9]{24}$/.test(sort.specialityId)
+      sort.specialityId && OBJECT_ID_RE.test(sort.specialityId)
         ? sort.specialityId
         : undefined;
 
@@ -244,7 +256,8 @@ export const getAllDoctors = async (
         ? parseInt(sort.limit)
         : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       keyword: sort.keyword ?? '',
-      specialityId: validSpecialityId
+      specialityId: validSpecialityId,
+      locationIds: parseLocationIdsParam(sort.locationIds)
     };
 
     const response = await getAllDoctorsService(newFilter);
@@ -379,7 +392,11 @@ export const getDoctorsExport = async (
   try {
     const response = await getAllDoctorsDownloadService({
       keyword: filters.keyword ?? '',
-      specialityId: filters.specialityId
+      specialityId:
+        filters.specialityId && OBJECT_ID_RE.test(filters.specialityId)
+          ? filters.specialityId
+          : undefined,
+      locationIds: parseLocationIdsParam(filters.locationIds)
     });
 
     if (!response.doctors?.length) {

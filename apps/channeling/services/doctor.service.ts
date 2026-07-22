@@ -54,7 +54,8 @@ const doctorSchema = z.object({
     .int()
     .refine((val) => val === 0 || val === 1, {
       message: 'Visibility must be Unpublish (0) or Publish (1)'
-    })
+    }),
+  locationIds: z.array(z.string()).optional()
 });
 
 const doctorUpdateSchema = doctorSchema.partial().extend({
@@ -207,6 +208,7 @@ export const createDoctorService = async (
     }
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
+    const locationIds = (data.locationIds ?? []).filter(Boolean);
 
     const doctor = await prisma.doctor.create({
       data: {
@@ -234,6 +236,15 @@ export const createDoctorService = async (
         updatedUser: userRelation
       }
     });
+
+    if (locationIds.length > 0) {
+      await prisma.doctorLocation.createMany({
+        data: locationIds.map((locationId) => ({
+          doctorId: doctor.id,
+          locationId,
+        })),
+      });
+    }
 
     const accountResult = await createAccount({
       name: `Doctor Payable - ${doctor.name}`,
@@ -292,8 +303,9 @@ export const updateOneDoctorService = async (
   };
 }> => {
   try {
+    const { locationIds, ...restPayload } = payload;
     const parsed = doctorUpdateSchema.safeParse({
-      ...payload,
+      ...restPayload,
       id
     });
 
@@ -356,6 +368,15 @@ export const updateOneDoctorService = async (
         updatedAt: new Date()
       }
     });
+
+    if (locationIds !== undefined) {
+      await prisma.doctorLocation.deleteMany({ where: { doctorId: id } });
+      if (locationIds.length > 0) {
+        await prisma.doctorLocation.createMany({
+          data: locationIds.map((locationId) => ({ doctorId: id, locationId })),
+        });
+      }
+    }
 
     return {
       success: true,
@@ -495,11 +516,58 @@ export const bulkDeleteDoctorsByIdsService = async (
 };
 
 // ==== GET DOCTORS ==== //
+/** Shared list/export where: keyword, speciality, optional branch tags (untagged = all branches). */
+function buildDoctorListWhere({
+  keyword,
+  specialityId,
+  locationIds
+}: {
+  keyword?: string;
+  specialityId?: string;
+  locationIds?: string[];
+}): Prisma.DoctorWhereInput | undefined {
+  const and: Prisma.DoctorWhereInput[] = [];
+
+  if (keyword && keyword.trim() !== '') {
+    and.push({
+      OR: [
+        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        {
+          registrationNumber: {
+            contains: keyword,
+            mode: Prisma.QueryMode.insensitive
+          }
+        }
+      ]
+    });
+  }
+
+  if (specialityId) {
+    and.push({ specialityId });
+  }
+
+  if (locationIds && locationIds.length > 0) {
+    and.push({
+      OR: [
+        { doctorLocations: { some: { locationId: { in: locationIds } } } },
+        // No branch tags ⇒ available at all branches (same as doctor form)
+        { doctorLocations: { none: {} } }
+      ]
+    });
+  }
+
+  if (and.length === 0) return undefined;
+  if (and.length === 1) return and[0];
+  return { AND: and };
+}
+
 export const getAllDoctorsService = async ({
   page,
   limit,
   keyword,
-  specialityId
+  specialityId,
+  locationIds
 }: getDoctorQuery): Promise<{
   success: boolean;
   data?: {
@@ -513,24 +581,7 @@ export const getAllDoctorsService = async ({
 }> => {
   const skip = page * limit;
 
-  const whereClause: Prisma.DoctorWhereInput | undefined =
-    keyword && keyword.trim() !== ''
-      ? {
-          OR: [
-            { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-            { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-            {
-              registrationNumber: {
-                contains: keyword,
-                mode: Prisma.QueryMode.insensitive
-              }
-            }
-          ],
-          ...(specialityId ? { specialityId } : {})
-        }
-      : specialityId
-        ? { specialityId }
-        : undefined;
+  const whereClause = buildDoctorListWhere({ keyword, specialityId, locationIds });
 
   try {
     // Fetch doctors with user relations and linked PAYABLE account
@@ -648,8 +699,12 @@ export const getDoctorByIdService = async (
       });
     } catch (relationError: any) {
       // If speciality relation fails (e.g., invalid specialityId), fetch without it
-      if (relationError.message?.includes('Inconsistent query result') ||
-          relationError.message?.includes('speciality')) {
+      const msg = relationError?.message ?? '';
+      if (
+        msg.includes('Inconsistent query result') ||
+        /field ['`]speciality['`]/i.test(msg) ||
+        msg.toLowerCase().includes('invalid speciality')
+      ) {
         console.warn(`Doctor ${id} has invalid speciality relation, fetching without it`);
         doctor = await prisma.doctor.findUnique({
           where: { id },
@@ -678,11 +733,26 @@ export const getDoctorByIdService = async (
       };
     }
 
+    let doctorLocations: { locationId: string; location?: { id: string; name: string } | null }[] = [];
+    try {
+      doctorLocations = await prisma.doctorLocation.findMany({
+        where: { doctorId: id },
+        select: { locationId: true, location: { select: { id: true, name: true } } },
+      });
+    } catch (linkError: unknown) {
+      console.warn('getDoctorByIdService: doctorLocation lookup failed', linkError);
+    }
+
     const acc = doctor.accounts?.[0];
     const balanceCents = acc ? await getAccountBalance(acc.id) : 0;
     const { accounts: _acc, ...rest } = doctor;
+    const locationIds = doctorLocations
+      .map((dl) => dl.locationId)
+      .filter(Boolean);
     const data = {
       ...rest,
+      doctorLocations,
+      locationIds,
       balance: balanceCents / 100,
       accountId: acc?.id ?? null,
       accountName: acc?.name ?? null,
@@ -848,27 +918,11 @@ export const checkDoctorsHaveActiveSessionsOrLeavesService = async (
 // ==== DOCTOR LIST DOWLOAD ==== //
 export const getAllDoctorsDownloadService = async ({
   keyword,
-  specialityId
+  specialityId,
+  locationIds
 }: ExportDoctorQuery) => {
   try {
-    const whereClause: Prisma.DoctorWhereInput | undefined =
-      keyword && keyword.trim() !== ''
-        ? {
-            OR: [
-              { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-              { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-              {
-                registrationNumber: {
-                  contains: keyword,
-                  mode: Prisma.QueryMode.insensitive
-                }
-              }
-            ],
-            ...(specialityId ? { specialityId } : {})
-          }
-        : specialityId
-          ? { specialityId }
-          : undefined;
+    const whereClause = buildDoctorListWhere({ keyword, specialityId, locationIds });
 
     // Fetch doctors without speciality relation to avoid errors with invalid specialityIds
     const doctors = await prisma.doctor.findMany({

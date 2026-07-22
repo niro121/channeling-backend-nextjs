@@ -510,7 +510,7 @@ export const getAllLocationsService = async () => {
   try {
     const records = await prisma.location.findMany({
       where: { status: 1 },
-      orderBy: { name: 'asc' }
+      orderBy: [{ order: 'asc' }, { name: 'asc' }]
     });
 
     return records

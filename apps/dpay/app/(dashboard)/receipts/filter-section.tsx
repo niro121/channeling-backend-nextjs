@@ -12,17 +12,29 @@ import { FilterWrapper } from '../filter-wrapper';
 
 const METHOD_OPTIONS = [
   { value: '__all__', label: 'All Methods' },
-  ...PATIENT_BILL_PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label })),
+  ...PATIENT_BILL_PAYMENT_METHODS.map((m) => ({
+    value: String(m.value),
+    label: m.label,
+  })),
+];
+
+const STATUS_OPTIONS = [
+  { value: '__all__', label: 'All Status' },
+  { value: 'active', label: 'Active' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'refund', label: 'Refund' },
 ];
 
 type ReceiptsFilterSectionProps = {
   method?: string;
+  status?: string;
   dateFrom?: string;
   dateTo?: string;
 };
 
 export default function ReceiptsFilterSection({
   method,
+  status,
   dateFrom,
   dateTo,
 }: ReceiptsFilterSectionProps) {
@@ -30,6 +42,7 @@ export default function ReceiptsFilterSection({
     <FilterWrapper
       initialValues={{
         method: method ?? '__all__',
+        status: status ?? '__all__',
         dateFrom: dateFrom ?? '',
         dateTo: dateTo ?? '',
       }}
@@ -45,6 +58,21 @@ export default function ReceiptsFilterSection({
             </SelectTrigger>
             <SelectContent>
               {METHOD_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={values.status ?? '__all__'}
+            onValueChange={(v) => setValue('status', v)}
+          >
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>

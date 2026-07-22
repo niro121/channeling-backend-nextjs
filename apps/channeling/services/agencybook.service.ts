@@ -48,7 +48,8 @@ type agencyBookCreateInput = z.infer<typeof agencyBookCreateSchema>;
 
 /**
  * Bookings store agencyRef as bookNumber + 2-digit leaf (e.g. R0001 + 01 → R000101).
- * Returns true when at least one booking uses this agency book.
+ * Returns true when at least one active booking (status 0/1) uses this agency book.
+ * Canceled bookings (status 2) are ignored so delete stays consistent with leaf availability.
  */
 async function agencyBookHasAssociatedBookings(
   bookNumber: string,
@@ -60,6 +61,7 @@ async function agencyBookHasAssociatedBookings(
   const candidates = await prisma.booking.findMany({
     where: {
       ...(agencyId ? { agencyId } : {}),
+      status: { in: [0, 1] },
       agencyRef: { startsWith: trimmedBook },
     },
     select: { agencyRef: true },
@@ -490,7 +492,7 @@ export const deleteAgencyBookByIdService = async (
         success: false,
         error: {
           message:
-            'Cannot delete this agency book because there is at least one booking associated with it.',
+            'Cannot delete this agency book because there is at least one active booking associated with it.',
         },
       };
     }
@@ -574,7 +576,7 @@ export const bulkDeleteAgencyBooksService = async (
         success: false,
         error: {
           message: bookNumbers
-            ? `Cannot delete agency book(s) that have associated bookings: ${bookNumbers}`
+            ? `Cannot delete agency book(s) that have active bookings: ${bookNumbers}`
             : 'No agency books found to delete',
         },
       };
@@ -600,7 +602,7 @@ export const bulkDeleteAgencyBooksService = async (
     let message = `${result.count} agency book(s) deleted successfully`;
     if (blocked.length > 0) {
       const skippedNumbers = blocked.map((b) => b.bookNumber).join(', ');
-      message += `. ${blocked.length} agency book(s) skipped (have associated bookings): ${skippedNumbers}`;
+      message += `. ${blocked.length} agency book(s) skipped (have active bookings): ${skippedNumbers}`;
     }
 
     return {

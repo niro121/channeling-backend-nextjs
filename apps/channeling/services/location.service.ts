@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { getOrCreateAccount } from '@/services/accounting/account.service';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
+const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/;
+
 // ==== LOCATION: VALIDATION SCHEMA ==== //
 const locationSchema = z.object({
   name: z
@@ -31,7 +33,19 @@ const locationSchema = z.object({
     .int()
     .refine((val) => val === 0 || val === 1, {
       message: 'Status must be Unpublish (0) or Publish (1)'
+    }),
+  order: z.coerce.number().int().min(0, 'Must be 0 or greater').optional().default(0),
+  color: z
+    .union([z.string(), z.null(), z.undefined()])
+    .optional()
+    .transform((val) => {
+      if (val == null) return null
+      const trimmed = String(val).trim()
+      return trimmed === '' ? null : trimmed
     })
+    .refine((val) => val == null || HEX_COLOR_REGEX.test(val), {
+      message: 'Color must be a hex value (e.g. #22c55e)',
+    }),
 });
 
 const locationUpdateSchema = locationSchema.partial().extend({
@@ -99,7 +113,7 @@ export const getAllLocationsService = async ({
       prisma.location.findMany({
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy: [{ order: 'asc' }, { name: 'asc' }],
         ...(whereClause != null && { where: whereClause }),
         include: {
           createdUser: true,
@@ -204,6 +218,8 @@ export const createLocationService = async (
         city: data.city ?? '',
         branchType: Number(data.branchType),
         status: data.status,
+        order: data.order ?? 0,
+        color: data.color ?? null,
         createdUser: userRelation,
         updatedUser: userRelation
       }
@@ -322,6 +338,8 @@ export const updateOneLocationService = async (
     if (data.branchType !== undefined)
       updateData.branchType = Number(data.branchType);
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.order !== undefined) updateData.order = data.order;
+    if (data.color !== undefined) updateData.color = data.color;
 
     const location = await prisma.location.update({
       where: { id },
@@ -653,4 +671,43 @@ export const checkLocationsHaveLinkedRecordsService = async (
             }
         }
     }
+}
+
+/** Persist a new display order for locations (full ordered id list). */
+export const reorderLocationsService = async (
+  orderedIds: string[]
+): Promise<{
+  success: boolean
+  message?: string
+  error?: { message?: string }
+}> => {
+  try {
+    if (!orderedIds.length) {
+      return { success: true, message: 'Nothing to reorder' }
+    }
+
+    const uniqueIds = [...new Set(orderedIds.filter(Boolean))]
+    if (uniqueIds.length !== orderedIds.length) {
+      return {
+        success: false,
+        error: { message: 'Duplicate location ids in reorder payload' },
+      }
+    }
+
+    // Sequential updates (Mongo may not support multi-doc transactions without a replica set)
+    for (let index = 0; index < uniqueIds.length; index++) {
+      await prisma.location.update({
+        where: { id: uniqueIds[index] },
+        data: { order: index, updatedAt: new Date() },
+      })
+    }
+
+    return { success: true, message: 'Location order updated' }
+  } catch (error: any) {
+    console.error('reorderLocationsService error', error)
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to reorder locations' },
+    }
+  }
 }

@@ -19,18 +19,13 @@ import {
   padTwo,
 } from "./sessions-selection/util"
 
-function toDateKey(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
-}
-
 export function SessionsSelection() {
   const {
     initialData,
     selectedDoctor,
     selectedSession,
+    selectedBranchId,
+    setSelectedBranchId,
     sessions,
     sessionsLoading,
     setSessions,
@@ -43,7 +38,6 @@ export function SessionsSelection() {
 
   // Default date to today on page load; reset to today when doctor is cleared (or when user has no change-date permission)
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date())
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
 
   // When user has no "Change Date" permission, keep date fixed to today
   useEffect(() => {
@@ -60,36 +54,22 @@ export function SessionsSelection() {
   }, [allLocations, allowedIds])
 
   const hasDoctor = Boolean(selectedDoctor?.id)
-  const userDefaultLocationId = initialData?.userDefaultLocationId ?? null
-  const userUseDefaultLocation = initialData?.userUseDefaultLocation ?? false
 
-  // When doctor is cleared, reset location and clear sessions; keep date as today
+  // When doctor is cleared, clear sessions; keep date as today. Keep branch filter so call center can switch doctors.
   useEffect(() => {
     if (!hasDoctor) {
-      setSelectedLocationId(null)
       setSessions([])
       setSelectedDate(new Date())
       return
     }
   }, [hasDoctor, setSessions])
 
-  const defaultLocationToSelect = useMemo(() => {
-    if (!userUseDefaultLocation || !userDefaultLocationId) return null
-    return filteredLocations.some((l) => l.id === userDefaultLocationId)
-      ? userDefaultLocationId
-      : null
-  }, [userUseDefaultLocation, userDefaultLocationId, filteredLocations])
-
-  const defaultLocationRef = useRef<string | null>(null)
-  defaultLocationRef.current = defaultLocationToSelect
-
-  // On doctor or date change: set branch to default (if "Use default location") or null, clear selected session, then fetch sessions
+  // On doctor or date change: keep branch filter as-is (including "All branches"); clear selected session; fetch sessions
   useEffect(() => {
     if (!hasDoctor || !selectedDoctor?.id || !selectedDate) {
       if (!hasDoctor || !selectedDate) setSessions([])
       return
     }
-    setSelectedLocationId(defaultLocationRef.current)
     onSessionSelect(null)
     let cancelled = false
     setSessionsLoading(true)
@@ -104,7 +84,23 @@ export function SessionsSelection() {
     return () => {
       cancelled = true
     }
-  }, [hasDoctor, selectedDoctor?.id, selectedDate, setSessions, setSessionsLoading, onSessionSelect])
+  }, [
+    hasDoctor,
+    selectedDoctor?.id,
+    selectedDate,
+    setSessions,
+    setSessionsLoading,
+    onSessionSelect,
+  ])
+
+  // When branch filter changes while a session is selected for another branch, clear selection
+  useEffect(() => {
+    if (!selectedSession || !selectedBranchId) return
+    const sessionLoc = selectedSession.locationId ?? selectedSession.location?.id
+    if (sessionLoc && sessionLoc !== selectedBranchId) {
+      onSessionSelect(null)
+    }
+  }, [selectedBranchId, selectedSession, onSessionSelect])
 
   // Socket: subscribe to session updates for current doctor (one room per doctor so changing date still gets updates)
   const socketRef = useRef<Socket | null>(null)
@@ -183,18 +179,17 @@ export function SessionsSelection() {
     }
   }, [selectedDoctor?.id, updateSessionInList])
 
-  // Filter sessions by selected location (show only when location is selected)
+  // Filter sessions by selected location (show only when a specific branch is selected)
   const sessionsForDateAndBranch = useMemo(() => {
-    if (!selectedLocationId) return []
+    if (!selectedBranchId) return []
     return sessions.filter(
-      (s) => (s.locationId ?? s.location?.id) === selectedLocationId
+      (s) => (s.locationId ?? s.location?.id) === selectedBranchId
     )
-  }, [sessions, selectedLocationId])
+  }, [sessions, selectedBranchId])
 
   const handleDateChange = useCallback(
     (date: Date | null) => {
       setSelectedDate(date)
-      setSelectedLocationId(null)
     },
     []
   )
@@ -211,22 +206,23 @@ export function SessionsSelection() {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap gap-1.5 items-center shrink-0">
+            <div className="flex flex-col gap-1.5 shrink-0">
               {canChangeDate && (
                 <DateSelection
                   value={selectedDate}
                   onChange={handleDateChange}
                   placeholder="Select date"
-                  className="min-w-[130px]"
+                  className="w-full"
                 />
               )}
               <BranchSelection
                 options={filteredLocations}
-                value={selectedLocationId}
-                onChange={setSelectedLocationId}
-                placeholder="Select branch"
+                value={selectedBranchId}
+                onChange={setSelectedBranchId}
+                placeholder="All branches"
+                allOptionLabel="All branches"
                 disabled={!hasDoctor}
-                className="min-w-[120px]"
+                className="w-full"
               />
             </div>
             <div className={cn(sessionsListClasses)}>
@@ -241,7 +237,7 @@ export function SessionsSelection() {
                     aria-hidden="true"
                   />
                 </div>
-              ) : !selectedLocationId ? (
+              ) : !selectedBranchId ? (
                 <div className="w-full min-h-[44px] flex items-center justify-center py-4 text-sm text-red-600">
                   Please select a branch
                 </div>

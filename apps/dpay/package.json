@@ -2,11 +2,11 @@
   "name": "@archmage/dpay",
   "private": true,
   "scripts": {
-    "dev": "prisma generate && next dev --turbopack --port 3002",
-    "build": "prisma generate && next build",
+    "dev": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma && next dev --turbopack --port 3002",
+    "build": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma && next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && prisma generate --schema=prisma-channeling/schema.prisma",
     "db:push": "prisma db push"
   },
   "dependencies": {
@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "@prisma/client": "^6.19.0",
+    "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0",
     "@types/file-saver": "^2.0.7",
     "prisma": "^6.19.0"
   },
@@ -70,5 +71,8 @@
     "singleQuote": true,
     "tabWidth": 2,
     "trailingComma": "none"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "^15.5.20"
   }
 }

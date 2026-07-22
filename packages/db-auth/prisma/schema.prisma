@@ -1,7 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
   output        = "../src/generated/client"
-  binaryTargets = ["native", "darwin-arm64"]
+  binaryTargets = ["native", "darwin-arm64", "darwin", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -34,6 +34,11 @@ model User {
   // Cross-DB references — plain IDs, no Prisma relations across databases
   staffId  String? @db.ObjectId  // → HRM DB: Staff.id
   doctorId String? @db.ObjectId  // → Channeling DB: Doctor.id
+
+  /// Assigned branch (Channeling Location id). Used by DPAY receipt numbering.
+  userLocationId String? @db.ObjectId
+  /// Denormalized Location.code for receipt prefixes (e.g. NH → NHDPAY/00000001).
+  locationCode   String?
 
   userGroupId String?    @db.ObjectId
   userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)

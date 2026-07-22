@@ -10,7 +10,8 @@ import {
   deleteLocationByIdService,
   bulkDeleteLocationsByIdsService,
   checkLocationHasLinkedRecordsService,
-  checkLocationsHaveLinkedRecordsService
+  checkLocationsHaveLinkedRecordsService,
+  reorderLocationsService,
 } from '@/services/location.service';
 import {
   getLocationParam,
@@ -469,6 +470,90 @@ export const checkLocationsHaveLinkedRecords = async (
       error: {
         message: error.message || "Error checking locations linked records"
       }
+    }
+  }
+}
+
+/** Reorder locations on the current list page (persists global order). */
+export const reorderLocations = async (
+  pageOrderedIds: string[],
+  page: number,
+  limit: number
+): Promise<{
+  success: boolean
+  message?: string
+  error?: { message?: string }
+}> => {
+  await requirePermission('locations', 'edit')
+
+  try {
+    if (!pageOrderedIds.length) {
+      return { success: true, message: 'Nothing to reorder' }
+    }
+
+    const all = await prisma.location.findMany({
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+      select: { id: true },
+    })
+    const allIds = all.map((l) => l.id)
+    const start = Math.max(0, page) * Math.max(1, limit)
+    const currentPageIds = allIds.slice(start, start + pageOrderedIds.length)
+
+    const sameSet =
+      currentPageIds.length === pageOrderedIds.length &&
+      currentPageIds.every((id) => pageOrderedIds.includes(id))
+
+    if (!sameSet) {
+      // Filtered/partial view: only update relative order among the provided rows
+      const result = await reorderLocationsService(
+        // Keep others: take full list, remove these ids, insert reordered block at first occurrence
+        (() => {
+          const provided = new Set(pageOrderedIds)
+          const without = allIds.filter((id) => !provided.has(id))
+          const insertAt = Math.min(
+            ...pageOrderedIds.map((id) => allIds.indexOf(id)).filter((i) => i >= 0),
+            without.length
+          )
+          return [
+            ...without.slice(0, insertAt),
+            ...pageOrderedIds,
+            ...without.slice(insertAt),
+          ]
+        })()
+      )
+      if (!result.success) {
+        return { success: false, error: result.error, message: result.error?.message }
+      }
+    } else {
+      const merged = [
+        ...allIds.slice(0, start),
+        ...pageOrderedIds,
+        ...allIds.slice(start + pageOrderedIds.length),
+      ]
+      const result = await reorderLocationsService(merged)
+      if (!result.success) {
+        return { success: false, error: result.error, message: result.error?.message }
+      }
+    }
+
+    const session = await getServerSession(authOptions)
+    if (session?.user?.id) {
+      logActivityNonBlocking({
+        userId: session.user.id,
+        action: 'locations.locations.reordered',
+        entityType: 'Location',
+        importance: 'medium',
+        metadata: { count: pageOrderedIds.length, page, limit },
+      })
+    }
+
+    revalidatePath('/locations')
+    return { success: true, message: 'Location order updated' }
+  } catch (error: any) {
+    console.error('reorderLocations action error:', error)
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to reorder locations' },
     }
   }
 }

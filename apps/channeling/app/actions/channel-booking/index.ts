@@ -47,6 +47,10 @@ export {
   type GetAgencyBooksByAgencyResult,
 } from "./get-agency-books-by-agency.action"
 export {
+  getAgencyBookLeafUsageForChannelBooking,
+  type GetAgencyBookLeafUsageResult,
+} from "./get-agency-book-leaf-usage.action"
+export {
   getAgencyDetailsForChannelBooking,
   type GetAgencyDetailsForChannelBookingResult,
 } from "./get-agency-details-for-channel-booking.action"

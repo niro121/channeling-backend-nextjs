@@ -41,7 +41,7 @@ export function BillBreakdownSection({
         <div>
           <h2 className="text-base font-semibold">Bill Breakdown</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Each row is a service provided by a specific doctor.
+            Optional on admission — leave empty to save as Draft, then add doctor charges later.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={addRow}>
@@ -55,7 +55,7 @@ export function BillBreakdownSection({
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2.5 font-medium w-10">#</th>
-              <th className="px-3 py-2.5 font-medium">Doctor Name</th>
+              <th className="px-3 py-2.5 font-medium">Doctor</th>
               <th className="px-3 py-2.5 font-medium">Description</th>
               <th className="px-3 py-2.5 font-medium w-36">Amount (LKR)</th>
               <th className="px-3 py-2.5 font-medium w-12" />

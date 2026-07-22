@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { Ban } from 'lucide-react';
 import {
+  Button,
   Table,
   TableBody,
   TableCell,
@@ -11,22 +13,28 @@ import {
   TableRow,
 } from '@archmage/ui';
 import type { PatientBillReceipt } from '@/types/patient-bill';
-import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
+import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
 import { PaymentDetailsButton, PaymentDetailsDialog } from './payment-details-dialog';
 
 type BillPaymentHistoryProps = {
   receipts: PatientBillReceipt[];
   bxtNumber: string;
+  billNumber?: string;
+  billCancelled?: boolean;
 };
 
-function paymentMethodLabel(method: string) {
-  return PATIENT_BILL_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
-}
-
-export function BillPaymentHistory({ receipts, bxtNumber }: BillPaymentHistoryProps) {
+export function BillPaymentHistory({
+  receipts,
+  bxtNumber,
+  billNumber,
+  billCancelled = false,
+}: BillPaymentHistoryProps) {
   const [selectedReceipt, setSelectedReceipt] = useState<PatientBillReceipt | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [cancelReceipt, setCancelReceipt] = useState<PatientBillReceipt | null>(null);
 
   const openDetails = (receipt: PatientBillReceipt) => {
     setSelectedReceipt(receipt);
@@ -49,6 +57,7 @@ export function BillPaymentHistory({ receipts, bxtNumber }: BillPaymentHistoryPr
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="text-xs uppercase tracking-wide">Receipt No</TableHead>
+                <TableHead className="text-xs uppercase tracking-wide">Status</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Payment Date</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Amount Paid</TableHead>
                 <TableHead className="text-xs uppercase tracking-wide">Payment Method</TableHead>
@@ -59,31 +68,69 @@ export function BillPaymentHistory({ receipts, bxtNumber }: BillPaymentHistoryPr
             <TableBody>
               {sortedReceipts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     No payments recorded yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedReceipts.map((receipt) => (
-                  <TableRow key={receipt.id}>
-                    <TableCell className="font-medium text-emerald-700">
-                      {receipt.receiptNumber}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(receipt.paymentDate), 'yyyy-MM-dd')}
-                    </TableCell>
-                    <TableCell className="tabular-nums font-medium text-emerald-700">
-                      {formatLkr(receipt.amountPaid)}
-                    </TableCell>
-                    <TableCell>{paymentMethodLabel(receipt.paymentMethod)}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {formatLkr(receipt.outstandingAfter)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <PaymentDetailsButton onClick={() => openDetails(receipt)} />
-                    </TableCell>
-                  </TableRow>
-                ))
+                sortedReceipts.map((receipt) => {
+                  const status = receipt.status ?? 'active';
+                  const isInactive = status === 'cancelled' || status === 'refund';
+                  const canCancel =
+                    status === 'active' &&
+                    !receipt.cancelReceiptNumber &&
+                    !receipt.refundOfReceiptId &&
+                    !billCancelled;
+                  return (
+                    <TableRow key={receipt.id}>
+                      <TableCell
+                        className={
+                          isInactive
+                            ? 'font-medium text-muted-foreground'
+                            : 'font-medium text-emerald-700'
+                        }
+                      >
+                        {receipt.receiptNumber}
+                      </TableCell>
+                      <TableCell>
+                        <ReceiptStatusBadge status={status} />
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(receipt.paymentDate), 'yyyy-MM-dd')}
+                      </TableCell>
+                      <TableCell
+                        className={
+                          isInactive
+                            ? 'tabular-nums font-medium text-muted-foreground line-through'
+                            : 'tabular-nums font-medium text-emerald-700'
+                        }
+                      >
+                        {formatLkr(receipt.amountPaid)}
+                      </TableCell>
+                      <TableCell>{paymentMethodLabel(receipt.paymentMethod)}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatLkr(receipt.outstandingAfter)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <PaymentDetailsButton onClick={() => openDetails(receipt)} />
+                          {canCancel && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setCancelReceipt(receipt)}
+                            >
+                              <Ban className="h-3 w-3" />
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -96,6 +143,19 @@ export function BillPaymentHistory({ receipts, bxtNumber }: BillPaymentHistoryPr
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
       />
+      {cancelReceipt ? (
+        <CancelPatientBillReceiptDialog
+          open={!!cancelReceipt}
+          onOpenChange={(open) => {
+            if (!open) setCancelReceipt(null);
+          }}
+          receiptId={cancelReceipt.id}
+          receiptNumber={cancelReceipt.receiptNumber}
+          amountPaid={cancelReceipt.amountPaid}
+          billNumber={billNumber}
+          originalPaymentMethod={cancelReceipt.paymentMethod}
+        />
+      ) : null}
     </>
   );
 }

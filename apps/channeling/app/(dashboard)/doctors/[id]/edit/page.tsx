@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import DoctorForm from '../../doctor-form';
 import { getDoctorById } from '@/app/actions/doctor.actions';
 import { getAllSpecialityOptions } from '@/app/actions/doctor.actions';
+import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { BackButton } from '@/components/common/back-button';
@@ -25,12 +26,21 @@ export default async function EditDoctorPage({ params }: PageProps) {
     notFound();
   }
 
-  const specialityRes = await getAllSpecialityOptions();
+  const [specialityRes, locationRes] = await Promise.all([
+    getAllSpecialityOptions(),
+    getLocationOptions(),
+  ]);
 
   const specialityOptions =
     specialityRes?.data
       ?.map((s) => ({ id: s.id as string, name: s.name }))
       .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
+
+  const locationOptions =
+    locationRes?.data
+      ?.map((l) => ({ id: l.id as string, name: l.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
+
   return (
     <div className="container mx-auto py-6">
       <div className="w-full">
@@ -41,6 +51,7 @@ export default async function EditDoctorPage({ params }: PageProps) {
         <DoctorForm
           doctor={data}
           specialities={specialityOptions}
+          locations={locationOptions}
           isEditPage={true}
           user={{
             id: user?.id,
