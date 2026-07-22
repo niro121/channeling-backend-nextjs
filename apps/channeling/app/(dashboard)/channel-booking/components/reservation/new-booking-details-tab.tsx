@@ -6,12 +6,14 @@ import {
   getBookingsBySession,
   saveBookingAction,
   getAgencyBooksByAgencyForChannelBooking,
+  getAgencyBookLeafUsageForChannelBooking,
   getAgencyDetailsForChannelBooking,
   validateVoucherAction,
 } from "@/app/actions/channel-booking"
 import type { ChannelBookingAreaOption } from "@/services/channel-booking"
 import type { ChannelBookingAgencyBookOption } from "@/services/channel-booking/reference/get-agency-books-by-agency.service"
 import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/reference/get-agency-details-for-channel-booking.service"
+import type { AgencyBookLeafUsage } from "@/services/channel-booking/reference/get-agency-book-leaf-usage.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
 import { usePermissions } from "@/components/hooks/use-permissions"
@@ -37,6 +39,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   CreditCard,
+  LayoutGrid,
   MapPin,
   MessageSquare,
   Phone,
@@ -194,6 +197,10 @@ export function NewBookingDetailsTab() {
   const [ewalletRef, setEwalletRef] = useState("")
   const [agencyBooks, setAgencyBooks] = useState<ChannelBookingAgencyBookOption[]>([])
   const [agencyBooksLoading, setAgencyBooksLoading] = useState(false)
+  const [leafUsageOpen, setLeafUsageOpen] = useState(false)
+  const [leafUsageLoading, setLeafUsageLoading] = useState(false)
+  const [leafUsage, setLeafUsage] = useState<AgencyBookLeafUsage | null>(null)
+  const [leafUsageError, setLeafUsageError] = useState<string | null>(null)
   const areas: ChannelBookingAreaOption[] = initialData?.areas ?? []
   const agencies = initialData?.agencies ?? []
   const creditCustomers = initialData?.creditCustomers ?? []
@@ -1048,14 +1055,14 @@ export function NewBookingDetailsTab() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="space-y-0.5">
+          <div className="flex items-center gap-1 min-w-0">
             <Select
               value={agencyBookId || undefined}
               onValueChange={setAgencyBookId}
               disabled={!agencyId || agencyBooksLoading}
             >
               <SelectTrigger
-                className={`${fieldClass} ${agencyBookError ? errorClass : ""} ${!agencyBookId ? "text-placeholder" : ""}`}
+                className={`${fieldClass} flex-1 min-w-0 ${agencyBookError ? errorClass : ""} ${!agencyBookId ? "text-placeholder" : ""}`}
               >
                 <SelectValue placeholder={agencyBooksLoading ? "Loading…" : "Select a Book"} />
               </SelectTrigger>
@@ -1067,6 +1074,38 @@ export function NewBookingDetailsTab() {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title="View used / unused leaf numbers"
+              disabled={!agencyId || !agencyBookId}
+              onClick={async () => {
+                if (!agencyId || !agencyBookId) return
+                setLeafUsageOpen(true)
+                setLeafUsage(null)
+                setLeafUsageError(null)
+                setLeafUsageLoading(true)
+                try {
+                  const res = await getAgencyBookLeafUsageForChannelBooking(
+                    agencyId,
+                    agencyBookId
+                  )
+                  if (res.success && res.data) {
+                    setLeafUsage(res.data)
+                  } else {
+                    setLeafUsageError(res.message ?? "Failed to load leaf numbers.")
+                  }
+                } catch (e: any) {
+                  setLeafUsageError(e?.message ?? "Failed to load leaf numbers.")
+                } finally {
+                  setLeafUsageLoading(false)
+                }
+              }}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </Button>
           </div>
           <div className="col-span-2 space-y-0.5">
             <Input
@@ -1614,6 +1653,17 @@ export function NewBookingDetailsTab() {
                         {formatLKR(agentBookingSuccess.financials.balance)}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 dark:border-red-900/50 dark:bg-red-950/40">
+                      <span className="text-xs font-medium text-red-700 dark:text-red-300">
+                        Usable Balance
+                      </span>
+                      <span className="text-base font-semibold tabular-nums text-red-700 dark:text-red-300">
+                        {formatLKR(
+                          Number(agentBookingSuccess.financials.balance ?? 0) +
+                            Number(agentBookingSuccess.financials.allowedCreditLimit ?? 0)
+                        )}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -1627,6 +1677,86 @@ export function NewBookingDetailsTab() {
           <DialogFooter>
             <Button type="button" onClick={() => setAgentBookingSuccess(null)}>
               I informed the agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={leafUsageOpen}
+        onOpenChange={(open) => {
+          setLeafUsageOpen(open)
+          if (!open) {
+            setLeafUsage(null)
+            setLeafUsageError(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Leaf numbers
+              {leafUsage ? ` — ${leafUsage.bookNumber}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {leafUsage
+                ? `Range ${leafUsage.startNumber}–${leafUsage.endNumber}. Used: ${leafUsage.usedCount}. Available: ${leafUsage.unusedCount}. Click an available leaf to fill REF NO.`
+                : "Used and available reference leaf numbers for this book."}
+            </DialogDescription>
+          </DialogHeader>
+          {leafUsageLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              Loading…
+            </div>
+          ) : leafUsageError ? (
+            <p className="py-6 text-center text-sm text-destructive">{leafUsageError}</p>
+          ) : leafUsage ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block size-3 rounded-sm bg-emerald-500/20 ring-1 ring-emerald-600/40" />
+                  Available
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block size-3 rounded-sm bg-red-500/15 ring-1 ring-red-600/40" />
+                  Used
+                </span>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto rounded-md border border-border/60 p-2">
+                <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-10">
+                  {leafUsage.leaves.map((item) => (
+                    <button
+                      key={item.leaf}
+                      type="button"
+                      disabled={item.used}
+                      title={
+                        item.used
+                          ? `${leafUsage.bookNumber}${item.leaf} used`
+                          : `Use ${item.leaf}`
+                      }
+                      className={cn(
+                        "h-8 rounded text-xs font-medium tabular-nums transition-colors",
+                        item.used
+                          ? "cursor-not-allowed bg-red-500/10 text-red-700/80 line-through dark:text-red-300/80"
+                          : "bg-emerald-500/15 text-emerald-800 hover:bg-emerald-500/25 dark:text-emerald-200"
+                      )}
+                      onClick={() => {
+                        if (item.used) return
+                        setAgencyRef(item.leaf)
+                        setLeafUsageOpen(false)
+                      }}
+                    >
+                      {item.leaf}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setLeafUsageOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

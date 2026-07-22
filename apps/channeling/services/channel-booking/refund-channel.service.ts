@@ -7,6 +7,7 @@ import {
   isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
+  resolveReceiptLocationId,
 } from "./helpers"
 import {
   createJournalEntryInTransaction,
@@ -193,6 +194,10 @@ export async function refundChannelService(
   const bookingCreditCustomerId = (booking as { creditCustomerId?: string | null }).creditCustomerId ?? null
   const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
   const refundTo = input.refund_to ?? REFUND_TO_DEFAULT
+  const receiptLocationId = await resolveReceiptLocationId(
+    userId,
+    booking.locationId ?? null
+  )
 
   if (receiptPaymentMethod === SAVE_PAYMENT_TYPE_CASH && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
     return {
@@ -305,7 +310,8 @@ export async function refundChannelService(
       if (needJournal) {
         const reqResult = await requireReceiptJournalAccounts(
           {
-            locationId: booking.locationId ?? null,
+            locationId: receiptLocationId,
+            userLocationId: receiptLocationId,
             createdBy: userId,
             agencyId: booking.agencyId ?? null,
             creditCustomerId: bookingCreditCustomerId,
@@ -324,7 +330,8 @@ export async function refundChannelService(
         accounts = reqResult.accounts
       } else {
         const resolveResult = await resolveReceiptJournalAccounts({
-          locationId: booking.locationId ?? null,
+          locationId: receiptLocationId,
+          userLocationId: receiptLocationId,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
@@ -440,7 +447,7 @@ export async function refundChannelService(
           creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
           createdBy: userId,
           shiftId,
-          userLocationId: null,
+          userLocationId: receiptLocationId,
           getBookingUpdate: (receipt) => ({
             status: 2,
             refund: 3,
@@ -528,7 +535,8 @@ export async function refundChannelService(
     if (needJournal) {
       const reqResult = await requireReceiptJournalAccounts(
         {
-          locationId: booking.locationId ?? null,
+          locationId: receiptLocationId,
+          userLocationId: receiptLocationId,
           createdBy: userId,
           agencyId: booking.agencyId ?? null,
           creditCustomerId: bookingCreditCustomerId,
@@ -547,7 +555,8 @@ export async function refundChannelService(
       accounts = reqResult.accounts
     } else {
       const resolveResult = await resolveReceiptJournalAccounts({
-        locationId: booking.locationId ?? null,
+        locationId: receiptLocationId,
+        userLocationId: receiptLocationId,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         creditCustomerId: bookingCreditCustomerId,
@@ -632,7 +641,7 @@ export async function refundChannelService(
         creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
         createdBy: userId,
         shiftId,
-        userLocationId: null,
+        userLocationId: receiptLocationId,
         getBookingUpdate: (receipt) => ({
           refund: refundType,
           refundAmount: receipt.amount, // same sign as receipt (negative)

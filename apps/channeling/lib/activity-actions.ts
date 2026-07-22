@@ -3,6 +3,7 @@
  * Used for "View all tracked actions" in the User Activity report.
  */
 export const KNOWN_ACTIVITY_ACTIONS: string[] = [
+  'auth.login',
   'till.visited',
   'till.statement.viewed',
   'ledger.visited',
@@ -142,6 +143,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'reports.cashier-drawer-balance.exported',
   'reports.card-summary-bank-wise.exported',
   'reports.bank-deposits.exported',
+  'reports.completed-handovers.exported',
   'reports.agent-collection-receipt.exported',
   'admin.receipt-templates.visited',
   'admin.receipt-templates.template.created',

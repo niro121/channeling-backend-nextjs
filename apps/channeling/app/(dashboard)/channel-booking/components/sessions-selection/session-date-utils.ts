@@ -30,7 +30,12 @@ export function getSessionsForDate(
   return sessions.filter((s) => sessionMatchesDate(s, date))
 }
 
-export type BranchOption = { id: string; name: string }
+export type BranchOption = {
+  id: string
+  name: string
+  order?: number
+  color?: string | null
+}
 
 /** Item with location info (Session or DoctorSession). */
 type WithLocation = { locationId?: string | null; location?: { id?: string; name: string } | null }

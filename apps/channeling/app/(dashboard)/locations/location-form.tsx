@@ -48,7 +48,9 @@ export default function LocationForm({
     addressLine2: location?.addressLine2 ?? '',
     city: location?.city ?? '',
     status: location?.status ?? 1,
-    branchType: location?.branchType ? String(location?.branchType) : ''
+    branchType: location?.branchType ? String(location?.branchType) : '',
+    order: location?.order ?? 0,
+    color: location?.color ?? '',
   };
 
   const validationSchema = Yup.object({
@@ -66,7 +68,14 @@ export default function LocationForm({
       .required('This field is mandatory'),
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
-      .required('This field is mandatory')
+      .required('This field is mandatory'),
+    order: Yup.number()
+      .min(0, 'Must be 0 or greater')
+      .required('This field is mandatory'),
+    color: Yup.string()
+      .trim()
+      .matches(/^$|^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/, 'Color must be a hex value (e.g. #22c55e)')
+      .optional(),
   });
 
   const handleSubmit = async (
@@ -349,6 +358,58 @@ export default function LocationForm({
                 required
                 styleClasses={styleClasses}
               />
+
+              <CustomFormField
+                type="number"
+                id="order"
+                placeholder="List Order"
+                value={formik.values.order}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required
+                styleClasses={styleClasses}
+              />
+
+              <div className={styleClasses.parentDiv}>
+                <Label htmlFor="color" className={styleClasses.labelClassName}>
+                  Color
+                </Label>
+                <div className={`${styleClasses.inputClassName} flex items-center gap-2`}>
+                  <input
+                    id="colorPicker"
+                    type="color"
+                    value={
+                      /^#([0-9A-Fa-f]{6})$/.test(formik.values.color)
+                        ? formik.values.color
+                        : '#64748b'
+                    }
+                    onChange={(e) => formik.setFieldValue('color', e.target.value)}
+                    className="h-9 w-12 cursor-pointer rounded border border-input bg-transparent p-0.5"
+                    title="Pick branch color"
+                  />
+                  <input
+                    id="color"
+                    name="color"
+                    type="text"
+                    placeholder="#22c55e"
+                    value={formik.values.color}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  {formik.values.color && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => formik.setFieldValue('color', '')}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
 
               <CustomSelectField
                 id="status"

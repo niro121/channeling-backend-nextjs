@@ -2,12 +2,17 @@
 
 import prisma from "@/lib/prisma"
 
-/** Result type for channel-booking location options (id + name). */
-export type ChannelBookingLocationOption = { id: string; name: string }
+/** Result type for channel-booking location options (id + name + order + color). */
+export type ChannelBookingLocationOption = {
+  id: string
+  name: string
+  order: number
+  color: string | null
+}
 
 /**
  * Get all locations for channel-booking (e.g. branch dropdown).
- * Returns published locations only, ordered by name.
+ * Returns published locations only, ordered by list order then name.
  */
 export async function getLocationsForChannelBookingService(): Promise<{
   success: boolean
@@ -18,13 +23,18 @@ export async function getLocationsForChannelBookingService(): Promise<{
   try {
     const records = await prisma.location.findMany({
       where: { status: 1 },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      orderBy: [{ order: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, order: true, color: true },
     })
 
     const data: ChannelBookingLocationOption[] = records
       .filter((r) => r.id)
-      .map((r) => ({ id: r.id, name: r.name ?? "Unknown" }))
+      .map((r) => ({
+        id: r.id,
+        name: r.name ?? "Unknown",
+        order: r.order ?? 0,
+        color: r.color ?? null,
+      }))
 
     return { success: true, data }
   } catch (error: unknown) {

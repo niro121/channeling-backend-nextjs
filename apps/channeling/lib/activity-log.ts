@@ -18,7 +18,18 @@ export type LogActivityParams = {
 
 /** Returns null; this module must stay import-safe for client-reachable bundles. */
 async function getClientIp(): Promise<string | null> {
-  return null
+  try {
+    const { headers } = await import('next/headers');
+    const h = await headers();
+    const forwarded = h.get('x-forwarded-for');
+    if (forwarded) {
+      const first = forwarded.split(',')[0]?.trim();
+      if (first) return first;
+    }
+    return h.get('x-real-ip');
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -74,6 +74,10 @@ export function AgentBookTab() {
     ? `${details.name} (${details.code})`
     : details.name
 
+  // Same rule as agent booking: amount must be <= balance + allowedCreditLimit
+  const usableBalance =
+    Number(details.balance ?? 0) + Number(details.allowedCreditLimit ?? 0)
+
   return (
     <div className="space-y-3">
       {/* Agent and Booking Identifiers */}
@@ -116,12 +120,24 @@ export function AgentBookTab() {
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Allowed Credit Limit</span>
-            <span className="text-foreground font-medium">{formatLKR(details.allowedCreditLimit)}</span>
+            <span className="text-foreground font-medium tabular-nums">
+              {formatLKR(details.allowedCreditLimit)}
+            </span>
           </div>
           <div className="flex justify-between gap-2 py-1">
             <span className="text-muted-foreground">Balance</span>
-            <span className="text-foreground font-medium">{formatLKR(details.balance)}</span>
+            <span className="text-foreground font-medium tabular-nums">
+              {formatLKR(details.balance)}
+            </span>
           </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 dark:border-red-900/50 dark:bg-red-950/40">
+          <span className="text-[11px] font-medium text-red-700 dark:text-red-300">
+            Usable Balance
+          </span>
+          <span className="text-sm font-semibold tabular-nums text-red-700 dark:text-red-300">
+            {formatLKR(usableBalance)}
+          </span>
         </div>
       </div>
     </div>
