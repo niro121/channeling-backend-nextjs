@@ -18,6 +18,8 @@ const PATH_NAMES = [
   { path: 'reconciliation', name: 'Reconciliation' },
   { path: 'settlements', name: 'Settlements' },
   { path: 'reports', name: 'Reports' },
+  { path: 'financial', name: 'Financial' },
+  { path: 'user-activity', name: 'User Activity' },
   { path: 'users', name: 'Users' },
   { path: 'user-groups', name: 'User Groups' },
   { path: 'admin', name: 'Admin' },

@@ -15,6 +15,7 @@ import {
   checkDoctorsHaveActiveSessionsOrLeaves
 } from '@/app/actions/doctor.actions';
 import { getDoctorsExport } from '@/app/actions/doctor.actions';
+import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
 import { ExportWrapper } from '../export-wrapper';
 import FilterSection from './filter-section';
 import { checkRouteAccess } from '@/lib/server-permissions';
@@ -28,6 +29,7 @@ type SearchParams = {
     limit?: string;
     keyword?: string;
     specialityId?: string;
+    locationIds?: string;
   }>;
 };
 
@@ -53,21 +55,29 @@ export default async function Page({ searchParams }: SearchParams) {
     page: params?.page,
     limit: params?.limit,
     keyword: params?.keyword,
-    specialityId: params?.specialityId
+    specialityId: params?.specialityId,
+    locationIds: params?.locationIds,
   });
 
-  const specialityRes = await getAllSpecialityOptions();
+  const [specialityRes, locationRes] = await Promise.all([
+    getAllSpecialityOptions(),
+    getLocationOptions(),
+  ]);
   const specialityOptions =
     specialityRes?.data
       ?.map((s) => ({ id: s.id as string, name: s.name }))
       .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
+  const locationOptions =
+    locationRes?.data
+      ?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
 
   const handleExport = async () => {
     'use server';
 
     const doctorListResponse = await getDoctorsExport({
       keyword: params?.keyword,
-      specialityId: params?.specialityId
+      specialityId: params?.specialityId,
+      locationIds: params?.locationIds,
     });
 
     if (!doctorListResponse.success || !doctorListResponse.data?.length) {
@@ -128,7 +138,7 @@ export default async function Page({ searchParams }: SearchParams) {
           page={params?.page}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row gap-3 items-start">
+              <div className="flex flex-col sm:flex-row gap-3 items-start flex-wrap">
                 <div className="relative w-full sm:max-w-sm">
                   <SearchInput
                     name="keyword"
@@ -138,7 +148,9 @@ export default async function Page({ searchParams }: SearchParams) {
                 </div>
                 <FilterSection
                   specialityOptions={specialityOptions}
+                  locationOptions={locationOptions}
                   specialityId={params?.specialityId}
+                  locationIds={params?.locationIds}
                 />
               </div>
               <div className="flex items-center">

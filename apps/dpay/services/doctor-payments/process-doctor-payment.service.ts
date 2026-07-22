@@ -64,7 +64,8 @@ export async function processDoctorPayment(
   const allLineItemIds = selected.flatMap((row) => row.lineItemIds);
 
   try {
-    const receiptNumber = await generateDoctorPaymentReceiptNumber();
+    const generated = await generateDoctorPaymentReceiptNumber(createdBy);
+    const receiptNumber = generated.receiptNumber;
 
     const payment = await prisma.$transaction(async (tx) => {
       const stillFree = await tx.patientBillItem.count({
@@ -85,6 +86,8 @@ export async function processDoctorPayment(
           paymentMethod: input.paymentMethod,
           referenceNumber: input.referenceNumber?.trim() || null,
           remarks: input.remarks?.trim() || null,
+          locationId: generated.locationId,
+          locationCode: generated.locationCode,
           totalAmount,
           whtAmount,
           whtPercentage,

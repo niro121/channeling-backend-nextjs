@@ -25,10 +25,20 @@ function toPatientBillReceipt(item: ReceiptListItem): PatientBillReceipt {
     amountPaid: item.amountPaid,
     paymentMethod: item.paymentMethod,
     referenceNumber: item.referenceNumber,
+    bank: item.bank,
+    bankId: item.bankId,
+    cardReference: item.cardReference,
+    slipReference: item.slipReference,
+    slipDate: item.slipDate,
+    locationId: item.locationId,
+    locationCode: item.locationCode,
+    locationName: item.locationName,
     remarks: item.remarks,
     outstandingAfter: item.outstandingAfter,
     paymentDate: item.paymentDate,
     status: item.status,
+    cancelReceiptNumber: item.cancelReceiptNumber,
+    refundOfReceiptId: item.refundOfReceiptId,
     cancelReason: item.cancelReason,
     canceledAt: item.canceledAt,
     canceledByName: item.canceledByName,
@@ -40,7 +50,8 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
   const openView = useReceiptsView()?.openView;
   const item = row.original;
   const receipt = toPatientBillReceipt(item);
-  const isCancelled = item.status === 'cancelled';
+  const canCancel =
+    item.status === 'active' && !item.cancelReceiptNumber && !item.refundOfReceiptId;
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const handlePrint = () => {
@@ -83,7 +94,7 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         <Download className="h-4 w-4" />
         <span className="sr-only">Download</span>
       </Button>
-      {!isCancelled && (
+      {canCancel && (
         <Button
           variant="outline"
           size="sm"
@@ -103,6 +114,7 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         receiptNumber={item.receiptNumber}
         amountPaid={item.amountPaid}
         billNumber={item.billNumber}
+        originalPaymentMethod={item.paymentMethod}
       />
     </div>
   );

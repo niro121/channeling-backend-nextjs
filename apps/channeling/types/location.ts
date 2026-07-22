@@ -10,6 +10,10 @@ export type Location = {
   branchType: number;
   status: number; // == 0: unpublish, 1: publish == //
   code: string
+  /** Display order in branch dropdowns (lower first). */
+  order?: number;
+  /** Hex color for branch UI (e.g. #22c55e). */
+  color?: string | null;
   createdUser?: User | null;
   updatedUser?: User | null;
   createdAt?: Date | undefined;
@@ -38,6 +42,8 @@ export type LocationFormValues = {
   city: string;
   branchType: string;
   status: number; // == 0: unpublish, 1: publish == //
+  order: number;
+  color: string;
 };
 
 export type UpdateLocationPayload = Partial<{
@@ -48,6 +54,8 @@ export type UpdateLocationPayload = Partial<{
   city: string;
   branchType: string;
   status: number; // == 0: unpublish, 1: publish == //
+  order: number;
+  color: string;
 }>;
 
 export type getLocationParam = {

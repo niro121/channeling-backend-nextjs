@@ -30,6 +30,9 @@ export type Doctor = {
   accountCode?: string | null;
   /** Balance from linked account (display units) */
   balance?: number | null;
+  /** Branches (locations) this doctor is tagged to */
+  doctorLocations?: { locationId: string; location?: { id: string; name: string } | null }[];
+  locationIds?: string[];
 };
 
 export type DoctorFormValues = {
@@ -49,6 +52,7 @@ export type DoctorFormValues = {
   sessionNoPrefix: string;
   status: number; // == 0: unpublish, 1: publish == //
   specialityId: string;
+  locationIds: string[];
 };
 
 export type CreateDoctorPayload = DoctorFormValues & {
@@ -72,6 +76,7 @@ export type UpdateDoctorPayload = Partial<{
   sessionNoPrefix: string;
   status: number; // == 0: unpublish, 1: publish == //
   specialityId: string;
+  locationIds: string[];
 }>;
 
 
@@ -80,6 +85,8 @@ export type getDoctorParams = {
   limit?: string;
   keyword?: string;
   specialityId?: string;
+  /** Comma-separated location ObjectIds, or string[] from callers. */
+  locationIds?: string | string[];
 };
 
 export type getDoctorQuery = {
@@ -87,6 +94,7 @@ export type getDoctorQuery = {
   limit: number;
   keyword: string;
   specialityId?: string;
+  locationIds?: string[];
 };
 
 export type GetDoctorResponse = {
@@ -107,11 +115,13 @@ export {
 export type ExportDoctorParams = {
   keyword?: string;
   specialityId?: string;
+  locationIds?: string | string[];
 };
 
 export type ExportDoctorQuery = {
   keyword?: string;
   specialityId?: string;
+  locationIds?: string[];
 };
 
 export type ExportDoctorsPdfResponse =

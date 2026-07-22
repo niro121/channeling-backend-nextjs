@@ -87,12 +87,11 @@ const AMOUNT_HEAD =
 const AMOUNT_CELL =
   'text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
 
-/** Slip + Credit (credit customer) → Credit Summary; all other methods → Cash Summary (see report footer). */
+/** Slip + Credit (credit customer) → Credit Summary; cash methods → Cash Summary (agent shown after Grand Total). */
 const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'cash',
   'creditCard',
   'cheque',
-  'agent',
   'eWallet',
 ];
 
@@ -100,19 +99,19 @@ function sumAmounts(t: CashierSummaryPaymentAmounts, keys: (keyof CashierSummary
   return keys.reduce((acc, k) => acc + Number(t[k] ?? 0), 0);
 }
 
-/** Footer: Credit Summary = Slip + Credit; Cash Summary = everything else. */
+/** Footer: Credit Summary = Slip + Credit; Cash Summary = cash methods; Agent Total after Grand Total. */
 function CashierCreditCashSummaryFooter({ totals }: { totals: CashierSummaryPaymentAmounts }) {
   const slip = Number(totals.slip);
   const creditCustomer = Number(totals.agentCredit);
   const creditSectionTotal = slip + creditCustomer;
   const cashSectionTotal = sumAmounts(totals, CASH_SUMMARY_KEYS);
+  const agentTotal = Number(totals.agent);
   const grandCombined = creditSectionTotal + cashSectionTotal;
 
   const cashRows: { key: keyof CashierSummaryPaymentAmounts; label: string }[] = [
     { key: 'cash', label: 'Cash Total' },
     { key: 'creditCard', label: 'Credit Card Total' },
     { key: 'cheque', label: 'Cheque Total' },
-    { key: 'agent', label: 'Agent Total' },
     { key: 'eWallet', label: 'E-wallet Total' },
   ];
 
@@ -171,6 +170,10 @@ function CashierCreditCashSummaryFooter({ totals }: { totals: CashierSummaryPaym
             <tr className="border-t-2 border-border bg-muted/80 font-semibold">
               <td className="px-3 py-2.5 text-[13px] text-left">Grand Total</td>
               <td className="px-3 py-2.5 text-right tabular-nums text-[13px]">{formatAmount(grandCombined)}</td>
+            </tr>
+            <tr className={`${rowClass} font-medium`}>
+              <td className={cellLabel}>Agent Total</td>
+              <td className={cellAmt}>{formatAmount(agentTotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -460,6 +463,7 @@ export default function CashierSummaryContent({
       const crCust = Number(grandTotals.agentCredit);
       const crTotal = crSlip + crCust;
       const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
+      const agentTotal = Number(grandTotals.agent);
       lines.push('');
       lines.push('"Credit Summary","","","","","","","","",""');
       lines.push(`"Slip Total","","","","","","","","","${crSlip.toFixed(2)}"`);
@@ -472,6 +476,7 @@ export default function CashierSummaryContent({
       }
       lines.push(`"Total (Cash Summary)","","","","","","","","","${cashTotal.toFixed(2)}"`);
       lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${(crTotal + cashTotal).toFixed(2)}"`);
+      lines.push(`"Agent Total","","","","","","","","","${Number.isFinite(agentTotal) ? agentTotal.toFixed(2) : '0.00'}"`);
     }
 
     const csv = lines.join('\n');

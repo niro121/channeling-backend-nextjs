@@ -92,6 +92,8 @@ export async function updatePatientBill(
           totalAmount: payload.totalAmount,
           outstandingAmount: payload.outstandingAmount,
           status: payload.status,
+          updatedBy: updatedBy ?? undefined,
+          updatedByName: updatedByName ?? undefined,
         },
       });
 

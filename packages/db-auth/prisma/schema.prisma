@@ -35,6 +35,11 @@ model User {
   staffId  String? @db.ObjectId  // → HRM DB: Staff.id
   doctorId String? @db.ObjectId  // → Channeling DB: Doctor.id
 
+  /// Assigned branch (Channeling Location id). Used by DPAY receipt numbering.
+  userLocationId String? @db.ObjectId
+  /// Denormalized Location.code for receipt prefixes (e.g. NH → NHDPAY/00000001).
+  locationCode   String?
+
   userGroupId String?    @db.ObjectId
   userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)
 

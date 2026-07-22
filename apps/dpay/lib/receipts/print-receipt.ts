@@ -1,8 +1,14 @@
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
+import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
 import type { PatientBillReceipt } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import {
+  parsePaymentMethodCode,
+  paymentMethodLabel,
+  paymentReferenceDisplay,
+} from '@/lib/receipts/helpers';
+import { formatIssuedLocation } from '@/lib/location';
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -22,21 +28,91 @@ function getReceiptDetailRows(
   const status = receipt.status ?? 'active';
   const paymentDate = format(new Date(receipt.paymentDate), 'yyyy-MM-dd HH:mm:ss');
   const method = paymentMethodLabel(receipt.paymentMethod);
-  const reference = receipt.referenceNumber?.trim() || '—';
   const remarks = receipt.remarks?.trim() || '—';
   const createdBy = receipt.createdByName?.trim() || '—';
+  const code = parsePaymentMethodCode(receipt.paymentMethod);
+  const issuedLocation = formatIssuedLocation({
+    locationName: receipt.locationName,
+    locationCode: receipt.locationCode,
+  });
+
+  const statusLabel =
+    status === 'cancelled' ? 'Cancelled' : status === 'refund' ? 'Refund' : 'Active';
 
   const rows: ReceiptDetailRow[] = [
-    { label: 'Status', value: status === 'cancelled' ? 'Cancelled' : 'Active' },
+    { label: 'Status', value: statusLabel },
     { label: 'Receipt Number', value: receipt.receiptNumber, highlight: true },
     { label: 'BHT Number', value: bxtNumber },
+  ];
+
+  if (issuedLocation !== '—') {
+    rows.push({ label: 'Issued Location', value: issuedLocation });
+  }
+
+  rows.push(
     { label: 'Payment Date', value: paymentDate },
     { label: 'Amount Paid', value: formatLkr(receipt.amountPaid), highlight: true },
     { label: 'Payment Method', value: method },
-    { label: 'Reference Number', value: reference },
+  );
+
+  if (receipt.bank?.trim()) {
+    rows.push({ label: 'Bank', value: receipt.bank.trim() });
+  }
+
+  if (code === RECEIPT_PAYMENT_METHOD.CREDIT_CARD && receipt.cardReference?.trim()) {
+    rows.push({ label: 'Card Reference', value: receipt.cardReference.trim() });
+  } else if (code === RECEIPT_PAYMENT_METHOD.E_WALLET && receipt.cardReference?.trim()) {
+    rows.push({ label: 'E-Wallet Reference', value: receipt.cardReference.trim() });
+  } else if (
+    (code === RECEIPT_PAYMENT_METHOD.SLIP || code === RECEIPT_PAYMENT_METHOD.CHECK) &&
+    receipt.slipReference?.trim()
+  ) {
+    rows.push({
+      label: code === RECEIPT_PAYMENT_METHOD.CHECK ? 'Cheque Number' : 'Slip Reference',
+      value: receipt.slipReference.trim(),
+    });
+  }
+
+  if (
+    (code === RECEIPT_PAYMENT_METHOD.SLIP || code === RECEIPT_PAYMENT_METHOD.CHECK) &&
+    receipt.slipDate
+  ) {
+    rows.push({
+      label: code === RECEIPT_PAYMENT_METHOD.CHECK ? 'Cheque Date' : 'Slip Date',
+      value: format(new Date(receipt.slipDate), 'yyyy-MM-dd'),
+    });
+  }
+
+  if (
+    !receipt.bank?.trim() &&
+    !receipt.cardReference?.trim() &&
+    !receipt.slipReference?.trim()
+  ) {
+    rows.push({
+      label: 'Reference',
+      value: paymentReferenceDisplay(receipt),
+    });
+  }
+
+  rows.push(
     { label: 'Remarks', value: remarks },
-    { label: 'Created By', value: createdBy },
-  ];
+    { label: 'Created By', value: createdBy }
+  );
+
+  if (receipt.cancelReceiptNumber?.trim()) {
+    rows.push({
+      label: 'Refund Receipt',
+      value: receipt.cancelReceiptNumber.trim(),
+      highlight: true,
+    });
+  }
+
+  if (status === 'refund') {
+    const refundReason = receipt.cancelReason?.trim();
+    if (refundReason) {
+      rows.push({ label: 'Refund Reason', value: refundReason });
+    }
+  }
 
   if (status === 'cancelled') {
     const cancelReason = receipt.cancelReason?.trim();
@@ -57,6 +133,7 @@ function getReceiptDetailRows(
 
   return rows;
 }
+
 
 export function buildReceiptPrintHtml(receipt: PatientBillReceipt, bxtNumber: string) {
   const rowsHtml = getReceiptDetailRows(receipt, bxtNumber)

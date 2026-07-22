@@ -6,8 +6,9 @@ import { fetchServerSession } from '@/lib/session';
 import { getReceipts, getReceiptsExport } from '@/services/receipts/get-receipts.service';
 import { cancelPatientBillReceipt } from '@/services/receipts/cancel-patient-bill-receipt.service';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
 import type { GetReceiptsParams, ReceiptExportRow } from '@/types/receipt';
+import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { format } from 'date-fns';
 
 export async function getReceiptsAction(params: GetReceiptsParams = {}) {
@@ -28,7 +29,7 @@ export async function getReceiptsExportAction(
       doctorName: item.doctorName,
       paymentDate: format(new Date(item.paymentDate), 'yyyy-MM-dd HH:mm:ss'),
       paymentMethod: paymentMethodLabel(item.paymentMethod),
-      referenceNumber: item.referenceNumber?.trim() || '—',
+      referenceNumber: paymentReferenceDisplay(item),
       amountPaid: formatLkr(item.amountPaid),
       createdBy: item.createdByName?.trim() || '—',
       status: item.status === 'cancelled' ? 'Cancelled' : 'Active',
@@ -50,7 +51,15 @@ export async function getReceiptsExportAction(
 
 export async function cancelPatientBillReceiptAction(
   receiptId: string,
-  cancelReason: string
+  cancelReason: string,
+  refund: {
+    refundPaymentMethod: PatientBillPaymentMethod;
+    bank?: string;
+    bankId?: string;
+    cardReference?: string;
+    slipReference?: string;
+    slipDate?: string;
+  }
 ) {
   // Same permission as recording payments — receipt cancel recalculates the bill.
   await requirePermission('patient-bills', 'edit');
@@ -62,6 +71,12 @@ export async function cancelPatientBillReceiptAction(
   const result = await cancelPatientBillReceipt({
     receiptId,
     cancelReason,
+    refundPaymentMethod: refund.refundPaymentMethod,
+    bank: refund.bank,
+    bankId: refund.bankId,
+    cardReference: refund.cardReference,
+    slipReference: refund.slipReference,
+    slipDate: refund.slipDate,
     canceledBy: session.user.id,
     canceledByName: session.user.name ?? null,
   });

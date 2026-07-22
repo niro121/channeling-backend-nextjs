@@ -25,21 +25,27 @@ function pad(num: number, size: number): string {
  * method 9 → branchexpense, shortcode + 'CHANN-EXP/' + pad(5)
  * method 10 → bankdeposit, shortcode + 'CHANN-BNK-DP/' + pad(5)
  * method 11 → bankwithdraw, shortcode + 'CHANN-BNK-WD/' + pad(5)
- * When locationId is null (and no userLocationId for ledger), uses receipt:global and REC- prefix for backward compat.
+ * When locationId is null (and no userLocationId for pay/refund/agency ledger), uses receipt:global and REC- prefix for backward compat.
+ * Payment/refund and agency ledger methods prefer userLocationId (cashier location) over locationId (session/booking).
  */
 export async function getReceiptSequenceInfo(
   locationId: string | null,
   method: number,
   userLocationId?: string | null
 ): Promise<{ scopeKey: string; formatReceiptNoString: (num: number) => string }> {
-  // Ledger methods (2,3,6,7): use userLocationId for scope and shortcode (same as old user_location)
-  const ledgerAgencyMethodSet = new Set<number>([
+  // Prefer userLocationId (cashier location) for channel pay/refund and agency ledger —
+  // same as old user_location. Session location is only a fallback.
+  const preferUserLocationMethodSet = new Set<number>([
+    PAYMENT_RECEIPTS,
+    REFUND_RECEIPTS,
     RECEIPT_METHOD.DEBIT_NOTE,
     RECEIPT_METHOD.CREDIT_NOTE,
     RECEIPT_METHOD.AGENCY_DEPOSIT,
     RECEIPT_METHOD.AGENCY_WITHDRAW,
   ])
-  const sequenceLocationId = ledgerAgencyMethodSet.has(method) ? userLocationId ?? locationId : locationId
+  const sequenceLocationId = preferUserLocationMethodSet.has(method)
+    ? userLocationId ?? locationId
+    : locationId
 
   if (!sequenceLocationId) {
     return {

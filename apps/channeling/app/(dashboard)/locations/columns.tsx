@@ -67,7 +67,30 @@ export const LocationColumns: ColumnDef<Location>[] = [
   },
   {
     accessorKey: 'name',
-    header: 'Location Name'
+    header: 'Location Name',
+    cell: ({ row }) => {
+      const name = row.getValue<string>('name');
+      const color = row.original.color;
+      return (
+        <div className="flex items-center gap-2 max-w-48">
+          <span
+            className="inline-block h-3 w-3 shrink-0 rounded-full border border-border"
+            style={{ backgroundColor: color || 'transparent' }}
+            title={color || 'No color'}
+          />
+          <span className="truncate" title={name}>
+            {name}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'order',
+    header: 'Order',
+    cell: ({ row }) => (
+      <div className="tabular-nums">{row.original.order ?? 0}</div>
+    ),
   },
   {
     accessorKey: 'type',

@@ -9,6 +9,7 @@ import { Doctor, DoctorFormValues, TITLE_OPTIONS, normalizeTitleForSelect } from
 import { createDoctor, updateOneDoctor, createDoctorAccount } from '@/app/actions/doctor.actions';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
+import { CustomMultiSelect } from '@/components/common/custom-mulit-select';
 import { Button } from '@/components/ui/button';
 import { Ban, Save, BookOpen, ExternalLink, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -21,6 +22,7 @@ import { ErrorMessage } from 'formik';
 type DoctorFormProps = {
   doctor: Doctor | null;
   specialities: { id: string; name: string }[];
+  locations?: { id: string; name: string }[];
   isEditPage?: boolean;
   user?: {
     id?: string;
@@ -31,6 +33,7 @@ type DoctorFormProps = {
 export default function DoctorForm({
   doctor,
   specialities,
+  locations = [],
   isEditPage = false,
   user
 }: DoctorFormProps) {
@@ -66,6 +69,14 @@ export default function DoctorForm({
     }
   };
 
+  const locationIdsFromDoctor = (d: Doctor | null): string[] => {
+    if (d?.locationIds?.length) return d.locationIds;
+    if (!d?.doctorLocations?.length) return [];
+    return d.doctorLocations
+      .map((b) => b.locationId ?? b.location?.id)
+      .filter((id): id is string => Boolean(id));
+  };
+
   const initialValues: DoctorFormValues = {
     title: normalizeTitleForSelect(doctor?.title ?? ''),
     name: doctor?.name ?? '',
@@ -82,7 +93,8 @@ export default function DoctorForm({
     referralCharge: doctor?.referralCharge ?? 0,
     sessionNoPrefix: doctor?.sessionNoPrefix ?? '',
     status: doctor?.status ?? 1,
-    specialityId: doctor?.specialityId ?? ''
+    specialityId: doctor?.specialityId ?? '',
+    locationIds: locationIdsFromDoctor(doctor),
   };
 
   const validationSchema = Yup.object({
@@ -307,6 +319,16 @@ export default function DoctorForm({
                 required
                 disabled={specialities.length === 0}
                 options={specialities}
+                styleClasses={styleClasses}
+              />
+
+              <CustomMultiSelect
+                id="locationIds"
+                placeholder="Branches"
+                value={formik.values.locationIds ?? []}
+                onChange={(values) => formik.setFieldValue('locationIds', values)}
+                required={false}
+                options={locations}
                 styleClasses={styleClasses}
               />
 

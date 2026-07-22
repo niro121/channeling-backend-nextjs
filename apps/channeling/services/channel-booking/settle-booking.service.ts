@@ -9,6 +9,7 @@ import {
   isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
+  resolveReceiptLocationId,
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
@@ -306,13 +307,18 @@ export async function settleBookingService(
   }
   const paymentLines = mixedLinesResult?.lines
 
+  const receiptLocationId =
+    input.user_location_id?.trim() ||
+    (await resolveReceiptLocationId(userId, booking.locationId ?? null))
+
   const needTill = [0, 1, 2, 3, 5, 6, SAVE_PAYMENT_TYPE_MIXED].includes(input.settle_method) // mixed uses till split lines
   const needJournal = needTill
   let accounts: Awaited<ReturnType<typeof resolveReceiptJournalAccounts>>
   if (needJournal) {
     const reqResult = await requireReceiptJournalAccounts(
       {
-        locationId: booking.locationId ?? null,
+        locationId: receiptLocationId,
+        userLocationId: receiptLocationId,
         createdBy: userId,
         agencyId: booking.agencyId ?? null,
         doctorId: booking.doctorId ?? null,
@@ -330,7 +336,8 @@ export async function settleBookingService(
     accounts = reqResult.accounts
   } else {
     const resolveResult = await resolveReceiptJournalAccounts({
-      locationId: booking.locationId ?? null,
+      locationId: receiptLocationId,
+      userLocationId: receiptLocationId,
       createdBy: userId,
       agencyId: booking.agencyId ?? null,
       doctorId: booking.doctorId ?? null,
@@ -377,7 +384,7 @@ export async function settleBookingService(
       agencyId: booking.agencyId ?? null,
       createdBy: userId,
       shiftId,
-      userLocationId: input.user_location_id ?? null,
+      userLocationId: receiptLocationId,
       paymentLines,
       getBookingUpdate: (receipt) => ({
         status: 1,

@@ -1,8 +1,15 @@
 import prisma from '@/lib/prisma';
 import { computeBillPaymentStatus } from '@/lib/patient-bills/payment-status';
+import {
+  buildPaymentMethodMeta,
+  validatePaymentMethodMetaMessage,
+} from '@/lib/patient-bills/payment-validations';
+import { validateRefundPaymentMethodMessage } from '@/lib/patient-bills/refund-method-rules';
 import type { Prisma } from '@/lib/generated/prisma';
+import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import { generateCancelReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
 
-/** Active receipts. Legacy rows without a status are backfilled to 'active' before summing. */
+/** Active payment receipts only (excludes cancelled + refund rows). */
 function activeReceiptsWhere(billId: string): Prisma.PatientBillReceiptWhereInput {
   return {
     billId,
@@ -24,6 +31,13 @@ async function sumActiveReceiptPaidAmount(
 export type CancelPatientBillReceiptInput = {
   receiptId: string;
   cancelReason: string;
+  /** How the amount is being refunded (may differ from original payment method). */
+  refundPaymentMethod: PatientBillPaymentMethod;
+  bank?: string;
+  bankId?: string;
+  cardReference?: string;
+  slipReference?: string;
+  slipDate?: string;
   canceledBy: string | null;
   canceledByName: string | null;
 };
@@ -36,13 +50,16 @@ export type CancelPatientBillReceiptResult =
       amountVoided: number;
       billStatus: string;
       outstandingAmount: number;
+      cancelReceiptNumber: string;
     }
   | { success: false; message: string };
 
 /**
- * Soft-cancel one patient-bill receipt and recalculate the parent bill from the
- * sum of remaining active receipts (source of truth). Blocked when the bill is
- * cancelled or doctor fees have already been paid against the bill.
+ * Soft-cancel one patient-bill payment receipt:
+ * - Creates a separate refund receipt (`{code}DPAY-REF/########`)
+ * - Links original ↔ refund (cancelReceiptNumber / refundOfReceiptId)
+ * - Recalculates bill from remaining active receipts
+ * Blocked if already cancelled / already has a refund link / bill locked / doctor paid.
  */
 export async function cancelPatientBillReceipt(
   input: CancelPatientBillReceiptInput
@@ -55,6 +72,18 @@ export async function cancelPatientBillReceipt(
     return { success: false, message: 'Receipt id is required.' };
   }
 
+  const refundMetaError = validatePaymentMethodMetaMessage({
+    paymentMethod: input.refundPaymentMethod,
+    bank: input.bank,
+    bankId: input.bankId,
+    cardReference: input.cardReference,
+    slipReference: input.slipReference,
+    slipDate: input.slipDate,
+  });
+  if (refundMetaError) {
+    return { success: false, message: refundMetaError };
+  }
+
   const receipt = await prisma.patientBillReceipt.findUnique({
     where: { id: input.receiptId },
     select: {
@@ -62,6 +91,9 @@ export async function cancelPatientBillReceipt(
       receiptNumber: true,
       amountPaid: true,
       status: true,
+      cancelReceiptNumber: true,
+      refundOfReceiptId: true,
+      paymentMethod: true,
       billId: true,
       bill: {
         select: {
@@ -83,8 +115,22 @@ export async function cancelPatientBillReceipt(
   if (!receipt) {
     return { success: false, message: 'Receipt not found.' };
   }
-  if (receipt.status === 'cancelled') {
-    return { success: false, message: 'This receipt is already cancelled.' };
+  if (receipt.refundOfReceiptId) {
+    return {
+      success: false,
+      message: 'This is a refund receipt and cannot be cancelled.',
+    };
+  }
+  if (receipt.status === 'cancelled' || receipt.cancelReceiptNumber) {
+    return {
+      success: false,
+      message: receipt.cancelReceiptNumber
+        ? `This receipt is already linked to refund ${receipt.cancelReceiptNumber} and cannot be cancelled again.`
+        : 'This receipt is already cancelled.',
+    };
+  }
+  if (receipt.status !== 'active') {
+    return { success: false, message: 'Only active payment receipts can be cancelled.' };
   }
   if (receipt.bill.status === 'cancelled') {
     return {
@@ -110,15 +156,63 @@ export async function cancelPatientBillReceipt(
     };
   }
 
+  const refundMethodError = validateRefundPaymentMethodMessage(
+    receipt.paymentMethod,
+    input.refundPaymentMethod
+  );
+  if (refundMethodError) {
+    return { success: false, message: refundMethodError };
+  }
+
+  const refundMeta = buildPaymentMethodMeta({
+    paymentMethod: input.refundPaymentMethod,
+    bank: input.bank,
+    bankId: input.bankId,
+    cardReference: input.cardReference,
+    slipReference: input.slipReference,
+    slipDate: input.slipDate,
+  });
+
   const canceledAt = new Date();
 
   try {
+    const generated = await generateCancelReceiptNumber(input.canceledBy);
+    const cancelReceiptNumber = generated.receiptNumber;
+
     const result = await prisma.$transaction(async (tx) => {
+      const refund = await tx.patientBillReceipt.create({
+        data: {
+          billId: receipt.billId,
+          receiptNumber: cancelReceiptNumber,
+          amountPaid: receipt.amountPaid,
+          paymentMethod: String(input.refundPaymentMethod),
+          bank: refundMeta.bank,
+          bankId: refundMeta.bankId,
+          cardReference: refundMeta.cardReference,
+          slipReference: refundMeta.slipReference,
+          slipDate: refundMeta.slipDate,
+          referenceNumber: refundMeta.referenceNumber,
+          locationId: generated.locationId,
+          locationCode: generated.locationCode,
+          locationName: generated.locationName,
+          remarks: `Refund for ${receipt.receiptNumber}: ${reason}`,
+          outstandingAfter: 0, // set after bill recalc below
+          paymentDate: canceledAt,
+          status: 'refund',
+          refundOfReceiptId: receipt.id,
+          cancelReason: reason,
+          createdBy: input.canceledBy ?? undefined,
+          createdByName: input.canceledByName?.trim() || undefined,
+        },
+        select: { id: true, receiptNumber: true },
+      });
+
       await tx.patientBillReceipt.update({
         where: { id: receipt.id },
         data: {
           status: 'cancelled',
           cancelReason: reason,
+          cancelReceiptNumber: refund.receiptNumber,
           canceledAt,
           canceledBy: input.canceledBy ?? null,
           canceledByName: input.canceledByName?.trim() || null,
@@ -129,12 +223,19 @@ export async function cancelPatientBillReceipt(
       const outstandingAmount = Math.max(0, receipt.bill.totalAmount - paidAmount);
       const billStatus = computeBillPaymentStatus(paidAmount, receipt.bill.totalAmount);
 
+      await tx.patientBillReceipt.update({
+        where: { id: refund.id },
+        data: { outstandingAfter: outstandingAmount },
+      });
+
       await tx.patientBill.update({
         where: { id: receipt.billId },
         data: {
           paidAmount,
           outstandingAmount,
           status: billStatus,
+          updatedBy: input.canceledBy ?? undefined,
+          updatedByName: input.canceledByName?.trim() || undefined,
         },
       });
 
@@ -144,6 +245,7 @@ export async function cancelPatientBillReceipt(
         amountVoided: receipt.amountPaid,
         billStatus,
         outstandingAmount,
+        cancelReceiptNumber: refund.receiptNumber,
       };
     });
 

@@ -235,6 +235,13 @@ const reportsData: ReportListItem[] = [
     route: '/reports/bank-deposits'
   },
   {
+    id: '40',
+    rank: 40,
+    masterData: 'Completed Handovers',
+    description: 'View approved and rejected shift handovers for any user, with sender, recipient, and status filters.',
+    route: '/reports/completed-handovers'
+  },
+  {
     id: '42',
     rank: 42,
     masterData: 'No Show Patient Report',
@@ -306,6 +313,7 @@ export default async function ReportsPage() {
       '/reports/card-summary-bank-wise',
       '/reports/cash-book',
       '/reports/bank-deposits',
+      '/reports/completed-handovers',
     ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>

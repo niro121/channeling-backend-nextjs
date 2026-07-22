@@ -43,6 +43,7 @@ export type {
   PrepareAppointmentNumberResult,
 } from "./appointment-number"
 export { getReceiptSequenceInfo } from "./get-receipt-sequence"
+export { resolveReceiptLocationId } from "./resolve-receipt-location"
 export {
   createReceiptAndUpdateBooking,
   createReceiptWithoutBooking,
