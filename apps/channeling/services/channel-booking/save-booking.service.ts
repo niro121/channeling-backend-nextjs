@@ -31,12 +31,14 @@ import {
   isResolveReceiptJournalAccountsError,
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
+  resolveReceiptLocationId,
 } from "./helpers"
 import {
   createJournalEntryInTransaction,
   checkJournalEntryBalance,
 } from "@/services/accounting.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
+import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
@@ -196,7 +198,20 @@ export async function saveBookingService(
 ): Promise<SaveBookingServiceResult> {
   const shouldRequireShift = options?.requireActiveShift !== false
   const settleOnCreate = options?.settleOnCreate !== false
-  if (userId && shouldRequireShift) await requireActiveShift(userId)
+  if (userId && shouldRequireShift) {
+    try {
+      await requireActiveShift(userId)
+    } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        }
+      }
+      throw e
+    }
+  }
 
   const sessionId = input.session.id
 
@@ -389,8 +404,10 @@ export async function saveBookingService(
     other_discount: otherDiscount,
   }
 
-  // Booking ID / bill number is location-scoped and used for display and receipts.
+  // Booking ID is location-scoped to the session location.
+  // Receipt bill number / branch income use the cashier's location (where payment is collected).
   const locationId = session.locationId ?? session.location?.id ?? null
+  const receiptLocationId = await resolveReceiptLocationId(userId, locationId)
   const { scopeKey, formatBookingIdString } = await getBookingSequenceInfo(locationId)
   const bookingSeqResult = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
   const bookingid = bookingSeqResult.success ? bookingSeqResult.value : null
@@ -407,7 +424,8 @@ export async function saveBookingService(
       const needTill = false
       const reqResult = await requireReceiptJournalAccounts(
         {
-          locationId,
+          locationId: receiptLocationId,
+          userLocationId: receiptLocationId,
           createdBy: userId,
           agencyId: input.agency?.id ?? null,
           creditCustomerId: input.credit_customer?.id ?? null,
@@ -444,8 +462,8 @@ export async function saveBookingService(
         id: '',
         createdAt: new Date(),
         receiptNoString: '',
-        locationId,
-        userLocationId: null,
+        locationId: receiptLocationId,
+        userLocationId: receiptLocationId,
         createdBy: userId,
       } as Parameters<typeof buildReceiptJournalEntryInput>[0]
       const journalInput = buildReceiptJournalEntryInput(dummyReceipt, accounts, channelPaymentFeeSplit)
@@ -472,7 +490,8 @@ export async function saveBookingService(
     if (needTill) {
       const reqResult = await requireReceiptJournalAccounts(
         {
-          locationId,
+          locationId: receiptLocationId,
+          userLocationId: receiptLocationId,
           createdBy: userId,
           agencyId: input.agency?.id ?? null,
           creditCustomerId: input.credit_customer?.id ?? null,
@@ -658,7 +677,8 @@ export async function saveBookingService(
         if (needJournal) {
           const reqResult = await requireReceiptJournalAccounts(
             {
-              locationId: booking.locationId ?? null,
+              locationId: receiptLocationId,
+              userLocationId: receiptLocationId,
               createdBy: userId,
               agencyId: input.agency?.id ?? null,
               creditCustomerId: input.credit_customer?.id ?? null,
@@ -677,7 +697,8 @@ export async function saveBookingService(
           accounts = reqResult.accounts
         } else {
           const resolveResult = await resolveReceiptJournalAccounts({
-            locationId: booking.locationId ?? null,
+            locationId: receiptLocationId,
+            userLocationId: receiptLocationId,
             createdBy: userId,
             agencyId: input.agency?.id ?? null,
             creditCustomerId: input.credit_customer?.id ?? null,
@@ -727,7 +748,7 @@ export async function saveBookingService(
             creditCustomerId: input.credit_customer?.id ?? null,
             createdBy: userId,
             shiftId,
-            userLocationId: null,
+            userLocationId: receiptLocationId,
             paymentLines,
             getBookingUpdate: (receipt) => ({
               status: 1,
@@ -887,6 +908,13 @@ export async function saveBookingService(
     return { success: true, data: fullBooking }
   } catch (e) {
     console.error("saveBookingService create error", e)
+    if (isShiftRequirementError(e)) {
+      return {
+        success: false,
+        errorCode: e.code,
+        message: e.message,
+      }
+    }
     // Return generic message; actual failure may be DB, sequence, or other.
     return {
       success: false,

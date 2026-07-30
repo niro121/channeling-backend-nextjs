@@ -34,5 +34,8 @@ export function calculatePatientBillSummary(lineItems: BillLineItem[]): PatientB
 }
 
 export function formatLkr(amount: number): string {
-  return `LKR ${amount.toLocaleString('en-LK')}`;
+  return `LKR ${amount.toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }

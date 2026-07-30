@@ -161,6 +161,8 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
         'Slip',
         'Slip Ref',
         'Slip Date',
+        'Cheque No',
+        'Cheque Date',
         'Card Ref',
         'Bank Name'
       ]}
@@ -180,6 +182,8 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
           'slip',
           'slipRef',
           'slipDate',
+          'chequeRef',
+          'chequeDate',
           'cardRef',
           'bankName'
         ] as (keyof AgentCollectionReceiptReportExportRow)[]
@@ -210,7 +214,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.card)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.cheque)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.slip)}</TableCell>
-            <TableCell colSpan={4} />
+            <TableCell colSpan={6} />
           </TableRow>
         );
       }}

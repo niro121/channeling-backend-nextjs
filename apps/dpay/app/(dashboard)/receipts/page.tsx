@@ -14,6 +14,7 @@ type SearchParams = {
     limit?: string;
     keyword?: string;
     method?: string;
+    status?: string;
     dateFrom?: string;
     dateTo?: string;
   }>;
@@ -27,12 +28,14 @@ export default async function ReceiptsPage({ searchParams }: SearchParams) {
   const page = params?.page ? Number(params.page) : 1;
   const limit = params?.limit ? Number(params.limit) : 20;
   const method = params?.method;
+  const status = params?.status;
 
   const listResult = await getReceiptsAction({
     page,
     limit,
     keyword: params?.keyword ?? undefined,
     method: method && method !== '__all__' ? method : undefined,
+    status: status && status !== '__all__' ? status : undefined,
     dateFrom: params?.dateFrom ?? undefined,
     dateTo: params?.dateTo ?? undefined,
   });
@@ -45,6 +48,7 @@ export default async function ReceiptsPage({ searchParams }: SearchParams) {
     return getReceiptsExportAction({
       keyword: params?.keyword ?? undefined,
       method: method && method !== '__all__' ? method : undefined,
+      status: status && status !== '__all__' ? status : undefined,
       dateFrom: params?.dateFrom ?? undefined,
       dateTo: params?.dateTo ?? undefined,
     });
@@ -69,6 +73,7 @@ export default async function ReceiptsPage({ searchParams }: SearchParams) {
               </div>
               <ReceiptsFilterSection
                 method={params?.method}
+                status={params?.status}
                 dateFrom={params?.dateFrom}
                 dateTo={params?.dateTo}
               />

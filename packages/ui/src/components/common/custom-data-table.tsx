@@ -29,6 +29,7 @@ import { Button } from "../ui/button"
 import CustomAlertDialogWithWarning from "./custom-alert-dialog-with-warning"
 import { DataTablePagination } from "./custom-data-table-pagination"
 import { useToast } from "../../hooks/use-toast"
+import { cn } from "../../lib/utils"
 import { Loader2, Trash2 } from "lucide-react"
 
 // Context for exposing table state and handlers
@@ -93,6 +94,8 @@ interface DataTableProps<TData, TValue> {
   hideAutoBulkDelete?: boolean
   /** Renders on the right side of the card header next to the title (e.g. branch filter). */
   headingRight?: React.ReactNode
+  /** Called when a table row is clicked. Makes rows appear clickable. */
+  onRowClick?: (row: TData) => void
 }
 
 export function CustomDataTable<TData, TValue>({
@@ -113,6 +116,7 @@ export function CustomDataTable<TData, TValue>({
   toolbarRight,
   hideAutoBulkDelete = false,
   headingRight,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -431,6 +435,8 @@ export function CustomDataTable<TData, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

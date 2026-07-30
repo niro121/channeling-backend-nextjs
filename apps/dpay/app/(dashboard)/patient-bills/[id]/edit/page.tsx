@@ -18,5 +18,9 @@ export default async function EditPatientBillPage({ params }: PageProps) {
     notFound();
   }
 
+  if (result.data.status === 'cancelled' || result.data.status === 'closed') {
+    redirect(`/patient-bills/${id}`);
+  }
+
   return <PatientBillForm bill={result.data} isEditPage />;
 }

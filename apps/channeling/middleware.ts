@@ -41,6 +41,14 @@ export default withAuth(
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
+    // Previous login superseded by a newer sign-in elsewhere.
+    if (token.error === 'SessionInvalidated') {
+      if (currentPath !== '/session-ended') {
+        return NextResponse.redirect(new URL('/session-ended', request.url));
+      }
+      return NextResponse.next();
+    }
+
     const userType = token.userType;
     const permissions = token.permissions;
 
@@ -77,6 +85,13 @@ export default withAuth(
     secret: getSecret(),
     pages: {
       signIn: "/login",
+    },
+    callbacks: {
+      authorized: ({ token }) => {
+        // Keep invalidated sessions authorized so middleware can show /session-ended.
+        if (token?.error === 'SessionInvalidated') return true;
+        return !!token;
+      },
     },
   }
 );

@@ -6,6 +6,7 @@ import { HANDOVER_STATUS } from "@/types/handover"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
+import { ShiftRequirementError } from "@/lib/shift-requirement-error"
 import { z } from "zod"
 
 const SHIFT_MAX_HOURS =
@@ -81,11 +82,18 @@ export async function getCurrentShift(userId: string) {
 export async function requireActiveShift(userId: string): Promise<void> {
   const shift = await getCurrentShift(userId)
   if (!shift) {
-    throw new Error("You must have an active shift to perform this action. Start or resume a shift from the top bar.")
+    throw new ShiftRequirementError(
+      "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+      "NO_ACTIVE_SHIFT"
+    )
+  }
+  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
+    throw new ShiftRequirementError("Handover not complete.", "HANDOVER_NOT_COMPLETE")
   }
   if (shift.status !== SHIFT_STATUS.ACTIVE) {
-    throw new Error(
-      "Your shift is not active (paused or handover pending). Resume your shift or complete the handover to create receipts."
+    throw new ShiftRequirementError(
+      "Your shift is paused. Resume your shift from the top bar to continue.",
+      "SHIFT_PAUSED"
     )
   }
 }

@@ -4,8 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/components/common/search';
-import { CustomDataTable } from '@/components/common/custom-data-table';
-import { LocationColumns } from './columns';
 import Loading from '../loading';
 import Link from 'next/link';
 import { bulkDeleteLocations, getAllLocations, getLocationsExport, checkLocationsHaveLinkedRecords } from '@/app/actions/location.action';
@@ -15,7 +13,7 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import { ExportWrapper } from '../export-wrapper';
-import { BulkDeleteButton } from '@/components/common/custom-data-table';
+import { LocationsSortableTable } from './locations-sortable-table';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -49,6 +47,8 @@ export default async function Page({ searchParams }: SearchParams) {
     keyword: params?.keyword,
     locationId: params?.locationId
   });
+
+  const canReorder = !params?.keyword?.trim() && !params?.locationId;
 
   const handleExport = async () => {
     'use server';
@@ -94,7 +94,6 @@ export default async function Page({ searchParams }: SearchParams) {
         }
       }
       
-      // Default message if no linked records
       return "This action cannot be undone. This will permanently delete these records and remove the data from our servers.";
     } catch (error: any) {
       console.error('Error getting bulk delete description:', error);
@@ -105,15 +104,14 @@ export default async function Page({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
-          heading="Locations"
-          subHeading="Manage your locations here."
-          columns={LocationColumns}
-          data={data}
-          rowCount={totalRecords}
+        <LocationsSortableTable
+          data={data ?? []}
+          rowCount={totalRecords ?? 0}
+          page={params?.page}
+          limit={params?.limit}
+          canReorder={canReorder}
           deleteServerAction={bulkDeleteLocations}
           getBulkDeleteDescription={getBulkDeleteDescription}
-          page={params?.page}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row gap-3 items-start">
@@ -141,19 +139,15 @@ export default async function Page({ searchParams }: SearchParams) {
             </div>
           }
           toolbarRight={
-            <div className="flex items-start gap-2 shrink-0">
-              <BulkDeleteButton />
-              <Link href="/locations/add">
-                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Add New
-                  </span>
-                </Button>
-              </Link>
-            </div>
+            <Link href="/locations/add">
+              <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                <Plus className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Add New
+                </span>
+              </Button>
+            </Link>
           }
-          hideAutoBulkDelete={true}
         />
       </Suspense>
     </div>

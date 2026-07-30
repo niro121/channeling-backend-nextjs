@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { Save } from 'lucide-react';
 import { BackButton, Button, useToast } from '@archmage/ui';
 import type {
-  GeneratedBillNumbers,
   PatientBillDetail,
   PatientBillDraft,
   PatientBillFormErrors,
@@ -14,33 +13,33 @@ import type {
 import { calculatePatientBillSummary } from '@/lib/patient-bills/calculations';
 import { createInitialDraft } from '@/lib/patient-bills/form-utils';
 import { recordToDraft } from '@/lib/patient-bills/mappers';
-import { hasValidationErrors, validatePatientBillForm } from '@/lib/patient-bills/validations';
+import {
+  hasPatientBillDetailsErrors,
+  hasValidationErrors,
+  validatePatientBillDetailsForm,
+  validatePatientBillForm,
+} from '@/lib/patient-bills/validations';
 import { usePatientBillDraft } from '@/hooks/patient-bills/use-patient-bill-draft';
 import {
   createPatientBillAction,
-  updatePatientBillAction,
+  updatePatientBillDetailsAction,
 } from '@/app/actions/patient-bills/patient-bills.actions';
 import { BillInformationSection } from './bill-information-section';
 import { BillSummaryCard } from './bill-summary-card';
 import { BillBreakdownSection } from './bill-breakdown-section';
 
 type PatientBillFormProps = {
-  initialNumbers?: GeneratedBillNumbers;
   bill?: PatientBillDetail;
   isEditPage?: boolean;
 };
 
-export function PatientBillForm({
-  initialNumbers,
-  bill,
-  isEditPage = false,
-}: PatientBillFormProps) {
+export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { loadDraft, saveDraft, discardDraft } = usePatientBillDraft();
   const [draft, setDraft] = useState<PatientBillDraft>(() => {
     if (isEditPage && bill) return recordToDraft(bill);
-    return createInitialDraft(initialNumbers!);
+    return createInitialDraft();
   });
   const [errors, setErrors] = useState<PatientBillFormErrors>({});
   const [hydrated, setHydrated] = useState(isEditPage);
@@ -51,7 +50,8 @@ export function PatientBillForm({
 
     const stored = loadDraft();
     if (stored) {
-      setDraft(stored);
+      // Numbers are assigned on save — never restore previously reserved values.
+      setDraft({ ...stored, bxtNumber: '', billNumber: '' });
     }
     setHydrated(true);
   }, [isEditPage, loadDraft]);
@@ -70,7 +70,7 @@ export function PatientBillForm({
 
   const handleSaveDraft = () => {
     if (isEditPage) return;
-    saveDraft(draft);
+    saveDraft({ ...draft, bxtNumber: '', billNumber: '' });
     toast({
       title: 'Draft saved',
       description: 'Your bill draft has been saved locally.',
@@ -78,9 +78,16 @@ export function PatientBillForm({
   };
 
   const handleSaveBill = () => {
-    const validationErrors = validatePatientBillForm(draft);
+    const validationErrors = isEditPage
+      ? validatePatientBillDetailsForm(draft)
+      : validatePatientBillForm(draft);
     setErrors(validationErrors);
-    if (hasValidationErrors(validationErrors)) {
+
+    const hasErrors = isEditPage
+      ? hasPatientBillDetailsErrors(validationErrors)
+      : hasValidationErrors(validationErrors);
+
+    if (hasErrors) {
       toast({
         variant: 'destructive',
         title: 'Validation failed',
@@ -90,10 +97,33 @@ export function PatientBillForm({
     }
 
     startSaveTransition(async () => {
-      const result = isEditPage
-        ? await updatePatientBillAction(bill!.id, draft)
-        : await createPatientBillAction(draft);
+      if (isEditPage) {
+        const result = await updatePatientBillDetailsAction(bill!.id, {
+          admissionDate: draft.admissionDate,
+          dischargeDate: draft.dischargeDate,
+          customerName: draft.customerName,
+          customerNicPhone: draft.customerNicPhone,
+          customerAddress: draft.customerAddress,
+        });
+        if (!result.success) {
+          toast({
+            variant: 'destructive',
+            title: 'Save failed',
+            description: result.message,
+          });
+          return;
+        }
 
+        toast({
+          title: 'Bill updated',
+          description: 'Patient bill has been updated successfully.',
+        });
+        router.push(`/patient-bills/${bill!.id}`);
+        router.refresh();
+        return;
+      }
+
+      const result = await createPatientBillAction(draft);
       if (!result.success) {
         toast({
           variant: 'destructive',
@@ -103,22 +133,15 @@ export function PatientBillForm({
         return;
       }
 
-      if (!isEditPage) {
-        discardDraft();
-      }
-
+      discardDraft();
+      const isDraftSave = summary.lineItemCount === 0;
       toast({
-        title: isEditPage ? 'Bill updated' : 'Bill saved',
-        description: isEditPage
-          ? 'Patient bill has been updated successfully.'
-          : 'Patient bill has been saved successfully.',
+        title: isDraftSave ? 'Draft admission saved' : 'Bill saved',
+        description: isDraftSave
+          ? `Saved as ${result.bxtNumber} · ${result.billNumber}. Add doctor charges when ready.`
+          : `Saved as ${result.bxtNumber} · ${result.billNumber}`,
       });
-
-      if (isEditPage) {
-        router.push(`/patient-bills/${bill!.id}`);
-      } else {
-        router.push('/patient-bills');
-      }
+      router.push(`/patient-bills/${result.id}`);
       router.refresh();
     });
   };
@@ -140,8 +163,8 @@ export function PatientBillForm({
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               {isEditPage
-                ? 'Update admission details and bill line items.'
-                : 'Auto-generated BXT and Bill numbers. Record admission details and add doctor line items.'}
+                ? 'Update admission and customer details. Manage doctor charges from the bill detail page.'
+                : 'BHT and Bill numbers are assigned on save. Save admission details alone as Draft, then add doctor charges later.'}
             </p>
           </div>
         </div>
@@ -171,19 +194,21 @@ export function PatientBillForm({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className={`grid gap-6 ${isEditPage ? '' : 'lg:grid-cols-3'}`}>
+        <div className={isEditPage ? '' : 'lg:col-span-2'}>
           <BillInformationSection draft={draft} errors={errors} onChange={updateDraft} />
         </div>
-        <BillSummaryCard summary={summary} />
+        {!isEditPage && <BillSummaryCard summary={summary} />}
       </div>
 
-      <BillBreakdownSection
-        lineItems={draft.lineItems}
-        summary={summary}
-        errors={errors}
-        onChange={updateLineItems}
-      />
+      {!isEditPage && (
+        <BillBreakdownSection
+          lineItems={draft.lineItems}
+          summary={summary}
+          errors={errors}
+          onChange={updateLineItems}
+        />
+      )}
 
       {!isEditPage && (
         <p className="text-xs text-muted-foreground">
@@ -192,7 +217,7 @@ export function PatientBillForm({
             className="underline hover:text-foreground"
             onClick={() => {
               discardDraft();
-              setDraft(createInitialDraft(initialNumbers!));
+              setDraft(createInitialDraft());
               setErrors({});
               toast({ title: 'Draft discarded' });
             }}

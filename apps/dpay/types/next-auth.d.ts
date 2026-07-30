@@ -1,5 +1,4 @@
 import { DefaultSession } from "next-auth";
-import { JWT } from "next-auth/jwt";
 import { Permissions } from "@archmage/shared";
 
 declare module "next-auth" {
@@ -8,6 +7,8 @@ declare module "next-auth" {
       id: string;
       userType: number;
       permissions?: Permissions | null;
+      userLocationId?: string | null;
+      locationCode?: string | null;
     } & DefaultSession["user"];
   }
 
@@ -15,6 +16,8 @@ declare module "next-auth" {
     id: string;
     userType: number;
     permissions?: Permissions | null;
+    userLocationId?: string | null;
+    locationCode?: string | null;
   }
 }
 
@@ -23,5 +26,7 @@ declare module "next-auth/jwt" {
     id: string;
     userType: number;
     permissions?: Permissions | null;
+    userLocationId?: string | null;
+    locationCode?: string | null;
   }
 }

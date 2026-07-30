@@ -6,7 +6,8 @@ import { format } from 'date-fns';
 import { Badge } from '@archmage/ui';
 import type { ReceiptListItem } from '@/types/receipt';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
+import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { ReceiptRecordActions } from './record-actions';
 import { useReceiptsView } from './receipts-view-context';
 
@@ -44,13 +45,26 @@ export const receiptColumns: ColumnDef<ReceiptListItem>[] = [
     ),
   },
   {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => <ReceiptStatusBadge status={row.original.status} />,
+  },
+  {
     accessorKey: 'paymentDate',
     header: 'Payment Date',
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {format(new Date(row.original.paymentDate), 'yyyy-MM-dd')}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const d = new Date(row.original.paymentDate);
+      return (
+        <div className="space-y-0.5 text-sm">
+          <p className="whitespace-nowrap">
+            {format(d, 'yyyy-MM-dd')}
+          </p>
+          <p className="text-muted-foreground whitespace-nowrap">
+            {format(d, 'HH:mm:ss')}
+          </p>
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'paymentMethod',
@@ -66,7 +80,7 @@ export const receiptColumns: ColumnDef<ReceiptListItem>[] = [
     header: 'Reference',
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
-        {row.original.referenceNumber?.trim() || '—'}
+        {paymentReferenceDisplay(row.original)}
       </span>
     ),
   },
@@ -74,8 +88,23 @@ export const receiptColumns: ColumnDef<ReceiptListItem>[] = [
     accessorKey: 'amountPaid',
     header: 'Amount',
     cell: ({ row }) => (
-      <span className="tabular-nums font-semibold text-emerald-700">
+      <span
+        className={
+          row.original.status === 'cancelled'
+            ? 'tabular-nums font-semibold text-muted-foreground line-through'
+            : 'tabular-nums font-semibold text-emerald-700'
+        }
+      >
         {formatLkr(row.original.amountPaid)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'createdByName',
+    header: 'Created By',
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground whitespace-nowrap">
+        {row.original.createdByName?.trim() || '—'}
       </span>
     ),
   },

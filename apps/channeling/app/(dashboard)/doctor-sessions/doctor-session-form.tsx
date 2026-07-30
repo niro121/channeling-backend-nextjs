@@ -8,12 +8,13 @@ import { useRouter } from 'next/navigation';
 import CustomFormField from '@/components/common/form-field';
 import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
-import { Ban, ChevronRight, Save } from 'lucide-react';
+import { Ban, ChevronRight, Download, Loader, Save } from 'lucide-react';
 import {
   ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
   DoctorSessionFormValues,
-  Fee
+  Fee,
+  LastDoctorSessionFees
 } from '@/types/doctor.session';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
@@ -31,7 +32,6 @@ import {
   SRI_LANKA_TZ
 } from '@/lib/utils';
 import { TimePickerSelect } from '@/components/common/time-picker-select';
-import { Loader } from 'lucide-react';
 import { formatLKR } from '@/lib/format-money';
 import { DoctorSessionFeeColumns } from './session-fee-columns';
 import CustomTable from '@/components/common/custom-table';
@@ -42,6 +42,8 @@ type DoctorSessionFormProps = {
   doctorSession: DoctorSession | null;
   /** Same doctor's sessions for Previous Session dropdown (excluding current when editing). When not provided, dropdown is empty/disabled. */
   doctorSessionsForPreviousDropdown?: { id: string; name: string }[];
+  /** When creating: last saved fees for this doctor (auto-prefill + Pull last fees). */
+  lastSessionFees?: LastDoctorSessionFees | null;
   institutionOptions: { id: string; name: string }[];
   departmentOptions: { id: string; name: string }[] | undefined;
   locationOptions: { id: string; name: string }[] | undefined;
@@ -66,10 +68,30 @@ type FormSubmissionValues = DoctorSessionFormValues & {
   endMeridiem: any;
 };
 
+/** Fields validated on Session Details before advancing to fees (Next). */
+const DETAILS_FIELD_KEYS = [
+  'name',
+  'institution',
+  'departmentId',
+  'locationId',
+  'roomId',
+  'startTimeValue',
+  'endTimeValue',
+  'startTime',
+  'endTime',
+  'durationMinutes',
+  'dayType',
+  'applyTo',
+  'startingPatientNumber',
+  'maxPatientNumber',
+  'advancedBookingDays'
+] as const;
+
 export default function DoctorSessionForm({
   doctorId,
   doctorSession,
   doctorSessionsForPreviousDropdown,
+  lastSessionFees,
   institutionOptions,
   departmentOptions,
   locationOptions,
@@ -91,6 +113,29 @@ export default function DoctorSessionForm({
     doctorSession?.locationId
   );
   const [activeTab, setActiveTab] = React.useState<'details' | 'fees'>('details');
+  /** Ref so submit handler always sees the current tab (avoids accidental save from details). */
+  const activeTabRef = React.useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const isCreate = !doctorSession?.id;
+
+  const advanceToFeesIfDetailsValid = async (
+    validateForm: () => Promise<Record<string, unknown>>,
+    setErrors: (errors: Record<string, unknown>) => void,
+    setTouched: (touched: Record<string, boolean>) => void
+  ) => {
+    const errors = await validateForm();
+    const detailsKeys = new Set<string>(DETAILS_FIELD_KEYS);
+    const detailsErrors = Object.fromEntries(
+      Object.entries(errors).filter(([k]) => detailsKeys.has(k))
+    );
+    setErrors(detailsErrors);
+    setTouched(Object.fromEntries(DETAILS_FIELD_KEYS.map((k) => [k, true])));
+    if (Object.keys(detailsErrors).length === 0) {
+      setActiveTab('fees');
+      return true;
+    }
+    return false;
+  };
 
   /** Previous Session dropdown: same doctor's sessions, excluding current when editing. */
   const previousSessionOptions = React.useMemo(() => {
@@ -98,6 +143,12 @@ export default function DoctorSessionForm({
     if (doctorSession?.id) return list.filter((s) => s.id !== doctorSession.id);
     return list;
   }, [doctorSessionsForPreviousDropdown, doctorSession?.id]);
+
+  const defaultFeesForCreate = React.useMemo(() => {
+    if (!isCreate) return feeTypeOptions;
+    if (lastSessionFees?.fees?.length) return lastSessionFees.fees;
+    return feeTypeOptions;
+  }, [isCreate, lastSessionFees, feeTypeOptions]);
 
   const startExtracted = doctorSession?.startTime
     ? extractTime(new Date(doctorSession.startTime), SRI_LANKA_TZ)
@@ -135,9 +186,13 @@ export default function DoctorSessionForm({
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
     status: doctorSession?.status ?? 1,
-    fees: doctorSession?.fees ?? feeTypeOptions,
-    amountLocal: doctorSession?.amountLocal ?? 0,
-    amountForeign: doctorSession?.amountForeign ?? 0
+    fees: doctorSession?.fees ?? defaultFeesForCreate,
+    amountLocal:
+      doctorSession?.amountLocal ??
+      (isCreate && lastSessionFees ? lastSessionFees.amountLocal : 0),
+    amountForeign:
+      doctorSession?.amountForeign ??
+      (isCreate && lastSessionFees ? lastSessionFees.amountForeign : 0)
   };
 
   const validationSchema = Yup.object({
@@ -224,8 +279,19 @@ export default function DoctorSessionForm({
 
   const handleSubmit = async (
     values: FormSubmissionValues,
-    { resetForm }: FormikHelpers<FormSubmissionValues>
+    helpers: FormikHelpers<FormSubmissionValues>
   ) => {
+    // Never persist from Session Details — Enter / implicit submit must only advance to fees.
+    if (activeTabRef.current !== 'fees') {
+      helpers.setSubmitting(false);
+      await advanceToFeesIfDetailsValid(
+        helpers.validateForm as () => Promise<Record<string, unknown>>,
+        helpers.setErrors as (errors: Record<string, unknown>) => void,
+        helpers.setTouched as (touched: Record<string, boolean>) => void
+      );
+      return;
+    }
+
     try {
       const startTime = buildDateFromTime(
         values.startTimeValue,
@@ -705,6 +771,43 @@ export default function DoctorSessionForm({
                 </TabsContent>
                 <TabsContent value="fees" className="mt-4">
                   <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                    {lastSessionFees?.fees?.length ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          {isCreate
+                            ? 'Fees prefilled from'
+                            : 'Last saved fees available from'}{' '}
+                          <span className="font-medium text-foreground">
+                            {lastSessionFees.sessionName}
+                          </span>
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 shrink-0"
+                          onClick={() => {
+                            formik.setFieldValue('fees', lastSessionFees.fees);
+                            formik.setFieldValue(
+                              'amountLocal',
+                              lastSessionFees.amountLocal
+                            );
+                            formik.setFieldValue(
+                              'amountForeign',
+                              lastSessionFees.amountForeign
+                            );
+                            toast({
+                              variant: 'success',
+                              title: 'Fees updated',
+                              description: `Pulled fees from “${lastSessionFees.sessionName}”.`
+                            });
+                          }}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Pull last fees
+                        </Button>
+                      </div>
+                    ) : null}
                     <CustomTable
                       columns={DoctorSessionFeeColumns(formik)}
                       data={formik.values.fees}
@@ -744,39 +847,13 @@ export default function DoctorSessionForm({
                     type="button"
                     className="w-full sm:w-24 gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
                     disabled={loading}
-                    onClick={async () => {
-                      const errors = await formik.validateForm();
-                      const detailsOnlyKeys = new Set([
-                        'name',
-                        'institution',
-                        'departmentId',
-                        'locationId',
-                        'roomId',
-                        'startTimeValue',
-                        'endTimeValue',
-                        'startTime',
-                        'endTime',
-                        'durationMinutes',
-                        'dayType',
-                        'applyTo',
-                        'startingPatientNumber',
-                        'maxPatientNumber',
-                        'advancedBookingDays'
-                      ]);
-                      const detailsErrors = Object.fromEntries(
-                        Object.entries(errors).filter(([k]) =>
-                          detailsOnlyKeys.has(k)
-                        )
-                      );
-                      formik.setErrors(detailsErrors);
-                      const detailTouched = Object.fromEntries(
-                        [...detailsOnlyKeys].map((k) => [k, true])
-                      );
-                      formik.setTouched(detailTouched);
-                      if (Object.keys(detailsErrors).length === 0) {
-                        setActiveTab('fees');
-                      }
-                    }}
+                    onClick={() =>
+                      advanceToFeesIfDetailsValid(
+                        formik.validateForm as () => Promise<Record<string, unknown>>,
+                        formik.setErrors as (errors: Record<string, unknown>) => void,
+                        formik.setTouched as (touched: Record<string, boolean>) => void
+                      )
+                    }
                   >
                     <span>Next</span>
                     <ChevronRight className="h-4 w-4" />

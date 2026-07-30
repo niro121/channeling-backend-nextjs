@@ -47,6 +47,8 @@ export async function exportAgentCollectionReceiptReportData(
       slip: formatReceiptAmount(r.slipAmount ?? 0),
       slipRef: r.slipRef ?? '-',
       slipDate: r.slipDate ?? '-',
+      chequeRef: r.chequeRef ?? '-',
+      chequeDate: r.chequeDate ?? '-',
       cardRef: r.cardRef ?? '-',
       bankName: r.bankName ?? '-',
     }));
