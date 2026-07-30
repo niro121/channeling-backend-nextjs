@@ -1,11 +1,20 @@
 "use client";
 
+import { useEffect, useState, Children } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Session } from "next-auth";
 import { NavLink } from "@archmage/ui";
-import { LayoutGrid, UsersRound } from "lucide-react";
+import {
+  LayoutGrid,
+  UsersRound,
+  UserCircle,
+  CalendarDays,
+  CalendarClock,
+  Tags,
+  ChevronDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserCircle } from "lucide-react";
 import { canAccessRoute } from "@/lib/permissions";
 import { userTypes } from "@archmage/shared";
 
@@ -22,6 +31,62 @@ function SidebarGroup({
         {label}
       </p>
       <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+/** Collapsible nav section with a toggle and nested links (e.g. Leave). */
+function SidebarCollapsible({
+  label,
+  icon,
+  paths,
+  children,
+  defaultOpen = false,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  /** Routes that keep this section open / highlight the parent when active. */
+  paths?: string[];
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const pathname = usePathname();
+  const visibleChildren = Children.toArray(children).filter(Boolean);
+  const isChildActive =
+    paths?.some((path) => pathname === path || pathname?.startsWith(path + "/")) ?? false;
+
+  const [open, setOpen] = useState(defaultOpen || isChildActive);
+
+  useEffect(() => {
+    if (isChildActive) setOpen(true);
+  }, [isChildActive]);
+
+  if (visibleChildren.length === 0) return null;
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+          isChildActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        )}
+        aria-expanded={open}
+      >
+        {icon}
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown
+          className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {open && (
+        <div className="ml-3 space-y-0.5 border-l border-primary/10 pl-1">
+          {visibleChildren}
+        </div>
+      )}
     </div>
   );
 }
@@ -55,6 +120,20 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         </div>
         <SidebarGroup label="People">
           {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+        </SidebarGroup>
+        <SidebarGroup label="Leave Management">
+          <SidebarCollapsible
+            label="Leave"
+            icon={<CalendarDays className="h-5 w-5" />}
+            paths={["/leave-entitlement", "/leave-types"]}
+          >
+            {hasAccess("/leave-entitlement") && (
+              <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+            )}
+            {hasAccess("/leave-types") && (
+              <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+            )}
+          </SidebarCollapsible>
         </SidebarGroup>
       </nav>
 
