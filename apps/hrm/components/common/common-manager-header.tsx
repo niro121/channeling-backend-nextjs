@@ -10,7 +10,7 @@ export function CommonManagerHeader({ title, description, backwordButton }: Comm
   return (
     <div className="flex items-center">
       <div className="space-y-2">
-      <h1 className="text-2xl font-bold">{title}</h1>
+      <h1 className="text-2xl font-semibold">{title}</h1>
       <p className="text-base text-gray-500">{description}</p>
       </div>
       
