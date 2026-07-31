@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { CommonDataTable } from '@/components/common/common-data-table';
@@ -5,6 +6,7 @@ import {
   leaveEntitlementColumns,
   type LeaveEntitlementRecord
 } from './columns';
+import LeaveEntitlementFilterSection from './filter-section';
 
 const sampleEntitlements: LeaveEntitlementRecord[] = [
   {
@@ -59,7 +61,39 @@ const sampleEntitlements: LeaveEntitlementRecord[] = [
   }
 ];
 
-export default function LeaveEntitlementPage() {
+/** Sample options until employee / department / leave-type APIs are wired. */
+const sampleEmployeeOptions = [
+  { id: 'emp-1', name: 'Nimal Perera' },
+  { id: 'emp-2', name: 'Kamal Silva' },
+  { id: 'emp-3', name: 'Samanthi Fernando' }
+];
+
+const sampleDepartmentOptions = [
+  { id: 'dept-1', name: 'Nursing' },
+  { id: 'dept-2', name: 'Administration' },
+  { id: 'dept-3', name: 'Laboratory' }
+];
+
+const sampleLeaveTypeOptions = [
+  { id: 'annual', name: 'Annual Leave' },
+  { id: 'casual', name: 'Casual Leave' },
+  { id: 'medical', name: 'Medical Leave' },
+  { id: 'maternity', name: 'Maternity Leave' }
+];
+
+type SearchParams = {
+  searchParams?: Promise<{
+    employeeId?: string;
+    departmentId?: string;
+    leaveType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }>;
+};
+
+export default async function LeaveEntitlementPage({ searchParams }: SearchParams) {
+  const params = await searchParams;
+
   return (
     <div className="space-y-6">
       {/* 1. Title + subheading */}
@@ -77,7 +111,24 @@ export default function LeaveEntitlementPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          
+          <Suspense
+            fallback={
+              <div className="h-10 text-sm text-muted-foreground">
+                Loading filters...
+              </div>
+            }
+          >
+            <LeaveEntitlementFilterSection
+              employeeOptions={sampleEmployeeOptions}
+              departmentOptions={sampleDepartmentOptions}
+              leaveTypeOptions={sampleLeaveTypeOptions}
+              employeeId={params?.employeeId}
+              departmentId={params?.departmentId}
+              leaveType={params?.leaveType}
+              fromDate={params?.fromDate}
+              toDate={params?.toDate}
+            />
+          </Suspense>
         </CardContent>
       </Card>
 
