@@ -10,6 +10,7 @@ import {
   type LeaveEntitlementRecord
 } from './columns';
 import LeaveEntitlementFilterSection from './filter-section';
+import FormEmployeeInfo from './form-employee-info';
 
 const sampleEntitlements: LeaveEntitlementRecord[] = [
   {
@@ -161,20 +162,10 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
 
       {/* 3. Employee Information + Leave Balance (2 col) */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="rounded-lg border border-border shadow-sm">
-          <CardHeader className="space-y-1.5">
-            <CardTitle className="text-lg font-semibold">
-              Employee Information
-            </CardTitle>
-            <CardDescription>Selected employee profile details.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* TODO: Employee information */}
-            <div className="min-h-40 rounded-md border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Employee information placeholder
-            </div>
-          </CardContent>
-        </Card>
+        <FormEmployeeInfo
+          employeeOptions={sampleEmployeeOptions}
+          leaveTypeOptions={sampleLeaveTypeOptions}
+        />
 
         <Card className="rounded-lg border border-border shadow-sm">
           <CardHeader className="space-y-1.5">
