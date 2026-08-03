@@ -1,7 +1,10 @@
 import { Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { CommonDataTable } from '@/components/common/common-data-table';
+import {
+  CommonDataTable,
+  DataTableExportFeature
+} from '@/components/common/common-data-table';
 import {
   leaveEntitlementColumns,
   type LeaveEntitlementRecord
@@ -94,6 +97,30 @@ type SearchParams = {
 export default async function LeaveEntitlementPage({ searchParams }: SearchParams) {
   const params = await searchParams;
 
+  const handleExport = async () => {
+    'use server';
+
+    if (!sampleEntitlements.length) {
+      return {
+        success: false,
+        message: 'No entitlement records found'
+      };
+    }
+
+    return {
+      success: true,
+      data: sampleEntitlements.map((row) => ({
+        leaveType: row.leaveType,
+        year: row.year,
+        entitled: row.entitled,
+        used: row.used,
+        remaining: row.remaining,
+        carryForward: row.carryForward,
+        status: row.status
+      }))
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Title + subheading */}
@@ -173,6 +200,32 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
         data={sampleEntitlements}
         rowCount={sampleEntitlements.length}
         showPagination={false}
+        toolbarRight={
+          <DataTableExportFeature
+            showColumnToggle
+            serverData={handleExport}
+            columns={[
+              'Leave Type',
+              'Year',
+              'Entitled',
+              'Used',
+              'Remaining',
+              'Carry Forward',
+              'Status'
+            ]}
+            keys={[
+              'leaveType',
+              'year',
+              'entitled',
+              'used',
+              'remaining',
+              'carryForward',
+              'status'
+            ]}
+            title="Leave Entitlement Register"
+            fileName="leave-entitlement"
+          />
+        }
       />
     </div>
   );
