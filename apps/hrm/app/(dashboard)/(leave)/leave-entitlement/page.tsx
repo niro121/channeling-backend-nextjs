@@ -11,6 +11,7 @@ import {
 } from './columns';
 import LeaveEntitlementFilterSection from './filter-section';
 import FormEmployeeInfo from './form-employee-info';
+import LeaveBalanceSection from './leave-balance-section';
 
 const sampleEntitlements: LeaveEntitlementRecord[] = [
   {
@@ -167,20 +168,7 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
           leaveTypeOptions={sampleLeaveTypeOptions}
         />
 
-        <Card className="rounded-lg border border-border shadow-sm">
-          <CardHeader className="space-y-1.5">
-            <CardTitle className="text-lg font-semibold">Leave Balance</CardTitle>
-            <CardDescription>
-              Current leave balances for the selected employee.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* TODO: Leave balance */}
-            <div className="min-h-40 rounded-md border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Leave balance placeholder
-            </div>
-          </CardContent>
-        </Card>
+        <LeaveBalanceSection />
       </div>
 
       {/* 4. Entitlement Register Card */}
