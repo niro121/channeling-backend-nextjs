@@ -130,6 +130,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             {hasAccess("/leave-entitlement") && (
               <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
             )}
+            
             {hasAccess("/leave-types") && (
               <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
             )}

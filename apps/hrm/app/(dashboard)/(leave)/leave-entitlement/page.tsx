@@ -1,10 +1,12 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { checkRouteAccess } from '@/lib/server-permissions';
 import {
   leaveEntitlementColumns,
   type LeaveEntitlementRecord
@@ -97,6 +99,11 @@ type SearchParams = {
 };
 
 export default async function LeaveEntitlementPage({ searchParams }: SearchParams) {
+  const canView = await checkRouteAccess('/leave-entitlement');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+
   const params = await searchParams;
 
   const handleExport = async () => {

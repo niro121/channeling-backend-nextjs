@@ -12,6 +12,7 @@ const PATH_NAMES = [
   { path: 'positions', name: 'Positions' },
   { path: 'leave-requests', name: 'Leave Requests' },
   { path: 'leave-types', name: 'Leave Types' },
+  { path: 'leave-entitlement', name: 'Leave Entitlement' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },
