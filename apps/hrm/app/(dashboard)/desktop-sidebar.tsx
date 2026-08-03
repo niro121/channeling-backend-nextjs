@@ -125,12 +125,14 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           <SidebarCollapsible
             label="Leave"
             icon={<CalendarDays className="h-5 w-5" />}
-            paths={["/leave-entitlement", "/leave-types"]}
+            paths={["/leave-entitlement", "/leave-management", "/leave-types"]}
           >
             {hasAccess("/leave-entitlement") && (
               <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
             )}
-            
+            {hasAccess("/leave-management") && (
+              <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+            )}
             {hasAccess("/leave-types") && (
               <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
             )}

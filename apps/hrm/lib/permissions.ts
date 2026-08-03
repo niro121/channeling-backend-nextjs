@@ -8,6 +8,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/leave-requests': 'leave-requests',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
+  '/leave-management': 'leave-management',
   '/attendance': 'attendance',
   '/payroll': 'payroll',
   '/salary-structures': 'salary-structures',
