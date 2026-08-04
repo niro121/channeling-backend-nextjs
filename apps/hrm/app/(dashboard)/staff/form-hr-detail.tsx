@@ -234,7 +234,7 @@ function getNameWithInitials(
   return [initials, firstName, lastName].filter(Boolean).join(' ').trim();
 }
 
-type HrDetailFormProps = {
+type FormHrDetailProps = {
   staff: StaffRecord;
   staffId: string;
   onRegisterActions?: (actions: HrDetailFormActions) => void;
@@ -266,12 +266,12 @@ function FormActionBridge({
   return null;
 }
 
-export default function HrDetailForm({
+export default function FormHrDetail({
   staff,
   staffId,
   onRegisterActions,
   onLoadingChange
-}: HrDetailFormProps) {
+}: FormHrDetailProps) {
   const saveAndCloseRef = useRef(false);
   const pendingSubmitRef = useRef<{
     values: HrDetailFormValues;

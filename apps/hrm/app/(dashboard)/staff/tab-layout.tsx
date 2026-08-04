@@ -12,10 +12,10 @@ import {
 } from '@archmage/ui';
 import { BriefcaseIcon, FileTextIcon, UserIcon } from 'lucide-react';
 import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
-import GeneralForm, { type GeneralFormActions } from './general-form';
-import HrDetailForm, { type HrDetailFormActions } from './hr-detail-form';
-import EmploymentForm, { type EmploymentFormActions } from './employment-form';
-import AdditionalDetailContent from './additional-detail-content';
+import FormGeneral, { type GeneralFormActions } from './form-general';
+import FormHrDetail, { type HrDetailFormActions } from './form-hr-detail';
+import FormEmployment, { type EmploymentFormActions } from './form-employment';
+import SectionAdditionalDetailContent from './section-additional-detail-content';
 import type { StaffRecord, StaffWithAuthUsers } from '@/types/staff';
 
 type TabLayoutProps = {
@@ -75,7 +75,7 @@ export default function TabLayout({
 
   const hrDetailsForm =
     isEditPage && staffId && staff ? (
-      <HrDetailForm
+      <FormHrDetail
         staff={staff}
         staffId={staffId}
         onRegisterActions={handleRegisterHrDetailActions}
@@ -87,7 +87,7 @@ export default function TabLayout({
 
   const employmentForm =
     isEditPage && staffId && staff ? (
-      <EmploymentForm
+      <FormEmployment
         staff={staff}
         staffId={staffId}
         onRegisterActions={handleRegisterEmploymentActions}
@@ -99,7 +99,7 @@ export default function TabLayout({
 
   const additionalDetailsForm =
     isEditPage && staffId && staff ? (
-      <AdditionalDetailContent staff={staff as StaffWithAuthUsers} />
+      <SectionAdditionalDetailContent staff={staff as StaffWithAuthUsers} />
     ) : (
       saveFirstMessage
     );
@@ -112,7 +112,7 @@ export default function TabLayout({
       value: 'general',
       icon: <UserIcon className="w-4 h-4" />,
       form: (
-        <GeneralForm
+        <FormGeneral
           staff={staff}
           staffId={staffId}
           isEditPage={isEditPage}

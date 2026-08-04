@@ -238,7 +238,7 @@ function getNameWithInitials(
   return [initials, firstName, lastName].filter(Boolean).join(' ').trim();
 }
 
-type GeneralFormProps = {
+type FormGeneralProps = {
   staff?: StaffRecord | GeneralFormValues | null;
   staffId?: string;
   isEditPage?: boolean;
@@ -271,13 +271,13 @@ function FormActionBridge({
   return null;
 }
 
-export default function GeneralForm({
+export default function FormGeneral({
   staff,
   staffId,
   isEditPage = false,
   onRegisterActions,
   onLoadingChange
-}: GeneralFormProps) {
+}: FormGeneralProps) {
   const saveAndCloseRef = useRef(false);
   const pendingSubmitRef = useRef<{
     values: GeneralFormValues;

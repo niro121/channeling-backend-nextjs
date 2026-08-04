@@ -1,6 +1,5 @@
 'use client';
 
-import { format } from 'date-fns';
 import { Input, Label } from '@archmage/ui';
 import {
   Accordion,
@@ -8,6 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
+import { formatAuditDateTime } from '@/lib/utils/date';
 import type { StaffWithAuthUsers } from '@/types/staff';
 
 const fieldStyleClasses = {
@@ -15,13 +15,6 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm text-black font-semibold capitalize',
   inputClassName: 'w-full bg-muted/40'
 };
-
-function formatAuditDateTime(date?: Date | string | null) {
-  if (!date) return '—';
-  const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return format(parsed, 'MMMM do yyyy, h.mm a');
-}
 
 type ReadOnlyFieldProps = {
   id: string;
@@ -47,13 +40,13 @@ function ReadOnlyField({ id, label, value }: ReadOnlyFieldProps) {
   );
 }
 
-type AdditionalDetailContentProps = {
+type SectionAdditionalDetailContentProps = {
   staff: StaffWithAuthUsers;
 };
 
-export default function AdditionalDetailContent({
+export default function SectionAdditionalDetailContent({
   staff
-}: AdditionalDetailContentProps) {
+}: SectionAdditionalDetailContentProps) {
   const createdByEmail = staff.createdUser?.email ?? '—';
   const updatedByEmail = staff.updatedUser?.email ?? '—';
 
