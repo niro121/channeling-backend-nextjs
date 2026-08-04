@@ -14,59 +14,47 @@ import {
   Textarea,
   useToast,
 } from '@archmage/ui';
-import { cancelDoctorPaymentAction } from '@/app/actions/doctor-payments/doctor-payments.actions';
+import { refundOverpaidPatientBillAction } from '@/app/actions/patient-bills/patient-bills.actions';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import { formatLkr } from '@/lib/patient-bills/calculations';
 import {
   hasRecordPaymentErrors,
   validatePaymentMethodFields,
 } from '@/lib/patient-bills/payment-validations';
-import {
-  defaultRefundPaymentMethod,
-  getAllowedRefundPaymentMethods,
-} from '@/lib/patient-bills/refund-method-rules';
-import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import {
   emptyRefundMethodValues,
   RefundMethodFields,
   type RefundMethodValues,
 } from '@/components/receipts/refund-method-fields';
 
-type CancelDoctorPaymentDialogProps = {
+type RefundOverpaymentDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  paymentId: string;
-  receiptNumber: string;
-  /** Original payout method — used for allowed refund methods. */
-  originalPaymentMethod?: string | null;
+  billId: string;
+  billNumber: string;
+  overpaidAmount: number;
 };
 
-function defaultRefundValues(original?: string | null): RefundMethodValues {
-  return emptyRefundMethodValues(defaultRefundPaymentMethod(original));
-}
-
-export function CancelDoctorPaymentDialog({
+export function RefundOverpaymentDialog({
   open,
   onOpenChange,
-  paymentId,
-  receiptNumber,
-  originalPaymentMethod,
-}: CancelDoctorPaymentDialogProps) {
+  billId,
+  billNumber,
+  overpaidAmount,
+}: RefundOverpaymentDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [reason, setReason] = useState('');
-  const [refund, setRefund] = useState<RefundMethodValues>(() =>
-    defaultRefundValues(originalPaymentMethod)
-  );
+  const [refund, setRefund] = useState<RefundMethodValues>(() => emptyRefundMethodValues());
   const [errors, setErrors] = useState<ReturnType<typeof validatePaymentMethodFields>>({});
   const [loading, setLoading] = useState(false);
-  const allowedMethods = getAllowedRefundPaymentMethods(originalPaymentMethod);
 
   useEffect(() => {
     if (!open) return;
     setReason('');
-    setRefund(defaultRefundValues(originalPaymentMethod));
+    setRefund(emptyRefundMethodValues());
     setErrors({});
-  }, [open, originalPaymentMethod]);
+  }, [open]);
 
   const handleBanksError = useCallback(
     (message: string) => {
@@ -79,13 +67,13 @@ export function CancelDoctorPaymentDialog({
     [toast]
   );
 
-  const handleCancel = async () => {
+  const handleRefund = async () => {
     const trimmed = reason.trim();
     if (!trimmed) {
       toast({
         variant: 'destructive',
         title: 'Reason required',
-        description: 'Please enter a reason for cancelling this doctor payment.',
+        description: 'Please enter a reason for refunding this overpayment.',
       });
       return;
     }
@@ -110,9 +98,7 @@ export function CancelDoctorPaymentDialog({
 
     setLoading(true);
     try {
-      const result = await cancelDoctorPaymentAction({
-        paymentId,
-        cancelReason: trimmed,
+      const result = await refundOverpaidPatientBillAction(billId, trimmed, {
         refundPaymentMethod: refund.refundPaymentMethod as PatientBillPaymentMethod,
         bank: refund.bank,
         bankId: refund.bankId || undefined,
@@ -120,17 +106,18 @@ export function CancelDoctorPaymentDialog({
         slipReference: refund.slipReference,
         slipDate: refund.slipDate,
       });
+
       if (result.success) {
         toast({
-          title: 'Doctor payment cancelled',
-          description: `Refund ${result.cancelReceiptNumber} (${paymentMethodLabel(refund.refundPaymentMethod)}) created. Linked bills can be paid again.`,
+          title: 'Overpayment refunded',
+          description: `Refund receipt ${result.refundReceiptNumber} created for ${formatLkr(result.refundAmount)}.`,
         });
         onOpenChange(false);
         router.refresh();
       } else {
         toast({
           variant: 'destructive',
-          title: 'Cancel failed',
+          title: 'Refund failed',
           description: result.message,
         });
       }
@@ -154,14 +141,14 @@ export function CancelDoctorPaymentDialog({
     >
       <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
         <DialogHeader className="border-b px-4 py-3">
-          <DialogTitle className="text-base">Cancel doctor payment</DialogTitle>
+          <DialogTitle className="text-base">Refund overpayment</DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[70vh] space-y-3 overflow-y-auto px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            Cancel <strong>{receiptNumber}</strong>, create a linked refund receipt (
-            <strong>DPAY-REF</strong>), and clear doctor payment on linked patient bill lines.
-            Choose how the amount is being refunded.
+            Bill <strong>{billNumber}</strong> is over-paid by{' '}
+            <strong>{formatLkr(overpaidAmount)}</strong>. This will create a separate refund
+            receipt using the method below.
           </p>
 
           <RefundMethodFields
@@ -172,17 +159,16 @@ export function CancelDoctorPaymentDialog({
             }}
             errors={errors}
             disabled={loading}
-            allowedMethods={allowedMethods}
             onBanksError={handleBanksError}
           />
 
           <div className="space-y-1">
-            <Label htmlFor="cancel-reason-dp" className="text-xs font-medium">
-              Cancel reason (required)
+            <Label htmlFor="overpayment-refund-reason" className="text-xs font-medium">
+              Refund reason (required)
             </Label>
             <Textarea
-              id="cancel-reason-dp"
-              placeholder="e.g. Entered in error"
+              id="overpayment-refund-reason"
+              placeholder="e.g. Received excess payment"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
@@ -201,19 +187,14 @@ export function CancelDoctorPaymentDialog({
           >
             Back
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleCancel}
-            disabled={loading || !reason.trim()}
-          >
+          <Button type="button" onClick={handleRefund} disabled={loading || !reason.trim()}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Cancelling…
+                Refunding…
               </>
             ) : (
-              'Cancel & refund'
+              'Refund'
             )}
           </Button>
         </DialogFooter>

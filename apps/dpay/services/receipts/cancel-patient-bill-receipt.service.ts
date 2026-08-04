@@ -5,27 +5,27 @@ import {
   validatePaymentMethodMetaMessage,
 } from '@/lib/patient-bills/payment-validations';
 import { validateRefundPaymentMethodMessage } from '@/lib/patient-bills/refund-method-rules';
+import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { generateCancelReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
-
-/** Active payment receipts only (excludes cancelled + refund rows). */
-function activeReceiptsWhere(billId: string): Prisma.PatientBillReceiptWhereInput {
-  return {
-    billId,
-    status: 'active',
-  };
-}
 
 async function sumActiveReceiptPaidAmount(
   tx: Prisma.TransactionClient,
   billId: string
 ): Promise<number> {
-  const activeReceipts = await tx.patientBillReceipt.findMany({
-    where: activeReceiptsWhere(billId),
-    select: { amountPaid: true },
+  const receipts = await tx.patientBillReceipt.findMany({
+    where: { billId },
+    select: {
+      amountPaid: true,
+      status: true,
+      cancelReceiptNumber: true,
+      refundOfReceiptId: true,
+    },
   });
-  return activeReceipts.reduce((sum, row) => sum + row.amountPaid, 0);
+  return receipts
+    .filter(isVoidablePaymentReceipt)
+    .reduce((sum, row) => sum + row.amountPaid, 0);
 }
 
 export type CancelPatientBillReceiptInput = {
@@ -146,7 +146,7 @@ export async function cancelPatientBillReceipt(
   }
 
   const activeDoctorPayment = receipt.bill.lineItems.find(
-    (item) => item.doctorPaymentId && item.doctorPayment?.status !== 'cancelled'
+    (item) => item.doctorPaymentId && item.doctorPayment?.status === 'paid'
   );
   if (activeDoctorPayment) {
     return {

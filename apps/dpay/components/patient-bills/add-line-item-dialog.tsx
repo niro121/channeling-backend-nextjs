@@ -19,6 +19,7 @@ import {
   formatAmountFixed,
   hasLineItemErrors,
   parseAmountInput,
+  sanitizeAmountDraftInput,
   validateLineItemInput,
 } from '@/lib/patient-bills/validations';
 import { addPatientBillLineItemAction } from '@/app/actions/patient-bills/patient-bills.actions';
@@ -146,7 +147,7 @@ export function AddLineItemDialog({ open, onOpenChange, billId }: AddLineItemDia
               inputMode="decimal"
               placeholder="0.00"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(sanitizeAmountDraftInput(e.target.value))}
               onBlur={(e) => {
                 const raw = e.target.value.trim();
                 if (raw === '') {

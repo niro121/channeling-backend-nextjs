@@ -13,6 +13,7 @@ import { removePatientBillLineItem } from '@/services/patient-bills/remove-patie
 import { recordPatientBillPayment } from '@/services/patient-bills/record-patient-bill-payment.service';
 import { cancelPatientBill } from '@/services/patient-bills/cancel-patient-bill.service';
 import { closePatientBill } from '@/services/patient-bills/close-patient-bill.service';
+import { refundOverpaidPatientBill } from '@/services/patient-bills/refund-overpaid-patient-bill.service';
 import { getPatientBillLineItemHistory } from '@/services/patient-bills/get-line-item-history.service';
 import { getBillActivityLogs } from '@/services/patient-bills/get-bill-activity-logs.service';
 import { logActivityNonBlocking } from '@/lib/activity-log';
@@ -293,7 +294,11 @@ export async function cancelPatientBillAction(
       entityType: 'PatientBill',
       entityId: billId,
       importance: 'high',
-      metadata: { cancelReason },
+      metadata: {
+        cancelReason,
+        voidedReceiptCount: result.voidedReceiptCount,
+        previousStatus: result.previousStatus,
+      },
     });
   }
 
@@ -323,6 +328,62 @@ export async function closePatientBillAction(billId: string) {
       entityType: 'PatientBill',
       entityId: billId,
       importance: 'high',
+    });
+  }
+
+  return result;
+}
+
+export async function refundOverpaidPatientBillAction(
+  billId: string,
+  refundReason: string,
+  refund: {
+    refundPaymentMethod: PatientBillPaymentMethod;
+    bank?: string;
+    bankId?: string;
+    cardReference?: string;
+    slipReference?: string;
+    slipDate?: string;
+  }
+) {
+  await requirePermission('patient-bills', 'edit');
+  const session = await fetchServerSession();
+  if (!session?.user?.id) {
+    return { success: false as const, message: 'You must be logged in to refund a bill.' };
+  }
+
+  const result = await refundOverpaidPatientBill({
+    billId,
+    refundReason,
+    refundPaymentMethod: refund.refundPaymentMethod,
+    bank: refund.bank,
+    bankId: refund.bankId,
+    cardReference: refund.cardReference,
+    slipReference: refund.slipReference,
+    slipDate: refund.slipDate,
+    refundedBy: session.user.id,
+    refundedByName: session.user.name ?? null,
+  });
+
+  if (result.success) {
+    revalidatePath('/patient-bills');
+    revalidatePath(`/patient-bills/${billId}`);
+    revalidatePath('/receipts');
+
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'patient-bills.patient-bill.overpayment.refunded',
+      entityType: 'PatientBillReceipt',
+      entityId: result.receiptId,
+      importance: 'high',
+      metadata: {
+        billId,
+        billNumber: result.billNumber,
+        receiptNumber: result.refundReceiptNumber,
+        refundAmount: result.refundAmount,
+        refundReason,
+        paymentMethod: refund.refundPaymentMethod,
+      },
     });
   }
 

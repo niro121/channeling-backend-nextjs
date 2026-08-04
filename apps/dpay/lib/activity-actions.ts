@@ -59,11 +59,16 @@ export const KNOWN_ACTIVITY_ACTIONS: Array<{
   {
     action: 'patient-bills.patient-bill.cancelled',
     importance: 'high',
-    when: 'User cancels a patient bill',
+    when: 'User cancels a patient bill (including closed); active receipts are voided with refunds',
   },
   {
     action: 'patient-bills.patient-bill.closed',
     importance: 'high',
     when: 'User closes a fully paid patient bill',
+  },
+  {
+    action: 'patient-bills.patient-bill.overpayment.refunded',
+    importance: 'high',
+    when: 'User refunds an over-payment and creates a dedicated refund receipt',
   },
 ];

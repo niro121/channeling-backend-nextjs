@@ -1,14 +1,16 @@
 import prisma from '@/lib/prisma';
 import {
-  DOCTOR_PAYMENT_METHODS,
   DOCTOR_PAYMENT_WHT_PERCENTAGE,
   type ProcessDoctorPaymentInput,
   type ProcessDoctorPaymentResult,
 } from '@/types/doctor-payment';
+import { isPatientBillPaymentMethod } from '@/types/patient-bill';
+import {
+  buildPaymentMethodMeta,
+  validatePaymentMethodMetaMessage,
+} from '@/lib/patient-bills/payment-validations';
 import { generateDoctorPaymentReceiptNumber } from './generate-doctor-payment-receipt-number.service';
 import { getEligibleBillsForDoctor } from './get-eligible-bills.service';
-
-const VALID_METHODS = new Set(DOCTOR_PAYMENT_METHODS.map((m) => m.value));
 
 export async function processDoctorPayment(
   input: ProcessDoctorPaymentInput,
@@ -22,17 +24,30 @@ export async function processDoctorPayment(
   if (!Array.isArray(input.billIds) || input.billIds.length === 0) {
     return { success: false, message: 'Select at least one bill.' };
   }
-  if (!VALID_METHODS.has(input.paymentMethod)) {
+  if (!isPatientBillPaymentMethod(input.paymentMethod)) {
     return { success: false, message: 'Invalid payment method.' };
   }
 
-  const needsReference =
-    input.paymentMethod === 'bank_transfer' ||
-    input.paymentMethod === 'cheque' ||
-    input.paymentMethod === 'online_transfer';
-  if (needsReference && !input.referenceNumber?.trim()) {
-    return { success: false, message: 'Reference number is required for this payment method.' };
+  const metaError = validatePaymentMethodMetaMessage({
+    paymentMethod: input.paymentMethod,
+    bank: input.bank,
+    bankId: input.bankId,
+    cardReference: input.cardReference,
+    slipReference: input.slipReference,
+    slipDate: input.slipDate,
+  });
+  if (metaError) {
+    return { success: false, message: metaError };
   }
+
+  const paymentMeta = buildPaymentMethodMeta({
+    paymentMethod: input.paymentMethod,
+    bank: input.bank,
+    bankId: input.bankId,
+    cardReference: input.cardReference,
+    slipReference: input.slipReference,
+    slipDate: input.slipDate,
+  });
 
   const eligible = await getEligibleBillsForDoctor(doctorName);
   const eligibleById = new Map(eligible.map((row) => [row.billId, row]));
@@ -83,11 +98,17 @@ export async function processDoctorPayment(
         data: {
           receiptNumber,
           doctorName,
-          paymentMethod: input.paymentMethod,
-          referenceNumber: input.referenceNumber?.trim() || null,
+          paymentMethod: String(input.paymentMethod),
+          referenceNumber: paymentMeta.referenceNumber,
+          bank: paymentMeta.bank,
+          bankId: paymentMeta.bankId,
+          cardReference: paymentMeta.cardReference,
+          slipReference: paymentMeta.slipReference,
+          slipDate: paymentMeta.slipDate,
           remarks: input.remarks?.trim() || null,
           locationId: generated.locationId,
           locationCode: generated.locationCode,
+          locationName: generated.locationName,
           totalAmount,
           whtAmount,
           whtPercentage,

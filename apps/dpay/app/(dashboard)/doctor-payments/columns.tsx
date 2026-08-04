@@ -3,14 +3,10 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import type { DoctorPaymentListItem } from '@/types/doctor-payment';
-import { DOCTOR_PAYMENT_METHODS } from '@/types/doctor-payment';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import { DoctorPaymentStatusBadge } from '@/components/doctor-payments/status-badge';
 import { DoctorPaymentRecordActions } from './record-actions';
-
-function methodLabel(method: string) {
-  return DOCTOR_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
-}
 
 export const doctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
   {
@@ -44,16 +40,27 @@ export const doctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
     header: 'Method',
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground whitespace-nowrap">
-        {methodLabel(row.original.method)}
+        {paymentMethodLabel(row.original.method)}
       </span>
     ),
   },
   {
     accessorKey: 'total',
     header: 'Total',
-    cell: ({ row }) => (
-      <span className="tabular-nums whitespace-nowrap">{formatLkr(row.original.total)}</span>
-    ),
+    cell: ({ row }) => {
+      const cancelled = row.original.status === 'cancelled';
+      return (
+        <span
+          className={
+            cancelled
+              ? 'tabular-nums whitespace-nowrap text-muted-foreground line-through'
+              : 'tabular-nums whitespace-nowrap'
+          }
+        >
+          {formatLkr(row.original.total)}
+        </span>
+      );
+    },
   },
   {
     accessorKey: 'wht',
@@ -72,34 +79,6 @@ export const doctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
         {formatLkr(row.original.net)}
       </span>
     ),
-  },
-  {
-    accessorKey: 'remarks',
-    header: 'Remarks',
-    cell: ({ row }) => (
-      <span
-        className="max-w-[140px] truncate block text-sm text-muted-foreground"
-        title={row.original.remarks || undefined}
-      >
-        {row.original.remarks?.trim() || '—'}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'cancelReason',
-    header: 'Cancel Reason',
-    cell: ({ row }) => {
-      const reason = row.original.cancelReason?.trim();
-      if (!reason) return <span className="text-muted-foreground">—</span>;
-      return (
-        <span
-          className="max-w-[160px] truncate block text-sm text-destructive"
-          title={reason}
-        >
-          {reason}
-        </span>
-      );
-    },
   },
   {
     accessorKey: 'createdBy',

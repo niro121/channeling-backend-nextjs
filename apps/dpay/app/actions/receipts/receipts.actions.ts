@@ -32,7 +32,12 @@ export async function getReceiptsExportAction(
       referenceNumber: paymentReferenceDisplay(item),
       amountPaid: formatLkr(item.amountPaid),
       createdBy: item.createdByName?.trim() || '—',
-      status: item.status === 'cancelled' ? 'Cancelled' : 'Active',
+      status:
+        item.status === 'cancelled'
+          ? 'Cancelled'
+          : item.status === 'refund'
+            ? 'Refund'
+            : 'Active',
       cancelReason: item.cancelReason?.trim() || '—',
       canceledAt: item.canceledAt
         ? format(new Date(item.canceledAt), 'yyyy-MM-dd HH:mm:ss')

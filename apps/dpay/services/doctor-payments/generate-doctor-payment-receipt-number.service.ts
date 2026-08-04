@@ -1,64 +1,31 @@
-import { getNextSequenceNumber } from '@/lib/patient-bills/sequence';
-import { getUserLocationConfig } from '@/lib/location';
-
-function pad(num: number, size: number): string {
-  return String(num).padStart(size, '0');
-}
+import {
+  generateCancelReceiptNumber,
+  generateReceiptNumber,
+} from '@/services/patient-bills/generate-receipt-number.service';
 
 export type DoctorPaymentReceiptNumberResult = {
   receiptNumber: string;
   locationId: string;
   locationCode: string;
+  locationName: string;
 };
 
 /**
- * `{Location.code}DPAY-DOC-PAY/########` — scoped to the cashier's branch.
+ * Doctor payout receipts use the same numbering as patient bill payments:
+ * `{Location.code}DPAY/########` — scope `{locationId}-paymentreceipts`.
  */
 export async function generateDoctorPaymentReceiptNumber(
   userId: string | null | undefined
 ): Promise<DoctorPaymentReceiptNumberResult> {
-  const location = await getUserLocationConfig(userId);
-  if (!location.success) {
-    throw new Error(location.message);
-  }
-
-  const { locationId, locationCode } = location.data;
-  const scopeKey = `${locationId}-doctorpaymentreceipts`;
-  const result = await getNextSequenceNumber(scopeKey, { startFrom: 1 });
-
-  if (!result.success) {
-    throw new Error('Unable to generate doctor payment receipt number');
-  }
-
-  return {
-    receiptNumber: `${locationCode}DPAY-DOC-PAY/${pad(result.value, 8)}`,
-    locationId,
-    locationCode,
-  };
+  return generateReceiptNumber(userId);
 }
 
 /**
- * `{Location.code}DPAY-DOC-REF/########`
+ * Doctor payout cancel / refund receipts use the same numbering as patient bill refunds:
+ * `{Location.code}DPAY-REF/########` — scope `{locationId}-refundreceipts`.
  */
 export async function generateDoctorPaymentCancelReceiptNumber(
   userId: string | null | undefined
 ): Promise<DoctorPaymentReceiptNumberResult> {
-  const location = await getUserLocationConfig(userId);
-  if (!location.success) {
-    throw new Error(location.message);
-  }
-
-  const { locationId, locationCode } = location.data;
-  const scopeKey = `${locationId}-doctorpaymentcancelreceipts`;
-  const result = await getNextSequenceNumber(scopeKey, { startFrom: 1 });
-
-  if (!result.success) {
-    throw new Error('Unable to generate doctor payment cancel receipt number');
-  }
-
-  return {
-    receiptNumber: `${locationCode}DPAY-DOC-REF/${pad(result.value, 8)}`,
-    locationId,
-    locationCode,
-  };
+  return generateCancelReceiptNumber(userId);
 }
