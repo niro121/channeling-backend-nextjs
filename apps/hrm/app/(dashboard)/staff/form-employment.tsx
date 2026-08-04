@@ -114,7 +114,7 @@ const initialValues: EmploymentFormValues = {
   memo: ''
 };
 
-type EmploymentFormProps = {
+type FormEmploymentProps = {
   staff: StaffRecord;
   staffId: string;
   onRegisterActions?: (actions: EmploymentFormActions) => void;
@@ -146,12 +146,12 @@ function FormActionBridge({
   return null;
 }
 
-export default function EmploymentForm({
+export default function FormEmployment({
   staff,
   staffId,
   onRegisterActions,
   onLoadingChange
-}: EmploymentFormProps) {
+}: FormEmploymentProps) {
   const saveAndCloseRef = useRef(false);
   const { toast } = useToast();
   const router = useRouter();

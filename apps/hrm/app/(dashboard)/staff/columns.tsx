@@ -1,19 +1,12 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@archmage/ui';
+import { Badge, Checkbox } from '@archmage/ui';
 import { StaffWithAuthUsers } from '@/types/staff';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { Checkbox } from '@archmage/ui';
+import { formatDateTime } from '@/lib/utils/date';
 import StaffRecordActions from './record-actions';
-
-function formatDateTime(date?: Date | string | null) {
-  if (!date) return '—';
-  const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return format(parsed, 'dd/MM/yyyy hh:mm a');
-}
+import { StaffCodeCell } from './staff-code-cell';
 
 export const staffColumns: ColumnDef<StaffWithAuthUsers>[] = [
   {
@@ -43,10 +36,9 @@ export const staffColumns: ColumnDef<StaffWithAuthUsers>[] = [
   {
     accessorKey: 'code',
     header: 'Code',
-    cell: ({ row }) => {
-      const code = row.getValue('code') as string;
-      return code || <span className="text-muted-foreground">-</span>;
-    }
+    cell: ({ row }) => (
+      <StaffCodeCell id={row.original.id} code={row.getValue('code') as string} />
+    )
   },
   {
     accessorKey: 'name',
