@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge, Checkbox } from '@archmage/ui';
-import { format } from 'date-fns';
+import { formatDateTime } from '@/lib/utils/date';
 import LeaveApplicationRecordActions from './record-actions';
 import { LeaveApplicationStaffCodeCell } from './staff-code-cell';
 
@@ -42,13 +42,6 @@ const statusVariant: Record<
   rejected: 'destructive',
   cancelled: 'outline'
 };
-
-function formatDateTime(date?: Date | string | null) {
-  if (!date) return '—';
-  const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return format(parsed, 'dd/MM/yyyy hh:mm a');
-}
 
 export const leaveApplicationColumns: ColumnDef<LeaveApplicationRecord>[] = [
   {

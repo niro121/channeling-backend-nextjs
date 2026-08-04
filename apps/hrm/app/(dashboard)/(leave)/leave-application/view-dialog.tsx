@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@archmage/ui';
-import { format } from 'date-fns';
+import { formatDateTime } from '@/lib/utils/date';
 import type { LeaveApplicationRecord } from './columns';
 
 type LeaveApplicationViewDialogProps = {
@@ -15,13 +15,6 @@ type LeaveApplicationViewDialogProps = {
   onOpenChange: (open: boolean) => void;
   record: LeaveApplicationRecord | null;
 };
-
-function formatDateTime(date?: Date | string | null) {
-  if (!date) return '—';
-  const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return format(parsed, 'dd/MM/yyyy hh:mm a');
-}
 
 function DetailItem({
   label,
