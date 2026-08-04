@@ -22,7 +22,7 @@ type UtilisationItem = {
   percent: number;
 };
 
-type LeaveBalanceSectionProps = {
+type SectionLeaveBalanceProps = {
   stats?: LeaveBalanceStats;
   utilisations?: UtilisationItem[];
   policyNote?: string;
@@ -42,12 +42,12 @@ const defaultUtilisations: UtilisationItem[] = [
 ];
 
 /** UI-only leave balance analytics for the entitlement page. */
-export default function LeaveBalanceSection({
+export default function SectionLeaveBalance({
   stats = defaultStats,
   utilisations = defaultUtilisations,
   policyNote = 'Carry-forward is capped at 5 days per financial year.',
   policyBadge = 'Policy #LV-04'
-}: LeaveBalanceSectionProps) {
+}: SectionLeaveBalanceProps) {
   const summaryCards = [
     { label: 'Total Entitlement', value: stats.totalEntitlement },
     { label: 'Used', value: stats.used },

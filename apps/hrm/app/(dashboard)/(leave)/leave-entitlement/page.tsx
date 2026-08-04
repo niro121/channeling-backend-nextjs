@@ -13,7 +13,7 @@ import {
 } from './columns';
 import LeaveEntitlementFilterSection from './filter-section';
 import FormEmployeeInfo from './form-employee-info';
-import LeaveBalanceSection from './leave-balance-section';
+import SectionLeaveBalance from './section-leave-balance';
 
 const sampleEntitlements: LeaveEntitlementRecord[] = [
   {
@@ -175,7 +175,7 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
           leaveTypeOptions={sampleLeaveTypeOptions}
         />
 
-        <LeaveBalanceSection />
+        <SectionLeaveBalance />
       </div>
 
       {/* 4. Entitlement Register Card */}
