@@ -60,7 +60,7 @@ export function LeaveApplicationViewDialog({
               </Badge>
             </DetailItem>
             <DetailItem label="Out with cancel">
-              {record.status !== 'cancelled' ? 'Yes' : 'No'}
+              {record.outWithCancel ? 'Yes' : 'No'}
             </DetailItem>
             <DetailItem label="Shift date">{record.shiftDate}</DetailItem>
             <DetailItem label="Approved">

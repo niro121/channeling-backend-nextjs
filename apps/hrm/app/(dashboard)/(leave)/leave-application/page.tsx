@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import FormLeaveDetails from './form-leave-details';
 import SectionApplicationList from './section-leave-form-list';
 import type { LeaveApplicationRecord } from './columns';
 
@@ -37,6 +38,7 @@ const sampleApplications: LeaveApplicationRecord[] = [
     approverId: 'apr-1',
     approverName: 'Dr. Wijesinghe',
     status: 'approved',
+    outWithCancel: false,
     approvedAt: '2026-03-02',
     shiftDate: '2026-03-10',
     createdAt: '2026-03-01T09:15:00',
@@ -57,6 +59,7 @@ const sampleApplications: LeaveApplicationRecord[] = [
     approverId: 'apr-2',
     approverName: 'Ms. Jayasuriya',
     status: 'pending',
+    outWithCancel: false,
     approvedAt: null,
     shiftDate: '2026-03-15',
     createdAt: '2026-03-08T14:20:00',
@@ -77,6 +80,7 @@ const sampleApplications: LeaveApplicationRecord[] = [
     approverId: 'apr-1',
     approverName: 'Dr. Wijesinghe',
     status: 'approved',
+    outWithCancel: true,
     approvedAt: '2026-02-18',
     shiftDate: '2026-02-20',
     createdAt: '2026-02-18T08:05:00',
@@ -97,6 +101,7 @@ const sampleApplications: LeaveApplicationRecord[] = [
     approverId: 'apr-3',
     approverName: 'Mr. Bandara',
     status: 'rejected',
+    outWithCancel: false,
     approvedAt: '2026-03-26',
     shiftDate: '2026-04-01',
     createdAt: '2026-03-25T10:00:00',
@@ -117,6 +122,7 @@ const sampleApplications: LeaveApplicationRecord[] = [
     approverId: 'apr-2',
     approverName: 'Ms. Jayasuriya',
     status: 'cancelled',
+    outWithCancel: true,
     approvedAt: '2026-01-03',
     shiftDate: '2026-01-10',
     createdAt: '2026-01-02T11:10:00',
@@ -184,10 +190,8 @@ function filterApplications(
     if (filters.approverId && row.approverId !== filters.approverId)
       return false;
 
-    if (filters.outWithCancel === 'yes' && row.status === 'cancelled')
-      return false;
-    if (filters.outWithCancel === 'no' && row.status !== 'cancelled')
-      return false;
+    if (filters.outWithCancel === 'yes' && !row.outWithCancel) return false;
+    if (filters.outWithCancel === 'no' && row.outWithCancel) return false;
 
     const dateValue = getDateField(row, filters.dateSearchBy);
     if (filters.fromDate || filters.toDate) {
@@ -252,7 +256,7 @@ export default async function LeaveApplicationPage({
         days: row.days,
         approverName: row.approverName,
         status: row.status,
-        outWithCancel: row.status !== 'cancelled' ? 'Yes' : 'No',
+        outWithCancel: row.outWithCancel ? 'Yes' : 'No',
         approvedAt: row.approvedAt ?? '',
         shiftDate: row.shiftDate,
         updatedBy: row.updatedUser?.name ?? '',
@@ -283,11 +287,15 @@ export default async function LeaveApplicationPage({
       />
 
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="col-span-3 min-h-40 rounded-md border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-          35% container
+        <div className="min-w-0 lg:col-span-4">
+          <FormLeaveDetails
+            staffOptions={sampleStaffOptions}
+            leaveTypeOptions={sampleLeaveTypeOptions}
+            approverOptions={sampleApproverOptions}
+          />
         </div>
 
-        <div className="col-span-9">
+        <div className="min-w-0 lg:col-span-8">
           <SectionApplicationList
             records={filtered}
             staffOptions={sampleStaffOptions}

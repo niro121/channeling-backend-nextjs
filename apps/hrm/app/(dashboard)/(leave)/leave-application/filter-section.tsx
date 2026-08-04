@@ -138,21 +138,13 @@ export default function LeaveApplicationFilterSection({
               </div>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="yes" id="out-cancel-yes" />
-                <Label
-                  htmlFor="out-cancel-yes"
-                  className="font-normal"
-                  title="Not cancelled"
-                >
+                <Label htmlFor="out-cancel-yes" className="font-normal">
                   Yes
                 </Label>
               </div>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="no" id="out-cancel-no" />
-                <Label
-                  htmlFor="out-cancel-no"
-                  className="font-normal"
-                  title="Cancelled"
-                >
+                <Label htmlFor="out-cancel-no" className="font-normal">
                   No
                 </Label>
               </div>

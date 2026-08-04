@@ -25,6 +25,7 @@ export type LeaveApplicationRecord = {
   approverId: string;
   approverName: string;
   status: LeaveApplicationStatus;
+  outWithCancel: boolean;
   approvedAt: string | null;
   shiftDate: string;
   createdAt: string | Date;
@@ -154,7 +155,7 @@ export const leaveApplicationColumns: ColumnDef<LeaveApplicationRecord>[] = [
     header: 'Out w/ Cancel',
     cell: ({ row }) => (
       <span className="text-muted-foreground">
-        {row.original.status !== 'cancelled' ? 'Yes' : 'No'}
+        {row.original.outWithCancel ? 'Yes' : 'No'}
       </span>
     )
   },
