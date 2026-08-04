@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Ban, CheckCircle2, Pencil, Undo2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Undo2 } from 'lucide-react';
 import { BackButton, Button } from '@archmage/ui';
 import type { PatientBillDetail } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import { countActiveLineItems } from '@/lib/patient-bills/line-item-status';
+import { CancelActionButton } from '@/components/ui/cancel-action-button';
 import { StatusBadge } from './status-badge';
 import { BillDetailSummaryCards } from './bill-detail-summary-cards';
 import { BillLineItemsTable } from './bill-line-items-table';
@@ -104,16 +105,10 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
               </Button>
             )}
             {canCancelBill && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                type="button"
+              <CancelActionButton
+                label="Cancel Bill"
                 onClick={() => setCancelOpen(true)}
-              >
-                <Ban className="h-4 w-4" />
-                Cancel Bill
-              </Button>
+              />
             )}
             {canRefundOverpayment && (
               <Button

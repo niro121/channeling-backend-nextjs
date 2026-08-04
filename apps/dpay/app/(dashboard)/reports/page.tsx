@@ -7,16 +7,48 @@ const financialReports: ReportListItem[] = [
   {
     id: '1',
     rank: 1,
-    masterData: 'Financial Reports',
+    masterData: 'Receipt Report',
     description:
-      'Receipt and doctor payment reports with date filters, search, print, and export.',
-    route: '/reports/financial',
+      'Patient payment receipts with date filters, search, print, and export.',
+    route: '/reports/receipts',
+  },
+  {
+    id: '2',
+    rank: 2,
+    masterData: 'Doctor Payment Report',
+    description:
+      'Doctor payment receipts with totals, status, search, print, and export.',
+    route: '/reports/doctor-payments',
+  },
+  {
+    id: '3',
+    rank: 3,
+    masterData: 'Doctor Due Payment Report',
+    description:
+      'Doctors still owed for unpaid bill line items, with search, print, and export.',
+    route: '/reports/doctor-due',
+  },
+  {
+    id: '4',
+    rank: 4,
+    masterData: 'Patient Due Report',
+    description:
+      'Patients with outstanding balances (pending / partially paid) for collection follow-up.',
+    route: '/reports/patient-due',
+  },
+  {
+    id: '5',
+    rank: 5,
+    masterData: 'Patient Excess Report',
+    description:
+      'Patients who overpaid their bills, with excess amount for refund follow-up.',
+    route: '/reports/patient-excess',
   },
 ];
 
 const systemReports: ReportListItem[] = [
   {
-    id: '2',
+    id: '6',
     rank: 1,
     masterData: 'User Activity Report',
     description:
