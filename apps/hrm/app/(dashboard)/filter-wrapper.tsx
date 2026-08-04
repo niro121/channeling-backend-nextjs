@@ -155,33 +155,37 @@ export function FilterWrapper({
     <div className="flex flex-wrap items-center gap-3">
       {children({ values, setValue })}
 
-      {showApplyButton && (
-        <Button
-          size="sm"
-          variant={searchButton?.variant ?? "outline"}
-          onClick={applyFilters}
-          disabled={isPending || isApplying}
-          className={searchButton?.className ?? "h-10 shrink-0 gap-2 self-end"}
-        >
-          {isPending || isApplying ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <SearchIcon className="h-4 w-4" />
+      {(showApplyButton || showClearButton) && (
+        <div className="flex shrink-0 flex-nowrap items-center gap-3 self-end">
+          {showApplyButton && (
+            <Button
+              size="sm"
+              variant={searchButton?.variant ?? "outline"}
+              onClick={applyFilters}
+              disabled={isPending || isApplying}
+              className={searchButton?.className ?? "h-10 shrink-0 gap-2"}
+            >
+              {isPending || isApplying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <SearchIcon className="h-4 w-4" />
+              )}
+              {buttonLabel}
+            </Button>
           )}
-          {buttonLabel}
-        </Button>
-      )}
 
-      {showClearButton && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={clearFilters}
-          disabled={isPending}
-          className="h-10 shrink-0 self-end"
-        >
-          {clearButtonLabel}
-        </Button>
+          {showClearButton && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={clearFilters}
+              disabled={isPending}
+              className="h-10 shrink-0"
+            >
+              {clearButtonLabel}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
