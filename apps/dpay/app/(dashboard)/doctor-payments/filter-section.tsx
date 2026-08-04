@@ -7,15 +7,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@archmage/ui';
-import {
-  DOCTOR_PAYMENT_METHODS,
-  DOCTOR_PAYMENT_STATUSES,
-} from '@/types/doctor-payment';
+import { DOCTOR_PAYMENT_STATUSES } from '@/types/doctor-payment';
+import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { FilterWrapper } from '../filter-wrapper';
 
 const METHOD_OPTIONS = [
   { value: '__all__', label: 'All Methods' },
-  ...DOCTOR_PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label })),
+  ...PATIENT_BILL_PAYMENT_METHODS.map((m) => ({
+    value: String(m.value),
+    label: m.label,
+  })),
 ];
 
 const STATUS_OPTIONS = [

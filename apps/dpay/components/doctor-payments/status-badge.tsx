@@ -16,6 +16,10 @@ const STATUS_CONFIG: Record<
     label: 'Cancelled',
     className: 'border-transparent bg-red-100 text-red-800 hover:bg-red-100',
   },
+  refund: {
+    label: 'Refund',
+    className: 'border-transparent bg-amber-100 text-amber-900 hover:bg-amber-100',
+  },
 };
 
 type StatusBadgeProps = {

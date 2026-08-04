@@ -186,8 +186,6 @@ export function validateRecordPaymentForm(
     errors.amountReceived = 'Amount received is required';
   } else if (!Number.isFinite(amount) || amount <= 0) {
     errors.amountReceived = 'Enter a valid amount greater than zero';
-  } else if (amount > input.outstandingAmount) {
-    errors.amountReceived = 'Amount cannot exceed the outstanding balance';
   }
 
   return errors;

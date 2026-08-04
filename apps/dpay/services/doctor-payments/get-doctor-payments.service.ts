@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma';
 import type {
   DoctorPaymentListItem,
-  DoctorPaymentMethod,
   DoctorPaymentStatus,
   GetDoctorPaymentsParams,
   GetDoctorPaymentsResult,
@@ -54,7 +53,7 @@ export async function getDoctorPayments(
     doctorName: record.doctorName,
     doctorSpecialty: '',
     doctorId: record.doctorName,
-    method: record.paymentMethod as DoctorPaymentMethod,
+    method: record.paymentMethod,
     total: record.totalAmount,
     wht: record.whtAmount,
     net: record.netAmount,

@@ -4,7 +4,6 @@ import { format } from 'date-fns';
 import { requirePermission } from '@/lib/server-permissions';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel } from '@/lib/receipts/helpers';
-import { DOCTOR_PAYMENT_METHODS } from '@/types/doctor-payment';
 import {
   getReceiptReport,
   getReceiptReportExport,
@@ -19,10 +18,6 @@ import type {
   ReceiptReportExportRow,
   ReceiptReportParams,
 } from '@/types/reports';
-
-function doctorPaymentMethodLabel(method: string) {
-  return DOCTOR_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
-}
 
 export async function getReceiptReportAction(params: ReceiptReportParams = {}) {
   await requirePermission('reports', 'view');
@@ -78,8 +73,13 @@ export async function getDoctorPaymentReportExportAction(
       totalAmount: formatLkr(item.totalAmount),
       paidAmount: formatLkr(item.paidAmount),
       dueAmount: formatLkr(item.dueAmount),
-      status: item.status === 'cancelled' ? 'Cancelled' : 'Paid',
-      paymentMethod: doctorPaymentMethodLabel(item.paymentMethod),
+      status:
+        item.status === 'cancelled'
+          ? 'Cancelled'
+          : item.status === 'refund'
+            ? 'Refund'
+            : 'Paid',
+      paymentMethod: paymentMethodLabel(item.paymentMethod),
       createdAt: format(new Date(item.createdAt), 'yyyy-MM-dd'),
     }));
 

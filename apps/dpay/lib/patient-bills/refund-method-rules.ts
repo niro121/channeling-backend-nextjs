@@ -24,10 +24,12 @@ export function resolvePatientBillPaymentMethod(
       cash: RECEIPT_PAYMENT_METHOD.CASH,
       card: RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
       bank_transfer: RECEIPT_PAYMENT_METHOD.SLIP,
+      online_transfer: RECEIPT_PAYMENT_METHOD.SLIP,
       cheque: RECEIPT_PAYMENT_METHOD.CHECK,
       credit: RECEIPT_PAYMENT_METHOD.CREDIT,
       e_wallet: RECEIPT_PAYMENT_METHOD.E_WALLET,
       ewallet: RECEIPT_PAYMENT_METHOD.E_WALLET,
+      other: RECEIPT_PAYMENT_METHOD.CASH,
     };
     return legacy[method.trim().toLowerCase()] ?? null;
   }

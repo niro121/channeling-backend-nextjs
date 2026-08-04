@@ -50,8 +50,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
 
     const stored = loadDraft();
     if (stored) {
-      // Numbers are assigned on save — never restore previously reserved values.
-      setDraft({ ...stored, bxtNumber: '', billNumber: '' });
+      setDraft({ ...stored, billNumber: '' });
     }
     setHydrated(true);
   }, [isEditPage, loadDraft]);
@@ -70,7 +69,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
 
   const handleSaveDraft = () => {
     if (isEditPage) return;
-    saveDraft({ ...draft, bxtNumber: '', billNumber: '' });
+    saveDraft({ ...draft, billNumber: '' });
     toast({
       title: 'Draft saved',
       description: 'Your bill draft has been saved locally.',
@@ -164,7 +163,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
             <p className="text-sm text-muted-foreground mt-1">
               {isEditPage
                 ? 'Update admission and customer details. Manage doctor charges from the bill detail page.'
-                : 'BHT and Bill numbers are assigned on save. Save admission details alone as Draft, then add doctor charges later.'}
+                : 'Enter BHT manually. Bill number is assigned on save. You can save admission details as Draft, then add doctor charges later.'}
             </p>
           </div>
         </div>

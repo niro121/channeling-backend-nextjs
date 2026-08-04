@@ -75,3 +75,38 @@ export async function generateCancelReceiptNumber(
     locationName,
   };
 }
+
+/**
+ * Overpayment refund receipts:
+ * `{Location.code}DPAY-OVR/########`
+ * Sequence scope: `{locationId}-overpaymentrefundreceipts`
+ */
+export async function generateOverpaymentRefundReceiptNumber(
+  userId: string | null | undefined
+): Promise<
+  GeneratedReceiptNumber & {
+    locationId: string;
+    locationCode: string;
+    locationName: string;
+  }
+> {
+  const location = await getUserLocationConfig(userId);
+  if (!location.success) {
+    throw new Error(location.message);
+  }
+
+  const { locationId, locationCode, locationName } = location.data;
+  const scopeKey = `${locationId}-overpaymentrefundreceipts`;
+  const result = await getNextSequenceNumber(scopeKey, { startFrom: 1 });
+
+  if (!result.success) {
+    throw new Error('Unable to generate overpayment refund receipt number');
+  }
+
+  return {
+    receiptNumber: `${locationCode}DPAY-OVR/${pad(result.value, 8)}`,
+    locationId,
+    locationCode,
+    locationName,
+  };
+}

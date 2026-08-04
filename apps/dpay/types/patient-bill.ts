@@ -4,7 +4,14 @@ import {
   type ReceiptPaymentMethod,
 } from '@archmage/shared';
 
-export type PatientBillStatus = 'draft' | 'pending' | 'partial' | 'paid' | 'closed' | 'cancelled';
+export type PatientBillStatus =
+  | 'draft'
+  | 'pending'
+  | 'partial'
+  | 'paid'
+  | 'over_paid'
+  | 'closed'
+  | 'cancelled';
 
 export type PatientBillReceiptStatus = 'active' | 'cancelled' | 'refund';
 
@@ -219,6 +226,7 @@ export type PatientBillSummary = {
 };
 
 export type PatientBillFormErrors = {
+  bxtNumber?: string;
   admissionDate?: string;
   customerName?: string;
   lineItems?: Record<string, LineItemFormErrors>;

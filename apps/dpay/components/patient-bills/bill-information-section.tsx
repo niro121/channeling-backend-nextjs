@@ -1,7 +1,7 @@
 'use client';
 
 import { Hash } from 'lucide-react';
-import { Badge, CustomDatePickerField, Input, Label, Textarea } from '@archmage/ui';
+import { CustomDatePickerField, Input, Label, Textarea } from '@archmage/ui';
 import type { PatientBillDraft, PatientBillFormErrors } from '@/types/patient-bill';
 
 type BillInformationSectionProps = {
@@ -21,26 +21,33 @@ function toDateString(date: Date | null): string | null {
   return date.toISOString();
 }
 
-function AutoNumberField({ id, label, value }: { id: string; label: string; value: string }) {
-  const displayValue = value.trim() || 'Assigned on save';
+function BhtNumberField({
+  id,
+  value,
+  error,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        BHT Number <span className="text-destructive">*</span>
+      </Label>
       <div className="relative">
         <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id={id}
-          readOnly
-          value={displayValue}
-          className="h-10 bg-emerald-50/80 pl-9 pr-16 font-medium text-foreground"
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          placeholder="e.g. BHT-2026-000123"
+          className={`h-10 pl-9 font-medium ${error ? 'border-destructive' : ''}`}
         />
-        <Badge
-          variant="secondary"
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-        >
-          AUTO
-        </Badge>
       </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -51,13 +58,29 @@ export function BillInformationSection({ draft, errors, onChange }: BillInformat
       <div>
         <h2 className="text-base font-semibold">Bill Information</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Identifiers are assigned automatically on save, plus admission details.
+          Enter the BHT number manually. Bill number is assigned automatically on save.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <AutoNumberField id="bht-number" label="BHT Number" value={draft.bxtNumber} />
-        <AutoNumberField id="bill-number" label="Bill Number" value={draft.billNumber} />
+        <BhtNumberField
+          id="bht-number"
+          value={draft.bxtNumber}
+          error={errors.bxtNumber}
+          onChange={(value) => onChange({ bxtNumber: value })}
+        />
+        <div className="space-y-2">
+          <Label htmlFor="bill-number">Bill Number</Label>
+          <div className="relative">
+            <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="bill-number"
+              readOnly
+              value={draft.billNumber.trim() || 'Assigned on save'}
+              className="h-10 bg-emerald-50/80 pl-9 font-medium text-foreground"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

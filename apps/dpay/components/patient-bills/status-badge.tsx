@@ -24,6 +24,10 @@ const STATUS_CONFIG: Record<
     label: 'Paid',
     className: 'border-transparent bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
   },
+  over_paid: {
+    label: 'Over Paid',
+    className: 'border-transparent bg-teal-100 text-teal-900 hover:bg-teal-100',
+  },
   closed: {
     label: 'Closed',
     className: 'border-transparent bg-indigo-100 text-indigo-900 hover:bg-indigo-100',
