@@ -22,7 +22,7 @@ export type PendingApprovalItem = {
   duration: string;
 };
 
-type PendingApprovalsSectionProps = {
+type SectionPendingApprovalsProps = {
   items?: PendingApprovalItem[];
 };
 
@@ -75,7 +75,7 @@ const workflowSteps = [
 /** UI-only pending approvals list with approve/reject stubs. */
 export default function SectionPendingApprovals({
   items = sampleItems
-}: PendingApprovalsSectionProps) {
+}: SectionPendingApprovalsProps) {
   return (
     <Card className="rounded-lg border border-border shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-3 pb-4">

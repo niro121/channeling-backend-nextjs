@@ -21,7 +21,7 @@ export type LeaveCalendarDayData = {
   entries?: LeaveCalendarDayEntry[];
 };
 
-type LeaveCalendarProps = {
+type SectionLeaveCalendarProps = {
   month?: number;
   year?: number;
   showFilters?: boolean;
@@ -267,7 +267,7 @@ export default function SectionLeaveCalendar({
   className,
   onMonthChange,
   onDaySelect
-}: LeaveCalendarProps) {
+}: SectionLeaveCalendarProps) {
   const now = new Date();
   const [internalMonth, setInternalMonth] = useState(getMonth(now));
   const [internalYear, setInternalYear] = useState(getYear(now));

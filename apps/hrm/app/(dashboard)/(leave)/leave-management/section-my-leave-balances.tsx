@@ -13,7 +13,7 @@ export type LeaveBalanceItem = {
   indicatorClassName: string;
 };
 
-type MyLeaveBalancesSectionProps = {
+type SectionMyLeaveBalancesProps = {
   items?: LeaveBalanceItem[];
 };
 
@@ -67,7 +67,7 @@ function formatRatio(used: number, total: number | null): string {
 /** UI-only my leave balances card with progress bars. */
 export default function SectionMyLeaveBalances({
   items = sampleBalances
-}: MyLeaveBalancesSectionProps) {
+}: SectionMyLeaveBalancesProps) {
   return (
     <Card className="rounded-lg border border-border shadow-sm h-full">
       <CardHeader className="pb-4">
