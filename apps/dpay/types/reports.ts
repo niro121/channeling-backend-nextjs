@@ -1,8 +1,6 @@
 import type { DoctorPaymentMethod, DoctorPaymentStatus } from '@/types/doctor-payment';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 
-export type ReportTab = 'receipts' | 'doctor-payments';
-
 export type ReceiptReportRow = {
   id: string;
   receiptNumber: string;
@@ -73,4 +71,111 @@ export type DoctorPaymentReportExportRow = {
   status: string;
   paymentMethod: string;
   createdAt: string;
+};
+
+export type PatientDueReportRow = {
+  id: string;
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  status: string;
+};
+
+export type PatientDueReportParams = {
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type PatientDueReportResult = {
+  data: PatientDueReportRow[];
+  totalRecords: number;
+  totalDue: number;
+  hasMore: boolean;
+};
+
+export type PatientDueReportExportRow = {
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  totalAmount: string;
+  paidAmount: string;
+  dueAmount: string;
+  status: string;
+};
+
+export type PatientExcessReportRow = {
+  id: string;
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  excessAmount: number;
+  status: string;
+};
+
+export type PatientExcessReportParams = {
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type PatientExcessReportResult = {
+  data: PatientExcessReportRow[];
+  totalRecords: number;
+  totalExcess: number;
+  hasMore: boolean;
+};
+
+export type PatientExcessReportExportRow = {
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  totalAmount: string;
+  paidAmount: string;
+  excessAmount: string;
+  status: string;
+};
+
+export type DoctorDuePaymentReportRow = {
+  id: string;
+  doctorName: string;
+  billId: string;
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  dueAmount: number;
+  billStatus: string;
+};
+
+export type DoctorDuePaymentReportParams = {
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type DoctorDuePaymentReportResult = {
+  data: DoctorDuePaymentReportRow[];
+  totalRecords: number;
+  totalDue: number;
+  hasMore: boolean;
+};
+
+export type DoctorDuePaymentReportExportRow = {
+  doctorName: string;
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  admissionDate: string;
+  dueAmount: string;
+  billStatus: string;
 };
