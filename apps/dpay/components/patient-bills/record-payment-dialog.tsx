@@ -25,7 +25,7 @@ import {
 import type { PatientBillDetail, PatientBillPaymentMethod, PatientBillReceipt } from '@/types/patient-bill';
 import { PATIENT_BILL_PAYMENT_METHODS } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { formatAmountFixed, parseAmountInput } from '@/lib/patient-bills/validations';
+import { formatAmountFixed, parseAmountInput, sanitizeAmountDraftInput } from '@/lib/patient-bills/validations';
 import {
   hasRecordPaymentErrors,
   validateRecordPaymentForm,
@@ -327,7 +327,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
                 placeholder="0.00"
                 value={amountReceived}
                 onChange={(e) => {
-                  setAmountReceived(e.target.value);
+                  setAmountReceived(sanitizeAmountDraftInput(e.target.value));
                   setErrors({});
                 }}
                 onBlur={() => {
@@ -491,7 +491,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
           </div>
 
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Payment date is set on save. Bill status updates to Partially Paid or Paid based on amount.
+            Payment date is set on save. Bill status updates to Partially Paid, Paid, or Over Paid based on amount.
           </p>
         </div>
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Ban, CheckCircle2, Pencil } from 'lucide-react';
+import { Ban, CheckCircle2, Pencil, Undo2 } from 'lucide-react';
 import { BackButton, Button } from '@archmage/ui';
 import type { PatientBillDetail } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
@@ -15,6 +15,7 @@ import { BillPaymentHistory } from './bill-payment-history';
 import { RecordPaymentDialog } from './record-payment-dialog';
 import { CancelPatientBillDialog } from './cancel-patient-bill-dialog';
 import { ClosePatientBillDialog } from './close-patient-bill-dialog';
+import { RefundOverpaymentDialog } from './refund-overpayment-dialog';
 
 type PatientBillDetailViewProps = {
   bill: PatientBillDetail;
@@ -24,13 +25,18 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
   const isCancelled = bill.status === 'cancelled';
   const isClosed = bill.status === 'closed';
   const isDraft = bill.status === 'draft';
   const isLocked = isCancelled || isClosed;
   const canEdit = !isLocked;
-  const canClose = bill.status === 'paid';
+  const canClose = bill.status === 'paid' || bill.status === 'over_paid';
   const canPay = !isLocked && !isDraft && bill.outstandingAmount > 0;
+  const overpaidAmount = Math.max(0, bill.paidAmount - bill.totalAmount);
+  const canRefundOverpayment = !isLocked && overpaidAmount > 0;
+  /** Closed bills stay non-editable; cancel voids the bill + active receipts. */
+  const canCancelBill = !isCancelled;
 
   return (
     <div className="space-y-6">
@@ -58,7 +64,14 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
             ) : null}
             {isClosed ? (
               <p className="text-sm text-indigo-800">
-                This bill is closed and can no longer be modified.
+                This bill is closed and can no longer be edited. Use Cancel Bill to void it
+                and refund linked receipts.
+              </p>
+            ) : null}
+            {bill.status === 'over_paid' ? (
+              <p className="text-sm text-teal-800">
+                This bill is over-paid by {formatLkr(overpaidAmount)}. Use Refund to settle the
+                excess and generate a separate refund receipt.
               </p>
             ) : null}
           </div>
@@ -90,29 +103,39 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
                 Close
               </Button>
             )}
-            {!isLocked && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  type="button"
-                  onClick={() => setCancelOpen(true)}
-                >
-                  <Ban className="h-4 w-4" />
-                  Cancel Bill
-                </Button>
-                {!isDraft && (
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={!canPay}
-                    onClick={() => setPaymentOpen(true)}
-                  >
-                    Pay {formatLkr(bill.outstandingAmount)}
-                  </Button>
-                )}
-              </>
+            {canCancelBill && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                type="button"
+                onClick={() => setCancelOpen(true)}
+              >
+                <Ban className="h-4 w-4" />
+                Cancel Bill
+              </Button>
+            )}
+            {canRefundOverpayment && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-teal-300 text-teal-800 hover:bg-teal-50 hover:text-teal-900"
+                type="button"
+                onClick={() => setRefundOpen(true)}
+              >
+                <Undo2 className="h-4 w-4" />
+                Refund {formatLkr(overpaidAmount)}
+              </Button>
+            )}
+            {!isLocked && !isDraft && (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                disabled={!canPay}
+                onClick={() => setPaymentOpen(true)}
+              >
+                Pay {formatLkr(bill.outstandingAmount)}
+              </Button>
             )}
           </div>
         </div>
@@ -188,6 +211,13 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
         onOpenChange={setCloseOpen}
         billId={bill.id}
         billNumber={bill.billNumber}
+      />
+      <RefundOverpaymentDialog
+        open={refundOpen}
+        onOpenChange={setRefundOpen}
+        billId={bill.id}
+        billNumber={bill.billNumber}
+        overpaidAmount={overpaidAmount}
       />
     </div>
   );

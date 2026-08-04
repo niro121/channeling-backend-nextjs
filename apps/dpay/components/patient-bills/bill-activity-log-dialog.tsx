@@ -39,6 +39,7 @@ function actionLabel(action: string): string {
     'patient-bills.patient-bill.line-item.created': 'Line item added',
     'patient-bills.patient-bill.line-item.deleted': 'Line item removed',
     'patient-bills.patient-bill.payment.recorded': 'Payment recorded',
+    'patient-bills.patient-bill.overpayment.refunded': 'Overpayment refunded',
     'patient-bills.patient-bill.cancelled': 'Bill cancelled',
     'patient-bills.patient-bill.closed': 'Bill closed',
     'patient-bills.patient-bill.visited': 'Bill viewed',
@@ -108,6 +109,9 @@ function metadataSummary(entry: BillActivityLogEntry): string | null {
   }
   if (typeof meta.amountReceived === 'number') {
     parts.push(`Paid ${formatLkr(meta.amountReceived)}`);
+  }
+  if (typeof meta.refundAmount === 'number') {
+    parts.push(`Refunded ${formatLkr(meta.refundAmount)}`);
   }
   if (typeof meta.receiptNumber === 'string' && meta.receiptNumber.trim()) {
     parts.push(meta.receiptNumber);

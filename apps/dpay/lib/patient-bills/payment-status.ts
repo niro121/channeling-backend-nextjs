@@ -12,6 +12,7 @@ export function computeBillPaymentStatus(
 ): PatientBillStatus {
   if (totalAmount <= 0 && paidAmount <= 0) return 'draft';
   if (paidAmount <= 0) return 'pending';
+  if (totalAmount > 0 && paidAmount > totalAmount) return 'over_paid';
   if (paidAmount >= totalAmount && totalAmount > 0) return 'paid';
   return 'partial';
 }

@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
+import { isDoctorPaidLineItem } from '@/lib/doctor-payments/eligibility';
 import { computeBillPaymentStatus } from '@/lib/patient-bills/payment-status';
 import {
-  activeLineItemWhere,
   BILL_LINE_ITEM_STATUS,
   isDeletedLineItem,
   normalizeLineItemStatus,
@@ -63,7 +63,7 @@ export async function removePatientBillLineItem(
       return { success: false, message: 'This line item has already been removed.' };
     }
 
-    if (item.doctorPaymentId) {
+    if (isDoctorPaidLineItem(item)) {
       return {
         success: false,
         message:

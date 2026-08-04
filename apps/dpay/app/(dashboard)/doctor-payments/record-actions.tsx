@@ -14,7 +14,7 @@ type DoctorPaymentRecordActionsProps = {
 
 export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsProps) {
   const openView = useDoctorPaymentsView()?.openView;
-  const isCancelled = row.original.status === 'cancelled';
+  const canCancel = row.original.status === 'paid';
   const [cancelOpen, setCancelOpen] = useState(false);
 
   return (
@@ -30,7 +30,7 @@ export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsPr
         <Eye className="h-4 w-4" />
         <span className="sr-only">View</span>
       </Button>
-      {!isCancelled && (
+      {canCancel ? (
         <Button
           variant="outline"
           size="sm"
@@ -42,12 +42,13 @@ export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsPr
           <Ban className="h-3.5 w-3.5" />
           Cancel
         </Button>
-      )}
+      ) : null}
       <CancelDoctorPaymentDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         paymentId={row.original.id}
         receiptNumber={row.original.receiptNo}
+        originalPaymentMethod={row.original.method}
       />
     </div>
   );

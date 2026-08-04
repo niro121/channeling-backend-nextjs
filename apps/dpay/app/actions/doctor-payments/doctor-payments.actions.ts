@@ -13,6 +13,7 @@ import type {
   GetDoctorPaymentsParams,
   ProcessDoctorPaymentInput,
 } from '@/types/doctor-payment';
+import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 
 export async function getDoctorPaymentsAction(params: GetDoctorPaymentsParams = {}) {
   await requirePermission('doctor-payments', 'view');
@@ -50,7 +51,16 @@ export async function processDoctorPaymentAction(input: ProcessDoctorPaymentInpu
   return result;
 }
 
-export async function cancelDoctorPaymentAction(paymentId: string, cancelReason: string) {
+export async function cancelDoctorPaymentAction(input: {
+  paymentId: string;
+  cancelReason: string;
+  refundPaymentMethod: PatientBillPaymentMethod;
+  bank?: string;
+  bankId?: string;
+  cardReference?: string;
+  slipReference?: string;
+  slipDate?: string;
+}) {
   await requirePermission('doctor-payments', 'add');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
@@ -58,8 +68,14 @@ export async function cancelDoctorPaymentAction(paymentId: string, cancelReason:
   }
 
   const result = await cancelDoctorPayment({
-    paymentId,
-    cancelReason,
+    paymentId: input.paymentId,
+    cancelReason: input.cancelReason,
+    refundPaymentMethod: input.refundPaymentMethod,
+    bank: input.bank,
+    bankId: input.bankId,
+    cardReference: input.cardReference,
+    slipReference: input.slipReference,
+    slipDate: input.slipDate,
     canceledBy: session.user.id,
     canceledByName: session.user.name ?? null,
   });

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ArrowLeft, Loader2 } from 'lucide-react';
+import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,11 +25,6 @@ import {
   Input,
   Label,
   SearchableSelector,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Table,
   TableBody,
   TableCell,
@@ -39,13 +35,22 @@ import {
   useToast,
 } from '@archmage/ui';
 import {
-  DOCTOR_PAYMENT_METHODS,
   DOCTOR_PAYMENT_WHT_PERCENTAGE,
   type DoctorOption,
-  type DoctorPaymentMethod,
   type EligibleDoctorBill,
 } from '@/types/doctor-payment';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import {
+  hasRecordPaymentErrors,
+  validatePaymentMethodFields,
+} from '@/lib/patient-bills/payment-validations';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
+import { StatusBadge } from '@/components/patient-bills/status-badge';
+import {
+  emptyPaymentMethodValues,
+  PaymentMethodFields,
+  type PaymentMethodValues,
+} from '@/components/receipts/payment-method-fields';
 import {
   getEligibleBillsForDoctorAction,
   processDoctorPaymentAction,
@@ -54,12 +59,6 @@ import {
 type MakeDoctorPaymentClientProps = {
   doctors: DoctorOption[];
 };
-
-function needsReference(method: DoctorPaymentMethod) {
-  return (
-    method === 'bank_transfer' || method === 'cheque' || method === 'online_transfer'
-  );
-}
 
 export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProps) {
   const router = useRouter();
@@ -74,11 +73,33 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
   const [loadingBills, setLoadingBills] = useState(false);
 
   const [applyWht, setApplyWht] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<DoctorPaymentMethod | ''>('');
-  const [referenceNumber, setReferenceNumber] = useState('');
+  const [payment, setPayment] = useState<PaymentMethodValues>(() =>
+    emptyPaymentMethodValues(RECEIPT_PAYMENT_METHOD.CASH)
+  );
+  const [paymentErrors, setPaymentErrors] = useState<
+    ReturnType<typeof validatePaymentMethodFields>
+  >({});
   const [remarks, setRemarks] = useState('');
   const [showPayConfirm, setShowPayConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleBanksError = useCallback(
+    (message: string) => {
+      toast({
+        variant: 'destructive',
+        title: 'Could not load banks',
+        description: message,
+      });
+    },
+    [toast]
+  );
+
+  const resetPaymentForm = () => {
+    setApplyWht(false);
+    setPayment(emptyPaymentMethodValues(RECEIPT_PAYMENT_METHOD.CASH));
+    setPaymentErrors({});
+    setRemarks('');
+  };
 
   const processedBills = useMemo(
     () => bills.filter((b) => processedBillIds.has(b.billId)),
@@ -116,14 +137,11 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
         setSelectedBillIds(new Set());
         setProcessedBillIds(new Set());
         setBillsLoaded(true);
-        setApplyWht(false);
-        setPaymentMethod('');
-        setReferenceNumber('');
-        setRemarks('');
+        resetPaymentForm();
         if (rows.length === 0) {
           toast({
             title: 'No eligible bills',
-            description: 'No paid bills are waiting for payment for this doctor.',
+            description: 'No open bills are waiting for payment for this doctor.',
           });
         }
       } catch (error) {
@@ -170,9 +188,17 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
   const validatePaymentForm = (): string | null => {
     if (processedBillIds.size === 0) return 'Process selected bills before paying.';
     if (totalSelectedAmount <= 0) return 'Payable amount must be greater than zero.';
-    if (!paymentMethod) return 'Select a payment method.';
-    if (needsReference(paymentMethod) && !referenceNumber.trim()) {
-      return 'Reference number is required for this payment method.';
+    const methodErrors = validatePaymentMethodFields({
+      paymentMethod: payment.paymentMethod,
+      bank: payment.bank,
+      bankId: payment.bankId,
+      cardReference: payment.cardReference,
+      slipReference: payment.slipReference,
+      slipDate: payment.slipDate,
+    });
+    setPaymentErrors(methodErrors);
+    if (hasRecordPaymentErrors(methodErrors)) {
+      return 'Please complete the payment method details.';
     }
     return null;
   };
@@ -188,8 +214,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
 
   const handleConfirmPay = async () => {
     const error = validatePaymentForm();
-    if (error || !paymentMethod) {
-      toast({ variant: 'destructive', title: 'Cannot pay', description: error ?? 'Invalid form.' });
+    if (error) {
+      toast({ variant: 'destructive', title: 'Cannot pay', description: error });
       return;
     }
 
@@ -198,9 +224,13 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
       const result = await processDoctorPaymentAction({
         doctorName,
         billIds: Array.from(processedBillIds),
-        paymentMethod,
+        paymentMethod: payment.paymentMethod,
         applyWht,
-        referenceNumber: referenceNumber.trim() || undefined,
+        bank: payment.bank,
+        bankId: payment.bankId || undefined,
+        cardReference: payment.cardReference,
+        slipReference: payment.slipReference,
+        slipDate: payment.slipDate,
         remarks: remarks.trim() || undefined,
       });
 
@@ -236,7 +266,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Doctor Payment</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Select a doctor, process eligible paid bills, then pay.
+            Select a doctor, load open bills with unpaid doctor fees, then pay. Patient
+            payment is not required.
           </p>
         </div>
         <Button
@@ -255,7 +286,9 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">1. Select Doctor</CardTitle>
-          <CardDescription>Choose the doctor and load unpaid bills ready for payout.</CardDescription>
+          <CardDescription>
+            Choose the doctor and load unpaid doctor fee lines ready for payout.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -279,8 +312,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                 />
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-                  No doctors with unpaid lines on fully paid patient bills. Pay a patient bill
-                  (status Paid) first, then return here.
+                  No doctors with unpaid fee lines on open patient bills (pending, partial,
+                  or paid). Add doctor charges on a patient bill, then return here.
                 </div>
               )}
             </div>
@@ -307,6 +340,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
               <CardTitle className="text-base">2. Bills Ready for Payment</CardTitle>
               <CardDescription>
                 Select bills to include in this payout. Full payable amount is used per bill.
+                Patient collection status is shown for reference — unpaid patient bills are
+                still eligible.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -351,6 +386,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                   <TableHead className="w-10" />
                   <TableHead>Bill Number</TableHead>
                   <TableHead>Patient Name</TableHead>
+                  <TableHead>Patient Status</TableHead>
                   <TableHead>Admission Date</TableHead>
                   <TableHead>Doctor</TableHead>
                   <TableHead className="text-right">Doctor Fee (LKR)</TableHead>
@@ -362,13 +398,13 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
               <TableBody>
                 {!billsLoaded ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                       Select a doctor and click Load Bills.
                     </TableCell>
                   </TableRow>
                 ) : bills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                       No eligible bills for this doctor.
                     </TableCell>
                   </TableRow>
@@ -386,6 +422,9 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                         {bill.billNumber}
                       </TableCell>
                       <TableCell>{bill.patientName}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={bill.billStatus} />
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {format(new Date(bill.admissionDate), 'dd MMM yyyy')}
                       </TableCell>
@@ -468,33 +507,17 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Payment Method</Label>
-              <Select
-                value={paymentMethod || undefined}
-                onValueChange={(v) => setPaymentMethod(v as DoctorPaymentMethod)}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-md border bg-muted/20 p-4">
+              <PaymentMethodFields
+                value={payment}
+                onChange={(next) => {
+                  setPayment(next);
+                  setPaymentErrors({});
+                }}
+                errors={paymentErrors}
                 disabled={!paymentReady}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCTOR_PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Reference Number</Label>
-              <Input
-                placeholder="Enter reference number"
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-                disabled={!paymentReady}
+                onBanksError={handleBanksError}
               />
             </div>
             <div className="space-y-2">
@@ -504,8 +527,11 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 disabled={!paymentReady}
-                rows={3}
+                rows={6}
               />
+              <p className="text-xs text-muted-foreground">
+                Method: {paymentMethodLabel(payment.paymentMethod)}
+              </p>
             </div>
           </div>
 
@@ -534,8 +560,9 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
             <AlertDialogTitle>Confirm doctor payment</AlertDialogTitle>
             <AlertDialogDescription>
               You are about to process the doctor payment for {processedBillIds.size} bill
-              {processedBillIds.size !== 1 ? 's' : ''}. This will create a receipt and mark the
-              selected bills as paid to the doctor.
+              {processedBillIds.size !== 1 ? 's' : ''} via{' '}
+              <strong>{paymentMethodLabel(payment.paymentMethod)}</strong>. This will create a
+              receipt and mark the selected bills as paid to the doctor.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-3">

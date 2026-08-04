@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button, Input } from '@archmage/ui';
 import type { BillLineItem } from '@/types/patient-bill';
-import { formatAmountFixed, parseAmountInput } from '@/lib/patient-bills/validations';
+import { formatAmountFixed, parseAmountInput, sanitizeAmountDraftInput } from '@/lib/patient-bills/validations';
 import { DoctorSearchSelect } from './doctor-search-select';
 
 type BillBreakdownRowProps = {
@@ -28,9 +28,11 @@ export function BillBreakdownRow({
     item.amount === 0 ? '' : formatAmountFixed(item.amount)
   );
 
+  // Reset local draft only when switching rows — not on every parsed amount update,
+  // otherwise typing e.g. "100" becomes "1.00" after the first digit.
   useEffect(() => {
     setAmountDraft(item.amount === 0 ? '' : formatAmountFixed(item.amount));
-  }, [item.id, item.amount]);
+  }, [item.id]);
 
   return (
     <tr className="border-b last:border-b-0">
@@ -64,13 +66,20 @@ export function BillBreakdownRow({
           placeholder="0.00"
           value={amountDraft}
           onChange={(e) => {
-            setAmountDraft(e.target.value);
-            onChange({ amount: parseAmountInput(e.target.value) });
+            const raw = sanitizeAmountDraftInput(e.target.value);
+            setAmountDraft(raw);
+            onChange({ amount: parseAmountInput(raw) });
           }}
           onBlur={() => {
-            const next = parseAmountInput(amountDraft);
+            const raw = amountDraft.trim();
+            if (raw === '') {
+              onChange({ amount: 0 });
+              setAmountDraft('');
+              return;
+            }
+            const next = parseAmountInput(raw);
             onChange({ amount: next });
-            setAmountDraft(next === 0 ? '' : formatAmountFixed(next));
+            setAmountDraft(formatAmountFixed(next));
           }}
           className={errors?.amount ? 'border-destructive tabular-nums' : 'tabular-nums'}
         />

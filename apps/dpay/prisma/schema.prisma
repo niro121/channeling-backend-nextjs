@@ -151,17 +151,28 @@ model DoctorPayment {
   doctorName           String
   paymentMethod        String
   referenceNumber      String?
+  bank                 String?
+  bankId               String?
+  cardReference        String?
+  slipReference        String?
+  slipDate             DateTime?
   remarks              String?
   locationId           String?
   locationCode         String?
+  /// Denormalized location name (same pattern as patient bill receipts).
+  locationName         String?
   totalAmount          Float
   whtAmount            Float     @default(0)
   whtPercentage        Float     @default(0)
   netAmount            Float
   applyWht             Boolean   @default(false)
+  /// paid | cancelled | refund
   status               String    @default("paid")
   cancelReason         String?
+  /// On the original payment: receipt number of the linked refund row.
   cancelReceiptNumber  String?
+  /// On a refund row: id of the original doctor payment.
+  refundOfPaymentId    String?   @db.ObjectId
   canceledAt           DateTime?
   canceledBy           String?   @db.ObjectId
   canceledByName       String?

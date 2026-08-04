@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma';
 import type {
   DoctorPaymentDetail,
-  DoctorPaymentMethod,
   DoctorPaymentStatus,
 } from '@/types/doctor-payment';
 
@@ -26,12 +25,21 @@ export async function getDoctorPaymentById(
     receiptNumber: record.receiptNumber,
     status: record.status as DoctorPaymentStatus,
     doctorName: record.doctorName,
-    paymentMethod: record.paymentMethod as DoctorPaymentMethod,
+    paymentMethod: record.paymentMethod,
     referenceNumber: record.referenceNumber,
+    bank: record.bank,
+    bankId: record.bankId,
+    cardReference: record.cardReference,
+    slipReference: record.slipReference,
+    slipDate: record.slipDate?.toISOString() ?? null,
     remarks: record.remarks,
     cancelReason: record.cancelReason,
     cancelReceiptNumber: record.cancelReceiptNumber,
+    refundOfPaymentId: record.refundOfPaymentId,
     canceledAt: record.canceledAt?.toISOString() ?? null,
+    locationId: record.locationId,
+    locationCode: record.locationCode,
+    locationName: record.locationName,
     totalAmount: record.totalAmount,
     whtAmount: record.whtAmount,
     whtPercentage: record.whtPercentage,
