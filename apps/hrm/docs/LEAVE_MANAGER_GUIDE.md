@@ -3,7 +3,8 @@
 Guidance for building and extending leave features in `apps/hrm`.  
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
-**Status:** Prisma models exist; UI is largely sample-data / stubs. Wire services → actions → UI next.
+**Status:** Prisma models exist; UI is largely sample-data / stubs.  
+**Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
 
@@ -148,25 +149,183 @@ Checklist per new leave page:
 
 ---
 
-## 6. Layered implementation order
+## 6. Development phases (build in order)
 
-Follow Staff pattern:
+Do **not** skip ahead: each phase depends on the previous one. Within a phase, follow Staff layering:
 
 ```
-UI → Server Actions → Services (Zod + Prisma) → MongoDB
+Types/Zod → Service → Actions (permissions + activity log) → UI → Smoke test
 ```
 
-Recommended build order:
+Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx prisma db push` from `apps/hrm`.
 
-1. **LeaveType** CRUD (service + actions + simple manager page)
-2. **LeaveEntitlement** CRUD + balance reads
-3. **LeaveApplication** create/update/list + Sequence `formNumber`
-4. Approve / reject / cancel actions that adjust entitlement `used`
-5. Replace sample data in existing leave UIs
-6. Management dashboard queries (pending, calendar from approved apps)
-7. Later: GatePass, Shift masters, approval history
+### Phase checklist overview
 
-### Suggested folders
+| Phase | Name | Outcome |
+|-------|------|---------|
+| **0** | Foundation | DB + shared leave types; client generated |
+| **1** | Leave Types | Master CRUD live |
+| **2** | Entitlements | Per-staff yearly balances CRUD + register UI wired |
+| **3** | Applications (CRUD) | Create/list/update/delete + filters; form numbers |
+| **4** | Workflow | Approve / reject / cancel updates entitlement `used` |
+| **5** | Application UX polish | Recalculate, shifts stubs, balance card, view/edit flows |
+| **6** | Leave Management | Real pending/balances/calendar queries |
+| **7** | Hardening | Permissions matrix, exports, bulk delete, activity logs |
+| **8** | v2 (optional) | Gate pass, shift masters, approval history |
+
+---
+
+### Phase 0 — Foundation
+
+**Goal:** Schema and shared contracts ready for services.
+
+| Done when |
+|-----------|
+| [ ] `LeaveType` / `LeaveEntitlement` / `LeaveApplication` in schema (already added) |
+| [ ] `prisma generate` (+ `db push` on target env) |
+| [ ] `types/leave.ts` — shared statuses, day helpers, payload types |
+| [ ] Sequence scope decided: e.g. `leave-application` for `formNumber` |
+
+**Out of scope:** UI changes.
+
+---
+
+### Phase 1 — Leave Types manager
+
+**Goal:** HR can maintain Annual / Casual / Medical / etc.
+
+| Layer | Work |
+|-------|------|
+| Service | `leave-type.service.ts` — list (paged), get, create, update, soft/hard status |
+| Actions | `leave-type.actions.ts` — `requirePermission('leave-types', …)` |
+| UI | `/leave-types` list + add/edit (Staff-like or simple form); sidebar already reserved |
+| Permissions | Grant `leave-types` on Auth User Group for testers |
+
+| Done when |
+|-----------|
+| [ ] Non-admin with view/add/edit/delete works end-to-end |
+| [ ] Active types appear as options for later phases |
+| [ ] Activity log on create/update/delete |
+
+**Blocks:** Phase 2–3 dropdowns.
+
+---
+
+### Phase 2 — Leave Entitlement
+
+**Goal:** Assign yearly entitlements; show register + balance.
+
+| Layer | Work |
+|-------|------|
+| Service | CRUD; enforce `@@unique([staffId, leaveTypeId, year])`; compute `remaining` on write |
+| Actions | Entitlement actions + permission `leave-entitlement` |
+| UI | Replace sample data on `/leave-entitlement` (filter, form, table, balance section) |
+
+| Done when |
+|-----------|
+| [ ] Create/edit entitlement for a staff + type + year |
+| [ ] Duplicate unique key surfaces a clear error |
+| [ ] Balance cards reflect `entitled` / `used` / `remaining` (used may still be 0 until Phase 4) |
+
+**Blocks:** Meaningful application balance / approve.
+
+---
+
+### Phase 3 — Leave Application CRUD
+
+**Goal:** Persist applications; wire left form + right list without approval side effects yet.
+
+| Layer | Work |
+|-------|------|
+| Service | Create/update/list/get/delete; allocate `formNumber` via Sequence; compute `days`; store `outWithCancel`, snapshots optional |
+| Actions | `leave-application` permissions; strip client audit fields |
+| UI | `/leave-application` — form save/clear/delete; filters; table; view dialog; staff-code link |
+
+| Done when |
+|-----------|
+| [ ] New application appears in register after Save |
+| [ ] Filters (staff, type, dates by mode, approver, outWithCancel) hit the DB |
+| [ ] Export / column toggle work against real rows |
+| [ ] Status stays `pending` on create (no entitlement change yet) |
+
+**Note:** Process Shift / Lieu may still write stub embedded data; full roster not required.
+
+---
+
+### Phase 4 — Approval workflow
+
+**Goal:** Status transitions keep entitlement `used` / `remaining` correct.
+
+| Layer | Work |
+|-------|------|
+| Service | `approve` / `reject` / `cancel` in **transactions**; set `approverId` + `approverName` + `approvedAt` |
+| Actions | Permission checks; activity log per transition |
+| UI | Management pending list + application row actions (approve/reject/cancel) |
+
+| Done when |
+|-----------|
+| [ ] Approve increases `used` and decreases `remaining` for that staff/type/year |
+| [ ] Cancel after approve reverses usage (floor at 0) |
+| [ ] Reject pending does not change entitlement |
+| [ ] Double-approve / invalid transition is rejected safely |
+
+**Blocks:** Trustworthy management dashboard numbers.
+
+---
+
+### Phase 5 — Application UX polish
+
+**Goal:** Form behaviours match product screens.
+
+| Work |
+|------|
+| [ ] Recalculate → entitlement snapshots + days |
+| [ ] Process Shift → populate `shifts[]` (rules as agreed; stub OK) |
+| [ ] Process Lieu Shift → `lieuShiftId` / label |
+| [ ] Leave Balance card on form from live entitlement aggregate |
+| [ ] Edit flow: select row / staff code → load form |
+| [ ] Half-day validation (multiples of `0.5` when `allowHalfDay`) |
+
+---
+
+### Phase 6 — Leave Management dashboard
+
+**Goal:** Replace placeholders with queries on real applications/entitlements.
+
+| Work |
+|------|
+| [ ] Count cards (on leave today, pending, approved/rejected month) |
+| [ ] Pending approvals list → Phase 4 actions |
+| [ ] My leave balances (session user’s staff link via Auth `User.staffId`) |
+| [ ] Calendar from approved applications in range |
+| [ ] Gate pass — keep placeholder until Phase 8 |
+
+---
+
+### Phase 7 — Hardening
+
+| Work |
+|------|
+| [ ] Bulk delete applications (and policy: only pending?) |
+| [ ] Export columns match live fields |
+| [ ] Auth User Group can grant all leave resources (HRM matrix or extended Channeling RESOURCES) |
+| [ ] Smoke: create type → entitlement → apply → approve → balances |
+| [ ] Non-admin permission matrix test (view-only vs full CRUD) |
+
+---
+
+### Phase 8 — v2 (optional, after v1 stable)
+
+| Work |
+|------|
+| [ ] Gate pass model + Management section |
+| [ ] Shift / roster masters; optional FKs on application (keep label snapshots) |
+| [ ] Approval history collection |
+| [ ] Financial-year entitlements (only if product switches from calendar year) |
+
+---
+
+### Suggested folders (from Phase 1 onward)
 
 ```
 services/leave-services/
@@ -185,6 +344,8 @@ lib/mappers/leave-*.mapper.ts   # when forms are non-trivial
 
 Activity log examples: `leave.application.created`, `leave.application.approved`, entityType `LeaveApplication`.
 
+**How to use this list:** Finish a phase’s “Done when” before starting the next. Prefer vertical slices (service → action → one UI path) inside each phase rather than building all services first.
+
 ---
 
 ## 7. Shared utilities
@@ -198,6 +359,8 @@ Activity log examples: `leave.application.created`, `leave.application.approved`
 ---
 
 ## 8. Deferred / v2
+
+See **Phase 8**. Summary:
 
 | Item | Notes |
 |------|--------|
@@ -217,6 +380,7 @@ Activity log examples: `leave.application.created`, `leave.application.approved`
 5. Unmapped routes stay open in `canAccessRoute` — always register leave routes.
 6. Permission changes need re-login (JWT snapshot).
 7. When Shift models arrive, prefer additive FKs + keep labels — don’t wipe historical shift text on old applications.
+8. **Do not** start Phase 4 before Phase 2–3 — approvals without entitlements/applications will corrupt or no-op balances.
 
 ---
 
