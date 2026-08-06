@@ -3,6 +3,8 @@
 Use this document when building or extending features in `apps/hrm`.  
 **Staff Manager** (`app/(dashboard)/staff`) is the reference implementation for list + tabbed CRUD managers.
 
+Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).
+
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 
 - `apps/channeling/docs/COMPONENT_AUDIT_SKELETON.md`

@@ -12,6 +12,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* ---------------------------------
+STAFF TABLE
+--------------------------------- */
 type StaffHrDetails {
   initials               String?
   firstName              String?
@@ -155,6 +158,9 @@ model Staff {
   personnelDetails StaffPersonnelDetails?
   employmentDetails StaffEmploymentDetails?
 
+  leaveEntitlements LeaveEntitlement[]
+  leaveApplications LeaveApplication[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
@@ -165,6 +171,115 @@ model Staff {
   @@index([name])
 }
 
+/* ---------------------------------
+LEAVE
+--------------------------------- */
+
+model LeaveType {
+  id                   String  @id @default(auto()) @map("_id") @db.ObjectId
+  code                 String  @unique
+  name                 String
+  description          String?
+  isPaid               Boolean @default(true)
+  requiresApproval     Boolean @default(true)
+  allowHalfDay         Boolean @default(true)
+  maxDaysPerYear       Float?
+  carryForwardAllowed  Boolean @default(false)
+  maxCarryForwardDays  Float?
+  status               Int     @default(1) // 0 = Inactive, 1 = Active
+
+  entitlements LeaveEntitlement[]
+  applications LeaveApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([status])
+  @@index([name])
+}
+
+model LeaveEntitlement {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  staffId      String @db.ObjectId
+  leaveTypeId  String @db.ObjectId
+  year         Int // Calendar year (e.g. 2026)
+  entitled     Float  @default(0)
+  used         Float  @default(0) // Updated on approve / cancel-after-approve
+  remaining    Float  @default(0) // entitled + carryForward - used
+  carryForward Float  @default(0)
+  status       String @default("active") // active | expired | pending
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@unique([staffId, leaveTypeId, year])
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([year])
+  @@index([status])
+}
+
+/// Shift rows produced by "Process Shift" on a leave application.
+type LeaveApplicationShift {
+  shiftLabel String
+  from       DateTime
+  to         DateTime
+  shiftDate  DateTime?
+}
+
+model LeaveApplication {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber    String    @unique
+  staffId       String    @db.ObjectId
+  leaveTypeId   String    @db.ObjectId
+  fromDate      DateTime
+  toDate        DateTime
+  days          Float     @default(0) // Whole or half days (e.g. 0.5, 1, 1.5)
+  requestedDate DateTime?
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId    String?   @db.ObjectId
+  approverName  String? // Denormalized for list display
+  approvedAt    DateTime?
+  status        String    @default("pending") // pending | approved | rejected | cancelled
+  outWithCancel Boolean   @default(false)
+  comment       String?
+  lieuShiftId   String?
+  lieuShiftLabel String?
+
+  /// Snapshot from Recalculate (optional audit of balance at request time).
+  entitleSnapshot   Float?
+  utilizedSnapshot  Float?
+  balanceSnapshot   Float?
+
+  shifts LeaveApplicationShift[]
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([status])
+  @@index([fromDate, toDate])
+  @@index([approverId])
+  @@index([outWithCancel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+ACTIVITY LOG TABLE
+--------------------------------- */
 // userId references auth DB User.id (no cross-DB Prisma relation).
 model ActivityLog {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -184,6 +299,9 @@ model ActivityLog {
   @@index([createdAt(sort: Desc)])
 }
 
+/* ---------------------------------
+SEQUENCE TABLE
+--------------------------------- */
 model Sequence {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   scopeKey  String   @unique
