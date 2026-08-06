@@ -151,14 +151,6 @@ export function DoctorPaymentDetailsDialog({
                   })}
                 />
                 <DetailRow label="Total Amount" value={formatLkr(detail.totalAmount)} />
-                <DetailRow
-                  label={
-                    detail.applyWht
-                      ? `WHT (${detail.whtPercentage}%)`
-                      : 'WHT'
-                  }
-                  value={formatLkr(detail.whtAmount)}
-                />
                 <DetailRow label="Net Amount" value={formatLkr(detail.netAmount)} highlight />
                 <DetailRow label="Remarks" value={detail.remarks?.trim() || '—'} />
                 {detail.status === 'refund' && detail.cancelReason?.trim() ? (

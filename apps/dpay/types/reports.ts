@@ -1,5 +1,5 @@
 import type { DoctorPaymentMethod, DoctorPaymentStatus } from '@/types/doctor-payment';
-import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import type { PatientBillPaymentMethod, PatientBillReceiptStatus } from '@/types/patient-bill';
 
 export type ReceiptReportRow = {
   id: string;
@@ -10,6 +10,7 @@ export type ReceiptReportRow = {
   paymentDate: string;
   paymentMethod: PatientBillPaymentMethod | string;
   amountPaid: number;
+  status: PatientBillReceiptStatus;
 };
 
 export type ReceiptReportParams = {
@@ -33,6 +34,7 @@ export type ReceiptReportExportRow = {
   paymentDate: string;
   paymentMethod: string;
   amountPaid: string;
+  status: string;
 };
 
 export type DoctorPaymentReportRow = {

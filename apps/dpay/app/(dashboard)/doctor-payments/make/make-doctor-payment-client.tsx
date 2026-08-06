@@ -14,7 +14,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
   Button,
   Card,
   CardContent,
@@ -35,7 +34,6 @@ import {
   useToast,
 } from '@archmage/ui';
 import {
-  DOCTOR_PAYMENT_WHT_PERCENTAGE,
   type DoctorOption,
   type EligibleDoctorBill,
 } from '@/types/doctor-payment';
@@ -72,7 +70,6 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
   const [billsLoaded, setBillsLoaded] = useState(false);
   const [loadingBills, setLoadingBills] = useState(false);
 
-  const [applyWht, setApplyWht] = useState(false);
   const [payment, setPayment] = useState<PaymentMethodValues>(() =>
     emptyPaymentMethodValues(RECEIPT_PAYMENT_METHOD.CASH)
   );
@@ -95,7 +92,6 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
   );
 
   const resetPaymentForm = () => {
-    setApplyWht(false);
     setPayment(emptyPaymentMethodValues(RECEIPT_PAYMENT_METHOD.CASH));
     setPaymentErrors({});
     setRemarks('');
@@ -111,10 +107,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
     [processedBills]
   );
 
-  const whtAmount = applyWht
-    ? Math.round(((totalSelectedAmount * DOCTOR_PAYMENT_WHT_PERCENTAGE) / 100) * 100) / 100
-    : 0;
-  const netAmount = Math.round((totalSelectedAmount - whtAmount) * 100) / 100;
+  const netAmount = Math.round(totalSelectedAmount * 100) / 100;
 
   const selectedCount = selectedBillIds.size;
   const paymentReady = processedBillIds.size > 0;
@@ -225,7 +218,6 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
         doctorName,
         billIds: Array.from(processedBillIds),
         paymentMethod: payment.paymentMethod,
-        applyWht,
         bank: payment.bank,
         bankId: payment.bankId || undefined,
         cardReference: payment.cardReference,
@@ -468,11 +460,11 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
         <CardHeader className="pb-3">
           <CardTitle className="text-base">3. Payment</CardTitle>
           <CardDescription>
-            Review amounts, apply WHT if needed, then confirm payment details.
+            Review amounts and confirm payment details.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
             <div className="space-y-2">
               <Label>Total Selected Amount</Label>
               <Input
@@ -482,22 +474,6 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
               />
             </div>
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Checkbox
-                  checked={applyWht}
-                  onCheckedChange={(checked) => setApplyWht(checked === true)}
-                  disabled={!paymentReady}
-                  id="apply-wht"
-                />
-                <span>Apply WHT ({DOCTOR_PAYMENT_WHT_PERCENTAGE}%)</span>
-              </Label>
-              <Input
-                readOnly
-                value={formatLkr(whtAmount)}
-                className="tabular-nums bg-muted/40"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2 lg:col-span-2">
               <Label>Net Amount</Label>
               <Input
                 readOnly
@@ -567,38 +543,18 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
           </AlertDialogHeader>
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground">Amount breakdown</span>
-              {applyWht ? (
-                <Badge variant="secondary" className="font-medium">
-                  WHT deducted
-                </Badge>
-              ) : null}
+              <span className="text-muted-foreground">Amount</span>
             </div>
             <dl className="space-y-2 text-foreground">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Gross (paying this time)</dt>
                 <dd className="tabular-nums font-medium">{formatLkr(totalSelectedAmount)}</dd>
               </div>
-              {applyWht ? (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    Withholding tax ({DOCTOR_PAYMENT_WHT_PERCENTAGE}%)
-                  </dt>
-                  <dd className="tabular-nums text-muted-foreground">
-                    − {formatLkr(whtAmount)}
-                  </dd>
-                </div>
-              ) : null}
               <div className="flex justify-between gap-4 border-t border-border pt-2 mt-2">
                 <dt className="font-medium">Net amount</dt>
                 <dd className="tabular-nums font-semibold">{formatLkr(netAmount)}</dd>
               </div>
             </dl>
-            {applyWht ? (
-              <p className="text-xs text-muted-foreground leading-snug">
-                Net is paid to the doctor; WHT is recorded separately for remittance.
-              </p>
-            ) : null}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>

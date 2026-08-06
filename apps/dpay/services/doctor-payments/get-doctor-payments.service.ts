@@ -55,7 +55,6 @@ export async function getDoctorPayments(
     doctorId: record.doctorName,
     method: record.paymentMethod,
     total: record.totalAmount,
-    wht: record.whtAmount,
     net: record.netAmount,
     remarks: record.remarks,
     cancelReason: record.cancelReason,

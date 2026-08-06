@@ -1,8 +1,7 @@
 import prisma from '@/lib/prisma';
-import {
-  DOCTOR_PAYMENT_WHT_PERCENTAGE,
-  type ProcessDoctorPaymentInput,
-  type ProcessDoctorPaymentResult,
+import type {
+  ProcessDoctorPaymentInput,
+  ProcessDoctorPaymentResult,
 } from '@/types/doctor-payment';
 import { isPatientBillPaymentMethod } from '@/types/patient-bill';
 import {
@@ -69,12 +68,7 @@ export async function processDoctorPayment(
     return { success: false, message: 'Payable amount must be greater than zero.' };
   }
 
-  const applyWht = Boolean(input.applyWht);
-  const whtPercentage = applyWht ? DOCTOR_PAYMENT_WHT_PERCENTAGE : 0;
-  const whtAmount = applyWht
-    ? Math.round(((totalAmount * whtPercentage) / 100) * 100) / 100
-    : 0;
-  const netAmount = Math.round((totalAmount - whtAmount) * 100) / 100;
+  const netAmount = Math.round(totalAmount * 100) / 100;
 
   const allLineItemIds = selected.flatMap((row) => row.lineItemIds);
 
@@ -110,10 +104,10 @@ export async function processDoctorPayment(
           locationCode: generated.locationCode,
           locationName: generated.locationName,
           totalAmount,
-          whtAmount,
-          whtPercentage,
+          whtAmount: 0,
+          whtPercentage: 0,
           netAmount,
-          applyWht,
+          applyWht: false,
           status: 'paid',
           createdBy: createdBy ?? undefined,
           createdByName: createdByName ?? undefined,
