@@ -63,15 +63,6 @@ export const doctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
     },
   },
   {
-    accessorKey: 'wht',
-    header: 'WHT',
-    cell: ({ row }) => (
-      <span className="tabular-nums text-muted-foreground whitespace-nowrap">
-        {formatLkr(row.original.wht)}
-      </span>
-    ),
-  },
-  {
     accessorKey: 'net',
     header: 'Net',
     cell: ({ row }) => (

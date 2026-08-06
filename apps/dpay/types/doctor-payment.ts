@@ -43,9 +43,6 @@ export function doctorPaymentNeedsReference(method: DoctorPaymentMethod): boolea
   );
 }
 
-/** Fixed WHT rate for doctor payouts (v1). */
-export const DOCTOR_PAYMENT_WHT_PERCENTAGE = 5;
-
 export type DoctorPaymentListItem = {
   id: string;
   receiptNo: string;
@@ -55,7 +52,6 @@ export type DoctorPaymentListItem = {
   doctorId: string;
   method: string;
   total: number;
-  wht: number;
   net: number;
   remarks?: string | null;
   cancelReason?: string | null;
@@ -103,7 +99,6 @@ export type ProcessDoctorPaymentInput = {
   billIds: string[];
   /** Same receipt payment codes as patient bill record payment. */
   paymentMethod: PatientBillPaymentMethod;
-  applyWht: boolean;
   bank?: string;
   bankId?: string;
   cardReference?: string;
@@ -148,10 +143,7 @@ export type DoctorPaymentDetail = {
   locationCode?: string | null;
   locationName?: string | null;
   totalAmount: number;
-  whtAmount: number;
-  whtPercentage: number;
   netAmount: number;
-  applyWht: boolean;
   createdBy: string;
   createdAt: string;
   bills: DoctorPaymentDetailBill[];

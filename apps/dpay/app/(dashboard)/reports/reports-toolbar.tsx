@@ -8,6 +8,7 @@ import type {
 
 const RECEIPT_EXPORT_COLUMNS = [
   'Receipt No',
+  'Status',
   'Patient Name',
   'Bill Number',
   'Payment Date',
@@ -17,6 +18,7 @@ const RECEIPT_EXPORT_COLUMNS = [
 
 const RECEIPT_EXPORT_KEYS: (keyof ReceiptReportExportRow)[] = [
   'receiptNumber',
+  'status',
   'patientName',
   'billNumber',
   'paymentDate',

@@ -48,10 +48,6 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
   rows.push(
     { label: 'Payment Method', value: method },
     { label: 'Total Amount', value: formatLkr(detail.totalAmount) },
-    {
-      label: detail.applyWht ? `WHT (${detail.whtPercentage}%)` : 'WHT',
-      value: formatLkr(detail.whtAmount),
-    },
     { label: 'Net Amount', value: formatLkr(detail.netAmount), highlight: true }
   );
 

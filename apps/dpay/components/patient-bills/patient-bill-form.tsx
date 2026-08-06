@@ -36,7 +36,7 @@ type PatientBillFormProps = {
 export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { loadDraft, saveDraft, discardDraft } = usePatientBillDraft();
+  const { loadDraft, discardDraft } = usePatientBillDraft();
   const [draft, setDraft] = useState<PatientBillDraft>(() => {
     if (isEditPage && bill) return recordToDraft(bill);
     return createInitialDraft();
@@ -66,15 +66,6 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
     setDraft((prev) => ({ ...prev, lineItems }));
     setErrors({});
   }, []);
-
-  const handleSaveDraft = () => {
-    if (isEditPage) return;
-    saveDraft({ ...draft, billNumber: '' });
-    toast({
-      title: 'Draft saved',
-      description: 'Your bill draft has been saved locally.',
-    });
-  };
 
   const handleSaveBill = () => {
     const validationErrors = isEditPage
@@ -168,18 +159,6 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!isEditPage && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleSaveDraft}
-            >
-              <Save className="h-4 w-4" />
-              Save Draft
-            </Button>
-          )}
           <Button
             type="button"
             size="sm"

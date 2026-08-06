@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { requirePermission } from '@/lib/server-permissions';
-import { formatLkr } from '@/lib/patient-bills/calculations';
+import { formatLkr, formatReportLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import {
   getReceiptReport,
@@ -37,6 +37,18 @@ import type {
   ReceiptReportParams,
 } from '@/types/reports';
 
+function receiptStatusLabel(status: string): string {
+  switch (status) {
+    case 'cancelled':
+      return 'Cancelled';
+    case 'refund':
+      return 'Refund';
+    case 'active':
+    default:
+      return 'Active';
+  }
+}
+
 export async function getReceiptReportAction(params: ReceiptReportParams = {}) {
   await requirePermission('reports', 'view');
   return getReceiptReport(params);
@@ -55,7 +67,8 @@ export async function getReceiptReportExportAction(
       billNumber: item.billNumber,
       paymentDate: format(new Date(item.paymentDate), 'yyyy-MM-dd'),
       paymentMethod: paymentMethodLabel(item.paymentMethod),
-      amountPaid: formatLkr(item.amountPaid),
+      amountPaid: formatReportLkr(item.amountPaid, item.status === 'refund'),
+      status: receiptStatusLabel(item.status),
     }));
 
     return { success: true, data };
@@ -88,8 +101,8 @@ export async function getDoctorPaymentReportExportAction(
     const data: DoctorPaymentReportExportRow[] = items.map((item) => ({
       doctorName: item.doctorName,
       receiptNumber: item.receiptNumber,
-      totalAmount: formatLkr(item.totalAmount),
-      paidAmount: formatLkr(item.paidAmount),
+      totalAmount: formatReportLkr(item.totalAmount, item.status === 'refund'),
+      paidAmount: formatReportLkr(item.paidAmount, item.status === 'refund'),
       dueAmount: formatLkr(item.dueAmount),
       status:
         item.status === 'cancelled'
