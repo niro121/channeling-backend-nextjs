@@ -41,10 +41,7 @@ export async function getDoctorPaymentById(
     locationCode: record.locationCode,
     locationName: record.locationName,
     totalAmount: record.totalAmount,
-    whtAmount: record.whtAmount,
-    whtPercentage: record.whtPercentage,
     netAmount: record.netAmount,
-    applyWht: record.applyWht,
     createdBy: record.createdByName?.trim() || '—',
     createdAt: record.createdAt.toISOString(),
     bills: record.items.map((item) => ({

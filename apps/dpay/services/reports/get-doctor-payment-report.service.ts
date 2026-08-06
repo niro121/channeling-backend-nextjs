@@ -50,6 +50,7 @@ function mapRow(record: {
 }): DoctorPaymentReportRow {
   const status = record.status as DoctorPaymentStatus;
   const isPaid = status === 'paid';
+  const isRefund = status === 'refund';
 
   return {
     id: record.id,
@@ -57,7 +58,8 @@ function mapRow(record: {
     doctorSpecialty: '',
     receiptNumber: record.receiptNumber,
     totalAmount: record.totalAmount,
-    paidAmount: isPaid ? record.netAmount : 0,
+    // Display mapping only — DB amounts unchanged; totals still sum paid only.
+    paidAmount: isPaid || isRefund ? record.netAmount : 0,
     dueAmount: 0,
     status,
     paymentMethod: record.paymentMethod as DoctorPaymentMethod,
