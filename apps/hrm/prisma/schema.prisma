@@ -242,7 +242,9 @@ model LeaveApplication {
   leaveTypeId   String    @db.ObjectId
   fromDate      DateTime
   toDate        DateTime
-  days          Float     @default(0) // Whole or half days (e.g. 0.5, 1, 1.5)
+  days          Float     @default(0) // Whole or half days (e.g. 0.5, 1)
+  /// Half-day session when days = 0.5: "AM" | "PM". Null for full-day leave.
+  halfDaySession String?
   requestedDate DateTime?
   /// Auth User.id of the approver (no cross-DB Prisma relation).
   approverId    String?   @db.ObjectId

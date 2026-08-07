@@ -4,9 +4,8 @@ import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
 export const LEAVE_TYPE_CODE_PREFIX = 'LT';
 
 /**
- * Sequence.scopeKey for leave application form numbers (Phase 3).
- * Prefer `getNextSequenceNumber(LEAVE_APPLICATION_FORM_SCOPE)` or a dedicated
- * `generateRecordCode` prefix when implementing applications.
+ * Leave application form numbers use `generateRecordCode(staffCode)` → e.g. `ST-1-1`.
+ * Scope key is `record:{STAFF_CODE}` via the shared record-code generator.
  */
 export const LEAVE_APPLICATION_FORM_SCOPE = 'leave-application';
 
@@ -18,6 +17,105 @@ export const LEAVE_APPLICATION_STATUSES = [
 ] as const;
 
 export type LeaveApplicationStatus = (typeof LEAVE_APPLICATION_STATUSES)[number];
+
+/** Stored on LeaveApplication.halfDaySession when days = 0.5. */
+export const LEAVE_HALF_DAY_SESSIONS = ['AM', 'PM'] as const;
+export type LeaveHalfDaySession = (typeof LEAVE_HALF_DAY_SESSIONS)[number];
+
+export type LeaveApplicationShiftRow = {
+  shiftLabel: string;
+  from: string | Date;
+  to: string | Date;
+  shiftDate?: string | Date | null;
+};
+
+export type LeaveApplicationRecord = {
+  id: string;
+  formNumber: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  leaveType: string;
+  leaveTypeId: string;
+  fromDate: string;
+  toDate: string;
+  days: number;
+  requestedDate?: string | null;
+  approverId: string | null;
+  approverName: string;
+  status: LeaveApplicationStatus | string;
+  outWithCancel: boolean;
+  comment?: string | null;
+  approvedAt: string | null;
+  shiftDate: string;
+  lieuShiftId?: string | null;
+  lieuShiftLabel?: string | null;
+  entitleSnapshot?: number | null;
+  utilizedSnapshot?: number | null;
+  balanceSnapshot?: number | null;
+  shifts?: LeaveApplicationShiftRow[];
+  allowHalfDay?: boolean;
+  isHalfDay?: boolean;
+  /** "AM" | "PM" when half-day; null/undefined for full-day. */
+  halfDaySession?: LeaveHalfDaySession | string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdUser?: AuthUserSummary | null;
+  updatedUser?: AuthUserSummary | null;
+};
+
+export type GetLeaveApplicationsParams = {
+  page?: string;
+  limit?: string;
+  staffId?: string;
+  leaveTypeId?: string;
+  approverId?: string;
+  fromDate?: string;
+  toDate?: string;
+  /** created | approved | shift */
+  dateSearchBy?: string;
+  /** all | yes | no */
+  outWithCancel?: string;
+};
+
+/** Client Formik values for leave application form. */
+export type LeaveApplicationFormValues = {
+  formNumber: string;
+  staffId: string;
+  leaveTypeId: string;
+  fromDate: Date | null;
+  toDate: Date | null;
+  requestedDate: Date | null;
+  approverId: string;
+  approvedDate: Date | null;
+  lieuShiftId: string;
+  comment: string;
+  outWithCancel: boolean;
+  isHalfDay: boolean;
+  /** "" until user picks Morning/Afternoon; payload maps to AM|PM|null. */
+  halfDaySession: string;
+};
+
+export type LeaveApplicationPayload = {
+  staffId: string;
+  leaveTypeId: string;
+  fromDate: Date | string;
+  toDate: Date | string;
+  requestedDate?: Date | string | null;
+  approverId?: string | null;
+  comment?: string | null;
+  outWithCancel?: boolean;
+  isHalfDay?: boolean;
+  halfDaySession?: LeaveHalfDaySession | string | null;
+  lieuShiftId?: string | null;
+  lieuShiftLabel?: string | null;
+  entitleSnapshot?: number | null;
+  utilizedSnapshot?: number | null;
+  balanceSnapshot?: number | null;
+  shifts?: LeaveApplicationShiftRow[];
+};
 
 export const LEAVE_ENTITLEMENT_STATUSES = [
   'active',

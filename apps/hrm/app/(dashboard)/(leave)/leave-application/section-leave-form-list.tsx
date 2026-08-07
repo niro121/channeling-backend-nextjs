@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import {
   BackButton,
   Card,
@@ -12,10 +13,7 @@ import {
   DataTableBulkDeleteFeature,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import {
-  leaveApplicationColumns,
-  type LeaveApplicationRecord
-} from './columns';
+import type { LeaveApplicationRecord } from '@/types/leave';
 import LeaveApplicationFilterSection from './filter-section';
 
 type FilterOption = {
@@ -35,6 +33,7 @@ export type LeaveFormListFilters = {
 
 type SectionLeaveFormListProps = {
   records: LeaveApplicationRecord[];
+  columns: ColumnDef<LeaveApplicationRecord>[];
   staffOptions: FilterOption[];
   leaveTypeOptions: FilterOption[];
   approverOptions: FilterOption[];
@@ -50,6 +49,7 @@ type SectionLeaveFormListProps = {
 
 export default function SectionLeaveFormList({
   records,
+  columns,
   staffOptions,
   leaveTypeOptions,
   approverOptions,
@@ -61,11 +61,13 @@ export default function SectionLeaveFormList({
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">Search Leave Forms</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          Search Leave Forms
+        </h2>
         <BackButton
           href="/leave-entitlement"
           label="Back to Leave Entitlement"
-          className='ml-auto'
+          className="ml-auto"
         />
       </div>
 
@@ -103,7 +105,7 @@ export default function SectionLeaveFormList({
       <CommonDataTable
         heading="Application Register"
         subHeading="Leave applications matching the current filters."
-        columns={leaveApplicationColumns}
+        columns={columns}
         data={records}
         rowCount={records.length}
         showPagination={false}
@@ -116,6 +118,7 @@ export default function SectionLeaveFormList({
             showColumnToggle
             serverData={onExport}
             columns={[
+              'Form No',
               'Staff Code',
               'Staff',
               'Leave Type',
@@ -133,6 +136,7 @@ export default function SectionLeaveFormList({
               'Created At'
             ]}
             keys={[
+              'formNumber',
               'staffCode',
               'staffName',
               'leaveType',

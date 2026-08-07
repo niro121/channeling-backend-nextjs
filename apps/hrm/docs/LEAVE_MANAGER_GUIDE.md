@@ -35,7 +35,7 @@ LeaveApplication
 |-------|---------|
 | **LeaveType** | Code, name, paid/approval/half-day/carry-forward policy, `status` 0\|1 |
 | **LeaveEntitlement** | Unique `(staffId, leaveTypeId, fromDate, toDate)`; stored `entitled` / `used` / `remaining` / `carryForward` (`Float`) |
-| **LeaveApplication** | Form + workflow; `formNumber` unique; `days` Float; status workflow |
+| **LeaveApplication** | Form + workflow; `formNumber` unique; `days` Float; optional `halfDaySession` (`AM`\|`PM`); status workflow |
 | **LeaveApplicationShift** | Embedded rows from Process Shift (label + from/to) |
 
 ### Locked product decisions
@@ -58,7 +58,7 @@ LeaveApplication
 
 ### Sequence
 
-Use `Sequence` with a scope such as `leave-application` to allocate `formNumber` (same pattern as other coded entities).
+Form numbers use `generateRecordCode(staffCode)` → e.g. `ST-1-1`, `ST-1-2` (same Sequence pattern as Staff / Leave Type codes).
 
 ---
 
@@ -77,7 +77,8 @@ remaining = entitled + carryForward - used
 
 ### 3.2 Application days
 
-- Compute from `fromDate`/`toDate` (and half-day rules when enabled on `LeaveType`).
+- **Full-day mode:** inclusive calendar days from `fromDate`/`toDate` (whole days only; no 2.5 yet).
+- **Half-day mode** (when leave type `allowHalfDay`): single date + required session `AM` (Morning) / `PM` (Afternoon); store `days = 0.5`, `halfDaySession`, and equal `fromDate`/`toDate`.
 - Form “Recalculate” may also set `entitleSnapshot` / `utilizedSnapshot` / `balanceSnapshot` from current entitlement — snapshots are audit only, not source of truth.
 
 ### 3.3 Process Shift / Lieu Shift
@@ -243,10 +244,10 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Done when |
 |-----------|
-| [ ] New application appears in register after Save |
-| [ ] Filters (staff, type, dates by mode, approver, outWithCancel) hit the DB |
-| [ ] Export / column toggle work against real rows |
-| [ ] Status stays `pending` on create (no entitlement change yet) |
+| [x] New application appears in register after Save |
+| [x] Filters (staff, type, dates by mode, approver, outWithCancel) hit the DB |
+| [x] Export / column toggle work against real rows |
+| [x] Status stays `pending` on create (no entitlement change yet) |
 
 **Note:** Process Shift / Lieu may still write stub embedded data; full roster not required.
 
@@ -284,7 +285,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | [ ] Process Lieu Shift → `lieuShiftId` / label |
 | [ ] Leave Balance card on form from live entitlement aggregate |
 | [ ] Edit flow: select row / staff code → load form |
-| [ ] Half-day validation (multiples of `0.5` when `allowHalfDay`) |
+| [x] Half-day mode: checkbox + single date + Morning/Afternoon (`halfDaySession`); no multi-day fractions yet |
 
 ---
 

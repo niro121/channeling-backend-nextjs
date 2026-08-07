@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Row } from '@tanstack/react-table';
 import {
   Button,
@@ -10,17 +11,23 @@ import {
 } from '@archmage/ui';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { LeaveApplicationRecord } from './columns';
+import { deleteLeaveApplicationAction } from '@/app/actions/leave-actions/leave-application.actions';
+import type { LeaveApplicationRecord } from '@/types/leave';
 import { LeaveApplicationViewDialog } from './view-dialog';
 
 interface LeaveApplicationRecordActionsProps {
   row: Row<LeaveApplicationRecord>;
+  onEdit?: (record: LeaveApplicationRecord) => void;
+  onDeleted?: () => void;
 }
 
 export default function LeaveApplicationRecordActions({
-  row
+  row,
+  onEdit,
+  onDeleted
 }: LeaveApplicationRecordActionsProps) {
   const record = row.original;
+  const router = useRouter();
   const { toast } = useToast();
   const { has } = usePermissions();
   const [viewOpen, setViewOpen] = useState(false);
@@ -34,13 +41,23 @@ export default function LeaveApplicationRecordActions({
   const onDeleteConfirmation = async () => {
     try {
       setLoading(true);
-      // Stub until leave-application delete API exists.
-      console.info('[leave-application] delete stub', record.id);
+      const result = await deleteLeaveApplicationAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ?? 'Leave application deletion unsuccessful.'
+        });
+        return;
+      }
       toast({
         variant: 'success',
         title: 'Success',
         description: 'Leave application was deleted successfully.'
       });
+      onDeleted?.();
+      router.refresh();
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -78,14 +95,7 @@ export default function LeaveApplicationRecordActions({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                // TODO: navigate to edit leave application
-                console.info('[leave-application] edit stub', record.id);
-                toast({
-                  title: 'Edit',
-                  description: 'Edit leave application is not wired yet.'
-                });
-              }}
+              onClick={() => onEdit?.(record)}
               title="Edit"
             >
               <Pencil className="h-4 w-4" />

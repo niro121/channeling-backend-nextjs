@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { LeaveApplicationRecord } from './columns';
+import type { LeaveApplicationRecord } from '@/types/leave';
 import { LeaveApplicationViewDialog } from './view-dialog';
 
 type LeaveApplicationStaffCodeCellProps = {

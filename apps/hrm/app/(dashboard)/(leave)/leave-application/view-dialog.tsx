@@ -8,7 +8,7 @@ import {
   DialogTitle
 } from '@archmage/ui';
 import { formatDateTime } from '@/lib/utils/date';
-import type { LeaveApplicationRecord } from './columns';
+import type { LeaveApplicationRecord } from '@/types/leave';
 
 type LeaveApplicationViewDialogProps = {
   open: boolean;
@@ -45,11 +45,21 @@ export function LeaveApplicationViewDialog({
 
         {record ? (
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DetailItem label="Form number">
+              {record.formNumber || '—'}
+            </DetailItem>
             <DetailItem label="Staff code">{record.staffCode || '—'}</DetailItem>
             <DetailItem label="Staff">{record.staffName}</DetailItem>
             <DetailItem label="Leave type">{record.leaveType}</DetailItem>
             <DetailItem label="Days">
-              <span className="tabular-nums">{record.days}</span>
+              <span className="tabular-nums">
+                {record.days}
+                {record.halfDaySession === 'AM'
+                  ? ' (Morning)'
+                  : record.halfDaySession === 'PM'
+                    ? ' (Afternoon)'
+                    : ''}
+              </span>
             </DetailItem>
             <DetailItem label="From">{record.fromDate}</DetailItem>
             <DetailItem label="To">{record.toDate}</DetailItem>

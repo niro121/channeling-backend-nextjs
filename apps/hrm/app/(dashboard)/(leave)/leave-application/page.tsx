@@ -1,136 +1,18 @@
 import { redirect } from 'next/navigation';
-import { checkRouteAccess } from '@/lib/server-permissions';
+import { getServerSession } from 'next-auth';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import FormLeaveDetails from './form-leave-details';
-import SectionApplicationList from './section-leave-form-list';
-import type { LeaveApplicationRecord } from './columns';
-
-const sampleStaffOptions = [
-  { id: 'emp-1', name: 'Nimal Perera' },
-  { id: 'emp-2', name: 'Kamal Silva' },
-  { id: 'emp-3', name: 'Samanthi Fernando' }
-];
-
-const sampleLeaveTypeOptions = [
-  { id: 'annual', name: 'Annual Leave' },
-  { id: 'casual', name: 'Casual Leave' },
-  { id: 'medical', name: 'Medical Leave' },
-  { id: 'maternity', name: 'Maternity Leave' }
-];
-
-const sampleApproverOptions = [
-  { id: 'apr-1', name: 'Dr. Wijesinghe' },
-  { id: 'apr-2', name: 'Ms. Jayasuriya' },
-  { id: 'apr-3', name: 'Mr. Bandara' }
-];
-
-const sampleApplications: LeaveApplicationRecord[] = [
-  {
-    id: '1',
-    staffId: 'emp-1',
-    staffCode: 'STF-001',
-    staffName: 'Nimal Perera',
-    leaveType: 'Annual Leave',
-    leaveTypeId: 'annual',
-    fromDate: '2026-03-10',
-    toDate: '2026-03-12',
-    days: 3,
-    approverId: 'apr-1',
-    approverName: 'Dr. Wijesinghe',
-    status: 'approved',
-    outWithCancel: false,
-    approvedAt: '2026-03-02',
-    shiftDate: '2026-03-10',
-    createdAt: '2026-03-01T09:15:00',
-    updatedAt: '2026-03-02T11:40:00',
-    createdUser: { name: 'System Admin' },
-    updatedUser: { name: 'Dr. Wijesinghe' }
-  },
-  {
-    id: '2',
-    staffId: 'emp-2',
-    staffCode: 'STF-002',
-    staffName: 'Kamal Silva',
-    leaveType: 'Casual Leave',
-    leaveTypeId: 'casual',
-    fromDate: '2026-03-15',
-    toDate: '2026-03-15',
-    days: 1,
-    approverId: 'apr-2',
-    approverName: 'Ms. Jayasuriya',
-    status: 'pending',
-    outWithCancel: false,
-    approvedAt: null,
-    shiftDate: '2026-03-15',
-    createdAt: '2026-03-08T14:20:00',
-    updatedAt: '2026-03-08T14:20:00',
-    createdUser: { name: 'Kamal Silva' },
-    updatedUser: { name: 'Kamal Silva' }
-  },
-  {
-    id: '3',
-    staffId: 'emp-3',
-    staffCode: 'STF-003',
-    staffName: 'Samanthi Fernando',
-    leaveType: 'Medical Leave',
-    leaveTypeId: 'medical',
-    fromDate: '2026-02-20',
-    toDate: '2026-02-22',
-    days: 3,
-    approverId: 'apr-1',
-    approverName: 'Dr. Wijesinghe',
-    status: 'approved',
-    outWithCancel: true,
-    approvedAt: '2026-02-18',
-    shiftDate: '2026-02-20',
-    createdAt: '2026-02-18T08:05:00',
-    updatedAt: '2026-02-18T16:45:00',
-    createdUser: { name: 'Samanthi Fernando' },
-    updatedUser: { name: 'Dr. Wijesinghe' }
-  },
-  {
-    id: '4',
-    staffId: 'emp-1',
-    staffCode: 'STF-001',
-    staffName: 'Nimal Perera',
-    leaveType: 'Casual Leave',
-    leaveTypeId: 'casual',
-    fromDate: '2026-04-01',
-    toDate: '2026-04-02',
-    days: 2,
-    approverId: 'apr-3',
-    approverName: 'Mr. Bandara',
-    status: 'rejected',
-    outWithCancel: false,
-    approvedAt: '2026-03-26',
-    shiftDate: '2026-04-01',
-    createdAt: '2026-03-25T10:00:00',
-    updatedAt: '2026-03-26T09:30:00',
-    createdUser: { name: 'Nimal Perera' },
-    updatedUser: { name: 'Mr. Bandara' }
-  },
-  {
-    id: '5',
-    staffId: 'emp-2',
-    staffCode: 'STF-002',
-    staffName: 'Kamal Silva',
-    leaveType: 'Annual Leave',
-    leaveTypeId: 'annual',
-    fromDate: '2026-01-10',
-    toDate: '2026-01-14',
-    days: 5,
-    approverId: 'apr-2',
-    approverName: 'Ms. Jayasuriya',
-    status: 'cancelled',
-    outWithCancel: true,
-    approvedAt: '2026-01-03',
-    shiftDate: '2026-01-10',
-    createdAt: '2026-01-02T11:10:00',
-    updatedAt: '2026-01-05T13:00:00',
-    createdUser: { name: 'Kamal Silva' },
-    updatedUser: { name: 'Ms. Jayasuriya' }
-  }
-];
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { formatDate } from '@/lib/utils/date';
+import {
+  bulkDeleteLeaveApplicationsAction,
+  getLeaveApplicationFormOptionsAction,
+  getLeaveApplicationsAction,
+  getLeaveApplicationsExport
+} from '@/app/actions/leave-actions/leave-application.actions';
+import type { LeaveApplicationRecord } from '@/types/leave';
+import LeaveApplicationWorkspace from './leave-application-workspace';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -144,72 +26,22 @@ type SearchParams = {
   }>;
 };
 
-function toDateKey(value?: string | Date | null): string | null {
-  if (!value) return null;
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, '0');
-    const d = String(value.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  return value.slice(0, 10);
-}
-
-function getDateField(
-  row: LeaveApplicationRecord,
-  dateSearchBy?: string
-): string | null {
-  switch (dateSearchBy) {
-    case 'approved':
-      return toDateKey(row.approvedAt);
-    case 'shift':
-      return toDateKey(row.shiftDate);
-    case 'created':
-    default:
-      return toDateKey(row.createdAt);
-  }
-}
-
-function filterApplications(
-  rows: LeaveApplicationRecord[],
-  filters: {
-    staffId?: string;
-    leaveType?: string;
-    approverId?: string;
-    fromDate?: string;
-    toDate?: string;
-    dateSearchBy?: string;
-    outWithCancel?: string;
-  }
-): LeaveApplicationRecord[] {
-  return rows.filter((row) => {
-    if (filters.staffId && row.staffId !== filters.staffId) return false;
-    if (filters.leaveType && row.leaveTypeId !== filters.leaveType)
-      return false;
-    if (filters.approverId && row.approverId !== filters.approverId)
-      return false;
-
-    if (filters.outWithCancel === 'yes' && !row.outWithCancel) return false;
-    if (filters.outWithCancel === 'no' && row.outWithCancel) return false;
-
-    const dateValue = getDateField(row, filters.dateSearchBy);
-    if (filters.fromDate || filters.toDate) {
-      if (!dateValue) return false;
-      if (filters.fromDate && dateValue < filters.fromDate) return false;
-      if (filters.toDate && dateValue > filters.toDate) return false;
-    }
-
-    return true;
-  });
-}
-
 export default async function LeaveApplicationPage({
   searchParams
 }: SearchParams) {
   const canView = await checkRouteAccess('/leave-application');
   if (!canView) {
     redirect('/unauthorized-access');
+  }
+
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'leave-application.visited',
+      entityType: 'LeaveApplication',
+      importance: 'low'
+    });
   }
 
   const params = await searchParams;
@@ -223,14 +55,61 @@ export default async function LeaveApplicationPage({
     outWithCancel: params?.outWithCancel
   };
 
-  const filtered = filterApplications(sampleApplications, filters);
+  const leaveTypeId =
+    filters.leaveType && filters.leaveType !== '__all__'
+      ? filters.leaveType
+      : undefined;
+
+  const [optionsRes, applicationsRes] = await Promise.all([
+    getLeaveApplicationFormOptionsAction(),
+    getLeaveApplicationsAction({
+      staffId: filters.staffId,
+      leaveTypeId,
+      approverId: filters.approverId,
+      fromDate: filters.fromDate,
+      toDate: filters.toDate,
+      dateSearchBy: filters.dateSearchBy,
+      outWithCancel: filters.outWithCancel,
+      limit: process.env.DEFAULT_PAGE_SIZE
+    })
+  ]);
+
+  const staffOptions = (optionsRes.data?.staff ?? []).map((staff) => ({
+    id: staff.id,
+    name: staff.code ? `${staff.code} — ${staff.name}` : staff.name
+  }));
+
+  const leaveTypeOptions = (optionsRes.data?.leaveTypes ?? []).map((type) => ({
+    id: type.id,
+    name: type.code ? `${type.code} — ${type.name}` : type.name,
+    allowHalfDay: Boolean((type as { allowHalfDay?: boolean }).allowHalfDay)
+  }));
+
+  const filterLeaveTypeOptions = [
+    { id: '__all__', name: 'All Leave Types' },
+    ...leaveTypeOptions.map(({ id, name }) => ({ id, name }))
+  ];
+
+  const approverOptions = (optionsRes.data?.approvers ?? []).map(
+    (approver) => ({
+      id: approver.id,
+      name: approver.name
+    })
+  );
+
+  const records = (
+    applicationsRes.isError ? [] : (applicationsRes.data?.data ?? [])
+  ) as LeaveApplicationRecord[];
 
   const handleExport = async () => {
     'use server';
 
-    const rows = filterApplications(sampleApplications, {
+    const exportResponse = await getLeaveApplicationsExport({
       staffId: params?.staffId,
-      leaveType: params?.leaveType,
+      leaveTypeId:
+        params?.leaveType && params.leaveType !== '__all__'
+          ? params.leaveType
+          : undefined,
       approverId: params?.approverId,
       fromDate: params?.fromDate,
       toDate: params?.toDate,
@@ -238,16 +117,19 @@ export default async function LeaveApplicationPage({
       outWithCancel: params?.outWithCancel
     });
 
-    if (!rows.length) {
+    if (!exportResponse.success || !exportResponse.data?.length) {
       return {
         success: false,
-        message: 'No leave application records found'
+        message: exportResponse.success
+          ? 'No leave application records found'
+          : exportResponse.message
       };
     }
 
     return {
       success: true,
-      data: rows.map((row) => ({
+      data: exportResponse.data.map((row: LeaveApplicationRecord) => ({
+        formNumber: row.formNumber ?? '',
         staffCode: row.staffCode,
         staffName: row.staffName,
         leaveType: row.leaveType,
@@ -255,23 +137,21 @@ export default async function LeaveApplicationPage({
         toDate: row.toDate,
         days: row.days,
         approverName: row.approverName,
+        approvedAt: row.approvedAt ?? '',
         status: row.status,
         outWithCancel: row.outWithCancel ? 'Yes' : 'No',
-        approvedAt: row.approvedAt ?? '',
         shiftDate: row.shiftDate,
         updatedBy: row.updatedUser?.name ?? '',
-        updatedAt: row.updatedAt,
+        updatedAt: formatDate(row.updatedAt),
         createdBy: row.createdUser?.name ?? '',
-        createdAt: row.createdAt
+        createdAt: formatDate(row.createdAt)
       }))
     };
   };
 
-  /** Stub until leave-application delete API exists. */
   const handleBulkDelete = async (ids: string[]) => {
     'use server';
-    console.info('[leave-application] bulk delete stub', ids);
-    return true;
+    return bulkDeleteLeaveApplicationsAction(ids);
   };
 
   const getBulkDeleteDescription = async (ids: string[]) => {
@@ -286,28 +166,20 @@ export default async function LeaveApplicationPage({
         description="Submit and track leave applications."
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="min-w-0 lg:col-span-4">
-          <FormLeaveDetails
-            staffOptions={sampleStaffOptions}
-            leaveTypeOptions={sampleLeaveTypeOptions}
-            approverOptions={sampleApproverOptions}
-          />
-        </div>
-
-        <div className="min-w-0 lg:col-span-8">
-          <SectionApplicationList
-            records={filtered}
-            staffOptions={sampleStaffOptions}
-            leaveTypeOptions={sampleLeaveTypeOptions}
-            approverOptions={sampleApproverOptions}
-            filters={filters}
-            onExport={handleExport}
-            onBulkDelete={handleBulkDelete}
-            getBulkDeleteDescription={getBulkDeleteDescription}
-          />
-        </div>
-      </div>
+      <LeaveApplicationWorkspace
+        records={records}
+        staffOptions={staffOptions}
+        leaveTypeOptions={leaveTypeOptions}
+        filterLeaveTypeOptions={filterLeaveTypeOptions}
+        approverOptions={approverOptions}
+        filters={{
+          ...filters,
+          leaveType: filters.leaveType
+        }}
+        onExport={handleExport}
+        onBulkDelete={handleBulkDelete}
+        getBulkDeleteDescription={getBulkDeleteDescription}
+      />
     </div>
   );
 }
