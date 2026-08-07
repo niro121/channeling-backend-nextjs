@@ -11,7 +11,8 @@ import {
 } from '@archmage/ui';
 import { Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { LeaveTypeRecord } from './columns';
+import { deleteLeaveTypeAction } from '@/app/actions/leave-actions/leave-type.actions';
+import type { LeaveTypeRecord } from '@/types/leave';
 
 interface LeaveTypeRecordActionsProps {
   row: Row<LeaveTypeRecord>;
@@ -30,11 +31,29 @@ export default function LeaveTypeRecordActions({
   const onDelete = async () => {
     try {
       setLoading(true);
-      // TODO: wire leave type delete action
+      const result = await deleteLeaveTypeAction(leaveType.id);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ?? 'Leave type deletion unsuccessful.'
+        });
+        return;
+      }
+
       toast({
         variant: 'success',
         title: 'Success',
-        description: `Delete stub for ${leaveType.name}.`
+        description: 'Leave type deleted successfully.'
+      });
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message ?? 'Leave type deletion unsuccessful.'
       });
     } finally {
       setLoading(false);

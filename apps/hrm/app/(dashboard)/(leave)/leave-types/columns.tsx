@@ -4,25 +4,11 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge, Checkbox } from '@archmage/ui';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils/date';
+import type { LeaveTypeRecord } from '@/types/leave';
 import LeaveTypeRecordActions from './record-actions';
+import { LeaveTypeCodeCell } from './leave-type-code-cell';
 
-export type LeaveTypeRecord = {
-  id: string;
-  code: string;
-  name: string;
-  description?: string | null;
-  status: number; // 0 = Unpublished, 1 = Published
-  isPaid: boolean;
-  requiresApproval: boolean;
-  allowHalfDay: boolean;
-  carryForwardAllowed: boolean;
-  maxDaysPerYear?: number | null;
-  maxCarryForwardDays?: number | null;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-  createdUser?: { name?: string } | null;
-  updatedUser?: { name?: string } | null;
-};
+export type { LeaveTypeRecord };
 
 function BooleanBadge({
   value,
@@ -76,9 +62,10 @@ export const leaveTypeColumns: ColumnDef<LeaveTypeRecord>[] = [
     accessorKey: 'code',
     header: 'Code',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap font-medium">
-        {row.getValue('code') as string}
-      </span>
+      <LeaveTypeCodeCell
+        id={row.original.id}
+        code={row.getValue('code') as string}
+      />
     )
   },
   {

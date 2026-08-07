@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
+import * as Yup from 'yup';
 import {
   Card,
   CardContent,
@@ -13,33 +14,26 @@ import {
   useToast
 } from '@archmage/ui';
 import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
+import {
+  createLeaveTypeAction,
+  updateLeaveTypeAction
+} from '@/app/actions/leave-actions/leave-type.actions';
+import {
+  leaveTypeFormValuesToPayload
+} from '@/lib/mappers/leave-type-form.mapper';
+import type { LeaveTypeFormValues } from '@/types/leave';
+
+export type { LeaveTypeFormValues };
 
 type SelectOption = {
   id: string;
   name: string;
 };
 
-export type LeaveTypeFormValues = {
-  code: string;
-  name: string;
-  description: string;
-  isPaid: string; // yes | no
-  requiresApproval: string; // yes | no
-  allowHalfDay: string; // yes | no
-  carryForwardAllowed: string; // yes | no
-  maxDaysPerYear: string;
-  maxCarryForwardDays: string;
-  status: string; // 1 | 0
-};
-
 type FormLeaveTypeProps = {
   initialValues?: Partial<LeaveTypeFormValues>;
   mode?: 'add' | 'edit';
   leaveTypeId?: string;
-  onSubmit?: (
-    values: LeaveTypeFormValues,
-    options: { saveAndClose: boolean }
-  ) => Promise<void> | void;
 };
 
 const YES_NO_OPTIONS: SelectOption[] = [
@@ -71,12 +65,39 @@ const emptyValues: LeaveTypeFormValues = {
   status: '1'
 };
 
-/** UI-first form shell for Leave Types. Server actions will be wired in phase 1 backend. */
+const validationSchema = Yup.object({
+  code: Yup.string().max(50, 'Must be less than 50 characters'),
+  name: Yup.string()
+    .required('Name is required')
+    .max(150, 'Must be less than 150 characters'),
+  description: Yup.string().max(500, 'Must be less than 500 characters'),
+  isPaid: Yup.string().oneOf(['yes', 'no']).required('Paid type is required'),
+  requiresApproval: Yup.string()
+    .oneOf(['yes', 'no'])
+    .required('Approval required is required'),
+  allowHalfDay: Yup.string()
+    .oneOf(['yes', 'no'])
+    .required('Half-day allowed is required'),
+  carryForwardAllowed: Yup.string()
+    .oneOf(['yes', 'no'])
+    .required('Carry forward allowed is required'),
+  maxDaysPerYear: Yup.number()
+    .transform((value, original) => (original === '' ? undefined : value))
+    .min(0, 'Must be 0 or greater')
+    .nullable()
+    .optional(),
+  maxCarryForwardDays: Yup.number()
+    .transform((value, original) => (original === '' ? undefined : value))
+    .min(0, 'Must be 0 or greater')
+    .nullable()
+    .optional(),
+  status: Yup.string().oneOf(['0', '1']).required('Status is required')
+});
+
 export default function FormLeaveType({
   initialValues,
   mode = 'add',
-  leaveTypeId,
-  onSubmit
+  leaveTypeId
 }: FormLeaveTypeProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -91,22 +112,70 @@ export default function FormLeaveType({
 
   const handleSubmit = async (
     values: LeaveTypeFormValues,
-    _helpers: FormikHelpers<LeaveTypeFormValues>
+    { setErrors, setTouched }: FormikHelpers<LeaveTypeFormValues>
   ) => {
     const saveAndClose = saveAndCloseRef.current;
     try {
       setLoading(true);
-      if (onSubmit) {
-        await onSubmit(values, { saveAndClose });
+      const payload = leaveTypeFormValuesToPayload(values);
+
+      const respond =
+        mode === 'edit' && leaveTypeId
+          ? await updateLeaveTypeAction(leaveTypeId, payload)
+          : await createLeaveTypeAction(payload);
+
+      if (
+        respond?.isError &&
+        respond?.errors &&
+        typeof respond.errors === 'object' &&
+        !Array.isArray(respond.errors)
+      ) {
+        const fieldErrors: Record<string, string> = {};
+        const errorMap = respond.errors as Record<
+          string,
+          string | string[] | undefined
+        >;
+
+        Object.keys(errorMap).forEach((key) => {
+          if (key === 'message') return;
+          const err = errorMap[key];
+          const msg =
+            Array.isArray(err) && err.length > 0
+              ? err[0]
+              : typeof err === 'string'
+                ? err
+                : undefined;
+          if (!msg) return;
+          fieldErrors[key] = msg;
+        });
+
+        if (Object.keys(fieldErrors).length > 0) {
+          setErrors(fieldErrors);
+          setTouched(
+            Object.keys(fieldErrors).reduce(
+              (acc, key) => ({ ...acc, [key]: true }),
+              {} as Record<string, boolean>
+            )
+          );
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            ((respond.errors as Record<string, unknown>)?.message as string) ??
+            'Leave type save unsuccessful.'
+        });
         return;
       }
 
       toast({
-        title: mode === 'edit' ? 'Update' : 'Save',
+        variant: 'success',
+        title: 'Success',
         description:
           mode === 'edit'
-            ? 'Leave type update action is not wired yet.'
-            : 'Leave type save action is not wired yet.'
+            ? 'Leave type updated successfully.'
+            : 'Leave type created successfully.'
       });
 
       if (saveAndClose) {
@@ -114,9 +183,22 @@ export default function FormLeaveType({
         return;
       }
 
-      if (mode === 'add' && leaveTypeId) {
-        router.push(`/leave-types/${leaveTypeId}/edit`);
+      const newId = respond?.data?.id;
+      if (mode === 'add' && newId) {
+        router.push(`/leave-types/${newId}/edit`);
+        return;
       }
+
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Leave type save unsuccessful.'
+      });
     } finally {
       setLoading(false);
       saveAndCloseRef.current = false;
@@ -135,6 +217,7 @@ export default function FormLeaveType({
           <Formik
             initialValues={formInitialValues}
             enableReinitialize
+            validationSchema={validationSchema}
             onSubmit={handleSubmit}
           >
             {(formik) => {
@@ -145,11 +228,12 @@ export default function FormLeaveType({
                     <CustomFormField
                       id="code"
                       type="text"
-                      placeholder="Code"
+                      placeholder="Code (Auto Generated)"
                       value={formik.values.code}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      required
+                      required={false}
+                      disabled
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField

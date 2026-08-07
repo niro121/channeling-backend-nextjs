@@ -1,32 +1,14 @@
 import { notFound, redirect } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { checkPermission } from '@/lib/server-permissions';
-import FormLeaveType, { type LeaveTypeFormValues } from '../../form-leave-type';
-import { getSampleLeaveTypeById } from '../../sample-data';
-import type { LeaveTypeRecord } from '../../columns';
+import { getLeaveTypeByIdAction } from '@/app/actions/leave-actions/leave-type.actions';
+import { leaveTypeRecordToFormValues } from '@/lib/mappers/leave-type-form.mapper';
+import FormLeaveType from '../../form-leave-type';
+import type { LeaveTypeRecord } from '@/types/leave';
 
 type EditLeaveTypePageProps = {
   params: Promise<{ id: string }>;
 };
-
-function toFormValues(record: LeaveTypeRecord): LeaveTypeFormValues {
-  return {
-    code: record.code,
-    name: record.name,
-    description: record.description ?? '',
-    isPaid: record.isPaid ? 'yes' : 'no',
-    requiresApproval: record.requiresApproval ? 'yes' : 'no',
-    allowHalfDay: record.allowHalfDay ? 'yes' : 'no',
-    carryForwardAllowed: record.carryForwardAllowed ? 'yes' : 'no',
-    maxDaysPerYear:
-      record.maxDaysPerYear != null ? String(record.maxDaysPerYear) : '',
-    maxCarryForwardDays:
-      record.maxCarryForwardDays != null
-        ? String(record.maxCarryForwardDays)
-        : '',
-    status: String(record.status)
-  };
-}
 
 export default async function LeaveTypeEditPage({
   params
@@ -37,12 +19,13 @@ export default async function LeaveTypeEditPage({
   }
 
   const { id } = await params;
-  // TODO: replace with getLeaveTypeByIdAction once backend is wired
-  const leaveType = getSampleLeaveTypeById(id);
+  const response = await getLeaveTypeByIdAction(id);
 
-  if (!leaveType) {
+  if (response.isError || !response.data) {
     notFound();
   }
+
+  const leaveType = response.data as LeaveTypeRecord;
 
   return (
     <div className="space-y-6">
@@ -54,7 +37,7 @@ export default async function LeaveTypeEditPage({
       <FormLeaveType
         mode="edit"
         leaveTypeId={id}
-        initialValues={toFormValues(leaveType)}
+        initialValues={leaveTypeRecordToFormValues(leaveType)}
       />
     </div>
   );

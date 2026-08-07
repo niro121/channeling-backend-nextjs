@@ -3,7 +3,7 @@
 Guidance for building and extending leave features in `apps/hrm`.  
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
-**Status:** Prisma models exist; UI is largely sample-data / stubs.  
+**Status:** Phase 0–1 Leave Types CRUD live; entitlement / application UI still sample stubs.  
 **Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
@@ -181,10 +181,10 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Done when |
 |-----------|
-| [ ] `LeaveType` / `LeaveEntitlement` / `LeaveApplication` in schema (already added) |
-| [ ] `prisma generate` (+ `db push` on target env) |
-| [ ] `types/leave.ts` — shared statuses, day helpers, payload types |
-| [ ] Sequence scope decided: e.g. `leave-application` for `formNumber` |
+| [x] `LeaveType` / `LeaveEntitlement` / `LeaveApplication` in schema (already added) |
+| [x] `prisma generate` (+ `db push` on target env) |
+| [x] `types/leave.ts` — shared statuses, day helpers, payload types |
+| [x] Sequence scope decided: `LEAVE_APPLICATION_FORM_SCOPE` (`leave-application`) for form numbers; leave-type codes use `generateRecordCode('LT')` |
 
 **Out of scope:** UI changes.
 
@@ -203,9 +203,9 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Done when |
 |-----------|
-| [ ] Non-admin with view/add/edit/delete works end-to-end |
-| [ ] Active types appear as options for later phases |
-| [ ] Activity log on create/update/delete |
+| [x] Non-admin with view/add/edit/delete works end-to-end *(grant `leave-types` on User Group before testing)* |
+| [x] Active types appear as options for later phases (`getLeaveTypeOptions`) |
+| [x] Activity log on create/update/delete |
 
 **Blocks:** Phase 2–3 dropdowns.
 
