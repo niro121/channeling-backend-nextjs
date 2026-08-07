@@ -1,4 +1,5 @@
 export { CommonDataTable } from './common-data-table';
+export type { CommonDataTableGroupHeaderContext } from './common-data-table';
 export { CommonDataTablePagination } from './common-data-table-pagination';
 export {
   CommonDataTableProvider,

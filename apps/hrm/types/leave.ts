@@ -27,6 +27,67 @@ export const LEAVE_ENTITLEMENT_STATUSES = [
 
 export type LeaveEntitlementStatus = (typeof LEAVE_ENTITLEMENT_STATUSES)[number];
 
+export type LeaveEntitlementRecord = {
+  id: string;
+  staffId: string;
+  leaveTypeId: string;
+  leaveTypeName?: string;
+  staffName?: string;
+  staffCode?: string;
+  fromDate: string | Date;
+  toDate: string | Date;
+  entitled: number;
+  used: number;
+  remaining: number;
+  carryForward: number;
+  status: LeaveEntitlementStatus | string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdUser?: AuthUserSummary | null;
+  updatedUser?: AuthUserSummary | null;
+};
+
+export type GetLeaveEntitlementsParams = {
+  page?: string;
+  limit?: string;
+  staffId?: string;
+  leaveTypeId?: string;
+  departmentId?: string; // reserved — wire when departments exist
+  fromDate?: string;
+  toDate?: string;
+};
+
+/** Client Formik values for entitlement form. */
+export type LeaveEntitlementFormValues = {
+  staffId: string;
+  leaveTypeId: string;
+  fromDate: Date | null;
+  toDate: Date | null;
+  entitled: string;
+  carryForward: string;
+  status: string;
+};
+
+export type LeaveEntitlementPayload = {
+  staffId: string;
+  leaveTypeId: string;
+  fromDate: Date | string;
+  toDate: Date | string;
+  entitled: number;
+  carryForward?: number;
+  status?: LeaveEntitlementStatus | string;
+};
+
+export type LeaveEntitlementBalanceSummary = {
+  totalEntitlement: number;
+  used: number;
+  remaining: number;
+  carryForward: number;
+  utilisations: { label: string; percent: number }[];
+};
+
 export const LEAVE_TYPE_STATUS = {
   UNPUBLISHED: 0,
   PUBLISHED: 1

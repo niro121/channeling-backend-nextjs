@@ -4,10 +4,15 @@ import React, { useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   ColumnDef,
+  ExpandedState,
+  GroupingState,
   VisibilityState,
   flexRender,
   getCoreRowModel,
-  useReactTable
+  getExpandedRowModel,
+  getGroupedRowModel,
+  useReactTable,
+  type Row
 } from '@tanstack/react-table';
 import {
   AlertDialog,
@@ -26,7 +31,7 @@ import {
   CardFooter,
   useToast
 } from '@archmage/ui';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -41,6 +46,13 @@ import {
   type CommonDataTableContextValue
 } from './common-data-table-context';
 import { CommonDataTablePagination } from './common-data-table-pagination';
+
+export type CommonDataTableGroupHeaderContext<TData> = {
+  value: unknown;
+  columnId: string;
+  subRowCount: number;
+  row: Row<TData>;
+};
 
 interface CommonDataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -62,6 +74,22 @@ interface CommonDataTableProps<TData, TValue> {
   /** Renders on the right side of the card header next to the title. */
   headingRight?: React.ReactNode;
   onRowClick?: (row: TData) => void;
+  /**
+   * Optional column ids to group rows by (TanStack Table grouping).
+   * When set, group header rows are rendered above each group's leaf rows.
+   */
+  groupBy?: string | string[];
+  /** When grouping, expand all groups by default (default: true). */
+  groupByDefaultExpanded?: boolean;
+  /** Custom label for a group header row. */
+  renderGroupHeader?: (
+    ctx: CommonDataTableGroupHeaderContext<TData>
+  ) => React.ReactNode;
+}
+
+function normalizeGroupBy(groupBy?: string | string[]): string[] {
+  if (!groupBy) return [];
+  return (Array.isArray(groupBy) ? groupBy : [groupBy]).filter(Boolean);
 }
 
 export function CommonDataTable<TData, TValue>({
@@ -80,16 +108,29 @@ export function CommonDataTable<TData, TValue>({
   toolbarMiddle,
   toolbarRight,
   headingRight,
-  onRowClick
+  onRowClick,
+  groupBy,
+  groupByDefaultExpanded = true,
+  renderGroupHeader
 }: CommonDataTableProps<TData, TValue>) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
 
+  const groupingColumns = React.useMemo(
+    () => normalizeGroupBy(groupBy),
+    [groupBy]
+  );
+  const groupingEnabled = groupingColumns.length > 0;
+
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
+  const [grouping, setGrouping] = React.useState<GroupingState>(groupingColumns);
+  const [expanded, setExpanded] = React.useState<ExpandedState>(
+    groupByDefaultExpanded && groupingEnabled ? true : {}
+  );
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -98,6 +139,22 @@ export function CommonDataTable<TData, TValue>({
     'This action cannot be undone. This will permanently delete these records and remove the data from our servers.'
   );
 
+  useEffect(() => {
+    setGrouping(groupingColumns);
+    setExpanded(
+      groupByDefaultExpanded && groupingColumns.length > 0 ? true : {}
+    );
+    if (groupingColumns.length > 0) {
+      setColumnVisibility((prev) => {
+        const next = { ...prev };
+        for (const columnId of groupingColumns) {
+          next[columnId] = false;
+        }
+        return next;
+      });
+    }
+  }, [groupingColumns, groupByDefaultExpanded]);
+
   const table = useReactTable({
     data,
     columns,
@@ -105,11 +162,21 @@ export function CommonDataTable<TData, TValue>({
     enableRowSelection: haveBulkDelete,
     manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
+    ...(groupingEnabled
+      ? {
+          getGroupedRowModel: getGroupedRowModel(),
+          getExpandedRowModel: getExpandedRowModel(),
+          autoResetExpanded: false
+        }
+      : {}),
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
+    onGroupingChange: setGrouping,
+    onExpandedChange: setExpanded,
     state: {
       rowSelection,
-      columnVisibility
+      columnVisibility,
+      ...(groupingEnabled ? { grouping, expanded } : {})
     }
   });
 
@@ -267,11 +334,36 @@ export function CommonDataTable<TData, TValue>({
       showHideDeleteModal,
       fetchingDescription
     }),
-    [table, rowSelection, fetchingDescription]
+    // columnVisibility / grouping / expanded must be listed so consumers re-render
+    // when those states change (useReactTable keeps a stable `table` reference).
+    [
+      table,
+      rowSelection,
+      fetchingDescription,
+      columnVisibility,
+      grouping,
+      expanded
+    ]
   );
 
   const hasHeading = Boolean(heading || subHeading || headingRight);
   const hasToolbar = Boolean(toolbarLeft || toolbarMiddle || toolbarRight);
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+
+  const renderDefaultGroupHeader = (
+    ctx: CommonDataTableGroupHeaderContext<TData>
+  ) => {
+    const label =
+      ctx.value == null || ctx.value === '' ? 'Ungrouped' : String(ctx.value);
+    return (
+      <span className="font-semibold text-foreground">
+        {label}
+        <span className="ml-2 font-normal text-muted-foreground">
+          ({ctx.subRowCount})
+        </span>
+      </span>
+    );
+  };
 
   return (
     <CommonDataTableProvider value={contextValue}>
@@ -310,9 +402,11 @@ export function CommonDataTable<TData, TValue>({
           </div>
         ) : null}
 
-        <CardContent className={cn('px-0 pb-0', !hasHeading && !hasToolbar && 'pt-4')}>
+        <CardContent
+          className={cn('px-0 pb-0', !hasHeading && !hasToolbar && 'pt-4')}
+        >
           <div className="px-4 pb-4">
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-border">
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -332,29 +426,72 @@ export function CommonDataTable<TData, TValue>({
                 </TableHeader>
                 <TableBody>
                   {table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        data-state={row.getIsSelected() && 'selected'}
-                        className={cn(
-                          onRowClick && 'cursor-pointer hover:bg-muted/50'
-                        )}
-                        onClick={
-                          onRowClick
-                            ? () => onRowClick(row.original)
-                            : undefined
-                        }
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
+                    table.getRowModel().rows.map((row) => {
+                      if (groupingEnabled && row.getIsGrouped()) {
+                        const groupedColumnId = row.groupingColumnId ?? '';
+                        const groupCtx: CommonDataTableGroupHeaderContext<TData> =
+                          {
+                            value: row.getValue(groupedColumnId),
+                            columnId: groupedColumnId,
+                            subRowCount: row.subRows.length,
+                            row
+                          };
+
+                        return (
+                          <TableRow
+                            key={row.id}
+                            className="bg-muted/40 hover:bg-muted/50"
+                          >
+                            <TableCell
+                              colSpan={Math.max(visibleColumnCount, 1)}
+                              className="py-2.5"
+                            >
+                              <button
+                                type="button"
+                                className="flex w-full items-center gap-2 text-left"
+                                onClick={row.getToggleExpandedHandler()}
+                              >
+                                {row.getIsExpanded() ? (
+                                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                                {renderGroupHeader
+                                  ? renderGroupHeader(groupCtx)
+                                  : renderDefaultGroupHeader(groupCtx)}
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      return (
+                        <TableRow
+                          key={row.id}
+                          data-state={row.getIsSelected() && 'selected'}
+                          className={cn(
+                            onRowClick && 'cursor-pointer hover:bg-muted/50',
+                            groupingEnabled && 'bg-background'
+                          )}
+                          onClick={
+                            onRowClick
+                              ? () => onRowClick(row.original)
+                              : undefined
+                          }
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {cell.getIsGrouped() || cell.getIsPlaceholder()
+                                ? null
+                                : flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
                       <TableCell

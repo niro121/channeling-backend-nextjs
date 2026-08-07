@@ -201,15 +201,16 @@ model LeaveType {
 }
 
 model LeaveEntitlement {
-  id           String @id @default(auto()) @map("_id") @db.ObjectId
-  staffId      String @db.ObjectId
-  leaveTypeId  String @db.ObjectId
-  year         Int // Calendar year (e.g. 2026)
-  entitled     Float  @default(0)
-  used         Float  @default(0) // Updated on approve / cancel-after-approve
-  remaining    Float  @default(0) // entitled + carryForward - used
-  carryForward Float  @default(0)
-  status       String @default("active") // active | expired | pending
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId      String   @db.ObjectId
+  leaveTypeId  String   @db.ObjectId
+  fromDate     DateTime
+  toDate       DateTime
+  entitled     Float    @default(0)
+  used         Float    @default(0) // Updated on approve / cancel-after-approve
+  remaining    Float    @default(0) // entitled + carryForward - used
+  carryForward Float    @default(0)
+  status       String   @default("active") // active | expired | pending
 
   staff     Staff     @relation(fields: [staffId], references: [id])
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
@@ -219,10 +220,10 @@ model LeaveEntitlement {
   createdBy String?  @db.ObjectId // Auth User.id
   updatedBy String?  @db.ObjectId // Auth User.id
 
-  @@unique([staffId, leaveTypeId, year])
+  @@unique([staffId, leaveTypeId, fromDate, toDate])
   @@index([staffId])
   @@index([leaveTypeId])
-  @@index([year])
+  @@index([fromDate, toDate])
   @@index([status])
 }
 

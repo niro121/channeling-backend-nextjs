@@ -1,92 +1,27 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@archmage/ui';
-import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { getServerSession } from 'next-auth';
 import {
-  CommonDataTable,
-  DataTableExportFeature
-} from '@/components/common/common-data-table';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@archmage/ui';
+import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import {
-  leaveEntitlementColumns,
-  type LeaveEntitlementRecord
-} from './columns';
+  getLeaveEntitlementBalanceAction,
+  getLeaveEntitlementFormOptionsAction,
+  getLeaveEntitlementsAction,
+  getLeaveEntitlementsExport
+} from '@/app/actions/leave-actions/leave-entitlement.actions';
 import LeaveEntitlementFilterSection from './filter-section';
-import FormEmployeeInfo from './form-employee-info';
-import SectionLeaveBalance from './section-leave-balance';
-
-const sampleEntitlements: LeaveEntitlementRecord[] = [
-  {
-    id: '1',
-    leaveType: 'Annual Leave',
-    year: 2026,
-    entitled: 14,
-    used: 5,
-    remaining: 9,
-    carryForward: 2,
-    status: 'active'
-  },
-  {
-    id: '2',
-    leaveType: 'Casual Leave',
-    year: 2026,
-    entitled: 7,
-    used: 2,
-    remaining: 5,
-    carryForward: 0,
-    status: 'active'
-  },
-  {
-    id: '3',
-    leaveType: 'Medical Leave',
-    year: 2026,
-    entitled: 10,
-    used: 1,
-    remaining: 9,
-    carryForward: 0,
-    status: 'active'
-  },
-  {
-    id: '4',
-    leaveType: 'Annual Leave',
-    year: 2025,
-    entitled: 14,
-    used: 14,
-    remaining: 0,
-    carryForward: 0,
-    status: 'expired'
-  },
-  {
-    id: '5',
-    leaveType: 'Maternity Leave',
-    year: 2026,
-    entitled: 84,
-    used: 0,
-    remaining: 84,
-    carryForward: 0,
-    status: 'pending'
-  }
-];
-
-/** Sample options until employee / department / leave-type APIs are wired. */
-const sampleEmployeeOptions = [
-  { id: 'emp-1', name: 'Nimal Perera' },
-  { id: 'emp-2', name: 'Kamal Silva' },
-  { id: 'emp-3', name: 'Samanthi Fernando' }
-];
-
-const sampleDepartmentOptions = [
-  { id: 'dept-1', name: 'Nursing' },
-  { id: 'dept-2', name: 'Administration' },
-  { id: 'dept-3', name: 'Laboratory' }
-];
-
-const sampleLeaveTypeOptions = [
-  { id: 'annual', name: 'Annual Leave' },
-  { id: 'casual', name: 'Casual Leave' },
-  { id: 'medical', name: 'Medical Leave' },
-  { id: 'maternity', name: 'Maternity Leave' }
-];
+import LeaveEntitlementWorkspace from './leave-entitlement-workspace';
+import { formatDate } from '@/lib/utils/date';
+import type { LeaveEntitlementRecord } from '@/types/leave';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -98,29 +33,96 @@ type SearchParams = {
   }>;
 };
 
-export default async function LeaveEntitlementPage({ searchParams }: SearchParams) {
+export default async function LeaveEntitlementPage({
+  searchParams
+}: SearchParams) {
   const canView = await checkRouteAccess('/leave-entitlement');
   if (!canView) {
     redirect('/unauthorized-access');
   }
 
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'leave-entitlement.visited',
+      entityType: 'LeaveEntitlement',
+      importance: 'low'
+    });
+  }
+
   const params = await searchParams;
+  const staffId = params?.employeeId || undefined;
+  const leaveTypeId =
+    params?.leaveType && params.leaveType !== '__all__'
+      ? params.leaveType
+      : undefined;
+
+  const [optionsRes, entitlementsRes, balanceRes] = await Promise.all([
+    getLeaveEntitlementFormOptionsAction(),
+    getLeaveEntitlementsAction({
+      staffId,
+      leaveTypeId,
+      departmentId: params?.departmentId,
+      fromDate: params?.fromDate,
+      toDate: params?.toDate,
+      limit: process.env.DEFAULT_PAGE_SIZE
+    }),
+    staffId
+      ? getLeaveEntitlementBalanceAction(staffId)
+      : Promise.resolve({ isError: false, data: null, errors: {} })
+  ]);
+
+  const employeeOptions = (optionsRes.data?.staff ?? []).map((staff) => ({
+    id: staff.id,
+    name: staff.code ? `${staff.code} — ${staff.name}` : staff.name
+  }));
+
+  const leaveTypeOptions = (optionsRes.data?.leaveTypes ?? []).map((type) => ({
+    id: type.id,
+    name: type.code ? `${type.code} — ${type.name}` : type.name
+  }));
+
+  // Department master not built yet — keep filter UI with empty options.
+  const departmentOptions: { id: string; name: string }[] = [];
+
+  const entitlements = (
+    entitlementsRes.isError ? [] : (entitlementsRes.data?.data ?? [])
+  ) as LeaveEntitlementRecord[];
+
+  const balance = balanceRes.isError ? null : (balanceRes.data ?? null);
 
   const handleExport = async () => {
     'use server';
 
-    if (!sampleEntitlements.length) {
+    const exportResponse = await getLeaveEntitlementsExport({
+      staffId,
+      leaveTypeId,
+      departmentId: params?.departmentId,
+      fromDate: params?.fromDate,
+      toDate: params?.toDate
+    });
+
+    if (!exportResponse.success || !exportResponse.data?.length) {
       return {
         success: false,
-        message: 'No entitlement records found'
+        message: exportResponse.success
+          ? 'No entitlement records found'
+          : exportResponse.message
       };
     }
 
     return {
       success: true,
-      data: sampleEntitlements.map((row) => ({
-        leaveType: row.leaveType,
-        year: row.year,
+      data: exportResponse.data.map((row: any) => ({
+        staffName: row.staffName
+          ? row.staffCode
+            ? `${row.staffName} (${row.staffCode})`
+            : row.staffName
+          : '-',
+        leaveType: row.leaveTypeName ?? row.leaveType?.name ?? '-',
+        fromDate: formatDate(row.fromDate),
+        toDate: formatDate(row.toDate),
         entitled: row.entitled,
         used: row.used,
         remaining: row.remaining,
@@ -132,13 +134,11 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
 
   return (
     <div className="space-y-6">
-      {/* 1. Title + subheading */}
       <CommonManagerHeader
         title="Leave Entitlement"
         description="Configure per-employee leave entitlements and monitor real-time balances."
       />
 
-      {/* 2. Filter Section Card */}
       <Card className="rounded-lg border border-border shadow-sm">
         <CardHeader className="space-y-1.5">
           <CardTitle className="text-lg font-semibold">Search & Filters</CardTitle>
@@ -155,9 +155,12 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
             }
           >
             <LeaveEntitlementFilterSection
-              employeeOptions={sampleEmployeeOptions}
-              departmentOptions={sampleDepartmentOptions}
-              leaveTypeOptions={sampleLeaveTypeOptions}
+              employeeOptions={employeeOptions}
+              departmentOptions={departmentOptions}
+              leaveTypeOptions={[
+                { id: '__all__', name: 'All Leave Types' },
+                ...leaveTypeOptions
+              ]}
               employeeId={params?.employeeId}
               departmentId={params?.departmentId}
               leaveType={params?.leaveType}
@@ -168,50 +171,12 @@ export default async function LeaveEntitlementPage({ searchParams }: SearchParam
         </CardContent>
       </Card>
 
-      {/* 3. Employee Information + Leave Balance (2 col) */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <FormEmployeeInfo
-          employeeOptions={sampleEmployeeOptions}
-          leaveTypeOptions={sampleLeaveTypeOptions}
-        />
-
-        <SectionLeaveBalance />
-      </div>
-
-      {/* 4. Entitlement Register Card */}
-      <CommonDataTable
-        heading="Entitlement Register"
-        subHeading="Leave entitlement records for the selected employee."
-        columns={leaveEntitlementColumns}
-        data={sampleEntitlements}
-        rowCount={sampleEntitlements.length}
-        showPagination={false}
-        toolbarRight={
-          <DataTableExportFeature
-            showColumnToggle
-            serverData={handleExport}
-            columns={[
-              'Leave Type',
-              'Year',
-              'Entitled',
-              'Used',
-              'Remaining',
-              'Carry Forward',
-              'Status'
-            ]}
-            keys={[
-              'leaveType',
-              'year',
-              'entitled',
-              'used',
-              'remaining',
-              'carryForward',
-              'status'
-            ]}
-            title="Leave Entitlement Register"
-            fileName="leave-entitlement"
-          />
-        }
+      <LeaveEntitlementWorkspace
+        entitlements={entitlements}
+        balance={balance}
+        employeeOptions={employeeOptions}
+        leaveTypeOptions={leaveTypeOptions}
+        exportHandler={handleExport}
       />
     </div>
   );

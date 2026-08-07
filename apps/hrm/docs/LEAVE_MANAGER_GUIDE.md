@@ -3,7 +3,7 @@
 Guidance for building and extending leave features in `apps/hrm`.  
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
-**Status:** Phase 0–1 Leave Types CRUD live; entitlement / application UI still sample stubs.  
+**Status:** Phase 0–2 Leave Types + Entitlements CRUD live; application UI still sample stubs.  
 **Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
@@ -13,7 +13,7 @@ Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_
 | Route | Resource key | Role |
 |-------|----------------|------|
 | `/leave-types` | `leave-types` | Master data for leave categories |
-| `/leave-entitlement` | `leave-entitlement` | Per-staff yearly entitlements + balance |
+| `/leave-entitlement` | `leave-entitlement` | Per-staff entitlements (date range) + balance |
 | `/leave-application` | `leave-application` | Create/edit forms + application register |
 | `/leave-management` | `leave-management` | Approvals, balances overview, calendar, gate pass (UI shell) |
 | `/leave-requests` | `leave-requests` | Reserved; prefer `leave-application` for the form flow |
@@ -34,7 +34,7 @@ LeaveApplication
 | Model | Purpose |
 |-------|---------|
 | **LeaveType** | Code, name, paid/approval/half-day/carry-forward policy, `status` 0\|1 |
-| **LeaveEntitlement** | Unique `(staffId, leaveTypeId, year)` — calendar year; stored `entitled` / `used` / `remaining` / `carryForward` (`Float`) |
+| **LeaveEntitlement** | Unique `(staffId, leaveTypeId, fromDate, toDate)`; stored `entitled` / `used` / `remaining` / `carryForward` (`Float`) |
 | **LeaveApplication** | Form + workflow; `formNumber` unique; `days` Float; status workflow |
 | **LeaveApplicationShift** | Embedded rows from Process Shift (label + from/to) |
 
@@ -44,7 +44,7 @@ LeaveApplication
 |-------|----------|
 | Approver | `approverId` = Auth **User.id** (not Staff). Optional `approverName` denormalized for lists |
 | Entitlement usage | **Store** `used` / `remaining`; update in a transaction on approve / cancel-after-approve |
-| Year | **Calendar year** (`year: Int`, e.g. 2026) |
+| Entitlement period | **From / To dates** (`fromDate`, `toDate`) — not calendar year |
 | Day precision | **Float** — whole and half days (`0.5`, `1`, `1.5`). Prefer multiples of `0.5` in Zod |
 | Out with cancel | Independent **`outWithCancel` boolean** — not derived from `status === 'cancelled'` |
 
@@ -70,7 +70,7 @@ Use `Sequence` with a scope such as `leave-application` to allocate `formNumber`
 remaining = entitled + carryForward - used
 ```
 
-- On **approve**: `used += application.days`, recompute `remaining` (same staff/type/year as `fromDate`’s calendar year).
+- On **approve**: `used += application.days`, recompute `remaining` for the entitlement whose period covers the application (staff + leave type + date overlap).
 - On **cancel** (if previously approved): subtract days; do not go below `0`.
 - Reject of a pending app: no entitlement change.
 - Optional **Recalculate** repair: recompute `used` from approved applications for that entitlement.
@@ -165,7 +165,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 |-------|------|---------|
 | **0** | Foundation | DB + shared leave types; client generated |
 | **1** | Leave Types | Master CRUD live |
-| **2** | Entitlements | Per-staff yearly balances CRUD + register UI wired |
+| **2** | Entitlements | Per-staff date-range balances CRUD + register UI wired |
 | **3** | Applications (CRUD) | Create/list/update/delete + filters; form numbers |
 | **4** | Workflow | Approve / reject / cancel updates entitlement `used` |
 | **5** | Application UX polish | Recalculate, shifts stubs, balance card, view/edit flows |
@@ -213,19 +213,19 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 ### Phase 2 — Leave Entitlement
 
-**Goal:** Assign yearly entitlements; show register + balance.
+**Goal:** Assign entitlements by date range; show register + balance.
 
 | Layer | Work |
 |-------|------|
-| Service | CRUD; enforce `@@unique([staffId, leaveTypeId, year])`; compute `remaining` on write |
+| Service | CRUD; enforce `@@unique([staffId, leaveTypeId, fromDate, toDate])`; compute `remaining` on write |
 | Actions | Entitlement actions + permission `leave-entitlement` |
 | UI | Replace sample data on `/leave-entitlement` (filter, form, table, balance section) |
 
 | Done when |
 |-----------|
-| [ ] Create/edit entitlement for a staff + type + year |
-| [ ] Duplicate unique key surfaces a clear error |
-| [ ] Balance cards reflect `entitled` / `used` / `remaining` (used may still be 0 until Phase 4) |
+| [x] Create/edit entitlement for a staff + type + from/to dates |
+| [x] Duplicate unique key surfaces a clear error |
+| [x] Balance cards reflect `entitled` / `used` / `remaining` (used may still be 0 until Phase 4) |
 
 **Blocks:** Meaningful application balance / approve.
 
@@ -264,7 +264,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Done when |
 |-----------|
-| [ ] Approve increases `used` and decreases `remaining` for that staff/type/year |
+| [ ] Approve increases `used` and decreases `remaining` for the matching staff/type/period entitlement |
 | [ ] Cancel after approve reverses usage (floor at 0) |
 | [ ] Reject pending does not change entitlement |
 | [ ] Double-approve / invalid transition is rejected safely |
@@ -321,7 +321,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | [ ] Gate pass model + Management section |
 | [ ] Shift / roster masters; optional FKs on application (keep label snapshots) |
 | [ ] Approval history collection |
-| [ ] Financial-year entitlements (only if product switches from calendar year) |
+| [ ] Financial-year helpers (only if product later needs derived FY labels on top of from/to) |
 
 ---
 
@@ -367,7 +367,7 @@ See **Phase 8**. Summary:
 | Gate pass requests | Management section; separate model when specified |
 | Multi-step approval history | Optional `LeaveApproval` collection |
 | Staff / roster Shift masters | Link via optional FKs; keep application snapshots |
-| Financial year entitlements | Not in v1 — calendar year only |
+| Financial year labels | Optional later — entitlements use from/to dates |
 
 ---
 
