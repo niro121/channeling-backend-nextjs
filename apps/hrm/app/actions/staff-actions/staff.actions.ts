@@ -40,8 +40,8 @@ import { personnelPayloadToStaffRecordSlice } from '@/lib/mappers/staff-personne
 // ** Get Staff List Action * //
 export async function getStaffAction(params: GetStaffParams) {
   const newParams: GetStaffParams = {
-    page: params.page ? process.env.DEFAULT_PAGE_SIZE : "0",
-    limit: params.limit ? process.env.DEFAULT_PER_PAGE: "10",
+    page: params.page ?? process.env.DEFAULT_PAGE ?? '0',
+    limit: params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
     keyword: params.keyword ?? ''
   };
   try {
@@ -522,8 +522,8 @@ export async function getStaffOptionsAction(): Promise<{
 export const getStaffExport = async (params: { keyword?: string }) => {
   try {
     const response = await getStaffAction({
-      page: "1",
-      limit: process.env.EXPORT_LIMIT ?? "10000", // Get all records
+      page: process.env.DEFAULT_PAGE ?? '0',
+      limit: process.env.EXPORT_LIMIT ?? '1000',
       keyword: params.keyword ?? ""
     });
 

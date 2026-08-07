@@ -32,7 +32,7 @@ export async function getLeaveTypesAction(params: GetLeaveTypesParams) {
   try {
     await requirePermission('leave-types', 'view');
     const result = await getLeaveTypes({
-      page: params.page ?? '1',
+      page: params.page ?? process.env.DEFAULT_PAGE ?? '0',
       limit: params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
       keyword: params.keyword ?? '',
       status: params.status,

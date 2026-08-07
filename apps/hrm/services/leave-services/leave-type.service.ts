@@ -111,10 +111,21 @@ export async function getLeaveTypes(params: GetLeaveTypesParams): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const pageNumber = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
+    const pageNumber = Math.max(
+      1,
+      Number.parseInt(params.page ?? process.env.DEFAULT_PAGE ?? '0', 10) || 1
+    );
+    const defaultPerPage = process.env.DEFAULT_PER_PAGE ?? '10';
+    const maxPageSize =
+      Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100;
     const pageSize = Math.min(
-      100,
-      Math.max(1, Number.parseInt(params.limit ?? '10', 10) || 10)
+      maxPageSize,
+      Math.max(
+        1,
+        Number.parseInt(params.limit ?? defaultPerPage, 10) ||
+          Number.parseInt(defaultPerPage, 10) ||
+          10
+      )
     );
     const skip = (pageNumber - 1) * pageSize;
     const where = buildLeaveTypeWhere(params);
@@ -154,10 +165,12 @@ export async function getLeaveTypesForExport(
 }> {
   try {
     const where = buildLeaveTypeWhere(params);
+    const exportLimit =
+      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
     const records = await prisma.leaveType.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: 5000
+      take: exportLimit
     });
     return {
       success: true,
@@ -469,7 +482,8 @@ export async function getLeaveTypeOptions(): Promise<{
     const records = await prisma.leaveType.findMany({
       where: { status: 1 },
       orderBy: { name: 'asc' },
-      take: 500,
+      take:
+        Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
       select: { id: true, name: true, code: true }
     });
 

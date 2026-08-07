@@ -405,9 +405,16 @@ export async function getStaff(params: GetStaffParams): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const { page = process.env.DEFAULT_PAGE_SIZE ?? '0', limit = process.env.DEFAULT_PER_PAGE ?? '10', keyword = '' } = params;
+    const page = params.page ?? process.env.DEFAULT_PAGE ?? '0';
+    const limit = params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10';
+    const keyword = params.keyword ?? '';
     const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10));
+    const maxTake =
+      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const pageSize = Math.min(
+      maxTake,
+      Math.max(1, Number.parseInt(limit, 10) || 10)
+    );
     const skip = (pageNumber - 1) * pageSize;
     const whereClause: Prisma.StaffWhereInput = {
       OR: [
@@ -889,7 +896,8 @@ export async function getStaffOptions(): Promise<{
     const records = await prisma.staff.findMany({
       where: { status: 1 },
       orderBy: { name: 'asc' },
-      take: 500,
+      take:
+        Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
       select: { id: true, name: true, code: true }
     });
     const data: StaffOption[] = records.map((record) => ({
