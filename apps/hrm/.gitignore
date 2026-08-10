@@ -38,3 +38,6 @@ next-env.d.ts
 
 # migration reports (generated)
 /temp/
+
+# prisma generated (HRM-isolated client)
+/lib/generated/

@@ -46,3 +46,7 @@ next-env.d.ts
 # playwright
 test-results/
 playwright-report/
+
+# prisma generated
+packages\db-auth\src\generated
+apps\hrm\lib\generated
