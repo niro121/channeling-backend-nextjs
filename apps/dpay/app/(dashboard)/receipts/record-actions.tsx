@@ -97,7 +97,7 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
       </Button>
       {canCancel && (
         <CancelActionButton
-          label="Cancel receipt"
+          title="Cancel receipt"
           onClick={() => setCancelOpen(true)}
         />
       )}

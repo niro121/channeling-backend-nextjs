@@ -115,8 +115,8 @@ export function BillPaymentHistory({
                           <PaymentDetailsButton onClick={() => openDetails(receipt)} />
                           {canCancel && (
                             <CancelActionButton
-                              label="Cancel receipt"
-                              className="h-7 w-7"
+                              className="h-7 gap-1 px-2 text-xs"
+                              iconClassName="h-3 w-3"
                               onClick={() => setCancelReceipt(receipt)}
                             />
                           )}
