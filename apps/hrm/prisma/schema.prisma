@@ -1,0 +1,313 @@
+// HRM domain database — auth lives in @archmage/db-auth (AUTH_DATABASE_URL).
+// User.staffId in the auth DB references Staff.id here (no cross-DB Prisma relation).
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma-client"
+  binaryTargets = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+/* ---------------------------------
+STAFF TABLE
+--------------------------------- */
+type StaffHrDetails {
+  initials               String?
+  firstName              String?
+  lastName               String?
+  homeTelephone          String?
+  email                  String?
+  secondaryEmail         String?
+  zoneCode               String?
+  fingerPrintRfid        String?
+  staffCodeLegacy        String?
+  epfNumber              String?
+  etfNumber              String?
+  registrationNumber     String?
+  dateResigned           DateTime?
+  resignedWithoutNotice  Boolean   @default(false)
+  resignedWithNoticeDate DateTime?
+  dateRetired            DateTime?
+  speciality             String?
+}
+
+type StaffPersonalDetails {
+  nationality     String?
+  bloodGroup      String?
+  religion        String?
+  civilStatus     String?
+  gsDivision      String?
+  pollingDivision String?
+  transportMode   String?
+}
+
+type StaffHrContactDetails {
+  permanentAddress String?
+  postalAddress    String?
+  faxNumber        String?
+}
+
+type StaffDependentCounts {
+  maleAbove18   Int @default(0)
+  femaleAbove18 Int @default(0)
+  maleBelow18   Int @default(0)
+  femaleBelow18 Int @default(0)
+}
+
+type StaffFamilyInfo {
+  spouseName            String?
+  spouseOccupation      String?
+  fatherName            String?
+  fatherOccupation      String?
+  motherName            String?
+  motherOccupation      String?
+  guardianName          String?
+  guardianOccupation    String?
+  guardianRelationship  String?
+  guardianAddress       String?
+  guardianContactNumber String?
+  fatherInLawName       String?
+  fatherInLawOccupation String?
+  motherInLawName       String?
+  motherInLawOccupation String?
+  inLawAddress          String?
+  inLawContactNumber    String?
+}
+
+type StaffEmergencyContact {
+  name          String?
+  relationship  String?
+  address       String?
+  contactNumber String?
+}
+
+type StaffPersonnelDetails {
+  personal   StaffPersonalDetails?
+  contact    StaffHrContactDetails?
+  family     StaffFamilyInfo?
+  dependents StaffDependentCounts?
+  emergency  StaffEmergencyContact?
+}
+
+type StaffWelfareDetails {
+  eligibleValue Float?
+  utilizedThisYear Float?
+}
+
+type StaffEmploymentInfo {
+  institution     String?
+  department      String?
+  employeeStatus  String?
+  staffCategory   String?
+  staffGrade      String?
+  staffDesignation String?
+  roster          String?
+  shift           String?
+}
+
+type StaffPayrollDetails {
+  payingMethod          String?
+  salaryPaymentMethod   String?
+  bank                  String?
+  bankBranch            String?
+  accountNumber         String?
+}
+
+type StaffWorkingHours {
+  perWeekStandard Float?
+  perWeekOt       Float?
+  perWeekNoPay    Float?
+}
+
+type StaffEmploymentPermissions {
+  allowedLateInLeave  Boolean @default(false)
+  allowedEarlyOutLeave Boolean @default(false)
+}
+
+type StaffEmploymentNotes {
+  memo String?
+}
+
+type StaffEmploymentDetails {
+  welfare      StaffWelfareDetails?
+  employment   StaffEmploymentInfo?
+  payroll      StaffPayrollDetails?
+  workingHours StaffWorkingHours?
+  permissions  StaffEmploymentPermissions?
+  notes        StaffEmploymentNotes?
+}
+
+model Staff {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  code            String    @unique()
+  title           String    @default("")
+  name            String
+  nic             String
+  dateOfBirth     DateTime?
+  gender          String    @default("")
+  contactMobile   String
+  address         String    @default("")
+  dateJoined      DateTime?
+  status          Int       @default(1) // 0 = Inactive, 1 = Active
+  migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
+  hrDetails       StaffHrDetails?
+  personnelDetails StaffPersonnelDetails?
+  employmentDetails StaffEmploymentDetails?
+
+  leaveEntitlements LeaveEntitlement[]
+  leaveApplications LeaveApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([name])
+}
+
+/* ---------------------------------
+LEAVE
+--------------------------------- */
+
+model LeaveType {
+  id                   String  @id @default(auto()) @map("_id") @db.ObjectId
+  code                 String  @unique
+  name                 String
+  description          String?
+  isPaid               Boolean @default(true)
+  requiresApproval     Boolean @default(true)
+  allowHalfDay         Boolean @default(true)
+  maxDaysPerYear       Float?
+  carryForwardAllowed  Boolean @default(false)
+  maxCarryForwardDays  Float?
+  status               Int     @default(1) // 0 = Inactive, 1 = Active
+
+  entitlements LeaveEntitlement[]
+  applications LeaveApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([status])
+  @@index([name])
+}
+
+model LeaveEntitlement {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId      String   @db.ObjectId
+  leaveTypeId  String   @db.ObjectId
+  fromDate     DateTime
+  toDate       DateTime
+  entitled     Float    @default(0)
+  used         Float    @default(0) // Updated on approve / cancel-after-approve
+  remaining    Float    @default(0) // entitled + carryForward - used
+  carryForward Float    @default(0)
+  status       String   @default("active") // active | expired | pending
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@unique([staffId, leaveTypeId, fromDate, toDate])
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([fromDate, toDate])
+  @@index([status])
+}
+
+/// Shift rows produced by "Process Shift" on a leave application.
+type LeaveApplicationShift {
+  shiftLabel String
+  from       DateTime
+  to         DateTime
+  shiftDate  DateTime?
+}
+
+model LeaveApplication {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber    String    @unique
+  staffId       String    @db.ObjectId
+  leaveTypeId   String    @db.ObjectId
+  fromDate      DateTime
+  toDate        DateTime
+  days          Float     @default(0) // Whole or half days (e.g. 0.5, 1)
+  /// Half-day session when days = 0.5: "AM" | "PM". Null for full-day leave.
+  halfDaySession String?
+  requestedDate DateTime?
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId    String?   @db.ObjectId
+  approverName  String? // Denormalized for list display
+  approvedAt    DateTime?
+  status        String    @default("pending") // pending | approved | rejected | cancelled
+  outWithCancel Boolean   @default(false)
+  comment       String?
+  lieuShiftId   String?
+  lieuShiftLabel String?
+
+  /// Snapshot from Recalculate (optional audit of balance at request time).
+  entitleSnapshot   Float?
+  utilizedSnapshot  Float?
+  balanceSnapshot   Float?
+
+  shifts LeaveApplicationShift[]
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([status])
+  @@index([fromDate, toDate])
+  @@index([approverId])
+  @@index([outWithCancel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+ACTIVITY LOG TABLE
+--------------------------------- */
+// userId references auth DB User.id (no cross-DB Prisma relation).
+model ActivityLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  action     String // e.g. "staff.staff.created", "staff.visited"
+  entityType String // e.g. "Staff"
+  entityId   String?  @db.ObjectId
+  metadata   Json? // optional extra details
+  ipAddress  String? // client IP from x-forwarded-for or x-real-ip when available
+  importance String? // "low" | "medium" | "high" for retention trimming
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([importance, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+SEQUENCE TABLE
+--------------------------------- */
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
