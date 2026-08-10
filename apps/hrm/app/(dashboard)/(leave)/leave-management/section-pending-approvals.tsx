@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import {
   Avatar,
@@ -9,8 +11,14 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle
+  CardTitle,
+  useToast
 } from '@archmage/ui';
+import { usePermissions } from '@/components/hooks/use-permissions';
+import {
+  approveLeaveApplicationAction,
+  rejectLeaveApplicationAction
+} from '@/app/actions/leave-actions/leave-application.actions';
 
 export type PendingApprovalItem = {
   id: string;
@@ -26,45 +34,6 @@ type SectionPendingApprovalsProps = {
   items?: PendingApprovalItem[];
 };
 
-const sampleItems: PendingApprovalItem[] = [
-  {
-    id: '1',
-    name: 'N. Fernando',
-    initials: 'NF',
-    department: 'Ward 3',
-    leaveType: 'Casual',
-    dateRange: '18–19 Aug',
-    duration: '2 days'
-  },
-  {
-    id: '2',
-    name: 'S. Perera',
-    initials: 'SP',
-    department: 'ICU',
-    leaveType: 'Medical',
-    dateRange: '20 Aug',
-    duration: '1 day'
-  },
-  {
-    id: '3',
-    name: 'K. Jayasuriya',
-    initials: 'KJ',
-    department: 'OPD',
-    leaveType: 'Annual',
-    dateRange: '22–26 Aug',
-    duration: '5 days'
-  },
-  {
-    id: '4',
-    name: 'R. Silva',
-    initials: 'RS',
-    department: 'Lab',
-    leaveType: 'Half-day',
-    dateRange: '21 Aug',
-    duration: '0.5 day'
-  }
-];
-
 const workflowSteps = [
   'Staff applies',
   'Supervisor',
@@ -72,10 +41,61 @@ const workflowSteps = [
   'Approved'
 ];
 
-/** UI-only pending approvals list with approve/reject stubs. */
 export default function SectionPendingApprovals({
-  items = sampleItems
+  items = []
 }: SectionPendingApprovalsProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { has } = usePermissions();
+  const canDecide =
+    has('leave-management', 'edit') || has('leave-application', 'edit');
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const handleDecide = async (
+    id: string,
+    action: 'approve' | 'reject'
+  ) => {
+    try {
+      setBusyId(id);
+      const result =
+        action === 'approve'
+          ? await approveLeaveApplicationAction(id)
+          : await rejectLeaveApplicationAction(id);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ??
+            `Failed to ${action} leave application.`
+        });
+        return;
+      }
+
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description:
+          action === 'approve'
+            ? 'Leave application approved.'
+            : 'Leave application rejected.'
+      });
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : `Failed to ${action} leave application.`
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <Card className="rounded-lg border border-border shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-3 pb-4">
@@ -87,72 +107,82 @@ export default function SectionPendingApprovals({
 
       <CardContent className="space-y-4">
         <div className="space-y-3">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col gap-3 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-teal-100 text-sm font-semibold text-teal-800">
-                    {item.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {item.name}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {item.department}
-                  </p>
+          {items.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">
+              No pending leave applications.
+            </p>
+          ) : (
+            items.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-teal-100 text-sm font-semibold text-teal-800">
+                      {item.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {item.name}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {item.department}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:justify-center">
-                <Badge
-                  variant="secondary"
-                  className="border-0 bg-slate-200/80 text-slate-700 hover:bg-slate-200/80"
-                >
-                  {item.leaveType}
-                </Badge>
-                <div>
-                  <p className="text-sm font-semibold">{item.dateRange}</p>
-                  <p className="text-xs text-muted-foreground">{item.duration}</p>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:justify-center">
+                  <Badge
+                    variant="secondary"
+                    className="border-0 bg-slate-200/80 text-slate-700 hover:bg-slate-200/80"
+                  >
+                    {item.leaveType}
+                  </Badge>
+                  <div>
+                    <p className="text-sm font-semibold">{item.dateRange}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.duration}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5"
-                  onClick={() => {
-                    // TODO: wire reject
-                  }}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Reject
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8 gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800"
-                  onClick={() => {
-                    // TODO: wire approve
-                  }}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Approve
-                </Button>
+                {canDecide ? (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      disabled={busyId === item.id}
+                      onClick={() => handleDecide(item.id, 'reject')}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reject
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800"
+                      disabled={busyId === item.id}
+                      onClick={() => handleDecide(item.id, 'approve')}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Approve
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         <Card className="rounded-lg border border-border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Approval Workflow</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Approval Workflow
+            </CardTitle>
           </CardHeader>
           <div className="border-t border-border" />
           <CardContent className="pt-4">

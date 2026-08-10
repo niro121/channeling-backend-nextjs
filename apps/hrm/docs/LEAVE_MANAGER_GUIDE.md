@@ -265,10 +265,10 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Done when |
 |-----------|
-| [ ] Approve increases `used` and decreases `remaining` for the matching staff/type/period entitlement |
-| [ ] Cancel after approve reverses usage (floor at 0) |
-| [ ] Reject pending does not change entitlement |
-| [ ] Double-approve / invalid transition is rejected safely |
+| [x] Approve increases `used` and decreases `remaining` for the matching staff/type/period entitlement |
+| [x] Cancel after approve reverses usage (floor at 0) |
+| [x] Reject pending does not change entitlement |
+| [x] Double-approve / invalid transition is rejected safely |
 
 **Blocks:** Trustworthy management dashboard numbers.
 
@@ -295,11 +295,11 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Work |
 |------|
-| [ ] Count cards (on leave today, pending, approved/rejected month) |
-| [ ] Pending approvals list → Phase 4 actions |
-| [ ] My leave balances (session user’s staff link via Auth `User.staffId`) |
-| [ ] Calendar from approved applications in range |
-| [ ] Gate pass — keep placeholder until Phase 8 |
+| [x] Count cards (on leave today, pending, approved/rejected month) |
+| [x] Pending approvals list → Phase 4 actions |
+| [x] My leave balances (session user’s staff link via Auth `User.staffId`) |
+| [x] Calendar from approved applications in range |
+| [x] Gate pass — keep placeholder until Phase 8 |
 
 ---
 
@@ -333,11 +333,13 @@ services/leave-services/
   leave-type.service.ts
   leave-entitlement.service.ts
   leave-application.service.ts
+  leave-management.service.ts
 
 app/actions/leave-actions/
   leave-type.actions.ts
   leave-entitlement.actions.ts
   leave-application.actions.ts
+  leave-management.actions.ts
 
 types/leave.ts
 lib/mappers/leave-*.mapper.ts   # when forms are non-trivial

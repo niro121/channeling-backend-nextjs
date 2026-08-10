@@ -9,9 +9,12 @@ import {
   DataTableRowActions,
   useToast
 } from '@archmage/ui';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Ban, Eye, Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import { deleteLeaveApplicationAction } from '@/app/actions/leave-actions/leave-application.actions';
+import {
+  cancelLeaveApplicationAction,
+  deleteLeaveApplicationAction
+} from '@/app/actions/leave-actions/leave-application.actions';
 import type { LeaveApplicationRecord } from '@/types/leave';
 import { LeaveApplicationViewDialog } from './view-dialog';
 
@@ -32,11 +35,16 @@ export default function LeaveApplicationRecordActions({
   const { has } = usePermissions();
   const [viewOpen, setViewOpen] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const canView = has('leave-application', 'view');
-  const canEdit = has('leave-application', 'edit');
+  const canEdit =
+    has('leave-application', 'edit') || has('leave-management', 'edit');
   const canDelete = has('leave-application', 'delete');
+  const canCancel =
+    canEdit &&
+    (record.status === 'pending' || record.status === 'approved');
 
   const onDeleteConfirmation = async () => {
     try {
@@ -74,6 +82,41 @@ export default function LeaveApplicationRecordActions({
     }
   };
 
+  const onCancelConfirmation = async () => {
+    try {
+      setLoading(true);
+      const result = await cancelLeaveApplicationAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ?? 'Leave application cancel unsuccessful.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Leave application was cancelled successfully.'
+      });
+      onDeleted?.();
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Leave application cancel unsuccessful.'
+      });
+    } finally {
+      setLoading(false);
+      setShowCancelConfirmation(false);
+    }
+  };
+
   return (
     <>
       <div className="flex justify-end">
@@ -90,7 +133,7 @@ export default function LeaveApplicationRecordActions({
               <span className="sr-only">View</span>
             </Button>
           )}
-          {canEdit && (
+          {has('leave-application', 'edit') && record.status === 'pending' && (
             <Button
               variant="ghost"
               size="icon"
@@ -100,6 +143,18 @@ export default function LeaveApplicationRecordActions({
             >
               <Pencil className="h-4 w-4" />
               <span className="sr-only">Edit</span>
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowCancelConfirmation(true)}
+              title="Cancel"
+            >
+              <Ban className="h-4 w-4" />
+              <span className="sr-only">Cancel</span>
             </Button>
           )}
           {canDelete && (
@@ -130,6 +185,19 @@ export default function LeaveApplicationRecordActions({
         title="Delete leave application?"
         description="This action cannot be undone. This will permanently delete this leave application."
         handleContinue={onDeleteConfirmation}
+      />
+
+      <CustomAlertDialog
+        open={showCancelConfirmation}
+        handleVisibilityChange={setShowCancelConfirmation}
+        loading={loading}
+        title="Cancel leave application?"
+        description={
+          record.status === 'approved'
+            ? 'This will cancel the approved leave and reverse entitlement usage.'
+            : 'This will cancel the pending leave application.'
+        }
+        handleContinue={onCancelConfirmation}
       />
     </>
   );

@@ -7,12 +7,17 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
-import { computeLeaveApplicationDays, isHalfDaySession, isSameLocalDay } from '@/lib/helpers/leave-application-days.helper';
+import {
+  computeLeaveApplicationDays,
+  isHalfDaySession,
+  isSameLocalDay
+} from '@/lib/helpers/leave-application-days.helper';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { hasPermission } from '@/lib/permissions';
 import { userTypes } from '@/lib/roles';
 import { formatDate } from '@/lib/utils/date';
 import {
+  computeEntitlementRemaining,
   LEAVE_HALF_DAY_SESSIONS,
   type GetLeaveApplicationsParams,
   type LeaveApplicationPayload,
@@ -751,6 +756,309 @@ export async function deleteLeaveApplication(id: string): Promise<{
     return {
       success: false,
       error: { message: error.message || 'Failed to delete leave application' }
+    };
+  }
+}
+
+/**
+ * Approve a pending application: deduct days from covering entitlement.
+ * Sets status approved, approver fields, approvedAt.
+ */
+export async function approveLeaveApplication(
+  id: string,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid application ID' } };
+    }
+
+    const auditUser = toAuditUser(user);
+    if (!auditUser?.id) {
+      return {
+        success: false,
+        error: { message: 'Approver identity is required' }
+      };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.leaveApplication.findUnique({ where: { id } });
+      if (!existing) {
+        return { ok: false as const, message: 'Leave application not found' };
+      }
+      if (existing.status !== 'pending') {
+        return {
+          ok: false as const,
+          message: `Cannot approve an application with status "${existing.status}"`
+        };
+      }
+
+      const entitlement = await tx.leaveEntitlement.findFirst({
+        where: {
+          staffId: existing.staffId,
+          leaveTypeId: existing.leaveTypeId,
+          status: { in: ['active', 'pending'] },
+          fromDate: { lte: existing.toDate },
+          toDate: { gte: existing.fromDate }
+        },
+        orderBy: { fromDate: 'desc' }
+      });
+
+      if (!entitlement) {
+        return {
+          ok: false as const,
+          message:
+            'No covering leave entitlement found for this staff, leave type, and dates'
+        };
+      }
+
+      const days = Number(existing.days ?? 0);
+      if (days <= 0) {
+        return {
+          ok: false as const,
+          message: 'Application has invalid leave days'
+        };
+      }
+
+      if (entitlement.remaining < days) {
+        return {
+          ok: false as const,
+          message: `Insufficient leave balance (remaining ${entitlement.remaining}, required ${days})`
+        };
+      }
+
+      const used = entitlement.used + days;
+      const remaining = computeEntitlementRemaining(
+        entitlement.entitled,
+        entitlement.carryForward,
+        used
+      );
+
+      await tx.leaveEntitlement.update({
+        where: { id: entitlement.id },
+        data: { used, remaining }
+      });
+
+      const record = await tx.leaveApplication.update({
+        where: { id },
+        data: {
+          status: 'approved',
+          approverId: auditUser.id,
+          approverName: auditUser.name ?? null,
+          approvedAt: new Date(),
+          updatedBy: auditUser.id
+        },
+        include: {
+          leaveType: {
+            select: { id: true, name: true, code: true, allowHalfDay: true }
+          },
+          staff: { select: { id: true, name: true, code: true } }
+        }
+      });
+
+      return { ok: true as const, record };
+    });
+
+    if (!result.ok) {
+      return { success: false, error: { message: result.message } };
+    }
+
+    return {
+      success: true,
+      data: mapApplicationRecord(result.record),
+      message: 'Leave application approved successfully'
+    };
+  } catch (error: any) {
+    console.error('approveLeaveApplication error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to approve leave application' }
+    };
+  }
+}
+
+/**
+ * Reject a pending application. No entitlement change.
+ */
+export async function rejectLeaveApplication(
+  id: string,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid application ID' } };
+    }
+
+    const auditUser = toAuditUser(user);
+    if (!auditUser?.id) {
+      return {
+        success: false,
+        error: { message: 'Approver identity is required' }
+      };
+    }
+
+    const existing = await prisma.leaveApplication.findUnique({
+      where: { id }
+    });
+    if (!existing) {
+      return {
+        success: false,
+        error: { message: 'Leave application not found' }
+      };
+    }
+    if (existing.status !== 'pending') {
+      return {
+        success: false,
+        error: {
+          message: `Cannot reject an application with status "${existing.status}"`
+        }
+      };
+    }
+
+    const record = await prisma.leaveApplication.update({
+      where: { id },
+      data: {
+        status: 'rejected',
+        approverId: auditUser.id,
+        approverName: auditUser.name ?? null,
+        approvedAt: new Date(),
+        updatedBy: auditUser.id
+      },
+      include: {
+        leaveType: {
+          select: { id: true, name: true, code: true, allowHalfDay: true }
+        },
+        staff: { select: { id: true, name: true, code: true } }
+      }
+    });
+
+    return {
+      success: true,
+      data: mapApplicationRecord(record),
+      message: 'Leave application rejected successfully'
+    };
+  } catch (error: any) {
+    console.error('rejectLeaveApplication error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to reject leave application' }
+    };
+  }
+}
+
+/**
+ * Cancel an application.
+ * - pending → cancelled (no entitlement change)
+ * - approved → reverse entitlement usage, then cancelled
+ */
+export async function cancelLeaveApplication(
+  id: string,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: any;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid application ID' } };
+    }
+
+    const auditUser = toAuditUser(user);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.leaveApplication.findUnique({ where: { id } });
+      if (!existing) {
+        return { ok: false as const, message: 'Leave application not found' };
+      }
+
+      if (existing.status === 'cancelled') {
+        return {
+          ok: false as const,
+          message: 'Leave application is already cancelled'
+        };
+      }
+      if (existing.status === 'rejected') {
+        return {
+          ok: false as const,
+          message: 'Cannot cancel a rejected application'
+        };
+      }
+
+      if (existing.status === 'approved') {
+        const entitlement = await tx.leaveEntitlement.findFirst({
+          where: {
+            staffId: existing.staffId,
+            leaveTypeId: existing.leaveTypeId,
+            status: { in: ['active', 'pending'] },
+            fromDate: { lte: existing.toDate },
+            toDate: { gte: existing.fromDate }
+          },
+          orderBy: { fromDate: 'desc' }
+        });
+
+        if (entitlement) {
+          const days = Number(existing.days ?? 0);
+          const used = Math.max(0, entitlement.used - days);
+          const remaining = computeEntitlementRemaining(
+            entitlement.entitled,
+            entitlement.carryForward,
+            used
+          );
+          await tx.leaveEntitlement.update({
+            where: { id: entitlement.id },
+            data: { used, remaining }
+          });
+        }
+      } else if (existing.status !== 'pending') {
+        return {
+          ok: false as const,
+          message: `Cannot cancel an application with status "${existing.status}"`
+        };
+      }
+
+      const record = await tx.leaveApplication.update({
+        where: { id },
+        data: {
+          status: 'cancelled',
+          ...(auditUser?.id && { updatedBy: auditUser.id })
+        },
+        include: {
+          leaveType: {
+            select: { id: true, name: true, code: true, allowHalfDay: true }
+          },
+          staff: { select: { id: true, name: true, code: true } }
+        }
+      });
+
+      return { ok: true as const, record };
+    });
+
+    if (!result.ok) {
+      return { success: false, error: { message: result.message } };
+    }
+
+    return {
+      success: true,
+      data: mapApplicationRecord(result.record),
+      message: 'Leave application cancelled successfully'
+    };
+  } catch (error: any) {
+    console.error('cancelLeaveApplication error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to cancel leave application' }
     };
   }
 }

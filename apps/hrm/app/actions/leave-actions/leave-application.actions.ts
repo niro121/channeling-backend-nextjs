@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
-import { requirePermission } from '@/lib/server-permissions';
+import { checkPermission, requirePermission } from '@/lib/server-permissions';
 import {
+  approveLeaveApplication,
+  cancelLeaveApplication,
   createLeaveApplication,
   deleteLeaveApplication,
   deleteLeaveApplications,
@@ -13,6 +15,7 @@ import {
   getLeaveApplications,
   getLeaveApplicationsForExport,
   getLeaveApproverOptions,
+  rejectLeaveApplication,
   updateLeaveApplication
 } from '@/services/leave-services/leave-application.service';
 import type {
@@ -366,6 +369,110 @@ export async function getLeaveApplicationFormOptionsAction() {
       data: { staff: [], leaveTypes: [], approvers: [] },
       errors: {
         message: error.message ?? 'Failed to load form options'
+      }
+    };
+  }
+}
+
+async function runStatusTransition(
+  id: string,
+  action: 'approve' | 'reject' | 'cancel'
+) {
+  const canManage = await checkPermission('leave-management', 'edit');
+  const canEditApplication = await checkPermission('leave-application', 'edit');
+  if (!canManage && !canEditApplication) {
+    throw new Error(
+      `Access denied: You don't have permission to ${action} leave applications`
+    );
+  }
+
+  const auditUser = await getAuditUser();
+  const runner =
+    action === 'approve'
+      ? approveLeaveApplication
+      : action === 'reject'
+        ? rejectLeaveApplication
+        : cancelLeaveApplication;
+
+  const result = await runner(id, auditUser);
+  if (!result.success) {
+    return {
+      isError: true as const,
+      data: null,
+      errors: {
+        message:
+          result.error?.message ?? `Failed to ${action} leave application`
+      }
+    };
+  }
+
+  if (auditUser?.id) {
+    logActivityNonBlocking({
+      userId: auditUser.id,
+      action: `leave.application.${
+        action === 'approve'
+          ? 'approved'
+          : action === 'reject'
+            ? 'rejected'
+            : 'cancelled'
+      }`,
+      entityType: 'LeaveApplication',
+      entityId: id,
+      importance: 'high'
+    });
+  }
+
+  revalidatePath('/leave-application');
+  revalidatePath('/leave-management');
+  revalidatePath('/leave-entitlement');
+
+  return {
+    isError: false as const,
+    data: result.data,
+    errors: {}
+  };
+}
+
+export async function approveLeaveApplicationAction(id: string) {
+  try {
+    return await runStatusTransition(id, 'approve');
+  } catch (error: any) {
+    console.error('approveLeaveApplicationAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to approve leave application'
+      }
+    };
+  }
+}
+
+export async function rejectLeaveApplicationAction(id: string) {
+  try {
+    return await runStatusTransition(id, 'reject');
+  } catch (error: any) {
+    console.error('rejectLeaveApplicationAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to reject leave application'
+      }
+    };
+  }
+}
+
+export async function cancelLeaveApplicationAction(id: string) {
+  try {
+    return await runStatusTransition(id, 'cancel');
+  } catch (error: any) {
+    console.error('cancelLeaveApplicationAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to cancel leave application'
       }
     };
   }

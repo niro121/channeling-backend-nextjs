@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Filter, Plus } from 'lucide-react';
 import { Button, CustomDialog } from '@archmage/ui';
@@ -20,16 +21,11 @@ export function LeaveManagementHeaderActions() {
         <Filter className="h-4 w-4" />
         Filter
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        className="h-9 gap-1.5"
-        onClick={() => {
-          // TODO: wire apply leave
-        }}
-      >
-        <Plus className="h-4 w-4" />
-        Apply Leave
+      <Button type="button" size="sm" className="h-9 gap-1.5" asChild>
+        <Link href="/leave-application">
+          <Plus className="h-4 w-4" />
+          Apply Leave
+        </Link>
       </Button>
 
       <CustomDialog
@@ -38,9 +34,9 @@ export function LeaveManagementHeaderActions() {
         title="Filter Leave Management"
       >
         <div className="space-y-4 py-4">
-          {/* TODO: filter fields */}
           <div className="min-h-24 rounded-md border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            Filter options placeholder
+            Filters will be added in a later pass (department / leave type /
+            status).
           </div>
           <div className="flex justify-end gap-2">
             <Button
@@ -54,12 +50,9 @@ export function LeaveManagementHeaderActions() {
             <Button
               type="button"
               size="sm"
-              onClick={() => {
-                // TODO: apply filters
-                setFilterOpen(false);
-              }}
+              onClick={() => setFilterOpen(false)}
             >
-              Apply
+              Close
             </Button>
           </div>
         </div>
