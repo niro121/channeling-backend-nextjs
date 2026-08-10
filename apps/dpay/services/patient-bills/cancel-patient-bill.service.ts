@@ -5,6 +5,7 @@ import {
   validatePaymentMethodMetaMessage,
 } from '@/lib/patient-bills/payment-validations';
 import { validateRefundPaymentMethodForReceiptsMessage } from '@/lib/patient-bills/refund-method-rules';
+import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { generateCancelReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
 
@@ -23,15 +24,17 @@ export type CancelPatientBillInput = {
 };
 
 export type CancelPatientBillResult =
-  | { success: true; voidedReceiptCount: number }
+  | { success: true; voidedReceiptCount: number; previousStatus: string }
   | { success: false; message: string };
 
 /**
- * Soft-cancel a patient bill and void all active payment receipts.
+ * Soft-cancel a patient bill (including closed) and void all active payment receipts.
  * Each active receipt gets a separate refund receipt (`{code}DPAY-REF/########`)
  * linked via cancelReceiptNumber / refundOfReceiptId (same as single-receipt cancel).
  * Refund method is chosen by the user (may differ from original payment methods).
+ * Closed bills stay non-editable — cancel is the supported reversal path.
  * Blocked when any line item is still linked to a non-cancelled doctor payment.
+ * Single-receipt cancel remains blocked on closed bills (use full bill cancel instead).
  */
 export async function cancelPatientBill(
   input: CancelPatientBillInput
@@ -59,17 +62,17 @@ export async function cancelPatientBill(
           doctorPayment: { select: { id: true, status: true } },
         },
       },
+      // Load all receipts; filter voidable ones in memory. Prisma Mongo `field: null`
+      // does not reliably match documents where cancel/refund fields were never set.
       receipts: {
-        where: {
-          status: 'active',
-          cancelReceiptNumber: null,
-          refundOfReceiptId: null,
-        },
         select: {
           id: true,
           receiptNumber: true,
           amountPaid: true,
           paymentMethod: true,
+          status: true,
+          cancelReceiptNumber: true,
+          refundOfReceiptId: true,
         },
       },
     },
@@ -81,15 +84,12 @@ export async function cancelPatientBill(
   if (bill.status === 'cancelled') {
     return { success: false, message: 'This patient bill is already cancelled.' };
   }
-  if (bill.status === 'closed') {
-    return { success: false, message: 'Cannot cancel a closed patient bill.' };
-  }
 
   const activeDoctorPayment = bill.lineItems.find(
     (item) =>
       !isDeletedLineItem({ status: normalizeLineItemStatus(item.status) }) &&
       item.doctorPaymentId &&
-      item.doctorPayment?.status !== 'cancelled'
+      item.doctorPayment?.status === 'paid'
   );
   if (activeDoctorPayment) {
     return {
@@ -99,8 +99,10 @@ export async function cancelPatientBill(
     };
   }
 
+  const activeReceipts = bill.receipts.filter(isVoidablePaymentReceipt);
+
   let refundMeta: ReturnType<typeof buildPaymentMethodMeta> | null = null;
-  if (bill.receipts.length > 0) {
+  if (activeReceipts.length > 0) {
     if (input.refundPaymentMethod == null) {
       return {
         success: false,
@@ -108,7 +110,7 @@ export async function cancelPatientBill(
       };
     }
     const refundMethodError = validateRefundPaymentMethodForReceiptsMessage(
-      bill.receipts.map((r) => r.paymentMethod),
+      activeReceipts.map((r) => r.paymentMethod),
       input.refundPaymentMethod
     );
     if (refundMethodError) {
@@ -140,7 +142,7 @@ export async function cancelPatientBill(
 
   try {
     const refundNumbers = await Promise.all(
-      bill.receipts.map(() => generateCancelReceiptNumber(input.canceledBy))
+      activeReceipts.map(() => generateCancelReceiptNumber(input.canceledBy))
     );
 
     const voidedReceiptCount = await prisma.$transaction(async (tx) => {
@@ -159,8 +161,8 @@ export async function cancelPatientBill(
         },
       });
 
-      for (let i = 0; i < bill.receipts.length; i++) {
-        const receipt = bill.receipts[i];
+      for (let i = 0; i < activeReceipts.length; i++) {
+        const receipt = activeReceipts[i];
         const generated = refundNumbers[i];
         const meta = refundMeta!;
 
@@ -203,10 +205,10 @@ export async function cancelPatientBill(
         });
       }
 
-      return bill.receipts.length;
+      return activeReceipts.length;
     });
 
-    return { success: true, voidedReceiptCount };
+    return { success: true, voidedReceiptCount, previousStatus: bill.status };
   } catch (error) {
     console.error('cancelPatientBill failed', error);
     const message =

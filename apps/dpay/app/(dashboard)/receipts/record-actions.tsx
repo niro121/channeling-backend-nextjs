@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Row } from '@tanstack/react-table';
 import { Button } from '@archmage/ui';
-import { Ban, Download, Eye, Printer } from 'lucide-react';
+import { Download, Eye, Printer } from 'lucide-react';
 import type { ReceiptListItem } from '@/types/receipt';
 import type { PatientBillReceipt } from '@/types/patient-bill';
 import {
@@ -12,6 +12,7 @@ import {
   printReceiptHtml,
 } from '@/lib/receipts/print-receipt';
 import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
+import { CancelActionButton } from '@/components/ui/cancel-action-button';
 import { useReceiptsView } from './receipts-view-context';
 
 type ReceiptRecordActionsProps = {
@@ -95,17 +96,10 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         <span className="sr-only">Download</span>
       </Button>
       {canCancel && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          title="Cancel receipt"
-          type="button"
+        <CancelActionButton
+          label="Cancel receipt"
           onClick={() => setCancelOpen(true)}
-        >
-          <Ban className="h-3.5 w-3.5" />
-          Cancel
-        </Button>
+        />
       )}
       <CancelPatientBillReceiptDialog
         open={cancelOpen}

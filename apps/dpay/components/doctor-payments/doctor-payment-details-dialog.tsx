@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Printer } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -19,10 +19,10 @@ import {
 import { getDoctorPaymentByIdAction } from '@/app/actions/doctor-payments/doctor-payments.actions';
 import { DoctorPaymentStatusBadge } from '@/components/doctor-payments/status-badge';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import {
-  DOCTOR_PAYMENT_METHODS,
-  type DoctorPaymentDetail,
-} from '@/types/doctor-payment';
+import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
+import { formatIssuedLocation } from '@/lib/location';
+import { printDoctorPayment } from '@/lib/doctor-payments/print-doctor-payment';
+import type { DoctorPaymentDetail } from '@/types/doctor-payment';
 
 type DoctorPaymentDetailsDialogProps = {
   paymentId: string | null;
@@ -49,10 +49,6 @@ function DetailRow({
       </span>
     </div>
   );
-}
-
-function methodLabel(method: string) {
-  return DOCTOR_PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
 }
 
 export function DoctorPaymentDetailsDialog({
@@ -100,6 +96,18 @@ export function DoctorPaymentDetailsDialog({
     };
   }, [open, paymentId]);
 
+  const handlePrint = useCallback(() => {
+    if (!detail) return;
+    printDoctorPayment(detail);
+  }, [detail]);
+
+  const issuedLocation = detail
+    ? formatIssuedLocation({
+        locationName: detail.locationName,
+        locationCode: detail.locationCode,
+      })
+    : '—';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-w-[calc(100%-2rem)] gap-0 p-0 overflow-hidden">
@@ -124,29 +132,46 @@ export function DoctorPaymentDetailsDialog({
                   value={<DoctorPaymentStatusBadge status={detail.status} />}
                 />
                 <DetailRow label="Doctor" value={detail.doctorName} />
-                <DetailRow label="Payment Method" value={methodLabel(detail.paymentMethod)} />
+                {issuedLocation !== '—' ? (
+                  <DetailRow label="Issued Location" value={issuedLocation} />
+                ) : null}
                 <DetailRow
-                  label="Reference Number"
-                  value={detail.referenceNumber?.trim() || '—'}
+                  label="Payment Method"
+                  value={paymentMethodLabel(detail.paymentMethod)}
+                />
+                <DetailRow
+                  label="Reference"
+                  value={paymentReferenceDisplay({
+                    paymentMethod: detail.paymentMethod,
+                    referenceNumber: detail.referenceNumber ?? null,
+                    bank: detail.bank ?? null,
+                    cardReference: detail.cardReference ?? null,
+                    slipReference: detail.slipReference ?? null,
+                    slipDate: detail.slipDate ?? null,
+                  })}
                 />
                 <DetailRow label="Total Amount" value={formatLkr(detail.totalAmount)} />
-                <DetailRow
-                  label={
-                    detail.applyWht
-                      ? `WHT (${detail.whtPercentage}%)`
-                      : 'WHT'
-                  }
-                  value={formatLkr(detail.whtAmount)}
-                />
                 <DetailRow label="Net Amount" value={formatLkr(detail.netAmount)} highlight />
                 <DetailRow label="Remarks" value={detail.remarks?.trim() || '—'} />
-                {detail.cancelReason?.trim() ? (
+                {detail.status === 'refund' && detail.cancelReason?.trim() ? (
+                  <DetailRow label="Refund Reason" value={detail.cancelReason} />
+                ) : null}
+                {detail.status === 'cancelled' && detail.cancelReason?.trim() ? (
                   <DetailRow label="Cancel Reason" value={detail.cancelReason} />
                 ) : null}
                 {detail.cancelReceiptNumber?.trim() ? (
-                  <DetailRow label="Cancel Receipt" value={detail.cancelReceiptNumber} />
+                  <DetailRow label="Refund Receipt" value={detail.cancelReceiptNumber} />
                 ) : null}
-                {detail.canceledAt ? (
+                {detail.status === 'refund' ? (
+                  <DetailRow
+                    label="Refund For"
+                    value={
+                      detail.remarks?.match(/Refund for ([^:]+):/)?.[1]?.trim() ||
+                      'Original payment'
+                    }
+                  />
+                ) : null}
+                {detail.status === 'cancelled' && detail.canceledAt ? (
                   <DetailRow
                     label="Cancelled At"
                     value={format(new Date(detail.canceledAt), 'yyyy-MM-dd HH:mm')}
@@ -196,9 +221,19 @@ export function DoctorPaymentDetailsDialog({
           ) : null}
         </div>
 
-        <div className="flex justify-end border-t px-5 py-3">
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
           <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Close
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handlePrint}
+            disabled={!detail || loading}
+            className="gap-1.5 bg-emerald-800 hover:bg-emerald-900"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Print Receipt
           </Button>
         </div>
       </DialogContent>

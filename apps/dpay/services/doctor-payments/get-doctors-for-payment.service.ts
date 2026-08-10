@@ -1,24 +1,18 @@
 import prisma from '@/lib/prisma';
-import type { Prisma } from '@/lib/generated/prisma';
 import type { DoctorOption } from '@/types/doctor-payment';
-import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
-
-/** Line items not yet paid out to the doctor (null or field unset on older docs). */
-const unpaidDoctorLineWhere: Prisma.PatientBillItemWhereInput = {
-  AND: [
-    activeLineItemWhere,
-    { OR: [{ doctorPaymentId: null }, { doctorPaymentId: { isSet: false } }] },
-  ],
-};
+import {
+  eligibleDoctorPayoutBillWhere,
+  unpaidDoctorLineWhere,
+} from '@/lib/doctor-payments/eligibility';
 
 /**
- * Distinct doctor names that have at least one unpaid line item on a fully paid patient bill.
- * Queried from paid bills (avoids flaky Mongo distinct + relation filters).
+ * Distinct doctor names that have at least one unpaid line item on an open patient bill
+ * (pending / partial / paid). Patient payment is not required.
  */
 export async function getDoctorsForPayment(): Promise<DoctorOption[]> {
   const bills = await prisma.patientBill.findMany({
     where: {
-      status: 'paid',
+      ...eligibleDoctorPayoutBillWhere,
       lineItems: {
         some: {
           AND: [{ doctorName: { not: '' } }, unpaidDoctorLineWhere],

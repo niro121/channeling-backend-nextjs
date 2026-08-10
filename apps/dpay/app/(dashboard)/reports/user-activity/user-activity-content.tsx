@@ -10,7 +10,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  DateRangePicker,
   Input,
   Label,
   Popover,
@@ -36,6 +35,7 @@ import {
 import { ExportWrapper } from '../../export-wrapper';
 import { KNOWN_ACTIVITY_ACTIONS } from '@/lib/activity-actions';
 import type { ExportUserActivityData } from '@/types/user-activity-report';
+import { ReportDateRangeFields } from '../report-date-range-fields';
 import { UserActivityReportColumns, type UserActivityRow } from './columns';
 
 type UserActivityContentProps = {
@@ -224,17 +224,13 @@ export default function UserActivityContent({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Date Range</Label>
-              <DateRangePicker
-                from={fromDate}
-                to={toDate}
-                onChange={({ from, to }) => {
-                  setFromDate(from);
-                  setToDate(to);
-                }}
-              />
-            </div>
+            <ReportDateRangeFields
+              idPrefix="user-activity"
+              dateFrom={fromDate ?? ''}
+              dateTo={toDate ?? ''}
+              onDateFromChange={setFromDate}
+              onDateToChange={setToDate}
+            />
 
             <Button
               onClick={fetchReportData}

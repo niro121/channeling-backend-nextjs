@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
-import type { PatientBillPaymentMethod } from '@/types/patient-bill';
+import type { PatientBillPaymentMethod, PatientBillReceiptStatus } from '@/types/patient-bill';
 import type {
   ReceiptReportParams,
   ReceiptReportResult,
@@ -8,6 +8,11 @@ import type {
 } from '@/types/reports';
 
 const EXPORT_LIMIT = 10000;
+
+function normalizeReceiptStatus(status?: string | null): PatientBillReceiptStatus {
+  if (status === 'cancelled' || status === 'refund') return status;
+  return 'active';
+}
 
 function buildWhere(
   params: Pick<ReceiptReportParams, 'keyword' | 'dateFrom' | 'dateTo'>
@@ -45,6 +50,7 @@ const receiptSelect = {
   amountPaid: true,
   paymentMethod: true,
   paymentDate: true,
+  status: true,
   bill: {
     select: {
       id: true,
@@ -66,6 +72,7 @@ function mapRow(record: ReceiptRecord): ReceiptReportRow {
     paymentDate: record.paymentDate.toISOString(),
     paymentMethod: record.paymentMethod as PatientBillPaymentMethod | string,
     amountPaid: record.amountPaid,
+    status: normalizeReceiptStatus(record.status),
   };
 }
 

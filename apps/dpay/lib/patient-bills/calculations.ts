@@ -39,3 +39,9 @@ export function formatLkr(amount: number): string {
     maximumFractionDigits: 2,
   })}`;
 }
+
+/** Display-only: refund rows show as -LKR … (does not negate stored amounts). */
+export function formatReportLkr(amount: number, isRefund = false): string {
+  const formatted = formatLkr(Math.abs(amount));
+  return isRefund ? `-${formatted}` : formatted;
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import { FilterWrapper } from '../filter-wrapper';
+import { ReportDateRangeFields } from './report-date-range-fields';
 
 type ReportsFilterSectionProps = {
   dateFrom?: string;
@@ -20,22 +21,13 @@ export default function ReportsFilterSection({
       buttonLabel="Apply"
     >
       {({ values, setValue }) => (
-        <>
-          <input
-            type="date"
-            value={values.dateFrom ?? ''}
-            onChange={(e) => setValue('dateFrom', e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            aria-label="Date from"
-          />
-          <input
-            type="date"
-            value={values.dateTo ?? ''}
-            onChange={(e) => setValue('dateTo', e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            aria-label="Date to"
-          />
-        </>
+        <ReportDateRangeFields
+          dateFrom={values.dateFrom ?? ''}
+          dateTo={values.dateTo ?? ''}
+          onDateFromChange={(value) => setValue('dateFrom', value)}
+          onDateToChange={(value) => setValue('dateTo', value)}
+          idPrefix="report"
+        />
       )}
     </FilterWrapper>
   );

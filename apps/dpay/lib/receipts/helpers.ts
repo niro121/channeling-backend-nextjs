@@ -12,7 +12,8 @@ import {
 const LEGACY_PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
   card: 'Credit Card',
-  bank_transfer: 'Slip',
+  bank_transfer: 'Bank Transfer',
+  online_transfer: 'Online Transfer',
   cheque: 'Cheque',
   other: 'Other',
 };
@@ -104,4 +105,22 @@ export function formatDoctorNames(
     .filter(Boolean);
 
   return [...new Set(names)].join(', ') || '—';
+}
+
+/**
+ * Payment receipts that should be voided when cancelling a bill.
+ * Uses in-memory checks so Mongo rows with missing cancel/refund fields
+ * (not explicit null) are still treated as voidable — Prisma `field: null`
+ * filters often miss those documents.
+ */
+export function isVoidablePaymentReceipt(receipt: {
+  status?: string | null;
+  cancelReceiptNumber?: string | null;
+  refundOfReceiptId?: string | null;
+}): boolean {
+  const status = (receipt.status?.trim() || 'active').toLowerCase();
+  if (status !== 'active') return false;
+  if (receipt.cancelReceiptNumber?.trim()) return false;
+  if (receipt.refundOfReceiptId) return false;
+  return true;
 }

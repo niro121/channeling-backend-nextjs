@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Ban } from 'lucide-react';
 import {
-  Button,
   Table,
   TableBody,
   TableCell,
@@ -17,6 +15,7 @@ import { formatLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
+import { CancelActionButton } from '@/components/ui/cancel-action-button';
 import { PaymentDetailsButton, PaymentDetailsDialog } from './payment-details-dialog';
 
 type BillPaymentHistoryProps = {
@@ -115,16 +114,11 @@ export function BillPaymentHistory({
                         <div className="inline-flex items-center justify-end gap-1">
                           <PaymentDetailsButton onClick={() => openDetails(receipt)} />
                           {canCancel && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 gap-1 px-2 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            <CancelActionButton
+                              label="Cancel receipt"
+                              className="h-7 w-7"
                               onClick={() => setCancelReceipt(receipt)}
-                            >
-                              <Ban className="h-3 w-3" />
-                              Cancel
-                            </Button>
+                            />
                           )}
                         </div>
                       </TableCell>
