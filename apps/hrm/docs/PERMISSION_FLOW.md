@@ -209,6 +209,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/leave-application` | `leave-application` | Leave Application |
 | `/overtime-requests` | `overtime-requests` | OT Requests |
 | `/overtime-extra-time` | `overtime-requests` | OT Requests (same grant) |
+| `/overtime-day-off-ph-shift` | `overtime-requests` | OT Requests (same grant) |
 | `/attendance` | `attendance` | Attendance |
 | `/payroll` | `payroll` | Payroll |
 | `/salary-structures` | `salary-structures` | Salary Structures |

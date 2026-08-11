@@ -12,6 +12,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/leave-application': 'leave-application',
   '/overtime-requests': 'overtime-requests',
   '/overtime-extra-time': 'overtime-requests',
+  '/overtime-day-off-ph-shift': 'overtime-requests',
   '/attendance': 'attendance',
   '/payroll': 'payroll',
   '/salary-structures': 'salary-structures',

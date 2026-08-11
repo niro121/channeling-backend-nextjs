@@ -16,10 +16,11 @@ Do **not** skip Phase 0 — lock the screens before Prisma / services.
 |-------|----------------|------|
 | `/overtime-requests` | `overtime-requests` | OT request register, summary cards, approve / reject |
 | `/overtime-extra-time` | `overtime-requests` | Additional Extra Time Forms (form + search + register) |
+| `/overtime-day-off-ph-shift` | `overtime-requests` | Day Off / PH Shift (form + search + register) |
 
-Sidebar: **Overtime Management → Overtime** collapsible in `desktop-sidebar.tsx` (OT Requests, Extra Time).
+Sidebar: **Overtime Management → Overtime** collapsible in `desktop-sidebar.tsx` (OT Requests, Extra Time, Day Off / PH Shift).
 
-Same resource grant covers both routes. **New OT Request** on the dashboard links to `/overtime-extra-time`.
+Same resource grant covers all three routes. **New OT Request** on the dashboard links to `/overtime-extra-time`.
 
 ---
 
@@ -146,6 +147,31 @@ Key files under `app/(dashboard)/(overtime)/overtime-extra-time/`:
 
 Phase 0: Save / Delete / Process Staff Shift toast only.
 
+### 2.6 Day Off / PH Shift (`/overtime-day-off-ph-shift`)
+
+Same workspace as Extra Time (form | search + register | Links). Field deltas vs Extra Time:
+
+- Type is **DO** or **PH** (no shift combobox; Process Staff Shift sits beside Type)
+- From and To both use `CustomDateTimePartsField` with `showCombined`
+- Approved Date instead of Comment; Delete + Delete Comment match Extra Time
+- Search button label: **Search Shift Date**
+- Sample IDs: `DO-321`, `PH-118`
+
+Key files under `app/(dashboard)/(overtime)/overtime-day-off-ph-shift/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check, sample filter, compose workspace |
+| `extra-shift-workspace.tsx` | 4/8 grid; row edit loads the form |
+| `form-extra-shift.tsx` | Day Off / PH Shift Form (Formik + Yup, no persist) |
+| `filter-section.tsx` | `FilterWrapper` search |
+| `section-extra-shift-list.tsx` | Search card + `CommonDataTable` |
+| `section-extra-shift-links.tsx` | Links card (Finger Print, Print, Analysis) |
+| `columns.tsx` / `record-actions.tsx` / `view-dialog.tsx` | Register UX |
+| `sample-data.ts` | Mock DO / PH rows and options |
+
+Phase 0: Save / Delete / Process Staff Shift toast only.
+
 ---
 
 ## 3. Suggested folders
@@ -166,6 +192,17 @@ app/(dashboard)/(overtime)/overtime-extra-time/
   form-extra-time.tsx
   filter-section.tsx
   section-extra-time-list.tsx
+  columns.tsx
+  record-actions.tsx
+  view-dialog.tsx
+  sample-data.ts
+
+app/(dashboard)/(overtime)/overtime-day-off-ph-shift/
+  page.tsx
+  extra-shift-workspace.tsx
+  form-extra-shift.tsx
+  filter-section.tsx
+  section-extra-shift-list.tsx
   columns.tsx
   record-actions.tsx
   view-dialog.tsx
@@ -192,7 +229,7 @@ Checklist (same as leave):
 
 1. `types/user-group.ts` → `{ id: 'overtime-requests', name: 'OT Requests' }`
 2. `lib/permissions.ts` → `ROUTE_TO_RESOURCE['/overtime-requests'] = 'overtime-requests'`
-3. Sidebar `hasAccess` for `/overtime-requests` and `/overtime-extra-time`
+3. Sidebar `hasAccess` for `/overtime-requests`, `/overtime-extra-time`, and `/overtime-day-off-ph-shift`
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations later: `requirePermission('overtime-requests', action)`
 6. Client buttons: `usePermissions().has('overtime-requests', 'edit')`
@@ -243,7 +280,7 @@ Pages must not call Prisma. No business rules in components.
 |-----------|
 | [x] `/overtime-requests` matches the mock (header, 4 cards, table) |
 | [x] Non-admin without grant is redirected |
-| [x] Approve / reject / Extra Time Save / Delete do not write to the DB |
+| [x] Approve / reject / Extra Time / Day Off / PH Shift Save / Delete do not write to the DB |
 | [ ] Design accepted before Phase 1 |
 
 **Out of scope:** Prisma models, Zod, cost calculation, filters, export.
@@ -346,6 +383,7 @@ OvertimeRequest
 | Item | Notes |
 |------|--------|
 | Additional duty / extra time persist | UI shell live on `/overtime-extra-time`; Prisma in Phase 1–2 |
+| Day Off / PH Shift persist | UI shell live on `/overtime-day-off-ph-shift`; Prisma in Phase 1–2 |
 | OT types / rates | Needed before trustworthy OT Cost |
 | Multi-step approval history | Optional collection, same as leave v2 |
 | Attendance link | Later; do not block v1 register |

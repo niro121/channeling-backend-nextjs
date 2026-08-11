@@ -17,6 +17,7 @@ const PATH_NAMES = [
   { path: 'leave-application', name: 'Leave Application' },
   { path: 'overtime-requests', name: 'OT Requests' },
   { path: 'overtime-extra-time', name: 'Extra Time Forms' },
+  { path: 'overtime-day-off-ph-shift', name: 'Day Off / PH Shift' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },
