@@ -17,10 +17,11 @@ Do **not** skip Phase 0 — lock the screens before Prisma / services.
 | `/overtime-requests` | `overtime-requests` | OT request register, summary cards, approve / reject |
 | `/overtime-extra-time` | `overtime-requests` | Additional Extra Time Forms (form + search + register) |
 | `/overtime-day-off-ph-shift` | `overtime-requests` | Day Off / PH Shift (form + search + register) |
+| `/overtime-extra-shift-normal` | `overtime-requests` | Extra Shift Normal (form + search + register) |
 
-Sidebar: **Overtime Management → Overtime** collapsible in `desktop-sidebar.tsx` (OT Requests, Extra Time, Day Off / PH Shift).
+Sidebar: **Overtime Management → Overtime** collapsible in `desktop-sidebar.tsx` (OT Requests, Extra Time, Day Off / PH Shift, Extra Shift Normal).
 
-Same resource grant covers all three routes. **New OT Request** on the dashboard links to `/overtime-extra-time`.
+Same resource grant covers all overtime form routes. **New OT Request** on the dashboard links to `/overtime-extra-time`.
 
 ---
 
@@ -172,6 +173,32 @@ Key files under `app/(dashboard)/(overtime)/overtime-day-off-ph-shift/`:
 
 Phase 0: Save / Delete / Process Staff Shift toast only.
 
+### 2.7 Extra Shift Normal (`/overtime-extra-shift-normal`)
+
+Same workspace as Extra Time (form | search + register | Links). Field deltas vs Day Off / PH:
+
+- No Process Staff Shift, Type, or shift combobox
+- From and To use `CustomDateTimePartsField` without `showCombined`
+- Approved Date + Comment
+- Delete + Delete Comment only when a record is selected
+- Search button label: **Search Shift Date**
+- Sample IDs: `ES-0091`, `ES-0092`
+
+Key files under `app/(dashboard)/(overtime)/overtime-extra-shift-normal/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check, sample filter, compose workspace |
+| `extra-shift-normal-workspace.tsx` | 4/8 grid; row edit loads the form |
+| `form-extra-shift-normal.tsx` | Extra Shift Form (Formik + Yup, no persist) |
+| `filter-section.tsx` | `FilterWrapper` search |
+| `section-extra-shift-normal-list.tsx` | Search card + `CommonDataTable` |
+| `section-extra-shift-normal-links.tsx` | Links card (Finger Print, Print, Analysis) |
+| `columns.tsx` / `record-actions.tsx` / `view-dialog.tsx` | Register UX |
+| `sample-data.ts` | Mock ES rows and options |
+
+Phase 0: Save / Delete toast only.
+
 ---
 
 ## 3. Suggested folders
@@ -208,6 +235,17 @@ app/(dashboard)/(overtime)/overtime-day-off-ph-shift/
   view-dialog.tsx
   sample-data.ts
 
+app/(dashboard)/(overtime)/overtime-extra-shift-normal/
+  page.tsx
+  extra-shift-normal-workspace.tsx
+  form-extra-shift-normal.tsx
+  filter-section.tsx
+  section-extra-shift-normal-list.tsx
+  columns.tsx
+  record-actions.tsx
+  view-dialog.tsx
+  sample-data.ts
+
 # Dynamic phases only
 types/overtime.ts
 services/overtime-services/
@@ -229,7 +267,7 @@ Checklist (same as leave):
 
 1. `types/user-group.ts` → `{ id: 'overtime-requests', name: 'OT Requests' }`
 2. `lib/permissions.ts` → `ROUTE_TO_RESOURCE['/overtime-requests'] = 'overtime-requests'`
-3. Sidebar `hasAccess` for `/overtime-requests`, `/overtime-extra-time`, and `/overtime-day-off-ph-shift`
+3. Sidebar `hasAccess` for `/overtime-requests`, `/overtime-extra-time`, `/overtime-day-off-ph-shift`, and `/overtime-extra-shift-normal`
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations later: `requirePermission('overtime-requests', action)`
 6. Client buttons: `usePermissions().has('overtime-requests', 'edit')`
@@ -280,7 +318,7 @@ Pages must not call Prisma. No business rules in components.
 |-----------|
 | [x] `/overtime-requests` matches the mock (header, 4 cards, table) |
 | [x] Non-admin without grant is redirected |
-| [x] Approve / reject / Extra Time / Day Off / PH Shift Save / Delete do not write to the DB |
+| [x] Approve / reject / Extra Time / Day Off / Extra Shift Save / Delete do not write to the DB |
 | [ ] Design accepted before Phase 1 |
 
 **Out of scope:** Prisma models, Zod, cost calculation, filters, export.
@@ -384,6 +422,7 @@ OvertimeRequest
 |------|--------|
 | Additional duty / extra time persist | UI shell live on `/overtime-extra-time`; Prisma in Phase 1–2 |
 | Day Off / PH Shift persist | UI shell live on `/overtime-day-off-ph-shift`; Prisma in Phase 1–2 |
+| Extra Shift Normal persist | UI shell live on `/overtime-extra-shift-normal`; Prisma in Phase 1–2 |
 | OT types / rates | Needed before trustworthy OT Cost |
 | Multi-step approval history | Optional collection, same as leave v2 |
 | Attendance link | Later; do not block v1 register |

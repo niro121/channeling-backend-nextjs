@@ -14,6 +14,7 @@ import {
   Tags,
   FilePlus2,
   CalendarOff,
+  CalendarPlus,
   ChevronDown,
   Clock,
 } from "lucide-react";
@@ -148,7 +149,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           <SidebarCollapsible
             label="Overtime"
             icon={<Clock className="h-5 w-5" />}
-            paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift"]}
+            paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
           >
             {hasAccess("/overtime-requests") && (
               <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
@@ -158,6 +159,9 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             )}
             {hasAccess("/overtime-day-off-ph-shift") && (
               <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
+            )}
+            {hasAccess("/overtime-extra-shift-normal") && (
+              <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
             )}
           </SidebarCollapsible>
         </SidebarGroup>
