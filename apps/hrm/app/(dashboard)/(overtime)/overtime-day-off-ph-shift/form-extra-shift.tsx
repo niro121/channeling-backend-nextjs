@@ -360,8 +360,8 @@ export default function FormExtraShift({
                   </Button>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  {canDelete && isEdit ? (
+                {canDelete && isEdit ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <Button
                       type="button"
                       variant="outline"
@@ -371,20 +371,20 @@ export default function FormExtraShift({
                       <Trash2 className="h-4 w-4" />
                       Delete
                     </Button>
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <CustomFormField
-                      type="text"
-                      id="deleteComment"
-                      placeholder="Delete Comment"
-                      value={formik.values.deleteComment}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required={false}
-                      styleClasses={fieldStyleClasses}
-                    />
+                    <div className="min-w-0 flex-1">
+                      <CustomFormField
+                        type="text"
+                        id="deleteComment"
+                        placeholder="Delete Comment"
+                        value={formik.values.deleteComment}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        styleClasses={fieldStyleClasses}
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <div className="flex gap-2 rounded-lg border border-border bg-muted/40 px-3 py-3 text-xs">
                   <div className="flex flex-1 flex-col gap-1">
