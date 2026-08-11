@@ -144,9 +144,18 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           </SidebarCollapsible>
         </SidebarGroup>
         <SidebarGroup label="Overtime Management">
-          {hasAccess("/overtime-requests") && (
-            <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
-          )}
+          <SidebarCollapsible
+            label="Overtime"
+            icon={<Clock className="h-5 w-5" />}
+            paths={["/overtime-requests", "/overtime-extra-time"]}
+          >
+            {hasAccess("/overtime-requests") && (
+              <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+            )}
+            {hasAccess("/overtime-extra-time") && (
+              <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
+            )}
+          </SidebarCollapsible>
         </SidebarGroup>
       </nav>
 

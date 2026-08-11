@@ -15,12 +15,11 @@ Do **not** skip Phase 0 — lock the screens before Prisma / services.
 | Route | Resource key | Role |
 |-------|----------------|------|
 | `/overtime-requests` | `overtime-requests` | OT request register, summary cards, approve / reject |
-| `/overtime-requests/add` | `overtime-requests` | New OT request form (Phase 0 dialog stub; dedicated page later) |
-| Reserved | `overtime-duty` | Additional duty forms (subtitle; v2, like leave gate pass) |
+| `/overtime-extra-time` | `overtime-requests` | Additional Extra Time Forms (form + search + register) |
 
-Sidebar: **Overtime Management → OT Requests** in `desktop-sidebar.tsx`.
+Sidebar: **Overtime Management → Overtime** collapsible in `desktop-sidebar.tsx` (OT Requests, Extra Time).
 
-Keep OT as a flat group until a second page exists. Promote to `SidebarCollapsible` only when additional duty / types land.
+Same resource grant covers both routes. **New OT Request** on the dashboard links to `/overtime-extra-time`.
 
 ---
 
@@ -32,7 +31,7 @@ Match the Overtime dashboard mock. Compose like Leave Management (`CommonManager
 ┌─ CommonManagerHeader ─────────────────────────────────────────┐
 │ Overtime                                                      │
 │ OT requests, additional duty forms and approvals              │
-│                                          [ + New OT Request ] │
+│                     [ + New OT Request → /overtime-extra-time ] │
 └───────────────────────────────────────────────────────────────┘
 
 ┌─ Pending ─┐ ┌─ Approved (Mon) ─┐ ┌─ Total OT Hours ─┐ ┌─ OT Cost ─┐
@@ -50,7 +49,7 @@ Key files under `app/(dashboard)/(overtime)/overtime-requests/`:
 | File | Role |
 |------|------|
 | `page.tsx` | Access check, compose layout, sample data |
-| `header-actions.tsx` | **+ New OT Request** stub dialog |
+| `header-actions.tsx` | **+ New OT Request** → `/overtime-extra-time` |
 | `section-ot-summary.tsx` | Four count cards |
 | `section-ot-requests.tsx` | `CommonDataTable` shell |
 | `columns.tsx` | Staff, Department, Date, Hours, Reason, Status, Actions |
@@ -65,7 +64,7 @@ Reuse `CommonManagerHeader`:
 - `description`: `OT requests, additional duty forms and approvals`
 - `actions`: `OvertimeHeaderActions` — primary **+ New OT Request**
 
-Phase 0: button opens a stub dialog. Fields do not persist.
+Phase 0: button navigates to Additional Extra Time Forms.
 
 ### 2.2 Summary cards
 
@@ -114,6 +113,39 @@ Enable approve/reject only when `status === 'pending'`.
 | A. Silva | Lab | 11 Aug | 5h | Additional consultation | Rejected |
 | K. Jayasinghe | Ward 3 | 11 Aug | 4h | Sample backlog | Approved |
 
+### 2.5 Additional Extra Time Forms (`/overtime-extra-time`)
+
+Leave Application two-column workspace, plus a **Links** sidebar on `2xl`:
+
+- **`< 2xl`:** Form left (`lg:col-span-4`); Search + Register stacked on the right (`lg:col-span-8`). Links is a horizontal card above the search column.
+- **`2xl`:** Form (`3`) | Search + Register (`7`) | **Links** (`2`)
+
+```
+2xl:
+┌─ Extra Time Form ─┐ ┌─ Search Forms ──────────┐ ┌─ Links ──────┐
+│ form fields       │ │ date / staff / approver │ │ Finger Print │
+│                   │ ├─ Extra Time Register ───┤ │ Print        │
+│                   │ │ CommonDataTable         │ │ Analysis     │
+└───────────────────┘ └─────────────────────────┘ └──────────────┘
+```
+
+Links (Phase 0): Finger Print, Print, Analysis — toast only.
+
+Key files under `app/(dashboard)/(overtime)/overtime-extra-time/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check, sample filter, compose workspace |
+| `extra-time-workspace.tsx` | 4/8 grid; row edit loads the form |
+| `form-extra-time.tsx` | Extra Time Form (Formik + Yup, no persist) |
+| `filter-section.tsx` | `FilterWrapper` search |
+| `section-extra-time-list.tsx` | Search card + `CommonDataTable` |
+| `section-extra-time-links.tsx` | Links card (Finger Print, Print, Analysis) |
+| `columns.tsx` / `record-actions.tsx` / `view-dialog.tsx` | Register UX |
+| `sample-data.ts` | Mock AET rows and options |
+
+Phase 0: Save / Delete / Process Staff Shift toast only.
+
 ---
 
 ## 3. Suggested folders
@@ -124,9 +156,20 @@ app/(dashboard)/(overtime)/overtime-requests/
   header-actions.tsx
   section-ot-summary.tsx
   section-ot-requests.tsx
+  columns.tsx
   record-actions.tsx
   sample-data.ts
-  add/page.tsx                 # optional; dialog used in Phase 0
+
+app/(dashboard)/(overtime)/overtime-extra-time/
+  page.tsx
+  extra-time-workspace.tsx
+  form-extra-time.tsx
+  filter-section.tsx
+  section-extra-time-list.tsx
+  columns.tsx
+  record-actions.tsx
+  view-dialog.tsx
+  sample-data.ts
 
 # Dynamic phases only
 types/overtime.ts
@@ -149,8 +192,8 @@ Checklist (same as leave):
 
 1. `types/user-group.ts` → `{ id: 'overtime-requests', name: 'OT Requests' }`
 2. `lib/permissions.ts` → `ROUTE_TO_RESOURCE['/overtime-requests'] = 'overtime-requests'`
-3. Sidebar `hasAccess('/overtime-requests')` (already present)
-4. Page `checkRouteAccess('/overtime-requests')` → `/unauthorized-access`
+3. Sidebar `hasAccess` for `/overtime-requests` and `/overtime-extra-time`
+4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations later: `requirePermission('overtime-requests', action)`
 6. Client buttons: `usePermissions().has('overtime-requests', 'edit')`
 7. `breadcrumbs.tsx` → `{ path: 'overtime-requests', name: 'OT Requests' }`
@@ -200,7 +243,7 @@ Pages must not call Prisma. No business rules in components.
 |-----------|
 | [x] `/overtime-requests` matches the mock (header, 4 cards, table) |
 | [x] Non-admin without grant is redirected |
-| [x] Approve / reject / New OT do not write to the DB |
+| [x] Approve / reject / Extra Time Save / Delete do not write to the DB |
 | [ ] Design accepted before Phase 1 |
 
 **Out of scope:** Prisma models, Zod, cost calculation, filters, export.
@@ -302,7 +345,7 @@ OvertimeRequest
 
 | Item | Notes |
 |------|--------|
-| Additional duty forms | Second nav item; separate model when specified |
+| Additional duty / extra time persist | UI shell live on `/overtime-extra-time`; Prisma in Phase 1–2 |
 | OT types / rates | Needed before trustworthy OT Cost |
 | Multi-step approval history | Optional collection, same as leave v2 |
 | Attendance link | Later; do not block v1 register |
