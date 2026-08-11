@@ -108,6 +108,24 @@
       }
     },
     {
+      "name": "Get Areas",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/areas?keyword=colombo",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "areas"],
+          "query": [
+            { "key": "keyword", "value": "colombo", "description": "Optional. Filter by area name." }
+          ]
+        },
+        "description": "Returns active area tags (cities) for booking forms. Use area name in POST /api/public/bookings. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
       "name": "Create Agent Booking (paid)",
       "request": {
         "method": "POST",
