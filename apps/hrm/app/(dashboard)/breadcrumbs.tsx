@@ -15,6 +15,7 @@ const PATH_NAMES = [
   { path: 'leave-entitlement', name: 'Leave Entitlement' },
   { path: 'leave-management', name: 'Leave Management' },
   { path: 'leave-application', name: 'Leave Application' },
+  { path: 'overtime-requests', name: 'OT Requests' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },

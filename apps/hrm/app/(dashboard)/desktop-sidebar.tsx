@@ -14,6 +14,7 @@ import {
   Tags,
   FilePlus2,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -141,6 +142,11 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
             )}
           </SidebarCollapsible>
+        </SidebarGroup>
+        <SidebarGroup label="Overtime Management">
+          {hasAccess("/overtime-requests") && (
+            <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+          )}
         </SidebarGroup>
       </nav>
 

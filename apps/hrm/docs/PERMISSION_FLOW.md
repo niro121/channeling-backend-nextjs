@@ -207,6 +207,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |
 | `/leave-management` | `leave-management` | Leave Management |
 | `/leave-application` | `leave-application` | Leave Application |
+| `/overtime-requests` | `overtime-requests` | OT Requests |
 | `/attendance` | `attendance` | Attendance |
 | `/payroll` | `payroll` | Payroll |
 | `/salary-structures` | `salary-structures` | Salary Structures |

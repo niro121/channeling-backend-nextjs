@@ -23,6 +23,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: 'leave-entitlement', name: 'Leave Entitlement' },
   { id: 'leave-management', name: 'Leave Management' },
   { id: 'leave-application', name: 'Leave Application' },
+  { id: 'overtime-requests', name: 'OT Requests' },
   { id: 'attendance', name: 'Attendance' },
   { id: 'payroll', name: 'Payroll' },
   { id: 'salary-structures', name: 'Salary Structures' },
