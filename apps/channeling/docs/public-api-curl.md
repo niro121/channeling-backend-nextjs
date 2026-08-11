@@ -139,7 +139,46 @@ curl -X GET "http://localhost:3000/api/public/doctors" \
 
 ---
 
-## 4. Get Bookings
+## 4. Get Areas
+
+**GET** `/api/public/areas`  
+**GET** `/api/public/areas?keyword=colombo`  
+
+Returns active area tags (cities) for booking forms / third-party apps. Requires a valid Bearer token.  
+Use the area **`name`** when creating a booking via `POST /api/public/bookings` (`area` field).
+
+### Query parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `keyword` | No | Filter by area name. |
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/public/areas" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+```bash
+curl -X GET "http://localhost:3000/api/public/areas?keyword=colombo" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Example success response (200)
+
+```json
+{
+  "areas": [
+    { "id": "...", "name": "Colombo" },
+    { "id": "...", "name": "Galle" }
+  ]
+}
+```
+
+---
+
+## 5. Get Bookings
 
 **GET** `/api/public/bookings?doctorCode=DR0001&sessionId=SESSION_ID`  
 **GET** `/api/public/bookings?doctorCode=DR0001&date=2025-05-25`  
@@ -203,7 +242,7 @@ curl -X GET "http://localhost:3000/api/public/bookings?doctorCode=DR0001&date=20
 
 ---
 
-## 5. Create agent booking
+## 6. Create agent booking
 
 **POST** `/api/public/bookings`
 
