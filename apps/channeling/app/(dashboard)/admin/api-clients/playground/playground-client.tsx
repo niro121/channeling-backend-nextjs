@@ -93,6 +93,13 @@ export function PublicApiPlayground() {
     body: unknown
   } | null>(null)
 
+  const [areasKeyword, setAreasKeyword] = useState("")
+  const [areasLoading, setAreasLoading] = useState(false)
+  const [areasResult, setAreasResult] = useState<{
+    status: number
+    body: unknown
+  } | null>(null)
+
   const [createAgencyId, setCreateAgencyId] = useState("")
   const [createBookRef, setCreateBookRef] = useState("")
   const [createTitle, setCreateTitle] = useState("Mr")
@@ -164,6 +171,10 @@ export function PublicApiPlayground() {
     : ""
   const curlDoctors = originForCurl
     ? `curl -X GET "${originForCurl}/api/public/doctors?keyword=cardio" \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`
+    : ""
+  const curlAreas = originForCurl
+    ? `curl -X GET "${originForCurl}/api/public/areas?keyword=colombo" \\
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`
     : ""
 
@@ -300,6 +311,28 @@ export function PublicApiPlayground() {
       })
     } finally {
       setDoctorsLoading(false)
+    }
+  }
+
+  async function handleGetAreas() {
+    setAreasLoading(true)
+    setAreasResult(null)
+    try {
+      const params = new URLSearchParams()
+      if (areasKeyword.trim()) params.set("keyword", areasKeyword.trim())
+      const qs = params.toString()
+      const res = await fetch(`/api/public/areas${qs ? `?${qs}` : ""}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      })
+      const body = await res.json().catch(() => ({}))
+      setAreasResult({ status: res.status, body })
+    } catch (e) {
+      setAreasResult({
+        status: 0,
+        body: { error: "request_failed", error_description: String(e) },
+      })
+    } finally {
+      setAreasLoading(false)
     }
   }
 
@@ -1262,6 +1295,58 @@ export function PublicApiPlayground() {
             </div>
           )}
           <CurlExampleBlock curl={curlDoctors} onCopy={copyCurl} />
+        </CardContent>
+      </Card>
+
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Play className="h-5 w-5" />
+            7. Get areas
+          </CardTitle>
+          <CardDescription>
+            GET /api/public/areas?keyword=… — Active area tags (cities) for booking forms.
+            Use the area name in POST /api/public/bookings. Requires Bearer token from step 1.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-muted-foreground text-sm">
+            Reuses Bearer token from step 1. Optional keyword filters by area name.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="areas_keyword">Keyword (optional)</Label>
+            <Input
+              id="areas_keyword"
+              placeholder="e.g. colombo"
+              value={areasKeyword}
+              onChange={(e) => setAreasKeyword(e.target.value)}
+            />
+          </div>
+          <Button
+            onClick={handleGetAreas}
+            disabled={areasLoading || !accessToken.trim()}
+          >
+            {areasLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Requesting…
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" />
+                Get areas
+              </>
+            )}
+          </Button>
+          {areasResult && (
+            <div className="space-y-2">
+              <Label>Response ({areasResult.status})</Label>
+              <pre className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3 text-xs">
+                {JSON.stringify(areasResult.body, null, 2)}
+              </pre>
+            </div>
+          )}
+          <CurlExampleBlock curl={curlAreas} onCopy={copyCurl} />
         </CardContent>
       </Card>
     </div>

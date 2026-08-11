@@ -237,6 +237,35 @@ export default async function IntegrationGuidePage() {
           </CardContent>
         </Card>
 
+        {/* Step 7: Get areas */}
+        <Card className="my-6 print:break-inside-avoid">
+          <CardHeader>
+            <CardTitle className="text-lg">Step 7: Get areas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              To fetch active area tags (cities) for booking forms / third-party apps, call the
+              areas reference endpoint with the token from Step 2.
+            </p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>Endpoint:</strong> <code className="rounded bg-muted px-1 py-0.5">GET /api/public/areas</code></li>
+              <li><strong>Header:</strong> <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer &lt;access_token&gt;</code></li>
+              <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">keyword</code> (optional — filters by area name)</li>
+            </ul>
+            <p>
+              The response contains an <code className="rounded bg-muted px-1 py-0.5">areas</code> array with{" "}
+              <code className="rounded bg-muted px-1 py-0.5">id</code> and{" "}
+              <code className="rounded bg-muted px-1 py-0.5">name</code>. Use{" "}
+              <code className="rounded bg-muted px-1 py-0.5">name</code> when creating a booking via{" "}
+              <code className="rounded bg-muted px-1 py-0.5">POST /api/public/bookings</code> (
+              <code className="rounded bg-muted px-1 py-0.5">area</code> field).
+            </p>
+            <p className="text-muted-foreground">
+              Test in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 7: Get areas) or via Postman.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Postman */}
         <Card className="my-6 print:break-inside-avoid">
           <CardHeader>

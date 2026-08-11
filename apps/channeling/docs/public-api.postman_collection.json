@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Channeling Public API",
-    "description": "OAuth2 client credentials, sessions, bookings, and doctors. Get token first, then call protected endpoints with Bearer token.",
+    "description": "OAuth2 client credentials, sessions, bookings, doctors, and areas. Get token first, then call protected endpoints with Bearer token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -99,6 +99,24 @@
           ]
         },
         "description": "Returns published doctors with speciality for external integrations. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
+      "name": "Get Areas",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/areas?keyword=colombo",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "areas"],
+          "query": [
+            { "key": "keyword", "value": "colombo", "description": "Optional. Filter by area name." }
+          ]
+        },
+        "description": "Returns active area tags (cities) for booking forms. Use area name in POST /api/public/bookings. Requires Bearer token from Create Access Token."
       }
     }
   ]
