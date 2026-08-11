@@ -81,7 +81,7 @@ type CreateBookingBody = {
   area?: string
   remarks?: string
   foreigner?: boolean
-  /** yes/true (default) = paid/settled; no/false = pending agent booking */
+  /** yes/true = paid/settled; no/false = pending; omit = session default (pending when advance booking enabled) */
   paid?: boolean | string | number
 }
 

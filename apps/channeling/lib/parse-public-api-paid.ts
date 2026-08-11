@@ -1,12 +1,13 @@
 /**
  * Parse `paid` on POST /api/public/bookings.
- * Default: true (settled / receipt created). Use false or "no" for pending agent booking.
+ * When omitted, returns `paid: undefined` so create-booking can default by session
+ * (advance-booking sessions → pending; others → settled).
  */
 export function parsePublicApiPaidParam(
   value: unknown
-): { ok: true; paid: boolean } | { ok: false; message: string } {
+): { ok: true; paid: boolean | undefined } | { ok: false; message: string } {
   if (value === undefined || value === null) {
-    return { ok: true, paid: true }
+    return { ok: true, paid: undefined }
   }
   if (typeof value === "boolean") {
     return { ok: true, paid: value }

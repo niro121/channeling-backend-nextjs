@@ -28,8 +28,9 @@ export type PublicCreateAgentBookingParams = {
   remarks?: string
   foreigner?: boolean
   /**
-   * When true (default), create receipt and mark booking paid (status 1).
+   * When true, create receipt and mark booking paid (status 1).
    * When false, create pending agent booking (status 0, not settled).
+   * When omitted, defaults by session: advance-booking templates stay pending; others settle.
    */
   paid?: boolean
   /** From ApiClient.actingUserId — sets booking createdBy */
@@ -88,6 +89,16 @@ export type CreatePublicAgentBookingResult =
       /** Original save-booking error code when applicable */
       bookingErrorCode?: SaveBookingErrorCode
     }
+
+/** Resolve whether to settle on create from explicit `paid` and session advance-booking config. */
+function resolveSettleOnCreate(
+  advanceBookingEnabled: boolean,
+  paid?: boolean
+): boolean {
+  if (paid === true) return true
+  if (paid === false) return false
+  return !advanceBookingEnabled
+}
 
 function mapSaveBookingError(
   code: SaveBookingErrorCode
@@ -282,11 +293,23 @@ export async function createPublicAgentBooking(
     }
   }
 
-  const paid = params.paid !== false
+  const doctorSessionTemplate = session.doctorSessionId
+    ? await prisma.doctorSession.findUnique({
+        where: { id: session.doctorSessionId },
+        select: { advancedBookingDays: true },
+      })
+    : null
+  const advanceBookingEnabled =
+    (doctorSessionTemplate?.advancedBookingDays ?? 0) > 0
+  const settleOnCreate = resolveSettleOnCreate(
+    advanceBookingEnabled,
+    params.paid
+  )
+
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
     agencyRefUniqueOnly: true,
-    settleOnCreate: paid,
+    settleOnCreate,
   })
 
   if (!result.success) {

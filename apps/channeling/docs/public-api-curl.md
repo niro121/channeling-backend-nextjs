@@ -79,6 +79,8 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
       "maxPatientNumber": 50,
       "appointmentNo": 12,
       "isFull": false,
+      "advancedBookingEnabled": true,
+      "advancedBookingDays": 7,
       "amountLocal": {
         "professionalFee": 1200,
         "hospitalFee": 300,
@@ -97,6 +99,8 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 ```
 
 `status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
+
+`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create agent booking**, omitting `paid` on such sessions creates a **pending** booking (`status 0`); send `paid: yes` only when you want to settle immediately.
 
 ---
 
@@ -258,7 +262,7 @@ Creates an agent-method booking (same pipeline as channel booking). Requires Bea
 | `title`, `name`, `sex`, `phone`, `area` | Yes | Patient details. |
 | `remarks`      | No       | Optional remarks. |
 | `foreigner`    | No       | `true` for foreign fee tier. |
-| `paid`         | No       | Default `yes` / `true`: receipt created, **status 1** (settled). `no` / `false`: **pending** agent booking (**status 0**, not settled; settle later in channel booking). |
+| `paid`         | No       | `yes` / `true`: receipt created, **status 1** (settled). `no` / `false`: **pending** (**status 0**). **Omitted:** if the session template has advance booking enabled (`advancedBookingDays > 0`), **pending**; otherwise **settled** (same as `yes`). |
 
 ### cURL (paid — default)
 

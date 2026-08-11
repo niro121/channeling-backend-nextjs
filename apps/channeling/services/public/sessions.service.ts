@@ -32,6 +32,10 @@ export type PublicSessionDto = {
   appointmentNo: number
   /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
   isFull: boolean
+  /** True when the doctor session template allows advance booking (advancedBookingDays > 0) */
+  advancedBookingEnabled: boolean
+  /** Days in advance booking is open on the template (0 = same day only / disabled) */
+  advancedBookingDays: number
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
   location: { id: string; name: string; city: string } | null
@@ -175,6 +179,23 @@ export async function getPublicSessionsByDoctorCode(
     )
   }
 
+  const doctorSessionIds = [
+    ...new Set(orderedSessions.map((s) => s.doctorSessionId).filter(Boolean)),
+  ]
+  const doctorSessionTemplates =
+    doctorSessionIds.length > 0
+      ? await prisma.doctorSession.findMany({
+          where: { id: { in: doctorSessionIds } },
+          select: { id: true, advancedBookingDays: true },
+        })
+      : []
+  const advancedBookingDaysByTemplate = new Map(
+    doctorSessionTemplates.map((template) => [
+      template.id,
+      template.advancedBookingDays ?? 0,
+    ])
+  )
+
   const sessions: PublicSessionDto[] = orderedSessions.map((s: Session) => {
     const consecutiveChainFull = isConsecutiveChainFull(
       s,
@@ -191,6 +212,8 @@ export async function getPublicSessionsByDoctorCode(
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
+    const advancedBookingDays =
+      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -203,6 +226,8 @@ export async function getPublicSessionsByDoctorCode(
       maxPatientNumber,
       appointmentNo,
       isFull: sessionFull,
+      advancedBookingEnabled: advancedBookingDays > 0,
+      advancedBookingDays,
       amountLocal: resolvePublicSessionAmount(s.amountLocal, feeBreakdown.local),
       amountForeign: resolvePublicSessionAmount(s.amountForeign, feeBreakdown.foreign),
       location: s.location
