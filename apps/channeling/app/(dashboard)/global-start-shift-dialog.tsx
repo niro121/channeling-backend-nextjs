@@ -9,11 +9,20 @@ const SHOW_START_SHIFT_DIALOG_EVENT = "channel-booking:show-start-shift-dialog"
 
 type GlobalStartShiftDialogProps = {
   shiftMaxHours: number
+  bulkCashierShiftMaxHours?: number
 }
 
-export function GlobalStartShiftDialog({ shiftMaxHours }: GlobalStartShiftDialogProps) {
+export function GlobalStartShiftDialog({
+  shiftMaxHours,
+  bulkCashierShiftMaxHours,
+}: GlobalStartShiftDialogProps) {
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
+  const isBulkCashier = hasPermission("bulk-cashier", "bulk-cashier-dashboard")
+  const effectiveMaxHours =
+    isBulkCashier && bulkCashierShiftMaxHours != null
+      ? bulkCashierShiftMaxHours
+      : shiftMaxHours
   const [open, setOpen] = useState(false)
   const [location, setLocation] = useState<{ locationId: string; locationName: string } | null>(null)
 
@@ -34,7 +43,7 @@ export function GlobalStartShiftDialog({ shiftMaxHours }: GlobalStartShiftDialog
   return (
     <StartShiftDialog
       open={open}
-      shiftMaxHours={shiftMaxHours}
+      shiftMaxHours={effectiveMaxHours}
       location={location}
       onStarted={() => setOpen(false)}
       onSkipped={() => setOpen(false)}

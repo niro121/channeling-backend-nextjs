@@ -10,6 +10,7 @@ import {
   createBulkCashierFloatAccountAction,
   getBulkCashierFloatBalanceAction,
   getBulkCashierFloatSummaryAction,
+  getFloatRequestJournalAction,
 } from '@/app/actions/float-request.actions';
 import { getActiveShiftsWithFloatAction } from '@/app/actions/shift.actions';
 import type { FloatRequest, DenominationEntry, FloatRequestPrintData } from '@/types/float-request';
@@ -465,9 +466,43 @@ export function FloatRequestSummaryDialog({
   const printData = request.status === FLOAT_REQUEST_STATUS.APPROVED && request.receiveCode
     ? buildPrintDataFromRequest(request)
     : null;
+  const [journal, setJournal] = useState<{
+    id: string;
+    journalNumber: number | null;
+    date: Date | string;
+    description: string;
+    lines: {
+      accountId: string;
+      accountName: string;
+      accountCode: string | null;
+      debitAmount: number;
+      creditAmount: number;
+    }[];
+  } | null>(null);
+  const [journalLoading, setJournalLoading] = useState(false);
+
+  useEffect(() => {
+    if (request.status !== FLOAT_REQUEST_STATUS.RECEIVED || !request.journalId) {
+      setJournal(null);
+      return;
+    }
+    let cancelled = false;
+    setJournalLoading(true);
+    getFloatRequestJournalAction(request.id)
+      .then((res) => {
+        if (!cancelled) setJournal(res.success ? res.data : null);
+      })
+      .finally(() => {
+        if (!cancelled) setJournalLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [request.id, request.status, request.journalId]);
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Request summary</DialogTitle>
           <DialogDescription>Float request details.</DialogDescription>
@@ -500,6 +535,53 @@ export function FloatRequestSummaryDialog({
           )}
           {request.status === FLOAT_REQUEST_STATUS.RECEIVED && request.receivedAt && (
             <p><strong>Received at:</strong> {new Date(request.receivedAt).toLocaleString()}</p>
+          )}
+          {request.status === FLOAT_REQUEST_STATUS.RECEIVED && (
+            <div className="rounded-md border border-border pt-3 mt-1">
+              <p className="px-3 font-medium mb-2">Double entry</p>
+              {journalLoading ? (
+                <p className="px-3 pb-3 text-muted-foreground text-xs">Loading journal…</p>
+              ) : !journal ? (
+                <p className="px-3 pb-3 text-muted-foreground text-xs">No journal entry found for this request.</p>
+              ) : (
+                <div className="space-y-2 pb-3">
+                  <div className="px-3 text-xs text-muted-foreground space-y-0.5">
+                    {journal.journalNumber != null && (
+                      <p>Journal #: {journal.journalNumber}</p>
+                    )}
+                    <p>{journal.description}</p>
+                    <p>{new Date(journal.date).toLocaleString()}</p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Account</TableHead>
+                        <TableHead className="text-right">Debit</TableHead>
+                        <TableHead className="text-right">Credit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {journal.lines.map((line) => (
+                        <TableRow key={line.accountId}>
+                          <TableCell>
+                            <span className="font-medium">{line.accountName}</span>
+                            {line.accountCode ? (
+                              <span className="text-muted-foreground text-xs ml-1">({line.accountCode})</span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {line.debitAmount > 0 ? formatCents(line.debitAmount) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {line.creditAmount > 0 ? formatCents(line.creditAmount) : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <DialogFooter>

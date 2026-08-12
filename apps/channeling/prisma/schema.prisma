@@ -500,7 +500,7 @@ model Shift {
   locationId    String?   @db.ObjectId
   location      Location? @relation("ShiftToLocation", fields: [locationId], references: [id], onDelete: SetNull)
   startedAt     DateTime  @default(now())
-  endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS
+  endsAt        DateTime // startedAt + SHIFT_MAX_DURATION_HOURS (or bulk cashier override)
   status        Int // 0 = paused, 1 = active, 2 = handover pending, 3 = ended
   createdAt     DateTime  @default(now())
   createdBy     String?   @db.ObjectId

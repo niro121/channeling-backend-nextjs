@@ -17,10 +17,15 @@ type SearchParams = {
   searchParams?: Promise<{
     institutionId?: string;
     doctorId?: string;
+    branchId?: string;
   }>;
 };
 
 const institutionOptions = INSTITUTION_OPTIONS;
+
+function isObjectId(id: string | undefined): id is string {
+  return !!id && /^[a-fA-F0-9]{24}$/.test(id);
+}
 
 export default async function Page({ searchParams }: SearchParams) {
   const params = await searchParams;
@@ -35,6 +40,7 @@ export default async function Page({ searchParams }: SearchParams) {
   }
   const institutionId = params?.institutionId ?? '0';
   const doctorId = params?.doctorId;
+  const branchId = isObjectId(params?.branchId) ? params.branchId : undefined;
 
   const [doctorOptionsRes, departmentOptionsRes, locationOptionsRes, sessionsRes] =
     await Promise.all([
@@ -42,7 +48,11 @@ export default async function Page({ searchParams }: SearchParams) {
       getDepartmentOptions(),
       getLocationOptions(),
       doctorId && doctorId !== '__all__'
-        ? getAllDoctorSessions({ institutionId, doctorId })
+        ? getAllDoctorSessions({
+            institutionId,
+            doctorId,
+            locationId: branchId,
+          })
         : Promise.resolve({ data: [], totalRecords: 0 })
     ]);
 
@@ -54,6 +64,10 @@ export default async function Page({ searchParams }: SearchParams) {
 
   const departmentOptions = departmentOptionsRes.data ?? [];
   const locationOptions = locationOptionsRes.data ?? [];
+  const branchOptions = [
+    { id: '__all__', name: 'All branches' },
+    ...locationOptions.map((l) => ({ id: l.id, name: l.name })),
+  ];
   const sessions = sessionsRes.data ?? [];
 
   return (
@@ -63,10 +77,12 @@ export default async function Page({ searchParams }: SearchParams) {
           sessions={sessions ?? []}
           doctorId={doctorId}
           institutionId={institutionId}
+          branchId={branchId}
           doctorOptions={doctorOptions}
           institutionOptions={institutionOptions}
           departmentOptions={departmentOptions}
           locationOptions={locationOptions}
+          branchOptions={branchOptions}
           bulkDeleteAction={bulkDeleteDoctorSessions}
         />
       </Suspense>

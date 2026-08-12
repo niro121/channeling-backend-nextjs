@@ -560,6 +560,57 @@ export async function receiveFloatRequest(
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }
 
+/** Journal double-entry posted when a float request is received (null if not received / no journal). */
+export type FloatRequestJournalDetail = {
+  id: string;
+  journalNumber: number | null;
+  date: Date;
+  description: string;
+  lines: {
+    accountId: string;
+    accountName: string;
+    accountCode: string | null;
+    debitAmount: number;
+    creditAmount: number;
+  }[];
+};
+
+export async function getFloatRequestJournal(
+  floatRequestId: string
+): Promise<FloatRequestJournalDetail | null> {
+  const fr = await prisma.floatRequest.findUnique({
+    where: { id: floatRequestId },
+    select: { journalId: true },
+  });
+  if (!fr?.journalId) return null;
+
+  const journal = await prisma.journal.findUnique({
+    where: { id: fr.journalId },
+    include: {
+      journalLines: {
+        include: {
+          account: { select: { id: true, name: true, code: true } },
+        },
+      },
+    },
+  });
+  if (!journal) return null;
+
+  return {
+    id: journal.id,
+    journalNumber: journal.journalNumber,
+    date: journal.date,
+    description: journal.description,
+    lines: journal.journalLines.map((l) => ({
+      accountId: l.accountId,
+      accountName: l.account.name,
+      accountCode: l.account.code ?? null,
+      debitAmount: l.debitAmount,
+      creditAmount: l.creditAmount,
+    })),
+  };
+}
+
 // --- rejectFloatRequest ---
 export async function rejectFloatRequest(
   input: RejectFloatRequestInput
