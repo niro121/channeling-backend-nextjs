@@ -301,14 +301,13 @@ Each HRM login user must be linked to a Staff record using `staffId`.
 After successful credential validation:
 
 ```ts
-// Pseudocode — apps/hrm/lib/auth.ts
+// apps/hrm — via canAccessAuthApp / canAccessHrmApp
 if (user.userType === userTypes.admin) allow();
 else if (user.userGroup?.app === AUTH_APPS.hrm) allow();
-else if (user.userGroup?.app == null) {
-  // Migration-only: optional temporary allow or deny
-}
-else deny("No access to HRM");
+else deny("Invalid credentials"); // includes app: null and non-HRM apps
 ```
+
+**Legacy `app: null`:** denied for staff login. Platform admins still bypass. Backfill untagged groups before expecting staff logins to work (Phase 5).
 
 Apply the same pattern in DPAY with `AUTH_APPS.dpay` when hardening cross-app login isolation.
 
@@ -413,10 +412,10 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 - [x] Optional `staffId` picker linked to HRM Staff
 - [x] Restrict creating `userType: admin` from HRM UI *(recommended)*
 
-### Phase 5 — Migration / backfill
+### Phase 5 — Migration / backfill ✅
 
-- [ ] Tag existing shared groups with correct `app` value
-- [ ] Document legacy `app: null` handling during transition
+- [x] Tag existing shared groups with correct `app` value *(script: `packages/db-auth/scripts/backfill-user-group-app.mjs`)*
+- [x] Document legacy `app: null` handling during transition *(deny staff login until tagged; see §8.5 and §14)*
 
 ---
 
@@ -426,6 +425,7 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 |---------|------|
 | Auth schema | `packages/db-auth/prisma/schema.prisma` |
 | Auth client | `packages/db-auth/src/index.ts` |
+| UserGroup.app backfill script | `packages/db-auth/scripts/backfill-user-group-app.mjs` |
 | Shared roles | `packages/shared/src/types/roles.ts` |
 | Shared permission types | `packages/shared/src/types/user-group.ts` |
 | HRM auth | `apps/hrm/lib/auth.ts` |
@@ -444,7 +444,56 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 
 ---
 
-## 14. Glossary
+## 14. Phase 5 ops — backfill `UserGroup.app`
+
+### Policy
+
+| Case | HRM login result |
+|------|------------------|
+| `userType = admin` | Allowed (no group required) |
+| Staff + `userGroup.app === "hrm"` | Allowed |
+| Staff + `userGroup.app === null` / missing | **Denied** (generic “Invalid credentials”) |
+| Staff + `userGroup.app` is another app | **Denied** |
+
+Do **not** temporarily allow `app: null` in production. Tag groups first, then use HRM.
+
+New groups created from HRM UI always set `app: "hrm"`. This backfill is only for pre-existing shared auth groups.
+
+### Does this change DPAY / Channeling code?
+
+**No.** Phase 5 is auth-DB data + docs. DPAY and Channeling source stay untouched. After tagging, DPAY groups keep working as before (DPAY has no app login gate yet). Channeling uses its own auth DB.
+
+### Run the backfill
+
+```bash
+# 1) Generate auth client (if needed)
+npm run db:generate -w @archmage/db-auth
+
+# 2) Dry-run — list untagged groups + suggested app from permission keys
+node --env-file=apps/hrm/.env packages/db-auth/scripts/backfill-user-group-app.mjs
+
+# 3a) Auto-tag where permissions clearly match HRM or DPAY
+node --env-file=apps/hrm/.env packages/db-auth/scripts/backfill-user-group-app.mjs --apply --auto
+
+# 3b) Explicit tag (preferred when dry-run says "manual")
+node --env-file=apps/hrm/.env packages/db-auth/scripts/backfill-user-group-app.mjs --apply --app=hrm --ids=<id1>,<id2>
+```
+
+Or: `npm run backfill:user-group-app -w @archmage/db-auth` (still requires `AUTH_DATABASE_URL` in the environment).
+
+### Heuristics
+
+| Permission keys present | Suggested `app` |
+|-------------------------|-----------------|
+| HRM resources (`staff`, `leave-*`, `overtime-requests`, …) | `hrm` |
+| DPAY resources (`receipts`, `payments`, `doctor-payments`, …) | `dpay` |
+| Both / neither / only shared keys like `users` | Manual (`--ids` + `--app`) |
+
+Run dry-run in each environment (local, staging, production) and review skipped rows before `--apply`.
+
+---
+
+## 15. Glossary
 
 | Term | Meaning |
 |------|---------|
