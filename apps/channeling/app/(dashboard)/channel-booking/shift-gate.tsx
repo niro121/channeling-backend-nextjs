@@ -11,14 +11,20 @@ type LocationForShift = { locationId: string; locationName: string } | null
 
 type ShiftGateProps = {
   shiftMaxHours: number
+  bulkCashierShiftMaxHours?: number
   children: React.ReactNode
 }
 
 const SHOW_START_SHIFT_DIALOG_EVENT = "channel-booking:show-start-shift-dialog"
 
-export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
+export function ShiftGate({ shiftMaxHours, bulkCashierShiftMaxHours, children }: ShiftGateProps) {
   const { has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
+  const isBulkCashier = hasPermission("bulk-cashier", "bulk-cashier-dashboard")
+  const effectiveMaxHours =
+    isBulkCashier && bulkCashierShiftMaxHours != null
+      ? bulkCashierShiftMaxHours
+      : shiftMaxHours
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(null)
   const [shiftLocation, setShiftLocation] = useState<LocationForShift>(null)
   const [skipped, setSkipped] = useState(false)
@@ -101,7 +107,7 @@ export function ShiftGate({ shiftMaxHours, children }: ShiftGateProps) {
       {hasShiftPermission && (
         <StartShiftDialog
           open={showDialog}
-          shiftMaxHours={shiftMaxHours}
+          shiftMaxHours={effectiveMaxHours}
           location={shiftLocation}
           onStarted={handleStarted}
           onSkipped={handleSkipped}

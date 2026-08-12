@@ -1,11 +1,14 @@
+export type ShiftRequirementErrorCode =
+  | "NO_ACTIVE_SHIFT"
+  | "SHIFT_PAUSED"
+  | "HANDOVER_NOT_COMPLETE"
+  | "SHIFT_EXPIRED"
+
 /** Thrown when a till action requires an ACTIVE shift but the user cannot proceed. */
 export class ShiftRequirementError extends Error {
-  readonly code: "NO_ACTIVE_SHIFT" | "SHIFT_PAUSED" | "HANDOVER_NOT_COMPLETE"
+  readonly code: ShiftRequirementErrorCode
 
-  constructor(
-    message: string,
-    code: "NO_ACTIVE_SHIFT" | "SHIFT_PAUSED" | "HANDOVER_NOT_COMPLETE"
-  ) {
+  constructor(message: string, code: ShiftRequirementErrorCode) {
     super(message)
     this.name = "ShiftRequirementError"
     this.code = code

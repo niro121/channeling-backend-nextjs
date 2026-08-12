@@ -49,8 +49,13 @@ import { GlobalStartShiftDialog } from "./global-start-shift-dialog";
 import { SignOutShiftReminder } from "./signout-shift-reminder";
 import { NavigationLoadingWrapper } from "./navigation-loading-wrapper";
 import { HeaderClientControls } from './header-client-controls';
+import {
+  getBulkCashierShiftMaxHours,
+  getDefaultShiftMaxHours,
+} from "@/lib/shift-duration";
 
-const SHIFT_MAX_HOURS = Number(process.env.SHIFT_MAX_DURATION_HOURS) || 36;
+const SHIFT_MAX_HOURS = getDefaultShiftMaxHours();
+const SHIFT_MAX_HOURS_BULK = getBulkCashierShiftMaxHours();
 const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
 
@@ -228,7 +233,10 @@ export default async function DashboardLayout({
     <Providers session={session}>
       <NavigationLoadingWrapper>
         <SignOutShiftReminder />
-        <GlobalStartShiftDialog shiftMaxHours={SHIFT_MAX_HOURS} />
+        <GlobalStartShiftDialog
+          shiftMaxHours={SHIFT_MAX_HOURS}
+          bulkCashierShiftMaxHours={SHIFT_MAX_HOURS_BULK}
+        />
         <div className="flex min-h-screen w-full flex-col bg-background">
           <ChannelBookingLayoutClient session={session} e2eRunEnabled={E2E_RUN_ENABLED}>
             <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">

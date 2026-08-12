@@ -103,6 +103,7 @@ export function ChannelBookingShiftBar() {
   const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
   const [endShiftHandoverOpen, setEndShiftHandoverOpen] = useState(false)
   const handoverDialogShiftRef = useRef<{ shiftId: string; fromUserId: string } | null>(null)
+  const forcedHandoverPromptedRef = useRef(false)
   const hadPendingFloatRef = useRef(false)
   const floatRequestSocketUserIdRef = useRef<string | null>(null)
   const floatBalanceUserIdRef = useRef<string | null>(null)
@@ -153,9 +154,9 @@ export function ChannelBookingShiftBar() {
     }
   }
 
-  // Live-updating clock when shift is active (tick every second)
+  // Live clock while an open shift exists (also detects max-duration expiry)
   useEffect(() => {
-    if (!shift || shift.status !== SHIFT_STATUS.ACTIVE) return
+    if (!shift || shift.status === SHIFT_STATUS.HANDOVER_PENDING) return
     setNow(new Date())
     const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
@@ -344,6 +345,26 @@ export function ChannelBookingShiftBar() {
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
   }, [hasFloatRequestPermission])
 
+  // Force handover when max duration is exceeded (cannot start a new shift until done)
+  useEffect(() => {
+    if (!shift) {
+      forcedHandoverPromptedRef.current = false
+      return
+    }
+    if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) return
+    const endsAt = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
+    if (endsAt.getTime() > now.getTime()) return
+    if (forcedHandoverPromptedRef.current) return
+    forcedHandoverPromptedRef.current = true
+    handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
+    setEndShiftHandoverOpen(true)
+    toast({
+      title: "Shift time limit ended",
+      description: "Complete handover to close this shift before starting a new one.",
+      variant: "destructive",
+    })
+  }, [shift?.id, shift?.userId, shift?.status, shift?.endsAt, now, toast])
+
   if (!hasShiftPermission) return null
   if (loading) return null
 
@@ -378,6 +399,8 @@ export function ChannelBookingShiftBar() {
   const isActive = shift.status === SHIFT_STATUS.ACTIVE
   const isPaused = shift.status === SHIFT_STATUS.PAUSED
   const isHandoverPending = shift.status === SHIFT_STATUS.HANDOVER_PENDING
+  const endsAtDate = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
+  const isExpired = endsAtDate.getTime() <= now.getTime()
   const pendingHandover = shift.handovers?.[0]
   const asOf = isPaused && shift.pausedAt
     ? typeof shift.pausedAt === "string"
@@ -385,6 +408,13 @@ export function ChannelBookingShiftBar() {
       : shift.pausedAt
     : now
   const elapsed = formatElapsed(shift.startedAt, asOf)
+
+  function openEndShiftHandover() {
+    if (shift) {
+      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
+      setEndShiftHandoverOpen(true)
+    }
+  }
 
   async function handlePause() {
     if (!shift) return
@@ -414,13 +444,6 @@ export function ChannelBookingShiftBar() {
     }
   }
 
-  function openEndShiftHandover() {
-    if (shift) {
-      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
-      setEndShiftHandoverOpen(true)
-    }
-  }
-
   async function handleCancelHandover() {
     if (!pendingHandover) return
     setActionLoading("cancel-handover")
@@ -445,8 +468,9 @@ export function ChannelBookingShiftBar() {
               disabled={!!actionLoading}
               className={cn(
                 "gap-2 rounded-md font-medium",
-                isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
-                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
+                isExpired && !isHandoverPending && "bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+                !isExpired && isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+                !isExpired && isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
                 isHandoverPending && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
               )}
             >
@@ -458,10 +482,12 @@ export function ChannelBookingShiftBar() {
               <span className="flex items-center gap-1.5">
                 {isHandoverPending
                   ? "Handover pending"
-                  : isActive
-                    ? "Shift active"
-                    : "Shift paused"}
-                {!isHandoverPending && (
+                  : isExpired
+                    ? "Shift expired — handover required"
+                    : isActive
+                      ? "Shift active"
+                      : "Shift paused"}
+                {!isHandoverPending && !isExpired && (
                   <span className="opacity-90 tabular-nums">
                     {elapsed}
                   </span>
@@ -514,30 +540,34 @@ export function ChannelBookingShiftBar() {
                 </DropdownMenuItem>
               </>
             )}
-            {isActive && !isHandoverPending && (
+            {isActive && !isHandoverPending && !isExpired && (
               <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
               </DropdownMenuItem>
             )}
-            {isPaused && (
+            {isPaused && !isExpired && (
               <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
                 <Play className="h-4 w-4 mr-2" />
                 Resume
               </DropdownMenuItem>
             )}
-            {isActive && !isHandoverPending && (
+            {isExpired && !isHandoverPending && (
+              <DropdownMenuLabel className="font-normal text-muted-foreground text-xs max-w-64 whitespace-normal">
+                Time limit ended. Complete handover to close this shift before starting a new one.
+              </DropdownMenuLabel>
+            )}
+            {(isActive || (isPaused && isExpired)) && !isHandoverPending && (
               <DropdownMenuItem
                 onClick={openEndShiftHandover}
                 disabled={!!actionLoading}
                 className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
               >
                 <Square className="h-4 w-4 mr-2" />
-                End shift
+                {isExpired ? "Complete handover" : "End shift"}
               </DropdownMenuItem>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenuContent>        </DropdownMenu>
         {hasFloatRequestPermission && (
           <>
             {pendingFloatRequest ? (

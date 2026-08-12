@@ -1,6 +1,8 @@
 import { ShiftGate } from "./shift-gate"
-
-const SHIFT_MAX_HOURS = Number(process.env.SHIFT_MAX_DURATION_HOURS) || 36
+import {
+  getBulkCashierShiftMaxHours,
+  getDefaultShiftMaxHours,
+} from "@/lib/shift-duration"
 
 export default function ChannelBookingLayout({
   children,
@@ -8,7 +10,10 @@ export default function ChannelBookingLayout({
   children: React.ReactNode
 }) {
   return (
-    <ShiftGate shiftMaxHours={SHIFT_MAX_HOURS}>
+    <ShiftGate
+      shiftMaxHours={getDefaultShiftMaxHours()}
+      bulkCashierShiftMaxHours={getBulkCashierShiftMaxHours()}
+    >
       {children}
     </ShiftGate>
   )
