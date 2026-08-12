@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump when auth Prisma schema fields change so HMR does not keep a stale client. */
-const AUTH_PRISMA_SCHEMA_VERSION = "auth-user-location-v1";
+const AUTH_PRISMA_SCHEMA_VERSION = "auth-user-group-app-v1";
 
 if (
   process.env.NODE_ENV !== "production" &&
