@@ -5,6 +5,8 @@ import { TWO_FACTOR_METHODS, TWO_FA_PENDING_EXPIRY_MINUTES, TWO_FA_CODE_EXPIRY_M
 import { generateSixDigitCode, generateTotpSecret, generateTotpURI } from '@/lib/helpers/2fa/totp';
 import { send2faSms, send2faEmail } from '@/lib/helpers/2fa/send-2fa-code';
 import crypto from 'crypto';
+import { isDashboardLoginUserType } from '@/lib/roles';
+import { canAccessHrmApp } from '@/lib/auth-app-access';
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Archmage HRM';
 
@@ -31,6 +33,10 @@ export async function POST(request: Request) {
 
     const valid = await argon2.verify(user.password, password);
     if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+
+    if (!isDashboardLoginUserType(user.userType) || !canAccessHrmApp(user)) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
 
     if (user.twoFactorEnabled !== true) {
       return NextResponse.json({ error: '2FA not enabled for this account' }, { status: 403 });

@@ -1,6 +1,8 @@
 import * as argon2 from 'argon2';
 import { authPrisma } from '@archmage/db-auth';
 import { MIN_PASSWORD_LENGTH, PASSWORD_REGEX } from '@/lib/validations/password';
+import { isDashboardLoginUserType } from '@/lib/roles';
+import { canAccessHrmApp } from '@/lib/auth-app-access';
 
 export type ChangeInitialPasswordInput = {
   identifier: string;
@@ -47,9 +49,14 @@ export async function changeInitialPassword(
       OR: [{ email: identifier }, { username: identifier }],
       status: 1,
     },
+    include: { userGroup: true },
   });
 
   if (!user || !user.password) {
+    return { success: false, status: 401, error: 'Invalid credentials' };
+  }
+
+  if (!isDashboardLoginUserType(user.userType) || !canAccessHrmApp(user)) {
     return { success: false, status: 401, error: 'Invalid credentials' };
   }
 

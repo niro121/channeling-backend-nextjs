@@ -386,16 +386,18 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 
 ## 12. Implementation checklist (HRM)
 
+> **Scope:** Changes apply to **HRM** (`apps/hrm`) and shared packages (`packages/db-auth`, `packages/shared`) only. Do not modify DPAY, Channeling, or other apps as part of this work.
+
 ### Phase 1 — Schema and constants ✅
 
 - [x] Add `UserGroup.app String?` to `packages/db-auth/prisma/schema.prisma`
 - [x] Run `prisma db push` / migrate and `prisma generate`
 - [x] Add `AUTH_APPS` to `packages/shared` and export from index
 
-### Phase 2 — Auth gate
+### Phase 2 — Auth gate ✅ *(HRM only)*
 
-- [ ] HRM login: allow `admin` OR `userGroup.app === "hrm"`
-- [ ] (Optional) DPAY login: same for `"dpay"`
+- [x] HRM login: allow `admin` OR `userGroup.app === "hrm"`
+- [ ] ~~DPAY login app gate~~ *(out of scope — not part of HRM work)*
 
 ### Phase 3 — User Group management
 
