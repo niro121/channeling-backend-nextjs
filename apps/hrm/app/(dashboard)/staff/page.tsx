@@ -5,7 +5,7 @@ import { SearchInput } from '@archmage/ui';
 import { CustomDataTable } from '@archmage/ui';
 import { staffColumns } from './columns';
 import Loading from '../loading';
-import { checkRouteAccess } from '@/lib/server-permissions';
+import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
 import {
@@ -91,6 +91,8 @@ export default async function StaffPage({ searchParams }: SearchParams) {
     return getStaffBulkDeleteDescriptionAction(ids);
   };
 
+  const canAdd = await checkPermission('staff', 'add');
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -129,15 +131,17 @@ export default async function StaffPage({ searchParams }: SearchParams) {
           toolbarRight={
             <div className="flex items-start gap-2 shrink-0">
               <BulkDeleteButton />
-              <Link href="/staff/add">
-                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Add New
-                  </span>
-                </Button>
-              </Link>
-              <SyncStaffButton />
+              {canAdd ? (
+                <Link href="/staff/add">
+                  <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                    <Plus className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                      Add New
+                    </span>
+                  </Button>
+                </Link>
+              ) : null}
+              {canAdd ? <SyncStaffButton /> : null}
             </div>
           }
           hideAutoBulkDelete={true}

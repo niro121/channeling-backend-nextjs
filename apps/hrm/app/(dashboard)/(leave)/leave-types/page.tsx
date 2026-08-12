@@ -6,7 +6,7 @@ import { BulkDeleteButton, Button, CustomDataTable } from '@archmage/ui';
 import { Plus } from 'lucide-react';
 import Loading from '../../loading';
 import { authOptions } from '@/lib/auth';
-import { checkRouteAccess } from '@/lib/server-permissions';
+import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { ExportWrapper } from '../../export-wrapper';
 import LeaveTypeFilterSection from './filter-section';
@@ -100,6 +100,8 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
     return `This will permanently delete ${ids.length} leave type${ids.length === 1 ? '' : 's'}. This action cannot be undone.`;
   };
 
+  const canAdd = await checkPermission('leave-types', 'add');
+
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
@@ -151,14 +153,16 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
           toolbarRight={
             <div className="flex items-start gap-2 shrink-0">
               <BulkDeleteButton />
-              <Link href="/leave-types/add">
-                <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Add New
-                  </span>
-                </Button>
-              </Link>
+              {canAdd ? (
+                <Link href="/leave-types/add">
+                  <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                    <Plus className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                      Add New
+                    </span>
+                  </Button>
+                </Link>
+              ) : null}
             </div>
           }
           hideAutoBulkDelete
