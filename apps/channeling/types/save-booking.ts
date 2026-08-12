@@ -55,6 +55,7 @@ export type SaveBookingErrorCode =
   | "NO_ACTIVE_SHIFT"
   | "SHIFT_PAUSED"
   | "HANDOVER_NOT_COMPLETE"
+  | "SHIFT_EXPIRED"
   /** Soft limit: booking amount > agency prepaid (PAYABLE balance) + Agency.allowedCreditLimit (agent only). */
   | "AGENCY_CREDIT_EXCEED"
   | "CREDIT_LIMIT_VIOLATION"

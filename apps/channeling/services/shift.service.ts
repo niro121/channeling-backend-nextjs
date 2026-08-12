@@ -7,10 +7,14 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
 import { ShiftRequirementError } from "@/lib/shift-requirement-error"
+import { hasPermission } from "@/lib/permissions"
+import { userTypes } from "@/lib/roles"
+import {
+  getEndsAtForHours,
+  getShiftMaxHoursForRole,
+} from "@/lib/shift-duration"
+import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
-
-const SHIFT_MAX_HOURS =
-  Number(process.env.SHIFT_MAX_DURATION_HOURS) || 36
 
 // ==== SHIFT: VALIDATION SCHEMAS ==== //
 const startShiftSchema = z.object({
@@ -27,9 +31,28 @@ const shiftActionSchema = z.object({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PrismaClient.shift exists after generate
 const shiftModel = (prisma as any).shift
 
-/** Shift end = start + exactly N hours (milliseconds to avoid DST quirks). */
-function getEndsAt(startedAt: Date): Date {
-  return new Date(startedAt.getTime() + SHIFT_MAX_HOURS * 60 * 60 * 1000)
+/** True when shift.endsAt has passed (shift must be handed over). */
+function isShiftPastMaxDuration(
+  shift: { endsAt: Date | string },
+  asOf: Date = new Date()
+): boolean {
+  const endsAt = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
+  return endsAt.getTime() <= asOf.getTime()
+}
+
+async function isBulkCashierUser(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      userType: true,
+      userGroup: { select: { permissions: true } },
+    },
+  })
+  if (!user) return false
+  // Backend admin has all capabilities; use longer bulk duration when configured.
+  if (user.userType === userTypes.admin) return true
+  const permissions = (user.userGroup?.permissions ?? null) as Permissions | null
+  return hasPermission(permissions, "bulk-cashier", "bulk-cashier-dashboard")
 }
 
 export async function getActiveShift(userId: string) {
@@ -45,6 +68,10 @@ export async function getActiveShift(userId: string) {
   return shift
 }
 
+/**
+ * Open (not ended) shift for the user, including past max duration.
+ * Expired shifts stay "current" so the user cannot start another until handover completes.
+ */
 export async function getCurrentShift(userId: string) {
   const shift = await shiftModel.findFirst({
     where: {
@@ -72,19 +99,22 @@ export async function getCurrentShift(userId: string) {
       },
     },
   })
-  if (!shift) return null
-  const now = new Date()
-  if (shift.endsAt <= now) return null
   return shift
 }
 
-/** Throws if the user does not have an ACTIVE shift. Use before creating till-related receipts. */
+/** Throws if the user does not have an ACTIVE shift within its time limit. */
 export async function requireActiveShift(userId: string): Promise<void> {
   const shift = await getCurrentShift(userId)
   if (!shift) {
     throw new ShiftRequirementError(
       "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
       "NO_ACTIVE_SHIFT"
+    )
+  }
+  if (isShiftPastMaxDuration(shift)) {
+    throw new ShiftRequirementError(
+      "Your shift time limit has ended. Complete handover from the top bar before continuing.",
+      "SHIFT_EXPIRED"
     )
   }
   if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
@@ -227,14 +257,18 @@ export async function startShift(userId: string, locationId?: string | null) {
   const existing = await getCurrentShift(validUserId)
   if (existing) {
     const msg =
-      existing.status === SHIFT_STATUS.HANDOVER_PENDING
-        ? "You have a handover pending. Cancel it from the top bar or wait for the recipient to approve before starting a new shift."
-        : "You already have an active or paused shift. Please end it or resume it from the top bar before starting a new one."
+      isShiftPastMaxDuration(existing)
+        ? "Your previous shift exceeded its time limit. Complete handover from the top bar before starting a new shift."
+        : existing.status === SHIFT_STATUS.HANDOVER_PENDING
+          ? "You have a handover pending. Cancel it from the top bar or wait for the recipient to approve before starting a new shift."
+          : "You already have an active or paused shift. Please end it or resume it from the top bar before starting a new one."
     throw new Error(msg)
   }
   const now = new Date()
   const startedAt = now
-  const endsAt = getEndsAt(startedAt)
+  const isBulkCashier = await isBulkCashierUser(validUserId)
+  const maxHours = getShiftMaxHoursForRole(isBulkCashier)
+  const endsAt = getEndsAtForHours(startedAt, maxHours)
   const shift = await shiftModel.create({
     data: {
       userId: validUserId,
@@ -250,7 +284,12 @@ export async function startShift(userId: string, locationId?: string | null) {
     action: "shift.started",
     entityType: "Shift",
     entityId: shift.id,
-    metadata: { startedAt: startedAt.toISOString(), endsAt: endsAt.toISOString() },
+    metadata: {
+      startedAt: startedAt.toISOString(),
+      endsAt: endsAt.toISOString(),
+      maxHours,
+      isBulkCashier,
+    },
   })
   return shift
 }
@@ -262,6 +301,12 @@ export async function pauseShift(shiftId: string, userId: string) {
   })
   if (!shift) return { success: false, message: "Shift not found or not active" }
   const now = new Date()
+  if (isShiftPastMaxDuration(shift, now)) {
+    return {
+      success: false,
+      message: "Shift time limit has ended. Complete handover from the top bar.",
+    }
+  }
   await shiftModel.update({
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.PAUSED, pausedAt: now, pausedBy: validUserId, updatedAt: now },
@@ -285,7 +330,12 @@ export async function resumeShift(shiftId: string, userId: string) {
   })
   if (!shift) return { success: false, message: "Shift not found or not paused" }
   const now = new Date()
-  if (shift.endsAt <= now) return { success: false, message: "Shift has expired" }
+  if (isShiftPastMaxDuration(shift, now)) {
+    return {
+      success: false,
+      message: "Shift time limit has ended. Complete handover from the top bar — you cannot resume this shift.",
+    }
+  }
   await shiftModel.update({
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.ACTIVE, updatedAt: now },
@@ -312,6 +362,13 @@ export async function endShift(shiftId: string, userId: string) {
     },
   })
   if (!shift) return { success: false, message: "Shift not found" }
+
+  if (isShiftPastMaxDuration(shift)) {
+    return {
+      success: false,
+      message: "Shift time limit has ended. Complete handover from the top bar — you cannot end this shift without handover.",
+    }
+  }
 
   const pendingHandoversToMe = await prisma.shiftHandover.count({
     where: { toUserId: validUserId, status: HANDOVER_STATUS.PENDING },

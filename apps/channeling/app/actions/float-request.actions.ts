@@ -15,6 +15,7 @@ import {
   declineApprovedFloatRequest,
   rejectFloatRequest,
   cancelFloatRequest,
+  getFloatRequestJournal,
 } from '@/services/float-request.service';
 import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
 import { fetchServerSession } from '@/lib/session';
@@ -331,6 +332,26 @@ export async function getFloatRequestByIdAction(id: string) {
   } catch (e) {
     console.error('getFloatRequestByIdAction error:', e);
     return { success: false, data: null };
+  }
+}
+
+/** Double-entry journal for a received float request (null if not posted yet). */
+export async function getFloatRequestJournalAction(floatRequestId: string) {
+  const canFloatTransfers = await checkPermission('float-transfers', 'view');
+  const canBulkCashier = await checkPermission('bulk-cashier', 'bulk-cashier-dashboard');
+  if (!canFloatTransfers && !canBulkCashier) {
+    return { success: false as const, data: null, message: 'Forbidden' };
+  }
+  try {
+    const journal = await getFloatRequestJournal(floatRequestId);
+    return { success: true as const, data: journal };
+  } catch (e) {
+    console.error('getFloatRequestJournalAction error:', e);
+    return {
+      success: false as const,
+      data: null,
+      message: e instanceof Error ? e.message : 'Failed to load journal',
+    };
   }
 }
 
