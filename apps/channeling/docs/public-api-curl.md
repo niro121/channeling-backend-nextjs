@@ -100,7 +100,7 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 
 `status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
 
-`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create agent booking**, omitting `paid` on such sessions creates a **pending** booking (`status 0`); send `paid: yes` only when you want to settle immediately.
+`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create booking**, omitting `paid` (or sending `paid: no`) on such sessions creates an **On-Call** pending booking (`status 0`, `createdBy` = API acting user). Send `paid: yes` for a settled Agent booking.
 
 ---
 
@@ -246,25 +246,28 @@ curl -X GET "http://localhost:3000/api/public/bookings?doctorCode=DR0001&date=20
 
 ---
 
-## 6. Create agent booking
+## 6. Create booking
 
 **POST** `/api/public/bookings`
 
-Creates an agent-method booking (same pipeline as channel booking). Requires Bearer token and API client acting user.
+Creates a booking via the channel-booking save pipeline. Requires Bearer token and API client acting user.
+
+- **Paid** (`paid: yes`, or omitted on non-advance sessions): **Agent** method, receipt created, **status 1**. `agencyId` + `bookReference` required.
+- **Unpaid advance** (`paid: no`, or omitted when `advancedBookingDays > 0`): **On-Call** method, **status 0** (pending, no receipt). Booking is attached to the API acting user as `createdBy`. `agencyId` + `bookReference` are optional; if passed, they are stored on the booking (no agency debit).
 
 ### JSON body
 
 | Field           | Required | Description |
 |----------------|----------|-------------|
 | `sessionId`    | Yes      | Session id from Get Sessions. |
-| `agencyId`     | Yes      | Agency Mongo id. |
-| `bookReference`| Yes      | Full agency ref (e.g. `ABC01`). |
+| `agencyId`     | Paid; optional for On-Call | Agency Mongo id (required for Agent / paid). Optional on unpaid advance — saved if passed with `bookReference`. |
+| `bookReference`| Paid; optional for On-Call | Full agency ref (e.g. `ABC01`). Optional on unpaid advance — saved if passed with `agencyId`. |
 | `title`, `name`, `sex`, `phone`, `area` | Yes | Patient details. |
 | `remarks`      | No       | Optional remarks. |
 | `foreigner`    | No       | `true` for foreign fee tier. |
-| `paid`         | No       | `yes` / `true`: receipt created, **status 1** (settled). `no` / `false`: **pending** (**status 0**). **Omitted:** if the session template has advance booking enabled (`advancedBookingDays > 0`), **pending**; otherwise **settled** (same as `yes`). |
+| `paid`         | No       | `yes` / `true`: **Agent** settled (**status 1**). `no` / `false`: **On-Call** pending (**status 0**) — only on advance-booking sessions. **Omitted:** advance → On-Call pending; otherwise Agent settled. |
 
-### cURL (paid — default)
+### cURL (paid Agent)
 
 ```bash
 curl -X POST "http://localhost:3000/api/public/bookings" \
@@ -283,7 +286,7 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
   }'
 ```
 
-### cURL (pending — not settled)
+### cURL (unpaid advance → On-Call pending)
 
 ```bash
 curl -X POST "http://localhost:3000/api/public/bookings" \
@@ -302,7 +305,9 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
   }'
 ```
 
-### Example success response (201)
+`agencyId` / `bookReference` may be omitted on On-Call; if both are sent they are stored (no settlement / no agency debit).
+
+### Example success response (201) — On-Call pending
 
 ```json
 {
@@ -311,7 +316,7 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
     "appointmentNo": 5,
     "status": 0,
     "statusLabel": "Pending",
-    "agencyRef": "BOOK02",
+    "agencyRef": "",
     "amount": 2000,
     "fees": {
       "professionalFee": 1500,
@@ -323,7 +328,7 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
 }
 ```
 
-Use **Get Bookings** with `includePending=true` to list pending bookings.
+Use **Get Bookings** with `includePending=true` to list pending (On-Call) bookings.
 
 ---
 

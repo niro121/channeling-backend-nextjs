@@ -138,11 +138,11 @@
           "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK01\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"yes\"\n}"
         },
         "url": "{{baseUrl}}/api/public/bookings",
-        "description": "Agent booking settled (status 1, receipt). Default when paid omitted."
+        "description": "Agent booking settled (status 1, receipt). agencyId + bookReference required. Default when paid omitted on non-advance sessions."
       }
     },
     {
-      "name": "Create Agent Booking (pending)",
+      "name": "Create On-Call Booking (unpaid advance)",
       "request": {
         "method": "POST",
         "header": [
@@ -154,7 +154,7 @@
           "raw": "{\n  \"sessionId\": \"{{session_id}}\",\n  \"agencyId\": \"\",\n  \"bookReference\": \"BOOK02\",\n  \"title\": \"Mr\",\n  \"name\": \"PATIENT NAME\",\n  \"sex\": \"M\",\n  \"phone\": \"0771234567\",\n  \"area\": \"Colombo\",\n  \"paid\": \"no\"\n}"
         },
         "url": "{{baseUrl}}/api/public/bookings",
-        "description": "Pending agent booking (status 0, no receipt). Use Get Bookings with includePending=true."
+        "description": "Advance session unpaid → On-Call pending (status 0, no receipt, createdBy = API acting user). agencyId + bookReference optional; if both passed they are stored without agency debit."
       }
     },
     {

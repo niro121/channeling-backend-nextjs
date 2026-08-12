@@ -1,7 +1,7 @@
 /**
  * Parse `paid` on POST /api/public/bookings.
  * When omitted, returns `paid: undefined` so create-booking can default by session
- * (advance-booking sessions → pending; others → settled).
+ * (advance-booking sessions → On-Call pending; others → Agent settled).
  */
 export function parsePublicApiPaidParam(
   value: unknown
