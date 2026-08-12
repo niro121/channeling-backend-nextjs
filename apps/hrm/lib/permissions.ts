@@ -2,10 +2,6 @@ import { Permissions } from '@archmage/shared';
 
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/staff': 'staff',
-  '/employees': 'employees',
-  '/departments': 'departments',
-  '/positions': 'positions',
-  '/leave-requests': 'leave-requests',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',
@@ -14,13 +10,8 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/overtime-extra-time': 'overtime-requests',
   '/overtime-day-off-ph-shift': 'overtime-requests',
   '/overtime-extra-shift-normal': 'overtime-requests',
-  '/attendance': 'attendance',
-  '/payroll': 'payroll',
-  '/salary-structures': 'salary-structures',
-  '/reports': 'reports',
   '/users': 'users',
   '/user-groups': 'users',
-  '/admin/api-clients': 'api-clients',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

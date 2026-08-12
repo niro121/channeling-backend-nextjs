@@ -399,12 +399,12 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 - [x] HRM login: allow `admin` OR `userGroup.app === "hrm"`
 - [ ] ~~DPAY login app gate~~ *(out of scope — not part of HRM work)*
 
-### Phase 3 — User Group management
+### Phase 3 — User Group management ✅
 
-- [ ] Service: CRUD via `authPrisma`, filter by `app: "hrm"`
-- [ ] UI: list / add / edit under `/user-groups` *(mirror Channeling pattern)*
-- [ ] Permission matrix from HRM `RESOURCES`
-- [ ] Server actions: `requirePermission("users", …)`
+- [x] Service: CRUD via `authPrisma`, filter by `app: "hrm"`
+- [x] UI: list / add / edit under `/user-groups` *(mirror Channeling pattern)*
+- [x] Permission matrix from HRM `RESOURCES`
+- [x] Server actions: `requirePermission("users", …)`
 
 ### Phase 4 — User management
 
@@ -429,6 +429,11 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 | Shared roles | `packages/shared/src/types/roles.ts` |
 | Shared permission types | `packages/shared/src/types/user-group.ts` |
 | HRM auth | `apps/hrm/lib/auth.ts` |
+| HRM app access gate | `apps/hrm/lib/auth-app-access.ts` |
+| HRM user group scope | `apps/hrm/lib/helpers/auth/hrm-user-group-scope.ts` |
+| HRM user group service | `apps/hrm/services/user-group-services/user-group.service.ts` |
+| HRM user group actions | `apps/hrm/app/actions/user-group.actions.ts` |
+| HRM user group UI | `apps/hrm/app/(dashboard)/user-groups/` |
 | HRM permissions | `apps/hrm/lib/permissions.ts`, `lib/server-permissions.ts` |
 | HRM resources | `apps/hrm/types/user-group.ts` |
 | HRM permission flow doc | `apps/hrm/docs/PERMISSION_FLOW.md` |

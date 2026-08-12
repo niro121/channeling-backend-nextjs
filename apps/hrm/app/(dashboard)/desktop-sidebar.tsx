@@ -17,6 +17,7 @@ import {
   CalendarPlus,
   ChevronDown,
   Clock,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -122,9 +123,14 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         <div className="space-y-0.5">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
         </div>
-        <SidebarGroup label="People">
-          {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
-        </SidebarGroup>
+        {(hasAccess('/user-groups') || hasAccess('/users') || hasAccess('/staff')) && (
+          <SidebarGroup label="Administration">
+            {hasAccess('/user-groups') && (
+              <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
+            )}
+            {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
         <SidebarGroup label="Leave Management">
           <SidebarCollapsible
             label="Leave"
