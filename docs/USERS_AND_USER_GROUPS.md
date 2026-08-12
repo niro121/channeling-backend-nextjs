@@ -292,9 +292,9 @@ Admin bypass is implemented in `lib/server-permissions.ts` and middleware in HRM
 | List users | Users in HRM groups and/or admins *(product decision)* |
 | Create user | Default `userType: staff`; assign only HRM groups |
 | Update user | Do not assign non-HRM groups |
-| Link to employee | Set `staffId` → HRM `Staff.id` when applicable |
+| Link to employee | Set required `staffId` → HRM `Staff.id` |
 
-Not every HRM login user must be a Staff record (e.g. external HR clerk). When they are an employee, link via `staffId`.
+Each HRM login user must be linked to a Staff record using `staffId`.
 
 ### 8.5 Login gate (HRM)
 
@@ -406,12 +406,12 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 - [x] Permission matrix from HRM `RESOURCES`
 - [x] Server actions: `requirePermission("users", …)`
 
-### Phase 4 — User management
+### Phase 4 — User management ✅
 
-- [ ] Service: CRUD via `authPrisma`, assign HRM groups only
-- [ ] UI: list / add / edit under `/users`
-- [ ] Optional `staffId` picker linked to HRM Staff
-- [ ] Restrict creating `userType: admin` from HRM UI *(recommended)*
+- [x] Service: CRUD via `authPrisma`, assign HRM groups only
+- [x] UI: list / add / edit under `/users`
+- [x] Optional `staffId` picker linked to HRM Staff
+- [x] Restrict creating `userType: admin` from HRM UI *(recommended)*
 
 ### Phase 5 — Migration / backfill
 
@@ -431,9 +431,12 @@ When Channeling migrates to `@archmage/db-auth`, reuse this document’s app-sco
 | HRM auth | `apps/hrm/lib/auth.ts` |
 | HRM app access gate | `apps/hrm/lib/auth-app-access.ts` |
 | HRM user group scope | `apps/hrm/lib/helpers/auth/hrm-user-group-scope.ts` |
-| HRM user group service | `apps/hrm/services/user-group-services/user-group.service.ts` |
-| HRM user group actions | `apps/hrm/app/actions/user-group.actions.ts` |
+| HRM user scope | `apps/hrm/lib/helpers/auth/hrm-user-scope.ts` |
+| HRM user group service | `apps/hrm/services/user-usergrp-services/user-group.service.ts` |
+| HRM user service | `apps/hrm/services/user-usergrp-services/user.service.ts` |
+| HRM user/group actions | `apps/hrm/app/actions/user-usergrp-actions/` |
 | HRM user group UI | `apps/hrm/app/(dashboard)/user-groups/` |
+| HRM user UI | `apps/hrm/app/(dashboard)/users/` |
 | HRM permissions | `apps/hrm/lib/permissions.ts`, `lib/server-permissions.ts` |
 | HRM resources | `apps/hrm/types/user-group.ts` |
 | HRM permission flow doc | `apps/hrm/docs/PERMISSION_FLOW.md` |

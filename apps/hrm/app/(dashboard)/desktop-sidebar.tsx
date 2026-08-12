@@ -128,49 +128,63 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             {hasAccess('/user-groups') && (
               <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
             )}
+            {hasAccess('/users') && (
+              <NavLink href="/users" label="Users" icon={<UsersRound className="h-5 w-5" />} />
+            )}
             {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
           </SidebarGroup>
         )}
-        <SidebarGroup label="Leave Management">
-          <SidebarCollapsible
-            label="Leave"
-            icon={<CalendarDays className="h-5 w-5" />}
-            paths={["/leave-entitlement", "/leave-management", "/leave-application", "/leave-types"]}
-          >
-            {hasAccess("/leave-entitlement") && (
-              <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
-            )}
-            {hasAccess("/leave-management") && (
-              <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
-            )}
-            {hasAccess("/leave-application") && (
-              <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
-            )}
-            {hasAccess("/leave-types") && (
-              <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
-            )}
-          </SidebarCollapsible>
-        </SidebarGroup>
-        <SidebarGroup label="Overtime Management">
-          <SidebarCollapsible
-            label="Overtime"
-            icon={<Clock className="h-5 w-5" />}
-            paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
-          >
-            {hasAccess("/overtime-requests") && (
-              <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
-            )}
-            {hasAccess("/overtime-extra-time") && (
-              <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
-            )}
-            {hasAccess("/overtime-day-off-ph-shift") && (
-              <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
-            )}
-            {hasAccess("/overtime-extra-shift-normal") && (
-              <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
-            )}
-          </SidebarCollapsible>
-        </SidebarGroup>
+        {(hasAccess('/leave-entitlement') ||
+          hasAccess('/leave-management') ||
+          hasAccess('/leave-application') ||
+          hasAccess('/leave-types')) && (
+          <SidebarGroup label="Leave Management">
+            <SidebarCollapsible
+              label="Leave"
+              icon={<CalendarDays className="h-5 w-5" />}
+              paths={["/leave-entitlement", "/leave-management", "/leave-application", "/leave-types"]}
+            >
+              {hasAccess("/leave-entitlement") && (
+                <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-management") && (
+                <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-application") && (
+                <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-types") && (
+                <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/overtime-requests') ||
+          hasAccess('/overtime-extra-time') ||
+          hasAccess('/overtime-day-off-ph-shift') ||
+          hasAccess('/overtime-extra-shift-normal')) && (
+          <SidebarGroup label="Overtime Management">
+            <SidebarCollapsible
+              label="Overtime"
+              icon={<Clock className="h-5 w-5" />}
+              paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
+            >
+              {hasAccess("/overtime-requests") && (
+                <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-extra-time") && (
+                <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-day-off-ph-shift") && (
+                <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-extra-shift-normal") && (
+                <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        
       </nav>
 
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">
