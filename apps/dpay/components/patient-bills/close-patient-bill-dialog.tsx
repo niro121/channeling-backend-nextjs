@@ -38,7 +38,7 @@ export function ClosePatientBillDialog({
       if (result.success) {
         toast({
           title: 'Patient bill closed',
-          description: `${billNumber} has been closed and can no longer be modified.`,
+          description: `${billNumber} has been closed and can no longer be edited. Cancel Bill remains available to void it with refunds.`,
         });
         onOpenChange(false);
         router.refresh();
@@ -72,8 +72,9 @@ export function ClosePatientBillDialog({
           <DialogTitle>Close patient bill</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to close this bill? Once the bill is closed, you will no
-          longer be able to update or modify it. This action cannot be undone.
+          Are you sure you want to close this bill? Once closed, it cannot be edited or
+          have payments/receipts changed individually. You can still cancel the bill later
+          to void it and issue refund receipts. Paid and over-paid bills can be closed.
         </p>
         <DialogFooter>
           <Button

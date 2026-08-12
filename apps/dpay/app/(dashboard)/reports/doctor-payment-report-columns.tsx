@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import type { DoctorPaymentReportRow } from '@/types/reports';
-import { formatLkr } from '@/lib/patient-bills/calculations';
+import { formatLkr, formatReportLkr } from '@/lib/patient-bills/calculations';
 import { DoctorPaymentStatusBadge } from '@/components/doctor-payments/status-badge';
 import { cn } from '@/lib/utils';
 
@@ -33,17 +33,26 @@ export const doctorPaymentReportColumns: ColumnDef<DoctorPaymentReportRow>[] = [
   {
     accessorKey: 'totalAmount',
     header: 'Total Amount',
-    cell: ({ row }) => (
-      <span className="tabular-nums font-semibold whitespace-nowrap">
-        {formatLkr(row.original.totalAmount)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const isRefund = row.original.status === 'refund';
+      return (
+        <span
+          className={cn(
+            'tabular-nums font-semibold whitespace-nowrap',
+            isRefund ? 'text-red-700' : undefined
+          )}
+        >
+          {formatReportLkr(row.original.totalAmount, isRefund)}
+        </span>
+      );
+    },
   },
   {
     accessorKey: 'paidAmount',
     header: 'Paid Amount',
     cell: ({ row }) => {
       const amount = row.original.paidAmount;
+      const isRefund = row.original.status === 'refund';
       if (amount <= 0) {
         return (
           <span className="tabular-nums text-muted-foreground whitespace-nowrap">
@@ -55,10 +64,10 @@ export const doctorPaymentReportColumns: ColumnDef<DoctorPaymentReportRow>[] = [
         <span
           className={cn(
             'inline-flex tabular-nums font-medium whitespace-nowrap rounded-full px-2.5 py-0.5',
-            'bg-emerald-50 text-emerald-700'
+            isRefund ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
           )}
         >
-          {formatLkr(amount)}
+          {formatReportLkr(amount, isRefund)}
         </span>
       );
     },

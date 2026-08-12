@@ -26,6 +26,7 @@ const VALID_STATUSES: PatientBillStatus[] = [
   'pending',
   'partial',
   'paid',
+  'over_paid',
   'closed',
   'cancelled',
 ];

@@ -186,7 +186,8 @@ export function CancelPatientBillDialog({
             {hasReceipts
               ? ` and void ${receiptCount} linked receipt${receiptCount === 1 ? '' : 's'} with refund receipts`
               : ''}
-            . Payment and edit will no longer be allowed.
+            . The bill cannot be edited or paid afterward. Active receipts are soft-cancelled
+            (not deleted) and linked to refund receipts.
           </p>
 
           {hasReceipts ? (

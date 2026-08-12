@@ -15,6 +15,7 @@ import {
 } from '@archmage/ui';
 import type { BillLineItem } from '@/types/patient-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
+import { isDoctorPaidLineItem } from '@/lib/doctor-payments/eligibility';
 import { countActiveLineItems, isDeletedLineItem } from '@/lib/patient-bills/line-item-status';
 import { LineItemHistoryDialog } from './line-item-history-dialog';
 import { AddLineItemDialog } from './add-line-item-dialog';
@@ -88,7 +89,8 @@ export function BillLineItemsTable({
               ) : (
                 lineItems.map((item) => {
                   const deleted = isDeletedLineItem(item);
-                  const canRemove = canManageItems && !deleted && !item.doctorPaymentId;
+                  const doctorPaid = isDoctorPaidLineItem(item);
+                  const canRemove = canManageItems && !deleted && !doctorPaid;
 
                   return (
                     <TableRow
@@ -111,6 +113,14 @@ export function BillLineItemsTable({
                               className="h-5 border-destructive/30 bg-destructive/5 text-destructive"
                             >
                               Deleted
+                            </Badge>
+                          ) : null}
+                          {!deleted && doctorPaid ? (
+                            <Badge
+                              variant="outline"
+                              className="h-5 border-transparent bg-emerald-100 text-emerald-800"
+                            >
+                              Doctor Paid
                             </Badge>
                           ) : null}
                         </div>
@@ -151,8 +161,8 @@ export function BillLineItemsTable({
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
                               title={
-                                item.doctorPaymentId
-                                  ? 'Cannot remove — linked to a doctor payment'
+                                doctorPaid
+                                  ? 'Cancel the doctor payment first, then remove this line item'
                                   : 'Remove line item'
                               }
                               onClick={() => setRemoveItem(item)}

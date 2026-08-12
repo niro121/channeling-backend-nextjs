@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import type { PatientBillDraft } from '@/types/patient-bill';
+import { isDoctorPaidLineItem } from '@/lib/doctor-payments/eligibility';
 import { draftToUpdatePayload } from '@/lib/patient-bills/mappers';
 import {
   isMongoObjectId,
@@ -71,7 +72,7 @@ export async function updatePatientBill(
     }
 
     const removedItems = existing.lineItems.filter((item) => !keptIds.has(item.id));
-    const blockedRemoval = removedItems.find((item) => item.doctorPaymentId);
+    const blockedRemoval = removedItems.find((item) => isDoctorPaidLineItem(item));
     if (blockedRemoval) {
       return {
         success: false,

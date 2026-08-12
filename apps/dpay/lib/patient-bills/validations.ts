@@ -11,9 +11,32 @@ export function clampAmount(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** Restrict amount typing to digits with at most one decimal point and two decimal places. */
+export function sanitizeAmountDraftInput(raw: string): string {
+  let cleaned = raw.replace(/[^\d.]/g, '');
+  const dotIndex = cleaned.indexOf('.');
+  if (dotIndex !== -1) {
+    const before = cleaned.slice(0, dotIndex + 1);
+    const after = cleaned.slice(dotIndex + 1).replace(/\./g, '');
+    cleaned = before + after;
+  }
+
+  const [whole = '', fraction = ''] = cleaned.split('.');
+  if (fraction.length > 2) {
+    return `${whole}.${fraction.slice(0, 2)}`;
+  }
+  return cleaned;
+}
+
 export function parseAmountInput(raw: string): number {
-  if (raw.trim() === '') return 0;
-  const parsed = Number(raw);
+  const trimmed = sanitizeAmountDraftInput(raw.trim());
+  if (trimmed === '' || trimmed === '.') return 0;
+
+  const normalized = trimmed.endsWith('.') ? trimmed.slice(0, -1) : trimmed;
+  if (normalized === '') return 0;
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return 0;
   return clampAmount(parsed);
 }
 
@@ -85,6 +108,13 @@ export function hasPatientBillDetailsErrors(errors: PatientBillFormErrors): bool
 export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFormErrors {
   const errors: PatientBillFormErrors = {};
 
+  const bhtNo = draft.bxtNumber.trim();
+  if (!bhtNo) {
+    errors.bxtNumber = 'BHT number is required';
+  } else if (!/^[A-Za-z0-9/-]{3,30}$/.test(bhtNo)) {
+    errors.bxtNumber = 'Use 3-30 letters, numbers, "/" or "-" only';
+  }
+
   if (!draft.admissionDate) {
     errors.admissionDate = 'Admission date is required';
   }
@@ -112,7 +142,7 @@ export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFor
 }
 
 export function hasValidationErrors(errors: PatientBillFormErrors): boolean {
-  if (errors.admissionDate || errors.customerName) return true;
+  if (errors.bxtNumber || errors.admissionDate || errors.customerName) return true;
   if (errors.lineItems && Object.keys(errors.lineItems).length > 0) return true;
   return false;
 }

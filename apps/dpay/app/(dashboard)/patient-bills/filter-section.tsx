@@ -16,6 +16,7 @@ const STATUS_OPTIONS: { value: PatientBillStatus | '__all__'; label: string }[] 
   { value: 'pending', label: 'Pending' },
   { value: 'partial', label: 'Partially Paid' },
   { value: 'paid', label: 'Paid' },
+  { value: 'over_paid', label: 'Over Paid' },
   { value: 'closed', label: 'Closed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];

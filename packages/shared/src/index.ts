@@ -4,3 +4,5 @@ export * from "./types/2fa";
 export * from "./types/staff";
 export * from "./types/shift";
 export * from "./types/payment";
+export * from "./types/roles"
+export * from "./types/title"

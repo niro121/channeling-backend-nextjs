@@ -1,18 +1,24 @@
 import prisma from '@/lib/prisma';
-import type { Prisma } from '@/lib/generated/prisma';
 import type { EligibleDoctorBill } from '@/types/doctor-payment';
-import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
+import {
+  DOCTOR_PAYOUT_BILL_STATUSES,
+  eligibleDoctorPayoutBillWhere,
+  unpaidDoctorLineWhere,
+  type DoctorPayoutBillStatus,
+} from '@/lib/doctor-payments/eligibility';
 
-/** Line items not yet paid out to the doctor (null or field unset on older docs). */
-const unpaidDoctorLineWhere: Prisma.PatientBillItemWhereInput = {
-  AND: [
-    activeLineItemWhere,
-    { OR: [{ doctorPaymentId: null }, { doctorPaymentId: { isSet: false } }] },
-  ],
-};
+function normalizeBillStatus(status: string): DoctorPayoutBillStatus {
+  if (
+    (DOCTOR_PAYOUT_BILL_STATUSES as readonly string[]).includes(status)
+  ) {
+    return status as DoctorPayoutBillStatus;
+  }
+  return 'pending';
+}
 
 /**
- * Paid patient bills with unpaid line items for the given doctor.
+ * Open patient bills (pending / partial / paid / over_paid) with unpaid line items for the given doctor.
+ * Patient payment is not required — doctor fees can be paid before the patient settles.
  * One row per bill; payable = sum of that doctor's unpaid line amounts.
  * Discount / refund are 0 in v1 (no fields on line items yet).
  */
@@ -24,7 +30,7 @@ export async function getEligibleBillsForDoctor(
 
   const bills = await prisma.patientBill.findMany({
     where: {
-      status: 'paid',
+      ...eligibleDoctorPayoutBillWhere,
       lineItems: {
         some: {
           AND: [{ doctorName: name }, unpaidDoctorLineWhere],
@@ -55,6 +61,7 @@ export async function getEligibleBillsForDoctor(
         billNumber: bill.billNumber,
         patientName: bill.customerName,
         admissionDate: bill.admissionDate.toISOString(),
+        billStatus: normalizeBillStatus(bill.status),
         doctorName: name,
         doctorFee,
         discount,

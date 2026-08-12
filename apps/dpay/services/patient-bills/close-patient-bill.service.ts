@@ -5,8 +5,8 @@ export type ClosePatientBillResult =
   | { success: false; message: string };
 
 /**
- * Permanently close a fully paid patient bill.
- * Only allowed when status is `paid`. Closed bills cannot be edited or modified.
+ * Permanently close a settled patient bill.
+ * Allowed for `paid` and `over_paid`. Closed bills cannot be edited or modified.
  */
 export async function closePatientBill(
   billId: string,
@@ -35,10 +35,10 @@ export async function closePatientBill(
       return { success: false, message: 'Cannot close a cancelled patient bill.' };
     }
 
-    if (bill.status !== 'paid') {
+    if (bill.status !== 'paid' && bill.status !== 'over_paid') {
       return {
         success: false,
-        message: 'Only fully paid bills can be closed.',
+        message: 'Only paid or over-paid bills can be closed.',
       };
     }
 

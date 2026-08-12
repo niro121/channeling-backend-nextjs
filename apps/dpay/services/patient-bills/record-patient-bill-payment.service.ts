@@ -190,13 +190,6 @@ export async function recordPatientBillPayment(
       };
     }
 
-    if (amountReceived > bill.outstandingAmount) {
-      return {
-        success: false,
-        message: `Amount cannot exceed outstanding balance of ${bill.outstandingAmount.toLocaleString('en-LK')}`,
-      };
-    }
-
     const newPaidAmount = bill.paidAmount + amountReceived;
     const newOutstandingAmount = Math.max(0, bill.totalAmount - newPaidAmount);
     const status = computeBillPaymentStatus(newPaidAmount, bill.totalAmount);

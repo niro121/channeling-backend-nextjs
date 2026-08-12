@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { Row } from '@tanstack/react-table';
 import { Button } from '@archmage/ui';
-import { Ban, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type { DoctorPaymentListItem } from '@/types/doctor-payment';
 import { CancelDoctorPaymentDialog } from '@/components/doctor-payments/cancel-doctor-payment-dialog';
+import { CancelActionButton } from '@/components/ui/cancel-action-button';
 import { useDoctorPaymentsView } from './doctor-payments-view-context';
 
 type DoctorPaymentRecordActionsProps = {
@@ -14,7 +15,7 @@ type DoctorPaymentRecordActionsProps = {
 
 export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsProps) {
   const openView = useDoctorPaymentsView()?.openView;
-  const isCancelled = row.original.status === 'cancelled';
+  const canCancel = row.original.status === 'paid';
   const [cancelOpen, setCancelOpen] = useState(false);
 
   return (
@@ -30,24 +31,18 @@ export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsPr
         <Eye className="h-4 w-4" />
         <span className="sr-only">View</span>
       </Button>
-      {!isCancelled && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+      {canCancel ? (
+        <CancelActionButton
           title="Cancel payment"
-          type="button"
           onClick={() => setCancelOpen(true)}
-        >
-          <Ban className="h-3.5 w-3.5" />
-          Cancel
-        </Button>
-      )}
+        />
+      ) : null}
       <CancelDoctorPaymentDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         paymentId={row.original.id}
         receiptNumber={row.original.receiptNo}
+        originalPaymentMethod={row.original.method}
       />
     </div>
   );

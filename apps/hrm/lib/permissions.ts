@@ -1,11 +1,15 @@
 import { Permissions } from '@archmage/shared';
 
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
+  '/staff': 'staff',
   '/employees': 'employees',
   '/departments': 'departments',
   '/positions': 'positions',
   '/leave-requests': 'leave-requests',
   '/leave-types': 'leave-types',
+  '/leave-entitlement': 'leave-entitlement',
+  '/leave-management': 'leave-management',
+  '/leave-application': 'leave-application',
   '/attendance': 'attendance',
   '/payroll': 'payroll',
   '/salary-structures': 'salary-structures',

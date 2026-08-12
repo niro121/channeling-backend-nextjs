@@ -11,15 +11,17 @@ import {
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
   SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_PAYMENT_TYPE_AGENT,
+  SAVE_PAYMENT_TYPE_CASH,
 } from "@/types/save-booking"
 
 export type PublicCreateAgentBookingParams = {
   sessionId: string
-  /** Agency (agent) Mongo id */
-  agencyId: string
-  /** Full agency book reference, e.g. book number + 2-digit leaf (ABC01) */
-  bookReference: string
+  /** Agency (agent) Mongo id — required for paid Agent bookings */
+  agencyId?: string
+  /** Full agency book reference — required for paid Agent bookings */
+  bookReference?: string
   title: string
   name: string
   sex: string
@@ -28,8 +30,10 @@ export type PublicCreateAgentBookingParams = {
   remarks?: string
   foreigner?: boolean
   /**
-   * When true (default), create receipt and mark booking paid (status 1).
-   * When false, create pending agent booking (status 0, not settled).
+   * When true: Agent booking, settled (receipt, status 1). Agency + bookReference required.
+   * When false / omitted on advance-booking sessions: On-Call pending (status 0),
+   * attached to API acting user as createdBy (no receipt). Agency + bookReference optional; saved if passed.
+   * When omitted on non-advance sessions: same as true (Agent settled).
    */
   paid?: boolean
   /** From ApiClient.actingUserId — sets booking createdBy */
@@ -88,6 +92,32 @@ export type CreatePublicAgentBookingResult =
       /** Original save-booking error code when applicable */
       bookingErrorCode?: SaveBookingErrorCode
     }
+
+type PublicBookingMode = "agent" | "on_call"
+
+/**
+ * Paid → Agent settled.
+ * Unpaid / omitted on advance sessions → On-Call pending (createdBy = API acting user).
+ * Unpaid on non-advance sessions is not allowed.
+ */
+function resolvePublicBookingMode(
+  advanceBookingEnabled: boolean,
+  paid?: boolean
+): { mode: PublicBookingMode } | { error: string } {
+  if (paid === true) return { mode: "agent" }
+  if (paid === false) {
+    if (!advanceBookingEnabled) {
+      return {
+        error:
+          "Unpaid bookings are only allowed for advance-booking sessions (creates On-Call)",
+      }
+    }
+    return { mode: "on_call" }
+  }
+  // omitted
+  if (advanceBookingEnabled) return { mode: "on_call" }
+  return { mode: "agent" }
+}
 
 function mapSaveBookingError(
   code: SaveBookingErrorCode
@@ -159,15 +189,15 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
 }
 
 /**
- * Create an agent-method booking via the channel-booking save pipeline.
- * Reuses saveBookingService (same validation, receipt, agency balance, appointment no).
+ * Create a public API booking via the channel-booking save pipeline.
+ * Paid → Agent (settled). Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function createPublicAgentBooking(
   params: PublicCreateAgentBookingParams
 ): Promise<CreatePublicAgentBookingResult> {
   const sessionId = params.sessionId?.trim()
-  const agencyId = params.agencyId?.trim()
-  const bookReference = params.bookReference?.trim().toUpperCase()
+  const agencyId = params.agencyId?.trim() ?? ""
+  const bookReference = params.bookReference?.trim().toUpperCase() ?? ""
   const title = params.title?.trim()
   const name = params.name?.trim()
   const sex = params.sex?.trim()
@@ -177,89 +207,12 @@ export async function createPublicAgentBooking(
   if (!sessionId) {
     return { success: false, code: "invalid_request", message: "sessionId is required" }
   }
-  if (!agencyId) {
-    return { success: false, code: "invalid_request", message: "agencyId is required" }
-  }
-  if (!bookReference) {
-    return { success: false, code: "invalid_request", message: "bookReference is required" }
-  }
   if (!title || !name || !sex || !phone || !area) {
     return {
       success: false,
       code: "invalid_request",
       message: "title, name, sex, phone, and area are required",
     }
-  }
-
-  const agency = await prisma.agency.findUnique({
-    where: { id: agencyId },
-    select: { id: true, status: true },
-  })
-  if (!agency || agency.status !== 1) {
-    return {
-      success: false,
-      code: "not_found",
-      message: "Agency not found or not published",
-    }
-  }
-
-  const { session, isPast } = await loadSessionForSaveBooking(sessionId)
-  if (!session) {
-    return { success: false, code: "not_found", message: "Session not found" }
-  }
-  if (!session.doctor?.id && !session.doctorId) {
-    return {
-      success: false,
-      code: "invalid_request",
-      message: "Session has no doctor",
-    }
-  }
-
-  const doctorId = session.doctor?.id ?? session.doctorId!
-  const foriegner = params.foreigner === true
-
-  const discountResult = await computeBookingDiscounts({
-    autoDiscountId: null,
-    manualDiscountId: null,
-    payment_method: SAVE_BOOKING_METHOD_AGENT,
-    payment_type: SAVE_PAYMENT_TYPE_AGENT,
-    session,
-    foriegner,
-    strict: true,
-  })
-  if (!discountResult.success) {
-    return {
-      success: false,
-      code: "booking_error",
-      message: discountResult.message,
-      bookingErrorCode: "DISCOUNT_ERROR",
-    }
-  }
-
-  const { professional_fee, hospital_fee } = getRefundFeeTypes(session.fees, foriegner)
-  const baseAmount = professional_fee + hospital_fee
-  const amount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
-
-  const input: SaveBookingInput = {
-    title,
-    name,
-    sex,
-    phone,
-    area: { id: "", name: area },
-    remarks: params.remarks?.trim() ?? "",
-    foriegner,
-    payment_method: SAVE_BOOKING_METHOD_AGENT,
-    payment_type: SAVE_PAYMENT_TYPE_AGENT,
-    agency: { id: agencyId },
-    agency_ref: bookReference,
-    session: { id: sessionId },
-    doctor: {
-      id: doctorId,
-      title: session.doctor?.title,
-      name: session.doctor?.name,
-    },
-    amount,
-    discount: discountResult.discount_value,
   }
 
   const createdByUserId = params.createdByUserId.trim()
@@ -282,11 +235,129 @@ export async function createPublicAgentBooking(
     }
   }
 
-  const paid = params.paid !== false
+  const { session } = await loadSessionForSaveBooking(sessionId)
+  if (!session) {
+    return { success: false, code: "not_found", message: "Session not found" }
+  }
+  if (!session.doctor?.id && !session.doctorId) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: "Session has no doctor",
+    }
+  }
+
+  const doctorSessionTemplate = session.doctorSessionId
+    ? await prisma.doctorSession.findUnique({
+        where: { id: session.doctorSessionId },
+        select: { advancedBookingDays: true },
+      })
+    : null
+  const advanceBookingEnabled =
+    (doctorSessionTemplate?.advancedBookingDays ?? 0) > 0
+
+  const modeResult = resolvePublicBookingMode(advanceBookingEnabled, params.paid)
+  if ("error" in modeResult) {
+    return { success: false, code: "invalid_request", message: modeResult.error }
+  }
+  const { mode } = modeResult
+  const isOnCall = mode === "on_call"
+
+  if (!isOnCall) {
+    if (!agencyId) {
+      return { success: false, code: "invalid_request", message: "agencyId is required" }
+    }
+    if (!bookReference) {
+      return {
+        success: false,
+        code: "invalid_request",
+        message: "bookReference is required",
+      }
+    }
+  }
+
+  if (agencyId) {
+    const agency = await prisma.agency.findUnique({
+      where: { id: agencyId },
+      select: { id: true, status: true },
+    })
+    if (!agency || agency.status !== 1) {
+      return {
+        success: false,
+        code: "not_found",
+        message: "Agency not found or not published",
+      }
+    }
+  } else if (isOnCall && bookReference) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: "agencyId is required when bookReference is provided",
+    }
+  }
+
+  const doctorId = session.doctor?.id ?? session.doctorId!
+  const foriegner = params.foreigner === true
+  const payment_method = isOnCall
+    ? SAVE_BOOKING_METHOD_ON_CALL
+    : SAVE_BOOKING_METHOD_AGENT
+  const payment_type = isOnCall ? SAVE_PAYMENT_TYPE_CASH : SAVE_PAYMENT_TYPE_AGENT
+
+  const discountResult = await computeBookingDiscounts({
+    autoDiscountId: null,
+    manualDiscountId: null,
+    payment_method,
+    payment_type,
+    session,
+    foriegner,
+    strict: true,
+  })
+  if (!discountResult.success) {
+    return {
+      success: false,
+      code: "booking_error",
+      message: discountResult.message,
+      bookingErrorCode: "DISCOUNT_ERROR",
+    }
+  }
+
+  const { professional_fee, hospital_fee } = getRefundFeeTypes(session.fees, foriegner)
+  const baseAmount = professional_fee + hospital_fee
+  const amount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
+
+  const hasAgencyRef = Boolean(agencyId && bookReference)
+
+  const input: SaveBookingInput = {
+    title,
+    name,
+    sex,
+    phone,
+    area: { id: "", name: area },
+    remarks: params.remarks?.trim() ?? "",
+    foriegner,
+    payment_method,
+    payment_type,
+    ...(hasAgencyRef
+      ? {
+          agency: { id: agencyId },
+          agency_ref: bookReference,
+        }
+      : {}),
+    session: { id: sessionId },
+    doctor: {
+      id: doctorId,
+      title: session.doctor?.title,
+      name: session.doctor?.name,
+    },
+    amount,
+    discount: discountResult.discount_value,
+  }
+
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
-    agencyRefUniqueOnly: true,
-    settleOnCreate: paid,
+    agencyRefUniqueOnly: hasAgencyRef,
+    // On-Call never creates a receipt; Agent paid path settles.
+    settleOnCreate: !isOnCall,
   })
 
   if (!result.success) {
@@ -317,6 +388,7 @@ export async function createPublicAgentBooking(
       sessionId,
       source: "public-api",
       apiClientId: params.apiClientId ?? undefined,
+      bookingMode: mode,
     },
   })
 
