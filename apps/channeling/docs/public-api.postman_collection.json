@@ -59,7 +59,7 @@
             { "key": "fromDate", "value": "2025-02-24", "description": "Optional. YYYY-MM-DD; default is today." }
           ]
         },
-        "description": "Returns future sessions for a doctor. Requires Bearer token from Create Access Token."
+        "description": "Returns future sessions for a doctor. Each session includes advancedBookingEnabled (true when template advancedBookingDays > 0) and advancedBookingDays. Requires Bearer token from Create Access Token."
       }
     },
     {

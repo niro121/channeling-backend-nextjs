@@ -102,7 +102,7 @@ export default async function IntegrationGuidePage() {
               <li><strong>Query parameters:</strong> <code className="rounded bg-muted px-1 py-0.5">doctorCode</code> (required), <code className="rounded bg-muted px-1 py-0.5">fromDate</code> (optional, YYYY-MM-DD)</li>
             </ul>
             <p>
-              The response contains a <code className="rounded bg-muted px-1 py-0.5">sessions</code> array with session details (date, time, location, doctor, status, etc.). Only future, non-expired sessions are returned.
+              The response contains a <code className="rounded bg-muted px-1 py-0.5">sessions</code> array with session details (date, time, location, doctor, status, <code className="rounded bg-muted px-1 py-0.5">advancedBookingEnabled</code>, <code className="rounded bg-muted px-1 py-0.5">advancedBookingDays</code>, etc.). Only future, non-expired sessions are returned.
             </p>
             <p className="text-muted-foreground">
               Test this in the <Link href="/admin/api-clients/playground" className="underline print:no-underline">API Playground</Link> (Step 2: Get sessions) or via Postman.
