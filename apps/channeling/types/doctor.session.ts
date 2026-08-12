@@ -121,6 +121,12 @@ export const REFUNDABLE_OPTIONS: Option[] = [
   { id: '1', name: 'Yes' }
 ];
 
+/** Yes/No toggle for advance booking (stored as advancedBookingDays: 0 = off, >0 = on). */
+export const ADVANCE_BOOKING_ENABLED_OPTIONS: Option[] = [
+  { id: '0', name: 'No' },
+  { id: '1', name: 'Yes' }
+];
+
 export const FEE_TYPES: Fee[] = [
   {
     id: '0',

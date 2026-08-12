@@ -164,7 +164,7 @@ export async function listDoctorAppSessionsByDoctorCode(
     }
   }
 
-  const mappedSessions = mapDoctorAppSessionsToDto(fetchResult.data, doctor)
+  const mappedSessions = await mapDoctorAppSessionsToDto(fetchResult.data, doctor)
   const sessionIds = mappedSessions.map((s) => s.id)
 
   if (sessionIds.length === 0) {
