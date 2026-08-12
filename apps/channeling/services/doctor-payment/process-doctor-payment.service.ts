@@ -19,6 +19,7 @@ import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequen
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { formatCents } from "@/lib/format-money";
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
+import { isShiftRequirementError } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
@@ -102,6 +103,13 @@ export async function processDoctorPaymentService(
     try {
       await requireActiveShift(userId);
     } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        };
+      }
       return {
         success: false,
         errorCode: "NO_ACTIVE_SHIFT",

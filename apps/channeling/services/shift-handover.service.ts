@@ -156,7 +156,9 @@ export async function processShiftHandover(
   if (!shift) {
     return { success: false, error: "Shift not found or you are not the shift owner." }
   }
-  if (shift.status !== SHIFT_STATUS.ACTIVE) {
+  const pastMaxDuration = shift.endsAt.getTime() <= Date.now()
+  const canHandoverWhilePaused = shift.status === SHIFT_STATUS.PAUSED && pastMaxDuration
+  if (shift.status !== SHIFT_STATUS.ACTIVE && !canHandoverWhilePaused) {
     return {
       success: false,
       error:
