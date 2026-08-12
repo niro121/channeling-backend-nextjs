@@ -13,7 +13,10 @@ import {
   CalendarClock,
   Tags,
   FilePlus2,
+  CalendarOff,
+  CalendarPlus,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -139,6 +142,26 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             )}
             {hasAccess("/leave-types") && (
               <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+            )}
+          </SidebarCollapsible>
+        </SidebarGroup>
+        <SidebarGroup label="Overtime Management">
+          <SidebarCollapsible
+            label="Overtime"
+            icon={<Clock className="h-5 w-5" />}
+            paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
+          >
+            {hasAccess("/overtime-requests") && (
+              <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+            )}
+            {hasAccess("/overtime-extra-time") && (
+              <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
+            )}
+            {hasAccess("/overtime-day-off-ph-shift") && (
+              <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
+            )}
+            {hasAccess("/overtime-extra-shift-normal") && (
+              <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
             )}
           </SidebarCollapsible>
         </SidebarGroup>

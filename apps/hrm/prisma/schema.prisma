@@ -160,6 +160,10 @@ model Staff {
 
   leaveEntitlements LeaveEntitlement[]
   leaveApplications LeaveApplication[]
+  overtimeRequests OvertimeRequest[]
+  overtimeExtraTimes OvertimeExtraTime[]
+  overtimeDayOffPhs OvertimeDayOffPh[]
+  overtimeExtraShiftNormals OvertimeExtraShiftNormal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -277,6 +281,148 @@ model LeaveApplication {
   @@index([fromDate, toDate])
   @@index([approverId])
   @@index([outWithCancel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+OVERTIME
+--------------------------------- */
+
+model OvertimeRequest {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  department   String    @default("")
+  otDate       DateTime
+  hours        Float
+  reason       String    @default("")
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([otDate])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeExtraTime {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftDate    DateTime
+  shiftId      String    @default("")
+  shiftLabel   String    @default("")
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  timeType     String    @default("outTime") // inTime | outTime
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+  comment      String?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([fromAt])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeDayOffPh {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftType    String // DO | PH
+  shiftDate    DateTime
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  approvedDate DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([shiftType])
+  @@index([fromAt])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeExtraShiftNormal {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftDate    DateTime
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  approvedDate DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+  comment      String?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([fromAt])
+  @@index([approverId])
   @@index([createdAt(sort: Desc)])
 }
 
