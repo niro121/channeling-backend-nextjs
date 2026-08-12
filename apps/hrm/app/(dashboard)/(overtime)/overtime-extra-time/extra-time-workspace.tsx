@@ -7,15 +7,15 @@ import SectionExtraTimeList from './section-extra-time-list';
 import { ExtraTimeLinksCard } from './section-extra-time-links';
 import { createExtraTimeColumns } from './columns';
 import type {
-  ExtraTimeFilterOption,
   ExtraTimeListFilters,
-  ExtraTimeRecord
-} from './sample-data';
+  ExtraTimeRecord,
+  OvertimeFilterOption
+} from '@/types/overtime';
 
 type ExtraTimeWorkspaceProps = {
   records: ExtraTimeRecord[];
-  staffOptions: ExtraTimeFilterOption[];
-  approverOptions: ExtraTimeFilterOption[];
+  staffOptions: OvertimeFilterOption[];
+  approverOptions: OvertimeFilterOption[];
   filters: ExtraTimeListFilters;
   onExport: () => Promise<{
     success: boolean;

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { ExtraTimeRecord } from './sample-data';
+import type { ExtraTimeRecord } from '@/types/overtime';
 import { ExtraTimeViewDialog } from './view-dialog';
 
 type ExtraTimeStaffCellProps = {

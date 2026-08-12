@@ -8,7 +8,7 @@ import {
   DialogTitle
 } from '@archmage/ui';
 import { formatDateTime } from '@/lib/utils/date';
-import type { ExtraTimeRecord } from './sample-data';
+import type { ExtraTimeRecord } from '@/types/overtime';
 
 type ExtraTimeViewDialogProps = {
   open: boolean;

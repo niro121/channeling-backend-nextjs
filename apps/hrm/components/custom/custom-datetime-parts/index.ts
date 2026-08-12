@@ -8,6 +8,7 @@ export {
   emptyDateTimeParts,
   clampDateTimeParts,
   parseDateTimeParts,
+  dateTimePartsToDate,
   formatCombinedDateTime,
   DATE_TIME_YEAR_FROM,
   dateTimeYearTo

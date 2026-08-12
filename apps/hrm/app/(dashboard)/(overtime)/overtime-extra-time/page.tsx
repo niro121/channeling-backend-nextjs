@@ -4,13 +4,13 @@ import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import ExtraTimeWorkspace from './extra-time-workspace';
 import {
-  SAMPLE_EXTRA_TIME_APPROVERS,
-  SAMPLE_EXTRA_TIME_RECORDS,
-  SAMPLE_EXTRA_TIME_STAFF,
-  filterExtraTimeRecords
-} from './sample-data';
+  getExtraTimeExport,
+  getExtraTimeFormOptionsAction,
+  getExtraTimeRecordsAction
+} from '@/app/actions/overtime-actions/overtime-extra-time.actions';
+import type { ExtraTimeRecord } from '@/types/overtime';
+import ExtraTimeWorkspace from './extra-time-workspace';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -34,7 +34,7 @@ export default async function OvertimeExtraTimePage({
     logActivityNonBlocking({
       userId: session.user.id,
       action: 'overtime-extra-time.visited',
-      entityType: 'OvertimeRequest',
+      entityType: 'OvertimeExtraTime',
       importance: 'low'
     });
   }
@@ -47,28 +47,50 @@ export default async function OvertimeExtraTimePage({
     toDate: params?.toDate
   };
 
-  const records = filterExtraTimeRecords(SAMPLE_EXTRA_TIME_RECORDS, filters);
+  const [optionsRes, recordsRes] = await Promise.all([
+    getExtraTimeFormOptionsAction(),
+    getExtraTimeRecordsAction({
+      ...filters,
+      limit: process.env.DEFAULT_PAGE_SIZE
+    })
+  ]);
+
+  const staffOptions = (optionsRes.data?.staff ?? []).map((staff) => ({
+    id: staff.id,
+    name: staff.code ? `${staff.code} — ${staff.name}` : staff.name
+  }));
+
+  const approverOptions = (optionsRes.data?.approvers ?? []).map(
+    (approver) => ({
+      id: approver.id,
+      name: approver.name
+    })
+  );
+
+  const records = (
+    recordsRes.isError ? [] : (recordsRes.data?.data ?? [])
+  ) as ExtraTimeRecord[];
 
   const handleExport = async () => {
     'use server';
 
-    const exportRows = filterExtraTimeRecords(SAMPLE_EXTRA_TIME_RECORDS, {
+    const exportResponse = await getExtraTimeExport({
       staffId: params?.staffId,
       approverId: params?.approverId,
       fromDate: params?.fromDate,
       toDate: params?.toDate
     });
 
-    if (!exportRows.length) {
+    if (!exportResponse.success || !exportResponse.data?.length) {
       return {
         success: false,
-        message: 'No extra time records found'
+        message: exportResponse.message ?? 'No extra time records found'
       };
     }
 
     return {
       success: true,
-      data: exportRows.map((row) => ({
+      data: exportResponse.data.map((row) => ({
         formNumber: row.formNumber,
         staffCode: row.staffCode,
         staffName: row.staffName,
@@ -96,8 +118,8 @@ export default async function OvertimeExtraTimePage({
 
       <ExtraTimeWorkspace
         records={records}
-        staffOptions={SAMPLE_EXTRA_TIME_STAFF}
-        approverOptions={SAMPLE_EXTRA_TIME_APPROVERS}
+        staffOptions={staffOptions}
+        approverOptions={approverOptions}
         filters={filters}
         onExport={handleExport}
       />

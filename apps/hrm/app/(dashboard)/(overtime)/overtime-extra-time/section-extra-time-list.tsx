@@ -15,16 +15,16 @@ import {
 } from '@/components/common/common-data-table';
 import ExtraTimeFilterSection from './filter-section';
 import type {
-  ExtraTimeFilterOption,
   ExtraTimeListFilters,
-  ExtraTimeRecord
-} from './sample-data';
+  ExtraTimeRecord,
+  OvertimeFilterOption
+} from '@/types/overtime';
 
 type SectionExtraTimeListProps = {
   records: ExtraTimeRecord[];
   columns: ColumnDef<ExtraTimeRecord>[];
-  staffOptions: ExtraTimeFilterOption[];
-  approverOptions: ExtraTimeFilterOption[];
+  staffOptions: OvertimeFilterOption[];
+  approverOptions: OvertimeFilterOption[];
   filters: ExtraTimeListFilters;
   onExport: () => Promise<{
     success: boolean;

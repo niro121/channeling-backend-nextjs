@@ -158,6 +158,23 @@ export function formatCombinedDateTime(
   ].join(' ');
 }
 
+/** Build a Date from parts. Incomplete year/month/day returns null. */
+export function dateTimePartsToDate(parts: DateTimeParts): Date | null {
+  const normalized = clampDateTimeParts(parts);
+  if (!normalized.year || !normalized.month || !normalized.day) return null;
+
+  const date = new Date(
+    Number(normalized.year),
+    Number(normalized.month) - 1,
+    Number(normalized.day),
+    Number(normalized.hour || '0'),
+    Number(normalized.minute || '0'),
+    Number(normalized.second || '0')
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Parses `2026-04-08 16:30` or `2026-04-08 16:30:00`. */
 export function parseDateTimeParts(
   value?: string | null,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Formik, Form, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { format } from 'date-fns';
@@ -33,11 +34,17 @@ import {
   type DateTimeParts
 } from '@/components/custom/custom-datetime-parts';
 import {
-  SAMPLE_EXTRA_TIME_SHIFTS,
-  type ExtraTimeFilterOption,
-  type ExtraTimeRecord,
-  type ExtraTimeTimeType
-} from './sample-data';
+  createExtraTimeAction,
+  deleteExtraTimeAction,
+  updateExtraTimeAction
+} from '@/app/actions/overtime-actions/overtime-extra-time.actions';
+import { extraTimeFormValuesToPayload } from '@/lib/mappers/overtime-extra-time-form.mapper';
+import type {
+  ExtraTimeRecord,
+  ExtraTimeTimeType,
+  OvertimeFilterOption
+} from '@/types/overtime';
+import { SAMPLE_EXTRA_TIME_SHIFTS } from './sample-data';
 
 export type ExtraTimeFormValues = {
   formNumber: string;
@@ -53,8 +60,8 @@ export type ExtraTimeFormValues = {
 };
 
 type FormExtraTimeProps = {
-  staffOptions: ExtraTimeFilterOption[];
-  approverOptions: ExtraTimeFilterOption[];
+  staffOptions: OvertimeFilterOption[];
+  approverOptions: OvertimeFilterOption[];
   selectedRecord?: ExtraTimeRecord | null;
   onClearSelection?: () => void;
 };
@@ -125,8 +132,10 @@ export default function FormExtraTime({
   onClearSelection
 }: FormExtraTimeProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const canSave = has('overtime-requests', 'add') || has('overtime-requests', 'edit');
   const canDelete = has('overtime-requests', 'delete');
   const isEdit = Boolean(selectedRecord?.id);
@@ -136,17 +145,121 @@ export default function FormExtraTime({
     [selectedRecord]
   );
 
-  const handleSubmit = (
-    _values: ExtraTimeFormValues,
-    { resetForm }: FormikHelpers<ExtraTimeFormValues>
+  const handleSubmit = async (
+    values: ExtraTimeFormValues,
+    { resetForm, setErrors, setTouched }: FormikHelpers<ExtraTimeFormValues>
   ) => {
-    toast({
-      title: 'Not saved',
-      description: 'Extra time forms will be persisted in the CRUD phase.'
-    });
-    if (!isEdit) {
+    const shiftLabel =
+      SAMPLE_EXTRA_TIME_SHIFTS.find((shift) => shift.id === values.shiftId)
+        ?.name ?? null;
+    const mapped = extraTimeFormValuesToPayload(values, { shiftLabel });
+    if ('error' in mapped) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: mapped.error
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const respond =
+        isEdit && selectedRecord?.id
+          ? await updateExtraTimeAction(selectedRecord.id, mapped)
+          : await createExtraTimeAction(mapped);
+
+      if (respond?.isError) {
+        const errorMap = respond.errors as Record<
+          string,
+          string | string[] | undefined
+        >;
+        const fieldErrors: Record<string, string> = {};
+        Object.keys(errorMap ?? {}).forEach((key) => {
+          if (key === 'message') return;
+          const err = errorMap[key];
+          const msg = Array.isArray(err) ? err[0] : err;
+          if (msg) fieldErrors[key] = msg;
+        });
+        if (Object.keys(fieldErrors).length > 0) {
+          setErrors(fieldErrors);
+          setTouched(
+            Object.keys(fieldErrors).reduce(
+              (acc, key) => ({ ...acc, [key]: true }),
+              {} as Record<string, boolean>
+            )
+          );
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (errorMap?.message as string) ?? 'Extra time save unsuccessful.'
+        });
+        return;
+      }
+
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: isEdit
+          ? 'Extra time form updated successfully.'
+          : 'Extra time form created successfully.'
+      });
       resetForm({ values: emptyValues });
       onClearSelection?.();
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Extra time save unsuccessful.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (deleteComment: string) => {
+    if (!selectedRecord?.id) return;
+    try {
+      setLoading(true);
+      const result = await deleteExtraTimeAction(
+        selectedRecord.id,
+        deleteComment
+      );
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Extra time delete unsuccessful.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Extra time form deleted successfully.'
+      });
+      setDeleteOpen(false);
+      onClearSelection?.();
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Extra time delete unsuccessful.'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -164,6 +277,7 @@ export default function FormExtraTime({
             onSubmit={handleSubmit}
           >
             {(formik) => (
+              <>
               <Form className="space-y-4">
                 <CustomFormField
                   type="text"
@@ -338,7 +452,11 @@ export default function FormExtraTime({
 
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                   {canSave ? (
-                    <Button type="submit" className="h-9 gap-1.5">
+                    <Button
+                      type="submit"
+                      className="h-9 gap-1.5"
+                      disabled={loading}
+                    >
                       <SaveIcon className="h-4 w-4" />
                       Save
                     </Button>
@@ -411,26 +529,19 @@ export default function FormExtraTime({
                 </div>
 
               </Form>
+              <CustomAlertDialog
+                open={deleteOpen}
+                handleVisibilityChange={setDeleteOpen}
+                loading={loading}
+                title="Delete extra time form?"
+                description="This action cannot be undone."
+                handleContinue={() => handleDelete(formik.values.deleteComment)}
+              />
+              </>
             )}
           </Formik>
         </CardContent>
       </Card>
-
-      <CustomAlertDialog
-        open={deleteOpen}
-        handleVisibilityChange={setDeleteOpen}
-        loading={false}
-        title="Delete extra time form?"
-        description="This action cannot be undone. Saving is wired in the CRUD phase."
-        handleContinue={() => {
-          toast({
-            title: 'Not saved',
-            description: 'Extra time delete will be wired in the CRUD phase.'
-          });
-          setDeleteOpen(false);
-          onClearSelection?.();
-        }}
-      />
     </>
   );
 }

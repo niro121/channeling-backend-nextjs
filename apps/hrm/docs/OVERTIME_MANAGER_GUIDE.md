@@ -4,9 +4,9 @@ Guidance for building overtime (OT) features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Leave is the reference module — see `LEAVE_MANAGER_GUIDE.md`.
 
-**Status:** Phase 0 UI shell live (sample data). No Prisma model or persist actions yet.
-**Build path:** **UI interfaces first** (Phase 0), then dynamic layers (Phase 1+).
-Do **not** skip Phase 0 — lock the screens before Prisma / services.
+**Status:** Phase 0 UI accepted. Dynamic work started (Phase 1 schema + Extra Time CRUD first).
+**Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**.
+Pages must not call Prisma. No business rules in components.
 
 ---
 
@@ -246,16 +246,29 @@ app/(dashboard)/(overtime)/overtime-extra-shift-normal/
   view-dialog.tsx
   sample-data.ts
 
-# Dynamic phases only
+# Dynamic layers
 types/overtime.ts
+lib/mappers/
+  overtime-extra-time-form.mapper.ts
+  overtime-day-off-ph-form.mapper.ts
+  overtime-extra-shift-normal-form.mapper.ts
+  overtime-request-form.mapper.ts
 services/overtime-services/
+  overtime-shared.ts
+  overtime-extra-time.service.ts
+  overtime-day-off-ph.service.ts
+  overtime-extra-shift-normal.service.ts
   overtime-request.service.ts
 app/actions/overtime-actions/
+  overtime-extra-time.actions.ts
+  overtime-day-off-ph.actions.ts
+  overtime-extra-shift-normal.actions.ts
   overtime-request.actions.ts
-lib/mappers/overtime-request-form.mapper.ts
 ```
 
-Activity log examples: `overtime-requests.visited`, `overtime.request.created`, `overtime.request.approved`. Entity type `OvertimeRequest`.
+Do **not** keep a stale `overtime-extra-shift/` folder — the live Day Off route is `overtime-day-off-ph-shift`.
+
+Activity log examples: `overtime-extra-time.visited`, `overtime.extra-time.created`, `overtime.extra-time.deleted`. Entity types match the collection (`OvertimeExtraTime`, `OvertimeRequest`, …).
 
 ---
 
@@ -269,7 +282,7 @@ Checklist (same as leave):
 2. `lib/permissions.ts` → `ROUTE_TO_RESOURCE['/overtime-requests'] = 'overtime-requests'`
 3. Sidebar `hasAccess` for `/overtime-requests`, `/overtime-extra-time`, `/overtime-day-off-ph-shift`, and `/overtime-extra-shift-normal`
 4. Pages `checkRouteAccess` → `/unauthorized-access`
-5. Mutations later: `requirePermission('overtime-requests', action)`
+5. Mutations: `requirePermission('overtime-requests', action)` (HR-only, same grant as the current forms)
 6. Client buttons: `usePermissions().has('overtime-requests', 'edit')`
 7. `breadcrumbs.tsx` → `{ path: 'overtime-requests', name: 'OT Requests' }`
 8. Grant on Auth User Group; user re-logins
@@ -281,13 +294,13 @@ Checklist (same as leave):
 **UI first, then dynamic.** Do not start Prisma until Phase 0 screens are accepted.
 
 ```
-Phase 0: Static UI (sample data)
-  → Phase 1: Schema + types
-    → Phase 2: CRUD (create / list / update / delete)
-      → Phase 3: Approve / reject workflow
-        → Phase 4: Live summary cards (hours + cost)
+Phase 0: Static UI (accepted)
+  → Phase 1: Four collections + types
+    → Phase 2: CRUD — Extra Time first, then Day Off / PH, Extra Shift Normal, OT Requests
+      → Phase 3: Approve / reject / cancel on all four
+        → Phase 4: Live summary cards (hours only; cost stays placeholder)
           → Phase 5: Hardening
-            → Phase 6: Additional duty (optional v2)
+            → Phase 6: Roster / rates / attendance (later)
 ```
 
 Inside each dynamic phase, keep Staff / Leave layering:
@@ -319,89 +332,91 @@ Pages must not call Prisma. No business rules in components.
 | [x] `/overtime-requests` matches the mock (header, 4 cards, table) |
 | [x] Non-admin without grant is redirected |
 | [x] Approve / reject / Extra Time / Day Off / Extra Shift Save / Delete do not write to the DB |
-| [ ] Design accepted before Phase 1 |
+| [x] Design accepted — Phase 1 started |
 
-**Out of scope:** Prisma models, Zod, cost calculation, filters, export.
+**Out of scope for Phase 0:** Prisma models, Zod, cost calculation.
 
 ---
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation (locked)
 
-**Goal:** Contracts ready for services.
-
-Proposed model (lock before `db push`):
+**Goal:** Four collections + shared types. Dashboard is **not** an inbox merge of the forms.
 
 ```
 Staff 1──* OvertimeRequest
-OvertimeRequest
-  status: pending | approved | rejected | cancelled
-  approverId = Auth User.id (not Staff)
-  hours: Float
-  otDate, reason, departmentSnapshot?
+Staff 1──* OvertimeExtraTime
+Staff 1──* OvertimeDayOffPh
+Staff 1──* OvertimeExtraShiftNormal
 ```
 
-| Topic | Decision (align with leave) |
-|-------|------------------------------|
-| Approver | Auth **User.id**; optional `approverName` for lists |
-| Hours | **Float** (e.g. `4`, `6`, `1.5`) |
-| Department | Snapshot string at request time (staff dept can change) |
-| Form number | `generateRecordCode` if product wants OT-1 / staff-scoped codes |
-| Cost | **Do not store as source of truth in v1** unless rate is specified; derive for cards or defer |
+| Topic | Locked decision |
+|-------|-----------------|
+| Collections | **Four** — one per screen |
+| Form numbers | `generateRecordCode`: `OT-1`, `AET-1`, `DO-1` / `PH-1`, `ES-1` |
+| Create / approve | HR-only, same as current forms (`overtime-requests` grant) |
+| Approver | Auth **User.id**; denormalized `approverName` |
+| Hours | **Float**; Extra Time / Day Off / Extra Shift **derive** from `toAt - fromAt` |
+| Department / roster | Snapshot strings at save time |
+| Cost | **Do not store.** Summary card stays placeholder until payroll/rate exists |
+| Process Staff Shift | Toast + sample fill until a roster service exists |
+| Workflow | Same on all four: `pending` → `approved` \| `rejected` \| `cancelled` |
 
 | Done when |
 |-----------|
-| [ ] `OvertimeRequest` in `schema.prisma` + `prisma generate` |
-| [ ] `types/overtime.ts` — statuses, record type, list params |
-| [ ] Staff relation added both sides |
+| [x] Models in `schema.prisma` + Staff relations both sides |
+| [x] `types/overtime.ts` — statuses, payloads, list params, record DTOs |
+| [x] `prisma db push` + `prisma generate` applied locally |
 
 ---
 
-### Phase 2 — OT Request CRUD
+### Phase 2 — CRUD (one module at a time)
 
-**Goal:** Replace sample rows with real list + create form.
+**Order:** Extra Time → Day Off / PH → Extra Shift Normal → OT Requests.
 
 | Layer | Work |
 |-------|------|
 | Service | list (paged), get, create, update, delete; default `status = pending` |
-| Actions | `requirePermission('overtime-requests', …)`; strip client audit fields |
-| UI | Wire table; New OT form saves; filters optional (staff / date / status) |
+| Actions | `requirePermission('overtime-requests', …)`; strip client audit / status / formNumber |
+| UI | Replace `sample-data` list with actions; Save / Delete / export call the server |
+| Delete | Hard-delete (like leave). `deleteComment` goes on the activity log only |
 
 | Done when |
 |-----------|
-| [ ] Save appears in the register as `pending` |
+| [x] Extra Time save appears in the register as `pending` (`AET-n`) |
+| [x] Extra Time edit loads the form; delete removes the row |
+| [ ] Day Off / PH + Extra Shift Normal + OT Requests persist (same pipeline) |
 | [ ] No approve side effects yet |
-| [ ] Export / column toggle only if using `CommonDataTable` |
 
 ---
 
 ### Phase 3 — Approval workflow
 
-**Goal:** Status transitions, same as leave Phase 4 (without entitlement math unless product adds OT balances).
+**Goal:** Status transitions on all four collections (no entitlement math).
 
 | Layer | Work |
 |-------|------|
-| Service | `approve` / `reject` / `cancel` in transactions; set `approverId`, `approverName`, `approvedAt` |
+| Service | `approve` / `reject` / `cancel` in transactions; reject double-approve |
 | Actions | Permission + activity log per transition |
-| UI | Row actions call real actions; `router.refresh()` |
+| UI | Dashboard circular buttons + form “Approval workflow”; `router.refresh()` |
 
 | Done when |
 |-----------|
-| [ ] Pending → approved / rejected |
+| [ ] Pending → approved / rejected on each collection |
 | [ ] Invalid double-approve rejected safely |
-| [ ] Reject of pending does not invent cost/hours side effects |
+| [ ] Reject does not invent cost |
 
 ---
 
 ### Phase 4 — Live summary cards
 
-**Goal:** Replace sample counts.
+**Goal:** Replace sample counts. Cost stays placeholder.
 
-| Card | Query idea |
-|------|------------|
-| Pending | `status = pending` count |
+| Card | Query |
+|------|--------|
+| Pending | count `status = pending` on `OvertimeRequest` (dashboard collection) |
 | Approved (month) | approved in current calendar month |
-| Total OT Hours | sum `hours` of approved (month or all-time — lock this) |
-| OT Cost | only when rate rule exists; else keep `—` or hide card |
+| Total OT Hours | sum stored `hours` of approved OT Requests |
+| OT Cost | keep sample / `—` until a rate rule exists |
 
 ---
 
@@ -409,41 +424,35 @@ OvertimeRequest
 
 | Work |
 |------|
-| [ ] Filters (department / status / date range) via `FilterWrapper` |
-| [ ] Auth User Group can grant `overtime-requests` |
-| [ ] Smoke: create → approve → cards update |
-| [ ] View-only vs edit permission matrix |
+| [ ] Server-side pagination on form registers (`page` / `limit` like leave) |
+| [ ] Dashboard filters (department / status / date range) |
+| [ ] View vs add/edit/delete matrix |
+| [ ] Smoke: Extra Time create → list → edit → delete |
+| [ ] Smoke (after Phase 3): create → approve → cards update |
 
 ---
 
-### Phase 6 — v2 (optional)
+### Phase 6 — Later (do not block v1 persist)
 
 | Item | Notes |
 |------|--------|
-| Additional duty / extra time persist | UI shell live on `/overtime-extra-time`; Prisma in Phase 1–2 |
-| Day Off / PH Shift persist | UI shell live on `/overtime-day-off-ph-shift`; Prisma in Phase 1–2 |
-| Extra Shift Normal persist | UI shell live on `/overtime-extra-shift-normal`; Prisma in Phase 1–2 |
-| OT types / rates | Needed before trustworthy OT Cost |
-| Multi-step approval history | Optional collection, same as leave v2 |
-| Attendance link | Later; do not block v1 register |
+| Roster-backed Process Staff Shift | Keep toast/sample until roster service exists |
+| OT types / rates | Required before trustworthy OT Cost |
+| Finger Print / Print / Analysis | Links stay toast-only |
+| Attendance overlap | Later |
+| Multi-step approval history | Optional, same as leave v2 |
 
 ---
 
-## 6. Domain notes (dynamic phases — do not block UI)
-
-Locked only when Phase 1 starts. Defaults below follow leave:
+## 6. Domain notes (locked)
 
 - Approver is Auth User, not Staff.
 - Audit: `createdBy` / `updatedBy` / `approverId` are Auth User ObjectIds — **no** cross-DB Prisma relation.
 - Status: `pending` → `approved` \| `rejected` \| `cancelled`.
 - Do not put Prisma in pages.
-
-**Open product questions (before Phase 1, not Phase 0):**
-
-1. Hourly rate source for OT Cost (staff payroll, grade table, flat rate)?
-2. Who may create vs only approve (staff self-serve vs HR-only)?
-3. Form number format?
-4. Additional duty — same collection or separate?
+- Do not trust client `status`, `formNumber`, or audit fields on save.
+- Extra Time / Day Off / Extra Shift hours are derived at write time for later cards; OT Request hours are entered on that form.
+- Day Off form numbers use prefix **DO** or **PH** from the selected type.
 
 ---
 
@@ -461,13 +470,14 @@ Locked only when Phase 1 starts. Defaults below follow leave:
 
 ## 8. Pitfalls
 
-1. **Do not** start schema/services before Phase 0 UI is accepted.
-2. **Do not** put Prisma in pages — services only.
-3. Register `/overtime-requests` in `ROUTE_TO_RESOURCE` or the page stays open.
-4. Permission changes need re-login (JWT snapshot).
-5. Approver is **Auth User.id**; resolve names like Staff / Leave.
-6. Do not invent OT cost in Phase 0–3 without a rate rule.
-7. Keep approve/reject as no-ops until Phase 3 — same as early leave stubs.
+1. **Do not** put Prisma in pages — services only.
+2. Register overtime routes in `ROUTE_TO_RESOURCE` or they stay open.
+3. Permission changes need re-login (JWT snapshot).
+4. Approver is **Auth User.id**; resolve names like Staff / Leave.
+5. Do not invent OT cost until a rate rule exists.
+6. Keep approve/reject as no-ops until Phase 3.
+7. Do not merge the four screens into one `kind` collection.
+8. Process Staff Shift must not call a fake roster API — sample fill only.
 
 ---
 

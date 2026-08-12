@@ -4,7 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { formatDateTime } from '@/lib/utils/date';
 import ExtraTimeRecordActions from './record-actions';
 import { ExtraTimeStaffCell } from './staff-cell';
-import type { ExtraTimeRecord } from './sample-data';
+import type { ExtraTimeRecord } from '@/types/overtime';
 
 type ExtraTimeColumnsOptions = {
   onEdit?: (record: ExtraTimeRecord) => void;

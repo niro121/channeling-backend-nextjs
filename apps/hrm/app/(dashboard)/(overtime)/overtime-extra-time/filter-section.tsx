@@ -2,11 +2,11 @@
 
 import { Combobox, DateRangePicker } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
-import type { ExtraTimeFilterOption, ExtraTimeListFilters } from './sample-data';
+import type { ExtraTimeListFilters, OvertimeFilterOption } from '@/types/overtime';
 
 type ExtraTimeFilterSectionProps = ExtraTimeListFilters & {
-  staffOptions: ExtraTimeFilterOption[];
-  approverOptions: ExtraTimeFilterOption[];
+  staffOptions: OvertimeFilterOption[];
+  approverOptions: OvertimeFilterOption[];
 };
 
 export default function ExtraTimeFilterSection({
