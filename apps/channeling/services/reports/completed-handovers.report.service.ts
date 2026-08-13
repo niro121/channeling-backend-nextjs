@@ -9,7 +9,7 @@ import {
 } from '@/lib/handover-utils';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
-import { HANDOVER_STATUS } from '@/types/handover';
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from '@/types/handover';
 import type {
   CompletedHandoversReportQuery,
   CompletedHandoversReportRow,
@@ -36,6 +36,33 @@ function statusLabel(status: number): string {
   if (status === HANDOVER_STATUS.CANCELLED) return 'Cancelled';
   if (status === HANDOVER_STATUS.PENDING) return 'Pending';
   return '—';
+}
+
+function reconciliationStatusLabel(status: number | null | undefined): string {
+  const value = status ?? RECONCILIATION_STATUS.PENDING;
+  if (value === RECONCILIATION_STATUS.IN_RECONCILIATION) return 'In reconciliation';
+  if (value === RECONCILIATION_STATUS.RECONCILED_APPROVED) return 'Reconciled';
+  if (value === RECONCILIATION_STATUS.RECONCILED_REJECTED) return 'Rejected';
+  if (value === RECONCILIATION_STATUS.PENDING) return 'Pending';
+  return '—';
+}
+
+function reconciliationStatusWhere(filter: string): Prisma.ShiftHandoverWhereInput | null {
+  if (filter === 'pending') {
+    return {
+      OR: [{ reconciliationStatus: RECONCILIATION_STATUS.PENDING }, { reconciliationStatus: null }],
+    };
+  }
+  if (filter === 'in_reconciliation') {
+    return { reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION };
+  }
+  if (filter === 'reconciled') {
+    return { reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED };
+  }
+  if (filter === 'rejected') {
+    return { reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_REJECTED };
+  }
+  return null;
 }
 
 function rowTotalCents(h: {
@@ -87,16 +114,21 @@ export async function getCompletedHandoversReportService(
   const fromUserId = normAll(query.fromUserId);
   const toUserId = normAll(query.toUserId);
   const statusFilter = normAll(query.status).toLowerCase();
+  const reconciliationFilter = normAll(query.reconciliationStatus).toLowerCase();
 
-  let statusIn: number[] = [HANDOVER_STATUS.APPROVED, HANDOVER_STATUS.REJECTED];
-  if (statusFilter === 'approved') statusIn = [HANDOVER_STATUS.APPROVED];
+  let statusIn: number[] = [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.APPROVED, HANDOVER_STATUS.REJECTED];
+  if (statusFilter === 'pending') statusIn = [HANDOVER_STATUS.PENDING];
+  else if (statusFilter === 'approved') statusIn = [HANDOVER_STATUS.APPROVED];
   else if (statusFilter === 'rejected') statusIn = [HANDOVER_STATUS.REJECTED];
+
+  const reconWhere = reconciliationStatusWhere(reconciliationFilter);
 
   const where: Prisma.ShiftHandoverWhereInput = {
     createdAt: { gte: from, lte: to },
     status: { in: statusIn },
     ...(fromUserId !== '__all__' ? { fromUserId } : {}),
     ...(toUserId !== '__all__' ? { toUserId } : {}),
+    ...(reconWhere ?? {}),
   };
 
   const totalRecords = await prisma.shiftHandover.count({ where });
@@ -117,6 +149,7 @@ export async function getCompletedHandoversReportService(
       fromUserId: true,
       toUserId: true,
       status: true,
+      reconciliationStatus: true,
       cashCents: true,
       cardCents: true,
       slipCents: true,
@@ -159,6 +192,8 @@ export async function getCompletedHandoversReportService(
       totalCents: rowTotalCents(h),
       status: h.status,
       statusLabel: statusLabel(h.status),
+      reconciliationStatus: h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING,
+      reconciliationStatusLabel: reconciliationStatusLabel(h.reconciliationStatus),
       createdAt: h.createdAt,
       completedAt,
       discrepancyReason: h.discrepancyReason,

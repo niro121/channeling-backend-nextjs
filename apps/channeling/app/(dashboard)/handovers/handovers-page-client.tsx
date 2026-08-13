@@ -35,7 +35,7 @@ import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
 } from "@/lib/handover-utils"
-import { HANDOVER_STATUS } from "@/types/handover"
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import {
   Loader2,
   Eye,
@@ -65,6 +65,10 @@ type HandoverRow = {
   createdAt: Date | string
   approvedAt?: Date | string | null
   rejectedAt?: Date | string | null
+  reconciliationStatus?: number | null
+  reconciliationAssignedToUserId?: string | null
+  nonCashReconciledAt?: Date | string | null
+  forwardedToHandoverId?: string | null
   fromUser: { id: string; name: string | null; staff?: { code: string } | null }
   shift: {
     id: string
@@ -118,16 +122,29 @@ function reportUrlForHandover(h: HandoverRow): string | null {
   return filters ? buildCashierSummaryReportUrl(filters, "detail") : null
 }
 
+function needsSendToReconciliation(h: HandoverRow): boolean {
+  if (h.status !== HANDOVER_STATUS.APPROVED) return false
+  if (h.nonCashReconciledAt != null) return false
+  if (h.forwardedToHandoverId != null) return false
+  const recon = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+  if (recon === RECONCILIATION_STATUS.PENDING) return true
+  // Already marked in recon but no assignee (legacy auto-send)
+  if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !h.reconciliationAssignedToUserId) return true
+  return false
+}
+
 function HandoverTable({
   rows,
   emptyMessage,
   showStatus,
   showReport,
+  showSendToReconciliation,
 }: {
   rows: HandoverRow[]
   emptyMessage: string
   showStatus?: boolean
   showReport?: boolean
+  showSendToReconciliation?: boolean
 }) {
   if (rows.length === 0) {
     return <p className="text-muted-foreground py-8">{emptyMessage}</p>
@@ -149,6 +166,7 @@ function HandoverTable({
         <TableBody>
           {rows.map((h) => {
             const reportUrl = showReport ? reportUrlForHandover(h) : null
+            const canSend = showSendToReconciliation && needsSendToReconciliation(h)
             return (
               <TableRow key={h.id}>
                 <TableCell>{fromUserLabel(h.fromUser)}</TableCell>
@@ -172,6 +190,14 @@ function HandoverTable({
                         View
                       </Link>
                     </Button>
+                    {canSend && (
+                      <Button size="sm" asChild>
+                        <Link href={`/handovers/${h.id}`}>
+                          <FileCheck className="h-4 w-4 mr-1" />
+                          Send to reconciliation
+                        </Link>
+                      </Button>
+                    )}
                     {reportUrl && (
                       <Button size="sm" variant="secondary" asChild>
                         <Link href={reportUrl} target="_blank" rel="noopener noreferrer">
@@ -417,8 +443,8 @@ export default function HandoversPageClient() {
         <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         <p className="text-muted-foreground">
           {tab === "completed"
-            ? "Previous handovers you received. Filter by date and sender, then open View or Report."
-            : "Pending handovers waiting for your approval."}
+            ? "Previous handovers you received. If reconciliation is still needed, use Send to reconciliation. Filter by date and sender, then open View or Report."
+            : "Pending handovers waiting for your approval. Approved ones that still need reconciliation appear below."}
         </p>
       </div>
 
@@ -449,14 +475,15 @@ export default function HandoversPageClient() {
                       {reconCount > 0 ? ` (${reconCount})` : ""}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Handovers you approved that are not yet in reconciliation. Open and use
-                      &quot;Send to reconciliation&quot; to move them to the Reconciliation page.
+                      Handovers you approved that are not yet in reconciliation. Use{" "}
+                      <strong>Send to reconciliation</strong> and choose who should reconcile them.
                     </p>
                   </div>
                   <HandoverTable
                     rows={approvedNotReconciledList}
                     emptyMessage="None."
                     showReport
+                    showSendToReconciliation
                   />
                 </div>
               )}
@@ -518,6 +545,7 @@ export default function HandoversPageClient() {
               emptyMessage="No completed handovers match these filters."
               showStatus
               showReport
+              showSendToReconciliation={canSendToReconciliation}
             />
             <CompletedPagination
               page={page}

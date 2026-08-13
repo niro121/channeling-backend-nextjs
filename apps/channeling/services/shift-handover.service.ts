@@ -107,17 +107,19 @@ export async function processShiftHandover(
 
   const idsFromClient = Array.isArray(includedHandoverIds) ? includedHandoverIds.filter((id) => typeof id === "string" && id.trim() !== "") : []
 
-  // Same criteria as getIncludableHandoversForSender: handovers sent TO sender, approved, not yet forwarded.
+  // Same criteria as getIncludableHandoversForSender: approved, not forwarded, not held/done in reconciliation.
   // Server decides the canonical list; client list is only validated (must match).
   const includableRaw = await prisma.shiftHandover.findMany({
     where: {
       toUserId: validFrom,
       status: HANDOVER_STATUS.APPROVED,
     },
-    select: { id: true, forwardedToHandoverId: true },
+    select: { id: true, forwardedToHandoverId: true, reconciliationStatus: true },
     orderBy: { createdAt: "asc" },
   })
-  const includable = includableRaw.filter((h) => h.forwardedToHandoverId == null)
+  const includable = includableRaw.filter(
+    (h) => h.forwardedToHandoverId == null && !isExcludedFromBulkTransfer(h.reconciliationStatus)
+  )
   const includableIds = new Set(includable.map((h) => h.id))
   const includableIdList = includable.map((h) => h.id)
 
@@ -204,20 +206,27 @@ export async function processShiftHandover(
     return { success: false, error: "You do not have a till account." }
   }
 
+  // Non-cash still on till but held in open reconciliation must stay with this bulk cashier.
+  const held = await getNonCashHeldInReconciliation(validFrom)
+  const expectedCard = Math.max(0, breakdown.cardCents - held.cardCents)
+  const expectedSlip = Math.max(0, breakdown.slipCents - held.slipCents)
+  const expectedCheck = Math.max(0, breakdown.checkCents - held.checkCents)
+  const expectedEWallet = Math.max(0, breakdown.eWalletCents - held.eWalletCents)
+
   const hasShort =
     amt.cashCents < breakdown.cashCents ||
-    amt.cardCents < breakdown.cardCents ||
-    amt.slipCents < breakdown.slipCents ||
-    amt.checkCents < breakdown.checkCents ||
+    amt.cardCents < expectedCard ||
+    amt.slipCents < expectedSlip ||
+    amt.checkCents < expectedCheck ||
     amt.creditCents < breakdown.creditCents ||
-    amt.eWalletCents < breakdown.eWalletCents
+    amt.eWalletCents < expectedEWallet
   const hasOverOver100 =
     (amt.cashCents - breakdown.cashCents > OVER_TOLERANCE_CENTS) ||
-    (amt.cardCents - breakdown.cardCents > OVER_TOLERANCE_CENTS) ||
-    (amt.slipCents - breakdown.slipCents > OVER_TOLERANCE_CENTS) ||
-    (amt.checkCents - breakdown.checkCents > OVER_TOLERANCE_CENTS) ||
+    (amt.cardCents - expectedCard > OVER_TOLERANCE_CENTS) ||
+    (amt.slipCents - expectedSlip > OVER_TOLERANCE_CENTS) ||
+    (amt.checkCents - expectedCheck > OVER_TOLERANCE_CENTS) ||
     (amt.creditCents - breakdown.creditCents > OVER_TOLERANCE_CENTS) ||
-    (amt.eWalletCents - breakdown.eWalletCents > OVER_TOLERANCE_CENTS)
+    (amt.eWalletCents - expectedEWallet > OVER_TOLERANCE_CENTS)
   const needsReason = hasShort || hasOverOver100
   if (needsReason && !parsed.data.discrepancyReason?.trim()) {
     return {
@@ -305,12 +314,11 @@ export async function processShiftHandover(
   return { success: true, handoverId: handover.id }
 }
 
-/** Approve and receive handover (bulk cashier only): record approval with user and datetime, optional comments; create journal (funds to bulk cashier till), set handover APPROVED, end shift. If sendToReconciliation is true (and handover has non-cash), sets reconciliationStatus to IN_RECONCILIATION and reconciliationRequestedBy/At so it appears in Reconciliation for the bulk cashier. */
+/** Approve and receive handover (bulk cashier only): record approval with user and datetime, optional comments; create journal (funds to bulk cashier till), set handover APPROVED, end shift. Reconciliation is sent separately after approval. */
 export async function approveHandover(
   handoverId: string,
   approvedByUserId: string,
-  approvalComments?: string,
-  sendToReconciliation?: boolean
+  approvalComments?: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   const handover = await prisma.shiftHandover.findUnique({
     where: { id: handoverId },
@@ -418,7 +426,6 @@ export async function approveHandover(
   const nonCashTotal =
     (handover.cardCents ?? 0) + (handover.slipCents ?? 0) + (handover.checkCents ?? 0) + (handover.eWalletCents ?? 0)
   const autoReconciled = nonCashTotal === 0
-  const goToReconciliation = Boolean(sendToReconciliation && !autoReconciled)
   await prisma.shiftHandover.update({
     where: { id: handoverId },
     data: {
@@ -430,16 +437,10 @@ export async function approveHandover(
       toShiftId: approverShift.id,
       reconciliationStatus: autoReconciled
         ? RECONCILIATION_STATUS.RECONCILED_APPROVED
-        : goToReconciliation
-          ? RECONCILIATION_STATUS.IN_RECONCILIATION
-          : RECONCILIATION_STATUS.PENDING,
+        : RECONCILIATION_STATUS.PENDING,
       ...(autoReconciled && {
         nonCashReconciledAt: now,
         nonCashReconciledBy: approvedByUserId,
-      }),
-      ...(goToReconciliation && {
-        reconciliationRequestedBy: approvedByUserId,
-        reconciliationRequestedAt: now,
       }),
     },
   })
@@ -606,14 +607,13 @@ export async function getHandoversToMe(toUserId: string) {
   })
 }
 
-/** Handovers approved by me (toUserId = me) that are not yet sent to reconciliation: status APPROVED, reconciliationStatus PENDING, top-level. For bulk cashiers to send to reconciliation manually. */
+/** Handovers approved by me that still need a reconciler assigned (PENDING, or IN_RECONCILIATION with no assignee). Top-level only. */
 export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
-  // Query only status + reconciliationStatus; filter null/missing in code so MongoDB optional fields match
+  // Do not filter reconciliationStatus in Mongo where (null vs 0 mismatch). Filter in memory.
   const results = await prisma.shiftHandover.findMany({
     where: {
       toUserId,
       status: HANDOVER_STATUS.APPROVED,
-      reconciliationStatus: RECONCILIATION_STATUS.PENDING,
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -621,10 +621,33 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })
-  const filtered = results.filter(
-    (r) => r.nonCashReconciledAt == null && r.forwardedToHandoverId == null
+  const filtered = results.filter((r) => {
+    if (r.nonCashReconciledAt != null) return false
+    if (r.forwardedToHandoverId != null) return false
+    const recon = r.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+    if (recon === RECONCILIATION_STATUS.PENDING) return true
+    // Legacy / auto-sent without assignee — still needs someone assigned
+    if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !r.reconciliationAssignedToUserId) return true
+    return false
+  })
+  console.log(
+    "[getHandoversApprovedByMeNotReconciled] toUserId:",
+    toUserId,
+    "raw:",
+    results.map((r) => ({
+      id: r.id,
+      recon: r.reconciliationStatus,
+      assigned: r.reconciliationAssignedToUserId,
+      nonCashAt: r.nonCashReconciledAt,
+      fwd: r.forwardedToHandoverId,
+      card: r.cardCents,
+      cash: r.cashCents,
+    })),
+    "after filter:",
+    filtered.length,
+    "ids:",
+    filtered.map((r) => r.id)
   )
-  console.log("[getHandoversApprovedByMeNotReconciled] toUserId:", toUserId, "raw count:", results.length, "after filter:", filtered.length, "ids:", filtered.map((r) => r.id))
   return filtered
 }
 
@@ -702,22 +725,73 @@ async function fetchCompletedHandoverPage(
   })
 }
 
-/** Handovers that were received into this shift (toShiftId = shiftId, approved). Used to prepopulate non-cash entries when submitting a new handover. */
+/**
+ * Handovers excluded from Bulk→Bulk transfer / end-shift prefill:
+ * - IN_RECONCILIATION: stay with this bulk until recon completes
+ * - RECONCILED_APPROVED: non-cash already cleared; do not pass again
+ */
+function isExcludedFromBulkTransfer(reconciliationStatus: number | null | undefined): boolean {
+  const status = reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+  return (
+    status === RECONCILIATION_STATUS.IN_RECONCILIATION ||
+    status === RECONCILIATION_STATUS.RECONCILED_APPROVED
+  )
+}
+
+/** Non-cash cents still on till but held by open reconciliation (must not be handed to next bulk). */
+export type NonCashHeldInReconciliation = {
+  cardCents: number
+  slipCents: number
+  checkCents: number
+  eWalletCents: number
+  handoverCount: number
+}
+
+export async function getNonCashHeldInReconciliation(
+  ownerUserId: string
+): Promise<NonCashHeldInReconciliation> {
+  const list = await prisma.shiftHandover.findMany({
+    where: {
+      toUserId: ownerUserId,
+      status: HANDOVER_STATUS.APPROVED,
+      reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
+    },
+    select: {
+      cardCents: true,
+      slipCents: true,
+      checkCents: true,
+      eWalletCents: true,
+      forwardedToHandoverId: true,
+    },
+  })
+  const held = list.filter((h) => h.forwardedToHandoverId == null)
+  return {
+    cardCents: held.reduce((s, h) => s + (h.cardCents ?? 0), 0),
+    slipCents: held.reduce((s, h) => s + (h.slipCents ?? 0), 0),
+    checkCents: held.reduce((s, h) => s + (h.checkCents ?? 0), 0),
+    eWalletCents: held.reduce((s, h) => s + (h.eWalletCents ?? 0), 0),
+    handoverCount: held.length,
+  }
+}
+
+/** Handovers that were received into this shift (toShiftId = shiftId, approved). Used to prepopulate non-cash entries when submitting a new handover. Skips handovers in/done with reconciliation. */
 export async function getHandoversReceivedByShift(shiftId: string): Promise<
   { id: string; enteredBreakdown: ShiftHandoverEnteredBreakdown | null }[]
 > {
   const list = await prisma.shiftHandover.findMany({
     where: { toShiftId: shiftId, status: HANDOVER_STATUS.APPROVED },
-    select: { id: true, enteredBreakdown: true },
+    select: { id: true, enteredBreakdown: true, reconciliationStatus: true },
     orderBy: { createdAt: "asc" },
   })
-  return list.map((h) => ({
-    id: h.id,
-    enteredBreakdown: h.enteredBreakdown as ShiftHandoverEnteredBreakdown | null,
-  }))
+  return list
+    .filter((h) => !isExcludedFromBulkTransfer(h.reconciliationStatus))
+    .map((h) => ({
+      id: h.id,
+      enteredBreakdown: h.enteredBreakdown as ShiftHandoverEnteredBreakdown | null,
+    }))
 }
 
-/** Handovers that the given user (sender) has received and not yet forwarded. Can be included when submitting a new handover (passing the chain on). */
+/** Handovers the sender has received and not yet forwarded, excluding those held in/completed reconciliation. Included when submitting a new handover (passing the chain on). */
 export async function getIncludableHandoversForSender(senderUserId: string): Promise<
   { id: string; createdAt: Date; totalCents: number; fromUser: { name: string | null; staff: { code: string } | null } }[]
 > {
@@ -731,13 +805,16 @@ export async function getIncludableHandoversForSender(senderUserId: string): Pro
       createdAt: true,
       totalCents: true,
       forwardedToHandoverId: true,
+      reconciliationStatus: true,
       fromUser: { select: { name: true, staff: { select: { code: true } } } },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
   })
-  const notForwarded = list.filter((h) => h.forwardedToHandoverId == null)
-  return notForwarded.map(({ forwardedToHandoverId: _f, ...rest }) => rest)
+  const transferable = list.filter(
+    (h) => h.forwardedToHandoverId == null && !isExcludedFromBulkTransfer(h.reconciliationStatus)
+  )
+  return transferable.map(({ forwardedToHandoverId: _f, reconciliationStatus: _r, ...rest }) => rest)
 }
 
 const includedHandoverSelect = {
