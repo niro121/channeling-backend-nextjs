@@ -436,7 +436,7 @@ Staff 1──* OvertimeExtraShiftNormal
 
 | Item | Notes |
 |------|--------|
-| Roster-backed Process Staff Shift | Keep toast/sample until roster service exists |
+| Roster-backed Process Staff Shift | Keep toast/sample until roster service exists — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` Phase 8 |
 | OT types / rates | Required before trustworthy OT Cost |
 | Finger Print / Print / Analysis | Links stay toast-only |
 | Attendance overlap | Later |
@@ -485,5 +485,6 @@ Staff 1──* OvertimeExtraShiftNormal
 
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` — architecture, Staff reference
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — leave phases and UI map (copy this process)
+- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — Shift Roster; Process Staff Shift waits on that service
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating
 - `apps/hrm/prisma/schema.prisma` — add OT collections in Phase 1

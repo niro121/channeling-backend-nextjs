@@ -10,6 +10,6 @@ Shared architecture and cross-app guides for the Ruhunu backend ecosystem.
 
 | App | Location |
 |-----|----------|
-| HRM | `apps/hrm/docs/` — `PERMISSION_FLOW.md`, `HRM_DEVELOPMENT_GUIDELINES.md` |
+| HRM | `apps/hrm/docs/` — `PERMISSION_FLOW.md`, `HRM_DEVELOPMENT_GUIDELINES.md`, `LEAVE_MANAGER_GUIDE.md`, `OVERTIME_MANAGER_GUIDE.md`, `ROSTER_SHIFTS_MANAGER_GUIDE.md` |
 | Channeling | `apps/channeling/docs/` — `ROLES_PERMISSIONS_USER_GROUPS_GUIDE.md`, permission guides |
 | DPAY | Uses HRM-style permission flow; see shared doc above |
