@@ -4,9 +4,15 @@ Guidance for building roster and shift features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and `OVERTIME_MANAGER_GUIDE.md`.
 
-**Status:** Phase 0 not started (`shift-roster/page.tsx` is empty).
+**Status:** Phase 0 UI implemented — awaiting design acceptance.
 **Build path:** UI first, then **Types/Zod → Service → Actions → wire UI**.
 Pages must not call Prisma. No business rules in components.
+
+**Phase 0 decisions (locked):**
+- Sidebar group: **Roster & Shifts**
+- Sample week: **current calendar week** (Sun–Sat)
+- Hide / Visible: local toggle for Department / Unit / Designation columns (Staff ID + Name stay)
+- `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
 
 ---
 
@@ -42,7 +48,7 @@ Match the Shift Roster mock. Compose like Overtime (`CommonManagerHeader` + coun
 └──────────────────┘ └────────────────────┘ └───────────────┘ └─────────────┘
 
 ┌─ Search & Filters ────────────────────────────────────────────────────────┐
-│ Department │ Unit │ Roster │ From Date │ To Date │ Staff Search           │
+│ Department │ Unit │ Roster │ Date range │ Staff Search                    │
 │ [ Load Roster ] [ Clear ] [ Hide ] [ Visible ]                            │
 │ [ Copy Previous Week ] [ Copy Previous Month ]                            │
 │ [ Print Blank Roster ] [ Print Filled Roster ]                            │
@@ -65,9 +71,11 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-roster/`:
 | `section-roster-summary.tsx` | Four count cards |
 | `section-roster-filters.tsx` | Search & Filters card |
 | `section-roster-grid.tsx` | Week header, legend, **module table**, pagination, audit footer |
+| `roster-column-header.tsx` | Sortable header + per-column filter input |
 | `shift-chip.tsx` | Reusable chip (type, time range, Leave checkbox) |
 | `shift-legend.tsx` | D / E / N / O / L badges |
 | `record-actions.tsx` | Edit / Delete / History (toast in Phase 0) |
+| `shift-roster-workspace.tsx` | Client: filters, Hide/Visible, Load/Clear against sample |
 | `sample-data.ts` | Mock staff rows, shifts, summary, filter options |
 
 ### 2.1 Header
@@ -106,16 +114,15 @@ Phase 0: hardcode from `sample-data.ts`. Phase 5: replace with action → servic
 
 Dedicated card — **not** a `CommonDataTable` toolbar and **not** `FilterWrapper` URL search (roster load is explicit).
 
-Row 1: Department, Unit, Roster, From Date  
-Row 2: To Date, Staff Search (`Search staff ID or name`)  
-Row 3: action buttons
+Row 1: Department, Unit, Roster, **DateRangePicker** (shared from/to), Staff Search  
+Row 2: action buttons
 
 | Control | Phase 0 |
 |---------|---------|
-| Dropdowns / dates / search | Local state; options from `sample-data.ts` |
+| Dropdowns / date range / search | Local state; options from `sample-data.ts` |
 | **Load Roster** | Primary green — filters the sample grid |
 | Clear | Reset filters + sample view |
-| Hide / Visible | Toast (column visibility later) |
+| Hide / Visible | Local: Hide collapses Department / Unit / Designation; Visible restores |
 | Copy Previous Week / Month | Toast |
 | Print Blank / Filled Roster | Toast |
 
@@ -129,6 +136,9 @@ Row 3: action buttons
 - Rounded inner border (`overflow-hidden rounded-lg border border-border`)
 - Pagination bar: “Showing x–y of n”, rows per page, Prev / page numbers / Next (same control language as `CommonDataTablePagination`, implemented locally)
 - Status pills and circular icon actions consistent with other HRM tables
+- **Column separators:** `border-r border-border` on cells (Channeling report table style)
+- **On-column sorting:** click header to toggle asc/desc (staff fields, day shift code, hours, status)
+- **Column filters:** compact text inputs under filterable headers; “Clear column filters” when any are active
 
 #### Grid chrome
 
@@ -175,6 +185,7 @@ Use ~6 staff rows so pagination (“Showing 1–6 of 248”) is visible. Mix Day
 app/(dashboard)/(roster-shifts)/shift-roster/
   page.tsx
   header-actions.tsx
+  shift-roster-workspace.tsx
   section-roster-summary.tsx
   section-roster-filters.tsx
   section-roster-grid.tsx
@@ -257,14 +268,15 @@ Pages must not call Prisma. No business rules in components.
 | **Module-specific table** (not `CommonDataTable`) with `ShiftChip` + legend |
 | Header / filter / grid actions toast only |
 | Permission resource + route map + sidebar + breadcrumb |
+| Desktop sidebar auto-collapsed on `/shift-roster` (Channeling pattern + toggle) |
 | `logActivityNonBlocking` on visit (`shift-roster.visited`) |
 
 | Done when |
 |-----------|
-| [ ] `/shift-roster` matches the mock (header, 4 cards, filters, weekly grid) |
-| [ ] Table is **not** `CommonDataTable`; visual structure matches other HRM cards/tables |
-| [ ] Non-admin without grant is redirected |
-| [ ] Fill / Save / Publish / Copy / Print / Export / Allocate do not write to the DB |
+| [x] `/shift-roster` matches the mock (header, 4 cards, filters, weekly grid) |
+| [x] Table is **not** `CommonDataTable`; visual structure matches other HRM cards/tables |
+| [x] Non-admin without grant is redirected |
+| [x] Fill / Save / Publish / Copy / Print / Export / Allocate do not write to the DB |
 | [ ] Design accepted — ready for Phase 1 |
 
 **Out of scope for Phase 0:** Prisma models, Zod, real drag-and-drop persist, print/export files.

@@ -2,7 +2,7 @@
   "name": "@archmage/hrm",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --port 3001",
+    "dev": "next dev --turbopack --port 4000",
     "build": "next build",
     "db:generate": "prisma generate",
     "start": "next start",

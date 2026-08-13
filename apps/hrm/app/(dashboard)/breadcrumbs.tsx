@@ -19,6 +19,7 @@ const PATH_NAMES = [
   { path: 'overtime-extra-time', name: 'Extra Time Forms' },
   { path: 'overtime-day-off-ph-shift', name: 'Day Off / PH Shift' },
   { path: 'overtime-extra-shift-normal', name: 'Extra Shift Normal' },
+  { path: 'shift-roster', name: 'Shift Roster' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },

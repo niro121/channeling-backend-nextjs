@@ -15,6 +15,7 @@ import {
   FilePlus2,
   CalendarOff,
   CalendarPlus,
+  CalendarRange,
   ChevronDown,
   Clock,
   Users,
@@ -184,7 +185,21 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        
+        {hasAccess('/shift-roster') && (
+          <SidebarGroup label="Roster & Shifts">
+            <SidebarCollapsible
+              label="Roster & Shifts"
+              icon={<CalendarRange className="h-5 w-5" />}
+              paths={['/shift-roster']}
+            >
+              <NavLink
+                href="/shift-roster"
+                label="Shift Roster"
+                icon={<CalendarRange className="h-5 w-5" />}
+              />
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">
