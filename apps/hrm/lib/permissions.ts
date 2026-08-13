@@ -11,6 +11,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/overtime-day-off-ph-shift': 'overtime-requests',
   '/overtime-extra-shift-normal': 'overtime-requests',
   '/shift-roster': 'shift-roster',
+  '/shift-types': 'shift-roster',
   '/users': 'users',
   '/user-groups': 'users',
 };

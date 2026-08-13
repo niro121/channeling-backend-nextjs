@@ -4,15 +4,20 @@ Guidance for building roster and shift features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and `OVERTIME_MANAGER_GUIDE.md`.
 
-**Status:** Phase 0 UI implemented — awaiting design acceptance.
-**Build path:** UI first, then **Types/Zod → Service → Actions → wire UI**.
+**Status:** Shift Roster Phase 0 UI implemented — awaiting design acceptance.  
+**Shift Types:** Phase 0 UI implemented — awaiting design acceptance.  
+**Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
 Pages must not call Prisma. No business rules in components.
 
-**Phase 0 decisions (locked):**
+**Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- Sample week: **current calendar week** (Sun–Sat)
-- Hide / Visible: local toggle for Department / Unit / Designation columns (Staff ID + Name stay)
+- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, …)
+- Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs)
+- Shift Types Add/Edit: **separate pages** (`/shift-types/add`, `/shift-types/[id]/edit`)
+- Shift Roster sample week: **current calendar week** (Sun–Sat)
+- Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
+- Shift Types register: **`CommonDataTable`** (flat CRUD). Roster grid stays module-specific.
 
 ---
 
@@ -21,16 +26,23 @@ Pages must not call Prisma. No business rules in components.
 | Route | Resource key | Role |
 |-------|----------------|------|
 | `/shift-roster` | `shift-roster` | Calendar roster planning: filters, allocate, draft, publish, copy, print/export |
+| `/shift-types` | `shift-roster` | Shift master (timings, night/overnight/holiday flags) used by roster / assignment |
+| `/shift-types/add` | `shift-roster` | Create shift type (separate page) |
+| `/shift-types/[id]/edit` | `shift-roster` | Edit shift type (separate page) |
 
-v1 is **one screen**. Header actions (Fill New, Fill Old Roster, Create Fixed Roster) stay on this page as dialogs / toasts until a later phase splits them.
+**Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts → Shift Roster** collapsible in `desktop-sidebar.tsx`.
+Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types.
+
+Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
 Overtime **Process Staff Shift** stays sample/toast until this module exposes a roster service (see `OVERTIME_MANAGER_GUIDE.md` Phase 6).
 
+**Module build order:** finish each module’s Phase 0 UI → accept → then shared Phase 1 schema (`ShiftType` first) → wire Shift Types CRUD before Shift Roster persist.
+
 ---
 
-## 2. UI map (target — Phase 0)
+## 2. UI map — Shift Roster (Phase 0)
 
 Match the Shift Roster mock. Compose like Overtime (`CommonManagerHeader` + count cards + sections).
 
@@ -179,6 +191,87 @@ Use ~6 staff rows so pagination (“Showing 1–6 of 248”) is visible. Mix Day
 
 ---
 
+## 2B. UI map — Shift Types (Phase 0)
+
+Match the Shift Types mock. Compose: `CommonManagerHeader` + summary cards + Search & Filters card + **`CommonDataTable`** register (not the roster custom grid).
+
+```
+┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
+│ Shift Types                                                               │
+│ Shift master used by Shift Assignment, Duty Roster and Shift Roster…      │
+│              [ + Add Shift ]  (list)   Save / Update on form pages         │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Total Shift Types ─┐ ┌─ Active ─┐ ┌─ Night / Overnight ─┐ ┌─ Holiday ─┐
+│         24          │ │    21    │ │          6          │ │    15     │
+└─────────────────────┘ └──────────┘ └─────────────────────┘ └───────────┘
+
+┌─ Search & Filters ────────────────────────────────────────────────────────┐
+│ Shift Code │ Shift Name │ Category │ Night Shift │ Overnight │ Status     │
+│ [ Search ] [ Clear ]                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Shift Type Register (CommonDataTable) ───────────────────────────────────┐
+│ [ Duplicate ] [ Bulk Activate ]              [ Columns ] [ Print/PDF/XLS ] │
+│ Code │ Name │ Category │ Start │ End │ Duration │ Night │ … │ Status │ …  │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Key files under `app/(dashboard)/(roster-shifts)/shift-types/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check, compose list shell, sample data |
+| `header-actions.tsx` | **+ Add Shift** → `/shift-types/add` |
+| `section-shift-type-summary.tsx` | Four count cards |
+| `section-shift-type-filters.tsx` | Search & Filters (local Phase 0) |
+| `section-shift-type-register.tsx` | `CommonDataTable` + toolbar |
+| `columns.tsx` / `record-actions.tsx` | Register columns + edit/delete/history |
+| `form-shift-type.tsx` | Formik + Yup shell (toast save in Phase 0) |
+| `add/page.tsx` / `[id]/edit/page.tsx` | Separate create/edit pages |
+| `sample-data.ts` | Mock shift types + summary |
+
+### 2B.1 Header (list)
+
+- `title`: `Shift Types`
+- `description`: `Shift master used by Shift Assignment, Duty Roster and Shift Roster. Defines timings, thresholds and allowance eligibility.`
+- `actions`: **+ Add Shift** (primary) when `has('shift-roster', 'add')`
+
+Save / Update live on the **form** pages (separate pages). Delete is list-only (row actions + bulk delete), not on the edit form.
+
+### 2B.2 Summary cards
+
+| Card | Sample | Sub-text |
+|------|--------|----------|
+| Total Shift Types | `24` | 7 categories |
+| Active | `21` | Available for assignment |
+| Night / Overnight | `6` | Allowance eligible |
+| Holiday Eligible | `15` | Gazetted holiday duty |
+
+### 2B.3 Filters
+
+Shift Code, Shift Name (search inputs), Category / Night Shift / Overnight / Status (Combobox). **Search** applies local sample filter; **Clear** resets.
+
+### 2B.4 Register table
+
+Use **`CommonDataTable`**. Columns: Shift Code, Shift Name, Category, Start, End, Duration, Night Shift, Overnight, Holiday Eligible, Status, Actions (Edit / Delete / History).
+
+Toolbar: **Bulk Delete** (row selection) + Duplicate Shift + Bulk Activate (toast Phase 0); Columns + Export (ExportWrapper toast/sample).
+
+Yes/No + Active/Inactive as pills (same language as leave boolean badges).
+
+### 2B.5 Codes (locked)
+
+- Human codes: **`SHF-1`, `SHF-2`, …** via `generateRecordCode('SHF')` in Phase 2+
+- Do **not** reserve fixed `D`/`E`/`N`/`O`/`L` as system primary keys
+- Optional later: seed starter Day/Evening/Night/Off/Leave rows that still use `SHF-n` codes; roster chips show name + times from the linked type
+
+### 2B.6 Form pages
+
+Leave Types pattern: `CommonManagerHeader` + back + `FormShiftType`. Phase 0: Save / Update toast only (no Delete on form).
+
+---
+
 ## 3. Suggested folders
 
 ```
@@ -189,14 +282,29 @@ app/(dashboard)/(roster-shifts)/shift-roster/
   section-roster-summary.tsx
   section-roster-filters.tsx
   section-roster-grid.tsx
+  roster-column-header.tsx
   shift-chip.tsx
   shift-legend.tsx
   record-actions.tsx
   sample-data.ts
 
+app/(dashboard)/(roster-shifts)/shift-types/
+  page.tsx
+  header-actions.tsx
+  section-shift-type-summary.tsx
+  section-shift-type-filters.tsx
+  section-shift-type-register.tsx
+  columns.tsx
+  record-actions.tsx
+  form-shift-type.tsx
+  sample-data.ts
+  add/page.tsx
+  [id]/edit/page.tsx
+
 # Dynamic layers (Phase 1+)
 types/roster.ts
 lib/mappers/
+  shift-type-form.mapper.ts
   shift-roster-form.mapper.ts
 services/roster-services/
   roster-shared.ts
@@ -207,7 +315,7 @@ app/actions/roster-actions/
   shift-roster.actions.ts
 ```
 
-Activity log examples: `shift-roster.visited`, `shift-roster.draft-saved`, `shift-roster.published`. Entity types match the collection (`ShiftRoster`, `RosterAllocation`, …).
+Activity log examples: `shift-roster.visited`, `shift-types.visited`, `shift-types.created`, `shift-roster.published`. Entity types match the collection (`ShiftType`, `ShiftRoster`, `RosterAllocation`, …).
 
 ---
 
@@ -215,26 +323,28 @@ Activity log examples: `shift-roster.visited`, `shift-roster.draft-saved`, `shif
 
 Unmapped routes stay open. Register before shipping the page.
 
-Checklist (same as leave / overtime):
+**One resource for the whole Roster & Shifts group.**
 
-1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Shift Roster' }`
-2. `lib/permissions.ts` → `ROUTE_TO_RESOURCE['/shift-roster'] = 'shift-roster'`
-3. Sidebar `hasAccess` for `/shift-roster` under **Roster & Shifts**
-4. Page `checkRouteAccess` → `/unauthorized-access`
+Checklist:
+
+1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
+2. `lib/permissions.ts` → map `/shift-roster` **and** `/shift-types` → `shift-roster`
+3. Sidebar `hasAccess` for `/shift-roster` and `/shift-types` under **Roster & Shifts**
+4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)`
-6. Client buttons: `usePermissions().has('shift-roster', 'edit')` (publish/delete may use `edit` until a dedicated action is needed)
-7. `breadcrumbs.tsx` → `{ path: 'shift-roster', name: 'Shift Roster' }`
+6. Client buttons: `usePermissions().has('shift-roster', …)`
+7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`
 8. Grant on Auth User Group; user re-logins
 
 ---
 
-## 5. Development phases
+## 5. Development phases — Shift Roster
 
 **UI first, then dynamic.** Do not start Prisma until Phase 0 screens are accepted.
 
 ```
-Phase 0: Static UI
-  → Phase 1: Collections + types (lock domain)
+Shift Roster Phase 0: Static UI
+  → Phase 1: Collections + types (shared; ShiftType first)
     → Phase 2: Load roster (read)
       → Phase 3: Allocate + save draft
         → Phase 4: Publish / copy / fill
@@ -256,7 +366,7 @@ Pages must not call Prisma. No business rules in components.
 
 ---
 
-### Phase 0 — UI interfaces (do this first)
+### Shift Roster — Phase 0 — UI interfaces
 
 **Goal:** Pixel-close shell of the mock. No Mongo collection required.
 
@@ -283,7 +393,60 @@ Pages must not call Prisma. No business rules in components.
 
 ---
 
-### Phase 1 — Foundation (lock before Prisma)
+## 5B. Development phases — Shift Types
+
+```
+Phase 0: Static UI (list + add/edit shells)
+  → (shared Phase 1 schema with ShiftType)
+    → Phase 2: CRUD
+      → Phase 3: Duplicate / bulk activate
+        → Phase 4: Live summary + export
+          → Phase 5: Hardening (+ block delete if allocations exist)
+            → Phase 6: Downstream consumers (roster chips, OT Process Staff Shift)
+```
+
+### Shift Types — Phase 0 — UI interfaces
+
+| Work |
+|------|
+| Route `(roster-shifts)/shift-types` + add/edit pages |
+| List: header, 4 cards, filters, `CommonDataTable` register |
+| Form shell: Formik + Yup; Save/Update/Delete toast only |
+| Map `/shift-types` → `shift-roster`; sidebar + breadcrumb |
+| `shift-types.visited` activity on list |
+
+| Done when |
+|-----------|
+| [x] `/shift-types` matches the mock |
+| [x] Register uses **CommonDataTable** (not roster custom grid) |
+| [x] Add/Edit are separate pages; no Prisma writes |
+| [ ] Design accepted |
+
+### Shift Types — Phase 2 — CRUD (after shared Phase 1)
+
+| Layer | Work |
+|-------|------|
+| Service | list (paged + filters), get, create, update, delete; allocate `SHF-n` |
+| Actions | `requirePermission('shift-roster', …)` |
+| UI | Wire list Search + form Save/Update/Delete |
+
+| Done when |
+|-----------|
+| [ ] Create appears in register as Active/Inactive |
+| [ ] Edit loads form; delete removes row (or soft-status if locked) |
+
+### Shift Types — Phase 3–6 (summary)
+
+| Phase | Outcome |
+|-------|---------|
+| **3** | Duplicate Shift; Bulk Activate |
+| **4** | Live summary cards; export against real rows |
+| **5** | Permissions matrix; smoke; refuse delete when allocations reference the type |
+| **6** | Roster / OT consume live `ShiftType` |
+
+---
+
+### Phase 1 — Foundation (shared — lock before Prisma)
 
 **Goal:** Collections + shared types. Staff employment `roster` string stays a snapshot label until a Roster master exists.
 
@@ -298,14 +461,16 @@ ShiftRoster 1──* RosterAllocation
 | Topic | Proposed decision (confirm before `db push`) |
 |-------|-----------------------------------------------|
 | Collections | **Three** — `ShiftType`, `ShiftRoster` (period header), `RosterAllocation` (staff × date cell) |
-| Shift types | Seed D / E / N / O / L with default times from the legend |
+| Shift type codes | **`SHF-n`** via `generateRecordCode('SHF')` — not fixed `D`/`E`/`N` PKs |
+| Shift types seed | Optional starter Day/Evening/Night/Off/Leave rows still use `SHF-n` |
 | Roster period | One `ShiftRoster` per department + unit + roster name + from/to |
-| Status | `draft` → `published` (optional `pending_approval` if product requires it) |
+| Status (roster) | `draft` → `published` (optional `pending_approval` if product requires it) |
+| Status (shift type) | Active / Inactive (or `status` 0\|1 like leave types) |
 | Allocation uniqueness | `@@unique([shiftRosterId, staffId, date])` |
-| Leave on a cell | Boolean `isLeave` on the allocation (chip checkbox); does not create a Leave Application in v1 |
+| Leave on a cell | Boolean `isLeave` on the allocation; does not create a Leave Application in v1 |
 | Hours / OT | Stored floats on the allocation (or derived from shift type duration in service) |
 | Department / unit / roster | Snapshot strings on `ShiftRoster` and optionally on each allocation |
-| Codes | `generateRecordCode`: `SR-1` for roster periods; shift types use stable codes `D`/`E`/`N`/`O`/`L` |
+| Roster period codes | `generateRecordCode`: `SR-1` |
 | Staff roster field | Keep employment `roster` string; do not require a Roster master FK in v1 |
 | Conflicts | Overlapping allocations for the same staff + date across loaded rows |
 
@@ -313,7 +478,7 @@ ShiftRoster 1──* RosterAllocation
 |-----------|
 | [ ] Domain table above is **locked** (edit this doc if product disagrees) |
 | [ ] Models in `schema.prisma` + Staff relations both sides |
-| [ ] `types/roster.ts` — statuses, shift codes, payloads, list params, DTOs |
+| [ ] `types/roster.ts` — statuses, payloads, list params, DTOs |
 | [ ] `prisma db push` + `prisma generate` applied locally |
 
 ---
@@ -445,6 +610,7 @@ Until this phase, print/export stay toast-only.
 - Do not put Prisma in pages.
 - Do not trust client `status` or audit fields on save.
 - Cell Leave is **not** a Leave Application in v1.
+- Shift type codes are **`SHF-n`** (generated). Do not use fixed `D`/`E`/`N` as primary keys.
 - Staff employment `roster` is a display/filter string until a Roster master exists.
 - Overtime must not call a fake roster API — wait for Phase 2+ read service.
 
@@ -456,9 +622,10 @@ Until this phase, print/export stay toast-only.
 |---------|-----|
 | `CommonManagerHeader` | Page title + header actions |
 | `@archmage/ui` `Card`, `Badge`, `Button` | Cards, status, actions |
-| `@/components/ui/table` | Roster grid primitives (not `CommonDataTable`) |
+| `CommonDataTable` | Shift Types register (flat CRUD) |
+| `@/components/ui/table` | Shift Roster grid primitives (not `CommonDataTable`) |
 | `@/lib/utils/date` | Week / month labels |
-| `usePermissions` | Hide write actions without `edit` |
+| `usePermissions` | Hide write actions without grant |
 
 ---
 
@@ -466,7 +633,7 @@ Until this phase, print/export stay toast-only.
 
 1. **Do not** put Prisma in pages — services only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
-3. Register `/shift-roster` in `ROUTE_TO_RESOURCE` or the route stays open.
+3. Register `/shift-roster` and `/shift-types` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Keep Save / Publish / Copy as no-ops until their phase.
 6. Do not merge allocations into Staff or Leave Application documents.

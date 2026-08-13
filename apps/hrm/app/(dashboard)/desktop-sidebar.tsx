@@ -185,18 +185,27 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {hasAccess('/shift-roster') && (
+        {(hasAccess('/shift-roster') || hasAccess('/shift-types')) && (
           <SidebarGroup label="Roster & Shifts">
             <SidebarCollapsible
               label="Roster & Shifts"
               icon={<CalendarRange className="h-5 w-5" />}
-              paths={['/shift-roster']}
+              paths={['/shift-roster', '/shift-types']}
             >
-              <NavLink
-                href="/shift-roster"
-                label="Shift Roster"
-                icon={<CalendarRange className="h-5 w-5" />}
-              />
+              {hasAccess('/shift-roster') && (
+                <NavLink
+                  href="/shift-roster"
+                  label="Shift Roster"
+                  icon={<CalendarRange className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shift-types') && (
+                <NavLink
+                  href="/shift-types"
+                  label="Shift Types"
+                  icon={<Tags className="h-5 w-5" />}
+                />
+              )}
             </SidebarCollapsible>
           </SidebarGroup>
         )}
