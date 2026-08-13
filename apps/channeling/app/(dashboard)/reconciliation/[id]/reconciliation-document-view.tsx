@@ -89,6 +89,8 @@ export type HandoverTabData = {
 type Props = {
   topLevelHandoverId: string
   chain: HandoverTabData[]
+  /** Assigned reconciler (or admin) may submit/reject. */
+  canActAsReconciler?: boolean
 }
 
 /** Net amount in cents for comparison with handover cardCents/slipCents etc. */
@@ -128,11 +130,11 @@ const NON_CASH_METHODS_ORDERED: {
   { method: RECEIPT_PAYMENT_METHOD.E_WALLET, key: "eWalletCents", entriesKey: "eWalletEntries", Icon: Smartphone },
 ]
 
-export function ReconciliationDocumentView({ topLevelHandoverId, chain }: Props) {
+export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAsReconciler = true }: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const { has } = usePermissions()
-  const canApproveReconciliation = has("reconciliation", "approve-reconciliation")
+  const canApproveReconciliation = has("reconciliation", "approve-reconciliation") && canActAsReconciler
 
   const [tickedByHandoverId, setTickedByHandoverId] = useState<Record<string, Set<string>>>(() => {
     const o: Record<string, Set<string>> = {}
@@ -534,7 +536,11 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain }: Props)
           </>
         )}
         {!canApproveReconciliation && (
-          <span className="text-sm text-muted-foreground">You do not have permission to approve or reject reconciliation.</span>
+          <span className="text-sm text-muted-foreground">
+            {canActAsReconciler
+              ? "You do not have permission to approve or reject reconciliation."
+              : "Only the assigned reconciler can submit or reject this handover."}
+          </span>
         )}
       </div>
     </div>

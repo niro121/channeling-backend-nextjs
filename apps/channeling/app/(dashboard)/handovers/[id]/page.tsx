@@ -4,13 +4,18 @@ import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { getHandoverDetailAction, approveHandoverAction, rejectHandoverAction } from "@/app/actions/shift.actions"
-import { sendHandoverToReconciliationAction } from "@/app/actions/reconciliation.actions"
+import {
+  sendHandoverToReconciliationAction,
+  changeReconciliationAssigneeAction,
+  getReconcilerUserOptionsAction,
+} from "@/app/actions/reconciliation.actions"
 import { getCashierSummaryReportData } from "@/app/actions/reports/cashier-summary.action"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { SearchableUserSelect } from "@/components/common/user-select"
 import {
   Table,
   TableBody,
@@ -46,7 +51,7 @@ import {
   Printer,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
-import { HANDOVER_STATUS } from "@/types/handover"
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { FileCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -104,7 +109,11 @@ export default function HandoverDetailPage() {
   const [rejectReason, setRejectReason] = useState("")
   const [approveOpen, setApproveOpen] = useState(false)
   const [approvalComments, setApprovalComments] = useState("")
-  const [sendToReconciliation, setSendToReconciliation] = useState(false)
+  const [sendReconOpen, setSendReconOpen] = useState(false)
+  const [changeAssigneeOpen, setChangeAssigneeOpen] = useState(false)
+  const [reconcilerUserId, setReconcilerUserId] = useState("")
+  const [reconcilerUsers, setReconcilerUsers] = useState<{ id: string; name: string }[]>([])
+  const [reconcilerUsersLoading, setReconcilerUsersLoading] = useState(false)
   const [summarySections, setSummarySections] = useState<CashierSummaryReportSection[]>([])
   const { has: hasPermission } = usePermissions()
   const canSendToReconciliation = hasPermission("reconciliation", "submit-for-reconciliation")
@@ -134,11 +143,19 @@ export default function HandoverDetailPage() {
     fetchDetail()
   }, [fetchDetail])
 
-  // Auto-tick "Send to reconciliation" only when user has the permission (when opening the approve dialog)
   useEffect(() => {
-    if (approveOpen && canSendToReconciliation) setSendToReconciliation(true)
-  }, [approveOpen, canSendToReconciliation])
-
+    if (!(sendReconOpen || changeAssigneeOpen) || !canSendToReconciliation) return
+    setReconcilerUsersLoading(true)
+    getReconcilerUserOptionsAction()
+      .then((res) => {
+        if (res.success && res.data) {
+          setReconcilerUsers(res.data.map((u) => ({ id: u.id, name: u.staffCode ? `${u.name} (${u.staffCode})` : u.name })))
+        } else {
+          setReconcilerUsers([])
+        }
+      })
+      .finally(() => setReconcilerUsersLoading(false))
+  }, [sendReconOpen, changeAssigneeOpen, canSendToReconciliation])
   useEffect(() => {
     if (!data) return
     const handover = data.handover
@@ -218,15 +235,12 @@ export default function HandoverDetailPage() {
     if (!id) return
     setActionLoading("approve")
     try {
-      await approveHandoverAction(id, comments?.trim() || undefined, sendToReconciliation)
+      await approveHandoverAction(id, comments?.trim() || undefined)
       toast({
-        title: sendToReconciliation
-          ? "Handover approved and sent to reconciliation. Complete it from the Reconciliation page."
-          : "Handover approved and received. Funds recorded to your till; shift ended.",
+        title: "Handover approved and received. Funds recorded to your till; shift ended.",
       })
       setApproveOpen(false)
       setApprovalComments("")
-      setSendToReconciliation(false)
       router.push("/handovers")
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to approve", variant: "destructive" })
@@ -252,13 +266,18 @@ export default function HandoverDetailPage() {
   }
 
   async function handleSendToReconciliation() {
-    if (!id) return
+    if (!id || !reconcilerUserId) {
+      toast({ title: "Select a user to reconcile", variant: "destructive" })
+      return
+    }
     setSendToReconLoading(true)
     try {
-      const result = await sendHandoverToReconciliationAction(id)
+      const result = await sendHandoverToReconciliationAction(id, reconcilerUserId)
       if (result.success) {
-        toast({ title: "Sent to reconciliation. Open it from the Reconciliation page to tick receipts and submit." })
-        router.push("/handovers")
+        toast({ title: "Sent to reconciliation for the selected user." })
+        setSendReconOpen(false)
+        setReconcilerUserId("")
+        await fetchDetail()
         router.refresh()
       } else {
         toast({ title: result.error ?? "Failed", variant: "destructive" })
@@ -270,6 +289,29 @@ export default function HandoverDetailPage() {
     }
   }
 
+  async function handleChangeAssignee() {
+    if (!id || !reconcilerUserId) {
+      toast({ title: "Select a user to reconcile", variant: "destructive" })
+      return
+    }
+    setSendToReconLoading(true)
+    try {
+      const result = await changeReconciliationAssigneeAction(id, reconcilerUserId)
+      if (result.success) {
+        toast({ title: "Reconciler updated." })
+        setChangeAssigneeOpen(false)
+        setReconcilerUserId("")
+        await fetchDetail()
+        router.refresh()
+      } else {
+        toast({ title: result.error ?? "Failed", variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to change reconciler", variant: "destructive" })
+    } finally {
+      setSendToReconLoading(false)
+    }
+  }
   if (loading || !id) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -311,11 +353,22 @@ export default function HandoverDetailPage() {
   const isPending = handover.status === HANDOVER_STATUS.PENDING
   const isApproved = handover.status === HANDOVER_STATUS.APPROVED
   const isRejected = handover.status === HANDOVER_STATUS.REJECTED
+  const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   const isApprovedNotReconciled =
     isApproved &&
     !handover.nonCashReconciledAt &&
     handover.forwardedToHandoverId == null &&
-    (handover.reconciliationStatus == null || handover.reconciliationStatus === 0)
+    (reconStatus === RECONCILIATION_STATUS.PENDING ||
+      (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION && !handover.reconciliationAssignedToUserId))
+  const isInReconciliation =
+    isApproved &&
+    !handover.nonCashReconciledAt &&
+    handover.forwardedToHandoverId == null &&
+    reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION &&
+    !!handover.reconciliationAssignedToUserId
+  const assignedUserLabel = data.reconciliationAssignedToUser
+    ? fromUserLabel(data.reconciliationAssignedToUser)
+    : null
 
   const statusLabel =
     isApproved
@@ -355,7 +408,10 @@ export default function HandoverDetailPage() {
           {isApprovedNotReconciled && canSendToReconciliation && (
             <>
               <Button
-                onClick={handleSendToReconciliation}
+                onClick={() => {
+                  setReconcilerUserId("")
+                  setSendReconOpen(true)
+                }}
                 disabled={sendToReconLoading}
               >
                 {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
@@ -363,6 +419,23 @@ export default function HandoverDetailPage() {
               </Button>
               <Button variant="outline" asChild>
                 <Link href="/reconciliation">Reconciliation page</Link>
+              </Button>
+            </>
+          )}
+          {isInReconciliation && canSendToReconciliation && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReconcilerUserId(handover.reconciliationAssignedToUserId ?? "")
+                  setChangeAssigneeOpen(true)
+                }}
+                disabled={sendToReconLoading}
+              >
+                Change reconciler
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href={`/reconciliation/${id}`}>Open reconciliation</Link>
               </Button>
             </>
           )}
@@ -407,6 +480,12 @@ export default function HandoverDetailPage() {
                             <span>{handover.approvalComments.trim()}</span>
                           </p>
                         ) : null}
+                        {isInReconciliation && (
+                          <p>
+                            <span className="text-muted-foreground">Reconciler: </span>
+                            <span className="font-medium">{assignedUserLabel ?? "—"}</span>
+                          </p>
+                        )}
                       </>
                     )}
                     {isRejected && (
@@ -558,7 +637,16 @@ export default function HandoverDetailPage() {
           <FileCheck className="h-4 w-4" />
           <AlertTitle>Approved — not yet in reconciliation</AlertTitle>
           <AlertDescription>
-            This handover is approved. Use <strong>Send to reconciliation</strong> above, then open it on the Reconciliation page to tick receipts and submit.
+            This handover is approved. Use <strong>Send to reconciliation</strong> above and choose who should reconcile it.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isInReconciliation && (
+        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
+          <FileCheck className="h-4 w-4" />
+          <AlertTitle>In reconciliation</AlertTitle>
+          <AlertDescription>
+            Assigned to <strong>{assignedUserLabel ?? "—"}</strong>. You can change the reconciler until it is completed.
           </AlertDescription>
         </Alert>
       )}
@@ -896,7 +984,7 @@ export default function HandoverDetailPage() {
             <CardHeader>
               <CardTitle>Approve and Receive</CardTitle>
               <CardDescription>
-                Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records).
+                Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records). Send to reconciliation is a separate step after approval.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -911,25 +999,121 @@ export default function HandoverDetailPage() {
                   className="mt-1"
                 />
               </div>
-              {canSendToReconciliation && (
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="send-to-reconciliation"
-                    checked={sendToReconciliation}
-                    onCheckedChange={(v) => setSendToReconciliation(v === true)}
-                  />
-                  <Label htmlFor="send-to-reconciliation" className="font-normal cursor-pointer">
-                    Submit to Reconciliation where back office will go through non-cash transactions and confirm they tally.
-                  </Label>
-                </div>
-              )}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""), setSendToReconciliation(false))} disabled={!!actionLoading}>
+                <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""))} disabled={!!actionLoading}>
                   Cancel
                 </Button>
                 <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading}>
                   {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
-                  {sendToReconciliation ? "Receive and Reconcile" : "Approve and Receive"}
+                  Approve and Receive
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Send to reconciliation: pick assignee */}
+      {sendReconOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Send to reconciliation</CardTitle>
+              <CardDescription>
+                Choose who should reconcile this handover. Only users with the{" "}
+                <strong>Approve Reconciliation</strong> permission are listed. Only that user can submit or reject.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Reconciler</Label>
+                <div className="mt-1">
+                  <SearchableUserSelect
+                    options={reconcilerUsers}
+                    value={reconcilerUserId}
+                    onChange={setReconcilerUserId}
+                    placeholder={
+                      reconcilerUsersLoading
+                        ? "Loading…"
+                        : reconcilerUsers.length === 0
+                          ? "No users with Approve Reconciliation"
+                          : "Select reconciler"
+                    }
+                    disabled={reconcilerUsersLoading || sendToReconLoading || reconcilerUsers.length === 0}
+                    label="reconciler"
+                  />
+                </div>
+                {!reconcilerUsersLoading && reconcilerUsers.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    No active users have the Approve Reconciliation permission. Grant it on a user group first.
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSendReconOpen(false)
+                    setReconcilerUserId("")
+                  }}
+                  disabled={sendToReconLoading}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSendToReconciliation} disabled={sendToReconLoading || !reconcilerUserId}>
+                  {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+                  Send
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Change reconciler */}
+      {changeAssigneeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Change reconciler</CardTitle>
+              <CardDescription>
+                Assign a different user with <strong>Approve Reconciliation</strong>. Only possible before reconciliation is completed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Reconciler</Label>
+                <div className="mt-1">
+                  <SearchableUserSelect
+                    options={reconcilerUsers}
+                    value={reconcilerUserId}
+                    onChange={setReconcilerUserId}
+                    placeholder={
+                      reconcilerUsersLoading
+                        ? "Loading…"
+                        : reconcilerUsers.length === 0
+                          ? "No users with Approve Reconciliation"
+                          : "Select reconciler"
+                    }
+                    disabled={reconcilerUsersLoading || sendToReconLoading || reconcilerUsers.length === 0}
+                    label="reconciler"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setChangeAssigneeOpen(false)
+                    setReconcilerUserId("")
+                  }}
+                  disabled={sendToReconLoading}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleChangeAssignee} disabled={sendToReconLoading || !reconcilerUserId}>
+                  {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  Save
                 </Button>
               </div>
             </CardContent>
