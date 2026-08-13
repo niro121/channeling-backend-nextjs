@@ -6,16 +6,20 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 
 **Status:** Shift Roster Phase 0 UI implemented — awaiting design acceptance.  
 **Shift Types:** Phase 0 UI implemented — awaiting design acceptance.  
+**Shift Assignment:** Phase 0 UI implemented — awaiting design acceptance.  
 **Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
 Pages must not call Prisma. No business rules in components.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, …)
+- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, …)
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
 - Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
+- Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
+- Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
+- Shift Assignment sidebar: **leave expanded** (register page, not focus calendar)
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
@@ -29,10 +33,11 @@ Pages must not call Prisma. No business rules in components.
 |-------|----------------|------|
 | `/shift-roster` | `shift-roster` | Calendar roster planning: filters, allocate, draft, publish, copy, print/export |
 | `/shift-types` | `shift-roster` | Shift master (timings, thresholds, night/overnight/holiday flags) — CRUD via sheets |
+| `/shift-assignment` | `shift-roster` | Link staff to shift types / rotation patterns — feeds Duty Roster & Shift Roster |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types.
+Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment.
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
@@ -309,6 +314,72 @@ Phase 0: Save / Update / Duplicate toast only (no Prisma).
 
 ---
 
+## 2C. UI map — Shift Assignment (Phase 0)
+
+Compose: `CommonManagerHeader` + 4 summary cards + Search & Filters + **`CommonDataTable`** register. Assign / Bulk Assign / Edit / History open as **right Sheets**.
+
+```
+┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
+│ Shift Assignment                                                          │
+│ Link staff to shift types from the Shift Types master…                    │
+│                         [ + Assign Shift ]  [ Bulk Assign ]               │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Assigned Staff ─┐ ┌─ Unassigned ─┐ ┌─ Rotation Patterns ─┐ ┌─ Expiring ─┐
+│       238        │ │      10      │ │          6          │ │     17     │
+└──────────────────┘ └──────────────┘ └─────────────────────┘ └────────────┘
+
+┌─ Search & Filters ────────────────────────────────────────────────────────┐
+│ Institution │ Department │ Unit │ Designation                             │
+│ Staff Category │ Staff Grade │ Employee Status │ Staff Search             │
+│ [ Search ] [ Clear ]                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Shift Assignment Register (CommonDataTable) ─────────────────────────────┐
+│ [ Auto Assign All ]  N of M selected     [ Columns ] [ Print/PDF/XLS ]    │
+│ ID │ Name │ Dept │ Unit │ … │ Assigned Shift │ From │ To │ Status │ …     │
+│ Updated │ Created │ Actions (Edit / Delete / History)                     │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Key files under `app/(dashboard)/(roster-shifts)/shift-assignment/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check + sample data |
+| `shift-assignment-workspace.tsx` | Provider, header, filters, register, sheets |
+| `shift-assignment-ui-context.tsx` | Open Assign / Edit / Bulk / History; selection count |
+| `header-actions.tsx` | **Assign Shift** + **Bulk Assign** (≥1 selected) |
+| `section-assignment-summary.tsx` | Four count cards |
+| `section-assignment-filters.tsx` | Search & Filters (local Phase 0) |
+| `section-assignment-register.tsx` | `CommonDataTable` + Auto Assign All + export |
+| `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
+| `sheet-assignment-form.tsx` | Assign / Edit / Bulk form sheet |
+| `sheet-assignment-history.tsx` | Timeline history; **Cancel only** |
+| `sample-data.ts` | Mock assignments + options + summary |
+
+### 2C.1 Header
+
+- No **Save** or **Remove Assignment** on the header (row delete stays on the register).
+- **Bulk Assign** requires ≥1 selected row; else toast *Select staff*.
+
+### 2C.2 Form sheets
+
+| Sheet | Opens from | Notes |
+|-------|------------|--------|
+| Assign Shift | Header | Staff required |
+| Bulk Assign Shift | Header | No staff field; banner with selected count |
+| Edit Shift Assignment | Row pencil | Prefill sample |
+| Change History | Row clock | Timeline like Shift Types; Cancel only |
+
+Fields: Staff* (assign/edit), Shift Type*, Rotation Pattern (Fixed / 2-Shift / 3-Shift / 4 On 2 Off / Weekly / Custom), Effective From*, Effective To (optional), Weekly Off (Mon–Sun), Status (Active / Pending / Inactive), Auto Assign toggle. Sticky header. Phase 0 toast save.
+
+### 2C.3 Register
+
+Columns include **Updated** and **Created** (Leave Types stacked format). Status pills: Active / Pending / Inactive.
+
+---
+
 ## 3. Suggested folders
 
 ```
@@ -342,6 +413,20 @@ app/(dashboard)/(roster-shifts)/shift-types/
   sheet-shift-type-history.tsx
   sample-data.ts
 
+app/(dashboard)/(roster-shifts)/shift-assignment/
+  page.tsx
+  shift-assignment-workspace.tsx
+  shift-assignment-ui-context.tsx
+  header-actions.tsx
+  section-assignment-summary.tsx
+  section-assignment-filters.tsx
+  section-assignment-register.tsx
+  columns.tsx
+  record-actions.tsx
+  sheet-assignment-form.tsx
+  sheet-assignment-history.tsx
+  sample-data.ts
+
 # Dynamic layers (Phase 1+)
 types/roster.ts
 lib/mappers/
@@ -369,12 +454,12 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster` **and** `/shift-types` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster` and `/shift-types` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment` → `shift-roster`
+3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)`
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`
+7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -486,6 +571,35 @@ Phase 0: Static UI (list + Add/Edit/Duplicate/History sheets)
 | **4** | Live summary cards; export against real rows |
 | **5** | Permissions matrix; smoke; refuse delete when allocations reference the type |
 | **6** | Roster / OT consume live `ShiftType` |
+
+---
+
+## 5C. Development phases — Shift Assignment
+
+```
+Phase 0: Static UI (list + Assign/Bulk/Edit/History sheets)
+  → (shared Phase 1 schema)
+    → Phase 2: CRUD
+      → Phase 3: Bulk assign + auto-assign
+        → Phase 4: Live summary + export
+```
+
+### Shift Assignment — Phase 0 — UI interfaces
+
+| Work |
+|------|
+| Route `(roster-shifts)/shift-assignment` — sheets only |
+| List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
+| Assign / Bulk / Edit / History sheets; toast save; History Cancel-only |
+| Map `/shift-assignment` → `shift-roster`; sidebar + breadcrumb |
+| `shift-assignment.visited` activity on list |
+
+| Done when |
+|-----------|
+| [x] `/shift-assignment` matches the mock (sheets + register) |
+| [x] No header Save / Remove Assignment |
+| [x] Bulk Assign requires ≥1 selected row |
+| [ ] Design accepted |
 
 ---
 
@@ -676,7 +790,7 @@ Until this phase, print/export stay toast-only.
 
 1. **Do not** put Prisma in pages — services only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
-3. Register `/shift-roster` and `/shift-types` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
+3. Register `/shift-roster`, `/shift-types`, and `/shift-assignment` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Keep Save / Publish / Copy as no-ops until their phase.
 6. Do not merge allocations into Staff or Leave Application documents.
