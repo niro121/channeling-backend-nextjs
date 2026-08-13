@@ -1,4 +1,7 @@
 import { notFound } from "next/navigation"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { userTypes } from "@/lib/roles"
 import { getReconciliationDocumentAction } from "@/app/actions/reconciliation.actions"
 import { ReconciliationDocumentView, type HandoverTabData } from "./reconciliation-document-view"
 
@@ -14,6 +17,12 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
   if (!result.success || !("chain" in result)) {
     notFound()
   }
+
+  const session = await getServerSession(authOptions)
+  const isAdmin = session?.user?.userType === userTypes.admin
+  const assignedTo = result.reconciliationAssignedToUserId
+  const canActAsReconciler =
+    isAdmin || !assignedTo || assignedTo === session?.user?.id
 
   const chain: HandoverTabData[] = result.chain.map((tab) => ({
     handover: {
@@ -39,6 +48,10 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
   }))
 
   return (
-    <ReconciliationDocumentView topLevelHandoverId={id} chain={chain} />
+    <ReconciliationDocumentView
+      topLevelHandoverId={id}
+      chain={chain}
+      canActAsReconciler={canActAsReconciler}
+    />
   )
 }
