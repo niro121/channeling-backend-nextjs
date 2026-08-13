@@ -15,6 +15,12 @@ import { createAccount } from "@/services/accounting/account.service"
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import { receiptAmountToCents } from "@/lib/format-money"
 import { formatSlipDate } from "@/lib/slip-date"
+import { logActivityNonBlocking } from "@/lib/activity-log"
+import { hasPermission } from "@/lib/permissions"
+import { userTypes } from "@/lib/roles"
+import { createNotification } from "@/services/notification.service"
+import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
+import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
 
 const NON_CASH_METHODS = [
@@ -126,6 +132,7 @@ export type HandoverForReconciliationList = {
   totalNonCashCents: number
   reconciliationStatus: number | null
   reconciliationRejectReason: string | null
+  reconciliationAssignedToUserId?: string | null
   fromUser: { id: string; name: string | null; staff: { code: string } | null }
   toUser: { id: string; name: string | null }
   shift: { id: string; startedAt: Date; userId: string }
@@ -145,6 +152,7 @@ const reconciliationListSelect = {
   nonCashReconciledAt: true,
   reconciliationStatus: true,
   reconciliationRejectReason: true,
+  reconciliationAssignedToUserId: true,
   forwardedToHandoverId: true,
   fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
   toUser: { select: { id: true, name: true } },
@@ -155,13 +163,10 @@ function buildWhereForTab(tab: ReconciliationListTab) {
   const baseApproved = { status: HANDOVER_STATUS.APPROVED }
   switch (tab) {
     case "reconciliation":
-      // Only handovers already sent to reconciliation (IN_RECONCILIATION). Exclude PENDING (not yet sent).
+      // Only handovers explicitly sent to reconciliation (IN_RECONCILIATION).
       return {
         ...baseApproved,
-        OR: [
-          { reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION },
-          { reconciliationStatus: null },
-        ],
+        reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
       }
     case "approved":
       return { ...baseApproved, reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED }
@@ -170,15 +175,12 @@ function buildWhereForTab(tab: ReconciliationListTab) {
     default:
       return {
         ...baseApproved,
-        OR: [
-          { reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION },
-          { reconciliationStatus: null },
-        ],
+        reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
       }
   }
 }
 
-/** List handovers by tab with DB-level pagination. Optional filters: date range (handover date), fromUserId, toUserId. */
+/** List handovers by tab with DB-level pagination. Optional filters: date range, fromUserId, toUserId, assignedToUserId (restrict to assignee). */
 export async function listHandoversForReconciliation(params: {
   page?: number
   limit?: number
@@ -188,6 +190,10 @@ export async function listHandoversForReconciliation(params: {
   dateTo?: string | null
   fromUserId?: string | null
   toUserId?: string | null
+  /** When set, only handovers assigned to this user (or legacy unassigned) are returned for the open tab. */
+  assignedToUserId?: string | null
+  /** Admin bypass: do not filter by assignee. */
+  viewAllAssigned?: boolean
 }): Promise<{ data: HandoverForReconciliationList[]; totalRecords: number }> {
   const page = Math.max(1, params.page ?? 1)
   const limit = Math.min(100, Math.max(1, params.limit ?? 20))
@@ -206,6 +212,9 @@ export async function listHandoversForReconciliation(params: {
   }
   if (params.fromUserId && params.fromUserId !== "__all__") and.push({ fromUserId: params.fromUserId })
   if (params.toUserId && params.toUserId !== "__all__") and.push({ toUserId: params.toUserId })
+  if (!params.viewAllAssigned && params.assignedToUserId) {
+    and.push({ reconciliationAssignedToUserId: params.assignedToUserId })
+  }
 
   const finalWhere = and.length > 0 ? { AND: [where, ...and] } : where
 
@@ -228,6 +237,7 @@ export async function listHandoversForReconciliation(params: {
     shift: { id: string; startedAt: Date; userId: string }
     reconciliationStatus: number | null
     reconciliationRejectReason: string | null
+    reconciliationAssignedToUserId?: string | null
     forwardedToHandoverId?: string | null
   }>
   let totalRecords: number
@@ -238,7 +248,11 @@ export async function listHandoversForReconciliation(params: {
     orderBy,
     select: reconciliationListSelect,
   })
-  const topLevel = all.filter((h) => h.forwardedToHandoverId == null)
+  let topLevel = all.filter((h) => h.forwardedToHandoverId == null)
+  // Legacy rows without assignee: include for assignee filter only if assignedToUserId matches requestedBy fallback is not applied — exclude unassigned from personal queue
+  if (!params.viewAllAssigned && params.assignedToUserId) {
+    topLevel = topLevel.filter((h) => h.reconciliationAssignedToUserId === params.assignedToUserId)
+  }
   totalRecords = topLevel.length
   data = topLevel.slice(skip, skip + limit)
 
@@ -252,6 +266,7 @@ export async function listHandoversForReconciliation(params: {
     totalNonCashCents: h.cardCents + h.slipCents + h.checkCents + h.eWalletCents,
     reconciliationStatus: h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING,
     reconciliationRejectReason: h.reconciliationRejectReason ?? null,
+    reconciliationAssignedToUserId: h.reconciliationAssignedToUserId ?? null,
     fromUser: h.fromUser,
     toUser: h.toUser,
     shift: h.shift,
@@ -296,12 +311,55 @@ export type HandoverTabForReconciliation = {
   receipts: ReceiptForReconciliation[]
 }
 
-/** Get full reconciliation document: top-level handover + chain + receipts per handover. When requestedByUserId is passed and status is PENDING, sets IN_RECONCILIATION and reconciliationRequestedBy/At. */
+/** Users who can be assigned to reconcile — only Approve Reconciliation permission (or admin). */
+export async function getReconcilerUserOptions(): Promise<
+  { id: string; name: string; email: string; staffCode: string | null }[]
+> {
+  const [groups, admins] = await Promise.all([
+    prisma.userGroup.findMany({
+      where: { status: 1 },
+      select: { id: true, permissions: true },
+    }),
+    prisma.user.findMany({
+      where: { status: 1, userType: userTypes.admin },
+      select: { id: true, name: true, email: true, staff: { select: { code: true } } },
+      orderBy: { name: "asc" },
+    }),
+  ])
+
+  const groupIds = groups
+    .filter((g) => hasPermission(g.permissions as Permissions | null, "reconciliation", "approve-reconciliation"))
+    .map((g) => g.id)
+
+  const fromGroups =
+    groupIds.length === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { status: 1, userGroupId: { in: groupIds } },
+          select: { id: true, name: true, email: true, staff: { select: { code: true } } },
+          orderBy: { name: "asc" },
+        })
+
+  const byId = new Map<string, { id: string; name: string; email: string; staffCode: string | null }>()
+  for (const u of [...fromGroups, ...admins]) {
+    byId.set(u.id, {
+      id: u.id,
+      name: u.name || u.email || u.id,
+      email: u.email,
+      staffCode: u.staff?.code ?? null,
+    })
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  )
+}
+
+/** Get full reconciliation document: top-level handover + chain + receipts per handover. Does not auto-send to reconciliation. */
 export async function getReconciliationDocument(
   topLevelHandoverId: string,
-  requestedByUserId?: string | null
+  _requestedByUserId?: string | null
 ): Promise<
-  | { success: true; bulkCashierUserId: string; chain: HandoverTabForReconciliation[] }
+  | { success: true; bulkCashierUserId: string; chain: HandoverTabForReconciliation[]; reconciliationAssignedToUserId: string | null }
   | { success: false; error: string }
 > {
   const top = await prisma.shiftHandover.findUnique({
@@ -312,6 +370,7 @@ export async function getReconciliationDocument(
       status: true,
       nonCashReconciledAt: true,
       reconciliationStatus: true,
+      reconciliationAssignedToUserId: true,
       forwardedToHandoverId: true,
       fromUserId: true,
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
@@ -333,20 +392,10 @@ export async function getReconciliationDocument(
   const reconStatus = top.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) return { success: false, error: "Reconciliation was rejected." }
-  if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
-
-  // Mark as in reconciliation when bulk cashier opens the document (if still pending); record who requested so we know whose till to deduct
-  if (reconStatus === RECONCILIATION_STATUS.PENDING) {
-    const now = new Date()
-    await prisma.shiftHandover.update({
-      where: { id: topLevelHandoverId },
-      data: {
-        reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
-        reconciliationRequestedAt: now,
-        reconciliationRequestedBy: requestedByUserId ?? undefined,
-      },
-    })
+  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+    return { success: false, error: "Handover has not been sent to reconciliation yet." }
   }
+  if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
 
   let chainHandovers = await getIncludedHandoversChain(top.includedHandoverIds)
   if (chainHandovers.length === 0) {
@@ -400,6 +449,7 @@ export async function getReconciliationDocument(
   return {
     success: true,
     bulkCashierUserId: top.toUserId,
+    reconciliationAssignedToUserId: top.reconciliationAssignedToUserId ?? null,
     chain,
   }
 }
@@ -460,6 +510,7 @@ export async function submitHandoverReconciliation(
       nonCashReconciledAt: true,
       reconciliationStatus: true,
       reconciliationRequestedBy: true,
+      reconciliationAssignedToUserId: true,
       status: true,
       forwardedToHandoverId: true,
       shift: { select: { locationId: true } },
@@ -471,7 +522,22 @@ export async function submitHandoverReconciliation(
   if (topCheck.nonCashReconciledAt != null) return { success: false, error: "Handover is already reconciled." }
   const reconStatus = topCheck.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
+  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+    return { success: false, error: "Handover has not been sent to reconciliation." }
+  }
   if (topCheck.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document." }
+  const actor = await prisma.user.findUnique({
+    where: { id: reconciledByUserId },
+    select: { userType: true },
+  })
+  const isAdmin = actor?.userType === 1
+  if (
+    !isAdmin &&
+    topCheck.reconciliationAssignedToUserId &&
+    topCheck.reconciliationAssignedToUserId !== reconciledByUserId
+  ) {
+    return { success: false, error: "Only the assigned reconciler can submit this reconciliation." }
+  }
 
   const branchLocationId = topCheck.shift?.locationId ?? topCheck.toUser?.userLocationId ?? null
   if (!branchLocationId) {
@@ -618,14 +684,41 @@ export async function submitHandoverReconciliation(
     })
   }
 
+  logActivityNonBlocking({
+    userId: reconciledByUserId,
+    action: "shift.handover.reconciliation_submitted",
+    entityType: "ShiftHandover",
+    entityId: payload.handoverId,
+    metadata: { receiptCount: allTickedReceiptIds.length },
+  })
+
   return { success: true }
 }
 
-/** Mark a handover as sent to reconciliation (IN_RECONCILIATION) with requestedBy/At. Only for top-level, approved, not-yet-reconciled handovers that the current user received. */
+async function assertUserCanBeReconciler(userId: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, status: 1 },
+    select: { userType: true, userGroup: { select: { permissions: true } } },
+  })
+  if (!user) return false
+  if (user.userType === userTypes.admin) return true
+  return hasPermission(
+    user.userGroup?.permissions as Permissions | null,
+    "reconciliation",
+    "approve-reconciliation"
+  )
+}
+
+/** Mark a handover as sent to reconciliation and assign a reconciler. Only recipient; only after approval. */
 export async function sendHandoverToReconciliation(
   handoverId: string,
-  requestedByUserId: string
+  requestedByUserId: string,
+  assignedToUserId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
+  if (!assignedToUserId?.trim()) {
+    return { success: false, error: "Please select a user to reconcile." }
+  }
+
   const handover = await prisma.shiftHandover.findUnique({
     where: { id: handoverId },
     select: {
@@ -634,18 +727,34 @@ export async function sendHandoverToReconciliation(
       status: true,
       nonCashReconciledAt: true,
       reconciliationStatus: true,
+      reconciliationAssignedToUserId: true,
       forwardedToHandoverId: true,
     },
   })
   if (!handover) return { success: false, error: "Handover not found." }
-  if (handover.toUserId !== requestedByUserId) return { success: false, error: "Only the recipient can send this handover to reconciliation." }
+  if (handover.toUserId !== requestedByUserId) {
+    return { success: false, error: "Only the recipient can send this handover to reconciliation." }
+  }
   if (handover.status !== HANDOVER_STATUS.APPROVED) return { success: false, error: "Handover is not approved." }
   if (handover.nonCashReconciledAt) return { success: false, error: "Handover is already reconciled." }
   const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) return { success: false, error: "Reconciliation was rejected." }
-  if (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION) return { success: false, error: "Handover is already in reconciliation." }
-  if (handover.forwardedToHandoverId) return { success: false, error: "Use the top-level handover, not an included one." }
+  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) {
+    return { success: false, error: "Handover is already reconciled." }
+  }
+  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
+    return { success: false, error: "Reconciliation was rejected." }
+  }
+  if (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION && handover.reconciliationAssignedToUserId) {
+    return { success: false, error: "Handover is already in reconciliation. Change the assignee instead." }
+  }
+  if (handover.forwardedToHandoverId) {
+    return { success: false, error: "Use the top-level handover, not an included one." }
+  }
+
+  const canAssign = await assertUserCanBeReconciler(assignedToUserId)
+  if (!canAssign) {
+    return { success: false, error: "Selected user does not have permission to approve reconciliation." }
+  }
 
   const now = new Date()
   await prisma.shiftHandover.update({
@@ -654,12 +763,108 @@ export async function sendHandoverToReconciliation(
       reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
       reconciliationRequestedAt: now,
       reconciliationRequestedBy: requestedByUserId,
+      reconciliationAssignedToUserId: assignedToUserId,
     },
   })
+
+  logActivityNonBlocking({
+    userId: requestedByUserId,
+    action: "shift.handover.sent_to_reconciliation",
+    entityType: "ShiftHandover",
+    entityId: handoverId,
+    metadata: { assignedToUserId },
+  })
+
+  await createNotification({
+    userId: assignedToUserId,
+    type: NOTIFICATION_TYPES.ReconciliationAssigned,
+    title: "Handover assigned for reconciliation",
+    message: "A handover was sent to you for reconciliation.",
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
+  })
+
   return { success: true }
 }
 
-/** Reject reconciliation for a handover (and its chain). Sets reconciliationStatus = RECONCILED_REJECTED with reason. */
+/** Change reconciler while IN_RECONCILIATION and not yet reconciled. Recipient or current assignee can change. */
+export async function changeReconciliationAssignee(
+  handoverId: string,
+  changedByUserId: string,
+  newAssignedToUserId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!newAssignedToUserId?.trim()) {
+    return { success: false, error: "Please select a user to reconcile." }
+  }
+
+  const handover = await prisma.shiftHandover.findUnique({
+    where: { id: handoverId },
+    select: {
+      id: true,
+      toUserId: true,
+      status: true,
+      nonCashReconciledAt: true,
+      reconciliationStatus: true,
+      reconciliationAssignedToUserId: true,
+      forwardedToHandoverId: true,
+    },
+  })
+  if (!handover) return { success: false, error: "Handover not found." }
+  if (handover.status !== HANDOVER_STATUS.APPROVED) return { success: false, error: "Handover is not approved." }
+  if (handover.nonCashReconciledAt) return { success: false, error: "Handover is already reconciled." }
+  const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) {
+    return { success: false, error: "Cannot change reconciler after reconciliation is complete." }
+  }
+  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+    return { success: false, error: "Handover is not in reconciliation." }
+  }
+  if (handover.forwardedToHandoverId) {
+    return { success: false, error: "Use the top-level handover, not an included one." }
+  }
+
+  const isRecipient = handover.toUserId === changedByUserId
+  const isCurrentAssignee = handover.reconciliationAssignedToUserId === changedByUserId
+  if (!isRecipient && !isCurrentAssignee) {
+    return { success: false, error: "Only the handover recipient or current assignee can change the reconciler." }
+  }
+
+  if (handover.reconciliationAssignedToUserId === newAssignedToUserId) {
+    return { success: false, error: "That user is already assigned." }
+  }
+
+  const canAssign = await assertUserCanBeReconciler(newAssignedToUserId)
+  if (!canAssign) {
+    return { success: false, error: "Selected user does not have permission to approve reconciliation." }
+  }
+
+  const previousAssigneeId = handover.reconciliationAssignedToUserId
+  await prisma.shiftHandover.update({
+    where: { id: handoverId },
+    data: { reconciliationAssignedToUserId: newAssignedToUserId },
+  })
+
+  logActivityNonBlocking({
+    userId: changedByUserId,
+    action: "shift.handover.reconciliation_assignee_changed",
+    entityType: "ShiftHandover",
+    entityId: handoverId,
+    metadata: { previousAssigneeId, newAssignedToUserId },
+  })
+
+  await createNotification({
+    userId: newAssignedToUserId,
+    type: NOTIFICATION_TYPES.ReconciliationAssigned,
+    title: "Handover assigned for reconciliation",
+    message: "A handover was assigned to you for reconciliation.",
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
+  })
+
+  return { success: true }
+}
+
+/** Reject reconciliation for a handover (and its chain). Only assigned reconciler. */
 export async function rejectHandoverReconciliation(
   topLevelHandoverId: string,
   reason: string,
@@ -672,6 +877,7 @@ export async function rejectHandoverReconciliation(
       status: true,
       nonCashReconciledAt: true,
       reconciliationStatus: true,
+      reconciliationAssignedToUserId: true,
       forwardedToHandoverId: true,
       includedHandoverIds: true,
     },
@@ -682,7 +888,22 @@ export async function rejectHandoverReconciliation(
   const reconStatus = top.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) return { success: false, error: "Reconciliation was already rejected." }
+  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+    return { success: false, error: "Handover has not been sent to reconciliation." }
+  }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document." }
+  const actor = await prisma.user.findUnique({
+    where: { id: rejectedByUserId },
+    select: { userType: true },
+  })
+  const isAdmin = actor?.userType === 1
+  if (
+    !isAdmin &&
+    top.reconciliationAssignedToUserId &&
+    top.reconciliationAssignedToUserId !== rejectedByUserId
+  ) {
+    return { success: false, error: "Only the assigned reconciler can reject this reconciliation." }
+  }
   const trimmedReason = (reason ?? "").trim()
   if (!trimmedReason) return { success: false, error: "Rejection reason is required." }
 
@@ -698,5 +919,14 @@ export async function rejectHandoverReconciliation(
       reconciliationRejectReason: trimmedReason,
     },
   })
+
+  logActivityNonBlocking({
+    userId: rejectedByUserId,
+    action: "shift.handover.reconciliation_rejected",
+    entityType: "ShiftHandover",
+    entityId: topLevelHandoverId,
+    metadata: { reason: trimmedReason },
+  })
+
   return { success: true }
 }
