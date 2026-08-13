@@ -25,6 +25,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils/date';
 import {
   Table,
   TableBody,
@@ -47,6 +48,7 @@ import type {
   RosterWeekMeta
 } from './sample-data';
 import { SAMPLE_ROSTER_AUDIT } from './sample-data';
+import { useShiftRosterUi } from './shift-roster-ui-context';
 
 type SectionRosterGridProps = {
   week: RosterWeekMeta;
@@ -82,13 +84,15 @@ const LATER = 'Will be wired in a later phase.';
 const STATUS_STYLES: Record<RosterRowStatus, string> = {
   published: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
   draft: 'bg-muted text-muted-foreground hover:bg-muted',
-  pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100'
+  pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
+  amended: 'bg-sky-100 text-sky-700 hover:bg-sky-100'
 };
 
 const STATUS_LABELS: Record<RosterRowStatus, string> = {
   published: 'Published',
   draft: 'Draft',
-  pending_approval: 'Pending Approval'
+  pending_approval: 'Pending Approval',
+  amended: 'Amended'
 };
 
 const CELL_SEP = 'border-r border-border';
@@ -165,6 +169,7 @@ export default function SectionRosterGrid({
 }: SectionRosterGridProps) {
   const { toast } = useToast();
   const { has } = usePermissions();
+  const { openAdd, openEdit } = useShiftRosterUi();
   const canEdit = has('shift-roster', 'edit');
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const [pageSize, setPageSize] = useState(10);
@@ -326,7 +331,7 @@ export default function SectionRosterGrid({
               type="button"
               size="sm"
               className="h-9 gap-1.5"
-              onClick={() => notify('Allocate Shift')}
+              onClick={() => openAdd()}
             >
               <Plus className="h-4 w-4" />
               Allocate Shift
@@ -548,7 +553,20 @@ export default function SectionRosterGrid({
                                   CELL_SEP
                                 )}
                               >
-                                —
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    className="w-full rounded-md px-1 py-2 text-left hover:bg-muted/50"
+                                    onClick={() =>
+                                      openAdd({ row, dateIso: dayIso })
+                                    }
+                                    aria-label={`Allocate shift for ${row.staffName} on ${dayIso}`}
+                                  >
+                                    —
+                                  </button>
+                                ) : (
+                                  '—'
+                                )}
                               </TableCell>
                             );
                           }
@@ -564,6 +582,16 @@ export default function SectionRosterGrid({
                                 shift={{ ...shift, isLeave }}
                                 onLeaveToggle={() =>
                                   toggleLeave(row.id, dayIso, isLeave)
+                                }
+                                onClick={
+                                  canEdit
+                                    ? () =>
+                                        openEdit({
+                                          row,
+                                          dateIso: dayIso,
+                                          shift
+                                        })
+                                    : undefined
                                 }
                               />
                             </TableCell>
@@ -586,7 +614,10 @@ export default function SectionRosterGrid({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <RosterRecordActions record={row} />
+                          <RosterRecordActions
+                            record={row}
+                            dayIsos={week.dayIsos}
+                          />
                         </TableCell>
                       </TableRow>
                     ))
@@ -719,11 +750,11 @@ export default function SectionRosterGrid({
       <div className="space-y-1 border-t border-border px-6 py-3 text-xs text-muted-foreground">
         <p>
           Created by: {SAMPLE_ROSTER_AUDIT.createdBy} |{' '}
-          {SAMPLE_ROSTER_AUDIT.createdAt}.
+          {formatDateTime(SAMPLE_ROSTER_AUDIT.createdAt)}.
         </p>
         <p>
           Last updated: {SAMPLE_ROSTER_AUDIT.updatedBy} |{' '}
-          {SAMPLE_ROSTER_AUDIT.updatedAt}.
+          {formatDateTime(SAMPLE_ROSTER_AUDIT.updatedAt)}.
         </p>
       </div>
     </Card>

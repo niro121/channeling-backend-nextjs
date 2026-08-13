@@ -7,15 +7,22 @@ import SectionRosterFilters, {
 } from './section-roster-filters';
 import SectionRosterGrid from './section-roster-grid';
 import SectionRosterSummary from './section-roster-summary';
+import SheetRosterAllocationForm from './sheet-roster-allocation-form';
+import SheetRosterAllocationHistory from './sheet-roster-allocation-history';
 import {
   SAMPLE_DEPARTMENTS,
   SAMPLE_ROSTERS,
   SAMPLE_ROSTER_TOTAL_RECORDS,
   SAMPLE_UNITS,
+  staffOptionsFromRows,
   type RosterStaffRowSample,
   type RosterSummarySample,
   type RosterWeekMeta
 } from './sample-data';
+import {
+  ShiftRosterUiProvider,
+  useShiftRosterUi
+} from './shift-roster-ui-context';
 
 type ShiftRosterWorkspaceProps = {
   week: RosterWeekMeta;
@@ -54,12 +61,18 @@ function filterRows(
   });
 }
 
-export default function ShiftRosterWorkspace({
+function ShiftRosterWorkspaceInner({
   week,
   initialRows,
   summary
 }: ShiftRosterWorkspaceProps) {
   const { toast } = useToast();
+  const {
+    formTarget,
+    historyRow,
+    closeFormSheet,
+    closeHistorySheet
+  } = useShiftRosterUi();
   const [draftFilters, setDraftFilters] = useState<RosterFilterValues>(() =>
     emptyFilters(week)
   );
@@ -71,6 +84,11 @@ export default function ShiftRosterWorkspace({
   const visibleRows = useMemo(
     () => filterRows(initialRows, appliedFilters, SAMPLE_DEPARTMENTS),
     [initialRows, appliedFilters]
+  );
+
+  const staffOptions = useMemo(
+    () => staffOptionsFromRows(initialRows),
+    [initialRows]
   );
 
   const handleLoad = () => {
@@ -117,7 +135,33 @@ export default function ShiftRosterWorkspace({
         staffMetaVisible={staffMetaVisible}
         conflicts={summary.conflicts}
       />
+
+      {formTarget ? (
+        <SheetRosterAllocationForm
+          open
+          target={formTarget}
+          staffOptions={staffOptions}
+          onOpenChange={(next) => {
+            if (!next) closeFormSheet();
+          }}
+        />
+      ) : null}
+
+      <SheetRosterAllocationHistory
+        open={!!historyRow}
+        record={historyRow}
+        onOpenChange={(next) => {
+          if (!next) closeHistorySheet();
+        }}
+      />
     </div>
   );
 }
 
+export default function ShiftRosterWorkspace(props: ShiftRosterWorkspaceProps) {
+  return (
+    <ShiftRosterUiProvider>
+      <ShiftRosterWorkspaceInner {...props} />
+    </ShiftRosterUiProvider>
+  );
+}

@@ -84,10 +84,13 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-roster/`:
 | `section-roster-filters.tsx` | Search & Filters card |
 | `section-roster-grid.tsx` | Week header, legend, **module table**, pagination, audit footer |
 | `roster-column-header.tsx` | Sortable header + per-column filter input |
-| `shift-chip.tsx` | Reusable chip (type, time range, Leave checkbox) |
+| `shift-chip.tsx` | Reusable chip (type, time range, Leave checkbox); click → Edit sheet |
 | `shift-legend.tsx` | D / E / N / O / L badges |
-| `record-actions.tsx` | Edit / Delete / History (toast in Phase 0) |
-| `shift-roster-workspace.tsx` | Client: filters, Hide/Visible, Load/Clear against sample |
+| `record-actions.tsx` | Edit / Delete / History (sheets + delete confirm) |
+| `shift-roster-workspace.tsx` | Client: filters, Hide/Visible, Load/Clear, sheets provider |
+| `shift-roster-ui-context.tsx` | Open Add / Edit / History sheets |
+| `sheet-roster-allocation-form.tsx` | Allocate / Edit allocation sheet (toast save Phase 0) |
+| `sheet-roster-allocation-history.tsx` | Change History sheet; **Cancel only** |
 | `sample-data.ts` | Mock staff rows, shifts, summary, filter options |
 
 ### 2.1 Header
@@ -156,7 +159,7 @@ Row 2: action buttons
 
 - Title: `Week of 01 Sep 2025 - 07 Sep 2025` (from sample range)
 - View toggle: **Weekly View** (active, primary) / **Monthly View** (outline). Phase 0: monthly toast or a second sample layout — weekly is the accepted default
-- Actions: **+ Allocate Shift** (primary), Print, Export Excel, Export PDF — toast in Phase 0
+- Actions: **+ Allocate Shift** (primary → Add sheet), Print, Export Excel, Export PDF — export still toast in Phase 0
 - Legend: D Day 07:00-15:00 (green), E Evening 15:00-23:00 (orange), N Night 23:00-07:00 (purple), O Off (gray), L Leave (dashed / white)
 
 #### Columns
@@ -166,28 +169,43 @@ Row 2: action buttons
 | Staff (sticky left) | Staff ID, Staff Name, Department, Unit, Designation — sort icons in header |
 | Days | Sun 01 Sep … Sat 07 Sep (weekly). Monthly: days of the selected month |
 | Metrics | Total Hours, OT Hours |
-| Status | Published / Draft / Pending Approval pills |
+| Status | Draft / Pending Approval / Published / Amended pills |
 | Actions | Edit, Delete, History |
 
 #### Shift chip
 
-Reusable `ShiftChip`: label (`Day` / `Evening` / `Night` / `Off` / `Leave`), time range, **Leave** checkbox.
+Reusable `ShiftChip`: label (`Day` / `Evening` / `Night` / `Off` / `Leave`), time range, **Leave** checkbox. **Click chip** → Edit Roster Allocation sheet. Empty day cell → Add sheet prefilled with staff + date.
 
 Hint under the table: *Drag a shift chip to another cell to reassign. Tick 'Leave' to mark the cell as leave-covered.*  
-Phase 0: chips are static; drag-and-drop is visual-only or toast.
+Phase 0: drag-and-drop remains toast/visual-only.
 
 Status colors (align with leave + mock):
 
 - **Published** — green (`bg-emerald-100 text-emerald-700`)
 - **Draft** — gray (`bg-muted text-muted-foreground`)
 - **Pending Approval** — orange (`bg-orange-100 text-orange-700`)
+- **Amended** — sky (`bg-sky-100 text-sky-700`)
 
 Footer (right): `0 conflicts` pill + `Published 22 Aug 2025` outline pill.  
 Metadata: Created by / Last updated (Auth user display names + timestamps from sample).
 
-### 2.5 Sample rows (Phase 0)
+### 2.5 Allocation sheets (Phase 0)
 
-Use ~6 staff rows so pagination (“Showing 1–6 of 248”) is visible. Mix Day / Evening / Night / Off / Leave / empty cells. Mix Published / Draft / Pending Approval.
+Right-side Sheets (same sticky-header pattern as Shift Types).
+
+| Sheet | Opens from | Footer |
+|-------|------------|--------|
+| Allocate Shift | **+ Allocate Shift**; empty day cell (staff + date prefilled) | Cancel + Save Allocation |
+| Edit Roster Allocation | Chip click; row pencil (first allocated day this week, else toast) | Cancel + Save Changes |
+| Change History | Row clock | **Cancel only** |
+
+Form fields: Staff Member*, Shift Type*, Department / Unit / Designation (**read-only** from staff), Roster Date*, Total Hours (**auto** from shift type), OT Hours (editable, default 0), Status* (Draft / Pending Approval / Published / Amended), Comments. Audit footer Created / Last updated.
+
+Phase 0: Save toast only (no Prisma). Delete stays list-only (row trash confirm).
+
+### 2.6 Sample rows (Phase 0)
+
+Use ~6 staff rows so pagination (“Showing 1–6 of 248”) is visible. Mix Day / Evening / Night / Off / Leave / empty cells. Mix Draft / Pending Approval / Published (Amended available in the form).
 
 ---
 
@@ -298,6 +316,7 @@ app/(dashboard)/(roster-shifts)/shift-roster/
   page.tsx
   header-actions.tsx
   shift-roster-workspace.tsx
+  shift-roster-ui-context.tsx
   section-roster-summary.tsx
   section-roster-filters.tsx
   section-roster-grid.tsx
@@ -305,6 +324,8 @@ app/(dashboard)/(roster-shifts)/shift-roster/
   shift-chip.tsx
   shift-legend.tsx
   record-actions.tsx
+  sheet-roster-allocation-form.tsx
+  sheet-roster-allocation-history.tsx
   sample-data.ts
 
 app/(dashboard)/(roster-shifts)/shift-types/
@@ -396,7 +417,8 @@ Pages must not call Prisma. No business rules in components.
 | `page.tsx` — `checkRouteAccess`, `CommonManagerHeader`, compose sections |
 | Sample summary + filters + grid from `sample-data.ts` |
 | **Module-specific table** (not `CommonDataTable`) with `ShiftChip` + legend |
-| Header / filter / grid actions toast only |
+| Allocate / Edit / History **sheets** (toast save; History Cancel-only) |
+| Header / filter / export actions toast only |
 | Permission resource + route map + sidebar + breadcrumb |
 | Desktop sidebar auto-collapsed on `/shift-roster` (Channeling pattern + toggle) |
 | `logActivityNonBlocking` on visit (`shift-roster.visited`) |
@@ -407,7 +429,8 @@ Pages must not call Prisma. No business rules in components.
 | [x] Table is **not** `CommonDataTable`; visual structure matches other HRM cards/tables |
 | [x] Non-admin without grant is redirected |
 | [x] Fill / Save / Publish / Copy / Print / Export / Allocate do not write to the DB |
-| [ ] Design accepted — ready for Phase 1 |
+| [x] Allocate / Edit / History open as sheets |
+| [ ] Design accepted |
 
 **Out of scope for Phase 0:** Prisma models, Zod, real drag-and-drop persist, print/export files.
 

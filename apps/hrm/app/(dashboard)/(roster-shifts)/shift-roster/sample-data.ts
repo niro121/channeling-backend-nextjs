@@ -7,11 +7,28 @@ import {
 
 export type ShiftCode = 'D' | 'E' | 'N' | 'O' | 'L';
 
-export type RosterRowStatus = 'published' | 'draft' | 'pending_approval';
+export type RosterRowStatus =
+  | 'published'
+  | 'draft'
+  | 'pending_approval'
+  | 'amended';
 
 export type RosterFilterOption = {
   id: string;
   name: string;
+};
+
+export type RosterStaffOption = RosterFilterOption & {
+  staffCode: string;
+  department: string;
+  unit: string;
+  designation: string;
+};
+
+export type RosterShiftTypeOption = RosterFilterOption & {
+  code: ShiftCode;
+  timeRange: string;
+  durationHours: number;
 };
 
 export type ShiftCellSample = {
@@ -19,6 +36,14 @@ export type ShiftCellSample = {
   label: string;
   timeRange: string;
   isLeave: boolean;
+};
+
+export type RosterAllocationHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
 };
 
 export type RosterStaffRowSample = {
@@ -95,11 +120,113 @@ export const SAMPLE_ROSTER_SUMMARY: RosterSummarySample = {
 
 export const SAMPLE_ROSTER_AUDIT = {
   createdBy: 'N. Silva (HR Officer)',
-  createdAt: '12 Aug 2025 - 09:14',
+  createdAt: '2025-08-12T09:14:00',
   updatedBy: 'K. Fernando (Payroll Admin)',
-  updatedAt: '18 Aug 2025 - 15:42',
+  updatedAt: '2025-08-18T15:42:00',
   publishedLabel: 'Published 22 Aug 2025'
 };
+
+export const SAMPLE_ALLOCATION_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
+  { id: 'published', name: 'Published' },
+  { id: 'amended', name: 'Amended' }
+];
+
+export const SAMPLE_ROSTER_SHIFT_TYPES: RosterShiftTypeOption[] = [
+  {
+    id: 'st-day',
+    name: 'Day Shift',
+    code: 'D',
+    timeRange: '07:00-15:00',
+    durationHours: 8
+  },
+  {
+    id: 'st-evening',
+    name: 'Evening Shift',
+    code: 'E',
+    timeRange: '15:00-23:00',
+    durationHours: 8
+  },
+  {
+    id: 'st-night',
+    name: 'Night Shift',
+    code: 'N',
+    timeRange: '23:00-07:00',
+    durationHours: 8
+  },
+  {
+    id: 'st-off',
+    name: 'Off Duty',
+    code: 'O',
+    timeRange: '—',
+    durationHours: 0
+  },
+  {
+    id: 'st-leave',
+    name: 'Leave',
+    code: 'L',
+    timeRange: '—',
+    durationHours: 0
+  }
+];
+
+export function staffOptionsFromRows(
+  rows: RosterStaffRowSample[]
+): RosterStaffOption[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: `${row.staffName} (${row.staffCode})`,
+    staffCode: row.staffCode,
+    department: row.department,
+    unit: row.unit,
+    designation: row.designation
+  }));
+}
+
+export function shiftTypeIdFromCode(code: ShiftCode): string {
+  return (
+    SAMPLE_ROSTER_SHIFT_TYPES.find((item) => item.code === code)?.id ?? ''
+  );
+}
+
+export function findFirstAllocatedDay(
+  row: RosterStaffRowSample,
+  dayIsos: string[]
+): string | null {
+  for (const dayIso of dayIsos) {
+    if (row.shifts[dayIso]) return dayIso;
+  }
+  return null;
+}
+
+export function getSampleAllocationHistory(
+  row: RosterStaffRowSample
+): RosterAllocationHistoryEntry[] {
+  return [
+    {
+      id: `${row.id}-h1`,
+      title: 'Created',
+      detail: `Roster allocation created for ${row.staffName} (${row.staffCode}).`,
+      userLabel: SAMPLE_ROSTER_AUDIT.createdBy,
+      at: SAMPLE_ROSTER_AUDIT.createdAt
+    },
+    {
+      id: `${row.id}-h2`,
+      title: 'Shift changed Day → Evening',
+      detail: `Shift type updated for ${row.staffName}.`,
+      userLabel: SAMPLE_ROSTER_AUDIT.updatedBy,
+      at: SAMPLE_ROSTER_AUDIT.updatedAt
+    },
+    {
+      id: `${row.id}-h3`,
+      title: 'Published',
+      detail: `Roster published for ${row.staffName} (${row.staffCode}).`,
+      userLabel: 'Dr. R. Silva (Administrator)',
+      at: '2025-08-22T08:05:00'
+    }
+  ];
+}
 
 function cell(code: ShiftCode, isLeave = false): ShiftCellSample {
   const meta = SHIFT_LEGEND.find((item) => item.code === code)!;
