@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { ShiftTypeSample } from './sample-data';
+import { useShiftTypesUi } from './shift-types-ui-context';
 
 type ShiftTypeRecordActionsProps = {
   record: ShiftTypeSample;
@@ -16,16 +16,14 @@ const LATER = 'Will be wired in a later phase.';
 export default function ShiftTypeRecordActions({
   record
 }: ShiftTypeRecordActionsProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const { has } = usePermissions();
+  const { openEdit, openHistory } = useShiftTypesUi();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
-
-  if (!canEdit && !canDelete) return null;
 
   return (
     <>
@@ -37,7 +35,7 @@ export default function ShiftTypeRecordActions({
             variant="ghost"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
             aria-label={`Edit ${record.name}`}
-            onClick={() => router.push(`/shift-types/${record.id}/edit`)}
+            onClick={() => openEdit(record)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -60,9 +58,7 @@ export default function ShiftTypeRecordActions({
           variant="ghost"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           aria-label={`History for ${record.name}`}
-          onClick={() =>
-            toast({ title: 'Shift type history', description: LATER })
-          }
+          onClick={() => openHistory(record)}
         >
           <Clock3 className="h-4 w-4" />
         </Button>

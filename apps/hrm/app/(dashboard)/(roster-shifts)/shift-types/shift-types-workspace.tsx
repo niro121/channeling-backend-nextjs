@@ -2,11 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { useToast } from '@archmage/ui';
+import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { ShiftTypesHeaderActions } from './header-actions';
 import SectionShiftTypeFilters, {
   type ShiftTypeFilterValues
 } from './section-shift-type-filters';
 import SectionShiftTypeRegister from './section-shift-type-register';
 import SectionShiftTypeSummary from './section-shift-type-summary';
+import SheetShiftTypeForm from './sheet-shift-type-form';
+import SheetShiftTypeHistory from './sheet-shift-type-history';
 import {
   SAMPLE_SHIFT_CATEGORIES,
   SAMPLE_STATUS_OPTIONS,
@@ -14,6 +18,10 @@ import {
   type ShiftTypeSample,
   type ShiftTypeSummarySample
 } from './sample-data';
+import {
+  ShiftTypesUiProvider,
+  useShiftTypesUi
+} from './shift-types-ui-context';
 
 type ShiftTypesWorkspaceProps = {
   initialRows: ShiftTypeSample[];
@@ -52,11 +60,17 @@ function filterRows(
   });
 }
 
-export default function ShiftTypesWorkspace({
+function ShiftTypesWorkspaceInner({
   initialRows,
   summary
 }: ShiftTypesWorkspaceProps) {
   const { toast } = useToast();
+  const {
+    formSheet,
+    historyRecord,
+    closeFormSheet,
+    closeHistorySheet
+  } = useShiftTypesUi();
   const [draft, setDraft] = useState<ShiftTypeFilterValues>(EMPTY_FILTERS);
   const [applied, setApplied] =
     useState<ShiftTypeFilterValues>(EMPTY_FILTERS);
@@ -68,6 +82,12 @@ export default function ShiftTypesWorkspace({
 
   return (
     <div className="space-y-6">
+      <CommonManagerHeader
+        title="Shift Types"
+        description="Shift master used by Shift Assignment, Duty Roster and Shift Roster. Defines timings, thresholds and allowance eligibility."
+        actions={<ShiftTypesHeaderActions />}
+      />
+
       <SectionShiftTypeSummary summary={summary} />
 
       <SectionShiftTypeFilters
@@ -91,6 +111,33 @@ export default function ShiftTypesWorkspace({
       />
 
       <SectionShiftTypeRegister items={rows} />
+
+      {formSheet ? (
+        <SheetShiftTypeForm
+          open
+          mode={formSheet.mode}
+          sample={formSheet.record}
+          onOpenChange={(next) => {
+            if (!next) closeFormSheet();
+          }}
+        />
+      ) : null}
+
+      <SheetShiftTypeHistory
+        open={!!historyRecord}
+        record={historyRecord}
+        onOpenChange={(next) => {
+          if (!next) closeHistorySheet();
+        }}
+      />
     </div>
+  );
+}
+
+export default function ShiftTypesWorkspace(props: ShiftTypesWorkspaceProps) {
+  return (
+    <ShiftTypesUiProvider>
+      <ShiftTypesWorkspaceInner {...props} />
+    </ShiftTypesUiProvider>
   );
 }

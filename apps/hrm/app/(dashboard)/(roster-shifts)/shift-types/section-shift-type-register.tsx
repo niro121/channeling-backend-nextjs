@@ -6,11 +6,13 @@ import { Button, useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableBulkDeleteFeature,
-  DataTableExportFeature
+  DataTableExportFeature,
+  useCommonDataTableContext
 } from '@/components/common/common-data-table';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { shiftTypeColumns } from './columns';
 import type { ShiftTypeSample } from './sample-data';
+import { useShiftTypesUi } from './shift-types-ui-context';
 
 type SectionShiftTypeRegisterProps = {
   items: ShiftTypeSample[];
@@ -21,8 +23,26 @@ const LATER = 'Will be wired in a later phase.';
 function RegisterToolbarLeft() {
   const { toast } = useToast();
   const { has } = usePermissions();
+  const { openDuplicate } = useShiftTypesUi();
+  const { table, rowSelection } = useCommonDataTableContext();
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+
+  const handleDuplicate = () => {
+    const selectedKeys = Object.keys(rowSelection).filter(
+      (key) => rowSelection[key]
+    );
+    if (selectedKeys.length !== 1) {
+      toast({
+        title: 'Select one shift type',
+        description:
+          'Select exactly one row in the register, then click Duplicate Shift.'
+      });
+      return;
+    }
+    const row = table.getRow(selectedKeys[0]).original as ShiftTypeSample;
+    openDuplicate(row);
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -33,9 +53,7 @@ function RegisterToolbarLeft() {
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() =>
-              toast({ title: 'Duplicate Shift', description: LATER })
-            }
+            onClick={handleDuplicate}
           >
             <Copy className="h-3.5 w-3.5" />
             Duplicate Shift
@@ -63,7 +81,10 @@ export default function SectionShiftTypeRegister({
   items
 }: SectionShiftTypeRegisterProps) {
   const { has } = usePermissions();
+  const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+  // Selection powers Duplicate (edit) and Bulk Delete — enable when either applies.
+  const enableRowSelection = canEdit || canDelete;
 
   return (
     <Suspense
@@ -80,9 +101,8 @@ export default function SectionShiftTypeRegister({
         data={items}
         rowCount={items.length}
         showPagination
-        haveBulkDelete={canDelete}
+        haveBulkDelete={enableRowSelection}
         deleteServerAction={async (ids) => {
-          // Phase 0: no Prisma — surface a single message via the table error path.
           throw new Error(
             `${ids.length} shift type${ids.length === 1 ? '' : 's'} selected. Bulk delete will be wired in a later phase.`
           );
@@ -94,6 +114,7 @@ export default function SectionShiftTypeRegister({
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
+            showPrintButton
             serverData={async () => ({
               success: true,
               data: items.map((row) => ({
@@ -106,7 +127,11 @@ export default function SectionShiftTypeRegister({
                 nightShift: row.isNightShift ? 'Yes' : 'No',
                 overnight: row.isOvernight ? 'Yes' : 'No',
                 holidayEligible: row.holidayEligible ? 'Yes' : 'No',
-                status: row.status
+                status: row.status,
+                updatedBy: row.updatedBy,
+                updatedAt: row.updatedAt,
+                createdBy: row.createdBy,
+                createdAt: row.createdAt
               }))
             })}
             columns={[
@@ -119,7 +144,11 @@ export default function SectionShiftTypeRegister({
               'Night Shift',
               'Overnight',
               'Holiday Eligible',
-              'Status'
+              'Status',
+              'Updated By',
+              'Updated At',
+              'Created By',
+              'Created At'
             ]}
             keys={[
               'code',
@@ -131,7 +160,11 @@ export default function SectionShiftTypeRegister({
               'nightShift',
               'overnight',
               'holidayEligible',
-              'status'
+              'status',
+              'updatedBy',
+              'updatedAt',
+              'createdBy',
+              'createdAt'
             ]}
             title="Shift Types"
             fileName="shift-types"

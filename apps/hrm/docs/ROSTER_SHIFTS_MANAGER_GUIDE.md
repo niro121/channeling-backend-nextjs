@@ -12,8 +12,10 @@ Pages must not call Prisma. No business rules in components.
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
 - **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, …)
-- Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs)
-- Shift Types Add/Edit: **separate pages** (`/shift-types/add`, `/shift-types/[id]/edit`)
+- Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
+- Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
+- Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
+- Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
@@ -26,9 +28,7 @@ Pages must not call Prisma. No business rules in components.
 | Route | Resource key | Role |
 |-------|----------------|------|
 | `/shift-roster` | `shift-roster` | Calendar roster planning: filters, allocate, draft, publish, copy, print/export |
-| `/shift-types` | `shift-roster` | Shift master (timings, night/overnight/holiday flags) used by roster / assignment |
-| `/shift-types/add` | `shift-roster` | Create shift type (separate page) |
-| `/shift-types/[id]/edit` | `shift-roster` | Edit shift type (separate page) |
+| `/shift-types` | `shift-roster` | Shift master (timings, thresholds, night/overnight/holiday flags) — CRUD via sheets |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
@@ -193,13 +193,13 @@ Use ~6 staff rows so pagination (“Showing 1–6 of 248”) is visible. Mix Day
 
 ## 2B. UI map — Shift Types (Phase 0)
 
-Match the Shift Types mock. Compose: `CommonManagerHeader` + summary cards + Search & Filters card + **`CommonDataTable`** register (not the roster custom grid).
+Match the Shift Types mock. Compose: `CommonManagerHeader` + summary cards + Search & Filters card + **`CommonDataTable`** register (not the roster custom grid). Add / Edit / Duplicate / History open as **right Sheets** (`@archmage/ui` Sheet).
 
 ```
 ┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
 │ Shift Types                                                               │
 │ Shift master used by Shift Assignment, Duty Roster and Shift Roster…      │
-│              [ + Add Shift ]  (list)   Save / Update on form pages         │
+│                                              [ + Add Shift ] → form sheet │
 └───────────────────────────────────────────────────────────────────────────┘
 
 ┌─ Total Shift Types ─┐ ┌─ Active ─┐ ┌─ Night / Overnight ─┐ ┌─ Holiday ─┐
@@ -212,8 +212,12 @@ Match the Shift Types mock. Compose: `CommonManagerHeader` + summary cards + Sea
 └───────────────────────────────────────────────────────────────────────────┘
 
 ┌─ Shift Type Register (CommonDataTable) ───────────────────────────────────┐
-│ [ Duplicate ] [ Bulk Activate ]              [ Columns ] [ Print/PDF/XLS ] │
-│ Code │ Name │ Category │ Start │ End │ Duration │ Night │ … │ Status │ …  │
+│ [ Duplicate ] [ Bulk Activate ] [ Bulk Delete ]   [ Columns ] [ Print/PDF/XLS ] │
+│ Code │ Name │ … │ Status │ Updated │ Created │ Actions (Edit/Del/History) │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Sheet (right) ───────────────────────────────────────────────────────────┐
+│ Add / Edit / Duplicate Shift Type  OR  Change History (Cancel only)       │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -221,23 +225,25 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-types/`:
 
 | File | Role |
 |------|------|
-| `page.tsx` | Access check, compose list shell, sample data |
-| `header-actions.tsx` | **+ Add Shift** → `/shift-types/add` |
+| `page.tsx` | Access check + sample data into workspace |
+| `shift-types-workspace.tsx` | Provider, header, filters, register, sheets |
+| `shift-types-ui-context.tsx` | Open Add / Edit / Duplicate / History |
+| `header-actions.tsx` | **+ Add Shift** → form sheet |
 | `section-shift-type-summary.tsx` | Four count cards |
 | `section-shift-type-filters.tsx` | Search & Filters (local Phase 0) |
 | `section-shift-type-register.tsx` | `CommonDataTable` + toolbar |
-| `columns.tsx` / `record-actions.tsx` | Register columns + edit/delete/history |
-| `form-shift-type.tsx` | Formik + Yup shell (toast save in Phase 0) |
-| `add/page.tsx` / `[id]/edit/page.tsx` | Separate create/edit pages |
-| `sample-data.ts` | Mock shift types + summary |
+| `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
+| `sheet-shift-type-form.tsx` | Formik + Yup sheet (toast save Phase 0) |
+| `sheet-shift-type-history.tsx` | Sample audit list; **Cancel only** |
+| `sample-data.ts` | Mock shift types, summary, history helper |
 
 ### 2B.1 Header (list)
 
 - `title`: `Shift Types`
 - `description`: `Shift master used by Shift Assignment, Duty Roster and Shift Roster. Defines timings, thresholds and allowance eligibility.`
-- `actions`: **+ Add Shift** (primary) when `has('shift-roster', 'add')`
+- `actions`: **+ Add Shift** (primary) when `has('shift-roster', 'add')` → **Add Shift Type** sheet
 
-Save / Update live on the **form** pages (separate pages). Delete is list-only (row actions + bulk delete), not on the edit form.
+Delete stays list-only (row + bulk). No Delete on the form sheet.
 
 ### 2B.2 Summary cards
 
@@ -254,21 +260,34 @@ Shift Code, Shift Name (search inputs), Category / Night Shift / Overnight / Sta
 
 ### 2B.4 Register table
 
-Use **`CommonDataTable`**. Columns: Shift Code, Shift Name, Category, Start, End, Duration, Night Shift, Overnight, Holiday Eligible, Status, Actions (Edit / Delete / History).
+Use **`CommonDataTable`**. Columns: Shift Code, Shift Name, Category, Start, End, Duration, Night Shift, Overnight, Holiday Eligible, Status, **Updated**, **Created**, Actions (Edit / Delete / History).
 
-Toolbar: **Bulk Delete** (row selection) + Duplicate Shift + Bulk Activate (toast Phase 0); Columns + Export (ExportWrapper toast/sample).
+Updated / Created: same stacked format as Leave Types (`name` + `formatDateTime`).
+
+Toolbar: **Duplicate Shift** (exactly one selected row → Duplicate sheet; else toast *Select one shift type*) + Bulk Activate (toast) + **Bulk Delete**; Columns + Print / PDF / Excel.
 
 Yes/No + Active/Inactive as pills (same language as leave boolean badges).
 
-### 2B.5 Codes (locked)
+### 2B.5 Codes & auto hours (locked)
 
 - Human codes: **`SHF-1`, `SHF-2`, …** via `generateRecordCode('SHF')` in Phase 2+
+- Add / Duplicate: code field **disabled**, shows `Auto (SHF-n)` until persist
+- Edit: show existing code (disabled)
 - Do **not** reserve fixed `D`/`E`/`N`/`O`/`L` as system primary keys
-- Optional later: seed starter Day/Evening/Night/Off/Leave rows that still use `SHF-n` codes; roster chips show name + times from the linked type
+- **Total Working Hours**: auto from start / end / break (overnight when Overnight is on or end ≤ start)
 
-### 2B.6 Form pages
+### 2B.6 Sheets
 
-Leave Types pattern: `CommonManagerHeader` + back + `FormShiftType`. Phase 0: Save / Update toast only (no Delete on form).
+| Sheet | Opens from | Footer |
+|-------|------------|--------|
+| Add Shift Type | Header **+ Add Shift** | Cancel + Save Shift Type |
+| Edit Shift Type | Row pencil | Cancel + Update Shift Type |
+| Duplicate Shift Type | Toolbar **Duplicate Shift** (1 row selected) | Cancel + Duplicate Shift Type |
+| Change History | Row clock | **Cancel only** |
+
+Form fields: Code (auto), Name, Category, Start / End, Break (minutes), Total Working Hours (auto), Grace / Late / Early-exit (minutes), **Shift Rules** card (title + short description + switch per row: Overnight, Night Shift, Public Holiday Eligible, Active Status), footer audit Created / Last updated. Sheet header (title + close) stays fixed; only the form body scrolls.
+
+Phase 0: Save / Update / Duplicate toast only (no Prisma).
 
 ---
 
@@ -290,16 +309,17 @@ app/(dashboard)/(roster-shifts)/shift-roster/
 
 app/(dashboard)/(roster-shifts)/shift-types/
   page.tsx
+  shift-types-workspace.tsx
+  shift-types-ui-context.tsx
   header-actions.tsx
   section-shift-type-summary.tsx
   section-shift-type-filters.tsx
   section-shift-type-register.tsx
   columns.tsx
   record-actions.tsx
-  form-shift-type.tsx
+  sheet-shift-type-form.tsx
+  sheet-shift-type-history.tsx
   sample-data.ts
-  add/page.tsx
-  [id]/edit/page.tsx
 
 # Dynamic layers (Phase 1+)
 types/roster.ts
@@ -396,10 +416,10 @@ Pages must not call Prisma. No business rules in components.
 ## 5B. Development phases — Shift Types
 
 ```
-Phase 0: Static UI (list + add/edit shells)
+Phase 0: Static UI (list + Add/Edit/Duplicate/History sheets)
   → (shared Phase 1 schema with ShiftType)
     → Phase 2: CRUD
-      → Phase 3: Duplicate / bulk activate
+      → Phase 3: Duplicate persist / bulk activate
         → Phase 4: Live summary + export
           → Phase 5: Hardening (+ block delete if allocations exist)
             → Phase 6: Downstream consumers (roster chips, OT Process Staff Shift)
@@ -409,17 +429,17 @@ Phase 0: Static UI (list + add/edit shells)
 
 | Work |
 |------|
-| Route `(roster-shifts)/shift-types` + add/edit pages |
-| List: header, 4 cards, filters, `CommonDataTable` register |
-| Form shell: Formik + Yup; Save/Update/Delete toast only |
+| Route `(roster-shifts)/shift-types` — sheets only (no add/edit routes) |
+| List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
+| Form / History sheets: Formik + Yup; Save/Update/Duplicate toast; History Cancel-only |
 | Map `/shift-types` → `shift-roster`; sidebar + breadcrumb |
 | `shift-types.visited` activity on list |
 
 | Done when |
 |-----------|
-| [x] `/shift-types` matches the mock |
+| [x] `/shift-types` matches the mock (sheets + register) |
 | [x] Register uses **CommonDataTable** (not roster custom grid) |
-| [x] Add/Edit are separate pages; no Prisma writes |
+| [x] Add/Edit/Duplicate/History are sheets; no Prisma writes |
 | [ ] Design accepted |
 
 ### Shift Types — Phase 2 — CRUD (after shared Phase 1)

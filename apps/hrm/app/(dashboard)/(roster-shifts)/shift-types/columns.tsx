@@ -3,6 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge, Checkbox } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils/date';
 import ShiftTypeRecordActions from './record-actions';
 import type { ShiftTypeSample } from './sample-data';
 
@@ -123,6 +124,30 @@ export const shiftTypeColumns: ColumnDef<ShiftTypeSample>[] = [
         </Badge>
       );
     }
+  },
+  {
+    id: 'updated',
+    header: 'Updated',
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {formatDateTime(row.original.updatedAt)}
+        </span>
+      </div>
+    )
+  },
+  {
+    id: 'created',
+    header: 'Created',
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {formatDateTime(row.original.createdAt)}
+        </span>
+      </div>
+    )
   },
   {
     id: 'actions',
