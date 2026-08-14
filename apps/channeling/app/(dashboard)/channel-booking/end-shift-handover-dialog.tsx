@@ -17,7 +17,7 @@ import { SearchableUserSelect } from "@/components/common/user-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyTillBalance } from "@/app/actions/till.actions"
 import { getBulkCashierUsersAction, getMyPendingFloatRequestAction } from "@/app/actions/float-request.actions"
-import { submitShiftHandoverAction, getHandoversReceivedByShiftAction, getHandoversToMeAction, getIncludableHandoversForSenderAction } from "@/app/actions/shift.actions"
+import { submitShiftHandoverAction, getHandoversReceivedByShiftAction, getHandoversToMeAction, getIncludableHandoversForSenderAction, getNonCashHeldInReconciliationAction } from "@/app/actions/shift.actions"
 import Link from "next/link"
 import { useToast } from "@/components/hooks/use-toast"
 import {
@@ -104,6 +104,13 @@ export function EndShiftHandoverDialog({
 }: EndShiftHandoverDialogProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [balance, setBalance] = useState<MyTillBalance | null>(null)
+  const [heldInReconciliation, setHeldInReconciliation] = useState<{
+    cardCents: number
+    slipCents: number
+    checkCents: number
+    eWalletCents: number
+    handoverCount: number
+  } | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [handoverUsers, setHandoverUsers] = useState<
     { id: string; name: string; isBulkCashier?: boolean; staffCode?: string | null }[]
@@ -181,8 +188,9 @@ export function EndShiftHandoverDialog({
         getMyPendingFloatRequestAction(),
         getHandoversToMeAction(),
         getIncludableHandoversForSenderAction(),
+        getNonCashHeldInReconciliationAction(),
       ])
-        .then(([balanceRes, floatRes, handoversToMeRes, includableRes]) => {
+        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -194,6 +202,7 @@ export function EndShiftHandoverDialog({
           } else {
             setBalance(null)
           }
+          setHeldInReconciliation(heldRes.success && heldRes.data ? heldRes.data : null)
           setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
           setPendingHandoversToMe(handoversToMeRes.success && handoversToMeRes.data?.length ? handoversToMeRes.data.map((h) => ({ id: h.id })) : [])
           if (!handoversToMeRes.success && "message" in handoversToMeRes && handoversToMeRes.message) {
@@ -372,6 +381,18 @@ export function EndShiftHandoverDialog({
   const creditCents = entriesToCents(creditEntries)
   const eWalletCents = entriesToCents(eWalletEntries)
 
+  /** Till amounts expected on this handover: full till minus non-cash held in open reconciliation. */
+  const expectedBalance = balance
+    ? {
+        cashCents: balance.cashCents,
+        cardCents: Math.max(0, balance.cardCents - (heldInReconciliation?.cardCents ?? 0)),
+        slipCents: Math.max(0, balance.slipCents - (heldInReconciliation?.slipCents ?? 0)),
+        checkCents: Math.max(0, balance.checkCents - (heldInReconciliation?.checkCents ?? 0)),
+        creditCents: balance.creditCents,
+        eWalletCents: Math.max(0, balance.eWalletCents - (heldInReconciliation?.eWalletCents ?? 0)),
+      }
+    : null
+
   const setEntriesFor = (key: "cardCents" | "slipCents" | "checkCents" | "creditCents" | "eWalletCents") => {
     const setters = {
       cardCents: setCardEntries,
@@ -418,25 +439,25 @@ export function EndShiftHandoverDialog({
 
   const OVER_TOLERANCE_CENTS = 100 // Same as backend: reason required when over > 100 cents
   const hasShort =
-    balance &&
-    (cashTotalCents < balance.cashCents ||
-      cardCents < balance.cardCents ||
-      slipCents < balance.slipCents ||
-      checkCents < balance.checkCents ||
-      creditCents < balance.creditCents ||
-      eWalletCents < balance.eWalletCents)
+    expectedBalance &&
+    (cashTotalCents < expectedBalance.cashCents ||
+      cardCents < expectedBalance.cardCents ||
+      slipCents < expectedBalance.slipCents ||
+      checkCents < expectedBalance.checkCents ||
+      creditCents < expectedBalance.creditCents ||
+      eWalletCents < expectedBalance.eWalletCents)
   const hasOverOver100 =
-    balance &&
-    (cashTotalCents - balance.cashCents > OVER_TOLERANCE_CENTS ||
-      cardCents - balance.cardCents > OVER_TOLERANCE_CENTS ||
-      slipCents - balance.slipCents > OVER_TOLERANCE_CENTS ||
-      checkCents - balance.checkCents > OVER_TOLERANCE_CENTS ||
-      creditCents - balance.creditCents > OVER_TOLERANCE_CENTS ||
-      eWalletCents - balance.eWalletCents > OVER_TOLERANCE_CENTS)
+    expectedBalance &&
+    (cashTotalCents - expectedBalance.cashCents > OVER_TOLERANCE_CENTS ||
+      cardCents - expectedBalance.cardCents > OVER_TOLERANCE_CENTS ||
+      slipCents - expectedBalance.slipCents > OVER_TOLERANCE_CENTS ||
+      checkCents - expectedBalance.checkCents > OVER_TOLERANCE_CENTS ||
+      creditCents - expectedBalance.creditCents > OVER_TOLERANCE_CENTS ||
+      eWalletCents - expectedBalance.eWalletCents > OVER_TOLERANCE_CENTS)
   const needsDiscrepancyReason = !!hasShort || !!hasOverOver100
 
   const validateAndSubmit = async () => {
-    if (!balance || !toUserId) return
+    if (!expectedBalance || !toUserId) return
     const errors: string[] = []
     errors.push(...validateMethodEntries())
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
@@ -514,7 +535,7 @@ export function EndShiftHandoverDialog({
             {step === 1 &&
               "Review your till balance by method. Then proceed to enter amounts and assign the handover."}
             {step === 2 &&
-              "Entries from handovers you received this shift are pre-filled. Add cash denominations and any extra entries (reference + value) for card, slips, cheques, credit and e-wallet. We will warn if amounts do not match the till balance."}
+              "Entries from handovers not sent to reconciliation are pre-filled. Handovers already in (or finished) reconciliation stay with you and are not included. We warn if amounts do not match what is available to hand over."}
             {step === 3 &&
               "Review the summary below, check any warnings, select the person receiving the handover, then confirm."}
           </DialogDescription>
@@ -532,6 +553,24 @@ export function EndShiftHandoverDialog({
                     .map((h) => (h.fromUser?.staff?.code ? `${h.fromUser.name ?? "—"} (${h.fromUser.staff.code})` : h.fromUser?.name ?? "—"))
                     .join(", ")}
                   . They will be included when you hand over in the next steps.
+                </AlertDescription>
+              </Alert>
+            )}
+            {heldInReconciliation && heldInReconciliation.handoverCount > 0 && (
+              <Alert className="mb-4 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
+                <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertTitle className="text-amber-800 dark:text-amber-200">Held for reconciliation</AlertTitle>
+                <AlertDescription>
+                  {heldInReconciliation.handoverCount} handover(s) are in reconciliation and will stay with you.
+                  Their non-cash amounts are not pre-filled and will not transfer to the next bulk cashier
+                  {heldInReconciliation.cardCents +
+                    heldInReconciliation.slipCents +
+                    heldInReconciliation.checkCents +
+                    heldInReconciliation.eWalletCents >
+                  0
+                    ? ` (held: card ${formatCents(heldInReconciliation.cardCents)}, slips ${formatCents(heldInReconciliation.slipCents)}, cheques ${formatCents(heldInReconciliation.checkCents)}, e-wallet ${formatCents(heldInReconciliation.eWalletCents)})`
+                    : ""}
+                  .
                 </AlertDescription>
               </Alert>
             )}
@@ -617,7 +656,7 @@ export function EndShiftHandoverDialog({
           </>
         )}
 
-        {step === 2 && balance && (
+        {step === 2 && balance && expectedBalance && (
           <>
             <Tabs defaultValue="cash" className="w-full">
               <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
@@ -634,7 +673,7 @@ export function EndShiftHandoverDialog({
                             : key === "creditCents"
                               ? creditCents
                               : eWalletCents
-                  const expected = typeof balance[key] === "number" ? balance[key] : 0
+                  const expected = typeof expectedBalance[key] === "number" ? expectedBalance[key] : 0
                   const hasValue = expected > 0
                   const isCorrect = hasValue && entered === expected
                   const needsAttention = hasValue && entered !== expected
@@ -676,11 +715,11 @@ export function EndShiftHandoverDialog({
                     Cash entered: {formatCents(cashTotalCents)}
                     <span
                       className={
-                        cashTotalCents !== balance.cashCents ? "text-destructive font-medium" : "text-muted-foreground"
+                        cashTotalCents !== expectedBalance.cashCents ? "text-destructive font-medium" : "text-muted-foreground"
                       }
                     >
                       {" "}
-                      (till balance cash: {formatCents(balance.cashCents)})
+                      (available to hand over: {formatCents(expectedBalance.cashCents)})
                     </span>
                   </p>
                   <div className="flex gap-4">
@@ -737,7 +776,7 @@ export function EndShiftHandoverDialog({
                   const tabValue = key === "cardCents" ? "card" : key === "slipCents" ? "slips" : key === "checkCents" ? "cheques" : key === "creditCents" ? "credit" : "eWallet"
                   const tillBalanceLabel = key === "cardCents" ? "card" : key === "slipCents" ? "slips" : key === "checkCents" ? "cheques" : key === "creditCents" ? "credit" : "e-wallet"
                   const tabLabel = key === "cardCents" ? "Card" : key === "slipCents" ? "Slips" : key === "checkCents" ? "Cheques" : key === "creditCents" ? "Credit" : "E-Wallet"
-                  const expected = typeof balance[key] === "number" ? balance[key] : 0
+                  const expected = typeof expectedBalance[key] === "number" ? expectedBalance[key] : 0
                   const entries = entriesByKey[key]
                   const total = entriesToCents(entries)
                   return (
@@ -751,7 +790,7 @@ export function EndShiftHandoverDialog({
                             }
                           >
                             {" "}
-                            (till balance {tillBalanceLabel}: {formatCents(expected)})
+                            (available to hand over {tillBalanceLabel}: {formatCents(expected)})
                           </span>
                         </p>
                         <div className="flex justify-end">
@@ -915,37 +954,38 @@ export function EndShiftHandoverDialog({
             </div>
 
             {(() => {
+              if (!expectedBalance) return null
               const TOLERANCE_CENTS = 1000 // 1 LKR or less: no warning
               const isSignificantDiff = (entered: number, till: number) =>
                 Math.abs(till - entered) > TOLERANCE_CENTS
               const mismatches: { label: string; enteredCents: number; tillCents: number }[] = []
-              if (isSignificantDiff(cashTotalCents, balance.cashCents))
-                mismatches.push({ label: "Cash", enteredCents: cashTotalCents, tillCents: balance.cashCents })
-              if (isSignificantDiff(cardCents, balance.cardCents))
-                mismatches.push({ label: "Credit card slips", enteredCents: cardCents, tillCents: balance.cardCents })
-              if (isSignificantDiff(slipCents, balance.slipCents))
-                mismatches.push({ label: "Slips", enteredCents: slipCents, tillCents: balance.slipCents })
-              if (isSignificantDiff(checkCents, balance.checkCents))
-                mismatches.push({ label: "Cheques", enteredCents: checkCents, tillCents: balance.checkCents })
-              if (isSignificantDiff(creditCents, balance.creditCents))
-                mismatches.push({ label: "Credit", enteredCents: creditCents, tillCents: balance.creditCents })
-              if (isSignificantDiff(eWalletCents, balance.eWalletCents))
-                mismatches.push({ label: "E-Wallet", enteredCents: eWalletCents, tillCents: balance.eWalletCents })
+              if (isSignificantDiff(cashTotalCents, expectedBalance.cashCents))
+                mismatches.push({ label: "Cash", enteredCents: cashTotalCents, tillCents: expectedBalance.cashCents })
+              if (isSignificantDiff(cardCents, expectedBalance.cardCents))
+                mismatches.push({ label: "Credit card slips", enteredCents: cardCents, tillCents: expectedBalance.cardCents })
+              if (isSignificantDiff(slipCents, expectedBalance.slipCents))
+                mismatches.push({ label: "Slips", enteredCents: slipCents, tillCents: expectedBalance.slipCents })
+              if (isSignificantDiff(checkCents, expectedBalance.checkCents))
+                mismatches.push({ label: "Cheques", enteredCents: checkCents, tillCents: expectedBalance.checkCents })
+              if (isSignificantDiff(creditCents, expectedBalance.creditCents))
+                mismatches.push({ label: "Credit", enteredCents: creditCents, tillCents: expectedBalance.creditCents })
+              if (isSignificantDiff(eWalletCents, expectedBalance.eWalletCents))
+                mismatches.push({ label: "E-Wallet", enteredCents: eWalletCents, tillCents: expectedBalance.eWalletCents })
               return mismatches.length > 0 ? (
                 <Alert variant="destructive" className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Entered amounts do not match till balance</AlertTitle>
+                  <AlertTitle>Entered amounts do not match available to hand over</AlertTitle>
                   <AlertDescription>
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        The following methods have a discrepancy. The transfer will use the amounts you entered (what you are handing over). Any shortfall remains in your till until reconciled.
+                        The following methods have a discrepancy (till minus amounts held in reconciliation). The transfer will use the amounts you entered. Any shortfall remains in your till until reconciled.
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
                           <tr className="border-b border-destructive/30">
                             <th className="text-left py-2 pr-4 font-medium">Method</th>
                             <th className="text-right py-2 px-2 font-medium tabular-nums">Entered</th>
-                            <th className="text-right py-2 px-2 font-medium tabular-nums">Till balance</th>
+                            <th className="text-right py-2 px-2 font-medium tabular-nums">Available</th>
                             <th className="text-right py-2 pl-2 font-medium tabular-nums">Difference</th>
                           </tr>
                         </thead>

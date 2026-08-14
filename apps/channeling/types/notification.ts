@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = {
   FloatRejected: 'float_rejected',
   HandoverApproved: 'handover_approved',
   HandoverRejected: 'handover_rejected',
+  ReconciliationAssigned: 'reconciliation_assigned',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

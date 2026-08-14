@@ -237,8 +237,8 @@ const reportsData: ReportListItem[] = [
   {
     id: '40',
     rank: 40,
-    masterData: 'Completed Handovers',
-    description: 'View approved and rejected shift handovers for any user, with sender, recipient, and status filters.',
+    masterData: 'Handovers Report',
+    description: 'View pending, approved, and rejected shift handovers for any user, with sender, recipient, handover status, and reconciliation status filters.',
     route: '/reports/completed-handovers'
   },
   {

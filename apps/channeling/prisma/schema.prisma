@@ -607,8 +607,9 @@ model ShiftHandover {
   // Back-office reconciliation lifecycle: status + approved/rejected details
   // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
   reconciliationStatus       Int?           @default(0)
-  reconciliationRequestedAt DateTime?      // When bulk cashier opened/requested reconciliation (set with IN_RECONCILIATION)
-  reconciliationRequestedBy  String?       @db.ObjectId // Who requested; whose till is deducted and added to branch
+  reconciliationRequestedAt DateTime?      // When bulk cashier sent to reconciliation
+  reconciliationRequestedBy  String?       @db.ObjectId // Who sent; whose till is deducted on submit
+  reconciliationAssignedToUserId String?   @db.ObjectId // Who may submit/reject reconciliation (changeable until reconciled)
   nonCashReconciledAt        DateTime?      // Set when status = RECONCILED_APPROVED
   nonCashReconciledBy        String?        @db.ObjectId
   reconciliationRejectedAt  DateTime?
@@ -624,6 +625,7 @@ model ShiftHandover {
   @@index([nonCashReconciledAt])
   @@index([reconciliationStatus])
   @@index([reconciliationRejectedAt])
+  @@index([reconciliationAssignedToUserId])
   // List by tab: filter (status, reconciliationStatus) + sort
   @@index([status, reconciliationStatus, createdAt(sort: Desc)])
   @@index([status, reconciliationStatus, nonCashReconciledAt(sort: Desc)])

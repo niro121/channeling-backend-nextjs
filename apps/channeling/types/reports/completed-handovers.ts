@@ -7,8 +7,10 @@ export type CompletedHandoversReportQuery = {
   fromUserId?: string;
   /** '__all__' or User.id — handed over to */
   toUserId?: string;
-  /** '__all__' | 'approved' | 'rejected' */
+  /** '__all__' | 'pending' | 'approved' | 'rejected' */
   status?: string;
+  /** '__all__' | 'pending' | 'in_reconciliation' | 'reconciled' | 'rejected' */
+  reconciliationStatus?: string;
 };
 
 export type CompletedHandoversReportRow = {
@@ -27,6 +29,8 @@ export type CompletedHandoversReportRow = {
   totalCents: number;
   status: number;
   statusLabel: string;
+  reconciliationStatus: number;
+  reconciliationStatusLabel: string;
   createdAt: Date | null;
   completedAt: Date | null;
   discrepancyReason: string | null;
@@ -46,6 +50,7 @@ export type CompletedHandoversReportExportRow = {
   eWallet: string;
   total: string;
   status: string;
+  reconciliationStatus: string;
   createdAt: string;
   completedAt: string;
   discrepancyReason: string;

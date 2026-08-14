@@ -13,6 +13,7 @@ import {
   getHandoversReceivedByShift,
   getIncludableHandoversForSender,
   getIncludedHandoversChain,
+  getNonCashHeldInReconciliation,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
@@ -149,15 +150,12 @@ export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayl
   return result
 }
 
-/** Approve and receive handover (recipient only). Records approver and datetime, optional comments; creates journal to recipient till, ends shift. If sendToReconciliation is true, requires Submit For Reconciliation permission and sets handover to IN_RECONCILIATION. */
-export async function approveHandoverAction(handoverId: string, approvalComments?: string, sendToReconciliation?: boolean) {
+/** Approve and receive handover (recipient only). Records approver and datetime, optional comments; creates journal to recipient till, ends shift. Send to reconciliation is a separate step after approval. */
+export async function approveHandoverAction(handoverId: string, approvalComments?: string) {
   await requirePermission("handover", "view")
-  if (sendToReconciliation) {
-    await requirePermission("reconciliation", "submit-for-reconciliation")
-  }
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
-  const result = await approveHandover(handoverId, session.user.id, approvalComments, sendToReconciliation)
+  const result = await approveHandover(handoverId, session.user.id, approvalComments)
   if (!result.success) throw new Error(result.error)
   revalidatePath("/channel-booking")
   revalidatePath("/shifts")
@@ -270,6 +268,22 @@ export async function getIncludableHandoversForSenderAction(): Promise<
   return { success: true, data: list }
 }
 
+/** Non-cash amounts held in open reconciliation (still on till but not transferable to next bulk). */
+export async function getNonCashHeldInReconciliationAction(): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getNonCashHeldInReconciliation>> }
+  | { success: false; data: null; message: string }
+> {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false, data: null, message: err instanceof Error ? err.message : "Access denied." }
+  }
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false, data: null, message: "Unauthorized" }
+  const data = await getNonCashHeldInReconciliation(session.user.id)
+  return { success: true, data }
+}
+
 /** Handovers received by this shift (toShiftId = shiftId). Used to prepopulate non-cash entries in end-shift handover dialog. */
 export async function getHandoversReceivedByShiftAction(shiftId: string) {
   try {
@@ -306,9 +320,12 @@ export async function getHandoverDetailAction(handoverId: string) {
   const handover = await getHandoverByIdForRecipient(handoverId, session.user.id)
   if (!handover) return { success: false, data: null, error: "Handover not found or you are not the recipient." }
 
-  const actorIds = [handover.approvedBy, handover.rejectedBy, handover.cancelledBy].filter(
-    (id): id is string => typeof id === "string" && id.trim() !== ""
-  )
+  const actorIds = [
+    handover.approvedBy,
+    handover.rejectedBy,
+    handover.cancelledBy,
+    (handover as { reconciliationAssignedToUserId?: string | null }).reconciliationAssignedToUserId,
+  ].filter((id): id is string => typeof id === "string" && id.trim() !== "")
   const uniqueActorIds = [...new Set(actorIds)]
 
   const [tillBreakdown, includedHandovers, actors] = await Promise.all([
@@ -328,6 +345,8 @@ export async function getHandoverDetailAction(handoverId: string) {
   const approvedByUser = handover.approvedBy ? actorById.get(handover.approvedBy) ?? null : null
   const rejectedByUser = handover.rejectedBy ? actorById.get(handover.rejectedBy) ?? null : null
   const cancelledByUser = handover.cancelledBy ? actorById.get(handover.cancelledBy) ?? null : null
+  const assignedId = (handover as { reconciliationAssignedToUserId?: string | null }).reconciliationAssignedToUserId
+  const reconciliationAssignedToUser = assignedId ? actorById.get(assignedId) ?? null : null
 
   return {
     success: true,
@@ -338,6 +357,7 @@ export async function getHandoverDetailAction(handoverId: string) {
       approvedByUser,
       rejectedByUser,
       cancelledByUser,
+      reconciliationAssignedToUser,
     },
   }
 }

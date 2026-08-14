@@ -7,11 +7,14 @@ import {
   submitHandoverReconciliation,
   rejectHandoverReconciliation,
   sendHandoverToReconciliation,
+  changeReconciliationAssignee,
   getReconciliationUserOptions,
+  getReconcilerUserOptions,
   type SubmitReconciliationPayload,
   type ReconciliationListTab,
 } from "@/services/reconciliation.service"
 import { revalidatePath } from "next/cache"
+import { userTypes } from "@/lib/roles"
 
 export async function getReconciliationListAction(params: {
   page?: number
@@ -24,6 +27,10 @@ export async function getReconciliationListAction(params: {
   toUserId?: string | null
 }) {
   await requirePermission("reconciliation", "view")
+  const { getServerSession } = await import("next-auth")
+  const { authOptions } = await import("@/lib/auth")
+  const session = await getServerSession(authOptions)
+  const isAdmin = session?.user?.userType === userTypes.admin
   return listHandoversForReconciliation({
     page: params.page,
     limit: params.limit,
@@ -33,12 +40,21 @@ export async function getReconciliationListAction(params: {
     dateTo: params.dateTo,
     fromUserId: params.fromUserId,
     toUserId: params.toUserId,
+    assignedToUserId: isAdmin ? null : session?.user?.id ?? null,
+    viewAllAssigned: isAdmin,
   })
 }
 
 export async function getReconciliationUserOptionsAction() {
   await requirePermission("reconciliation", "view")
   const options = await getReconciliationUserOptions()
+  return { success: true as const, data: options }
+}
+
+/** Users who can be assigned as reconciler (approve-reconciliation permission). */
+export async function getReconcilerUserOptionsAction() {
+  await requirePermission("reconciliation", "submit-for-reconciliation")
+  const options = await getReconcilerUserOptions()
   return { success: true as const, data: options }
 }
 
@@ -82,8 +98,8 @@ export async function rejectReconciliationAction(handoverId: string, reason: str
   return result
 }
 
-/** Send an approved handover to reconciliation. Handover must be received by current user, top-level, not yet reconciled. Requires Submit For Reconciliation permission. */
-export async function sendHandoverToReconciliationAction(handoverId: string) {
+/** Send an approved handover to reconciliation with a specific assignee. */
+export async function sendHandoverToReconciliationAction(handoverId: string, assignedToUserId: string) {
   await requirePermission("reconciliation", "submit-for-reconciliation")
   const { getServerSession } = await import("next-auth")
   const { authOptions } = await import("@/lib/auth")
@@ -91,7 +107,30 @@ export async function sendHandoverToReconciliationAction(handoverId: string) {
   if (!session?.user?.id) {
     return { success: false as const, error: "You must be signed in to send to reconciliation." }
   }
-  const result = await sendHandoverToReconciliation(handoverId, session.user.id)
+  const result = await sendHandoverToReconciliation(handoverId, session.user.id, assignedToUserId)
+  if (result.success) {
+    revalidatePath("/reconciliation")
+    revalidatePath("/handovers")
+    revalidatePath(`/handovers/${handoverId}`)
+  }
+  return result
+}
+
+/** Change reconciler before reconciliation is completed. */
+export async function changeReconciliationAssigneeAction(handoverId: string, assignedToUserId: string) {
+  const { checkPermission } = await import("@/lib/server-permissions")
+  const canSubmit = await checkPermission("reconciliation", "submit-for-reconciliation")
+  const canApprove = await checkPermission("reconciliation", "approve-reconciliation")
+  if (!canSubmit && !canApprove) {
+    await requirePermission("reconciliation", "submit-for-reconciliation")
+  }
+  const { getServerSession } = await import("next-auth")
+  const { authOptions } = await import("@/lib/auth")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return { success: false as const, error: "You must be signed in to change the reconciler." }
+  }
+  const result = await changeReconciliationAssignee(handoverId, session.user.id, assignedToUserId)
   if (result.success) {
     revalidatePath("/reconciliation")
     revalidatePath("/handovers")
