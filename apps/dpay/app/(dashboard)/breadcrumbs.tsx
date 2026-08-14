@@ -22,6 +22,7 @@ const PATH_NAMES = [
   { path: 'doctor-due', name: 'Doctor Due' },
   { path: 'patient-due', name: 'Patient Due' },
   { path: 'patient-excess', name: 'Patient Excess' },
+  { path: 'admission-list', name: 'Admission List' },
   { path: 'user-activity', name: 'User Activity' },
   { path: 'users', name: 'Users' },
   { path: 'user-groups', name: 'User Groups' },

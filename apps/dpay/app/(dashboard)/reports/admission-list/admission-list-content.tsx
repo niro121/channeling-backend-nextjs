@@ -21,24 +21,25 @@ import {
   useToast,
 } from '@archmage/ui';
 import {
-  getPatientDueReportAction,
-  getPatientDueReportExportAction,
+  getAdmissionListReportAction,
+  getAdmissionListReportExportAction,
 } from '@/app/actions/reports/reports.actions';
 import { ExportWrapper } from '../../export-wrapper';
-import { formatLkr } from '@/lib/patient-bills/calculations';
-import type { PatientDueReportExportRow, PatientDueReportRow } from '@/types/reports';
+import type {
+  AdmissionListReportExportRow,
+  AdmissionListReportRow,
+} from '@/types/reports';
 import {
   DateTimeRangePicker,
   getDefaultDateTimeRange,
 } from '@/components/common/date-time-range-picker';
-import { patientDueReportColumns } from './columns';
+import { admissionListReportColumns } from './columns';
 
-export default function PatientDueReportContent() {
+export default function AdmissionListReportContent() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<PatientDueReportRow[]>([]);
+  const [rows, setRows] = useState<AdmissionListReportRow[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [totalDue, setTotalDue] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [fromDate, setFromDate] = useState(() => getDefaultDateTimeRange().from);
@@ -56,14 +57,13 @@ export default function PatientDueReportContent() {
 
     setLoading(true);
     try {
-      const result = await getPatientDueReportAction({
+      const result = await getAdmissionListReportAction({
         keyword: keyword.trim() || undefined,
         dateFrom: fromDate,
         dateTo: toDate,
       });
       setRows(result.data);
       setTotalRecords(result.totalRecords);
-      setTotalDue(result.totalDue);
       setHasMore(result.hasMore);
     } catch (error: unknown) {
       toast({
@@ -73,7 +73,6 @@ export default function PatientDueReportContent() {
       });
       setRows([]);
       setTotalRecords(0);
-      setTotalDue(0);
       setHasMore(false);
     } finally {
       setLoading(false);
@@ -90,7 +89,7 @@ export default function PatientDueReportContent() {
       return { success: false, message: 'Please select date & time range' };
     }
 
-    return getPatientDueReportExportAction({
+    return getAdmissionListReportExportAction({
       keyword: keyword.trim() || undefined,
       dateFrom: fromDate,
       dateTo: toDate,
@@ -101,20 +100,18 @@ export default function PatientDueReportContent() {
     'Bill No',
     'BHT No',
     'Patient',
+    'NIC / Phone',
+    'Address',
     'Admission & Discharge',
-    'Total',
-    'Paid',
-    'Due',
     'Status',
   ];
-  const exportKeys: (keyof PatientDueReportExportRow)[] = [
+  const exportKeys: (keyof AdmissionListReportExportRow)[] = [
     'billNumber',
     'bxtNumber',
     'patientName',
+    'patientNicPhone',
+    'patientAddress',
     'admissionAndDischarge',
-    'totalAmount',
-    'paidAmount',
-    'dueAmount',
     'status',
   ];
 
@@ -126,9 +123,9 @@ export default function PatientDueReportContent() {
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-2xl font-bold">Patient Due Report</CardTitle>
+              <CardTitle className="text-2xl font-bold">Admission List Report</CardTitle>
               <CardDescription className="mt-1">
-                Patients with outstanding balances (pending / partially paid). Display is
+                Admitted patients with BHT, bill number, and patient details. Display is
                 capped at 10,000 records; use Export for PDF/Excel/Print.
               </CardDescription>
             </div>
@@ -137,8 +134,8 @@ export default function PatientDueReportContent() {
                 serverData={handleExport}
                 columns={exportColumns}
                 keys={exportKeys}
-                title="Patient Due Report"
-                fileName={`patient-due-${fromDate || 'from'}-to-${toDate || 'to'}`}
+                title="Admission List Report"
+                fileName={`admission-list-${fromDate || 'from'}-to-${toDate || 'to'}`}
                 showPrintButton
               />
             </div>
@@ -147,9 +144,9 @@ export default function PatientDueReportContent() {
         <CardContent>
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-2">
-              <Label htmlFor="due-keyword">Search</Label>
+              <Label htmlFor="admission-list-keyword">Search</Label>
               <Input
-                id="due-keyword"
+                id="admission-list-keyword"
                 placeholder="Bill no, BHT, or patient"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
@@ -182,27 +179,17 @@ export default function PatientDueReportContent() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Due balances</CardTitle>
-              <CardDescription>
-                {loading
-                  ? 'Loading...'
-                  : totalRecords > 0
-                    ? `Showing ${rows.length} of ${totalRecords} bill${totalRecords === 1 ? '' : 's'}${
-                        hasMore ? ' (capped at 10,000 — use Export)' : ''
-                      }`
-                    : 'No data. Select a date range and click Search.'}
-              </CardDescription>
-            </div>
-            {rows.length > 0 ? (
-              <div className="text-sm">
-                <span className="text-muted-foreground">Total Due </span>
-                <span className="font-bold tabular-nums text-amber-800">
-                  {formatLkr(totalDue)}
-                </span>
-              </div>
-            ) : null}
+          <div>
+            <CardTitle>Admissions</CardTitle>
+            <CardDescription>
+              {loading
+                ? 'Loading...'
+                : totalRecords > 0
+                  ? `Showing ${rows.length} of ${totalRecords} admission${totalRecords === 1 ? '' : 's'}${
+                      hasMore ? ' (capped at 10,000 — use Export)' : ''
+                    }`
+                  : 'No data. Select a date range and click Search.'}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -212,7 +199,7 @@ export default function PatientDueReportContent() {
             <div className="rounded-md border border-dashed px-6 py-10 text-center">
               <p className="text-sm font-medium">No results</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Select From / To dates and click Search to load due bills.
+                Select From / To dates and click Search to load admissions.
               </p>
             </div>
           ) : (
@@ -220,7 +207,7 @@ export default function PatientDueReportContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {patientDueReportColumns.map((col, idx) => {
+                    {admissionListReportColumns.map((col, idx) => {
                       const accessorKey = (col as { accessorKey?: string }).accessorKey;
                       return (
                         <TableHead key={col.id || accessorKey || idx}>
@@ -233,7 +220,7 @@ export default function PatientDueReportContent() {
                 <TableBody>
                   {rows.map((row, index) => (
                     <TableRow key={row.id}>
-                      {patientDueReportColumns.map((col, colIdx) => {
+                      {admissionListReportColumns.map((col, colIdx) => {
                         const accessorKey = (col as { accessorKey?: string }).accessorKey;
                         let cellValue: React.ReactNode = '—';
 
@@ -254,7 +241,7 @@ export default function PatientDueReportContent() {
                           });
                         } else if (
                           accessorKey &&
-                          row[accessorKey as keyof PatientDueReportRow] != null
+                          row[accessorKey as keyof AdmissionListReportRow] != null
                         ) {
                           cellValue = String(
                             (row as Record<string, unknown>)[accessorKey]

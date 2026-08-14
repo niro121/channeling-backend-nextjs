@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { DoctorPaymentMethod, DoctorPaymentStatus } from '@/types/doctor-payment';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import type {
   DoctorPaymentReportParams,
   DoctorPaymentReportResult,
@@ -16,15 +17,17 @@ function buildWhere(
   const keyword = params.keyword?.trim();
 
   if (params.dateFrom) {
-    const from = new Date(params.dateFrom);
-    from.setUTCHours(0, 0, 0, 0);
-    where.createdAt = { ...(where.createdAt as Prisma.DateTimeFilter), gte: from };
+    const from = parseReportDateTimeSl(params.dateFrom, false);
+    if (from) {
+      where.createdAt = { ...(where.createdAt as Prisma.DateTimeFilter), gte: from };
+    }
   }
 
   if (params.dateTo) {
-    const to = new Date(params.dateTo);
-    to.setUTCHours(23, 59, 59, 999);
-    where.createdAt = { ...(where.createdAt as Prisma.DateTimeFilter), lte: to };
+    const to = parseReportDateTimeSl(params.dateTo, true);
+    if (to) {
+      where.createdAt = { ...(where.createdAt as Prisma.DateTimeFilter), lte: to };
+    }
   }
 
   if (keyword) {
