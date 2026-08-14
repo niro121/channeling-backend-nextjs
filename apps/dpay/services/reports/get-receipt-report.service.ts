@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { PatientBillPaymentMethod, PatientBillReceiptStatus } from '@/types/patient-bill';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import type {
   ReceiptReportParams,
   ReceiptReportResult,
@@ -21,15 +22,17 @@ function buildWhere(
   const keyword = params.keyword?.trim();
 
   if (params.dateFrom) {
-    const from = new Date(params.dateFrom);
-    from.setUTCHours(0, 0, 0, 0);
-    where.paymentDate = { ...(where.paymentDate as Prisma.DateTimeFilter), gte: from };
+    const from = parseReportDateTimeSl(params.dateFrom, false);
+    if (from) {
+      where.paymentDate = { ...(where.paymentDate as Prisma.DateTimeFilter), gte: from };
+    }
   }
 
   if (params.dateTo) {
-    const to = new Date(params.dateTo);
-    to.setUTCHours(23, 59, 59, 999);
-    where.paymentDate = { ...(where.paymentDate as Prisma.DateTimeFilter), lte: to };
+    const to = parseReportDateTimeSl(params.dateTo, true);
+    if (to) {
+      where.paymentDate = { ...(where.paymentDate as Prisma.DateTimeFilter), lte: to };
+    }
   }
 
   if (keyword) {
@@ -51,6 +54,8 @@ const receiptSelect = {
   paymentMethod: true,
   paymentDate: true,
   status: true,
+  cancelReceiptNumber: true,
+  refundOfReceiptId: true,
   bill: {
     select: {
       id: true,
@@ -62,10 +67,28 @@ const receiptSelect = {
 
 type ReceiptRecord = Prisma.PatientBillReceiptGetPayload<{ select: typeof receiptSelect }>;
 
-function mapRow(record: ReceiptRecord): ReceiptReportRow {
+function receiptReference(
+  record: ReceiptRecord,
+  originalReceiptNoById: Map<string, string>
+): string {
+  const status = normalizeReceiptStatus(record.status);
+  if (status === 'cancelled') {
+    return record.cancelReceiptNumber?.trim() || '';
+  }
+  if (status === 'refund' && record.refundOfReceiptId) {
+    return originalReceiptNoById.get(record.refundOfReceiptId) || '';
+  }
+  return '';
+}
+
+function mapRow(
+  record: ReceiptRecord,
+  originalReceiptNoById: Map<string, string>
+): ReceiptReportRow {
   return {
     id: record.id,
     receiptNumber: record.receiptNumber,
+    reference: receiptReference(record, originalReceiptNoById),
     patientName: record.bill.customerName,
     billId: record.bill.id,
     billNumber: record.bill.billNumber,
@@ -74,6 +97,25 @@ function mapRow(record: ReceiptRecord): ReceiptReportRow {
     amountPaid: record.amountPaid,
     status: normalizeReceiptStatus(record.status),
   };
+}
+
+async function originalReceiptNumbersById(
+  records: ReceiptRecord[]
+): Promise<Map<string, string>> {
+  const originalIds = [
+    ...new Set(
+      records
+        .map((record) => record.refundOfReceiptId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  if (originalIds.length === 0) return new Map();
+
+  const originals = await prisma.patientBillReceipt.findMany({
+    where: { id: { in: originalIds } },
+    select: { id: true, receiptNumber: true },
+  });
+  return new Map(originals.map((row) => [row.id, row.receiptNumber]));
 }
 
 export async function getReceiptReport(
@@ -99,8 +141,10 @@ export async function getReceiptReport(
     }),
   ]);
 
+  const originalReceiptNoById = await originalReceiptNumbersById(records);
+
   return {
-    data: records.map(mapRow),
+    data: records.map((record) => mapRow(record, originalReceiptNoById)),
     totalRecords,
     totalReceived: aggregate._sum.amountPaid ?? 0,
   };
@@ -118,5 +162,6 @@ export async function getReceiptReportExport(
     select: receiptSelect,
   });
 
-  return records.map(mapRow);
+  const originalReceiptNoById = await originalReceiptNumbersById(records);
+  return records.map((record) => mapRow(record, originalReceiptNoById));
 }
