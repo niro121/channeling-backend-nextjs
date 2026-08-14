@@ -35,7 +35,10 @@ import {
 import { ExportWrapper } from '../../export-wrapper';
 import { KNOWN_ACTIVITY_ACTIONS } from '@/lib/activity-actions';
 import type { ExportUserActivityData } from '@/types/user-activity-report';
-import { ReportDateRangeFields } from '../report-date-range-fields';
+import {
+  DateTimeRangePicker,
+  getDefaultDateTimeRange,
+} from '@/components/common/date-time-range-picker';
 import { UserActivityReportColumns, type UserActivityRow } from './columns';
 
 type UserActivityContentProps = {
@@ -51,8 +54,8 @@ export default function UserActivityContent({
   const [totalReturned, setTotalReturned] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
-  const [fromDate, setFromDate] = useState<string | undefined>();
-  const [toDate, setToDate] = useState<string | undefined>();
+  const [fromDate, setFromDate] = useState(() => getDefaultDateTimeRange().from);
+  const [toDate, setToDate] = useState(() => getDefaultDateTimeRange().to);
   const [userId, setUserId] = useState('__all__');
   const [action, setAction] = useState('');
 
@@ -61,7 +64,7 @@ export default function UserActivityContent({
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
       return;
     }
@@ -108,9 +111,9 @@ export default function UserActivityContent({
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
-      return { success: false, message: 'Please select date range' };
+      return { success: false, message: 'Please select date & time range' };
     }
 
     const response = await exportUserActivityReportData({
@@ -224,12 +227,14 @@ export default function UserActivityContent({
               />
             </div>
 
-            <ReportDateRangeFields
-              idPrefix="user-activity"
-              dateFrom={fromDate ?? ''}
-              dateTo={toDate ?? ''}
-              onDateFromChange={setFromDate}
-              onDateToChange={setToDate}
+            <DateTimeRangePicker
+              label="Date & Time Range"
+              from={fromDate}
+              to={toDate}
+              onChange={({ from, to }) => {
+                setFromDate(from ?? '');
+                setToDate(to ?? '');
+              }}
             />
 
             <Button

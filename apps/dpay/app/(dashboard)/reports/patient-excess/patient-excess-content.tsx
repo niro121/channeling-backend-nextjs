@@ -30,7 +30,10 @@ import type {
   PatientExcessReportExportRow,
   PatientExcessReportRow,
 } from '@/types/reports';
-import { ReportDateRangeFields } from '../report-date-range-fields';
+import {
+  DateTimeRangePicker,
+  getDefaultDateTimeRange,
+} from '@/components/common/date-time-range-picker';
 import { patientExcessReportColumns } from './columns';
 
 export default function PatientExcessReportContent() {
@@ -41,15 +44,15 @@ export default function PatientExcessReportContent() {
   const [totalExcess, setTotalExcess] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [fromDate, setFromDate] = useState<string | undefined>();
-  const [toDate, setToDate] = useState<string | undefined>();
+  const [fromDate, setFromDate] = useState(() => getDefaultDateTimeRange().from);
+  const [toDate, setToDate] = useState(() => getDefaultDateTimeRange().to);
 
   const fetchReportData = async () => {
     if (!fromDate || !toDate) {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
       return;
     }
@@ -85,9 +88,9 @@ export default function PatientExcessReportContent() {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
-      return { success: false, message: 'Please select date range' };
+      return { success: false, message: 'Please select date & time range' };
     }
 
     return getPatientExcessReportExportAction({
@@ -158,12 +161,14 @@ export default function PatientExcessReportContent() {
               />
             </div>
 
-            <ReportDateRangeFields
-              idPrefix="patient-excess"
-              dateFrom={fromDate ?? ''}
-              dateTo={toDate ?? ''}
-              onDateFromChange={setFromDate}
-              onDateToChange={setToDate}
+            <DateTimeRangePicker
+              label="Date & Time Range"
+              from={fromDate}
+              to={toDate}
+              onChange={({ from, to }) => {
+                setFromDate(from ?? '');
+                setToDate(to ?? '');
+              }}
             />
 
             <Button

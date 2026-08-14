@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { authPrisma } from '@archmage/db-auth';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import type { UserActivityReportResponse } from '@/types/user-activity-report';
 
 const DEFAULT_REPORT_MAX = 10000;
@@ -13,11 +14,16 @@ function getReportMax(): number {
   return n;
 }
 
-function parseLocalDay(dateStr: string): { start: Date; end: Date } {
-  const [y, m, d] = dateStr.trim().split('-').map(Number);
-  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
-  return { start, end };
+function calendarDateFromFilter(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
 }
 
 function getInclusiveDaySpan(from: Date, to: Date): number {
@@ -33,10 +39,10 @@ export async function getActivityLogsForReport(
   dateFrom: string,
   dateTo: string
 ): Promise<UserActivityReportResponse> {
-  const fromParsed = dateFrom?.trim() ? parseLocalDay(dateFrom) : null;
-  const toParsed = dateTo?.trim() ? parseLocalDay(dateTo) : null;
+  const from = dateFrom?.trim() ? parseReportDateTimeSl(dateFrom, false) : null;
+  const to = dateTo?.trim() ? parseReportDateTimeSl(dateTo, true) : null;
 
-  if (!fromParsed || !toParsed) {
+  if (!from || !to) {
     return {
       success: false,
       data: [],
@@ -45,9 +51,6 @@ export async function getActivityLogsForReport(
       message: 'From date and to date are required.',
     };
   }
-
-  const from = fromParsed.start;
-  const to = toParsed.end;
 
   if (from.getTime() > to.getTime()) {
     return {
@@ -59,7 +62,10 @@ export async function getActivityLogsForReport(
     };
   }
 
-  const daySpan = getInclusiveDaySpan(from, to);
+  const fromCalendar = calendarDateFromFilter(dateFrom);
+  const toCalendar = calendarDateFromFilter(dateTo);
+  const daySpan =
+    fromCalendar && toCalendar ? getInclusiveDaySpan(fromCalendar, toCalendar) : 0;
   if (daySpan > MAX_RANGE_DAYS) {
     return {
       success: false,
