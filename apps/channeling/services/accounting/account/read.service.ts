@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import type { Account } from '@/types/accounting';
 import { AccountType } from '@prisma/client';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getAccountBalance } from '../balance-calc.service';
 import { mapAccount } from '../map-account';
 
@@ -90,8 +91,33 @@ export type GetAllAccountsParams = {
   limit?: number;
   type?: AccountType | null;
   locationId?: string | null;
+  /** Specific user id, or `'__none__'` for accounts with no linked user. */
+  userId?: string | null;
   keyword?: string | null;
 };
+
+/** Users who have at least one active linked account (for the Accounting filter). */
+export async function getLinkedAccountUserOptions(): Promise<
+  Array<{ id: string; name: string }>
+> {
+  const rows = await prisma.account.findMany({
+    where: { isActive: true, userId: { not: null } },
+    distinct: ['userId'],
+    select: {
+      user: {
+        select: { id: true, name: true, staff: { select: { code: true } } },
+      },
+    },
+  });
+
+  return rows
+    .filter((r): r is typeof r & { user: NonNullable<typeof r.user> } => r.user != null)
+    .map((r) => ({
+      id: r.user.id,
+      name: formatUserDisplayName(r.user.name, r.user.id, r.user.staff?.code),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
 
 /** List accounts for Accounting page (with balance). */
 export async function getAllAccounts(
@@ -102,17 +128,20 @@ export async function getAllAccounts(
   totalRecords?: number;
   error?: string;
 }> {
-  const { page = 0, limit = 50, type, locationId, keyword } = params;
+  const { page = 0, limit = 50, type, locationId, userId, keyword } = params;
 
   const where: {
     isActive?: boolean;
     type?: AccountType;
     locationId?: string | null;
+    userId?: string | null;
     OR?: { name?: { contains: string; mode: 'insensitive' }; code?: { contains: string; mode: 'insensitive' } }[];
   } = { isActive: true };
 
   if (type) where.type = type;
   if (locationId) where.locationId = locationId;
+  if (userId === '__none__') where.userId = null;
+  else if (userId) where.userId = userId;
   if (keyword && keyword.trim()) {
     where.OR = [
       { name: { contains: keyword.trim(), mode: 'insensitive' } },

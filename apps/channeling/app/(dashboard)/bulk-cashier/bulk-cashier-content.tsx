@@ -78,7 +78,11 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     floatBalanceCents: number;
   }>>([]);
   const [activeShiftsLoading, setActiveShiftsLoading] = useState(true);
-  const [floatSummary, setFloatSummary] = useState<{ floatAccountId: string | null; balanceCents: number } | null>(null);
+  const [floatSummary, setFloatSummary] = useState<{
+    floatAccountId: string | null;
+    balanceCents: number;
+    tillLocationName: string | null;
+  } | null>(null);
   const [hasFloatAccount, setHasFloatAccount] = useState<boolean | null>(null);
   const [createFloatAccountLoading, setCreateFloatAccountLoading] = useState(false);
   const [showCreateFloatConfirm, setShowCreateFloatConfirm] = useState(false);
@@ -87,10 +91,14 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const loadFloatSummary = () => {
     getBulkCashierFloatSummaryAction().then((res) => {
       if (res.success) {
-        setFloatSummary({ floatAccountId: res.floatAccountId ?? null, balanceCents: res.balanceCents ?? 0 });
+        setFloatSummary({
+          floatAccountId: res.floatAccountId ?? null,
+          balanceCents: res.balanceCents ?? 0,
+          tillLocationName: res.tillLocationName ?? null,
+        });
         setHasFloatAccount(!!res.floatAccountId);
       } else {
-        setFloatSummary({ floatAccountId: null, balanceCents: 0 });
+        setFloatSummary({ floatAccountId: null, balanceCents: 0, tillLocationName: null });
         setHasFloatAccount(false);
       }
     });
@@ -154,10 +162,10 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     setCreateFloatAccountLoading(false);
     setShowCreateFloatConfirm(false);
     if (res.success) {
-      toast({ title: res.message ?? 'Float account created.' });
+      toast({ title: res.message ?? 'Active till is ready.' });
       loadFloatSummary();
     } else {
-      toast({ variant: 'destructive', title: res.error ?? 'Failed to create float account.' });
+      toast({ variant: 'destructive', title: res.error ?? 'Failed to create active till.' });
     }
   };
 
@@ -167,7 +175,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
       <section className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Float account balance:</span>
+          <span className="text-sm text-muted-foreground">Active till balance:</span>
           <span className="text-lg font-semibold tabular-nums">
             {floatSummary === null ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -177,6 +185,9 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               `${formatCents(floatSummary.balanceCents)} LKR`
             )}
           </span>
+          {floatSummary?.tillLocationName ? (
+            <span className="text-sm text-muted-foreground">({floatSummary.tillLocationName})</span>
+          ) : null}
         </div>
         {floatSummary?.floatAccountId && (
           <Button variant="outline" size="sm" asChild>
@@ -254,21 +265,21 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         <section className="border rounded-lg bg-muted/30 p-8 flex flex-col items-center justify-center text-center gap-4">
           <Wallet className="h-12 w-12 text-muted-foreground" />
           <div>
-            <h3 className="text-lg font-semibold mb-1">No float account</h3>
+            <h3 className="text-lg font-semibold mb-1">No active shift till</h3>
             <p className="text-sm text-muted-foreground max-w-md">
-              You need a float account to approve float requests from cashiers. Create one to use the Float requests section.
+              Approving float requires an active shift. Float is taken from that shift&apos;s till. Start a shift at a location to continue.
             </p>
           </div>
           <Button onClick={() => setShowCreateFloatConfirm(true)} disabled={createFloatAccountLoading}>
             {createFloatAccountLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create float account
+            Create shift till
           </Button>
           <AlertDialog open={showCreateFloatConfirm} onOpenChange={setShowCreateFloatConfirm}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Create float account?</AlertDialogTitle>
+                <AlertDialogTitle>Create shift till?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will create a cash account linked to you for disbursing float to cashiers. You must have a linked staff record for the account code. Continue?
+                  This uses your current active shift location. Start a shift first if you do not have one. You must have a linked staff record. Continue?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -679,11 +690,17 @@ export function ApproveModal({
   const [reasonForLess, setReasonForLess] = useState('');
   const [loading, setLoading] = useState(false);
   const [balanceCents, setBalanceCents] = useState<number | null>(null);
+  const [tillLocationName, setTillLocationName] = useState<string | null>(null);
 
   useEffect(() => {
     getBulkCashierFloatBalanceAction().then((res) => {
-      if (res.success) setBalanceCents(res.balanceCents);
-      else setBalanceCents(0);
+      if (res.success) {
+        setBalanceCents(res.balanceCents);
+        setTillLocationName(res.tillLocationName ?? null);
+      } else {
+        setBalanceCents(0);
+        setTillLocationName(null);
+      }
     });
   }, [request?.id]);
 
@@ -743,14 +760,17 @@ export function ApproveModal({
         <DialogHeader>
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
-            Float will be taken from your float account. You can give up to the requested amount (or less). Cannot give more than requested.
+            Float will be taken from your active till. You can give up to the requested amount (or less). Cannot give more than requested.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Your float balance: </span>
+              <span className="text-muted-foreground">Your active till balance: </span>
               <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
+              {tillLocationName ? (
+                <span className="text-muted-foreground"> ({tillLocationName})</span>
+              ) : null}
               {insufficientBalance && (
                 <p className="mt-1.5 text-destructive font-medium">
                   Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.

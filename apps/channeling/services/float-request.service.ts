@@ -17,8 +17,13 @@ import {
   denominationsTotalLKR,
   lkrToCents,
 } from '@/types/float-request';
-import { getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
-import { resolveTillForUserAndLocation } from '@/services/accounting.service';
+import {
+  getAccountBalance,
+  createJournalEntry,
+  resolveTillForUserAndLocation,
+  type ResolvedTill,
+} from '@/services/accounting.service';
+import { SHIFT_STATUS } from '@/types/shift';
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
@@ -28,6 +33,35 @@ import type { ReferenceSelectOption } from '@/types/reference';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
+
+/**
+ * Till float is taken from when a bulk cashier approves a request.
+ * Approve already requires an active shift, so this is that shift's location till.
+ */
+export async function resolveBulkCashierSourceTill(userId: string): Promise<ResolvedTill | null> {
+  const now = new Date();
+  const shift = await prisma.shift.findFirst({
+    where: {
+      userId,
+      status: SHIFT_STATUS.ACTIVE,
+      endsAt: { gt: now },
+    },
+    select: { locationId: true },
+    orderBy: { startedAt: 'desc' },
+  });
+  if (!shift?.locationId) return null;
+  return resolveTillForUserAndLocation(userId, shift.locationId);
+}
+
+export async function getBulkCashierSourceTillSummary(userId: string): Promise<{
+  till: ResolvedTill | null;
+  balanceCents: number;
+}> {
+  const till = await resolveBulkCashierSourceTill(userId);
+  if (!till) return { till: null, balanceCents: 0 };
+  const balanceCents = await getAccountBalance(till.accountId);
+  return { till, balanceCents };
+}
 
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
 export async function getBulkCashierUsers(
@@ -361,21 +395,30 @@ export async function approveFloatRequest(
     }
   }
 
-  // Source is always the bulk cashier's own float account (CASH account linked to approvedBy user)
-  const fromAccount = await getCashAccountByUserId(input.approvedBy);
-  if (!fromAccount) {
+  let fromTill: ResolvedTill | null = null;
+  try {
+    fromTill = await resolveBulkCashierSourceTill(input.approvedBy);
+  } catch (e) {
     return {
       success: false,
-      error: 'You need a float account to approve requests. Create one from the Bulk Cashier page.',
+      error: e instanceof Error ? e.message : 'Cannot resolve your active till.',
+      errorCode: 'NO_FLOAT_ACCOUNT',
+    };
+  }
+  if (!fromTill) {
+    return {
+      success: false,
+      error:
+        'You need an active shift at a location to approve float requests.',
       errorCode: 'NO_FLOAT_ACCOUNT',
     };
   }
 
-  const fromBalanceCents = await getAccountBalance(fromAccount.id);
+  const fromBalanceCents = await getAccountBalance(fromTill.accountId);
   if (fromBalanceCents < approvedTotalCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
+      error: `Insufficient balance in your active till. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -399,7 +442,7 @@ export async function approveFloatRequest(
   const updateData = {
     status: FLOAT_REQUEST_STATUS.APPROVED,
     denominationsApproved: input.denominationsApproved as object,
-    fromAccountId: fromAccount.id,
+    fromAccountId: fromTill.accountId,
     toAccountId: toTill.accountId,
     toTillId: toTill.tillId,
     approvedAt: new Date(),
@@ -730,6 +773,44 @@ export async function declineApprovedFloatRequest(
   }
 
   return { success: true, floatRequest: mapFloatRequest(updated) };
+}
+
+/** Cancel leftover PENDING / APPROVED-unreceived float requests when a shift ends with no till to hand over. */
+export async function cancelOpenFloatRequestsOnEmptyShiftEnd(
+  userId: string
+): Promise<{ cancelledIds: string[] }> {
+  const open = await prisma.floatRequest.findMany({
+    where: {
+      requestedById: userId,
+      status: { in: [FLOAT_REQUEST_STATUS.PENDING, FLOAT_REQUEST_STATUS.APPROVED] as never },
+    },
+    select: { id: true },
+  });
+  if (open.length === 0) return { cancelledIds: [] };
+
+  const now = new Date();
+  const cancelledIds = open.map((row) => row.id);
+  await prisma.floatRequest.updateMany({
+    where: { id: { in: cancelledIds } },
+    data: {
+      status: FLOAT_REQUEST_STATUS.CANCELLED as never,
+      cancelledAt: now,
+      cancelledBy: userId,
+      cancelReason: 'Shift ended with no till balance. Unused float request cancelled.',
+    },
+  });
+
+  const io = getIO();
+  if (io) {
+    for (const id of cancelledIds) {
+      io.to(floatRequestRoom(userId)).emit('float-request-update', {
+        floatRequestId: id,
+        status: FLOAT_REQUEST_STATUS.CANCELLED,
+      });
+    }
+  }
+
+  return { cancelledIds };
 }
 
 // --- helpers ---
