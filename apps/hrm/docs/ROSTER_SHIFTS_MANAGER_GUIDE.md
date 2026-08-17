@@ -4,15 +4,9 @@ Guidance for building roster and shift features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and `OVERTIME_MANAGER_GUIDE.md`.
 
-**Status:** Shift Roster Phase 0 UI implemented — awaiting design acceptance.  
-**Shift Types:** Phase 0 UI implemented — awaiting design acceptance.  
-**Shift Assignment:** Phase 0 UI implemented — awaiting design acceptance.  
-**Duty Roster:** Phase 0 UI implemented — awaiting design acceptance.  
-**Roster Amendments:** Phase 0 UI implemented — awaiting design acceptance.  
-**Night Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
-**Overnight Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
-**Public Holiday Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
-**Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
+**Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
+**Domain (Phase 1 map):** locked in this doc (17 Aug 2026). **Prisma not started** — apply schema only after this map is accepted.  
+**Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
 Pages must not call Prisma. No business rules in components.
 
 **Locked product decisions (Roster & Shifts group):**
@@ -36,13 +30,29 @@ Pages must not call Prisma. No business rules in components.
 - Overnight Shifts: **`CommonDataTable`**; header Add + Recalculate Splits (toast); table-only Print/PDF/Excel
 - Overnight Shifts: Auto Split at midnight; attendance allocation Start/End date; Status includes Amended
 - Public Holiday Shifts: **`CommonDataTable`**; header Add + Bulk Assign Holiday Duty (≥1 selected); table-only Print/PDF/Excel
-- Public Holiday Shifts: sample Holiday Date master; Holiday → Type + Duty Date; Shift → Worked Hours; Staff → Duty Location
+- Public Holiday Shifts: Phase 0 used **sample** holidays; v1 persist uses Roster `HolidayCalendar` stub. Holiday → Type + Duty Date; Shift → Worked Hours; Staff → Duty Location
 - Public Holiday Shifts: Pay Rate badges 1.50x / 2.00x / 2.50x; Lieu Leave Yes/No; Send to Payroll on form only
 - Public Holiday Shifts status: Draft / Pending Approval / Approved / Rejected / Amended; new defaults to Pending Approval
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
 - Shift Types register: **`CommonDataTable`** (flat CRUD). Roster grid stays module-specific.
+- **Phase 0 layouts accepted for dynamic work** — do not reopen screen structure; minor style / component polish is allowed
+
+**Locked domain (dynamic — 17 Aug 2026):**
+- **One allocation store:** Shift Roster (week grid) and Duty Roster (daily list) are two views of `RosterAllocation` (staff × calendar date). Do not persist Duty as a second copy.
+- **Shift Assignment** is its own collection (`StaffShiftAssignment`) — standing rule / rotation over a date range. It feeds Fill / Auto Assign; it is not a calendar cell.
+- Duty-only facts (location, supervisor, attendance, comments) live **on the allocation**.
+- After **Publish**, cells are immutable except via **Roster Amendments** (apply on Approve). Draft periods stay editable.
+- **Statuses:** period header Draft → Published; each cell follows the period, **Amended** after an approved amendment; Assignment Active / Pending / Inactive; Night / Overnight / Holiday **do not** get a second independent workflow — they show the allocation (and payroll flags).
+- Night / Overnight / Holiday are **registers of allocations** (shift-type flags or holiday date). **Add** only if that staff + date has no cell. Phase 0 status dropdowns stay until wiring; they **map to the cell/period**, they are not a second approval engine.
+- Holiday dates in v1: **`HolidayCalendar` stub** inside Roster (not waiting on HR Administration).
+- Grant Lieu Leave / Send to Payroll: **flags only** in v1 (no Leave Entitlement write, no payroll engine).
+- Duty attendance: store Present / Late / Absent. No RFID engine in v1.
+- Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
+- **Uniqueness:** one shift per staff per calendar date (hospital-wide).
+- Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.
+- **Defer:** Weekly/Monthly Duty views, drag-and-drop persist, Create Fixed Roster, OT Process Staff Shift, Leave Application overlap, real Holiday Date master.
 
 ---
 
@@ -50,14 +60,14 @@ Pages must not call Prisma. No business rules in components.
 
 | Route | Resource key | Role |
 |-------|----------------|------|
-| `/shift-roster` | `shift-roster` | Calendar roster planning: filters, allocate, draft, publish, copy, print/export |
-| `/shift-types` | `shift-roster` | Shift master (timings, thresholds, night/overnight/holiday flags) — CRUD via sheets |
-| `/shift-assignment` | `shift-roster` | Link staff to shift types / rotation patterns — feeds Duty Roster & Shift Roster |
-| `/duty-roster` | `shift-roster` | Department/unit daily duty list: assign, swap, replace, attendance |
-| `/roster-amendments` | `shift-roster` | Controlled changes to published duty / shift rosters (approve / reject) |
-| `/night-shifts` | `shift-roster` | Night duty register from Duty Roster: hours, allowances, consecutive-night alerts |
-| `/overnight-shifts` | `shift-roster` | Cross-midnight shifts: day-split hours and attendance date allocation |
-| `/public-holiday-shifts` | `shift-roster` | Gazetted holiday duties: pay rates, lieu leave, and payroll posting |
+| `/shift-roster` | `shift-roster` | Week/month grid **view** of allocations (plan, draft, publish, copy) |
+| `/shift-types` | `shift-roster` | Shift master (timings, night/overnight/holiday flags) — own collection |
+| `/shift-assignment` | `shift-roster` | Standing staff ↔ shift / rotation **rule** — own collection; feeds Fill / Auto Assign |
+| `/duty-roster` | `shift-roster` | Daily **view** of the same allocations (assign, swap, replace, attendance) |
+| `/roster-amendments` | `shift-roster` | Overlay on **published** allocations; apply on Approve |
+| `/night-shifts` | `shift-roster` | Register: allocations whose shift type is night (hours, consecutive-night alerts) |
+| `/overnight-shifts` | `shift-roster` | Register: allocations whose shift type is overnight (stored midnight split) |
+| `/public-holiday-shifts` | `shift-roster` | Register: allocations on `HolidayCalendar` dates (pay rate, lieu, payroll flags) |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
@@ -65,9 +75,27 @@ Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift As
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
-Overtime **Process Staff Shift** stays sample/toast until this module exposes a roster service (see `OVERTIME_MANAGER_GUIDE.md` Phase 6).
+Overtime **Process Staff Shift** stays sample/toast until the roster **read** service exists (dynamic slice D4+).
 
-**Module build order:** finish each module’s Phase 0 UI → accept → then shared Phase 1 schema (`ShiftType` first) → wire Shift Types CRUD before Shift Roster persist.
+**Source of truth:**
+
+```
+ShiftType  (master)
+    │
+    ▼
+StaffShiftAssignment  (standing rule: Fernando → 3-shift from 1 Jan)
+    │  Fill / Auto Assign
+    ▼
+RosterAllocation  (actual day: Fernando + 11 Aug + Day)
+    │
+    ├── Shift Roster     week grid
+    ├── Duty Roster      one day’s list (same rows)
+    ├── RosterAmendment  change a published cell
+    └── Night / Overnight / Holiday registers (filter + extra fields on the allocation)
+HolidayCalendar  (v1 stub dates; Public Holiday Shifts joins allocations to these dates)
+```
+
+**Module build order (dynamic):** shared Phase 1 types + schema → Shift Types CRUD → Shift Assignment CRUD → Roster **read** → Roster **draft write** (sheet allocate; drag persist later) → Publish / copy / fill → point Duty Roster at the same store → Amendments → Night / Overnight → Holiday stub. Do not persist Night/Holiday/Duty as separate copies of the week.
 
 ---
 
@@ -692,7 +720,7 @@ Columns include **Updated** and **Created**. Default From / To empty.
 
 ## 2H. UI map — Public Holiday Shifts (Phase 0)
 
-Gazetted holiday duties with holiday pay, lieu leave, and payroll posting. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Holiday Date master is **sample holidays** until an HR Administration master exists.
+Gazetted holiday duties with holiday pay, lieu leave, and payroll posting. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Holiday dates: Phase 0 sample list; v1 **`HolidayCalendar` stub** until HR Administration owns a Holiday Date master.
 
 ```
 ┌─ Header ──────────────────────────────────────────────────────────────────┐
@@ -736,6 +764,7 @@ Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
 - Print / PDF / Excel on the **table toolbar only**.
 - **Bulk Assign Holiday Duty** requires **≥1** selected row (else toast), same as Shift Assignment.
 - Green banner: holidays sourced from the Holiday Date master under HR Administration.
+- **v1 dynamic:** that master is the Roster **`HolidayCalendar` stub**, not a separate HR Admin module.
 
 ### 2H.2 Form sheets
 
@@ -883,17 +912,35 @@ app/(dashboard)/(roster-shifts)/public-holiday-shifts/
 types/roster.ts
 lib/mappers/
   shift-type-form.mapper.ts
+  shift-assignment-form.mapper.ts
   shift-roster-form.mapper.ts
+  duty-roster-form.mapper.ts
+  roster-amendment-form.mapper.ts
+  holiday-calendar.mapper.ts
 services/roster-services/
   roster-shared.ts
   shift-type.service.ts
-  shift-roster.service.ts
+  shift-assignment.service.ts
+  shift-roster.service.ts          # period header + allocations (week)
+  duty-roster.service.ts           # same allocations, filtered by date
+  roster-amendment.service.ts
+  holiday-calendar.service.ts
+  night-shift.service.ts           # query + extra fields; not a 2nd table
+  overnight-shift.service.ts
+  public-holiday-shift.service.ts
 app/actions/roster-actions/
   shift-type.actions.ts
+  shift-assignment.actions.ts
   shift-roster.actions.ts
+  duty-roster.actions.ts
+  roster-amendment.actions.ts
+  holiday-calendar.actions.ts
+  night-shift.actions.ts
+  overnight-shift.actions.ts
+  public-holiday-shift.actions.ts
 ```
 
-Activity log examples: `shift-roster.visited`, `shift-types.visited`, `shift-types.created`, `shift-roster.published`. Entity types match the collection (`ShiftType`, `ShiftRoster`, `RosterAllocation`, …).
+Activity log examples: `shift-roster.visited`, `shift-types.visited`, `shift-types.created`, `shift-roster.published`, `roster-amendments.approved`. Entity types match the collection (`ShiftType`, `StaffShiftAssignment`, `ShiftRoster`, `RosterAllocation`, `RosterAmendment`, `HolidayCalendar`). Night / Overnight / Holiday actions still log against `RosterAllocation`.
 
 ---
 
@@ -909,38 +956,46 @@ Checklist:
 2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
 3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
-5. Mutations: `requirePermission('shift-roster', action)`
+5. Mutations: `requirePermission('shift-roster', action)` — no extra resources for Night vs Roster
 6. Client buttons: `usePermissions().has('shift-roster', …)`
+   - **view** — load lists / grid
+   - **edit** — allocate, save draft, Duty swap/replace, assignment update
+   - **add** or **edit** — publish, amendment approve/reject
+   - View-only cannot publish
 7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
 8. Grant on Auth User Group; user re-logins
 
 ---
 
-## 5. Development phases — Shift Roster
+## 5. Development phases
 
-**UI first, then dynamic.** Do not start Prisma until Phase 0 screens are accepted.
+**UI first is done.** Do not start Prisma until this doc’s Phase 1 collection map is accepted (locked 17 Aug 2026). Then `schema.prisma` + `db push`.
+
+**Group sequence (v1 persist):**
 
 ```
-Shift Roster Phase 0: Static UI
-  → Phase 1: Collections + types (shared; ShiftType first)
-    → Phase 2: Load roster (read)
-      → Phase 3: Allocate + save draft
-        → Phase 4: Publish / copy / fill
-          → Phase 5: Live summary + conflicts
-            → Phase 6: Print / export
-              → Phase 7: Hardening
-                → Phase 8: Downstream (OT Process Staff Shift, leave overlap)
+D0  Phase 0 UI (done; minor polish allowed)
+D1  Shared collections + types  (no UI wiring)
+D2  Shift Types CRUD
+D3  Shift Assignment CRUD
+D4  Shift Roster read (Load Roster)
+D5  Shift Roster draft write (sheet allocate; drag persist later)
+D6  Publish / copy / fill
+D7  Duty Roster → same RosterAllocation store
+D8  Roster Amendments (apply on Approve)
+D9  Night Shifts register (derived)
+D10 Overnight Shifts register (derived + stored splits)
+D11 Public Holiday Shifts + HolidayCalendar stub
+    → later: live cards / export / hardening / OT Process Staff Shift
 ```
 
-Inside each dynamic phase, keep Staff / Leave layering:
+Inside each slice:
 
 ```
 Types/Zod → Service → Actions (permissions + activity log) → wire UI → smoke test
 ```
 
-Pages must not call Prisma. No business rules in components.
-
-**How to use this list:** Finish a phase’s “Done when” before starting the next. Prefer vertical slices inside each phase.
+Pages must not call Prisma. No business rules in components. Finish a slice’s “Done when” before starting the next. Do not persist Night, Duty, or Holiday as a second copy of the week.
 
 ---
 
@@ -967,7 +1022,7 @@ Pages must not call Prisma. No business rules in components.
 | [x] Non-admin without grant is redirected |
 | [x] Fill / Save / Publish / Copy / Print / Export / Allocate do not write to the DB |
 | [x] Allocate / Edit / History open as sheets |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 **Out of scope for Phase 0:** Prisma models, Zod, real drag-and-drop persist, print/export files.
 
@@ -976,13 +1031,13 @@ Pages must not call Prisma. No business rules in components.
 ## 5B. Development phases — Shift Types
 
 ```
-Phase 0: Static UI (list + Add/Edit/Duplicate/History sheets)
-  → (shared Phase 1 schema with ShiftType)
-    → Phase 2: CRUD
-      → Phase 3: Duplicate persist / bulk activate
-        → Phase 4: Live summary + export
-          → Phase 5: Hardening (+ block delete if allocations exist)
-            → Phase 6: Downstream consumers (roster chips, OT Process Staff Shift)
+Phase 0: Static UI (done)
+  → D1 schema includes ShiftType
+    → D2: CRUD
+      → Duplicate persist / bulk activate with CRUD
+        → Live summary + export after register is live
+          → Block delete if allocations exist
+            → Roster chips / OT consume live ShiftType (after D4+)
 ```
 
 ### Shift Types — Phase 0 — UI interfaces
@@ -1000,9 +1055,9 @@ Phase 0: Static UI (list + Add/Edit/Duplicate/History sheets)
 | [x] `/shift-types` matches the mock (sheets + register) |
 | [x] Register uses **CommonDataTable** (not roster custom grid) |
 | [x] Add/Edit/Duplicate/History are sheets; no Prisma writes |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
-### Shift Types — Phase 2 — CRUD (after shared Phase 1)
+### Shift Types — D2 — CRUD (after D1)
 
 | Layer | Work |
 |-------|------|
@@ -1015,25 +1070,28 @@ Phase 0: Static UI (list + Add/Edit/Duplicate/History sheets)
 | [ ] Create appears in register as Active/Inactive |
 | [ ] Edit loads form; delete removes row (or soft-status if locked) |
 
-### Shift Types — Phase 3–6 (summary)
+### Shift Types — D2 follow-ons (summary)
 
 | Phase | Outcome |
 |-------|---------|
 | **3** | Duplicate Shift; Bulk Activate |
 | **4** | Live summary cards; export against real rows |
 | **5** | Permissions matrix; smoke; refuse delete when allocations reference the type |
-| **6** | Roster / OT consume live `ShiftType` |
+| **later** | Roster / OT consume live `ShiftType` |
+
+Auto Assign that **writes calendar cells** waits until D5 (allocations exist). Duplicate / Bulk Activate stay in D2 if they only touch `ShiftType`.
 
 ---
 
 ## 5C. Development phases — Shift Assignment
 
 ```
-Phase 0: Static UI (list + Assign/Bulk/Edit/History sheets)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD
-      → Phase 3: Bulk assign + auto-assign
-        → Phase 4: Live summary + export
+Phase 0: Static UI (done)
+  → D1 schema includes StaffShiftAssignment
+    → D3: CRUD
+      → Bulk assign persist
+        → Auto Assign that creates allocations waits for D5
+          → Live summary + export
 ```
 
 ### Shift Assignment — Phase 0 — UI interfaces
@@ -1051,19 +1109,21 @@ Phase 0: Static UI (list + Assign/Bulk/Edit/History sheets)
 | [x] `/shift-assignment` matches the mock (sheets + register) |
 | [x] No header Save / Remove Assignment |
 | [x] Bulk Assign requires ≥1 selected row |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
 ## 5D. Development phases — Duty Roster
 
 ```
-Phase 0: Static UI (list + Assign/Swap/Replace/Edit/History sheets)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD
-      → Phase 3: Swap / replace persist + amendment
-        → Phase 4: Live summary + attendance + export
+Phase 0: Static UI (done)
+  → D1 schema (Duty is a view, not a collection)
+    → D7: point UI at RosterAllocation by date
+      → Swap / replace persist (draft only; published → amendment)
+        → Attendance enum + live summary + export
 ```
+
+Weekly / Monthly views stay toast until later.
 
 ### Duty Roster — Phase 0 — UI interfaces
 
@@ -1081,18 +1141,18 @@ Phase 0: Static UI (list + Assign/Swap/Replace/Edit/History sheets)
 | [x] `/duty-roster` matches the mock (sheets + register + swap confirm) |
 | [x] Weekly / Monthly toast; Print/PDF/Excel on table only |
 | [x] Swap Save opens confirm dialog |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
 ## 5E. Development phases — Roster Amendments
 
 ```
-Phase 0: Static UI (list + New/Edit/History sheets + approve/reject confirms)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD
-      → Phase 3: Approve / reject persist + apply to Duty / Shift Roster
-        → Phase 4: Live summary + remarks + export
+Phase 0: Static UI (done)
+  → D1 schema includes RosterAmendment
+    → D8: CRUD of amendment requests
+      → Approve applies to RosterAllocation (mark Amended); Reject does not
+        → Live summary + export
 ```
 
 ### Roster Amendments — Phase 0 — UI interfaces
@@ -1111,18 +1171,18 @@ Phase 0: Static UI (list + New/Edit/History sheets + approve/reject confirms)
 | [x] `/roster-amendments` matches the mock (sheets + register + confirms) |
 | [x] Approve / Reject require selection; Print/PDF/Excel on table only |
 | [x] Approved / Rejected rows hide Edit and Delete |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
 ## 5F. Development phases — Night Shifts
 
 ```
-Phase 0: Static UI (list + Add/Edit/History sheets)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD from Duty Roster night cells
-      → Phase 3: Consecutive-night policy + payroll flag persist
-        → Phase 4: Live summary + export
+Phase 0: Static UI (done)
+  → D1 extra fields on RosterAllocation (not a NightShift collection)
+    → D9: list allocations where ShiftType.isNightShift
+      → Add only if staff + date has no cell; consecutive-night count in service
+        → Live summary + export
 ```
 
 ### Night Shifts — Phase 0 — UI interfaces
@@ -1141,18 +1201,18 @@ Phase 0: Static UI (list + Add/Edit/History sheets)
 | [x] `/night-shifts` matches the mock (sheets + register + policy badge) |
 | [x] Print/PDF/Excel on table only; Start/End auto from shift type |
 | [x] Status includes Draft / Pending Approval / Approved / Rejected |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
 ## 5G. Development phases — Overnight Shifts
 
 ```
-Phase 0: Static UI (list + Add/Edit/History sheets)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD from Duty Roster overnight cells
-      → Phase 3: Midnight split persist + attendance allocation
-        → Phase 4: Recalculate splits + live summary + export
+Phase 0: Static UI (done)
+  → D1 overnight split fields on RosterAllocation
+    → D10: list allocations where ShiftType.isOvernight
+      → Persist stored Day 1 / Day 2 / Total + allocation date
+        → Recalculate Splits writes those fields; live summary + export
 ```
 
 ### Overnight Shifts — Phase 0 — UI interfaces
@@ -1171,18 +1231,18 @@ Phase 0: Static UI (list + Add/Edit/History sheets)
 | [x] `/overnight-shifts` matches the mock (sheets + register + split banner) |
 | [x] Auto Split fills Day 1 / Day 2 / Total from start/end; Recalculate toast |
 | [x] Status includes Draft / Pending Approval / Approved / Rejected / Amended |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
 ## 5H. Development phases — Public Holiday Shifts
 
 ```
-Phase 0: Static UI (list + Add/Edit/Bulk/History sheets)
-  → (shared Phase 1 schema)
-    → Phase 2: CRUD from Holiday Date master + Duty Roster
-      → Phase 3: Lieu leave + payroll posting persist
-        → Phase 4: Bulk assign + live summary + export
+Phase 0: Static UI (done)
+  → D1 HolidayCalendar stub + holiday fields on RosterAllocation
+    → D11: list allocations on holiday dates
+      → Add / Bulk create allocations only when staff + date is empty
+        → Lieu / payroll flags only; live summary + export
 ```
 
 ### Public Holiday Shifts — Phase 0 — UI interfaces
@@ -1201,57 +1261,110 @@ Phase 0: Static UI (list + Add/Edit/Bulk/History sheets)
 | [x] `/public-holiday-shifts` matches the mock (sheets + register + master banner) |
 | [x] Holiday fills Type + Date; Shift fills Hours; Staff fills Location; Bulk hides Staff |
 | [x] Status includes Draft / Pending Approval / Approved / Rejected / Amended |
-| [ ] Design accepted |
+| [x] Layout accepted for dynamic work (minor style / component polish allowed) |
 
 ---
 
-### Phase 1 — Foundation (shared — lock before Prisma)
+### D1 — Foundation (shared — locked 17 Aug 2026)
 
-**Goal:** Collections + shared types. Staff employment `roster` string stays a snapshot label until a Roster master exists.
+**Goal:** Six collections + shared types. Do **not** add `NightShift`, `DutyRoster`, or `PublicHolidayShift` tables. Staff employment `roster` string stays a snapshot label until a Roster master exists.
 
-Proposed (lock in this phase — do not invent extra collections):
+**Do not invent extra collections.** Prisma next — only after this map stays accepted.
 
 ```
+Staff 1──* StaffShiftAssignment
 Staff 1──* RosterAllocation
+Staff 1──* RosterAmendment
+ShiftType 1──* StaffShiftAssignment
 ShiftType 1──* RosterAllocation
 ShiftRoster 1──* RosterAllocation
+HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 ```
 
-| Topic | Proposed decision (confirm before `db push`) |
-|-------|-----------------------------------------------|
-| Collections | **Three** — `ShiftType`, `ShiftRoster` (period header), `RosterAllocation` (staff × date cell) |
+| Topic | Locked decision |
+|-------|-----------------|
+| Collections | **Six** — `ShiftType`, `StaffShiftAssignment`, `ShiftRoster` (period header), `RosterAllocation` (the store), `RosterAmendment`, `HolidayCalendar` (v1 stub) |
 | Shift type codes | **`SHF-n`** via `generateRecordCode('SHF')` — not fixed `D`/`E`/`N` PKs |
 | Shift types seed | Optional starter Day/Evening/Night/Off/Leave rows still use `SHF-n` |
-| Roster period | One `ShiftRoster` per department + unit + roster name + from/to |
-| Status (roster) | `draft` → `published` (optional `pending_approval` if product requires it) |
-| Status (shift type) | Active / Inactive (or `status` 0\|1 like leave types) |
-| Allocation uniqueness | `@@unique([shiftRosterId, staffId, date])` |
-| Leave on a cell | Boolean `isLeave` on the allocation; does not create a Leave Application in v1 |
-| Hours / OT | Stored floats on the allocation (or derived from shift type duration in service) |
-| Department / unit / roster | Snapshot strings on `ShiftRoster` and optionally on each allocation |
+| Assignment codes | `generateRecordCode`: `SA-1` |
 | Roster period codes | `generateRecordCode`: `SR-1` |
-| Staff roster field | Keep employment `roster` string; do not require a Roster master FK in v1 |
-| Conflicts | Overlapping allocations for the same staff + date across loaded rows |
+| Amendment codes | `generateRecordCode`: `RA-1` |
+| Holiday calendar codes | `generateRecordCode`: `HOL-1` |
+| Roster period | One `ShiftRoster` per department + unit + roster name + from/to |
+| Status (period) | `draft` → `published` only (no multi-step approval in v1) |
+| Status (cell) | Follows the period; `amended` after an approved amendment |
+| Status (assignment) | `active` / `pending` / `inactive` |
+| Status (amendment) | `draft` / `pending_approval` / `approved` / `rejected` |
+| Status (shift type) | Active / Inactive (or `status` 0\|1 like leave types) |
+| Allocation uniqueness | **`@@unique([staffId, date])` hospital-wide** — one shift per staff per calendar date |
+| Fill / copy | Must **not** insert a second cell for an existing staff+date; upsert empty cells or shift dates by 7 days (copy previous week) |
+| Leave on a cell | Boolean `isLeave`; does **not** create a Leave Application in v1 |
+| Duty extras on the cell | `dutyLocation`, supervisor id/name snapshots, `attendance` (`present` \| `late` \| `absent` \| null), comments |
+| Overnight on the cell | Start/end date-time; stored `day1Hours` / `day2Hours` / `totalHours`; attendance allocation date (`shift_start` \| `shift_end`) |
+| Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll` |
+| Night extras on the cell | Night hours / OT / allowances as stored floats when the shift type is night; consecutive nights **computed** in the service (not a stored counter as source of truth) |
+| Hours / OT | Stored floats on the allocation; derive from shift type duration when creating the cell |
+| Snapshots | Department / unit / roster **strings** on `ShiftRoster` and on each allocation (same pattern as Overtime) |
+| Staff roster field | Keep employment `roster` string; no Roster master FK in v1 |
+| Publish lock | After `published`, allocate / swap / edit **rejected** in service except via approved `RosterAmendment` |
+| Permissions | One resource `shift-roster`. View-only cannot publish |
+| Derived screens | Night / Overnight / Holiday query `RosterAllocation`; **Add** creates an allocation only if staff+date is empty |
+| Phase 0 status badges | Duty/Night/Holiday labels stay in the UI. Wiring: Draft = period `draft`, Published = period `published`, Amended = cell after D8. Independent `pending_approval` on derived screens is **not** a second workflow |
 
 | Done when |
 |-----------|
-| [ ] Domain table above is **locked** (edit this doc if product disagrees) |
+| [x] Domain table above is **locked** (edit this doc if product disagrees) |
 | [ ] Models in `schema.prisma` + Staff relations both sides |
 | [ ] `types/roster.ts` — statuses, payloads, list params, DTOs |
 | [ ] `prisma db push` + `prisma generate` applied locally |
 
 ---
 
-### Phase 2 — Load roster (read)
+### D2 — Shift Types CRUD
+
+**Goal:** First live register. Leave Types pattern.
+
+| Layer | Work |
+|-------|------|
+| Service | list (paged + filters), get, create, update, delete; allocate `SHF-n` |
+| Actions | `requirePermission('shift-roster', …)` |
+| UI | Wire `/shift-types` Search + form Save/Update/Delete/Duplicate |
+
+| Done when |
+|-----------|
+| [ ] Create appears in register as Active/Inactive |
+| [ ] Edit loads form; delete refuses when allocations or assignments reference the type |
+
+---
+
+### D3 — Shift Assignment CRUD
+
+**Goal:** Standing rules. Does **not** write calendar cells yet.
+
+| Layer | Work |
+|-------|------|
+| Service | list, get, create, update, delete, bulk assign (same payload × N staff); `SA-n` |
+| Actions | strip client audit / status |
+| UI | Wire `/shift-assignment`; Bulk still requires ≥1 selected |
+
+| Done when |
+|-----------|
+| [ ] Assign / Edit persist; Bulk writes one row per selected staff |
+| [ ] Overlapping effective dates for the same staff rejected in the service |
+
+Auto Assign that **creates week cells** waits for D5.
+
+---
+
+### D4 — Load roster (read)
 
 **Goal:** Filters + **Load Roster** replace sample rows. No writes yet.
 
 | Layer | Work |
 |-------|------|
-| Service | List staff in scope (department / unit / roster / name); load `ShiftRoster` + allocations for from/to |
+| Service | List staff in scope; load `ShiftRoster` + `RosterAllocation` for from/to |
 | Actions | `requirePermission('shift-roster', 'view')` |
-| UI | Load Roster / Clear call actions; empty state when nothing matches |
-| Grid | Render live chips; weekly range from From/To (default current week) |
+| UI | Load Roster / Clear; empty state; chips from live `ShiftType` (not hardcoded `D`/`E`/`N` PKs) |
 
 | Done when |
 |-----------|
@@ -1262,116 +1375,165 @@ ShiftRoster 1──* RosterAllocation
 
 ---
 
-### Phase 3 — Allocate + save draft
+### D5 — Allocate + save draft
 
-**Goal:** Persist cell changes as `draft`.
+**Goal:** Persist cells as part of a `draft` period. **Sheet allocate first.** Drag-and-drop persist is deferred.
 
 | Layer | Work |
 |-------|------|
-| Service | Create/update `ShiftRoster` as `draft`; upsert/delete allocations; derive hours |
+| Service | Create/update `ShiftRoster` as `draft`; upsert/delete allocations; derive hours; reject `staffId+date` collisions |
 | Actions | `add` / `edit`; strip client audit / status |
-| UI | Allocate Shift, chip change, Leave checkbox, Save Draft, row edit/delete |
-| Drag-and-drop | Reassign cell → same upsert path |
+| UI | Allocate Shift sheet, Leave checkbox, Save Draft |
 
 | Done when |
 |-----------|
 | [ ] Save Draft persists the period + allocations |
-| [ ] Reload after Save shows the same chips |
+| [ ] Reload after Save shows the same chips on Shift Roster |
 | [ ] Leave checkbox stores `isLeave` without creating a leave application |
-| [ ] Invalid duplicate staff+date is rejected safely |
+| [ ] Duplicate staff+date is rejected safely |
 
 ---
 
-### Phase 4 — Publish / copy / fill
+### D6 — Publish / copy / fill
 
 **Goal:** Workflow and copy helpers.
 
 | Action | Behaviour |
 |--------|-----------|
-| Publish Roster | `draft` → `published`; set `publishedAt` / `publishedBy` |
+| Publish Roster | Period `draft` → `published`; set `publishedAt` / `publishedBy`; cells inherit published |
 | Fill New | New draft period for the current filters (empty cells) |
-| Fill Old Roster | Copy allocations from a previous published period into a new draft |
-| Copy Previous Week / Month | Same as fill-old, scoped to the previous period |
-| Create Fixed Roster | Toast or later template collection — **do not block** publish/copy |
+| Fill Old Roster | Copy from a previous published period into a **new date range** or into empty cells only — never a second row for the same staff+date |
+| Copy Previous Week / Month | Pattern shifted by 7 days / month |
+| Create Fixed Roster | **Toast** — do not block publish/copy |
 
 | Done when |
 |-----------|
-| [ ] Publish is idempotent; cannot edit published cells without an explicit “edit published → new draft” rule (lock in this phase) |
-| [ ] Copy previous week creates a draft with the same pattern shifted by 7 days |
+| [ ] Publish is idempotent; further allocate/swap on those dates fails without an amendment |
+| [ ] Copy previous week creates a draft with the pattern shifted by 7 days |
 | [ ] Activity log on publish / copy |
-| [ ] Create Fixed Roster still toast unless product supplies a template spec |
+| [ ] Create Fixed Roster still toast |
 
 ---
 
-### Phase 5 — Live summary + conflicts
+### D7 — Duty Roster on the same store
 
-**Goal:** Replace sample cards.
+**Goal:** `/duty-roster` daily list is `RosterAllocation` filtered by duty date. No second table.
 
-| Card | Query |
-|------|--------|
-| Staff Rostered | Distinct staff in the loaded period |
-| Shifts This Week | Allocation count in the visible week (exclude Off/Leave if product agrees) |
-| Total Hours | Sum planned hours |
-| Conflicts | Count overlapping staff+date allocations; sub-text when `0` |
+| Layer | Work |
+|-------|------|
+| Service | Same upsert as D5; Swap / Replace = two (or one) allocation updates in a transaction |
+| UI | Load by date; Assign / Swap / Replace / Edit; weekly/monthly still toast |
+| Publish lock | Swap on a published date → service error pointing at Amendments |
 
 | Done when |
 |-----------|
-| [ ] Cards match the loaded filter range |
-| [ ] Conflict pill on the grid footer matches the card |
-| [ ] Monthly view uses the same queries for the month range |
+| [ ] Duty list for 11 Aug matches Shift Roster chips for 11 Aug |
+| [ ] Swap in draft persists; both screens show the new shifts |
+| [ ] Attendance Present / Late / Absent stores on the cell |
+| [ ] Published date rejects direct swap |
 
 ---
 
-### Phase 6 — Print / export
+### D8 — Roster Amendments
 
-**Goal:** Blank vs filled output.
+**Goal:** Only path to change a **published** cell.
+
+| Layer | Work |
+|-------|------|
+| Service | CRUD amendment; Approve updates the allocation + marks `amended`; Reject leaves the cell |
+| UI | New / Edit / History; header Approve / Reject need ≥1 selected pending/draft row |
+
+| Done when |
+|-----------|
+| [ ] Approve changes the live cell; Shift Roster and Duty Roster both show it |
+| [ ] Reject does not change the cell |
+| [ ] Approved / Rejected rows hide Edit and Delete |
+
+---
+
+### D9 — Night Shifts (derived)
+
+**Goal:** List + extra fields for allocations whose `ShiftType.isNightShift`.
 
 | Work |
 |------|
-| [ ] Print Blank Roster — staff rows + empty day cells |
-| [ ] Print Filled Roster — chips as text/colours |
-| [ ] Export Excel / PDF of the current grid |
-| [ ] Grid Print button uses the filled layout |
+| Query `RosterAllocation` join `ShiftType` |
+| Consecutive nights: count prior adjacent night allocations in the service; **> 3** red badge |
+| Add: create allocation only if staff+date empty |
+| Status display follows the cell/period — no parallel approve workflow |
+| `sendToPayroll` flag only |
 
-Until this phase, print/export stay toast-only.
+| Done when |
+|-----------|
+| [ ] Night register shows live night-flagged cells |
+| [ ] Exception Add refuses an existing staff+date |
 
 ---
 
-### Phase 7 — Hardening
+### D10 — Overnight Shifts (derived)
+
+**Goal:** Same as Night, for `ShiftType.isOvernight`.
 
 | Work |
 |------|
-| [ ] Hide / Visible column toggles for staff fields |
-| [ ] Monthly view (not toast) with horizontal scroll + sticky staff columns |
-| [ ] View vs add/edit/delete matrix |
-| [ ] History action — activity log for that staff/period (or toast if too heavy) |
-| [ ] Smoke: filter → load → allocate → save draft → publish → copy previous week |
-| [ ] Non-admin without grant redirected; view-only cannot publish |
+| Persist stored Day 1 / Day 2 / Total + allocation date |
+| Recalculate Splits writes those fields from start/end |
+| Add only if staff+date empty |
+
+| Done when |
+|-----------|
+| [ ] Overnight register shows live overnight-flagged cells |
+| [ ] Recalculate updates stored split hours |
 
 ---
 
-### Phase 8 — Later (do not block v1 persist)
+### D11 — Public Holiday Shifts + calendar stub
+
+**Goal:** `HolidayCalendar` rows (v1 stub). Register = allocations whose date matches a holiday (or `holidayId` set).
+
+| Work |
+|------|
+| CRUD holiday calendar (seed Nikini Poya, May Day, Independence Day as a start) |
+| List/join allocations on those dates |
+| Pay rate / allowance / `grantLieuLeave` / `sendToPayroll` on the cell (**flags only** — no entitlement or payroll post) |
+| Add / Bulk: create allocations only for selected staff with empty date cells |
+
+| Done when |
+|-----------|
+| [ ] Holiday register lists live cells on stub holiday dates |
+| [ ] Bulk refuses rows that already have a cell that day |
+| [ ] Lieu / payroll do not call Leave or payroll services |
+
+---
+
+### Later (do not block D1–D11)
 
 | Item | Notes |
 |------|--------|
-| Create Fixed Roster templates | Separate collection when product specifies repeating patterns |
-| Overtime Process Staff Shift | Replace OT sample fill with this roster service |
+| Live summary cards + conflicts | After the matching register is live (do not block persist) |
+| Print / PDF / Excel | Table/grid export against real rows; until then toast |
+| Duty Weekly / Monthly views | Stay toast |
+| Drag-and-drop persist | Same upsert as D5 when product is ready |
+| Create Fixed Roster templates | Separate collection when specified |
+| Overtime Process Staff Shift | Replace OT sample fill with roster **read** (after D4+) |
 | Leave overlap | Tick Leave vs real `LeaveApplication` — keep independent in v1 |
-| Attendance overlap | Later |
-| Roster master FK on Staff | Optional; keep employment `roster` string until then |
-| Multi-step approval | Only if `pending_approval` is locked in Phase 1 |
+| RFID / attendance engine | Later; enum on the cell is enough for D7 |
+| Real Holiday Date master | Replace `HolidayCalendar` stub when HR Administration exists |
+| Roster master FK on Staff | Keep employment `roster` string until then |
+| Multi-step approval | **Not** in v1 |
 
 ---
 
-## 6. Domain notes (proposed until Phase 1 lock)
+## 6. Domain notes (locked)
 
 - Audit: `createdBy` / `updatedBy` / `publishedBy` are Auth User ObjectIds — **no** cross-DB Prisma relation.
 - Do not put Prisma in pages.
 - Do not trust client `status` or audit fields on save.
-- Cell Leave is **not** a Leave Application in v1.
-- Shift type codes are **`SHF-n`** (generated). Do not use fixed `D`/`E`/`N` as primary keys.
+- Cell Leave is **not** a Leave Application. `grantLieuLeave` is **not** a Leave Entitlement write.
+- Shift type codes are **`SHF-n`**. Chips may still **display** D/E/N labels from the type; those labels are not primary keys.
 - Staff employment `roster` is a display/filter string until a Roster master exists.
-- Overtime must not call a fake roster API — wait for Phase 2+ read service.
+- Overtime must not call a fake roster API — wait for D4+ read service.
+- Mongo: enforce hospital-wide `staffId+date` uniqueness in Prisma **and** handle fill/copy as upsert/shift, not insert-on-top of published weeks.
 
 ---
 
@@ -1381,7 +1543,7 @@ Until this phase, print/export stay toast-only.
 |---------|-----|
 | `CommonManagerHeader` | Page title + header actions |
 | `@archmage/ui` `Card`, `Badge`, `Button` | Cards, status, actions |
-| `CommonDataTable` | Shift Types register (flat CRUD) |
+| `CommonDataTable` | Flat registers (Shift Types, Assignment, Duty, Amendments, Night, Overnight, Holiday) |
 | `@/components/ui/table` | Shift Roster grid primitives (not `CommonDataTable`) |
 | `@/lib/utils/date` | Week / month labels |
 | `usePermissions` | Hide write actions without grant |
@@ -1394,10 +1556,12 @@ Until this phase, print/export stay toast-only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
 3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, and `/public-holiday-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
-5. Keep Save / Publish / Copy as no-ops until their phase.
-6. Do not merge allocations into Staff or Leave Application documents.
-7. Do not block Phase 0–4 on Fixed Roster templates or OT integration.
-8. Process Staff Shift in Overtime must not call a fake roster API.
+5. Keep Save / Publish / Copy / Swap as no-ops until their D-slice.
+6. Do not merge allocations into Staff or Leave Application documents. Do not write Leave Entitlement from `grantLieuLeave`.
+7. Do not create `NightShift`, `DutyRosterRow`, or `PublicHolidayShift` collections — query / extra fields on `RosterAllocation`.
+8. Do not block D1–D8 on Fixed Roster templates, drag persist, or OT integration.
+9. Process Staff Shift in Overtime must not call a fake roster API — wait for D4+.
+10. Fill/copy must respect hospital-wide `staffId+date` uniqueness (upsert or shift dates).
 
 ---
 
@@ -1405,6 +1569,6 @@ Until this phase, print/export stay toast-only.
 
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` — architecture, Staff reference
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — leave phases and UI map (copy this process)
-- `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell; Process Staff Shift waits on this module
+- `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell; Process Staff Shift waits for D4+ read
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating
-- `apps/hrm/prisma/schema.prisma` — add roster collections in Phase 1
+- `apps/hrm/prisma/schema.prisma` — add the six roster collections in D1 (`db push` after this map is accepted)
