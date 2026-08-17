@@ -23,6 +23,7 @@ import { getAllAccounts, getCashierFloatBalance } from '@/services/accounting.se
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { requireActiveShift } from '@/services/shift.service';
+import { isShiftRequirementError } from '@/lib/shift-requirement-error';
 import {
   FLOAT_REQUEST_STATUS,
   denominationsTotalLKR,
@@ -105,17 +106,18 @@ export async function getBulkCashierFloatBalanceAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
-  if (!userId) return { success: true, balanceCents: 0, tillLocationName: null };
+  if (!userId) return { success: true, hasTill: false, balanceCents: null, tillLocationName: null };
   try {
     const { till, balanceCents } = await getBulkCashierSourceTillSummary(userId);
     return {
       success: true,
-      balanceCents,
+      hasTill: !!till,
+      balanceCents: till ? balanceCents : null,
       tillLocationName: till?.locationName ?? till?.locationCode ?? null,
     };
   } catch (e) {
     console.error('getBulkCashierFloatBalanceAction error:', e);
-    return { success: true, balanceCents: 0, tillLocationName: null };
+    return { success: true, hasTill: false, balanceCents: null, tillLocationName: null };
   }
 }
 
@@ -246,7 +248,7 @@ export async function createFloatRequestAction(input: unknown) {
     return { success: false, error: 'Unauthorized', data: null };
   }
   try {
-    await requireActiveShift(requestedById);
+    await requireActiveShift(requestedById, { allowExpired: true });
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to request a float.', data: null };
   }
@@ -388,9 +390,14 @@ export async function approveFloatRequestAction(input: unknown) {
   const currentUserId = session?.user?.id;
   if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
   try {
-    await requireActiveShift(currentUserId);
+    await requireActiveShift(currentUserId, { allowExpired: true });
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to approve a float request.', data: null, printData: undefined };
+    const message = isShiftRequirementError(e)
+      ? e.message
+      : e instanceof Error
+        ? e.message
+        : 'You must have an active shift to approve a float request.';
+    return { success: false, error: message, data: null, printData: undefined };
   }
   if (parsed.data.approvedBy !== currentUserId) {
     return { success: false, error: 'Only the bulk cashier assigned to this request can approve it.', data: null };
@@ -476,7 +483,7 @@ export async function receiveFloatRequestAction(input: unknown) {
   const receivedById = session?.user?.id;
   if (!receivedById) return { success: false, error: 'Unauthorized', data: null };
   try {
-    await requireActiveShift(receivedById);
+    await requireActiveShift(receivedById, { allowExpired: true });
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to receive a float.', data: null };
   }
@@ -516,7 +523,7 @@ export async function declineApprovedFloatRequestAction(input: unknown) {
   const declinedBy = session?.user?.id;
   if (!declinedBy) return { success: false, error: 'Unauthorized', data: null };
   try {
-    await requireActiveShift(declinedBy);
+    await requireActiveShift(declinedBy, { allowExpired: true });
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to decline a float.', data: null };
   }
@@ -571,7 +578,7 @@ export async function rejectFloatRequestAction(input: unknown) {
   const currentUserId = session?.user?.id;
   if (!currentUserId) return { success: false, error: 'Unauthorized', data: null };
   try {
-    await requireActiveShift(currentUserId);
+    await requireActiveShift(currentUserId, { allowExpired: true });
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'You must have an active shift to reject a float request.', data: null };
   }
