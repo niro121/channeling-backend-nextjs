@@ -16,8 +16,10 @@ import {
   rejectFloatRequest,
   cancelFloatRequest,
   getFloatRequestJournal,
+  getBulkCashierSourceTillSummary,
+  resolveBulkCashierSourceTill,
 } from '@/services/float-request.service';
-import { getAllAccounts, getCashierFloatBalance, getCashAccountByUserId, getOrCreateAccount, getAccountBalance } from '@/services/accounting.service';
+import { getAllAccounts, getCashierFloatBalance } from '@/services/accounting.service';
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { requireActiveShift } from '@/services/shift.service';
@@ -83,75 +85,81 @@ const declineApprovedFloatRequestSchema = z.object({
   reason: z.string().min(1, 'Cancel reason is required'),
 });
 
-/** Whether the current user (bulk cashier) has an associated CASH float account. Used to gate Float requests section. */
+/** Whether the current user (bulk cashier) has an active till to disburse float from. */
 export async function hasBulkCashierFloatAccountAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
   if (!userId) return { success: true, hasFloatAccount: false };
   try {
-    const account = await getCashAccountByUserId(userId);
-    return { success: true, hasFloatAccount: !!account };
+    const till = await resolveBulkCashierSourceTill(userId);
+    return { success: true, hasFloatAccount: !!till };
   } catch (e) {
     console.error('hasBulkCashierFloatAccountAction error:', e);
     return { success: true, hasFloatAccount: false };
   }
 }
 
-/** Current user's (bulk cashier) float account balance in cents. 0 if no float account. For balance check/warning in Approve modal. */
+/** Current user's (bulk cashier) active till balance in cents. For balance check/warning in Approve modal. */
 export async function getBulkCashierFloatBalanceAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
-  if (!userId) return { success: true, balanceCents: 0 };
+  if (!userId) return { success: true, balanceCents: 0, tillLocationName: null };
   try {
-    const account = await getCashAccountByUserId(userId);
-    if (!account) return { success: true, balanceCents: 0 };
-    const balanceCents = await getAccountBalance(account.id);
-    return { success: true, balanceCents };
+    const { till, balanceCents } = await getBulkCashierSourceTillSummary(userId);
+    return {
+      success: true,
+      balanceCents,
+      tillLocationName: till?.locationName ?? till?.locationCode ?? null,
+    };
   } catch (e) {
     console.error('getBulkCashierFloatBalanceAction error:', e);
-    return { success: true, balanceCents: 0 };
+    return { success: true, balanceCents: 0, tillLocationName: null };
   }
 }
 
-/** Bulk cashier float account summary: balance and account id (for statement link). Used for top bar on Bulk Cashier page. */
+/** Bulk cashier active till summary: balance and account id (for statement link). */
 export async function getBulkCashierFloatSummaryAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
-  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0 };
+  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0, tillLocationName: null };
   try {
-    const account = await getCashAccountByUserId(userId);
-    if (!account) return { success: true, floatAccountId: null, balanceCents: 0 };
-    const balanceCents = await getAccountBalance(account.id);
-    return { success: true, floatAccountId: account.id, balanceCents };
+    const { till, balanceCents } = await getBulkCashierSourceTillSummary(userId);
+    return {
+      success: true,
+      floatAccountId: till?.accountId ?? null,
+      balanceCents,
+      tillLocationName: till?.locationName ?? till?.locationCode ?? null,
+    };
   } catch (e) {
     console.error('getBulkCashierFloatSummaryAction error:', e);
-    return { success: true, floatAccountId: null, balanceCents: 0 };
+    return { success: true, floatAccountId: null, balanceCents: 0, tillLocationName: null };
   }
 }
 
-/** Create a CASH float account for the current user (bulk cashier). Requires linked staff for account code. */
+/** Ensure the current bulk cashier has an active till (shift location or assigned location). */
 export async function createBulkCashierFloatAccountAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
   if (!userId) {
-    return { success: false, error: 'You must be signed in to create a float account.' };
+    return { success: false, error: 'You must be signed in to create an active till.' };
   }
   try {
-    const result = await getOrCreateAccount({
-      type: 'CASH',
-      userId,
-      name: 'Bulk Cashier Float',
-    });
-    if (!result.success) return { success: false, error: result.error };
+    const till = await resolveBulkCashierSourceTill(userId);
+    if (!till) {
+      return {
+        success: false,
+        error: 'Start an active shift at a location so your till can be used for float.',
+      };
+    }
     revalidatePath('/bulk-cashier');
-    return { success: true, message: 'Float account created. You can now approve float requests.' };
+    return { success: true, message: 'Active till is ready. You can now approve float requests.' };
   } catch (e) {
     console.error('createBulkCashierFloatAccountAction error:', e);
-    return { success: false, error: e instanceof Error ? e.message : 'Failed to create float account.' };
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to create active till.' };
   }
 }
 

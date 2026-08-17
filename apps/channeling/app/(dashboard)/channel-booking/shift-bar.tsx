@@ -373,7 +373,11 @@ export function ChannelBookingShiftBar() {
         const check = await canEndShiftWithoutHandoverAction()
         if (cancelled) return
         if (check.allowed) {
-          await endShiftAction(shift.id)
+          try {
+            await endShiftAction(shift.id)
+          } catch {
+            // Already ended (e.g. user clicked End at the same time) — do not open handover.
+          }
           if (cancelled) return
           refresh()
           toast({
@@ -383,7 +387,7 @@ export function ChannelBookingShiftBar() {
           return
         }
       } catch {
-        // Fall through to handover prompt
+        // Could not determine empty-close eligibility; still prompt handover below.
       }
       if (cancelled) return
       handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }

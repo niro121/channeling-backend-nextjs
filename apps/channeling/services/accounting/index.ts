@@ -19,6 +19,7 @@ export {
   updateAccount,
   getAccountById,
   getAllAccounts,
+  getLinkedAccountUserOptions,
   type GetOrCreateAccountParams,
   type GetAllAccountsParams,
 } from './account.service';
@@ -30,6 +31,7 @@ export {
   getFullInstituteCashBalance,
   getTillBalanceBreakdown,
   getTillBalanceBreakdownForAccount,
+  getUserTillsTotalCents,
   type TillBalanceBreakdown,
 } from './balance.service';
 export { getTillBalanceCentsByMethod } from '@/lib/accounting/till-balance-by-method';

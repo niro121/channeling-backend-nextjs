@@ -633,13 +633,22 @@ export function EndShiftHandoverDialog({
                 </AlertDescription>
               </Alert>
             )}
-            {pendingFloatRequest && (
+            {pendingFloatRequest && !canEndWithoutHandover && (
               <Alert variant="destructive" className="mb-4">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Pending float request</AlertTitle>
                 <AlertDescription>
                   You have a pending float request waiting for approval. Cancel it from the top bar or wait for
                   approval before handing over the shift.
+                </AlertDescription>
+              </Alert>
+            )}
+            {pendingFloatRequest && canEndWithoutHandover && (
+              <Alert className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Unused float request</AlertTitle>
+                <AlertDescription>
+                  Ending this shift will cancel the unused float request. Nothing will be handed over.
                 </AlertDescription>
               </Alert>
             )}
@@ -651,7 +660,8 @@ export function EndShiftHandoverDialog({
               <div className="rounded-lg border bg-muted/40 p-4 space-y-1">
                 <p className="text-sm font-medium">No amount to hand over</p>
                 <p className="text-sm text-muted-foreground">
-                  Till total is {formatCents(balance?.totalCents ?? 0)}. Ending the shift will not create a handover.
+                  Till total is {formatCents(balance?.totalCents ?? 0)}. Ending the shift will not create a handover
+                  {pendingFloatRequest ? " and will cancel the unused float request" : ""}.
                 </p>
               </div>
             ) : balance ? (
