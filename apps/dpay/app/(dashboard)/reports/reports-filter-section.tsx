@@ -1,7 +1,10 @@
 'use client';
 
 import { FilterWrapper } from '../filter-wrapper';
-import { ReportDateRangeFields } from './report-date-range-fields';
+import {
+  DateTimeRangePicker,
+  getDefaultDateTimeRange,
+} from '@/components/common/date-time-range-picker';
 
 type ReportsFilterSectionProps = {
   dateFrom?: string;
@@ -12,21 +15,25 @@ export default function ReportsFilterSection({
   dateFrom,
   dateTo,
 }: ReportsFilterSectionProps) {
+  const defaults = getDefaultDateTimeRange();
+
   return (
     <FilterWrapper
       initialValues={{
-        dateFrom: dateFrom ?? '',
-        dateTo: dateTo ?? '',
+        dateFrom: dateFrom || defaults.from,
+        dateTo: dateTo || defaults.to,
       }}
       buttonLabel="Apply"
     >
       {({ values, setValue }) => (
-        <ReportDateRangeFields
-          dateFrom={values.dateFrom ?? ''}
-          dateTo={values.dateTo ?? ''}
-          onDateFromChange={(value) => setValue('dateFrom', value)}
-          onDateToChange={(value) => setValue('dateTo', value)}
-          idPrefix="report"
+        <DateTimeRangePicker
+          label="Date & Time Range"
+          from={values.dateFrom}
+          to={values.dateTo}
+          onChange={({ from, to }) => {
+            setValue('dateFrom', from);
+            setValue('dateTo', to);
+          }}
         />
       )}
     </FilterWrapper>

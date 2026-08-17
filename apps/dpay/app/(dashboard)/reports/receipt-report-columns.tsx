@@ -22,6 +22,15 @@ export const receiptReportColumns: ColumnDef<ReceiptReportRow>[] = [
     ),
   },
   {
+    accessorKey: 'reference',
+    header: 'Ref',
+    cell: ({ row }) => (
+      <span className="font-mono text-sm whitespace-nowrap">
+        {row.original.reference || '—'}
+      </span>
+    ),
+  },
+  {
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => <ReceiptStatusBadge status={row.original.status} />,

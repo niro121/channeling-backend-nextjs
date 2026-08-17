@@ -101,21 +101,21 @@ export function ShiftStatusModule() {
               <div className="min-w-0">
                 <CardTitle className="text-base font-semibold">
                   {isExpired
-                    ? 'Shift expired — handover required'
+                    ? 'Shift expired'
                     : isActive
                       ? 'Active shift'
                       : 'Paused shift'}
                 </CardTitle>
                 <CardDescription className="mt-0.5 text-sm">
                   {isExpired
-                    ? 'Complete handover before starting a new shift.'
+                    ? 'End the shift from the top bar (empty till closes without handover).'
                     : formatShiftStarted(currentShift.startedAt)}
                 </CardDescription>
               </div>
             </div>
             <Link href="/channel-booking" className="shrink-0">
               <Button size="sm" className="gap-2 w-full sm:w-auto" variant={isExpired ? 'destructive' : 'default'}>
-                {isExpired ? 'Complete handover' : 'Open Channel Booking'}
+                {isExpired ? 'Go to end shift' : 'Open Channel Booking'}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
