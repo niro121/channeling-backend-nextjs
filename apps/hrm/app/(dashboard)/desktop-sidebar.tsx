@@ -21,6 +21,7 @@ import {
   FilePenLine,
   Moon,
   MoonStar,
+  PartyPopper,
   ChevronDown,
   Clock,
   Users,
@@ -196,7 +197,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/duty-roster') ||
           hasAccess('/roster-amendments') ||
           hasAccess('/night-shifts') ||
-          hasAccess('/overnight-shifts')) && (
+          hasAccess('/overnight-shifts') ||
+          hasAccess('/public-holiday-shifts')) && (
           <SidebarGroup label="Roster & Shifts">
             <SidebarCollapsible
               label="Roster & Shifts"
@@ -208,7 +210,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/duty-roster',
                 '/roster-amendments',
                 '/night-shifts',
-                '/overnight-shifts'
+                '/overnight-shifts',
+                '/public-holiday-shifts'
               ]}
             >
               {hasAccess('/shift-roster') && (
@@ -258,6 +261,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/overnight-shifts"
                   label="Overnight Shifts"
                   icon={<MoonStar className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/public-holiday-shifts') && (
+                <NavLink
+                  href="/public-holiday-shifts"
+                  label="Public Holiday Shifts"
+                  icon={<PartyPopper className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

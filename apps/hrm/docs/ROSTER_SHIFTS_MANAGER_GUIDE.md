@@ -11,19 +11,20 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Roster Amendments:** Phase 0 UI implemented — awaiting design acceptance.  
 **Night Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
 **Overnight Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
+**Public Holiday Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
 **Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
 Pages must not call Prisma. No business rules in components.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, …)
+- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts`, …)
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
 - Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
 - Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
 - Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
-- Shift Assignment / Duty Roster / Roster Amendments / Night Shifts / Overnight Shifts sidebar: **leave expanded** (register pages, not focus calendar)
+- Shift Assignment / Duty Roster / Roster Amendments / Night Shifts / Overnight Shifts / Public Holiday Shifts sidebar: **leave expanded** (register pages, not focus calendar)
 - Duty Roster: Daily view only in Phase 0; Weekly/Monthly toast; Print/PDF/Excel on table only
 - Duty Roster status: Draft / Pending Approval / Published / Amended; History Cancel-only timeline
 - Roster Amendments: **`CommonDataTable`**; header New / Approve / Reject; table-only Print/PDF/Excel
@@ -31,9 +32,13 @@ Pages must not call Prisma. No business rules in components.
 - Roster Amendments status: Draft / Pending Approval / Approved / Rejected; History Cancel-only timeline
 - Night Shifts: **`CommonDataTable`**; header Add only; table-only Print/PDF/Excel; consecutive nights **> 3** red badge
 - Night Shifts status: Draft / Pending Approval / Approved / Rejected; new defaults to Pending Approval
-- Night Shifts Overnight / Public Holiday: later sibling routes, not tabs on this page
+- Night Shifts Overnight / Public Holiday: sibling routes, not tabs on this page
 - Overnight Shifts: **`CommonDataTable`**; header Add + Recalculate Splits (toast); table-only Print/PDF/Excel
 - Overnight Shifts: Auto Split at midnight; attendance allocation Start/End date; Status includes Amended
+- Public Holiday Shifts: **`CommonDataTable`**; header Add + Bulk Assign Holiday Duty (≥1 selected); table-only Print/PDF/Excel
+- Public Holiday Shifts: sample Holiday Date master; Holiday → Type + Duty Date; Shift → Worked Hours; Staff → Duty Location
+- Public Holiday Shifts: Pay Rate badges 1.50x / 2.00x / 2.50x; Lieu Leave Yes/No; Send to Payroll on form only
+- Public Holiday Shifts status: Draft / Pending Approval / Approved / Rejected / Amended; new defaults to Pending Approval
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
@@ -52,10 +57,11 @@ Pages must not call Prisma. No business rules in components.
 | `/roster-amendments` | `shift-roster` | Controlled changes to published duty / shift rosters (approve / reject) |
 | `/night-shifts` | `shift-roster` | Night duty register from Duty Roster: hours, allowances, consecutive-night alerts |
 | `/overnight-shifts` | `shift-roster` | Cross-midnight shifts: day-split hours and attendance date allocation |
+| `/public-holiday-shifts` | `shift-roster` | Gazetted holiday duties: pay rates, lieu leave, and payroll posting |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts.
+Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
@@ -547,7 +553,7 @@ Columns include **Updated** and **Created**. Default From / To empty.
 
 ## 2F. UI map — Night Shifts (Phase 0)
 
-Night duty register derived from the Duty Roster. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Overnight Shifts and Public Holiday Shifts are later sibling routes, not tabs here.
+Night duty register derived from the Duty Roster. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Overnight Shifts and Public Holiday Shifts are sibling routes, not tabs here.
 
 ```
 ┌─ Header ──────────────────────────────────────────────────────────────────┐
@@ -684,6 +690,78 @@ Columns include **Updated** and **Created**. Default From / To empty.
 
 ---
 
+## 2H. UI map — Public Holiday Shifts (Phase 0)
+
+Gazetted holiday duties with holiday pay, lieu leave, and payroll posting. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Holiday Date master is **sample holidays** until an HR Administration master exists.
+
+```
+┌─ Header ──────────────────────────────────────────────────────────────────┐
+│ Public Holiday Shifts    [ Add Holiday Shift ] [ Bulk Assign Holiday Duty ]│
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Holiday Duties ─┐ ┌─ Staff on Holiday Duty ─┐ ┌─ Holiday Pay ─┐ ┌─ Lieu Days ─┐
+│       164        │ │          118            │ │  LKR 0.92 M   │ │      72     │
+└──────────────────┘ └─────────────────────────┘ └───────────────┘ └─────────────┘
+
+┌─ Search & Filters ────────────────────────────────────────────────────────┐
+│ Holiday │ Type │ From │ To │ Department │ Unit │ Pay Rate │ Status        │
+│ [ Search ] [ Clear ]                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Public Holiday Shift Register (CommonDataTable) ─────────────────────────┐
+│ Green banner: Holiday Date master          [ Columns ] [ Print/PDF/Excel ]│
+│ Staff │ Dept │ Unit │ Holiday │ Type │ Date │ Shift │ Hours │ Pay Rate │  │
+│ Allowance │ Location │ Lieu │ Status │ Updated │ Created │ Actions        │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check + sample data |
+| `public-holiday-shifts-workspace.tsx` | Provider, header, filters, register, sheets |
+| `public-holiday-shifts-ui-context.tsx` | Open Add / Edit / Bulk / History |
+| `header-actions.tsx` | **Add Holiday Shift**, **Bulk Assign Holiday Duty** |
+| `section-holiday-summary.tsx` | Four count cards |
+| `section-holiday-filters.tsx` | From / To default empty |
+| `section-holiday-register.tsx` | `CommonDataTable` + master banner + export |
+| `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
+| `sheet-holiday-form.tsx` | Add / Edit / Bulk form + auto-fill |
+| `sheet-holiday-history.tsx` | Timeline history; **Cancel only** |
+| `sample-data.ts` | Mock holiday duties + sample Holiday Date master |
+
+### 2H.1 Header
+
+- Print / PDF / Excel on the **table toolbar only**.
+- **Bulk Assign Holiday Duty** requires **≥1** selected row (else toast), same as Shift Assignment.
+- Green banner: holidays sourced from the Holiday Date master under HR Administration.
+
+### 2H.2 Form sheets
+
+| Sheet | Opens from | Notes |
+|-------|------------|--------|
+| Add Holiday Shift | Header | No selected-row requirement |
+| Bulk Assign Holiday Duty | Header | Hides Staff; banner with selected count |
+| Edit Holiday Shift | Row pencil | Prefill sample; Edit/Delete on all statuses |
+| Change History | Row clock | Timeline like Overnight; Cancel only |
+
+Field behaviour (locked):
+
+- Public Holiday, Holiday Type, Staff (not Bulk), Shift, Duty Date, Pay Rate required.
+- Holiday selection auto-fills **Holiday Type** and **Duty Date** (both remain editable).
+- Shift auto-fills **Worked Hours** (editable). Staff auto-fills **Duty Location** (editable).
+- Pay Rate: **1.50x / 2.00x / 2.50x**. Grant Lieu Leave maps to Lieu Leave Yes/No. Send to Payroll is **form only**.
+- Status: Draft / Pending Approval / Approved / Rejected / **Amended**. New defaults to Pending Approval.
+
+Sticky sheet header. Phase 0 toast save.
+
+### 2H.3 Register
+
+Columns include **Updated** and **Created**. Default From / To empty. No Payroll Ready column.
+
+---
+
 ## 3. Suggested folders
 
 ```
@@ -787,6 +865,20 @@ app/(dashboard)/(roster-shifts)/overnight-shifts/
   sheet-overnight-history.tsx
   sample-data.ts
 
+app/(dashboard)/(roster-shifts)/public-holiday-shifts/
+  page.tsx
+  public-holiday-shifts-workspace.tsx
+  public-holiday-shifts-ui-context.tsx
+  header-actions.tsx
+  section-holiday-summary.tsx
+  section-holiday-filters.tsx
+  section-holiday-register.tsx
+  columns.tsx
+  record-actions.tsx
+  sheet-holiday-form.tsx
+  sheet-holiday-history.tsx
+  sample-data.ts
+
 # Dynamic layers (Phase 1+)
 types/roster.ts
 lib/mappers/
@@ -814,12 +906,12 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
+3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)`
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`
+7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -1083,6 +1175,36 @@ Phase 0: Static UI (list + Add/Edit/History sheets)
 
 ---
 
+## 5H. Development phases — Public Holiday Shifts
+
+```
+Phase 0: Static UI (list + Add/Edit/Bulk/History sheets)
+  → (shared Phase 1 schema)
+    → Phase 2: CRUD from Holiday Date master + Duty Roster
+      → Phase 3: Lieu leave + payroll posting persist
+        → Phase 4: Bulk assign + live summary + export
+```
+
+### Public Holiday Shifts — Phase 0 — UI interfaces
+
+| Work |
+|------|
+| Route `(roster-shifts)/public-holiday-shifts` — sheets only |
+| List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
+| Table-only Print/PDF/Excel; Bulk Assign needs ≥1 selected; Holiday Date banner |
+| Add / Edit / Bulk / History sheets; auto-fill holiday/shift/staff; History Cancel-only |
+| Map `/public-holiday-shifts` → `shift-roster`; sidebar + breadcrumb (sidebar stays expanded) |
+| `public-holiday-shifts.visited` activity on list |
+
+| Done when |
+|-----------|
+| [x] `/public-holiday-shifts` matches the mock (sheets + register + master banner) |
+| [x] Holiday fills Type + Date; Shift fills Hours; Staff fills Location; Bulk hides Staff |
+| [x] Status includes Draft / Pending Approval / Approved / Rejected / Amended |
+| [ ] Design accepted |
+
+---
+
 ### Phase 1 — Foundation (shared — lock before Prisma)
 
 **Goal:** Collections + shared types. Staff employment `roster` string stays a snapshot label until a Roster master exists.
@@ -1270,7 +1392,7 @@ Until this phase, print/export stay toast-only.
 
 1. **Do not** put Prisma in pages — services only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
-3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, and `/overnight-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
+3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, and `/public-holiday-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Keep Save / Publish / Copy as no-ops until their phase.
 6. Do not merge allocations into Staff or Leave Application documents.
