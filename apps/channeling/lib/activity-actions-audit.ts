@@ -120,6 +120,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'shift.paused', importance: 'High', when: 'User pauses a shift' },
   { action: 'shift.resumed', importance: 'High', when: 'User resumes a shift' },
   { action: 'shift.ended', importance: 'High', when: 'User ends a shift' },
+  { action: 'shift.leftover.ended_on_handover', importance: 'High', when: 'Leftover open shifts are ended when a later full-till handover is approved' },
   { action: 'tags.visited', importance: 'Low', when: 'User opens Tags page' },
   { action: 'tags.tag.created', importance: 'High', when: 'User creates a tag' },
   { action: 'tags.tag.updated', importance: 'High', when: 'User updates a tag' },

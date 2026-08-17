@@ -2,7 +2,8 @@
 
 import prisma from "@/lib/prisma"
 import { SHIFT_STATUS } from "@/types/shift"
-import { HANDOVER_STATUS } from "@/types/handover"
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
@@ -13,6 +14,7 @@ import {
   getEndsAtForHours,
   getShiftMaxHoursForRole,
 } from "@/lib/shift-duration"
+import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
 
@@ -68,6 +70,37 @@ export async function getActiveShift(userId: string) {
   return shift
 }
 
+const OPEN_SHIFT_STATUSES = [
+  SHIFT_STATUS.ACTIVE,
+  SHIFT_STATUS.PAUSED,
+  SHIFT_STATUS.HANDOVER_PENDING,
+] as const
+
+function openShiftStartConflictMessage(shift: { status: number; endsAt: Date | string }): string {
+  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
+    return "You have a handover pending. Cancel it from the top bar or wait for the recipient to approve before starting a new shift."
+  }
+  if (isShiftPastMaxDuration(shift)) {
+    return "Your previous shift exceeded its time limit. Complete handover from the top bar before starting a new shift."
+  }
+  if (shift.status === SHIFT_STATUS.PAUSED) {
+    return "You already have a paused shift. Resume or end it from the top bar before starting a new one."
+  }
+  return "You already have an active shift. End it from the top bar before starting a new one."
+}
+
+/** True when the user has an open shift (active, paused, or handover pending). */
+export async function hasOpenShift(userId: string): Promise<boolean> {
+  const shift = await shiftModel.findFirst({
+    where: {
+      userId,
+      status: { in: [...OPEN_SHIFT_STATUSES] },
+    },
+    select: { id: true },
+  })
+  return !!shift
+}
+
 /**
  * Open (not ended) shift for the user, including past max duration.
  * Expired shifts stay "current" so the user cannot start another until handover completes.
@@ -76,10 +109,11 @@ export async function getCurrentShift(userId: string) {
   const shift = await shiftModel.findFirst({
     where: {
       userId,
-      status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED, SHIFT_STATUS.HANDOVER_PENDING] },
+      status: { in: [...OPEN_SHIFT_STATUSES] },
     },
     orderBy: { startedAt: "desc" },
     include: {
+      location: { select: { id: true, name: true, code: true } },
       handovers: {
         where: { status: HANDOVER_STATUS.PENDING },
         orderBy: { createdAt: "desc" },
@@ -254,30 +288,35 @@ export async function getActiveShiftsWithUserAndLocation() {
 
 export async function startShift(userId: string, locationId?: string | null) {
   const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
-  const existing = await getCurrentShift(validUserId)
-  if (existing) {
-    const msg =
-      isShiftPastMaxDuration(existing)
-        ? "Your previous shift exceeded its time limit. Complete handover from the top bar before starting a new shift."
-        : existing.status === SHIFT_STATUS.HANDOVER_PENDING
-          ? "You have a handover pending. Cancel it from the top bar or wait for the recipient to approve before starting a new shift."
-          : "You already have an active or paused shift. Please end it or resume it from the top bar before starting a new one."
-    throw new Error(msg)
-  }
-  const now = new Date()
-  const startedAt = now
   const isBulkCashier = await isBulkCashierUser(validUserId)
   const maxHours = getShiftMaxHoursForRole(isBulkCashier)
-  const endsAt = getEndsAtForHours(startedAt, maxHours)
-  const shift = await shiftModel.create({
-    data: {
-      userId: validUserId,
-      locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
-      startedAt,
-      endsAt,
-      status: SHIFT_STATUS.ACTIVE,
-      createdBy: validUserId,
-    },
+  const now = new Date()
+  const endsAt = getEndsAtForHours(now, maxHours)
+
+  // Check + create in one transaction so two concurrent starts cannot both succeed.
+  const shift = await prisma.$transaction(async (tx) => {
+    const txShift = (tx as typeof prisma & { shift: typeof shiftModel }).shift
+    const existing = await txShift.findFirst({
+      where: {
+        userId: validUserId,
+        status: { in: [...OPEN_SHIFT_STATUSES] },
+      },
+      select: { id: true, status: true, endsAt: true },
+      orderBy: { startedAt: "desc" },
+    })
+    if (existing) {
+      throw new Error(openShiftStartConflictMessage(existing))
+    }
+    return txShift.create({
+      data: {
+        userId: validUserId,
+        locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
+        startedAt: now,
+        endsAt,
+        status: SHIFT_STATUS.ACTIVE,
+        createdBy: validUserId,
+      },
+    })
   })
   logActivityNonBlocking({
     userId: validUserId,
@@ -285,7 +324,7 @@ export async function startShift(userId: string, locationId?: string | null) {
     entityType: "Shift",
     entityId: shift.id,
     metadata: {
-      startedAt: startedAt.toISOString(),
+      startedAt: now.toISOString(),
       endsAt: endsAt.toISOString(),
       maxHours,
       isBulkCashier,
@@ -352,6 +391,75 @@ export async function resumeShift(shiftId: string, userId: string) {
   return { success: true }
 }
 
+/**
+ * True when the shift can be closed with no ShiftHandover:
+ * till is empty (or missing), nothing to forward, no pending float/handovers to accept.
+ */
+export async function canEndShiftWithoutHandover(userId: string): Promise<{
+  allowed: boolean
+  reason?: string
+}> {
+  const pendingHandoversToMe = await prisma.shiftHandover.count({
+    where: { toUserId: userId, status: HANDOVER_STATUS.PENDING },
+  })
+  if (pendingHandoversToMe > 0) {
+    return {
+      allowed: false,
+      reason:
+        "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before ending your shift.",
+    }
+  }
+
+  const pendingFloat = await prisma.floatRequest.findFirst({
+    where: { requestedById: userId, status: FLOAT_REQUEST_STATUS.PENDING },
+    select: { id: true },
+  })
+  if (pendingFloat) {
+    return {
+      allowed: false,
+      reason:
+        "You have a pending float request waiting for approval. Cancel it or wait for approval before ending the shift.",
+    }
+  }
+
+  const received = await prisma.shiftHandover.findMany({
+    where: { toUserId: userId, status: HANDOVER_STATUS.APPROVED },
+    select: { id: true, forwardedToHandoverId: true, reconciliationStatus: true },
+    take: 50,
+  })
+  const mustForward = received.some((h) => {
+    if (h.forwardedToHandoverId != null) return false
+    const status = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+    const heldOrDone =
+      status === RECONCILIATION_STATUS.IN_RECONCILIATION ||
+      status === RECONCILIATION_STATUS.RECONCILED_APPROVED
+    return !heldOrDone
+  })
+  if (mustForward) {
+    return {
+      allowed: false,
+      reason: "You have received handover(s) that must be included in a handover before ending this shift.",
+    }
+  }
+
+  let totalCents = 0
+  try {
+    const breakdown = await getTillBalanceBreakdown(userId)
+    totalCents = breakdown.totalCents ?? 0
+  } catch {
+    // No till / cannot create till (e.g. missing staff) → nothing to hand over.
+    totalCents = 0
+  }
+  if (totalCents !== 0) {
+    return {
+      allowed: false,
+      reason: "Till has a balance. Complete a handover to end this shift.",
+    }
+  }
+
+  return { allowed: true }
+}
+
 export async function endShift(shiftId: string, userId: string) {
   const { shiftId: validShiftId, userId: validUserId } = shiftActionSchema.parse({ shiftId, userId })
   const shift = await shiftModel.findFirst({
@@ -363,20 +471,15 @@ export async function endShift(shiftId: string, userId: string) {
   })
   if (!shift) return { success: false, message: "Shift not found" }
 
-  if (isShiftPastMaxDuration(shift)) {
+  const emptyClose = await canEndShiftWithoutHandover(validUserId)
+  if (!emptyClose.allowed) {
     return {
       success: false,
-      message: "Shift time limit has ended. Complete handover from the top bar — you cannot end this shift without handover.",
-    }
-  }
-
-  const pendingHandoversToMe = await prisma.shiftHandover.count({
-    where: { toUserId: validUserId, status: HANDOVER_STATUS.PENDING },
-  })
-  if (pendingHandoversToMe > 0) {
-    return {
-      success: false,
-      message: "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before ending your shift.",
+      message:
+        emptyClose.reason ??
+        (isShiftPastMaxDuration(shift)
+          ? "Shift time limit has ended. Complete handover from the top bar — you cannot end this shift without handover."
+          : "Cannot end this shift without a handover."),
     }
   }
 
@@ -390,7 +493,13 @@ export async function endShift(shiftId: string, userId: string) {
     action: "shift.ended",
     entityType: "Shift",
     entityId: validShiftId,
-    metadata: { endedAt: now.toISOString() },
+    metadata: {
+      endedAt: now.toISOString(),
+      withoutHandover: true,
+      pastMaxDuration: isShiftPastMaxDuration(shift),
+    },
   })
+  const io = getIO()
+  if (io) io.to(shiftUpdateRoom(validUserId)).emit("shift-update", {})
   return { success: true }
 }

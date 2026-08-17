@@ -16,6 +16,7 @@ import {
   getLinkedDoctorIdForUser,
   syncDoctorUserAccountLink,
 } from "@/lib/helpers/auth/sync-doctor-user-link"
+import { hasOpenShift } from "@/services/shift.service"
 
 // ==== USER: VALIDATION SCHEMA ==== //
 const userSchema = z.object({
@@ -384,6 +385,31 @@ export const updateOneUser = async (
     }
 
     const data = parsed.data;
+
+    const nextUserLocationId =
+      data.userLocationId !== undefined && data.userLocationId
+        ? data.userLocationId
+        : undefined;
+    if (nextUserLocationId) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: { userLocationId: true },
+      });
+      if (existingUser && existingUser.userLocationId !== nextUserLocationId) {
+        const openShiftExists = await hasOpenShift(id);
+        if (openShiftExists) {
+          const message =
+            "Cannot change this user's location while they have an active, paused, or pending shift. End or complete the shift first.";
+          return {
+            success: false,
+            error: {
+              message,
+              issues: { userLocationId: [message] },
+            },
+          };
+        }
+      }
+    }
 
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;

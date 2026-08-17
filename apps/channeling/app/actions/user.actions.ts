@@ -3,6 +3,7 @@
 import { GetUsersParams, GetUsersQuery, User } from "@/types/user"
 import * as argon2 from "argon2";
 import { deleteOneUser, deleteUsers, getUsers, saveUser, updateOneUser, getUserById, deactivateUsers, deactivateOneUser, getLocationOptionsService } from "@/services/user.service"
+import { hasOpenShift } from "@/services/shift.service"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
@@ -269,6 +270,12 @@ export const fetchUserById = async (id: string) => {
         throw new Error(error.message || "Unable to fetch user.");
     }
 };
+
+export const userHasOpenShiftAction = async (userId: string): Promise<boolean> => {
+    await requirePermission("users", "view")
+    if (!userId) return false
+    return hasOpenShift(userId)
+}
 
 
 export const updateUserPassword = async (id: string, password: string) => {

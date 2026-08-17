@@ -121,6 +121,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'shift.paused',
   'shift.resumed',
   'shift.ended',
+  'shift.leftover.ended_on_handover',
   'tags.visited',
   'tags.tag.created',
   'tags.tag.updated',
