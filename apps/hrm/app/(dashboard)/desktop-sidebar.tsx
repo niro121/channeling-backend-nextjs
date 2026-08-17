@@ -19,6 +19,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   FilePenLine,
+  Moon,
   ChevronDown,
   Clock,
   Users,
@@ -192,7 +193,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/shift-types') ||
           hasAccess('/shift-assignment') ||
           hasAccess('/duty-roster') ||
-          hasAccess('/roster-amendments')) && (
+          hasAccess('/roster-amendments') ||
+          hasAccess('/night-shifts')) && (
           <SidebarGroup label="Roster & Shifts">
             <SidebarCollapsible
               label="Roster & Shifts"
@@ -202,7 +204,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/shift-types',
                 '/shift-assignment',
                 '/duty-roster',
-                '/roster-amendments'
+                '/roster-amendments',
+                '/night-shifts'
               ]}
             >
               {hasAccess('/shift-roster') && (
@@ -238,6 +241,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/roster-amendments"
                   label="Roster Amendments"
                   icon={<FilePenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/night-shifts') && (
+                <NavLink
+                  href="/night-shifts"
+                  label="Night Shifts"
+                  icon={<Moon className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

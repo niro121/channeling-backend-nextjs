@@ -9,24 +9,28 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Shift Assignment:** Phase 0 UI implemented — awaiting design acceptance.  
 **Duty Roster:** Phase 0 UI implemented — awaiting design acceptance.  
 **Roster Amendments:** Phase 0 UI implemented — awaiting design acceptance.  
+**Night Shifts:** Phase 0 UI implemented — awaiting design acceptance.  
 **Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
 Pages must not call Prisma. No business rules in components.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, …)
+- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, …)
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
 - Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
 - Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
 - Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
-- Shift Assignment / Duty Roster / Roster Amendments sidebar: **leave expanded** (register pages, not focus calendar)
+- Shift Assignment / Duty Roster / Roster Amendments / Night Shifts sidebar: **leave expanded** (register pages, not focus calendar)
 - Duty Roster: Daily view only in Phase 0; Weekly/Monthly toast; Print/PDF/Excel on table only
 - Duty Roster status: Draft / Pending Approval / Published / Amended; History Cancel-only timeline
 - Roster Amendments: **`CommonDataTable`**; header New / Approve / Reject; table-only Print/PDF/Excel
 - Roster Amendments Approve / Reject: **≥1** selected row; skip already Approved/Rejected
 - Roster Amendments status: Draft / Pending Approval / Approved / Rejected; History Cancel-only timeline
+- Night Shifts: **`CommonDataTable`**; header Add only; table-only Print/PDF/Excel; consecutive nights **> 3** red badge
+- Night Shifts status: Draft / Pending Approval / Approved / Rejected; new defaults to Pending Approval
+- Night Shifts Overnight / Public Holiday: later sibling routes, not tabs on this page
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
@@ -43,10 +47,11 @@ Pages must not call Prisma. No business rules in components.
 | `/shift-assignment` | `shift-roster` | Link staff to shift types / rotation patterns — feeds Duty Roster & Shift Roster |
 | `/duty-roster` | `shift-roster` | Department/unit daily duty list: assign, swap, replace, attendance |
 | `/roster-amendments` | `shift-roster` | Controlled changes to published duty / shift rosters (approve / reject) |
+| `/night-shifts` | `shift-roster` | Night duty register from Duty Roster: hours, allowances, consecutive-night alerts |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments.
+Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts.
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
@@ -536,6 +541,74 @@ Columns include **Updated** and **Created**. Default From / To empty.
 
 ---
 
+## 2F. UI map — Night Shifts (Phase 0)
+
+Night duty register derived from the Duty Roster. Same permission (`shift-roster`). Register page — **do not** auto-collapse the sidebar. Overnight Shifts and Public Holiday Shifts are later sibling routes, not tabs here.
+
+```
+┌─ Header ──────────────────────────────────────────────────────────────────┐
+│ Night Shifts                                              [ Add Night Shift ]│
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Night Shifts This Cycle ─┐ ┌─ Staff on Night Duty ─┐ ┌─ Allowance ─┐ ┌─ Alerts ─┐
+│           612             │ │          94           │ │  LKR 1.48 M │ │    6     │
+└───────────────────────────┘ └───────────────────────┘ └─────────────┘ └──────────┘
+
+┌─ Search & Filters ────────────────────────────────────────────────────────┐
+│ From │ To │ Department │ Unit │ Shift Type │ Staff │ Status │ Salary Cycle│
+│ [ Search ] [ Clear ]                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Night Shift Register (CommonDataTable) ──────────────────────────────────┐
+│ Banner: consecutive nights > 3             [ Columns ] [ Print/PDF/Excel ]│
+│ Staff │ Dept │ Unit │ Date │ Night Shift │ Hours │ OT │ Allowances │ …    │
+│ Consecutive │ Payroll Ready │ Status │ Updated │ Created │ Actions        │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Key files under `app/(dashboard)/(roster-shifts)/night-shifts/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check + sample data |
+| `night-shifts-workspace.tsx` | Provider, header, filters, register, sheets |
+| `night-shifts-ui-context.tsx` | Open Add / Edit / History |
+| `header-actions.tsx` | **Add Night Shift** (no Print/Excel/PDF) |
+| `section-night-summary.tsx` | Four count cards |
+| `section-night-filters.tsx` | From / To default empty |
+| `section-night-register.tsx` | `CommonDataTable` + policy banner + export |
+| `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
+| `sheet-night-shift-form.tsx` | Add / Edit form |
+| `sheet-night-shift-history.tsx` | Timeline history; **Cancel only** |
+| `sample-data.ts` | Mock night duties + options + summary |
+
+### 2F.1 Header and policy
+
+- Print / PDF / Excel on the **table toolbar only**.
+- Consecutive nights **> 3** show a red `n nights` badge. Orange banner under the register toolbar.
+
+### 2F.2 Form sheets
+
+| Sheet | Opens from | Notes |
+|-------|------------|--------|
+| Add Night Shift | Header | No selected-row requirement |
+| Edit Night Shift | Row pencil | Prefill sample; Edit/Delete stay on all statuses |
+| Change History | Row clock | Timeline like Shift Types; Cancel only |
+
+Field behaviour (locked):
+
+- **Start / End** auto from Night Shift Type (disabled). Hours / OT / allowances / consecutive nights **editable**.
+- **Send to Payroll** toggle maps to the Payroll Ready Yes/No badge.
+- Status: **Draft / Pending Approval / Approved / Rejected**. New defaults to Pending Approval.
+
+Sticky sheet header. Phase 0 toast save.
+
+### 2F.3 Register
+
+Columns include **Updated** and **Created**. Default From / To empty.
+
+---
+
 ## 3. Suggested folders
 
 ```
@@ -611,6 +684,20 @@ app/(dashboard)/(roster-shifts)/roster-amendments/
   sheet-amendment-history.tsx
   sample-data.ts
 
+app/(dashboard)/(roster-shifts)/night-shifts/
+  page.tsx
+  night-shifts-workspace.tsx
+  night-shifts-ui-context.tsx
+  header-actions.tsx
+  section-night-summary.tsx
+  section-night-filters.tsx
+  section-night-register.tsx
+  columns.tsx
+  record-actions.tsx
+  sheet-night-shift-form.tsx
+  sheet-night-shift-history.tsx
+  sample-data.ts
+
 # Dynamic layers (Phase 1+)
 types/roster.ts
 lib/mappers/
@@ -638,12 +725,12 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts` → `shift-roster`
+3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)`
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`
+7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -847,6 +934,36 @@ Phase 0: Static UI (list + New/Edit/History sheets + approve/reject confirms)
 
 ---
 
+## 5F. Development phases — Night Shifts
+
+```
+Phase 0: Static UI (list + Add/Edit/History sheets)
+  → (shared Phase 1 schema)
+    → Phase 2: CRUD from Duty Roster night cells
+      → Phase 3: Consecutive-night policy + payroll flag persist
+        → Phase 4: Live summary + export
+```
+
+### Night Shifts — Phase 0 — UI interfaces
+
+| Work |
+|------|
+| Route `(roster-shifts)/night-shifts` — sheets only |
+| List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
+| Table-only Print/PDF/Excel; consecutive nights > 3 red badge + banner |
+| Add / Edit / History sheets; History Cancel-only; Edit/Delete on all statuses |
+| Map `/night-shifts` → `shift-roster`; sidebar + breadcrumb (sidebar stays expanded) |
+| `night-shifts.visited` activity on list |
+
+| Done when |
+|-----------|
+| [x] `/night-shifts` matches the mock (sheets + register + policy badge) |
+| [x] Print/PDF/Excel on table only; Start/End auto from shift type |
+| [x] Status includes Draft / Pending Approval / Approved / Rejected |
+| [ ] Design accepted |
+
+---
+
 ### Phase 1 — Foundation (shared — lock before Prisma)
 
 **Goal:** Collections + shared types. Staff employment `roster` string stays a snapshot label until a Roster master exists.
@@ -1034,7 +1151,7 @@ Until this phase, print/export stay toast-only.
 
 1. **Do not** put Prisma in pages — services only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
-3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, and `/roster-amendments` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
+3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, and `/night-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Keep Save / Publish / Copy as no-ops until their phase.
 6. Do not merge allocations into Staff or Leave Application documents.

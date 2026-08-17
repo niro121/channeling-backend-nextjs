@@ -15,6 +15,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/shift-assignment': 'shift-roster',
   '/duty-roster': 'shift-roster',
   '/roster-amendments': 'shift-roster',
+  '/night-shifts': 'shift-roster',
   '/users': 'users',
   '/user-groups': 'users',
 };
