@@ -21,6 +21,7 @@
     "sequence:sync": "npx tsx scripts/sequence-sync-from-db.ts",
     "seed:receipt-templates": "npx tsx scripts/seed-receipt-templates.ts",
     "fix:booking-null-session-appointmentno": "npx tsx scripts/fix-booking-null-session-appointmentno-duplicates.ts",
+    "shifts:end-user": "npx tsx scripts/end-user-open-shifts.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:appointment-logic": "npx tsx scripts/verify-appointment-number-logic.ts"

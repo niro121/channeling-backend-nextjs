@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import {
   getAllAccounts,
+  getLinkedAccountUserOptions,
   getAccountById as getAccountByIdService,
   createAccount as createAccountService,
   updateAccount as updateAccountService,
@@ -26,6 +27,7 @@ export type GetAccountsParams = {
   limit?: string | number;
   type?: string | null;
   locationId?: string | null;
+  userId?: string | null;
   keyword?: string | null;
 };
 
@@ -48,6 +50,7 @@ export async function getAccounts(
           : Number(process.env.DEFAULT_PER_PAGE ?? '10'),
       type: (params.type as GetAllAccountsParams['type']) ?? undefined,
       locationId: params.locationId ?? undefined,
+      userId: params.userId ?? undefined,
       keyword: params.keyword ?? undefined,
     };
 
@@ -74,6 +77,27 @@ export async function getAccounts(
       message: error instanceof Error ? error.message : 'Error loading accounts',
       data: [],
       totalRecords: 0,
+    };
+  }
+}
+
+/** Users with at least one linked account, for the Accounting filter. */
+export async function getLinkedAccountUserOptionsAction(): Promise<{
+  success: boolean;
+  data: Array<{ id: string; name: string }>;
+  message?: string;
+}> {
+  await requirePermission('accounting', 'view');
+
+  try {
+    const data = await getLinkedAccountUserOptions();
+    return { success: true, data };
+  } catch (error: unknown) {
+    console.error('getLinkedAccountUserOptionsAction error:', error);
+    return {
+      success: false,
+      data: [],
+      message: error instanceof Error ? error.message : 'Error loading users',
     };
   }
 }
