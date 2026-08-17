@@ -9,6 +9,7 @@ export {
   getCashBookAccountForBranch,
   getAccountById,
   getAllAccounts,
+  getLinkedAccountUserOptions,
   type GetAllAccountsParams,
 } from './read.service';
 

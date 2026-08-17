@@ -7,7 +7,7 @@ import { AccountingColumns } from './columns';
 import { AccountingToolbarActions } from './accounting-toolbar-actions';
 import { AccountingFilterSection } from './accounting-filter-section';
 import Loading from '../loading';
-import { getAccounts } from '@/app/actions/accounting.actions';
+import { getAccounts, getLinkedAccountUserOptionsAction } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { redirect } from 'next/navigation';
@@ -19,6 +19,7 @@ type SearchParams = {
     keyword?: string;
     type?: string;
     locationId?: string;
+    userId?: string;
   }>;
 };
 
@@ -42,14 +43,22 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
   const typeParam = params?.type;
   const type =
     typeParam && typeParam !== "__all__" ? typeParam : null;
+  const userIdParam = params?.userId;
+  const userId =
+    userIdParam && userIdParam !== "__all__" ? userIdParam : null;
 
-  const { data, totalRecords } = await getAccounts({
-    page: params?.page,
-    limit: params?.limit,
-    keyword: params?.keyword,
-    type,
-    locationId: params?.locationId ?? null,
-  });
+  const [{ data, totalRecords }, userOptionsRes] = await Promise.all([
+    getAccounts({
+      page: params?.page,
+      limit: params?.limit,
+      keyword: params?.keyword,
+      type,
+      locationId: params?.locationId ?? null,
+      userId,
+    }),
+    getLinkedAccountUserOptionsAction(),
+  ]);
+  const userOptions = userOptionsRes.success ? userOptionsRes.data : [];
 
   return (
     <div className="overflow-hidden">
@@ -71,7 +80,11 @@ export default async function AccountingPage({ searchParams }: SearchParams) {
                   className="pl-8 w-full h-9"
                 />
               </div>
-              <AccountingFilterSection type={params?.type} />
+              <AccountingFilterSection
+                type={params?.type}
+                userId={params?.userId}
+                userOptions={userOptions}
+              />
             </div>
           }
           toolbarRight={<AccountingToolbarActions />}

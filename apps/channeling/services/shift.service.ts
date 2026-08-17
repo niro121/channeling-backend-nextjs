@@ -3,7 +3,6 @@
 import prisma from "@/lib/prisma"
 import { SHIFT_STATUS } from "@/types/shift"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
-import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
@@ -14,7 +13,8 @@ import {
   getEndsAtForHours,
   getShiftMaxHoursForRole,
 } from "@/lib/shift-duration"
-import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
+import { getUserTillsTotalCents } from "@/services/accounting/balance.service"
+import { cancelOpenFloatRequestsOnEmptyShiftEnd } from "@/services/float-request.service"
 import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
 
@@ -393,7 +393,8 @@ export async function resumeShift(shiftId: string, userId: string) {
 
 /**
  * True when the shift can be closed with no ShiftHandover:
- * till is empty (or missing), nothing to forward, no pending float/handovers to accept.
+ * every till is empty (or missing), nothing to forward, no handovers waiting to accept.
+ * Unused float requests are cancelled on end — they do not force a handover.
  */
 export async function canEndShiftWithoutHandover(userId: string): Promise<{
   allowed: boolean
@@ -407,18 +408,6 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
       allowed: false,
       reason:
         "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before ending your shift.",
-    }
-  }
-
-  const pendingFloat = await prisma.floatRequest.findFirst({
-    where: { requestedById: userId, status: FLOAT_REQUEST_STATUS.PENDING },
-    select: { id: true },
-  })
-  if (pendingFloat) {
-    return {
-      allowed: false,
-      reason:
-        "You have a pending float request waiting for approval. Cancel it or wait for approval before ending the shift.",
     }
   }
 
@@ -444,8 +433,7 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
 
   let totalCents = 0
   try {
-    const breakdown = await getTillBalanceBreakdown(userId)
-    totalCents = breakdown.totalCents ?? 0
+    totalCents = await getUserTillsTotalCents(userId)
   } catch {
     // No till / cannot create till (e.g. missing staff) → nothing to hand over.
     totalCents = 0
@@ -488,6 +476,7 @@ export async function endShift(shiftId: string, userId: string) {
     where: { id: validShiftId },
     data: { status: SHIFT_STATUS.ENDED, endedAt: now, endedBy: validUserId, updatedAt: now },
   })
+  const cancelledFloat = await cancelOpenFloatRequestsOnEmptyShiftEnd(validUserId)
   logActivityNonBlocking({
     userId: validUserId,
     action: "shift.ended",
@@ -497,6 +486,7 @@ export async function endShift(shiftId: string, userId: string) {
       endedAt: now.toISOString(),
       withoutHandover: true,
       pastMaxDuration: isShiftPastMaxDuration(shift),
+      cancelledFloatRequestIds: cancelledFloat.cancelledIds,
     },
   })
   const io = getIO()
