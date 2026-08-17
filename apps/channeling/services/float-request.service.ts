@@ -34,17 +34,22 @@ import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
 
+const OPEN_SHIFT_STATUSES = [
+  SHIFT_STATUS.ACTIVE,
+  SHIFT_STATUS.PAUSED,
+  SHIFT_STATUS.HANDOVER_PENDING,
+] as const;
+
 /**
- * Till float is taken from when a bulk cashier approves a request.
- * Approve already requires an active shift, so this is that shift's location till.
+ * Till float is taken from: the bulk cashier's current open shift location till.
+ * Shift validity (expired / paused / handover) is enforced at approve time, not here,
+ * so the modal can show the real till balance.
  */
 export async function resolveBulkCashierSourceTill(userId: string): Promise<ResolvedTill | null> {
-  const now = new Date();
   const shift = await prisma.shift.findFirst({
     where: {
       userId,
-      status: SHIFT_STATUS.ACTIVE,
-      endsAt: { gt: now },
+      status: { in: [...OPEN_SHIFT_STATUSES] },
     },
     select: { locationId: true },
     orderBy: { startedAt: 'desc' },

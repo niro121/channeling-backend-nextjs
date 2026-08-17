@@ -136,8 +136,11 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
-/** Throws if the user does not have an ACTIVE shift within its time limit. */
-export async function requireActiveShift(userId: string): Promise<void> {
+/** Throws if the user does not have an ACTIVE shift. Expired shifts are allowed unless booking/ledger checks separately. */
+export async function requireActiveShift(
+  userId: string,
+  options?: { allowExpired?: boolean }
+): Promise<void> {
   const shift = await getCurrentShift(userId)
   if (!shift) {
     throw new ShiftRequirementError(
@@ -145,7 +148,7 @@ export async function requireActiveShift(userId: string): Promise<void> {
       "NO_ACTIVE_SHIFT"
     )
   }
-  if (isShiftPastMaxDuration(shift)) {
+  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
     throw new ShiftRequirementError(
       "Your shift time limit has ended. Complete handover from the top bar before continuing.",
       "SHIFT_EXPIRED"

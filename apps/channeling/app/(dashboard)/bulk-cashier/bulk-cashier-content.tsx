@@ -690,15 +690,18 @@ export function ApproveModal({
   const [reasonForLess, setReasonForLess] = useState('');
   const [loading, setLoading] = useState(false);
   const [balanceCents, setBalanceCents] = useState<number | null>(null);
+  const [hasTill, setHasTill] = useState<boolean | null>(null);
   const [tillLocationName, setTillLocationName] = useState<string | null>(null);
 
   useEffect(() => {
     getBulkCashierFloatBalanceAction().then((res) => {
-      if (res.success) {
+      if (res.success && res.hasTill) {
+        setHasTill(true);
         setBalanceCents(res.balanceCents);
         setTillLocationName(res.tillLocationName ?? null);
       } else {
-        setBalanceCents(0);
+        setHasTill(false);
+        setBalanceCents(null);
         setTillLocationName(null);
       }
     });
@@ -764,9 +767,9 @@ export function ApproveModal({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {balanceCents !== null && (
+          {hasTill && balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Your active till balance: </span>
+              <span className="text-muted-foreground">Your current till balance: </span>
               <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
               {tillLocationName ? (
                 <span className="text-muted-foreground"> ({tillLocationName})</span>
@@ -776,6 +779,11 @@ export function ApproveModal({
                   Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.
                 </p>
               )}
+            </div>
+          )}
+          {hasTill === false && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              No till found for your current shift. Start a shift at a location, then try again.
             </div>
           )}
           <div>

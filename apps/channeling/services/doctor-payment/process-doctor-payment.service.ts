@@ -101,7 +101,7 @@ export async function processDoctorPaymentService(
 
   if (userId) {
     try {
-      await requireActiveShift(userId);
+      await requireActiveShift(userId, { allowExpired: true });
     } catch (e) {
       if (isShiftRequirementError(e)) {
         return {
