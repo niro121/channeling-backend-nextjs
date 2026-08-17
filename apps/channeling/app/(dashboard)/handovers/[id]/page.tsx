@@ -64,6 +64,14 @@ const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
   creditCents: "Credit",
   eWalletCents: "E-Wallet",
 }
+const METHOD_ICONS: Record<(typeof METHOD_KEYS)[number], typeof Banknote> = {
+  cashCents: Banknote,
+  cardCents: CreditCard,
+  slipCents: SlipIcon,
+  checkCents: Receipt,
+  creditCents: Wallet,
+  eWalletCents: Smartphone,
+}
 
 type HandoverDetail = NonNullable<Awaited<ReturnType<typeof getHandoverDetailAction>>["data"]>
 type Handover = HandoverDetail["handover"]
@@ -87,6 +95,30 @@ function fromUserLabel(
   if (!fromUser) return "—"
   const name = fromUser.name ?? "—"
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
+}
+
+function formatDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "—"
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return "—"
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+}
+
+function denomSummary(entries: { value: number; count: number }[] | null | undefined): string {
+  if (!entries?.length) return "—"
+  const parts = entries
+    .filter((d) => d.count > 0)
+    .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+  return parts.length > 0 ? parts.join(", ") : "—"
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md bg-muted/40 px-3 py-2.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold leading-snug break-words">{value}</p>
+    </div>
+  )
 }
 
 /** Shape of each item in data.includedHandovers (linked handovers in the chain). */
@@ -369,6 +401,12 @@ export default function HandoverDetailPage() {
   const assignedUserLabel = data.reconciliationAssignedToUser
     ? fromUserLabel(data.reconciliationAssignedToUser)
     : null
+  const shiftLocation = (
+    handover.shift as { location?: { name: string; code: string | null } | null } | null | undefined
+  )?.location
+  const shiftLocationLabel = shiftLocation
+    ? `${shiftLocation.name}${shiftLocation.code ? ` (${shiftLocation.code})` : ""}`
+    : "—"
 
   const statusLabel =
     isApproved
@@ -442,119 +480,203 @@ export default function HandoverDetailPage() {
         </div>
       </div>
 
-      {/* Who & how much: clear at a glance */}
+      {/* Who, when, how much — labeled so each fact is easy to scan */}
       <Card className="border-2 print:shadow-none print:break-inside-avoid">
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
-                <p className="text-xl font-semibold mt-0.5">{fromUserLabel(handover.fromUser)}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Shift: {handover.shift?.startedAt ? new Date(handover.shift.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
-                  {" → "}
-                  Handover at {handover.createdAt ? new Date(handover.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
-                </p>
-                {!isPending && (
-                  <div className="mt-2 space-y-1 text-sm">
-                    {isApproved && (
-                      <>
-                        <p>
-                          <span className="text-muted-foreground">Approved at: </span>
-                          <span className="font-medium">
-                            {handover.approvedAt
-                              ? new Date(handover.approvedAt).toLocaleString(undefined, {
-                                  dateStyle: "medium",
-                                  timeStyle: "short",
-                                })
-                              : "—"}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="text-muted-foreground">Approved by: </span>
-                          <span className="font-medium">{fromUserLabel(data.approvedByUser)}</span>
-                        </p>
-                        {handover.approvalComments?.trim() ? (
-                          <p>
-                            <span className="text-muted-foreground">Approval comments: </span>
-                            <span>{handover.approvalComments.trim()}</span>
-                          </p>
-                        ) : null}
-                        {isInReconciliation && (
-                          <p>
-                            <span className="text-muted-foreground">Reconciler: </span>
-                            <span className="font-medium">{assignedUserLabel ?? "—"}</span>
-                          </p>
-                        )}
-                      </>
-                    )}
-                    {isRejected && (
-                      <>
-                        <p>
-                          <span className="text-muted-foreground">Rejected at: </span>
-                          <span className="font-medium">
-                            {handover.rejectedAt
-                              ? new Date(handover.rejectedAt).toLocaleString(undefined, {
-                                  dateStyle: "medium",
-                                  timeStyle: "short",
-                                })
-                              : "—"}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="text-muted-foreground">Rejected by: </span>
-                          <span className="font-medium">{fromUserLabel(data.rejectedByUser)}</span>
-                        </p>
-                        {handover.rejectReason?.trim() ? (
-                          <p>
-                            <span className="text-muted-foreground">Reject reason: </span>
-                            <span>{handover.rejectReason.trim()}</span>
-                          </p>
-                        ) : null}
-                      </>
-                    )}
-                    {handover.discrepancyReason?.trim() ? (
-                      <p>
-                        <span className="text-muted-foreground">Cashier discrepancy reason: </span>
-                        <span>{handover.discrepancyReason.trim()}</span>
-                      </p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-              {!isPending && (
-                <div
-                  className={cn(
-                    "shrink-0 self-start rounded-lg border-2 px-4 py-2.5 text-center sm:min-w-[9rem]",
-                    isApproved &&
-                      "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
-                    isRejected &&
-                      "border-destructive bg-destructive/10 text-destructive",
-                    !isApproved &&
-                      !isRejected &&
-                      "border-muted-foreground/40 bg-muted text-muted-foreground"
-                  )}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Status</p>
-                  <p className="text-2xl font-bold leading-tight tracking-tight">{statusLabel}</p>
-                </div>
-              )}
+        <CardContent className="pt-6 space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
+              <p className="text-2xl font-semibold tracking-tight mt-1">{fromUserLabel(handover.fromUser)}</p>
             </div>
-            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t pt-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total handed over</p>
-                <p className="text-2xl font-bold tabular-nums">LKR {formatCents(totalCents)}</p>
+            {!isPending && (
+              <div
+                className={cn(
+                  "shrink-0 self-start rounded-lg border-2 px-4 py-2.5 text-center sm:min-w-[9rem]",
+                  isApproved &&
+                    "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
+                  isRejected &&
+                    "border-destructive bg-destructive/10 text-destructive",
+                  !isApproved &&
+                    !isRejected &&
+                    "border-muted-foreground/40 bg-muted text-muted-foreground"
+                )}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Status</p>
+                <p className="text-2xl font-bold leading-tight tracking-tight">{statusLabel}</p>
               </div>
-              {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => (
-                <div key={key} className="text-sm">
-                  <span className="text-muted-foreground">{METHOD_LABELS[key]}: </span>
-                  <span className="font-medium tabular-nums">{formatCents(handover[key] ?? 0)}</span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Fact label="Location" value={shiftLocationLabel} />
+            <Fact label="Shift started" value={formatDateTime(handover.shift?.startedAt)} />
+            <Fact label="Handed over" value={formatDateTime(handover.createdAt)} />
+            {isApproved ? (
+              <>
+                <Fact label="Approved at" value={formatDateTime(handover.approvedAt)} />
+                <Fact label="Approved by" value={fromUserLabel(data.approvedByUser)} />
+                {isInReconciliation ? (
+                  <Fact label="Reconciler" value={assignedUserLabel ?? "—"} />
+                ) : null}
+              </>
+            ) : null}
+            {isRejected ? (
+              <>
+                <Fact label="Rejected at" value={formatDateTime(handover.rejectedAt)} />
+                <Fact label="Rejected by" value={fromUserLabel(data.rejectedByUser)} />
+              </>
+            ) : null}
+          </div>
+
+          {(isApproved && handover.approvalComments?.trim()) ||
+          (isRejected && handover.rejectReason?.trim()) ||
+          handover.discrepancyReason?.trim() ? (
+            <div className="space-y-2">
+              {isApproved && handover.approvalComments?.trim() ? (
+                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Approval comments</p>
+                  <p className="mt-1 text-sm leading-relaxed">{handover.approvalComments.trim()}</p>
                 </div>
-              ))}
+              ) : null}
+              {isRejected && handover.rejectReason?.trim() ? (
+                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Reject reason</p>
+                  <p className="mt-1 text-sm leading-relaxed">{handover.rejectReason.trim()}</p>
+                </div>
+              ) : null}
+              {handover.discrepancyReason?.trim() ? (
+                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cashier discrepancy reason</p>
+                  <p className="mt-1 text-sm leading-relaxed">{handover.discrepancyReason.trim()}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="border-t pt-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Amounts handed over</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="rounded-md border bg-background px-3 py-3 sm:col-span-1">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="mt-1 text-xl font-bold tabular-nums tracking-tight">LKR {formatCents(totalCents)}</p>
+              </div>
+              {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => {
+                const Icon = METHOD_ICONS[key]
+                return (
+                  <div key={key} className="rounded-md border bg-muted/30 px-3 py-3">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Icon className="h-3.5 w-3.5" />
+                      {METHOD_LABELS[key]}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold tabular-nums">LKR {formatCents(handover[key] ?? 0)}</p>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Floats the cashier received during this shift — times, amounts, denominations */}
+      {(() => {
+        const receivedFloats = data.receivedFloats ?? []
+        const floatTotalCents = receivedFloats.reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Banknote className="h-5 w-5" />
+                Received floats
+              </CardTitle>
+              <CardDescription>
+                Float this cashier received during the shift being handed over, with request, approval, and receive times.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {receivedFloats.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No floats were received during this shift.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total float received</p>
+                      <p className="text-xl font-bold tabular-nums">LKR {formatCents(floatTotalCents)}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {receivedFloats.length} float{receivedFloats.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {receivedFloats.map((f, index) => {
+                      const receivedDenoms = f.denominationsApproved?.length
+                        ? f.denominationsApproved
+                        : f.denominationsRequested
+                      const requestedDiffers =
+                        f.amountRequested !== f.amountReceivedCents ||
+                        (f.denominationsApproved?.length ?? 0) > 0
+                      return (
+                        <div key={f.id} className="rounded-md border bg-background/60 p-3 space-y-3">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <p className="text-sm font-medium">
+                              Float {index + 1}
+                            </p>
+                            <p className="text-sm tabular-nums font-semibold">
+                              Received LKR {formatCents(f.amountReceivedCents)}
+                              {requestedDiffers && f.amountRequested !== f.amountReceivedCents ? (
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  (requested {formatCents(f.amountRequested)})
+                                </span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                            <div>
+                              <dt className="text-muted-foreground">Requested</dt>
+                              <dd className="font-medium">{formatDateTime(f.createdAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">Approved</dt>
+                              <dd className="font-medium">{formatDateTime(f.approvedAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">Received</dt>
+                              <dd className="font-medium">{formatDateTime(f.receivedAt)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">From bulk cashier</dt>
+                              <dd className="font-medium">{f.bulkCashier?.name ?? "—"}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">Received by</dt>
+                              <dd className="font-medium">{f.receivedBy?.name ?? "—"}</dd>
+                            </div>
+                            <div className="sm:col-span-2">
+                              <dt className="text-muted-foreground">Denominations received</dt>
+                              <dd className="font-medium tabular-nums">{denomSummary(receivedDenoms)}</dd>
+                            </div>
+                            {requestedDiffers && f.denominationsRequested?.length ? (
+                              <div className="sm:col-span-2">
+                                <dt className="text-muted-foreground">Denominations requested</dt>
+                                <dd className="font-medium tabular-nums">{denomSummary(f.denominationsRequested)}</dd>
+                              </div>
+                            ) : null}
+                            {f.reasonForLessThanRequested ? (
+                              <div className="sm:col-span-2">
+                                <dt className="text-muted-foreground">Reason given less than requested</dt>
+                                <dd className="font-medium">{f.reasonForLessThanRequested}</dd>
+                              </div>
+                            ) : null}
+                          </dl>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Included handovers (chain): handovers the sender is passing on — read-only */}
       {data.includedHandovers && data.includedHandovers.length > 0 && (

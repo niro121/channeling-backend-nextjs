@@ -14,7 +14,7 @@ import {
   getShiftMaxHoursForRole,
 } from "@/lib/shift-duration"
 import { getUserTillsTotalCents } from "@/services/accounting/balance.service"
-import { cancelOpenFloatRequestsOnEmptyShiftEnd } from "@/services/float-request.service"
+import { cancelOpenFloatRequestsOnEmptyShiftEnd, countPendingFloatRequestsToApprove } from "@/services/float-request.service"
 import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
 
@@ -396,13 +396,21 @@ export async function resumeShift(shiftId: string, userId: string) {
 
 /**
  * True when the shift can be closed with no ShiftHandover:
- * every till is empty (or missing), nothing to forward, no handovers waiting to accept.
- * Unused float requests are cancelled on end — they do not force a handover.
+ * every till is empty (or missing), nothing to forward, no handovers or float requests waiting to accept.
+ * Unused float requests the cashier made are cancelled on end — they do not force a handover.
  */
 export async function canEndShiftWithoutHandover(userId: string): Promise<{
   allowed: boolean
   reason?: string
 }> {
+  const pendingFloatsToApprove = await countPendingFloatRequestsToApprove(userId)
+  if (pendingFloatsToApprove > 0) {
+    return {
+      allowed: false,
+      reason: `You have ${pendingFloatsToApprove} float request(s) pending your approval. Approve or reject them from Bulk Cashier before ending your shift.`,
+    }
+  }
+
   const incomingHandovers = await prisma.shiftHandover.findMany({
     where: {
       toUserId: userId,

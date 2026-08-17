@@ -17,6 +17,7 @@ import {
   countPendingIncomingHandovers,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
+import { getReceivedFloatsForHandover, countPendingFloatRequestsToApprove } from "@/services/float-request.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
@@ -204,6 +205,18 @@ export async function cancelHandoverAction(handoverId: string) {
   return result
 }
 
+/** Count of pending float requests assigned to the current user (to approve or reject). */
+export async function getPendingFloatRequestsToApproveCountAction(): Promise<{
+  success: true
+  count: number
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: true, count: 0 }
+  const count = await countPendingFloatRequestsToApprove(session.user.id)
+  return { success: true, count }
+}
+
 /** Count of pending handovers assigned to the current user (to accept or reject). */
 export async function getPendingIncomingHandoverCountAction(): Promise<{
   success: true
@@ -354,11 +367,20 @@ export async function getHandoverDetailAction(handoverId: string) {
   ].filter((id): id is string => typeof id === "string" && id.trim() !== "")
   const uniqueActorIds = [...new Set(actorIds)]
 
-  const [tillBreakdown, includedHandovers, actors] = await Promise.all([
+  const shiftStartedAt = handover.shift?.startedAt ?? handover.createdAt
+  const windowEnd = handover.shift?.endedAt ?? handover.approvedAt ?? handover.createdAt
+
+  const [tillBreakdown, includedHandovers, receivedFloats, actors] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
       ? getTillBalanceBreakdown(handover.fromUserId)
       : Promise.resolve(null),
     getIncludedHandoversChain((handover as { includedHandoverIds?: unknown }).includedHandoverIds),
+    getReceivedFloatsForHandover({
+      cashierUserId: handover.fromUserId,
+      shiftId: handover.shiftId,
+      shiftStartedAt,
+      windowEnd,
+    }),
     uniqueActorIds.length > 0
       ? prisma.user.findMany({
           where: { id: { in: uniqueActorIds } },
@@ -380,6 +402,7 @@ export async function getHandoverDetailAction(handoverId: string) {
       handover,
       tillBreakdown,
       includedHandovers,
+      receivedFloats,
       approvedByUser,
       rejectedByUser,
       cancelledByUser,
