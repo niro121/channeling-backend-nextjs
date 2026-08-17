@@ -1,6 +1,6 @@
 "use server"
 
-import { getActiveShift, getCurrentShift, getActiveShiftsWithUserAndLocation, getShifts, getShiftById, getShiftUserOptions, getHandoverUserOptions, startShift as startShiftService, pauseShift as pauseShiftService, resumeShift as resumeShiftService, endShift as endShiftService } from "@/services/shift.service"
+import { getActiveShift, getCurrentShift, getActiveShiftsWithUserAndLocation, getShifts, getShiftById, getShiftUserOptions, getHandoverUserOptions, startShift as startShiftService, pauseShift as pauseShiftService, resumeShift as resumeShiftService, endShift as endShiftService, canEndShiftWithoutHandover as canEndShiftWithoutHandoverService } from "@/services/shift.service"
 import {
   processShiftHandover,
   approveHandover,
@@ -92,6 +92,19 @@ export async function endShiftAction(shiftId: string) {
   if (!result.success) throw new Error(result.message)
   revalidatePath("/channel-booking")
   return result
+}
+
+/** Whether the current user can end their shift with no handover (empty till, nothing to forward). */
+export async function canEndShiftWithoutHandoverAction(): Promise<{
+  success: true
+  allowed: boolean
+  reason?: string
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const result = await canEndShiftWithoutHandoverService(session.user.id)
+  return { success: true, ...result }
 }
 
 /** User options for handover recipient (active users excluding current). */
