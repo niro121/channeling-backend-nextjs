@@ -21,6 +21,7 @@ import {
   submitShiftHandoverAction,
   getHandoversReceivedByShiftAction,
   getHandoversToMeAction,
+  getPendingIncomingHandoverCountAction,
   getIncludableHandoversForSenderAction,
   getNonCashHeldInReconciliationAction,
   canEndShiftWithoutHandoverAction,
@@ -200,9 +201,10 @@ export function EndShiftHandoverDialog({
         getHandoversToMeAction(),
         getIncludableHandoversForSenderAction(),
         getNonCashHeldInReconciliationAction(),
+        getPendingIncomingHandoverCountAction(),
         canEndShiftWithoutHandoverAction(),
       ])
-        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, endWithoutRes]) => {
+        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, pendingCountRes, endWithoutRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -216,13 +218,17 @@ export function EndShiftHandoverDialog({
           }
           setHeldInReconciliation(heldRes.success && heldRes.data ? heldRes.data : null)
           setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
-          setPendingHandoversToMe(handoversToMeRes.success && handoversToMeRes.data?.length ? handoversToMeRes.data.map((h) => ({ id: h.id })) : [])
-          if (!handoversToMeRes.success && "message" in handoversToMeRes && handoversToMeRes.message) {
-            setHandoverPermissionDenied(handoversToMeRes.message)
-            toast({ variant: "destructive", title: "Error", description: handoversToMeRes.message })
-          } else {
-            setHandoverPermissionDenied(null)
-          }
+          const pendingFromList =
+            handoversToMeRes.success && handoversToMeRes.data?.length
+              ? handoversToMeRes.data.map((h) => ({ id: h.id }))
+              : []
+          const pendingCount = pendingCountRes.success ? pendingCountRes.count : pendingFromList.length
+          setPendingHandoversToMe(
+            pendingFromList.length > 0
+              ? pendingFromList
+              : Array.from({ length: pendingCount }, (_, i) => ({ id: `pending-${i}` }))
+          )
+          setHandoverPermissionDenied(null)
           if (includableRes.success && includableRes.data?.length) {
             setPreviousHandoversNote(
               includableRes.data.map((h) => ({
@@ -329,10 +335,28 @@ export function EndShiftHandoverDialog({
     })
   }, [open, step])
 
-  const handleProceed = () => setStep(2)
+  const handleProceed = () => {
+    if (pendingHandoversToMe.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Handovers need your action",
+        description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before submitting a handover.`,
+      })
+      return
+    }
+    setStep(2)
+  }
 
   async function handleEndWithoutHandover() {
     if (!shiftId || !canEndWithoutHandover) return
+    if (pendingHandoversToMe.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Handovers need your action",
+        description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before ending your shift.`,
+      })
+      return
+    }
     setEndWithoutLoading(true)
     try {
       await endShiftAction(shiftId)
@@ -505,6 +529,16 @@ export function EndShiftHandoverDialog({
     setValidationErrors([])
     setSubmitLoading(true)
     try {
+      const pendingCheck = await getPendingIncomingHandoverCountAction()
+      if (pendingCheck.success && pendingCheck.count > 0) {
+        setSubmitLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Handovers need your action",
+          description: `You have ${pendingCheck.count} handover(s) pending your acceptance. Accept or reject them on the Handovers page before submitting a handover.`,
+        })
+        return
+      }
       // Build full breakdown from current state so bulk cashier can verify denominations and references on the detail page
       const enteredBreakdown = {
         cashDenominations: cashDenoms
@@ -692,7 +726,10 @@ export function EndShiftHandoverDialog({
                 Cancel
               </Button>
               {canEndWithoutHandover ? (
-                <Button onClick={handleEndWithoutHandover} disabled={!step1DataReady || endWithoutLoading}>
+                <Button
+                  onClick={handleEndWithoutHandover}
+                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0}
+                >
                   {endWithoutLoading || !step1DataReady ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}

@@ -18,6 +18,23 @@ import { z } from "zod"
 import { normalizedIncludedIds } from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 
+const CLOSED_HANDOVER_STATUSES = [
+  HANDOVER_STATUS.APPROVED,
+  HANDOVER_STATUS.REJECTED,
+  HANDOVER_STATUS.CANCELLED,
+] as const
+
+export async function countPendingIncomingHandovers(userId: string): Promise<number> {
+  const rows = await prisma.shiftHandover.findMany({
+    where: {
+      toUserId: userId,
+      status: { notIn: [...CLOSED_HANDOVER_STATUSES] },
+    },
+    select: { status: true },
+  })
+  return rows.filter((h) => Number(h.status) === HANDOVER_STATUS.PENDING).length
+}
+
 export type ShiftHandoverAmounts = {
   cashCents: number
   cardCents: number
@@ -179,13 +196,11 @@ export async function processShiftHandover(
     return { success: false, error: "This shift already has a pending handover. Cancel it or wait for the recipient to approve or reject." }
   }
 
-  const pendingHandoversToMe = await prisma.shiftHandover.count({
-    where: { toUserId: validFrom, status: HANDOVER_STATUS.PENDING },
-  })
+  const pendingHandoversToMe = await countPendingIncomingHandovers(validFrom)
   if (pendingHandoversToMe > 0) {
     return {
       success: false,
-      error: "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before submitting a new handover.",
+      error: `You have ${pendingHandoversToMe} handover(s) pending your acceptance. Accept or reject them from the Handovers page before submitting a new handover.`,
     }
   }
 
@@ -476,9 +491,9 @@ export async function approveHandover(
 
   let journalId: string | null = null
   if (totalCents > 0) {
-    const recipientTillLocationId = handover.shift.locationId ?? approverShift.locationId ?? null
+    const recipientTillLocationId = approverShift.locationId ?? null
     if (!recipientTillLocationId) {
-      return { success: false, error: "Cannot resolve branch location for recipient till." }
+      return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
     }
     const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
     const toAccountId = toTill.accountId
@@ -735,14 +750,18 @@ export async function cancelHandover(
 
 /** Handovers pending for the current user (toUserId = me). */
 export async function getHandoversToMe(toUserId: string) {
-  return prisma.shiftHandover.findMany({
-    where: { toUserId, status: HANDOVER_STATUS.PENDING },
+  const rows = await prisma.shiftHandover.findMany({
+    where: {
+      toUserId,
+      status: { notIn: [...CLOSED_HANDOVER_STATUSES] },
+    },
     orderBy: { createdAt: "desc" },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })
+  return rows.filter((h) => Number(h.status) === HANDOVER_STATUS.PENDING)
 }
 
 /** Handovers approved by me that still need a reconciler assigned (PENDING, or IN_RECONCILIATION with no assignee). Top-level only. */

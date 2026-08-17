@@ -403,9 +403,18 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
   allowed: boolean
   reason?: string
 }> {
-  const pendingHandoversToMe = await prisma.shiftHandover.count({
-    where: { toUserId: userId, status: HANDOVER_STATUS.PENDING },
+  const incomingHandovers = await prisma.shiftHandover.findMany({
+    where: {
+      toUserId: userId,
+      status: {
+        notIn: [HANDOVER_STATUS.APPROVED, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+      },
+    },
+    select: { status: true },
   })
+  const pendingHandoversToMe = incomingHandovers.filter(
+    (h) => Number(h.status) === HANDOVER_STATUS.PENDING
+  ).length
   if (pendingHandoversToMe > 0) {
     return {
       allowed: false,
