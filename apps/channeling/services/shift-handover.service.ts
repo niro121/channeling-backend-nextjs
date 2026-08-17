@@ -12,6 +12,7 @@ import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getCurrentShift } from "@/services/shift.service"
 import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
+import { countPendingFloatRequestsToApprove } from "@/services/float-request.service"
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
@@ -201,6 +202,14 @@ export async function processShiftHandover(
     return {
       success: false,
       error: `You have ${pendingHandoversToMe} handover(s) pending your acceptance. Accept or reject them from the Handovers page before submitting a new handover.`,
+    }
+  }
+
+  const pendingFloatsToApprove = await countPendingFloatRequestsToApprove(validFrom)
+  if (pendingFloatsToApprove > 0) {
+    return {
+      success: false,
+      error: `You have ${pendingFloatsToApprove} float request(s) pending your approval. Approve or reject them from Bulk Cashier before submitting a handover.`,
     }
   }
 
@@ -814,7 +823,16 @@ export async function getHandoverByIdForRecipient(handoverId: string, toUserId: 
     where: { id: handoverId, toUserId },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
-      shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
+      shift: {
+        select: {
+          id: true,
+          startedAt: true,
+          endedAt: true,
+          userId: true,
+          location: { select: { name: true, code: true } },
+          user: { select: { id: true, name: true } },
+        },
+      },
     },
   })
 }
