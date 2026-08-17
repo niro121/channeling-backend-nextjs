@@ -100,23 +100,16 @@ export type GetAllAccountsParams = {
 export async function getLinkedAccountUserOptions(): Promise<
   Array<{ id: string; name: string }>
 > {
-  const rows = await prisma.account.findMany({
-    where: { isActive: true, userId: { not: null } },
-    distinct: ['userId'],
-    select: {
-      user: {
-        select: { id: true, name: true, staff: { select: { code: true } } },
-      },
-    },
+  const users = await prisma.user.findMany({
+    where: { accounts: { some: { isActive: true } } },
+    select: { id: true, name: true, staff: { select: { code: true } } },
+    orderBy: { name: 'asc' },
   });
 
-  return rows
-    .filter((r): r is typeof r & { user: NonNullable<typeof r.user> } => r.user != null)
-    .map((r) => ({
-      id: r.user.id,
-      name: formatUserDisplayName(r.user.name, r.user.id, r.user.staff?.code),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  return users.map((u) => ({
+    id: u.id,
+    name: formatUserDisplayName(u.name, u.id, u.staff?.code),
+  }));
 }
 
 /** List accounts for Accounting page (with balance). */
