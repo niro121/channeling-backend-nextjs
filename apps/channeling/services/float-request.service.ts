@@ -331,25 +331,6 @@ export async function getFloatRequestsForBulkCashierPaginated(
   return { data: rows.map(mapFloatRequest), totalRecords };
 }
 
-/** Float requests assigned to this bulk cashier that still need approve or reject. */
-export async function countPendingFloatRequestsToApprove(userId: string): Promise<number> {
-  const rows = await prisma.floatRequest.findMany({
-    where: {
-      bulkCashierId: userId,
-      status: {
-        notIn: [
-          FLOAT_REQUEST_STATUS.APPROVED,
-          FLOAT_REQUEST_STATUS.RECEIVED,
-          FLOAT_REQUEST_STATUS.REJECTED,
-          FLOAT_REQUEST_STATUS.CANCELLED,
-        ] as never,
-      },
-    },
-    select: { status: true },
-  })
-  return rows.filter((row) => Number(row.status) === FLOAT_REQUEST_STATUS.PENDING).length
-}
-
 // --- getPendingFloatRequestByUserId ---
 export async function getPendingFloatRequestByUserId(
   userId: string
@@ -835,6 +816,94 @@ export async function cancelOpenFloatRequestsOnEmptyShiftEnd(
   }
 
   return { cancelledIds };
+}
+
+export type OpenFloatsBlockingShiftEnd = {
+  outgoingPending: number
+  outgoingAwaitingReceive: number
+  incomingPendingApproval: number
+  incomingAwaitingReceive: number
+}
+
+export async function openFloatsBlockingTotal(blocking: OpenFloatsBlockingShiftEnd): Promise<number> {
+  return (
+    blocking.outgoingPending +
+    blocking.outgoingAwaitingReceive +
+    blocking.incomingPendingApproval +
+    blocking.incomingAwaitingReceive
+  )
+}
+
+export async function openFloatsBlockingMessage(
+  blocking: OpenFloatsBlockingShiftEnd,
+  action: "handover" | "end"
+): Promise<string | null> {
+  const total = await openFloatsBlockingTotal(blocking)
+  if (total === 0) return null
+  const parts: string[] = []
+  if (blocking.outgoingPending > 0) {
+    parts.push(
+      `${blocking.outgoingPending} request(s) still waiting for bulk cashier approval (cancel it or wait until it is approved and received)`
+    )
+  }
+  if (blocking.outgoingAwaitingReceive > 0) {
+    parts.push(
+      `${blocking.outgoingAwaitingReceive} approved float(s) you have not received yet (receive or decline them)`
+    )
+  }
+  if (blocking.incomingPendingApproval > 0) {
+    parts.push(
+      `${blocking.incomingPendingApproval} request(s) waiting for you to approve or reject`
+    )
+  }
+  if (blocking.incomingAwaitingReceive > 0) {
+    parts.push(
+      `${blocking.incomingAwaitingReceive} approved float(s) the cashier has not received yet`
+    )
+  }
+  const verb = action === "end" ? "ending your shift" : "handing over"
+  return `You have open float request(s): ${parts.join("; ")}. Finish them before ${verb}.`
+}
+
+/**
+ * Open floats that block ending a shift / handing over:
+ * pending approval, or approved but not yet received — as requester or as bulk cashier.
+ */
+export async function getOpenFloatsBlockingShiftEnd(
+  userId: string
+): Promise<OpenFloatsBlockingShiftEnd> {
+  const rows = await prisma.floatRequest.findMany({
+    where: {
+      OR: [{ requestedById: userId }, { bulkCashierId: userId }],
+      status: {
+        notIn: [
+          FLOAT_REQUEST_STATUS.RECEIVED,
+          FLOAT_REQUEST_STATUS.REJECTED,
+          FLOAT_REQUEST_STATUS.CANCELLED,
+        ] as never,
+      },
+    },
+    select: { requestedById: true, bulkCashierId: true, status: true },
+  })
+
+  const blocking: OpenFloatsBlockingShiftEnd = {
+    outgoingPending: 0,
+    outgoingAwaitingReceive: 0,
+    incomingPendingApproval: 0,
+    incomingAwaitingReceive: 0,
+  }
+
+  for (const row of rows) {
+    const status = Number(row.status)
+    const isRequester = row.requestedById === userId
+    const isBulk = row.bulkCashierId === userId
+    if (isRequester && status === FLOAT_REQUEST_STATUS.PENDING) blocking.outgoingPending += 1
+    if (isRequester && status === FLOAT_REQUEST_STATUS.APPROVED) blocking.outgoingAwaitingReceive += 1
+    if (isBulk && status === FLOAT_REQUEST_STATUS.PENDING) blocking.incomingPendingApproval += 1
+    if (isBulk && status === FLOAT_REQUEST_STATUS.APPROVED) blocking.incomingAwaitingReceive += 1
+  }
+
+  return blocking
 }
 
 export type HandoverReceivedFloat = {
