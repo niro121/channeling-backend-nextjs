@@ -314,6 +314,125 @@ export async function processShiftHandover(
   return { success: true, handoverId: handover.id }
 }
 
+/**
+ * After a full-till handover is approved, end any other leftover open shifts for the sender
+ * (expired ACTIVE/PAUSED, or stuck HANDOVER_PENDING). Pending leftover handovers are cancelled.
+ * Each close is activity-logged against this approved handover.
+ */
+async function closeLeftoverOpenShiftsOnHandoverApproval(params: {
+  fromUserId: string
+  exceptShiftId: string
+  handoverId: string
+  approvedByUserId: string
+  now: Date
+}): Promise<{ endedShiftIds: string[]; cancelledHandoverIds: string[] }> {
+  const leftoverShifts = (await shiftModel.findMany({
+    where: {
+      userId: params.fromUserId,
+      id: { not: params.exceptShiftId },
+      status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED, SHIFT_STATUS.HANDOVER_PENDING] },
+    },
+    select: { id: true, status: true, startedAt: true, endsAt: true },
+    orderBy: { startedAt: "desc" },
+  })) as { id: string; status: number; startedAt: Date; endsAt: Date }[]
+
+  if (leftoverShifts.length === 0) {
+    return { endedShiftIds: [], cancelledHandoverIds: [] }
+  }
+
+  const leftoverIds = leftoverShifts.map((s) => s.id)
+  const pendingHandovers = await prisma.shiftHandover.findMany({
+    where: {
+      shiftId: { in: leftoverIds },
+      fromUserId: params.fromUserId,
+      status: HANDOVER_STATUS.PENDING,
+    },
+    select: { id: true, shiftId: true, toUserId: true },
+  })
+
+  if (pendingHandovers.length > 0) {
+    await prisma.shiftHandover.updateMany({
+      where: { id: { in: pendingHandovers.map((h) => h.id) } },
+      data: {
+        status: HANDOVER_STATUS.CANCELLED,
+        cancelledAt: params.now,
+        cancelledBy: params.fromUserId,
+      },
+    })
+  }
+
+  await shiftModel.updateMany({
+    where: { id: { in: leftoverIds } },
+    data: {
+      status: SHIFT_STATUS.ENDED,
+      endedAt: params.now,
+      endedBy: params.fromUserId,
+      updatedAt: params.now,
+    },
+  })
+
+  logActivityNonBlocking({
+    userId: params.approvedByUserId,
+    action: "shift.leftover.ended_on_handover",
+    entityType: "ShiftHandover",
+    entityId: params.handoverId,
+    metadata: {
+      fromUserId: params.fromUserId,
+      handoverShiftId: params.exceptShiftId,
+      endedShiftIds: leftoverIds,
+      cancelledHandoverIds: pendingHandovers.map((h) => h.id),
+      shifts: leftoverShifts.map((s) => ({
+        id: s.id,
+        previousStatus: s.status,
+        startedAt: s.startedAt.toISOString(),
+        endsAt: s.endsAt.toISOString(),
+      })),
+    },
+  })
+
+  for (const shift of leftoverShifts) {
+    logActivityNonBlocking({
+      userId: params.fromUserId,
+      action: "shift.ended",
+      entityType: "Shift",
+      entityId: shift.id,
+      metadata: {
+        endedAt: params.now.toISOString(),
+        leftoverOnHandoverApproval: true,
+        handoverId: params.handoverId,
+        previousStatus: shift.status,
+      },
+    })
+  }
+
+  for (const h of pendingHandovers) {
+    logActivityNonBlocking({
+      userId: params.fromUserId,
+      action: "shift.handover.cancelled",
+      entityType: "ShiftHandover",
+      entityId: h.id,
+      metadata: {
+        shiftId: h.shiftId,
+        toUserId: h.toUserId,
+        supersededByHandoverId: params.handoverId,
+        reason: "Leftover pending handover cancelled because a later full-till handover was approved.",
+      },
+    })
+  }
+
+  const io = getIO()
+  if (io) {
+    for (const toUserId of [...new Set(pendingHandovers.map((h) => h.toUserId))]) {
+      io.to(shiftUpdateRoom(toUserId)).emit("shift-update", {})
+    }
+  }
+
+  return {
+    endedShiftIds: leftoverIds,
+    cancelledHandoverIds: pendingHandovers.map((h) => h.id),
+  }
+}
+
 /** Approve and receive handover (bulk cashier only): record approval with user and datetime, optional comments; create journal (funds to bulk cashier till), set handover APPROVED, end shift. Reconciliation is sent separately after approval. */
 export async function approveHandover(
   handoverId: string,
@@ -450,20 +569,39 @@ export async function approveHandover(
     data: { status: SHIFT_STATUS.ENDED, endedAt: now, endedBy: handover.fromUserId, updatedAt: now },
   })
 
+  // Full till has moved with this approval — close any other leftover open shifts for the sender.
+  const leftover = await closeLeftoverOpenShiftsOnHandoverApproval({
+    fromUserId: handover.fromUserId,
+    exceptShiftId: handover.shiftId,
+    handoverId,
+    approvedByUserId,
+    now,
+  })
+
   logActivityNonBlocking({
     userId: approvedByUserId,
     action: "shift.handover.approved",
     entityType: "ShiftHandover",
     entityId: handoverId,
-    metadata: { shiftId: handover.shiftId, fromUserId: handover.fromUserId, totalCents },
+    metadata: {
+      shiftId: handover.shiftId,
+      fromUserId: handover.fromUserId,
+      totalCents,
+      leftoverEndedShiftIds: leftover.endedShiftIds,
+      leftoverCancelledHandoverIds: leftover.cancelledHandoverIds,
+    },
   })
 
   const toName = handover.toUser?.name ?? "Bulk cashier"
+  const leftoverNote =
+    leftover.endedShiftIds.length > 0
+      ? ` ${leftover.endedShiftIds.length} leftover open shift(s) were also ended with this approval.`
+      : ""
   await createNotification({
     userId: handover.fromUserId,
     type: NOTIFICATION_TYPES.HandoverApproved,
     title: "Handover approved and received",
-    message: `${toName} has approved and received your shift handover. Your shift has been ended.`,
+    message: `${toName} has approved and received your shift handover. Your shift has been ended.${leftoverNote}`,
     referenceType: NOTIF_REF_TYPES.ShiftHandover,
     referenceId: handoverId,
   })

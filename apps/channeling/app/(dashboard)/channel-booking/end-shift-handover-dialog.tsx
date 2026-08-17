@@ -17,7 +17,15 @@ import { SearchableUserSelect } from "@/components/common/user-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyTillBalance } from "@/app/actions/till.actions"
 import { getBulkCashierUsersAction, getMyPendingFloatRequestAction } from "@/app/actions/float-request.actions"
-import { submitShiftHandoverAction, getHandoversReceivedByShiftAction, getHandoversToMeAction, getIncludableHandoversForSenderAction, getNonCashHeldInReconciliationAction } from "@/app/actions/shift.actions"
+import {
+  submitShiftHandoverAction,
+  getHandoversReceivedByShiftAction,
+  getHandoversToMeAction,
+  getIncludableHandoversForSenderAction,
+  getNonCashHeldInReconciliationAction,
+  canEndShiftWithoutHandoverAction,
+  endShiftAction,
+} from "@/app/actions/shift.actions"
 import Link from "next/link"
 import { useToast } from "@/components/hooks/use-toast"
 import {
@@ -127,6 +135,8 @@ export function EndShiftHandoverDialog({
   const [previousHandoversNote, setPreviousHandoversNote] = useState<{ id: string; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
   const [step1DataReady, setStep1DataReady] = useState(false)
   const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
+  const [canEndWithoutHandover, setCanEndWithoutHandover] = useState(false)
+  const [endWithoutLoading, setEndWithoutLoading] = useState(false)
   const { toast } = useToast()
 
   // Cash: denominations (notes 10+ ; coins 5, 2, 1 + cents)
@@ -182,6 +192,7 @@ export function EndShiftHandoverDialog({
       setPreviousHandoversNote([])
       setStep1DataReady(false)
       setHandoverPermissionDenied(null)
+      setCanEndWithoutHandover(false)
       setBalanceLoading(true)
       Promise.all([
         getMyTillBalance(),
@@ -189,8 +200,9 @@ export function EndShiftHandoverDialog({
         getHandoversToMeAction(),
         getIncludableHandoversForSenderAction(),
         getNonCashHeldInReconciliationAction(),
+        canEndShiftWithoutHandoverAction(),
       ])
-        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes]) => {
+        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, endWithoutRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -223,6 +235,9 @@ export function EndShiftHandoverDialog({
           }
           if (!includableRes.success && "message" in includableRes && includableRes.message) {
             toast({ variant: "destructive", title: "Error", description: includableRes.message })
+          }
+          if (endWithoutRes.success) {
+            setCanEndWithoutHandover(!!endWithoutRes.allowed)
           }
         })
         .catch((err) => {
@@ -315,6 +330,26 @@ export function EndShiftHandoverDialog({
   }, [open, step])
 
   const handleProceed = () => setStep(2)
+
+  async function handleEndWithoutHandover() {
+    if (!shiftId || !canEndWithoutHandover) return
+    setEndWithoutLoading(true)
+    try {
+      await endShiftAction(shiftId)
+      toast({ title: "Shift ended", description: "No till balance — closed without a handover." })
+      onOpenChange(false)
+      onSuccess?.()
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Could not end shift",
+        description: err instanceof Error ? err.message : "Failed to end shift.",
+      })
+    } finally {
+      setEndWithoutLoading(false)
+    }
+  }
+
   const handleBack = () => {
     if (step === 2) {
       setStep(1)
@@ -527,13 +562,16 @@ export function EndShiftHandoverDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {step === 1 && "End shift – Current till balance"}
+            {step === 1 &&
+              (canEndWithoutHandover ? "End shift" : "End shift – Current till balance")}
             {step === 2 && "Enter handover amounts"}
             {step === 3 && "Confirm handover"}
           </DialogTitle>
           <DialogDescription>
             {step === 1 &&
-              "Review your till balance by method. Then proceed to enter amounts and assign the handover."}
+              (canEndWithoutHandover
+                ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
+                : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
               "Entries from handovers not sent to reconciliation are pre-filled. Handovers already in (or finished) reconciliation stay with you and are not included. We warn if amounts do not match what is available to hand over."}
             {step === 3 &&
@@ -609,6 +647,13 @@ export function EndShiftHandoverDialog({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : canEndWithoutHandover ? (
+              <div className="rounded-lg border bg-muted/40 p-4 space-y-1">
+                <p className="text-sm font-medium">No amount to hand over</p>
+                <p className="text-sm text-muted-foreground">
+                  Till total is {formatCents(balance?.totalCents ?? 0)}. Ending the shift will not create a handover.
+                </p>
+              </div>
             ) : balance ? (
               <div className="space-y-3">
                 <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
@@ -633,25 +678,34 @@ export function EndShiftHandoverDialog({
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={endWithoutLoading}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleProceed}
-                disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
-              >
-                {!step1DataReady ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading…
-                  </>
-                ) : (
-                  <>
-                    Proceed to handover
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </>
-                )}
-              </Button>
+              {canEndWithoutHandover ? (
+                <Button onClick={handleEndWithoutHandover} disabled={!step1DataReady || endWithoutLoading}>
+                  {endWithoutLoading || !step1DataReady ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  End shift
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleProceed}
+                  disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
+                >
+                  {!step1DataReady ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading…
+                    </>
+                  ) : (
+                    <>
+                      Proceed to handover
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              )}
             </DialogFooter>
           </>
         )}
