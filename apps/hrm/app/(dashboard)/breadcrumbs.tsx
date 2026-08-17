@@ -22,6 +22,7 @@ const PATH_NAMES = [
   { path: 'shift-roster', name: 'Shift Roster' },
   { path: 'shift-types', name: 'Shift Types' },
   { path: 'shift-assignment', name: 'Shift Assignment' },
+  { path: 'duty-roster', name: 'Duty Roster' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },

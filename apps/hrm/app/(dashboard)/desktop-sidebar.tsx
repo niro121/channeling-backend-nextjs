@@ -17,6 +17,7 @@ import {
   CalendarPlus,
   CalendarRange,
   ClipboardList,
+  ClipboardCheck,
   ChevronDown,
   Clock,
   Users,
@@ -188,12 +189,18 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         )}
         {(hasAccess('/shift-roster') ||
           hasAccess('/shift-types') ||
-          hasAccess('/shift-assignment')) && (
+          hasAccess('/shift-assignment') ||
+          hasAccess('/duty-roster')) && (
           <SidebarGroup label="Roster & Shifts">
             <SidebarCollapsible
               label="Roster & Shifts"
               icon={<CalendarRange className="h-5 w-5" />}
-              paths={['/shift-roster', '/shift-types', '/shift-assignment']}
+              paths={[
+                '/shift-roster',
+                '/shift-types',
+                '/shift-assignment',
+                '/duty-roster'
+              ]}
             >
               {hasAccess('/shift-roster') && (
                 <NavLink
@@ -214,6 +221,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/shift-assignment"
                   label="Shift Assignment"
                   icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/duty-roster') && (
+                <NavLink
+                  href="/duty-roster"
+                  label="Duty Roster"
+                  icon={<ClipboardCheck className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
