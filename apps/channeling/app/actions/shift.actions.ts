@@ -11,13 +11,14 @@ import {
   getCompletedHandoversToMe,
   getHandoverByIdForRecipient,
   getHandoversReceivedByShift,
+  getLinkedHandoversForShift,
   getIncludableHandoversForSender,
   getIncludedHandoversChain,
   getNonCashHeldInReconciliation,
   countPendingIncomingHandovers,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
-import { getReceivedFloatsForHandover, countPendingFloatRequestsToApprove } from "@/services/float-request.service"
+import { getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
@@ -205,18 +206,6 @@ export async function cancelHandoverAction(handoverId: string) {
   return result
 }
 
-/** Count of pending float requests assigned to the current user (to approve or reject). */
-export async function getPendingFloatRequestsToApproveCountAction(): Promise<{
-  success: true
-  count: number
-}> {
-  await requirePermission(SHIFT_RESOURCE, "view")
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return { success: true, count: 0 }
-  const count = await countPendingFloatRequestsToApprove(session.user.id)
-  return { success: true, count }
-}
-
 /** Count of pending handovers assigned to the current user (to accept or reject). */
 export async function getPendingIncomingHandoverCountAction(): Promise<{
   success: true
@@ -227,6 +216,30 @@ export async function getPendingIncomingHandoverCountAction(): Promise<{
   if (!session?.user?.id) return { success: true, count: 0 }
   const count = await countPendingIncomingHandovers(session.user.id)
   return { success: true, count }
+}
+
+/** Open floats that block ending the current user's shift (pending approval or waiting to receive). */
+export async function getOpenFloatsBlockingShiftEndAction(): Promise<{
+  success: true
+  blocking: Awaited<ReturnType<typeof getOpenFloatsBlockingShiftEnd>>
+  count: number
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return {
+      success: true,
+      blocking: {
+        outgoingPending: 0,
+        outgoingAwaitingReceive: 0,
+        incomingPendingApproval: 0,
+        incomingAwaitingReceive: 0,
+      },
+      count: 0,
+    }
+  }
+  const blocking = await getOpenFloatsBlockingShiftEnd(session.user.id)
+  return { success: true, blocking, count: await openFloatsBlockingTotal(blocking) }
 }
 
 /** Handovers pending for current user (handed over to me). */
@@ -349,6 +362,19 @@ export async function getHandoversReceivedByShiftAction(shiftId: string) {
       handoversIApproved: handoversIApproved.map((h) => ({ id: h.id, toShiftId: h.toShiftId, createdAt: h.createdAt })),
     },
   }
+}
+
+/** Approved handovers received into the given shift (who they came from, amounts, linked chain). */
+export async function getLinkedHandoversForShiftAction(shiftId: string) {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false as const, data: [] as Awaited<ReturnType<typeof getLinkedHandoversForShift>>, message: err instanceof Error ? err.message : "Access denied." }
+  }
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false as const, data: [] as Awaited<ReturnType<typeof getLinkedHandoversForShift>>, message: "Unauthorized" }
+  const data = await getLinkedHandoversForShift(shiftId)
+  return { success: true as const, data }
 }
 
 /** Handover detail for recipient: handover + till breakdown + included handovers chain for verification. */
