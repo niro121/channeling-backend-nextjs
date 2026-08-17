@@ -331,6 +331,25 @@ export async function getFloatRequestsForBulkCashierPaginated(
   return { data: rows.map(mapFloatRequest), totalRecords };
 }
 
+/** Float requests assigned to this bulk cashier that still need approve or reject. */
+export async function countPendingFloatRequestsToApprove(userId: string): Promise<number> {
+  const rows = await prisma.floatRequest.findMany({
+    where: {
+      bulkCashierId: userId,
+      status: {
+        notIn: [
+          FLOAT_REQUEST_STATUS.APPROVED,
+          FLOAT_REQUEST_STATUS.RECEIVED,
+          FLOAT_REQUEST_STATUS.REJECTED,
+          FLOAT_REQUEST_STATUS.CANCELLED,
+        ] as never,
+      },
+    },
+    select: { status: true },
+  })
+  return rows.filter((row) => Number(row.status) === FLOAT_REQUEST_STATUS.PENDING).length
+}
+
 // --- getPendingFloatRequestByUserId ---
 export async function getPendingFloatRequestByUserId(
   userId: string
@@ -816,6 +835,86 @@ export async function cancelOpenFloatRequestsOnEmptyShiftEnd(
   }
 
   return { cancelledIds };
+}
+
+export type HandoverReceivedFloat = {
+  id: string
+  amountRequested: number
+  amountReceivedCents: number
+  denominationsRequested: DenominationEntry[]
+  denominationsApproved: DenominationEntry[] | null
+  reasonForLessThanRequested: string | null
+  createdAt: Date
+  approvedAt: Date | null
+  receivedAt: Date | null
+  bulkCashier: { id: string; name: string } | null
+  receivedBy: { id: string; name: string } | null
+}
+
+/** Floats the cashier received during the shift being handed over. */
+export async function getReceivedFloatsForHandover(params: {
+  cashierUserId: string
+  shiftId: string
+  shiftStartedAt: Date
+  windowEnd: Date
+}): Promise<HandoverReceivedFloat[]> {
+  const rows = await prisma.floatRequest.findMany({
+    where: {
+      requestedById: params.cashierUserId,
+      status: {
+        notIn: [
+          FLOAT_REQUEST_STATUS.PENDING,
+          FLOAT_REQUEST_STATUS.REJECTED,
+          FLOAT_REQUEST_STATUS.CANCELLED,
+        ] as never,
+      },
+      OR: [
+        { shiftId: params.shiftId },
+        {
+          receivedAt: {
+            gte: params.shiftStartedAt,
+            lte: params.windowEnd,
+          },
+        },
+      ],
+    },
+    orderBy: { receivedAt: 'asc' },
+    select: {
+      id: true,
+      status: true,
+      amountRequested: true,
+      denominationsRequested: true,
+      denominationsApproved: true,
+      reasonForLessThanRequested: true,
+      createdAt: true,
+      approvedAt: true,
+      receivedAt: true,
+      bulkCashier: { select: { id: true, name: true } },
+      receivedBy: { select: { id: true, name: true } },
+    },
+  })
+
+  return rows
+    .filter((row) => Number(row.status) === FLOAT_REQUEST_STATUS.RECEIVED)
+    .map((row) => {
+      const approved = (row.denominationsApproved as DenominationEntry[] | null) ?? null
+      const receivedCents = approved && approved.length > 0
+        ? lkrToCents(denominationsTotalLKR(approved))
+        : row.amountRequested
+      return {
+        id: row.id,
+        amountRequested: row.amountRequested,
+        amountReceivedCents: receivedCents,
+        denominationsRequested: (row.denominationsRequested as DenominationEntry[]) ?? [],
+        denominationsApproved: approved,
+        reasonForLessThanRequested: row.reasonForLessThanRequested ?? null,
+        createdAt: row.createdAt,
+        approvedAt: row.approvedAt,
+        receivedAt: row.receivedAt,
+        bulkCashier: row.bulkCashier ?? null,
+        receivedBy: row.receivedBy ?? null,
+      }
+    })
 }
 
 // --- helpers ---

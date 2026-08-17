@@ -22,6 +22,7 @@ import {
   getHandoversReceivedByShiftAction,
   getHandoversToMeAction,
   getPendingIncomingHandoverCountAction,
+  getPendingFloatRequestsToApproveCountAction,
   getIncludableHandoversForSenderAction,
   getNonCashHeldInReconciliationAction,
   canEndShiftWithoutHandoverAction,
@@ -130,6 +131,7 @@ export function EndShiftHandoverDialog({
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [pendingFloatRequest, setPendingFloatRequest] = useState<{ id: string; amountRequested?: number } | null>(null)
+  const [pendingFloatsToApprove, setPendingFloatsToApprove] = useState(0)
   const [pendingHandoversToMe, setPendingHandoversToMe] = useState<{ id: string }[]>([])
   const [includableHandovers, setIncludableHandovers] = useState<{ id: string; createdAt: string; totalCents: number; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
   const [selectedIncludedHandoverIds, setSelectedIncludedHandoverIds] = useState<string[]>([])
@@ -194,6 +196,7 @@ export function EndShiftHandoverDialog({
       setStep1DataReady(false)
       setHandoverPermissionDenied(null)
       setCanEndWithoutHandover(false)
+      setPendingFloatsToApprove(0)
       setBalanceLoading(true)
       Promise.all([
         getMyTillBalance(),
@@ -202,9 +205,10 @@ export function EndShiftHandoverDialog({
         getIncludableHandoversForSenderAction(),
         getNonCashHeldInReconciliationAction(),
         getPendingIncomingHandoverCountAction(),
+        getPendingFloatRequestsToApproveCountAction(),
         canEndShiftWithoutHandoverAction(),
       ])
-        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, pendingCountRes, endWithoutRes]) => {
+        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, pendingCountRes, pendingFloatsRes, endWithoutRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -218,6 +222,7 @@ export function EndShiftHandoverDialog({
           }
           setHeldInReconciliation(heldRes.success && heldRes.data ? heldRes.data : null)
           setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
+          setPendingFloatsToApprove(pendingFloatsRes.success ? pendingFloatsRes.count : 0)
           const pendingFromList =
             handoversToMeRes.success && handoversToMeRes.data?.length
               ? handoversToMeRes.data.map((h) => ({ id: h.id }))
@@ -344,6 +349,14 @@ export function EndShiftHandoverDialog({
       })
       return
     }
+    if (pendingFloatsToApprove > 0) {
+      toast({
+        variant: "destructive",
+        title: "Float requests need your action",
+        description: `You have ${pendingFloatsToApprove} float request(s) pending your approval. Approve or reject them from Bulk Cashier before submitting a handover.`,
+      })
+      return
+    }
     setStep(2)
   }
 
@@ -354,6 +367,14 @@ export function EndShiftHandoverDialog({
         variant: "destructive",
         title: "Handovers need your action",
         description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before ending your shift.`,
+      })
+      return
+    }
+    if (pendingFloatsToApprove > 0) {
+      toast({
+        variant: "destructive",
+        title: "Float requests need your action",
+        description: `You have ${pendingFloatsToApprove} float request(s) pending your approval. Approve or reject them from Bulk Cashier before ending your shift.`,
       })
       return
     }
@@ -539,6 +560,16 @@ export function EndShiftHandoverDialog({
         })
         return
       }
+      const pendingFloatsCheck = await getPendingFloatRequestsToApproveCountAction()
+      if (pendingFloatsCheck.success && pendingFloatsCheck.count > 0) {
+        setSubmitLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Float requests need your action",
+          description: `You have ${pendingFloatsCheck.count} float request(s) pending your approval. Approve or reject them from Bulk Cashier before submitting a handover.`,
+        })
+        return
+      }
       // Build full breakdown from current state so bulk cashier can verify denominations and references on the detail page
       const enteredBreakdown = {
         cashDenominations: cashDenoms
@@ -667,6 +698,20 @@ export function EndShiftHandoverDialog({
                 </AlertDescription>
               </Alert>
             )}
+            {pendingFloatsToApprove > 0 && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Float requests need your action</AlertTitle>
+                <AlertDescription>
+                  You have {pendingFloatsToApprove} float request{pendingFloatsToApprove !== 1 ? "s" : ""} pending your
+                  approval. Approve or reject them on the{" "}
+                  <Link href="/bulk-cashier" className="underline font-medium hover:no-underline" onClick={() => onOpenChange(false)}>
+                    Bulk Cashier page
+                  </Link>{" "}
+                  before you can end your shift and hand over.
+                </AlertDescription>
+              </Alert>
+            )}
             {pendingFloatRequest && !canEndWithoutHandover && (
               <Alert variant="destructive" className="mb-4">
                 <AlertTriangle className="h-4 w-4" />
@@ -728,7 +773,7 @@ export function EndShiftHandoverDialog({
               {canEndWithoutHandover ? (
                 <Button
                   onClick={handleEndWithoutHandover}
-                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0}
+                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0 || pendingFloatsToApprove > 0}
                 >
                   {endWithoutLoading || !step1DataReady ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -738,7 +783,7 @@ export function EndShiftHandoverDialog({
               ) : (
                 <Button
                   onClick={handleProceed}
-                  disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
+                  disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || pendingFloatsToApprove > 0 || !!handoverPermissionDenied}
                 >
                   {!step1DataReady ? (
                     <>
