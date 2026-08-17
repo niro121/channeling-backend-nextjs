@@ -14,6 +14,7 @@ import {
   getIncludableHandoversForSender,
   getIncludedHandoversChain,
   getNonCashHeldInReconciliation,
+  countPendingIncomingHandovers,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
@@ -201,6 +202,18 @@ export async function cancelHandoverAction(handoverId: string) {
   revalidatePath("/shifts")
   revalidatePath("/handovers")
   return result
+}
+
+/** Count of pending handovers assigned to the current user (to accept or reject). */
+export async function getPendingIncomingHandoverCountAction(): Promise<{
+  success: true
+  count: number
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: true, count: 0 }
+  const count = await countPendingIncomingHandovers(session.user.id)
+  return { success: true, count }
 }
 
 /** Handovers pending for current user (handed over to me). */
