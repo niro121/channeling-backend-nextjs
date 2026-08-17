@@ -8,21 +8,25 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Shift Types:** Phase 0 UI implemented — awaiting design acceptance.  
 **Shift Assignment:** Phase 0 UI implemented — awaiting design acceptance.  
 **Duty Roster:** Phase 0 UI implemented — awaiting design acceptance.  
+**Roster Amendments:** Phase 0 UI implemented — awaiting design acceptance.  
 **Build path:** UI first per module, then **Types/Zod → Service → Actions → wire UI**.  
 Pages must not call Prisma. No business rules in components.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, …)
+- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, …)
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
 - Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
 - Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
 - Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
-- Shift Assignment / Duty Roster sidebar: **leave expanded** (register pages, not focus calendar)
+- Shift Assignment / Duty Roster / Roster Amendments sidebar: **leave expanded** (register pages, not focus calendar)
 - Duty Roster: Daily view only in Phase 0; Weekly/Monthly toast; Print/PDF/Excel on table only
 - Duty Roster status: Draft / Pending Approval / Published / Amended; History Cancel-only timeline
+- Roster Amendments: **`CommonDataTable`**; header New / Approve / Reject; table-only Print/PDF/Excel
+- Roster Amendments Approve / Reject: **≥1** selected row; skip already Approved/Rejected
+- Roster Amendments status: Draft / Pending Approval / Approved / Rejected; History Cancel-only timeline
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
 - `/shift-roster` auto-collapses the desktop sidebar (Channeling focus-page pattern)
@@ -38,10 +42,11 @@ Pages must not call Prisma. No business rules in components.
 | `/shift-types` | `shift-roster` | Shift master (timings, thresholds, night/overnight/holiday flags) — CRUD via sheets |
 | `/shift-assignment` | `shift-roster` | Link staff to shift types / rotation patterns — feeds Duty Roster & Shift Roster |
 | `/duty-roster` | `shift-roster` | Department/unit daily duty list: assign, swap, replace, attendance |
+| `/roster-amendments` | `shift-roster` | Controlled changes to published duty / shift rosters (approve / reject) |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster.
+Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments.
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page as dialogs / toasts until later phases split them.
 
@@ -459,6 +464,78 @@ Columns include **Updated** and **Created** (Leave Types stacked format). Defaul
 
 ---
 
+## 2E. UI map — Roster Amendments (Phase 0)
+
+Controlled change workflow for published duty rosters. Same permission as the rest of Roster & Shifts (`shift-roster`). Register page — **do not** auto-collapse the sidebar.
+
+```
+┌─ Header ──────────────────────────────────────────────────────────────────┐
+│ Roster Amendments              [ New Amendment ] [ Approve ] [ Reject ]   │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Total Amendments ─┐ ┌─ Pending Approval ─┐ ┌─ Approved ─┐ ┌─ Rejected ─┐
+│        142         │ │         9          │ │    121     │ │     12     │
+└────────────────────┘ └────────────────────┘ └────────────┘ └────────────┘
+
+┌─ Search & Filters ────────────────────────────────────────────────────────┐
+│ Amendment No │ Staff │ Department │ Type │ From │ To │ Status │ Requested │
+│ [ Search ] [ Clear ]                                                      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ Amendment Register (CommonDataTable) ────────────────────────────────────┐
+│ N of M selected                          [ Columns ] [ Print/PDF/Excel ]  │
+│ No │ Staff ID │ Name │ Date │ Original │ Amended │ Type │ Reason │ …      │
+│ Status │ Updated │ Created │ Actions (Edit / Delete / History)            │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+Key files under `app/(dashboard)/(roster-shifts)/roster-amendments/`:
+
+| File | Role |
+|------|------|
+| `page.tsx` | Access check + sample data |
+| `roster-amendments-workspace.tsx` | Provider, header, filters, register, sheets, confirm |
+| `roster-amendments-ui-context.tsx` | Open New / Edit / History; selection; approve/reject |
+| `header-actions.tsx` | **New Amendment**, **Approve**, **Reject** (no Print/Excel/PDF) |
+| `section-amendment-summary.tsx` | Four count cards |
+| `section-amendment-filters.tsx` | No / staff / dept / type / from / to / status / requested by |
+| `section-amendment-register.tsx` | `CommonDataTable` + selection + export |
+| `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History (locked rows hide edit/delete) |
+| `sheet-amendment-form.tsx` | New / Edit form |
+| `sheet-amendment-history.tsx` | Timeline history; **Cancel only** |
+| `sample-data.ts` | Mock amendments + options + summary |
+
+### 2E.1 Header
+
+- Print / PDF / Excel live on the **table toolbar only** (not the page header).
+- **Approve** / **Reject** require ≥1 selected row; else toast. Already Approved / Rejected rows toast as locked.
+- Confirms use `CustomAlertDialog` (Cancel + Continue). Remarks enforcement later.
+
+### 2E.2 Form sheets
+
+| Sheet | Opens from | Notes |
+|-------|------------|--------|
+| New Amendment | Header | No selected-row requirement |
+| Edit Amendment | Row pencil | Prefill sample; hidden on Approved / Rejected |
+| Change History | Row clock | Timeline like Shift Types; Cancel only |
+
+Field behaviour (locked):
+
+- **Amendment No** auto sample `AMD-2026-n` (disabled). Later `generateRecordCode` with year + padding.
+- **Original Shift** auto from staff (disabled).
+- **Amended Shift** required except Duty Cancellation (disabled, show —).
+- **Requested By** select.
+- Status: **Draft / Pending Approval / Approved / Rejected**. New defaults to Pending Approval.
+- One form for all types in Phase 0 (no swap-with / location extras yet).
+
+Sticky sheet header. Phase 0 toast save.
+
+### 2E.3 Register
+
+Columns include **Updated** and **Created**. Default From / To empty.
+
+---
+
 ## 3. Suggested folders
 
 ```
@@ -520,6 +597,20 @@ app/(dashboard)/(roster-shifts)/duty-roster/
   sheet-duty-history.tsx
   sample-data.ts
 
+app/(dashboard)/(roster-shifts)/roster-amendments/
+  page.tsx
+  roster-amendments-workspace.tsx
+  roster-amendments-ui-context.tsx
+  header-actions.tsx
+  section-amendment-summary.tsx
+  section-amendment-filters.tsx
+  section-amendment-register.tsx
+  columns.tsx
+  record-actions.tsx
+  sheet-amendment-form.tsx
+  sheet-amendment-history.tsx
+  sample-data.ts
+
 # Dynamic layers (Phase 1+)
 types/roster.ts
 lib/mappers/
@@ -547,12 +638,12 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments` → `shift-roster`
+3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)`
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`
+7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -722,6 +813,36 @@ Phase 0: Static UI (list + Assign/Swap/Replace/Edit/History sheets)
 | [x] `/duty-roster` matches the mock (sheets + register + swap confirm) |
 | [x] Weekly / Monthly toast; Print/PDF/Excel on table only |
 | [x] Swap Save opens confirm dialog |
+| [ ] Design accepted |
+
+---
+
+## 5E. Development phases — Roster Amendments
+
+```
+Phase 0: Static UI (list + New/Edit/History sheets + approve/reject confirms)
+  → (shared Phase 1 schema)
+    → Phase 2: CRUD
+      → Phase 3: Approve / reject persist + apply to Duty / Shift Roster
+        → Phase 4: Live summary + remarks + export
+```
+
+### Roster Amendments — Phase 0 — UI interfaces
+
+| Work |
+|------|
+| Route `(roster-shifts)/roster-amendments` — sheets + approve/reject confirm |
+| List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
+| Table-only Print/PDF/Excel; Approve/Reject need ≥1 selected pending/draft row |
+| New / Edit / History sheets; History Cancel-only; locked rows hide edit/delete |
+| Map `/roster-amendments` → `shift-roster`; sidebar + breadcrumb (sidebar stays expanded) |
+| `roster-amendments.visited` activity on list |
+
+| Done when |
+|-----------|
+| [x] `/roster-amendments` matches the mock (sheets + register + confirms) |
+| [x] Approve / Reject require selection; Print/PDF/Excel on table only |
+| [x] Approved / Rejected rows hide Edit and Delete |
 | [ ] Design accepted |
 
 ---
@@ -913,7 +1034,7 @@ Until this phase, print/export stay toast-only.
 
 1. **Do not** put Prisma in pages — services only.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
-3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, and `/duty-roster` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
+3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, and `/roster-amendments` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Keep Save / Publish / Copy as no-ops until their phase.
 6. Do not merge allocations into Staff or Leave Application documents.
