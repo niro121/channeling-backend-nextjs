@@ -90,7 +90,9 @@ export default function SheetDutyHistory({
         <SheetFooter className="shrink-0 flex-row justify-end border-t border-border bg-background px-6 py-4 sm:space-x-0">
           <Button
             type="button"
+            size="sm"
             variant="outline"
+            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
             onClick={() => onOpenChange(false)}
           >
             Cancel
