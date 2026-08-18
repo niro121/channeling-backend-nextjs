@@ -164,6 +164,9 @@ model Staff {
   overtimeExtraTimes OvertimeExtraTime[]
   overtimeDayOffPhs OvertimeDayOffPh[]
   overtimeExtraShiftNormals OvertimeExtraShiftNormal[]
+  shiftAssignments StaffShiftAssignment[]
+  rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -424,6 +427,232 @@ model OvertimeExtraShiftNormal {
   @@index([fromAt])
   @@index([approverId])
   @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+ROSTER & SHIFTS
+Six collections only. Duty / Night / Overnight / Public Holiday are
+views of RosterAllocation — do not add extra tables for those screens.
+--------------------------------- */
+
+model ShiftType {
+  id                         String  @id @default(auto()) @map("_id") @db.ObjectId
+  code                       String  @unique // SHF-n
+  name                       String
+  category                   String  @default("")
+  /// Optional grid chip (e.g. D / E / N). Not the primary key.
+  chipLabel                  String?
+  startTime                  String // HH:mm
+  endTime                    String // HH:mm
+  breakMinutes               Int     @default(0)
+  durationHours              Float   @default(0)
+  graceMinutes               Int     @default(0)
+  lateThresholdMinutes       Int     @default(0)
+  earlyExitThresholdMinutes  Int     @default(0)
+  isNightShift               Boolean @default(false)
+  isOvernight                Boolean @default(false)
+  holidayEligible            Boolean @default(false)
+  status                     String  @default("active") // active | inactive
+
+  assignments          StaffShiftAssignment[]
+  allocations          RosterAllocation[]
+  amendmentOriginals   RosterAmendment[]      @relation("AmendmentOriginalShift")
+  amendmentAmendments  RosterAmendment[]      @relation("AmendmentAmendedShift")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([name])
+  @@index([isNightShift])
+  @@index([isOvernight])
+  @@index([holidayEligible])
+}
+
+/// Standing rule: staff ↔ shift / rotation over a date range. Not a calendar cell.
+model StaffShiftAssignment {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  code               String    @unique // SA-n
+  staffId            String    @db.ObjectId
+  shiftTypeId        String    @db.ObjectId
+  staffCode          String
+  staffName          String
+  department         String    @default("")
+  unit               String    @default("")
+  designation        String    @default("")
+  rotationPattern    String    @default("fixed")
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  weeklyOffDay       String    @default("sunday")
+  autoAssign         Boolean   @default(true)
+  status             String    @default("active") // active | pending | inactive
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([shiftTypeId])
+  @@index([status])
+  @@index([effectiveFrom, effectiveTo])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Period header (department + unit + roster name + from/to).
+model ShiftRoster {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  code        String    @unique // SR-n
+  name        String    @default("")
+  department  String    @default("")
+  unit        String    @default("")
+  roster      String    @default("")
+  fromDate    DateTime
+  toDate      DateTime
+  status      String    @default("draft") // draft | published
+  publishedAt DateTime?
+  /// Auth User.id (no cross-DB Prisma relation).
+  publishedBy String?   @db.ObjectId
+
+  allocations RosterAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([department, unit])
+  @@index([fromDate, toDate])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// One staff × calendar date. Shift Roster + Duty Roster share this store.
+model RosterAllocation {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  shiftRosterId String   @db.ObjectId
+  staffId       String   @db.ObjectId
+  shiftTypeId   String   @db.ObjectId
+  /// Calendar date; services must persist UTC start-of-day for uniqueness.
+  date          DateTime
+  staffCode     String
+  staffName     String
+  department    String   @default("")
+  unit          String   @default("")
+  roster        String   @default("")
+  status        String   @default("draft") // draft | published | amended
+
+  isLeave   Boolean @default(false)
+  hours     Float   @default(0)
+  otHours   Float   @default(0)
+
+  dutyLocation    String  @default("")
+  /// Snapshot of supervising staff (no Staff relation required).
+  supervisorId    String? @db.ObjectId
+  supervisorName  String  @default("")
+  attendance      String? // present | late | absent
+  comments        String  @default("")
+
+  startAt                  DateTime?
+  endAt                    DateTime?
+  day1Hours                Float?
+  day2Hours                Float?
+  totalHours               Float?
+  attendanceAllocation     String? // shift_start | shift_end
+
+  nightHours      Float?
+  nightOt         Float?
+  nightAllowance  Float?
+  mealAllowance   Float?
+
+  holidayId         String?  @db.ObjectId
+  payRate           String? // 1.50 | 2.00 | 2.50
+  holidayAllowance  Float?
+  grantLieuLeave    Boolean  @default(false)
+  sendToPayroll     Boolean  @default(false)
+
+  shiftRoster ShiftRoster       @relation(fields: [shiftRosterId], references: [id])
+  staff       Staff             @relation(fields: [staffId], references: [id])
+  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
+  holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([staffId, date])
+  @@index([shiftRosterId])
+  @@index([shiftTypeId])
+  @@index([holidayId])
+  @@index([date])
+  @@index([status])
+  @@index([department, unit])
+}
+
+/// Overlay on a published cell. Approve writes RosterAllocation.
+model RosterAmendment {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  code                 String    @unique // RA-n
+  staffId              String    @db.ObjectId
+  dutyDate             DateTime
+  originalShiftTypeId  String    @db.ObjectId
+  amendedShiftTypeId   String?   @db.ObjectId
+  amendmentType        String // shift_change | shift_swap | duty_cancellation | location_change | extra_duty
+  staffCode            String
+  staffName            String
+  department           String    @default("")
+  originalShiftLabel   String    @default("")
+  amendedShiftLabel    String    @default("")
+  swapStaffId          String?   @db.ObjectId
+  swapStaffName        String    @default("")
+  dutyLocation         String    @default("")
+  reason               String    @default("")
+  remarks              String    @default("")
+  requestedById        String?   @db.ObjectId
+  requestedByName      String    @default("")
+  decidedById          String?   @db.ObjectId
+  decidedAt            DateTime?
+  status               String    @default("pending_approval") // draft | pending_approval | approved | rejected
+
+  staff              Staff      @relation(fields: [staffId], references: [id])
+  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id])
+  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([dutyDate])
+  @@index([status])
+  @@index([amendmentType])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// v1 Holiday Date stub (Roster-owned until HR Administration exists).
+model HolidayCalendar {
+  id     String   @id @default(auto()) @map("_id") @db.ObjectId
+  code   String   @unique // HOL-n
+  name   String
+  typeId String // poya | mercantile | public
+  date   DateTime
+
+  allocations RosterAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([date])
+  @@index([typeId])
 }
 
 /* ---------------------------------

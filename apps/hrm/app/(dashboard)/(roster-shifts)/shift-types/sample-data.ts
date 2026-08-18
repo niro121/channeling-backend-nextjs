@@ -46,9 +46,11 @@ export type ShiftTypeSummarySample = {
 export const SAMPLE_SHIFT_CATEGORIES: ShiftTypeFilterOption[] = [
   { id: 'general', name: 'General' },
   { id: 'nursing', name: 'Nursing' },
-  { id: 'holiday', name: 'Holiday' },
-  { id: 'clinical', name: 'Clinical' },
-  { id: 'support', name: 'Support' }
+  { id: 'emergency', name: 'Emergency' },
+  { id: 'rotational', name: 'Rotational' },
+  { id: 'night', name: 'Night' },
+  { id: 'overnight', name: 'Overnight' },
+  { id: 'holiday', name: 'Holiday' }
 ];
 
 export const SAMPLE_YES_NO_OPTIONS: ShiftTypeFilterOption[] = [
@@ -95,7 +97,7 @@ export const SAMPLE_SHIFT_TYPES: ShiftTypeSample[] = [
     id: 'st-2',
     code: 'SHF-2',
     name: 'Evening Shift',
-    category: 'General',
+    category: 'Nursing',
     startTime: '15:00',
     endTime: '23:00',
     breakMinutes: 45,
@@ -116,7 +118,7 @@ export const SAMPLE_SHIFT_TYPES: ShiftTypeSample[] = [
     id: 'st-3',
     code: 'SHF-3',
     name: 'Night Shift',
-    category: 'Nursing',
+    category: 'Night',
     startTime: '23:00',
     endTime: '07:00',
     breakMinutes: 60,
@@ -137,7 +139,7 @@ export const SAMPLE_SHIFT_TYPES: ShiftTypeSample[] = [
     id: 'st-4',
     code: 'SHF-4',
     name: 'Long Day',
-    category: 'Clinical',
+    category: 'Emergency',
     startTime: '07:00',
     endTime: '19:00',
     breakMinutes: 60,
@@ -200,7 +202,7 @@ export const SAMPLE_SHIFT_TYPES: ShiftTypeSample[] = [
     id: 'st-7',
     code: 'SHF-7',
     name: 'Support Overnight',
-    category: 'Support',
+    category: 'Overnight',
     startTime: '20:00',
     endTime: '08:00',
     breakMinutes: 60,

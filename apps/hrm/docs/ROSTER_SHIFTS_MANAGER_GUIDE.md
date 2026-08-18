@@ -5,9 +5,10 @@ Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_
 Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and `OVERTIME_MANAGER_GUIDE.md`.
 
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
-**Domain (Phase 1 map):** locked in this doc (17 Aug 2026). **Prisma not started** — apply schema only after this map is accepted.  
+**Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
+**D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components.
+Pages must not call Prisma. No business rules in components. Next: **D2 Shift Types CRUD**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -16,6 +17,7 @@ Pages must not call Prisma. No business rules in components.
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
 - Shift Types Duplicate: toolbar requires **exactly one** selected row (else toast)
+- Shift Types **categories** (locked): General, Nursing, Emergency, Rotational, Night, Overnight, Holiday. Category is a filter label only — it does **not** set Night / Overnight / Public Holiday Eligible rules.
 - Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
 - Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
 - Shift Assignment / Duty Roster / Roster Amendments / Night Shifts / Overnight Shifts / Public Holiday Shifts sidebar: **leave expanded** (register pages, not focus calendar)
@@ -331,7 +333,7 @@ Delete stays list-only (row + bulk). No Delete on the form sheet.
 
 ### 2B.3 Filters
 
-Shift Code, Shift Name (search inputs), Category / Night Shift / Overnight / Status (Combobox). **Search** applies local sample filter; **Clear** resets.
+Shift Code, Shift Name (search inputs), Category / Night Shift / Overnight / Status (Combobox). Category options: General, Nursing, Emergency, Rotational, Night, Overnight, Holiday. **Search** applies local sample filter; **Clear** resets.
 
 ### 2B.4 Register table
 
@@ -360,7 +362,7 @@ Yes/No + Active/Inactive as pills (same language as leave boolean badges).
 | Duplicate Shift Type | Toolbar **Duplicate Shift** (1 row selected) | Cancel + Duplicate Shift Type |
 | Change History | Row clock | **Cancel only** |
 
-Form fields: Code (auto), Name, Category, Start / End, Break (minutes), Total Working Hours (auto), Grace / Late / Early-exit (minutes), **Shift Rules** card (title + short description + switch per row: Overnight, Night Shift, Public Holiday Eligible, Active Status), footer audit Created / Last updated. Sheet header (title + close) stays fixed; only the form body scrolls.
+Form fields: Code (auto), Name, Category (General, Nursing, Emergency, Rotational, Night, Overnight, Holiday), Start / End, Break (minutes), Total Working Hours (auto), Grace / Late / Early-exit (minutes), **Shift Rules** card (title + short description + switch per row: Overnight, Night Shift, Public Holiday Eligible, Active Status). Category does not toggle those rules. Footer audit Created / Last updated. Sheet header (title + close) stays fixed; only the form body scrolls.
 
 Phase 0: Save / Update / Duplicate toast only (no Prisma).
 
@@ -1269,7 +1271,7 @@ Phase 0: Static UI (done)
 
 **Goal:** Six collections + shared types. Do **not** add `NightShift`, `DutyRoster`, or `PublicHolidayShift` tables. Staff employment `roster` string stays a snapshot label until a Roster master exists.
 
-**Do not invent extra collections.** Prisma next — only after this map stays accepted.
+**Do not invent extra collections.** Schema is in `prisma/schema.prisma`; types in `types/roster.ts`.
 
 ```
 Staff 1──* StaffShiftAssignment
@@ -1314,9 +1316,9 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | Done when |
 |-----------|
 | [x] Domain table above is **locked** (edit this doc if product disagrees) |
-| [ ] Models in `schema.prisma` + Staff relations both sides |
-| [ ] `types/roster.ts` — statuses, payloads, list params, DTOs |
-| [ ] `prisma db push` + `prisma generate` applied locally |
+| [x] Models in `schema.prisma` + Staff relations both sides |
+| [x] `types/roster.ts` — statuses, payloads, list params, DTOs |
+| [x] `prisma db push` applied locally (`rh-hrm`) |
 
 ---
 
@@ -1571,4 +1573,4 @@ Auto Assign that **creates week cells** waits for D5.
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — leave phases and UI map (copy this process)
 - `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell; Process Staff Shift waits for D4+ read
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating
-- `apps/hrm/prisma/schema.prisma` — add the six roster collections in D1 (`db push` after this map is accepted)
+- `apps/hrm/prisma/schema.prisma` — six roster collections (D1)

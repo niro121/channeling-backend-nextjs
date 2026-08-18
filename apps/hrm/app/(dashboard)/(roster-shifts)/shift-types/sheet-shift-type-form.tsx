@@ -294,7 +294,7 @@ export default function SheetShiftTypeForm({
                   <CustomFormField
                     id="code"
                     type="text"
-                    placeholder="Shift Code"
+                    placeholder="Shift Code (Auto Generated)"
                     value={
                       mode === 'edit'
                         ? formik.values.code
