@@ -248,7 +248,7 @@ export default async function DashboardLayout({
                 <HeaderClientControls session={session} e2eRunEnabled={E2E_RUN_ENABLED} />
               </div>
             </header>
-            <main className="flex-1 p-4 sm:p-6">
+            <main className="flex-1 p-4 sm:p-6 print:!p-0">
               {children}
             </main>
           </ChannelBookingLayoutClient>
