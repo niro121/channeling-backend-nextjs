@@ -337,7 +337,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page handover-summary { size: A6 portrait; margin: 5mm; }
+          @page handover-summary { size: A6 portrait; margin: 3mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,
@@ -349,10 +349,11 @@ export function HandoverSummaryPrint({
           body.print-handover-summary .handover-summary-print {
             display: block !important;
             position: relative !important;
-            width: 100% !important;
+            width: calc(100% - 4mm) !important;
             max-width: none !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
+            box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
             page: handover-summary;
@@ -373,9 +374,9 @@ export function HandoverSummaryPrint({
           body.print-handover-summary .summary-last-row { border-bottom: 1px solid #000 !important; }
         }
       `}</style>
-      <div className="handover-summary-print text-black bg-white font-mono text-[9px] leading-tight">
-        <p className="text-center font-bold tracking-wide text-[12px] mb-1">HAND OVER REPORT</p>
-        <p className="text-center font-bold tracking-wide text-[14px] mb-1.5">
+      <div className="handover-summary-print text-black bg-white font-mono text-[10px] leading-tight">
+        <p className="text-center font-bold tracking-wide text-[13px] mb-1">HAND OVER REPORT</p>
+        <p className="text-center font-bold tracking-wide text-[15px] mb-1.5">
           {reportStatus.toUpperCase()}
         </p>
         <div className="mb-1.5 space-y-0">
