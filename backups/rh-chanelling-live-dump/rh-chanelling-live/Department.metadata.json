@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"createdAt":{"$numberInt":"-1"}},"name":"Department_createdAt_idx"},{"v":{"$numberInt":"2"},"key":{"name":{"$numberInt":"1"}},"name":"Department_name_idx"}],"uuid":"8e2b9fb6111a4377bfff1141545fb868","collectionName":"Department","type":"collection"}

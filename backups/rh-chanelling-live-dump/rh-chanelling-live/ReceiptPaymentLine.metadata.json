@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"receiptId":{"$numberInt":"1"}},"name":"ReceiptPaymentLine_receiptId_idx"}],"uuid":"e768a539f56a4b23b8cd72e71f7882a5","collectionName":"ReceiptPaymentLine","type":"collection"}

@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"doctorId":{"$numberInt":"1"},"locationId":{"$numberInt":"1"}},"name":"DoctorLocation_doctorId_locationId_key","unique":true}],"uuid":"a290bef8733a45699c52890df0ff4ad8","collectionName":"DoctorLocation","type":"collection"}

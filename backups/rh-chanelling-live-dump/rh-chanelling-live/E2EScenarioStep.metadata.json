@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"scenarioId":{"$numberInt":"1"}},"name":"E2EScenarioStep_scenarioId_idx"}],"uuid":"5fe836b63a0d4a2cb9691d41feef127c","collectionName":"E2EScenarioStep","type":"collection"}

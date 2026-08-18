@@ -1,1 +1,0 @@
-{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"code":{"$numberInt":"1"}},"name":"CreditCustomer_code_key","unique":true}],"uuid":"038d78aa6d7045b584e2d264c6815fd8","collectionName":"CreditCustomer","type":"collection"}
