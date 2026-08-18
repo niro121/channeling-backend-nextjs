@@ -69,6 +69,7 @@ type HandoverRow = {
   reconciliationAssignedToUserId?: string | null
   nonCashReconciledAt?: Date | string | null
   forwardedToHandoverId?: string | null
+  handoverNoString?: string | null
   fromUser: { id: string; name: string | null; staff?: { code: string } | null }
   shift: {
     id: string
@@ -155,6 +156,7 @@ function HandoverTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Bill No</TableHead>
             <TableHead>From</TableHead>
             <TableHead>Shift started</TableHead>
             <TableHead>Total</TableHead>
@@ -169,6 +171,7 @@ function HandoverTable({
             const canSend = showSendToReconciliation && needsSendToReconciliation(h)
             return (
               <TableRow key={h.id}>
+                <TableCell className="tabular-nums whitespace-nowrap">{h.handoverNoString ?? "—"}</TableCell>
                 <TableCell>{fromUserLabel(h.fromUser)}</TableCell>
                 <TableCell>
                   {h.shift?.startedAt ? new Date(h.shift.startedAt).toLocaleString() : "—"}

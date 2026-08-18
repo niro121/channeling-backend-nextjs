@@ -13,7 +13,7 @@ import {
   getHandoversReceivedByShift,
   getLinkedHandoversForShift,
   getIncludableHandoversForSender,
-  getIncludedHandoversChain,
+  getPreviousHandoversForHandoverDetail,
   getNonCashHeldInReconciliation,
   countPendingIncomingHandovers,
 } from "@/services/shift-handover.service"
@@ -26,6 +26,9 @@ import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
+import { deriveHandoverCashierSummaryFilters } from "@/lib/handover-utils"
+import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
+import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 
 // Shift creation: single "shift" resource; view permission allows all shift actions (start, pause, resume, end).
 // Use under Channel Booking: grant "Shift (Channel Booking)" view to allow shift features.
@@ -395,12 +398,21 @@ export async function getHandoverDetailAction(handoverId: string) {
 
   const shiftStartedAt = handover.shift?.startedAt ?? handover.createdAt
   const windowEnd = handover.shift?.endedAt ?? handover.approvedAt ?? handover.createdAt
+  const ownSummaryFilters = deriveHandoverCashierSummaryFilters({
+    fromUserId: handover.fromUserId,
+    createdAt: handover.createdAt,
+    shift: handover.shift,
+  })
 
-  const [tillBreakdown, includedHandovers, receivedFloats, actors] = await Promise.all([
+  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
       ? getTillBalanceBreakdown(handover.fromUserId)
       : Promise.resolve(null),
-    getIncludedHandoversChain((handover as { includedHandoverIds?: unknown }).includedHandoverIds),
+    getPreviousHandoversForHandoverDetail({
+      handoverId: handover.id,
+      shiftId: handover.shiftId,
+      includedHandoverIds: (handover as { includedHandoverIds?: unknown }).includedHandoverIds,
+    }),
     getReceivedFloatsForHandover({
       cashierUserId: handover.fromUserId,
       shiftId: handover.shiftId,
@@ -413,6 +425,20 @@ export async function getHandoverDetailAction(handoverId: string) {
           select: { id: true, name: true, staff: { select: { code: true } } },
         })
       : Promise.resolve([] as { id: string; name: string | null; staff: { code: string } | null }[]),
+    ownSummaryFilters
+      ? getCashierSummaryReportService({
+          userId: handover.fromUserId,
+          dateFrom: ownSummaryFilters.dateFrom,
+          dateTo: ownSummaryFilters.dateTo,
+          format: "summary",
+        })
+          .then((r) =>
+            r.success
+              ? { grandTotals: r.grandTotals, includedShifts: r.includedShifts }
+              : null
+          )
+          .catch(() => null)
+      : Promise.resolve(null),
   ])
 
   const actorById = new Map(actors.map((u) => [u.id, u]))
@@ -422,13 +448,22 @@ export async function getHandoverDetailAction(handoverId: string) {
   const assignedId = (handover as { reconciliationAssignedToUserId?: string | null }).reconciliationAssignedToUserId
   const reconciliationAssignedToUser = assignedId ? actorById.get(assignedId) ?? null : null
 
+  const includedWithNumbers = await Promise.all(
+    includedHandovers.map(async (h) => {
+      if (h.handoverNoString) return h
+      const no = await ensureHandoverDocumentNumber(h.id, h.shift?.locationId ?? handover.shift?.locationId ?? null)
+      return no ? { ...h, handoverNoString: no } : h
+    })
+  )
+
   return {
     success: true,
     data: {
       handover,
       tillBreakdown,
-      includedHandovers,
+      includedHandovers: includedWithNumbers,
       receivedFloats,
+      cashierSummary,
       approvedByUser,
       rejectedByUser,
       cancelledByUser,

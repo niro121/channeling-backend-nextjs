@@ -677,6 +677,9 @@ export function ChannelBookingShiftBar() {
                 <DropdownMenuContent align="end" className="w-72">
                   <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
                   <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
+                    {pendingFloatRequest.floatNoString ? (
+                      <p className="tabular-nums">Bill No: {pendingFloatRequest.floatNoString}</p>
+                    ) : null}
                     <p className="tabular-nums">
                       Amount: LKR {formatCents(pendingFloatRequest.amountRequested)}
                     </p>
@@ -987,6 +990,9 @@ function ReceiveFloatForm({
   return (
     <div className="space-y-4 pt-2">
       <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        {request.floatNoString ? (
+          <p className="tabular-nums">Bill No: {request.floatNoString}</p>
+        ) : null}
         <p className="font-medium tabular-nums">Amount: LKR {formatLKR(totalLKR)}</p>
         {denoms.length > 0 && (
           <p className="text-muted-foreground mt-1">
