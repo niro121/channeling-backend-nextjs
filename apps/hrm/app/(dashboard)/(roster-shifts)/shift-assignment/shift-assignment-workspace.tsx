@@ -13,6 +13,7 @@ import { ShiftAssignmentHeaderActions } from './header-actions';
 import SectionAssignmentFilters, {
   type AssignmentFilterValues
 } from './section-assignment-filters';
+import SectionAssignmentInstructions from './section-assignment-instructions';
 import SectionAssignmentRegister from './section-assignment-register';
 import SectionAssignmentSummary from './section-assignment-summary';
 import SheetAssignmentForm from './sheet-assignment-form';
@@ -105,6 +106,8 @@ function ShiftAssignmentWorkspaceInner({
       />
 
       <SectionAssignmentSummary summary={summary} />
+
+      <SectionAssignmentInstructions />
 
       <SectionAssignmentFilters
         values={draft}
