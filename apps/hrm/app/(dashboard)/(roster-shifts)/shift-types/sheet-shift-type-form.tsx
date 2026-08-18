@@ -478,7 +478,7 @@ export default function SheetShiftTypeForm({
                   </div>
                 </div>
 
-                <div className="space-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
+                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
                     Created by: {auditCreatedBy}
                     {mode !== 'add' ? ` · ${auditCreatedAt}` : null}
