@@ -505,9 +505,11 @@ export default function HandoverDetailPage() {
       ? "Approved"
       : isRejected
         ? "Rejected"
-        : handover.status === HANDOVER_STATUS.CANCELLED
-          ? "Cancelled"
-          : "Completed"
+        : isPending
+          ? "Pending"
+          : handover.status === HANDOVER_STATUS.CANCELLED
+            ? "Cancelled"
+            : "Completed"
 
   const printHandover = (mode: "report" | "summary") => {
     const styleId = "handover-print-page-size"
@@ -606,22 +608,23 @@ export default function HandoverDetailPage() {
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
               <p className="text-lg font-semibold tracking-tight leading-tight">{fromUserLabel(handover.fromUser)}</p>
             </div>
-            {!isPending && (
-              <span
-                className={cn(
-                  "shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold",
-                  isApproved &&
-                    "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
-                  isRejected &&
-                    "border-destructive bg-destructive/10 text-destructive",
-                  !isApproved &&
-                    !isRejected &&
-                    "border-muted-foreground/40 bg-muted text-muted-foreground"
-                )}
-              >
-                {statusLabel}
-              </span>
-            )}
+            <span
+              className={cn(
+                "shrink-0 rounded-md border px-3 py-1 text-sm font-semibold uppercase tracking-wide",
+                isApproved &&
+                  "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
+                isRejected &&
+                  "border-destructive bg-destructive/10 text-destructive",
+                isPending &&
+                  "border-amber-500/70 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-950/20 dark:text-amber-200",
+                !isApproved &&
+                  !isRejected &&
+                  !isPending &&
+                  "border-muted-foreground/40 bg-muted text-muted-foreground"
+              )}
+            >
+              {statusLabel}
+            </span>
           </div>
 
           <div className="flex flex-wrap gap-x-4 gap-y-1">
