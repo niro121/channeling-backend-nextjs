@@ -936,6 +936,7 @@ export type HandoverReceivedFloat = {
   id: string
   floatNoString?: string | null
   status: number
+  direction: "in" | "out"
   amountRequested: number
   amountReceivedCents: number
   denominationsRequested: DenominationEntry[]
@@ -949,23 +950,32 @@ export type HandoverReceivedFloat = {
   receivedBy: { id: string; name: string } | null
 }
 
-/** All float requests tied to the shift being handed over (given, received, cancelled, etc.). */
+/** Floats this cashier received (in) or issued as bulk (out) during the shift being handed over. */
 export async function getReceivedFloatsForHandover(params: {
   cashierUserId: string
   shiftId: string
   shiftStartedAt: Date
   windowEnd: Date
 }): Promise<HandoverReceivedFloat[]> {
+  const inWindow = {
+    gte: params.shiftStartedAt,
+    lte: params.windowEnd,
+  }
   const rows = await prisma.floatRequest.findMany({
     where: {
       OR: [
         { shiftId: params.shiftId },
         {
           requestedById: params.cashierUserId,
-          createdAt: {
-            gte: params.shiftStartedAt,
-            lte: params.windowEnd,
-          },
+          createdAt: inWindow,
+        },
+        {
+          bulkCashierId: params.cashierUserId,
+          OR: [
+            { createdAt: inWindow },
+            { approvedAt: inWindow },
+            { receivedAt: inWindow },
+          ],
         },
       ],
     },
@@ -1007,10 +1017,15 @@ export async function getReceivedFloatsForHandover(params: {
           row.id,
           (row as { shift?: { locationId?: string | null } | null }).shift?.locationId ?? null
         ))
+      const requestedById = row.requestedBy?.id ?? null
+      const bulkCashierId = row.bulkCashier?.id ?? null
+      const isOut =
+        bulkCashierId === params.cashierUserId && requestedById !== params.cashierUserId
       return {
         id: row.id,
         floatNoString,
         status: Number(row.status),
+        direction: isOut ? "out" : "in",
         amountRequested: row.amountRequested,
         amountReceivedCents: receivedCents,
         denominationsRequested: (row.denominationsRequested as DenominationEntry[]) ?? [],

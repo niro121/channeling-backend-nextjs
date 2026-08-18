@@ -163,7 +163,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 const tableGrid =
-  "border-collapse text-xs [&_th]:border-r [&_th]:border-border [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-border [&_td:last-child]:border-r-0"
+  "w-full border-collapse border border-muted-foreground/50 text-xs [&_th]:border [&_td]:border [&_th]:border-muted-foreground/50 [&_td]:border-muted-foreground/50"
 const thCompact = "h-8 px-2 py-1 text-xs"
 const tdCompact = "px-2 py-1.5 text-xs"
 
@@ -514,6 +514,8 @@ export default function HandoverDetailPage() {
         includedHandovers={includedHandovers}
         cashierSummary={data.cashierSummary}
         tillBreakdown={tillBreakdown}
+        approvedByUser={data.approvedByUser}
+        rejectedByUser={data.rejectedByUser}
       />
     <div className="handover-screen space-y-3 print:hidden">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
@@ -669,8 +671,11 @@ export default function HandoverDetailPage() {
       {/* Floats and previous handovers on the shift being handed over */}
       {(() => {
         const receivedFloats = data.receivedFloats ?? []
-        const givenTotalCents = receivedFloats
-          .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+        const inTotalCents = receivedFloats
+          .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+        const outTotalCents = receivedFloats
+          .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
           .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
         const rows = (data.includedHandovers ?? []) as IncludedHandoverRow[]
         const methodCols = METHOD_KEYS.filter((key) => rows.some((h) => (h[key] ?? 0) > 0))
@@ -685,18 +690,19 @@ export default function HandoverDetailPage() {
                       <Banknote className="h-4 w-4" />
                       Floats this shift
                     </h3>
-                    {givenTotalCents > 0 ? (
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        Received LKR {formatCents(givenTotalCents)}
-                      </span>
-                    ) : null}
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {inTotalCents > 0 ? `In LKR ${formatCents(inTotalCents)}` : null}
+                      {inTotalCents > 0 && outTotalCents > 0 ? " · " : null}
+                      {outTotalCents > 0 ? `Out LKR ${formatCents(outTotalCents)}` : null}
+                    </span>
                   </div>
                   <Table className={tableGrid}>
                     <TableHeader>
                       <TableRow>
                         <TableHead className={thCompact}>Bill No</TableHead>
+                        <TableHead className={thCompact}>Dir</TableHead>
                         <TableHead className={thCompact}>Status</TableHead>
-                        <TableHead className={thCompact}>From</TableHead>
+                        <TableHead className={thCompact}>Party</TableHead>
                         <TableHead className={`${thCompact} text-right`}>Requested</TableHead>
                         <TableHead className={`${thCompact} text-right`}>Given</TableHead>
                         <TableHead className={thCompact}>When</TableHead>
@@ -705,6 +711,8 @@ export default function HandoverDetailPage() {
                     </TableHeader>
                     <TableBody>
                       {receivedFloats.map((f) => {
+                        const isOut = f.direction === "out"
+                        const party = isOut ? f.requestedBy?.name : f.bulkCashier?.name
                         const givenDenoms = f.denominationsApproved?.length
                           ? f.denominationsApproved
                           : f.status === FLOAT_REQUEST_STATUS.RECEIVED
@@ -724,10 +732,13 @@ export default function HandoverDetailPage() {
                             <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
                               {f.floatNoString ?? "—"}
                             </TableCell>
+                            <TableCell className={`${tdCompact} whitespace-nowrap font-medium ${isOut ? "text-amber-700 dark:text-amber-400" : ""}`}>
+                              {isOut ? "Out" : "In"}
+                            </TableCell>
                             <TableCell className={`${tdCompact} whitespace-nowrap font-medium`}>
                               {floatRequestStatusLabel(f.status)}
                             </TableCell>
-                            <TableCell className={`${tdCompact} whitespace-nowrap`}>{f.bulkCashier?.name ?? "—"}</TableCell>
+                            <TableCell className={`${tdCompact} whitespace-nowrap`}>{party ?? "—"}</TableCell>
                             <TableCell className={`${tdCompact} text-right tabular-nums`}>
                               {formatCents(f.amountRequested)}
                             </TableCell>
