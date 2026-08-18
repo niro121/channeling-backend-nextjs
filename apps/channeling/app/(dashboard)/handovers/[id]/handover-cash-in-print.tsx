@@ -1,18 +1,22 @@
 "use client"
 
-import type { CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
+import { useSession } from "next-auth/react"
 import { formatCents } from "@/lib/format-money"
-import { formatDenomLabel, FLOAT_REQUEST_STATUS } from "@/types/float-request"
+import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
+import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
+import type { DenominationEntry } from "@/types/float-request"
+import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts } from "@/types/report"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
-const METHOD_PRINT_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
-  cashCents: "Cash Value",
-  cardCents: "Credit Card Value",
-  slipCents: "Slip Value",
-  checkCents: "Cheque Value",
-  creditCents: "Credit Value",
-  eWalletCents: "E-Wallet Value",
+const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
+  cashCents: "Cash",
+  cardCents: "Card",
+  slipCents: "Slips",
+  checkCents: "Cheques",
+  creditCents: "Credit",
+  eWalletCents: "E-Wallet",
 }
 
 type StaffUser = { name: string | null; staff?: { code: string } | null } | null | undefined
@@ -29,6 +33,7 @@ type EnteredBreakdown = {
 type CashInHandover = {
   id: string
   createdAt: Date | string
+  status?: number
   handoverNoString?: string | null
   cashCents: number
   cardCents: number
@@ -38,6 +43,11 @@ type CashInHandover = {
   eWalletCents: number
   totalCents?: number
   enteredBreakdown?: unknown
+  discrepancyReason?: string | null
+  approvalComments?: string | null
+  rejectReason?: string | null
+  approvedAt?: Date | string | null
+  rejectedAt?: Date | string | null
   fromUser?: StaffUser
   toUser?: StaffUser
   journal?: { journalNumber: number | null } | null
@@ -55,15 +65,30 @@ type PreviousHandover = {
   totalCents: number
   handoverNoString?: string | null
   fromUser?: StaffUser
+  cashCents?: number
+  cardCents?: number
+  slipCents?: number
+  checkCents?: number
+  creditCents?: number
+  eWalletCents?: number
+  enteredBreakdown?: unknown
+  shift?: { startedAt?: Date | string | null } | null
 }
 
 type ReceivedFloat = {
   id: string
   floatNoString?: string | null
   status: number
+  direction?: "in" | "out"
+  amountRequested?: number
   amountReceivedCents: number
+  denominationsRequested?: DenominationEntry[]
+  denominationsApproved?: DenominationEntry[] | null
+  reasonForLessThanRequested?: string | null
   receivedAt?: Date | string | null
+  approvedAt?: Date | string | null
   createdAt?: Date | string
+  requestedBy?: { name: string } | null
   bulkCashier?: { name: string } | null
 }
 
@@ -112,47 +137,148 @@ function parseBreakdown(raw: unknown): EnteredBreakdown | null {
   return raw as EnteredBreakdown
 }
 
-function sumSummaryRupees(t: CashierSummaryPaymentAmounts): number {
-  return t.cash + t.creditCard + t.slip + t.cheque + t.agent + t.agentCredit + t.eWallet
+function handoverStatusLabel(status: number | undefined): string {
+  if (status === HANDOVER_STATUS.APPROVED) return "Approved"
+  if (status === HANDOVER_STATUS.REJECTED) return "Rejected"
+  if (status === HANDOVER_STATUS.CANCELLED) return "Cancelled"
+  if (status === HANDOVER_STATUS.PENDING) return "Pending"
+  return "—"
 }
 
-function rupeesToCents(n: number): number {
-  return Math.round(n * 100)
+function flattenBreakdownLines(breakdown: EnteredBreakdown | null): { method: string; detail: string; amountCents: number }[] {
+  if (!breakdown) return []
+  const lines: { method: string; detail: string; amountCents: number }[] = []
+  for (const d of breakdown.cashDenominations ?? []) {
+    if (!d.count) continue
+    lines.push({
+      method: "Cash",
+      detail: `${formatDenomLabel(d.value)} × ${d.count}`,
+      amountCents: Math.round(d.value * d.count * 100),
+    })
+  }
+  const groups: [string, { reference: string; amountCents: number }[] | undefined][] = [
+    ["Card", breakdown.cardEntries],
+    ["Slips", breakdown.slipEntries],
+    ["Cheques", breakdown.checkEntries],
+    ["Credit", breakdown.creditEntries],
+    ["E-Wallet", breakdown.eWalletEntries],
+  ]
+  for (const [label, entries] of groups) {
+    for (const e of entries ?? []) {
+      if ((e.amountCents ?? 0) === 0 && !(e.reference ?? "").trim()) continue
+      lines.push({ method: label, detail: e.reference || "—", amountCents: e.amountCents })
+    }
+  }
+  return lines
 }
 
-const printGrid = "inset -1px 0 0 #000, inset 0 -1px 0 #000"
-const printTableStyle: CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  borderSpacing: 0,
-  border: "1px solid #000",
+const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || "Ruhunu Hospital"
+
+type PrintCell = {
+  text: string
+  align?: "left" | "right"
+  nowrap?: boolean
+  span?: number
+  bold?: boolean
 }
-const printCellStyle: CSSProperties = {
-  border: "1px solid #000",
-  boxShadow: printGrid,
-  padding: "2px 6px",
+
+function printCellStyle(opts: {
+  head?: boolean
+  lastCol?: boolean
+  lastRow?: boolean
+  align?: "left" | "right"
+  nowrap?: boolean
+  span?: number
+  bold?: boolean
+}): CSSProperties {
+  return {
+    padding: "3px 6px",
+    fontWeight: opts.head || opts.bold ? 700 : 400,
+    textAlign: opts.align ?? "left",
+    whiteSpace: opts.nowrap ? "nowrap" : undefined,
+    borderTop: "1px solid #000",
+    borderLeft: "1px solid #000",
+    borderRight: opts.lastCol ? "1px solid #000" : "0",
+    borderBottom: opts.lastRow ? "1px solid #000" : "0",
+    gridColumn: opts.span && opts.span > 1 ? `span ${opts.span}` : undefined,
+  }
 }
-const printHeadStyle: CSSProperties = {
-  ...printCellStyle,
-  fontWeight: 700,
-  textAlign: "left",
+
+function PrintGrid({
+  template,
+  headers,
+  rows,
+}: {
+  template: string
+  headers: PrintCell[]
+  rows: PrintCell[][]
+}) {
+  const colCount = headers.length
+  const lastRow = rows.length - 1
+  const renderCells = (cells: PrintCell[], rowIndex: number, head: boolean) => {
+    let col = 0
+    return cells.map((cell, i) => {
+      const span = cell.span ?? 1
+      const lastCol = col + span >= colCount
+      col += span
+      return (
+        <div
+          key={`${head ? "h" : "r"}-${rowIndex}-${i}`}
+          className={[
+            "cash-in-cell",
+            lastCol ? "cash-in-last-col" : "",
+            !head && rowIndex === lastRow ? "cash-in-last-row" : "",
+          ].filter(Boolean).join(" ")}
+          style={printCellStyle({
+            head,
+            lastCol,
+            lastRow: !head && rowIndex === lastRow,
+            align: cell.align,
+            nowrap: cell.nowrap,
+            span,
+            bold: cell.bold,
+          })}
+        >
+          {head ? cell.text.toUpperCase() : cell.text}
+        </div>
+      )
+    })
+  }
+  return (
+    <div className="cash-in-grid" style={{ display: "grid", width: "100%", gridTemplateColumns: template }}>
+      {renderCells(headers, 0, true)}
+      {rows.map((cells, r) => renderCells(cells, r, false))}
+    </div>
+  )
 }
 
 export function HandoverCashInPrint({
   handover,
   receivedFloats,
   includedHandovers,
-  cashierSummary,
   tillBreakdown,
+  approvedByUser,
+  rejectedByUser,
 }: {
   handover: CashInHandover
   receivedFloats: ReceivedFloat[]
   includedHandovers: PreviousHandover[]
-  cashierSummary: {
+  cashierSummary?: {
     grandTotals: CashierSummaryPaymentAmounts
   } | null
   tillBreakdown?: TillBreakdown
+  approvedByUser?: StaffUser
+  rejectedByUser?: StaffUser
 }) {
+  const { data: session } = useSession()
+  const [generatedAt, setGeneratedAt] = useState(() => formatPrintDateTime(new Date()))
+  useEffect(() => {
+    const stamp = () => setGeneratedAt(formatPrintDateTime(new Date()))
+    window.addEventListener("beforeprint", stamp)
+    return () => window.removeEventListener("beforeprint", stamp)
+  }, [])
+
+  const generatedBy = formatUserDisplayName(session?.user?.name, session?.user?.id)
   const fromLabel = personLabel(handover.fromUser)
   const toLabel = personLabel(handover.toUser)
   const billNo = handover.handoverNoString || shortRef("HO", handover.id)
@@ -170,82 +296,56 @@ export function HandoverCashInPrint({
       handover.creditCents +
       handover.eWalletCents
 
-  const cashInRows: { billNo: string; date: string; from: string; valueCents: number }[] = [
-    ...receivedFloats
-      .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED)
-      .map((f) => ({
-        billNo: f.floatNoString || shortRef("FL", f.id),
-        date: formatPrintDateTime(f.receivedAt ?? f.createdAt),
-        from: (f.bulkCashier?.name ?? "Bulk cashier").toUpperCase(),
-        valueCents: f.amountReceivedCents,
-      })),
-    ...includedHandovers.map((h) => ({
-      billNo: h.handoverNoString || shortRef("HO", h.id),
-      date: formatPrintDateTime(h.createdAt),
-      from: personLabel(h.fromUser),
-      valueCents: h.totalCents,
-    })),
-  ]
-  const cashInTotal = cashInRows.reduce((s, r) => s + r.valueCents, 0)
-
-  const summaryTotalFromReport = cashierSummary
-    ? rupeesToCents(sumSummaryRupees(cashierSummary.grandTotals))
-    : null
-  const summaryTotal =
-    summaryTotalFromReport != null ? summaryTotalFromReport : Math.max(0, totalCents - cashInTotal)
-  const summaryRows = [
-    {
-      name: "Cashier",
-      no: handover.shift?.id ? shortRef("SH", handover.shift.id) : "—",
-      from: formatPrintDateTime(handover.shift?.startedAt),
-      to: formatPrintDateTime(handover.createdAt),
-      valueCents: summaryTotal,
-    },
-  ]
-
-  const cashInPlusSummary = cashInTotal + summaryTotal
-
-  let shortExcessCents = cashInPlusSummary - totalCents
-  if (tillBreakdown) {
-    const expected = METHOD_KEYS.reduce((s, key) => s + (tillBreakdown[key] ?? 0), 0)
-    shortExcessCents = totalCents - expected
-  }
-
-  const breakdown = parseBreakdown(handover.enteredBreakdown)
-  const denoms = (breakdown?.cashDenominations ?? []).filter((d) => d.count > 0)
-  const denomMid = Math.ceil(denoms.length / 2)
-  const denomLeft = denoms.slice(0, denomMid)
-  const denomRight = denoms.slice(denomMid)
-
-  const nonCash: { name: string; description: string; date: string; valueCents: number }[] = []
-  const pushEntries = (
-    name: string,
-    entries: { reference: string; amountCents: number }[] | undefined
-  ) => {
-    for (const e of entries ?? []) {
-      if ((e.amountCents ?? 0) === 0 && !(e.reference ?? "").trim()) continue
-      nonCash.push({
-        name,
-        description: e.reference || "—",
-        date: formatPrintDate(handover.createdAt),
-        valueCents: e.amountCents,
-      })
-    }
-  }
-  pushEntries("Credit/Debit_Card", breakdown?.cardEntries)
-  pushEntries("Slip", breakdown?.slipEntries)
-  pushEntries("Cheque", breakdown?.checkEntries)
-  pushEntries("Credit", breakdown?.creditEntries)
-  pushEntries("E-Wallet", breakdown?.eWalletEntries)
-  const nonCashTotal = nonCash.reduce((s, r) => s + r.valueCents, 0)
-
   const methodLines = METHOD_KEYS.filter((key) => (handover[key] ?? 0) > 0).map((key) => ({
-    label: METHOD_PRINT_LABELS[key],
+    key,
+    label: METHOD_LABELS[key],
     cents: handover[key] ?? 0,
   }))
 
-  const denomLine = (d: { value: number; count: number }) =>
-    `${formatDenomLabel(d.value)} x ${d.count} = ${formatCents(Math.round(d.value * d.count * 100))}`
+  const inTotalCents = receivedFloats
+    .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+    .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+  const outTotalCents = receivedFloats
+    .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+    .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+
+  const prevMethodCols = METHOD_KEYS.filter((key) => includedHandovers.some((h) => (h[key] ?? 0) > 0))
+  const breakdown = parseBreakdown(handover.enteredBreakdown)
+  const entryLines = flattenBreakdownLines(breakdown)
+  const entryTotalCents = entryLines.reduce((s, l) => s + l.amountCents, 0)
+
+  const tillRows = tillBreakdown
+    ? METHOD_KEYS.filter((key) => (tillBreakdown[key] ?? 0) !== 0 || (handover[key] ?? 0) !== 0).map((key) => {
+        const expected = tillBreakdown[key] ?? 0
+        const entered = handover[key] ?? 0
+        return { key, label: METHOD_LABELS[key], expected, entered, diff: entered - expected }
+      })
+    : []
+
+  const extraMetaRow =
+    handover.status === HANDOVER_STATUS.APPROVED
+      ? [
+          { text: formatPrintDateTime(handover.approvedAt) },
+          { text: personLabel(approvedByUser) },
+        ]
+      : handover.status === HANDOVER_STATUS.REJECTED
+        ? [
+            { text: formatPrintDateTime(handover.rejectedAt) },
+            { text: personLabel(rejectedByUser) },
+          ]
+        : null
+  const extraMetaHeaders =
+    handover.status === HANDOVER_STATUS.APPROVED
+      ? [{ text: "Approved at" }, { text: "Approved by" }]
+      : handover.status === HANDOVER_STATUS.REJECTED
+        ? [{ text: "Rejected at" }, { text: "Rejected by" }]
+        : null
+
+  const notes = [
+    handover.approvalComments?.trim() ? `Comments: ${handover.approvalComments.trim()}` : null,
+    handover.rejectReason?.trim() ? `Reject reason: ${handover.rejectReason.trim()}` : null,
+    handover.discrepancyReason?.trim() ? `Discrepancy: ${handover.discrepancyReason.trim()}` : null,
+  ].filter((n): n is string => !!n)
 
   return (
     <>
@@ -254,202 +354,266 @@ export function HandoverCashInPrint({
         @media print {
           @page { size: A4 portrait; margin: 8mm; }
           html, body {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #fff !important;
             color: #000 !important;
             overflow: visible !important;
             height: auto !important;
           }
-          header, nav, aside, [data-slot="sidebar"] { display: none !important; }
-          .handover-screen { display: none !important; }
+          header.sticky, nav, aside, [data-slot="sidebar"], .handover-screen {
+            display: none !important;
+          }
           .handover-cash-in-print {
             display: block !important;
-            position: static !important;
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
             width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #fff !important;
             color: #000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .handover-cash-in-print table {
+          .handover-cash-in-print .cash-in-grid {
             width: 100% !important;
-            border-collapse: collapse !important;
-            border-spacing: 0 !important;
-            border: 1px solid #000 !important;
           }
-          .handover-cash-in-print th,
-          .handover-cash-in-print td {
-            border: 1px solid #000 !important;
-            box-shadow: inset -1px 0 0 #000, inset 0 -1px 0 #000 !important;
-            outline: 1px solid #000 !important;
-            outline-offset: -1px !important;
-            padding: 2px 6px !important;
+          .handover-cash-in-print .cash-in-cell {
+            border-top: 1px solid #000 !important;
+            border-left: 1px solid #000 !important;
+            border-right: 0 !important;
+            border-bottom: 0 !important;
             color: #000 !important;
             background: #fff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          }
+          .handover-cash-in-print .cash-in-last-col {
+            border-right: 1px solid #000 !important;
+          }
+          .handover-cash-in-print .cash-in-last-row {
+            border-bottom: 1px solid #000 !important;
+          }
+          .handover-cash-in-print .handover-report-meta {
+            width: 100% !important;
+            border: none !important;
+            background: transparent !important;
           }
         }
       `}</style>
       <div className="handover-cash-in-print text-black bg-white font-sans text-[11px] leading-tight">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-0.5">
-            <p>
-              <span className="inline-block w-[4.5rem]">Bill No</span>
-              <span>: {billNo}</span>
-            </p>
-            <p>
-              <span className="inline-block w-[4.5rem]">Bill At</span>
-              <span>: {formatPrintDateTime(handover.createdAt)}</span>
-            </p>
-            {locationLabel ? (
-              <p>
-                <span className="inline-block w-[4.5rem]">Location</span>
-                <span>: {locationLabel}</span>
-              </p>
-            ) : null}
-            <p>
-              <span className="inline-block w-[4.5rem]">From</span>
-              <span>: {fromLabel}</span>
-            </p>
-            <p>
-              <span className="inline-block w-[4.5rem]">To</span>
-              <span>: {toLabel}</span>
-            </p>
-          </div>
-          <p className="text-base font-bold tracking-wide">CASH IN</p>
+        <div className="handover-report-meta flex items-baseline justify-between gap-3 mb-1.5">
+          <p className="font-bold tracking-wide">
+            {BRAND_NAME.toUpperCase()} CHANNELING
+          </p>
+          <p className="font-bold tracking-wide">HANDOVER REPORT</p>
+          <p className="tabular-nums font-semibold">{billNo}</p>
         </div>
-
-        {cashInRows.length > 0 ? (
-          <div className="mt-3">
-            <p className="font-semibold mb-0.5">Cash In</p>
-            <table style={printTableStyle}>
-              <thead>
-                <tr>
-                  <th style={printHeadStyle}>Bill No</th>
-                  <th style={printHeadStyle}>Date</th>
-                  <th style={printHeadStyle}>From</th>
-                  <th style={{ ...printHeadStyle, textAlign: "right" }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cashInRows.map((row) => (
-                  <tr key={row.billNo}>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.billNo}</td>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.date}</td>
-                    <td style={printCellStyle}>{row.from}</td>
-                    <td style={{ ...printCellStyle, textAlign: "right", whiteSpace: "nowrap" }}>{formatCents(row.valueCents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="mb-2">
+          <PrintGrid
+            template="1.1fr 0.8fr 1.6fr"
+            headers={[
+              { text: "Bill No" },
+              { text: "Status" },
+              { text: "Branch" },
+            ]}
+            rows={[
+              [
+                { text: billNo },
+                { text: handoverStatusLabel(handover.status) },
+                { text: locationLabel ?? "—" },
+              ],
+            ]}
+          />
+          <PrintGrid
+            template="1fr 1fr"
+            headers={[
+              { text: "From" },
+              { text: "To" },
+            ]}
+            rows={[
+              [
+                { text: fromLabel },
+                { text: toLabel },
+              ],
+            ]}
+          />
+          <PrintGrid
+            template="1.15fr 1.15fr 1fr 1.15fr"
+            headers={[
+              { text: "Handover at" },
+              { text: "Shift started" },
+              { text: "Generated by" },
+              { text: "Generated at" },
+            ]}
+            rows={[
+              [
+                { text: formatPrintDateTime(handover.createdAt) },
+                { text: formatPrintDateTime(handover.shift?.startedAt) },
+                { text: generatedBy },
+                { text: generatedAt },
+              ],
+            ]}
+          />
+          {extraMetaHeaders && extraMetaRow ? (
+            <PrintGrid
+              template="1fr 1fr"
+              headers={extraMetaHeaders}
+              rows={[extraMetaRow]}
+            />
+          ) : null}
+        </div>
+        {notes.length > 0 ? (
+          <div className="mb-2 space-y-0.5">
+            {notes.map((n) => (
+              <p key={n}>{n}</p>
+            ))}
           </div>
         ) : null}
 
         <div className="mt-3">
-          <p className="font-semibold mb-0.5">Summary</p>
-            <table style={printTableStyle}>
-              <thead>
-                <tr>
-                  <th style={printHeadStyle}>Name</th>
-                  <th style={printHeadStyle}>No</th>
-                  <th style={printHeadStyle}>From</th>
-                  <th style={printHeadStyle}>To</th>
-                  <th style={{ ...printHeadStyle, textAlign: "right" }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryRows.map((row) => (
-                  <tr key={row.no}>
-                    <td style={printCellStyle}>{row.name}</td>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.no}</td>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.from}</td>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.to}</td>
-                    <td style={{ ...printCellStyle, textAlign: "right", whiteSpace: "nowrap" }}>{formatCents(row.valueCents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <p className="font-semibold mb-0.5">COLLECTION</p>
+          <PrintGrid
+            template="1.4fr 1fr"
+            headers={[
+              { text: "Method" },
+              { text: "Amount", align: "right", nowrap: true },
+            ]}
+            rows={[
+              ...methodLines.map((line) => [
+                { text: line.label },
+                { text: formatCents(line.cents), align: "right" as const, nowrap: true },
+              ]),
+              [
+                { text: "Total", bold: true },
+                { text: formatCents(totalCents), align: "right" as const, nowrap: true, bold: true },
+              ],
+            ]}
+          />
         </div>
 
-        <div className="mt-2 ml-auto w-[16rem]">
-          <div className="flex justify-between gap-4 border-t border-dashed border-black pt-0.5">
-            <span>Cash In + Summary</span>
-            <span className="tabular-nums">{formatCents(cashInPlusSummary)}</span>
-          </div>
-          <div className="border-b-2 border-double border-black mt-0.5" />
-        </div>
-
-        <div className="mt-3 w-[18rem] space-y-0.5">
-          {methodLines.map((line) => (
-            <div key={line.label} className="flex justify-between gap-4">
-              <span>{line.label} =</span>
-              <span className="tabular-nums">{formatCents(line.cents)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between gap-4">
-            <span>Short/Excess =</span>
-            <span className="tabular-nums">
-              {shortExcessCents === 0 ? "0.00" : `${shortExcessCents < 0 ? "" : "+"}${formatCents(shortExcessCents)}`}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4 font-semibold border-t border-black pt-0.5">
-            <span>Total Collection</span>
-            <span className="tabular-nums">{formatCents(totalCents)}</span>
-          </div>
-          <div className="border-b-2 border-double border-black" />
-        </div>
-
-        {denoms.length > 0 ? (
+        {receivedFloats.length > 0 ? (
           <div className="mt-3">
-            <p className="font-semibold mb-0.5">NOTE</p>
-            <div className="grid grid-cols-2 gap-x-8">
-              <div className="space-y-0.5">
-                {denomLeft.map((d) => (
-                  <p key={`l-${d.value}`} className="tabular-nums">
-                    {denomLine(d)}
-                  </p>
-                ))}
-              </div>
-              <div className="space-y-0.5">
-                {denomRight.map((d) => (
-                  <p key={`r-${d.value}`} className="tabular-nums">
-                    {denomLine(d)}
-                  </p>
-                ))}
-              </div>
-            </div>
+            <p className="font-semibold mb-0.5">
+              FLOATS THIS SHIFT
+              {inTotalCents > 0 || outTotalCents > 0
+                ? ` — ${inTotalCents > 0 ? `In ${formatCents(inTotalCents)}` : ""}${inTotalCents > 0 && outTotalCents > 0 ? " · " : ""}${outTotalCents > 0 ? `Out ${formatCents(outTotalCents)}` : ""}`
+                : ""}
+            </p>
+            <PrintGrid
+              template="1.1fr 0.5fr 0.9fr 1.6fr 0.9fr 0.9fr 1.4fr"
+              headers={[
+                { text: "Bill No", nowrap: true },
+                { text: "Dir" },
+                { text: "Status" },
+                { text: "Party" },
+                { text: "Requested", align: "right", nowrap: true },
+                { text: "Given", align: "right", nowrap: true },
+                { text: "When", nowrap: true },
+              ]}
+              rows={receivedFloats.map((f) => {
+                const isOut = f.direction === "out"
+                const party = isOut ? f.requestedBy?.name : f.bulkCashier?.name
+                const givenCents =
+                  f.status === FLOAT_REQUEST_STATUS.RECEIVED ||
+                  (f.status === FLOAT_REQUEST_STATUS.APPROVED && (f.denominationsApproved?.length ?? 0) > 0)
+                    ? f.amountReceivedCents
+                    : null
+                const when =
+                  f.status === FLOAT_REQUEST_STATUS.RECEIVED ? f.receivedAt : f.approvedAt ?? f.createdAt
+                return [
+                  { text: f.floatNoString || shortRef("FL", f.id), nowrap: true },
+                  { text: isOut ? "Out" : "In" },
+                  { text: floatRequestStatusLabel(f.status) },
+                  { text: party ?? "—" },
+                  { text: formatCents(f.amountRequested ?? 0), align: "right" as const, nowrap: true },
+                  { text: givenCents != null ? formatCents(givenCents) : "—", align: "right" as const, nowrap: true },
+                  { text: formatPrintDateTime(when), nowrap: true },
+                ]
+              })}
+            />
           </div>
         ) : null}
 
-        {nonCash.length > 0 ? (
+        {includedHandovers.length > 0 ? (
           <div className="mt-3">
-            <p className="font-semibold mb-0.5">Cheque, Credit Card, Credit, Slip &amp; E-Wallet Transactions</p>
-            <table style={printTableStyle}>
-              <thead>
-                <tr>
-                  <th style={printHeadStyle}>Name</th>
-                  <th style={printHeadStyle}>Description</th>
-                  <th style={printHeadStyle}>Date</th>
-                  <th style={{ ...printHeadStyle, textAlign: "right" }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {nonCash.map((row, i) => (
-                  <tr key={`${row.name}-${i}`}>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.name}</td>
-                    <td style={printCellStyle}>{row.description}</td>
-                    <td style={{ ...printCellStyle, whiteSpace: "nowrap" }}>{row.date}</td>
-                    <td style={{ ...printCellStyle, textAlign: "right", whiteSpace: "nowrap" }}>{formatCents(row.valueCents)}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td style={{ ...printCellStyle, fontWeight: 700 }} colSpan={3}>
-                    Total
-                  </td>
-                  <td style={{ ...printCellStyle, textAlign: "right", fontWeight: 700 }}>{formatCents(nonCashTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
+            <p className="font-semibold mb-0.5">PREVIOUS HANDOVERS</p>
+            <PrintGrid
+              template={["1.1fr", "1.5fr", "1.4fr", ...prevMethodCols.map(() => "0.8fr"), "0.9fr"].join(" ")}
+              headers={[
+                { text: "Bill No", nowrap: true },
+                { text: "From" },
+                { text: "When", nowrap: true },
+                ...prevMethodCols.map((key) => ({ text: METHOD_LABELS[key], align: "right" as const, nowrap: true })),
+                { text: "Total", align: "right" as const, nowrap: true },
+              ]}
+              rows={includedHandovers.map((h) => [
+                { text: h.handoverNoString || shortRef("HO", h.id), nowrap: true },
+                { text: personLabel(h.fromUser) },
+                { text: formatPrintDateTime(h.createdAt ?? h.shift?.startedAt), nowrap: true },
+                ...prevMethodCols.map((key) => ({
+                  text: (h[key] ?? 0) > 0 ? formatCents(h[key] ?? 0) : "—",
+                  align: "right" as const,
+                  nowrap: true,
+                })),
+                { text: formatCents(h.totalCents), align: "right" as const, nowrap: true, bold: true },
+              ])}
+            />
+          </div>
+        ) : null}
+
+        {tillRows.length > 0 ? (
+          <div className="mt-3">
+            <p className="font-semibold mb-0.5">TILL VS ENTERED</p>
+            <PrintGrid
+              template="1.2fr 1fr 1fr 1fr"
+              headers={[
+                { text: "Method" },
+                { text: "Till", align: "right", nowrap: true },
+                { text: "Entered", align: "right", nowrap: true },
+                { text: "Diff", align: "right", nowrap: true },
+              ]}
+              rows={tillRows.map((row) => [
+                { text: row.label },
+                { text: formatCents(row.expected), align: "right" as const, nowrap: true },
+                { text: formatCents(row.entered), align: "right" as const, nowrap: true },
+                {
+                  text: row.diff === 0 ? "—" : `${row.diff > 0 ? "+" : ""}${formatCents(row.diff)}`,
+                  align: "right" as const,
+                  nowrap: true,
+                },
+              ])}
+            />
+          </div>
+        ) : null}
+
+        {entryLines.length > 0 ? (
+          <div className="mt-3">
+            <p className="font-semibold mb-0.5">
+              {handover.status === HANDOVER_STATUS.APPROVED ? "ENTRIES RECEIVED" : "ENTRIES HANDED OVER"}
+            </p>
+            <PrintGrid
+              template="1fr 2.2fr 0.9fr"
+              headers={[
+                { text: "Method" },
+                { text: "Detail" },
+                { text: "Amount", align: "right", nowrap: true },
+              ]}
+              rows={[
+                ...entryLines.map((line) => [
+                  { text: line.method, nowrap: true },
+                  { text: line.detail },
+                  { text: formatCents(line.amountCents), align: "right" as const, nowrap: true },
+                ]),
+                [
+                  { text: "Total", span: 2, bold: true },
+                  { text: formatCents(entryTotalCents || totalCents), align: "right" as const, nowrap: true, bold: true },
+                ],
+              ]}
+            />
           </div>
         ) : null}
 
