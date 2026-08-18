@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { formatCents } from "@/lib/format-money"
+import { formatCents, formatLKR } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
@@ -52,6 +52,7 @@ import {
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
 import { HandoverCashInPrint } from "./handover-cash-in-print"
+import { HandoverSummaryPrint } from "./handover-summary-print"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { FileCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -177,7 +178,8 @@ function flattenBreakdownLines(breakdown: EnteredBreakdown | null | undefined): 
       id: `cash-${d.value}-${i}`,
       method: "Cash",
       detail: `${formatDenomLabel(d.value)} × ${d.count}`,
-      amountLabel: (d.value * d.count).toFixed(2),
+      // cashDenominations.value is stored in LKR, so format as LKR (with thousands separators)
+      amountLabel: formatLKR(d.value * d.count),
     })
   })
   ;(
@@ -194,7 +196,8 @@ function flattenBreakdownLines(breakdown: EnteredBreakdown | null | undefined): 
         id: `${key}-${i}`,
         method: label,
         detail: e.reference || "—",
-        amountLabel: (e.amountCents / 100).toFixed(2),
+        // e.amountCents is stored in cents
+        amountLabel: formatCents(e.amountCents),
       })
     })
   })
@@ -441,7 +444,7 @@ export default function HandoverDetailPage() {
     )
   }
 
-  if (!handover) return null
+  if (!data || !handover) return null
 
   const totalCents =
     handover.cashCents +
@@ -506,25 +509,41 @@ export default function HandoverDetailPage() {
           ? "Cancelled"
           : "Completed"
 
+  const printHandover = (mode: "report" | "summary") => {
+    const styleId = "handover-print-page-size"
+    let el = document.getElementById(styleId) as HTMLStyleElement | null
+    if (!el) {
+      el = document.createElement("style")
+      el.id = styleId
+      document.body.appendChild(el)
+    }
+    el.textContent =
+      mode === "summary"
+        ? "@media print { @page { size: 5in 5in; margin: 0.12in; } }"
+        : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
+    document.body.classList.toggle("print-handover-summary", mode === "summary")
+    const cleanup = () => {
+      document.body.classList.remove("print-handover-summary")
+      el.remove()
+    }
+    window.addEventListener("afterprint", cleanup, { once: true })
+    window.print()
+  }
+
   return (
     <>
-      <HandoverCashInPrint
-        handover={handover}
-        receivedFloats={data.receivedFloats ?? []}
-        includedHandovers={includedHandovers}
-        cashierSummary={data.cashierSummary}
-        tillBreakdown={tillBreakdown}
-        approvedByUser={data.approvedByUser}
-        rejectedByUser={data.rejectedByUser}
-      />
     <div className="handover-screen space-y-3 print:hidden">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
       <div className="sticky top-14 z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2 bg-background border-b border-border print:hidden">
         <BackButton href="/handovers" />
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={() => printHandover("report")}>
             <Printer className="h-4 w-4 mr-1" />
             Print / PDF
+          </Button>
+          <Button variant="outline" onClick={() => printHandover("summary")}>
+            <Printer className="h-4 w-4 mr-1" />
+            Print 5×5 summary
           </Button>
           {isPending && (
             <>
@@ -665,6 +684,49 @@ export default function HandoverDetailPage() {
               )
             })}
           </div>
+
+          {/* Summary: cashier shift info — value from cashier summary grand totals (same as print) */}
+          {(() => {
+            const cs = data.cashierSummary
+            const summaryValueCents = cs
+              ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+              : totalCents
+            return (
+              <div className="border-t pt-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Summary</h4>
+                <Table className={tableGrid}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className={thCompact}>Name</TableHead>
+                      <TableHead className={thCompact}>No</TableHead>
+                      <TableHead className={thCompact}>From</TableHead>
+                      <TableHead className={thCompact}>To</TableHead>
+                      <TableHead className={`${thCompact} text-right`}>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className={`${tdCompact} whitespace-nowrap font-medium`}>
+                        {fromUserLabel(handover.fromUser)}
+                      </TableCell>
+                      <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums text-muted-foreground`}>
+                        {handover.shift?.id ? handover.shift.id.slice(-8).toUpperCase() : "—"}
+                      </TableCell>
+                      <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                        {formatDateTime(handover.shift?.startedAt)}
+                      </TableCell>
+                      <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                        {formatDateTime(handover.createdAt)}
+                      </TableCell>
+                      <TableCell className={`${tdCompact} text-right tabular-nums font-medium`}>
+                        {formatCents(summaryValueCents)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          })()}
         </CardContent>
       </Card>
 
@@ -683,84 +745,91 @@ export default function HandoverDetailPage() {
         return (
           <Card>
             <CardContent className="p-3 space-y-3">
-              {receivedFloats.length > 0 ? (
-                <div>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-                      <Banknote className="h-4 w-4" />
-                      Floats this shift
-                    </h3>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {inTotalCents > 0 ? `In LKR ${formatCents(inTotalCents)}` : null}
-                      {inTotalCents > 0 && outTotalCents > 0 ? " · " : null}
-                      {outTotalCents > 0 ? `Out LKR ${formatCents(outTotalCents)}` : null}
-                    </span>
-                  </div>
-                  <Table className={tableGrid}>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className={thCompact}>Bill No</TableHead>
-                        <TableHead className={thCompact}>Dir</TableHead>
-                        <TableHead className={thCompact}>Status</TableHead>
-                        <TableHead className={thCompact}>Party</TableHead>
-                        <TableHead className={`${thCompact} text-right`}>Requested</TableHead>
-                        <TableHead className={`${thCompact} text-right`}>Given</TableHead>
-                        <TableHead className={thCompact}>When</TableHead>
-                        <TableHead className={thCompact}>Denoms</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {receivedFloats.map((f) => {
-                        const isOut = f.direction === "out"
-                        const party = isOut ? f.requestedBy?.name : f.bulkCashier?.name
-                        const givenDenoms = f.denominationsApproved?.length
-                          ? f.denominationsApproved
-                          : f.status === FLOAT_REQUEST_STATUS.RECEIVED
-                            ? f.denominationsRequested
-                            : []
-                        const givenCents =
-                          f.status === FLOAT_REQUEST_STATUS.RECEIVED ||
-                          (f.status === FLOAT_REQUEST_STATUS.APPROVED && (f.denominationsApproved?.length ?? 0) > 0)
-                            ? f.amountReceivedCents
-                            : null
-                        const when =
-                          f.status === FLOAT_REQUEST_STATUS.RECEIVED
-                            ? f.receivedAt
-                            : f.approvedAt ?? f.createdAt
-                        return (
-                          <TableRow key={f.id}>
-                            <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
-                              {f.floatNoString ?? "—"}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} whitespace-nowrap font-medium ${isOut ? "text-amber-700 dark:text-amber-400" : ""}`}>
-                              {isOut ? "Out" : "In"}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} whitespace-nowrap font-medium`}>
-                              {floatRequestStatusLabel(f.status)}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} whitespace-nowrap`}>{party ?? "—"}</TableCell>
-                            <TableCell className={`${tdCompact} text-right tabular-nums`}>
-                              {formatCents(f.amountRequested)}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} text-right tabular-nums`}>
-                              {givenCents != null ? formatCents(givenCents) : "—"}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
-                              {formatDateTime(when)}
-                            </TableCell>
-                            <TableCell className={`${tdCompact} text-muted-foreground tabular-nums max-w-[12rem]`}>
-                              {denomSummary(givenDenoms.length ? givenDenoms : f.denominationsRequested)}
-                              {f.reasonForLessThanRequested ? (
-                                <span className="block text-[11px]">{f.reasonForLessThanRequested}</span>
-                              ) : null}
-                            </TableCell>
+              {(() => {
+                const floatsIn = receivedFloats.filter((f) => f.direction !== "out")
+                const floatsOut = receivedFloats.filter((f) => f.direction === "out")
+                const renderFloatTable = (floats: typeof receivedFloats, label: string, totalCentsVal: number) => {
+                  if (floats.length === 0) return null
+                  return (
+                    <div>
+                      <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
+                        <Banknote className="h-4 w-4" />
+                        {label}
+                      </h3>
+                      <Table className={tableGrid}>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className={thCompact}>Bill No</TableHead>
+                            <TableHead className={thCompact}>Status</TableHead>
+                            <TableHead className={thCompact}>Party</TableHead>
+                            <TableHead className={`${thCompact} text-right`}>Requested</TableHead>
+                            <TableHead className={`${thCompact} text-right`}>Given</TableHead>
+                            <TableHead className={thCompact}>When</TableHead>
+                            <TableHead className={thCompact}>Denoms</TableHead>
                           </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : null}
+                        </TableHeader>
+                        <TableBody>
+                          {floats.map((f) => {
+                            const isOut = f.direction === "out"
+                            const party = isOut ? f.requestedBy?.name : f.bulkCashier?.name
+                            const givenDenoms = f.denominationsApproved?.length
+                              ? f.denominationsApproved
+                              : f.status === FLOAT_REQUEST_STATUS.RECEIVED
+                                ? f.denominationsRequested
+                                : []
+                            const givenCents =
+                              f.status === FLOAT_REQUEST_STATUS.RECEIVED ||
+                              (f.status === FLOAT_REQUEST_STATUS.APPROVED && (f.denominationsApproved?.length ?? 0) > 0)
+                                ? f.amountReceivedCents
+                                : null
+                            const when =
+                              f.status === FLOAT_REQUEST_STATUS.RECEIVED
+                                ? f.receivedAt
+                                : f.approvedAt ?? f.createdAt
+                            return (
+                              <TableRow key={f.id}>
+                                <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                                  {f.floatNoString ?? "—"}
+                                </TableCell>
+                                <TableCell className={`${tdCompact} whitespace-nowrap font-medium`}>
+                                  {floatRequestStatusLabel(f.status)}
+                                </TableCell>
+                                <TableCell className={`${tdCompact} whitespace-nowrap`}>{party ?? "—"}</TableCell>
+                                <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                                  {formatCents(f.amountRequested)}
+                                </TableCell>
+                                <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                                  {givenCents != null ? formatCents(givenCents) : "—"}
+                                </TableCell>
+                                <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
+                                  {formatDateTime(when)}
+                                </TableCell>
+                                <TableCell className={`${tdCompact} text-muted-foreground tabular-nums max-w-[12rem]`}>
+                                  {denomSummary(givenDenoms.length ? givenDenoms : f.denominationsRequested)}
+                                  {f.reasonForLessThanRequested ? (
+                                    <span className="block text-[11px]">{f.reasonForLessThanRequested}</span>
+                                  ) : null}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                          <TableRow className="border-t-2 font-medium bg-muted/30">
+                            <TableCell className={tdCompact} colSpan={4}>Total</TableCell>
+                            <TableCell className={`${tdCompact} text-right tabular-nums`}>{formatCents(totalCentsVal)}</TableCell>
+                            <TableCell className={tdCompact} colSpan={2} />
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                }
+                return (
+                  <>
+                    {renderFloatTable(floatsIn, "Floats In", inTotalCents)}
+                    {renderFloatTable(floatsOut, "Floats Out", outTotalCents)}
+                  </>
+                )
+              })()}
 
               {rows.length > 0 ? (
                 <div>
@@ -808,10 +877,67 @@ export default function HandoverDetailPage() {
                           </TableCell>
                         </TableRow>
                       ))}
+                      <TableRow className="border-t-2 font-medium bg-muted/30">
+                        <TableCell className={tdCompact} colSpan={3}>Total</TableCell>
+                        {methodCols.map((key) => {
+                          const colTotal = rows.reduce((s, h) => s + (h[key] ?? 0), 0)
+                          return (
+                            <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
+                              {colTotal > 0 ? formatCents(colTotal) : "—"}
+                            </TableCell>
+                          )
+                        })}
+                        <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                          {formatCents(rows.reduce((s, h) => s + h.totalCents, 0))}
+                        </TableCell>
+                        <TableCell className={tdCompact} />
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>
               ) : null}
+            </CardContent>
+          </Card>
+        )
+      })()}
+
+      {/* Collection breakdown: IN + Summary + Previous - OUT */}
+      {(() => {
+        const receivedFloats = data.receivedFloats ?? []
+        const floatsInTotal = receivedFloats
+          .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
+        const floatsOutTotal = receivedFloats
+          .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
+        const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
+        const cs = data.cashierSummary
+        const summaryVal = cs
+          ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+          : totalCents
+        const collectionTotal = floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+        const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
+        if (floatsInTotal > 0) parts.push({ label: "Floats In", cents: floatsInTotal, sign: "+" })
+        parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
+        if (prevTotal > 0) parts.push({ label: "Previous Handovers", cents: prevTotal, sign: "+" })
+        if (floatsOutTotal > 0) parts.push({ label: "Floats Out", cents: floatsOutTotal, sign: "−" })
+        return (
+          <Card className="border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/20">
+            <CardContent className="p-3">
+              <div className="space-y-0.5 text-sm">
+                {parts.map((p, i) => (
+                  <div key={p.label} className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">
+                      {i === 0 ? "" : `${p.sign} `}{p.label}
+                    </span>
+                    <span className="tabular-nums">{p.sign === "−" ? `(${formatCents(p.cents)})` : formatCents(p.cents)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-4 border-t border-blue-500/30 pt-1 font-bold">
+                  <span>Total Collection</span>
+                  <span className="tabular-nums">LKR {formatCents(collectionTotal)}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )
@@ -1234,6 +1360,22 @@ export default function HandoverDetailPage() {
         </div>
       )}
     </div>
+      <HandoverCashInPrint
+        handover={handover}
+        receivedFloats={data.receivedFloats ?? []}
+        includedHandovers={includedHandovers}
+        cashierSummary={data.cashierSummary}
+        tillBreakdown={tillBreakdown}
+        approvedByUser={data.approvedByUser}
+        rejectedByUser={data.rejectedByUser}
+      />
+      <HandoverSummaryPrint
+        handover={handover}
+        receivedFloats={data.receivedFloats ?? []}
+        includedHandovers={includedHandovers}
+        cashierSummary={data.cashierSummary}
+        tillBreakdown={tillBreakdown}
+      />
     </>
   )
 }
