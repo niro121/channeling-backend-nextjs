@@ -1,31 +1,44 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { formatDateTime } from '@/lib/utils/date';
+import { swapDutyAllocationsAction } from '@/app/actions/roster-actions/duty-roster.actions';
+import type {
+  DutyRosterFilterOptions,
+  DutyRosterFormOptions,
+  DutyRosterRow,
+  DutyRosterSummary,
+  DutyRosterViewMode
+} from '@/types/roster';
 import { DutyRosterHeaderActions } from './header-actions';
 import SectionDutyFilters, {
   type DutyFilterValues
 } from './section-duty-filters';
+import SectionDutyInstructions from './section-duty-instructions';
 import SectionDutyRegister from './section-duty-register';
 import SectionDutySummary from './section-duty-summary';
 import SheetDutyForm from './sheet-duty-form';
 import SheetDutyHistory from './sheet-duty-history';
-import {
-  SAMPLE_DUTY_AUDIT,
-  SAMPLE_DUTY_DEPARTMENTS,
-  SAMPLE_DUTY_ROSTERS,
-  SAMPLE_DUTY_SHIFTS,
-  SAMPLE_DUTY_UNITS,
-  type DutyRosterSample,
-  type DutyRosterSummarySample
-} from './sample-data';
 import { DutyRosterUiProvider, useDutyRosterUi } from './duty-roster-ui-context';
 
 type DutyRosterWorkspaceProps = {
-  initialRows: DutyRosterSample[];
-  summary: DutyRosterSummarySample;
+  records: DutyRosterRow[];
+  totalRecords: number;
+  page?: string;
+  filters: DutyFilterValues;
+  viewMode: DutyRosterViewMode;
+  summary: DutyRosterSummary;
+  filterOptions: DutyRosterFilterOptions;
+  formOptions: DutyRosterFormOptions;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 function emptyFilters(today: Date): DutyFilterValues {
@@ -38,51 +51,58 @@ function emptyFilters(today: Date): DutyFilterValues {
   };
 }
 
-function filterRows(
-  rows: DutyRosterSample[],
-  values: DutyFilterValues
-): DutyRosterSample[] {
-  const unitName = SAMPLE_DUTY_UNITS.find((u) => u.id === values.unitId)?.name;
-  const shiftName = SAMPLE_DUTY_SHIFTS.find(
-    (s) => s.id === values.shiftId
-  )?.name;
-
-  return rows.filter((row) => {
-    if (unitName && row.wardUnit !== unitName) return false;
-    if (shiftName && row.shiftName !== shiftName) return false;
-    return true;
-  });
-}
-
 function DutyRosterWorkspaceInner({
-  initialRows,
-  summary
+  records,
+  totalRecords,
+  page,
+  filters,
+  viewMode,
+  summary,
+  filterOptions,
+  formOptions,
+  onExport
 }: DutyRosterWorkspaceProps) {
   const { toast } = useToast();
-  const today = useMemo(() => new Date(), []);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {
     formSheet,
     historyRecord,
     swapConfirmOpen,
+    pendingSwap,
     requestSwapConfirm,
     closeSwapConfirm,
     closeFormSheet,
     closeHistorySheet
   } = useDutyRosterUi();
-  const [draft, setDraft] = useState<DutyFilterValues>(() =>
-    emptyFilters(today)
-  );
-  const [applied, setApplied] = useState<DutyFilterValues>(() =>
-    emptyFilters(today)
-  );
+  const [draft, setDraft] = useState<DutyFilterValues>(filters);
   const [swapLoading, setSwapLoading] = useState(false);
 
-  const rows = useMemo(
-    () => filterRows(initialRows, applied),
-    [applied, initialRows]
-  );
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
 
-  const dutyDate = applied.dutyDate ?? today;
+  const dutyDate = filters.dutyDate ?? new Date();
+
+  const pushFilters = (
+    next: DutyFilterValues,
+    nextView: DutyRosterViewMode = viewMode
+  ) => {
+    const params = new URLSearchParams();
+    const limit = searchParams.get('limit');
+    if (limit) params.set('limit', limit);
+    if (next.departmentId) params.set('department', next.departmentId);
+    if (next.unitId) params.set('unit', next.unitId);
+    if (next.shiftId) params.set('shiftTypeId', next.shiftId);
+    if (next.rosterId) params.set('roster', next.rosterId);
+    if (next.dutyDate) params.set('dutyDate', format(next.dutyDate, 'yyyy-MM-dd'));
+    if (nextView !== 'daily') params.set('view', nextView);
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
+
+  const latest = records[0];
 
   return (
     <div className="space-y-6">
@@ -92,49 +112,57 @@ function DutyRosterWorkspaceInner({
         actions={<DutyRosterHeaderActions />}
       />
 
-      <SectionDutySummary summary={summary} />
+      <SectionDutySummary summary={summary} viewMode={viewMode} />
+
+      <SectionDutyInstructions />
 
       <SectionDutyFilters
         values={draft}
-        departmentOptions={SAMPLE_DUTY_DEPARTMENTS}
-        unitOptions={SAMPLE_DUTY_UNITS}
-        shiftOptions={SAMPLE_DUTY_SHIFTS}
-        rosterOptions={SAMPLE_DUTY_ROSTERS}
+        departmentOptions={filterOptions.departments}
+        unitOptions={filterOptions.units}
+        shiftOptions={filterOptions.shifts}
+        rosterOptions={filterOptions.rosters}
         onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onLoad={() => {
-          setApplied(draft);
-          toast({
-            title: 'Duty roster loaded',
-            description:
-              'Sample data filtered locally. Server load comes in a later phase.'
-          });
-        }}
+        onLoad={() => pushFilters(draft)}
         onClear={() => {
-          const cleared = emptyFilters(today);
+          const cleared = emptyFilters(new Date());
           setDraft(cleared);
-          setApplied(cleared);
+          pushFilters(cleared, 'daily');
         }}
       />
 
-      <SectionDutyRegister items={rows} dutyDate={dutyDate} />
+      <SectionDutyRegister
+        items={records}
+        totalRecords={totalRecords}
+        page={page}
+        dutyDate={dutyDate}
+        viewMode={viewMode}
+        onViewChange={(mode) => pushFilters(filters, mode)}
+        onExport={onExport}
+      />
 
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
+      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
         <p>
-          Created by: {SAMPLE_DUTY_AUDIT.createdBy} ·{' '}
-          {formatDateTime(SAMPLE_DUTY_AUDIT.createdAt)}
+          Created by: {latest?.createdUser?.name || latest?.createdBy || '—'}
+          {latest?.createdAt
+            ? ` · ${formatDateTime(latest.createdAt)}`
+            : null}
         </p>
         <p>
-          Last updated: {SAMPLE_DUTY_AUDIT.updatedBy} ·{' '}
-          {formatDateTime(SAMPLE_DUTY_AUDIT.updatedAt)}
+          Last updated: {latest?.updatedUser?.name || latest?.updatedBy || '—'}
+          {latest?.updatedAt
+            ? ` · ${formatDateTime(latest.updatedAt)}`
+            : null}
         </p>
-      </div>
+      </div> */}
 
       {formSheet ? (
         <SheetDutyForm
           open
           mode={formSheet.mode}
-          sample={formSheet.record}
+          record={formSheet.record}
           defaultDate={dutyDate}
+          formOptions={formOptions}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}
@@ -157,16 +185,33 @@ function DutyRosterWorkspaceInner({
         }}
         loading={swapLoading}
         title="Swap this duty shift?"
-        description="The swap is recorded as a roster amendment and both staff members are notified."
-        handleContinue={() => {
+        description="This exchanges the shift types between the two staff members on this date. Published dates must go through Roster Amendments."
+        handleContinue={async () => {
+          if (!pendingSwap) {
+            closeSwapConfirm();
+            return;
+          }
           setSwapLoading(true);
-          toast({
-            title: 'Swap shift',
-            description: 'Will be wired in a later phase.'
-          });
+          const result = await swapDutyAllocationsAction(pendingSwap);
           setSwapLoading(false);
+          if (result.isError) {
+            toast({
+              variant: 'destructive',
+              title: 'Error',
+              description:
+                (result.errors as { message?: string })?.message ??
+                'Duty shifts could not be swapped.'
+            });
+            return;
+          }
+          toast({
+            variant: 'success',
+            title: 'Success',
+            description: 'Duty shifts swapped.'
+          });
           closeSwapConfirm();
           closeFormSheet();
+          router.refresh();
         }}
       />
     </div>

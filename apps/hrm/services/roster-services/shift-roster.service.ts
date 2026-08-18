@@ -27,7 +27,10 @@ import type {
   ShiftTypeChip,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
-import { SHIFT_ROSTER_CODE_PREFIX } from '@/types/roster';
+import {
+  DUTY_ATTENDANCE_VALUES,
+  SHIFT_ROSTER_CODE_PREFIX
+} from '@/types/roster';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -84,7 +87,10 @@ const saveDraftSchema = z.object({
   roster: z.string().optional().nullable(),
   isLeave: z.boolean().optional().default(false),
   otHours: z.coerce.number().min(0, 'OT hours must be 0 or greater').optional().default(0),
-  comments: z.string().max(500).optional().nullable()
+  comments: z.string().max(500).optional().nullable(),
+  dutyLocation: z.string().optional().nullable(),
+  supervisorId: z.string().optional().nullable(),
+  attendance: z.enum(DUTY_ATTENDANCE_VALUES).optional().nullable()
 });
 
 const toggleLeaveSchema = z.object({
@@ -588,9 +594,35 @@ export async function saveRosterAllocationDraft(
     const existingAllocation = data.allocationId
       ? await prisma.rosterAllocation.findUnique({
           where: { id: data.allocationId },
-          select: { id: true, shiftRosterId: true, status: true }
+          select: {
+            id: true,
+            shiftRosterId: true,
+            status: true,
+            dutyLocation: true,
+            supervisorId: true,
+            supervisorName: true,
+            attendance: true
+          }
         })
       : null;
+
+    let supervisorName = existingAllocation?.supervisorName ?? '';
+    let supervisorId =
+      data.supervisorId !== undefined
+        ? data.supervisorId?.trim() || null
+        : (existingAllocation?.supervisorId ?? null);
+
+    if (data.supervisorId !== undefined) {
+      if (supervisorId) {
+        const supervisor = await prisma.staff.findUnique({
+          where: { id: supervisorId },
+          select: { name: true }
+        });
+        supervisorName = supervisor?.name ?? '';
+      } else {
+        supervisorName = '';
+      }
+    }
 
     const publishedPeriod = await prisma.shiftRoster.findFirst({
       where: {
@@ -666,8 +698,18 @@ export async function saveRosterAllocationDraft(
       hours: shiftType.durationHours ?? 0,
       otHours: data.otHours ?? 0,
       comments: data.comments?.trim() ?? '',
+      dutyLocation:
+        data.dutyLocation !== undefined
+          ? (data.dutyLocation?.trim() ?? '')
+          : (existingAllocation?.dutyLocation ?? ''),
+      supervisorId,
+      supervisorName,
+      attendance:
+        data.attendance !== undefined
+          ? data.attendance
+          : (existingAllocation?.attendance ?? null),
       updatedBy: auditUser?.id
-    } as const;
+    };
 
     if (data.allocationId) {
       if (!existingAllocation) {

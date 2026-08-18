@@ -64,6 +64,18 @@ export type RosterAmendmentType = (typeof ROSTER_AMENDMENT_TYPES)[number];
 export const DUTY_ATTENDANCE_VALUES = ['present', 'late', 'absent'] as const;
 export type DutyAttendance = (typeof DUTY_ATTENDANCE_VALUES)[number];
 
+export const DUTY_ATTENDANCE_OPTIONS: RosterFilterOption[] = [
+  { id: 'present', name: 'Present' },
+  { id: 'late', name: 'Late' },
+  { id: 'absent', name: 'Absent' }
+];
+
+export const DUTY_ALLOCATION_STATUS_OPTIONS: RosterFilterOption[] =
+  ROSTER_ALLOCATION_STATUSES.map((id) => ({
+    id,
+    name: id === 'draft' ? 'Draft' : id === 'published' ? 'Published' : 'Amended'
+  }));
+
 export const OVERNIGHT_ALLOCATION_DATES = ['shift_start', 'shift_end'] as const;
 export type OvernightAllocationDate =
   (typeof OVERNIGHT_ALLOCATION_DATES)[number];
@@ -518,6 +530,124 @@ export type SaveRosterAllocationDraftPayload = {
   isLeave?: boolean;
   otHours?: number;
   comments?: string | null;
+  dutyLocation?: string | null;
+  supervisorId?: string | null;
+  attendance?: DutyAttendance | string | null;
+};
+
+/* ---------------------------------
+Duty Roster (D7 — same RosterAllocation store)
+--------------------------------- */
+
+export type DutyRosterRow = RosterAuditFields & {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  shiftTypeId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  dutyLocation: string;
+  wardUnit: string;
+  department: string;
+  roster: string;
+  supervisorId: string | null;
+  supervisorName: string;
+  status: RosterAllocationStatus | string;
+  attendance: DutyAttendance | string | null;
+  comments: string;
+  isLeave: boolean;
+  date: string;
+};
+
+export type DutyRosterSummary = {
+  onDutyToday: number;
+  present: number;
+  lateArrivals: number;
+  unfilledDuties: number;
+};
+
+export const DUTY_ROSTER_VIEW_MODES = ['daily', 'weekly', 'monthly'] as const;
+export type DutyRosterViewMode = (typeof DUTY_ROSTER_VIEW_MODES)[number];
+
+export type DutyRosterFilterOptions = {
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  rosters: RosterFilterOption[];
+  shifts: RosterFilterOption[];
+};
+
+export type DutyRosterShiftOption = RosterFilterOption & {
+  startTime: string;
+  endTime: string;
+};
+
+export type DutyRosterStaffOption = RosterFilterOption & {
+  staffCode: string;
+  dutyLocation: string;
+  wardUnit: string;
+};
+
+export type DutyRosterFormOptions = {
+  staff: DutyRosterStaffOption[];
+  shiftTypes: DutyRosterShiftOption[];
+  supervisors: RosterFilterOption[];
+  locations: RosterFilterOption[];
+  units: RosterFilterOption[];
+};
+
+export type DutyRosterFormValues = {
+  staffId: string;
+  otherStaffId: string;
+  shiftTypeId: string;
+  dutyDate: Date | null;
+  startTime: string;
+  endTime: string;
+  dutyLocation: string;
+  wardUnit: string;
+  supervisorId: string;
+  attendance: string;
+  comments: string;
+};
+
+export type GetDutyRosterParams = {
+  page?: string;
+  limit?: string;
+  department?: string;
+  unit?: string;
+  roster?: string;
+  shiftTypeId?: string;
+  dutyDate?: string;
+  view?: DutyRosterViewMode | string;
+  search?: string;
+};
+
+export type DutyRosterHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type SwapDutyPayload = {
+  allocationId?: string;
+  staffId: string;
+  otherStaffId: string;
+  dutyDate: Date | string;
+};
+
+export type ReplaceDutyPayload = {
+  allocationId?: string;
+  staffId: string;
+  replacementStaffId: string;
+  dutyDate: Date | string;
+};
+
+export type UpdateDutyAttendancePayload = {
+  allocationId: string;
+  attendance: DutyAttendance | string | null;
 };
 
 export type ToggleRosterAllocationLeavePayload = {

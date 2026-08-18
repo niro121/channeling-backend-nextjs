@@ -4,23 +4,18 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge, Checkbox } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
+import { formatDutyDateLabel } from '@/lib/utils/duty-roster-view';
+import type { DutyAttendance, DutyRosterRow } from '@/types/roster';
 import DutyRecordActions from './record-actions';
-import type {
-  DutyAttendance,
-  DutyRosterSample,
-  DutyRosterStatus
-} from './sample-data';
 
-const STATUS_STYLES: Record<DutyRosterStatus, string> = {
+const STATUS_STYLES: Record<string, string> = {
   published: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
-  pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
   amended: 'bg-sky-100 text-sky-700 hover:bg-sky-100',
   draft: 'bg-muted text-muted-foreground hover:bg-muted'
 };
 
-const STATUS_LABELS: Record<DutyRosterStatus, string> = {
+const STATUS_LABELS: Record<string, string> = {
   published: 'Published',
-  pending_approval: 'Pending Approval',
   amended: 'Amended',
   draft: 'Draft'
 };
@@ -37,7 +32,31 @@ const ATTENDANCE_LABELS: Record<DutyAttendance, string> = {
   absent: 'Absent'
 };
 
-export const dutyRosterColumns: ColumnDef<DutyRosterSample>[] = [
+function isAttendance(value: string | null | undefined): value is DutyAttendance {
+  return value === 'present' || value === 'late' || value === 'absent';
+}
+
+const dateColumn: ColumnDef<DutyRosterRow> = {
+  id: 'date',
+  accessorFn: (row) => row.date?.slice(0, 10) ?? '',
+  header: () => <span className="whitespace-nowrap">Duty Date</span>,
+  cell: ({ row }) => (
+    <span className="whitespace-nowrap tabular-nums">
+      {formatDutyDateLabel(row.original.date)}
+    </span>
+  )
+};
+
+export function getDutyRosterColumns(
+  showDate: boolean
+): ColumnDef<DutyRosterRow>[] {
+  const [selectColumn, ...rest] = dutyRosterBaseColumns;
+  return showDate
+    ? [selectColumn, dateColumn, ...rest]
+    : [selectColumn, ...rest];
+}
+
+const dutyRosterBaseColumns: ColumnDef<DutyRosterRow>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -97,57 +116,72 @@ export const dutyRosterColumns: ColumnDef<DutyRosterSample>[] = [
     accessorKey: 'dutyLocation',
     header: () => <span className="whitespace-nowrap">Duty Location</span>,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.dutyLocation}</span>
+      <span className="text-muted-foreground">
+        {row.original.dutyLocation || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'wardUnit',
     header: () => <span className="whitespace-nowrap">Ward / Unit</span>,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.wardUnit}</span>
+      <span className="text-muted-foreground">
+        {row.original.wardUnit || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'supervisorName',
     header: 'Supervisor',
-    cell: ({ row }) => <span>{row.original.supervisorName}</span>
+    cell: ({ row }) => <span>{row.original.supervisorName || '—'}</span>
   },
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          STATUS_STYLES[row.original.status]
-        )}
-      >
-        {STATUS_LABELS[row.original.status]}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const status = String(row.original.status || 'draft');
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            STATUS_STYLES[status] ?? STATUS_STYLES.draft
+          )}
+        >
+          {STATUS_LABELS[status] ?? status}
+        </Badge>
+      );
+    }
   },
   {
     accessorKey: 'attendance',
     header: 'Attendance',
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          ATTENDANCE_STYLES[row.original.attendance]
-        )}
-      >
-        {ATTENDANCE_LABELS[row.original.attendance]}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const attendance = row.original.attendance;
+      if (!isAttendance(attendance)) {
+        return <span className="text-xs text-muted-foreground">—</span>;
+      }
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            ATTENDANCE_STYLES[attendance]
+          )}
+        >
+          {ATTENDANCE_LABELS[attendance]}
+        </Badge>
+      );
+    }
   },
   {
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">
+          {row.original.updatedUser?.name || row.original.updatedBy || '—'}
+        </span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -159,7 +193,9 @@ export const dutyRosterColumns: ColumnDef<DutyRosterSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">
+          {row.original.createdUser?.name || row.original.createdBy || '—'}
+        </span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.createdAt)}
         </span>

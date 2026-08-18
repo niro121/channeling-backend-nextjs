@@ -8,8 +8,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
 **D6:** Shift Roster workflow is live on `/shift-roster` (publish, fill new, fill old, copy previous week/month, draft save guards on published dates).  
+**D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; assign / edit / swap / replace / attendance; published dates locked).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D7 Duty Roster on the same store**.
+Pages must not call Prisma. No business rules in components. Next: **D8 Roster Amendments**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -22,7 +23,7 @@ Pages must not call Prisma. No business rules in components. Next: **D7 Duty Ros
 - Shift Assignment: **`CommonDataTable`** register; Assign / Bulk / Edit / History sheets; no header Save / Remove Assignment
 - Shift Assignment Bulk Assign: requires **≥1** selected row; History timeline + **Cancel only** (same as Shift Types)
 - Shift Assignment / Duty Roster / Roster Amendments / Night Shifts / Overnight Shifts / Public Holiday Shifts sidebar: **leave expanded** (register pages, not focus calendar)
-- Duty Roster: Daily view only in Phase 0; Weekly/Monthly toast; Print/PDF/Excel on table only
+- Duty Roster: Daily list plus Weekly (Sun–Sat) / Monthly date-range lists; Print/PDF/Excel on table only
 - Duty Roster status: Draft / Pending Approval / Published / Amended; History Cancel-only timeline
 - Roster Amendments: **`CommonDataTable`**; header New / Approve / Reject; table-only Print/PDF/Excel
 - Roster Amendments Approve / Reject: **≥1** selected row; skip already Approved/Rejected
@@ -55,7 +56,7 @@ Pages must not call Prisma. No business rules in components. Next: **D7 Duty Ros
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness:** one shift per staff per calendar date (hospital-wide).
 - Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.
-- **Defer:** Weekly/Monthly Duty views, drag-and-drop persist, Create Fixed Roster, OT Process Staff Shift, Leave Application overlap, real Holiday Date master.
+- **Defer:** drag-and-drop persist, Create Fixed Roster, OT Process Staff Shift, Leave Application overlap, real Holiday Date master.
 
 ---
 
@@ -458,29 +459,29 @@ Daily department/unit duty list. Same permission as the rest of Roster & Shifts 
 │ Staff ID │ Name │ Shift │ Start │ End │ Location │ Ward/Unit │ Supervisor │
 │ Status │ Attendance │ Updated │ Created │ Actions (Swap / Edit / Del / Hist)│
 └───────────────────────────────────────────────────────────────────────────┘
-* Weekly / Monthly: toast only in Phase 0
+* Weekly / Monthly: date-range lists (Duty Date column); grid stays on Shift Roster
 ```
 
 Key files under `app/(dashboard)/(roster-shifts)/duty-roster/`:
 
 | File | Role |
 |------|------|
-| `page.tsx` | Access check + sample data |
+| `page.tsx` | Access check + live `RosterAllocation` list by date |
 | `duty-roster-workspace.tsx` | Provider, header, filters, register, sheets, swap confirm |
 | `duty-roster-ui-context.tsx` | Open Assign / Edit / Swap / Replace / History; swap confirm |
 | `header-actions.tsx` | **Assign Staff**, **Swap Shift**, **Replace Staff** (no Print/Excel/PDF) |
 | `section-duty-summary.tsx` | Four count cards |
 | `section-duty-filters.tsx` | Dept / Unit / Date / Shift / Roster; date defaults to today |
 | `section-duty-register.tsx` | `CommonDataTable` + Daily/Weekly/Monthly + export |
+| `section-duty-instructions.tsx` | Collapsible Duty Roster procedure |
 | `columns.tsx` / `record-actions.tsx` | Columns + Swap / Edit / Delete / History |
 | `sheet-duty-form.tsx` | Assign / Edit / Swap / Replace form |
 | `sheet-duty-history.tsx` | Timeline history; **Cancel only** |
-| `sample-data.ts` | Mock duties + options + summary |
 
 ### 2D.1 Header and views
 
 - Print / PDF / Excel live on the **table toolbar only** (not the page header).
-- **Daily** is the working view. **Weekly** / **Monthly** toast that those views are not available yet.
+- **Daily** is the default list. **Weekly** / **Monthly** load a date-range list for the selected date (Sun–Sat week, like Shift Roster). The staff × day grid stays on `/shift-roster`.
 - Header Swap / Replace open **full forms** (no selected-row requirement).
 
 ### 2D.2 Form sheets
@@ -848,12 +849,12 @@ app/(dashboard)/(roster-shifts)/duty-roster/
   header-actions.tsx
   section-duty-summary.tsx
   section-duty-filters.tsx
+  section-duty-instructions.tsx
   section-duty-register.tsx
   columns.tsx
   record-actions.tsx
   sheet-duty-form.tsx
   sheet-duty-history.tsx
-  sample-data.ts
 
 app/(dashboard)/(roster-shifts)/roster-amendments/
   page.tsx
@@ -1126,7 +1127,7 @@ Phase 0: Static UI (done)
         → Attendance enum + live summary + export
 ```
 
-Weekly / Monthly views stay toast until later.
+Weekly / Monthly views are date-range lists on `/duty-roster` (not a second grid).
 
 ### Duty Roster — Phase 0 — UI interfaces
 
@@ -1134,7 +1135,7 @@ Weekly / Monthly views stay toast until later.
 |------|
 | Route `(roster-shifts)/duty-roster` — sheets + swap confirm |
 | List: header, 4 cards, filters, `CommonDataTable` + Created/Updated |
-| Daily view only; Weekly/Monthly toast; table-only Print/PDF/Excel |
+| Daily list plus Weekly (Sun–Sat) / Monthly date-range lists; table-only Print/PDF/Excel |
 | Assign / Swap / Replace / Edit / History sheets; History Cancel-only |
 | Map `/duty-roster` → `shift-roster`; sidebar + breadcrumb (sidebar stays expanded) |
 | `duty-roster.visited` activity on list |
@@ -1430,10 +1431,10 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Duty list for 11 Aug matches Shift Roster chips for 11 Aug |
-| [ ] Swap in draft persists; both screens show the new shifts |
-| [ ] Attendance Present / Late / Absent stores on the cell |
-| [ ] Published date rejects direct swap |
+| [x] Duty list for a given date matches Shift Roster chips for that date |
+| [x] Swap in draft persists; both screens show the new shifts |
+| [x] Attendance Present / Late / Absent stores on the cell |
+| [x] Published date rejects direct swap |
 
 ---
 
@@ -1515,7 +1516,7 @@ Auto Assign that **creates week cells** waits for D5.
 |------|--------|
 | Live summary cards + conflicts | After the matching register is live (do not block persist) |
 | Print / PDF / Excel | Table/grid export against real rows; until then toast |
-| Duty Weekly / Monthly views | Stay toast |
+| Duty Weekly / Monthly views | Live as date-range lists on `/duty-roster`; grid stays on Shift Roster |
 | Drag-and-drop persist | Same upsert as D5 when product is ready |
 | Create Fixed Roster templates | Separate collection when specified |
 | Overtime Process Staff Shift | Replace OT sample fill with roster **read** (after D4+) |

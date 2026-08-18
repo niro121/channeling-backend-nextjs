@@ -1,20 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeftRight, Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { DutyRosterSample } from './sample-data';
+import { deleteDutyAllocationAction } from '@/app/actions/roster-actions/duty-roster.actions';
+import type { DutyRosterRow } from '@/types/roster';
 import { useDutyRosterUi } from './duty-roster-ui-context';
 
 type DutyRecordActionsProps = {
-  record: DutyRosterSample;
+  record: DutyRosterRow;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openSwap, openHistory } = useDutyRosterUi();
   const [open, setOpen] = useState(false);
@@ -22,6 +23,8 @@ export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
 
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+  const isLocked =
+    record.status === 'published' || record.status === 'amended';
 
   return (
     <>
@@ -79,12 +82,32 @@ export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
         handleVisibilityChange={setOpen}
         loading={loading}
         title="Delete duty assignment?"
-        description={`This will remove ${record.staffName} (${record.staffCode}) from this duty roster. Saving is wired in a later phase.`}
-        handleContinue={() => {
+        description={
+          isLocked
+            ? `This date is published. Use a roster amendment before removing ${record.staffName} (${record.staffCode}).`
+            : `This will remove ${record.staffName} (${record.staffCode}) from this duty date.`
+        }
+        handleContinue={async () => {
           setLoading(true);
-          toast({ title: 'Delete duty assignment', description: LATER });
+          const result = await deleteDutyAllocationAction(record.id);
           setLoading(false);
+          if (result.isError) {
+            toast({
+              variant: 'destructive',
+              title: 'Error',
+              description:
+                (result.errors as { message?: string })?.message ??
+                'Duty allocation could not be deleted.'
+            });
+            return;
+          }
+          toast({
+            variant: 'success',
+            title: 'Success',
+            description: 'Duty allocation deleted.'
+          });
           setOpen(false);
+          router.refresh();
         }}
       />
     </>

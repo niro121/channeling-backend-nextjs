@@ -8,25 +8,26 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { DutyRosterSample } from './sample-data';
+import type { DutyRosterRow, SwapDutyPayload } from '@/types/roster';
 
 export type DutyRosterFormSheetMode = 'assign' | 'edit' | 'swap' | 'replace';
 
 type FormSheetState = {
   mode: DutyRosterFormSheetMode;
-  record: DutyRosterSample | null;
+  record: DutyRosterRow | null;
 };
 
 type DutyRosterUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: DutyRosterSample | null;
+  historyRecord: DutyRosterRow | null;
   swapConfirmOpen: boolean;
+  pendingSwap: SwapDutyPayload | null;
   openAssign: () => void;
-  openEdit: (record: DutyRosterSample) => void;
-  openSwap: (record?: DutyRosterSample) => void;
-  openReplace: (record?: DutyRosterSample) => void;
-  openHistory: (record: DutyRosterSample) => void;
-  requestSwapConfirm: () => void;
+  openEdit: (record: DutyRosterRow) => void;
+  openSwap: (record?: DutyRosterRow) => void;
+  openReplace: (record?: DutyRosterRow) => void;
+  openHistory: (record: DutyRosterRow) => void;
+  requestSwapConfirm: (payload: SwapDutyPayload) => void;
   closeSwapConfirm: () => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
@@ -38,33 +39,42 @@ const DutyRosterUiContext = createContext<DutyRosterUiContextValue | null>(
 
 export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
-  const [historyRecord, setHistoryRecord] = useState<DutyRosterSample | null>(
+  const [historyRecord, setHistoryRecord] = useState<DutyRosterRow | null>(
     null
   );
   const [swapConfirmOpen, setSwapConfirmOpen] = useState(false);
+  const [pendingSwap, setPendingSwap] = useState<SwapDutyPayload | null>(null);
 
   const openAssign = useCallback(() => {
     setFormSheet({ mode: 'assign', record: null });
   }, []);
 
-  const openEdit = useCallback((record: DutyRosterSample) => {
+  const openEdit = useCallback((record: DutyRosterRow) => {
     setFormSheet({ mode: 'edit', record });
   }, []);
 
-  const openSwap = useCallback((record?: DutyRosterSample) => {
+  const openSwap = useCallback((record?: DutyRosterRow) => {
     setFormSheet({ mode: 'swap', record: record ?? null });
   }, []);
 
-  const openReplace = useCallback((record?: DutyRosterSample) => {
+  const openReplace = useCallback((record?: DutyRosterRow) => {
     setFormSheet({ mode: 'replace', record: record ?? null });
   }, []);
 
-  const openHistory = useCallback((record: DutyRosterSample) => {
+  const openHistory = useCallback((record: DutyRosterRow) => {
     setHistoryRecord(record);
   }, []);
 
-  const requestSwapConfirm = useCallback(() => setSwapConfirmOpen(true), []);
-  const closeSwapConfirm = useCallback(() => setSwapConfirmOpen(false), []);
+  const requestSwapConfirm = useCallback((payload: SwapDutyPayload) => {
+    setPendingSwap(payload);
+    setSwapConfirmOpen(true);
+  }, []);
+
+  const closeSwapConfirm = useCallback(() => {
+    setSwapConfirmOpen(false);
+    setPendingSwap(null);
+  }, []);
+
   const closeFormSheet = useCallback(() => setFormSheet(null), []);
   const closeHistorySheet = useCallback(() => setHistoryRecord(null), []);
 
@@ -73,6 +83,7 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       formSheet,
       historyRecord,
       swapConfirmOpen,
+      pendingSwap,
       openAssign,
       openEdit,
       openSwap,
@@ -87,6 +98,7 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       formSheet,
       historyRecord,
       swapConfirmOpen,
+      pendingSwap,
       openAssign,
       openEdit,
       openSwap,

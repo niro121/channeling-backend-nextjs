@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Form, Formik, type FormikProps } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { X } from 'lucide-react';
 import {
   Button,
+  Combobox,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
+  Label,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -19,36 +22,34 @@ import {
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import {
-  SAMPLE_DUTY_AUDIT,
-  SAMPLE_DUTY_SHIFTS,
-  SAMPLE_DUTY_STAFF,
-  SAMPLE_DUTY_STATUS,
-  SAMPLE_DUTY_SUPERVISORS,
-  type DutyRosterSample
-} from './sample-data';
+  dutyFormValuesToReplacePayload,
+  dutyFormValuesToSavePayload,
+  dutyFormValuesToSwapPayload,
+  dutyRosterRowToFormValues,
+  emptyDutyFormValues
+} from '@/lib/mappers/duty-roster-form.mapper';
+import {
+  replaceDutyStaffAction,
+  saveDutyAllocationAction
+} from '@/app/actions/roster-actions/duty-roster.actions';
+import {
+  DUTY_ATTENDANCE_OPTIONS,
+  type DutyRosterFormOptions,
+  type DutyRosterFormValues,
+  type DutyRosterRow,
+  type RosterFilterOption,
+  type SwapDutyPayload
+} from '@/types/roster';
 import type { DutyRosterFormSheetMode } from './duty-roster-ui-context';
-
-export type DutyFormValues = {
-  staffId: string;
-  otherStaffId: string;
-  shiftId: string;
-  dutyDate: Date | null;
-  startTime: string;
-  endTime: string;
-  dutyLocation: string;
-  wardUnit: string;
-  supervisorId: string;
-  status: string;
-  comments: string;
-};
 
 type SheetDutyFormProps = {
   open: boolean;
   mode: DutyRosterFormSheetMode;
-  sample: DutyRosterSample | null;
+  record: DutyRosterRow | null;
   defaultDate: Date;
+  formOptions: DutyRosterFormOptions;
   onOpenChange: (open: boolean) => void;
-  onSwapSubmit?: () => void;
+  onSwapSubmit?: (payload: SwapDutyPayload) => void;
 };
 
 const fieldStyleClasses = {
@@ -57,57 +58,42 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
-function timesForShift(shiftId: string): { startTime: string; endTime: string } {
-  const found = SAMPLE_DUTY_SHIFTS.find((s) => s.id === shiftId);
+const ATTENDANCE_UNMARKED = 'unmarked';
+
+const attendanceOptions = [
+  { id: ATTENDANCE_UNMARKED, name: 'Not marked' },
+  ...DUTY_ATTENDANCE_OPTIONS
+];
+
+function timesForShift(
+  shiftTypeId: string,
+  shiftTypes: DutyRosterFormOptions['shiftTypes']
+): { startTime: string; endTime: string } {
+  const found = shiftTypes.find((shift) => shift.id === shiftTypeId);
   return {
     startTime: found?.startTime ?? '07:00',
     endTime: found?.endTime ?? '15:00'
   };
 }
 
-function locationForStaff(staffId: string): {
-  dutyLocation: string;
-  wardUnit: string;
-} {
-  const found = SAMPLE_DUTY_STAFF.find((s) => s.id === staffId);
+function withCurrentOption(
+  options: RosterFilterOption[],
+  value: string
+): RosterFilterOption[] {
+  const trimmed = value.trim();
+  if (!trimmed) return options;
+  if (options.some((option) => option.id === trimmed)) return options;
+  return [{ id: trimmed, name: trimmed }, ...options];
+}
+
+function locationForStaff(
+  staffId: string,
+  staff: DutyRosterFormOptions['staff']
+): { dutyLocation: string; wardUnit: string } {
+  const found = staff.find((row) => row.id === staffId);
   return {
     dutyLocation: found?.dutyLocation ?? '',
     wardUnit: found?.wardUnit ?? ''
-  };
-}
-
-function emptyValues(defaultDate: Date): DutyFormValues {
-  return {
-    staffId: '',
-    otherStaffId: '',
-    shiftId: '',
-    dutyDate: defaultDate,
-    startTime: '07:00',
-    endTime: '15:00',
-    dutyLocation: '',
-    wardUnit: '',
-    supervisorId: '',
-    status: 'draft',
-    comments: ''
-  };
-}
-
-function sampleToFormValues(
-  sample: DutyRosterSample,
-  defaultDate: Date
-): DutyFormValues {
-  return {
-    staffId: sample.staffId,
-    otherStaffId: '',
-    shiftId: sample.shiftId,
-    dutyDate: defaultDate,
-    startTime: sample.startTime,
-    endTime: sample.endTime,
-    dutyLocation: sample.dutyLocation,
-    wardUnit: sample.wardUnit,
-    supervisorId: sample.supervisorId,
-    status: sample.status,
-    comments: sample.comments
   };
 }
 
@@ -150,63 +136,107 @@ function sheetCopy(mode: DutyRosterFormSheetMode) {
 }
 
 function AutoShiftTimes({
-  shiftId,
+  shiftTypeId,
   startTime,
   endTime,
+  shiftTypes,
   setFieldValue
 }: {
-  shiftId: string;
+  shiftTypeId: string;
   startTime: string;
   endTime: string;
-  setFieldValue: FormikProps<DutyFormValues>['setFieldValue'];
+  shiftTypes: DutyRosterFormOptions['shiftTypes'];
+  setFieldValue: FormikProps<DutyRosterFormValues>['setFieldValue'];
 }) {
-  const next = timesForShift(shiftId);
+  const next = timesForShift(shiftTypeId, shiftTypes);
   useEffect(() => {
-    if (!shiftId) return;
+    if (!shiftTypeId) return;
     if (startTime !== next.startTime) {
       void setFieldValue('startTime', next.startTime);
     }
     if (endTime !== next.endTime) {
       void setFieldValue('endTime', next.endTime);
     }
-  }, [endTime, next.endTime, next.startTime, setFieldValue, shiftId, startTime]);
+  }, [
+    endTime,
+    next.endTime,
+    next.startTime,
+    setFieldValue,
+    shiftTypeId,
+    startTime
+  ]);
   return null;
 }
 
 function AutoStaffLocation({
   staffId,
+  staff,
   setFieldValue
 }: {
   staffId: string;
-  setFieldValue: FormikProps<DutyFormValues>['setFieldValue'];
+  staff: DutyRosterFormOptions['staff'];
+  setFieldValue: FormikProps<DutyRosterFormValues>['setFieldValue'];
 }) {
   const previousStaffId = useRef(staffId);
   useEffect(() => {
     if (previousStaffId.current === staffId) return;
     previousStaffId.current = staffId;
     if (!staffId) return;
-    const next = locationForStaff(staffId);
+    const next = locationForStaff(staffId, staff);
     void setFieldValue('dutyLocation', next.dutyLocation);
     void setFieldValue('wardUnit', next.wardUnit);
-  }, [setFieldValue, staffId]);
+  }, [setFieldValue, staff, staffId]);
   return null;
 }
 
-const LATER = 'Will be wired in a later phase.';
+function applyFieldErrors(
+  errorMap: Record<string, string | string[] | undefined> | undefined,
+  setErrors: FormikHelpers<DutyRosterFormValues>['setErrors'],
+  setTouched: FormikHelpers<DutyRosterFormValues>['setTouched']
+) {
+  const fieldErrors: Record<string, string> = {};
+  Object.keys(errorMap ?? {}).forEach((key) => {
+    if (key === 'message') return;
+    const err = errorMap?.[key];
+    const msg = Array.isArray(err) ? err[0] : err;
+    if (msg) fieldErrors[key] = msg;
+  });
+  if (Object.keys(fieldErrors).length > 0) {
+    setErrors(fieldErrors);
+    setTouched(
+      Object.keys(fieldErrors).reduce(
+        (acc, key) => ({ ...acc, [key]: true }),
+        {} as Record<string, boolean>
+      )
+    );
+  }
+  return (errorMap?.message as string) ?? undefined;
+}
+
+function actionMessage(errors: unknown): string | undefined {
+  if (!errors || typeof errors !== 'object') return undefined;
+  const map = errors as Record<string, string | string[] | undefined>;
+  if (typeof map.message === 'string') return map.message;
+  return undefined;
+}
 
 export default function SheetDutyForm({
   open,
   mode,
-  sample,
+  record,
   defaultDate,
+  formOptions,
   onOpenChange,
   onSwapSubmit
 }: SheetDutyFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const copy = sheetCopy(mode);
   const needsOtherStaff = mode === 'swap' || mode === 'replace';
-  const showAudit = mode === 'edit' || !!sample;
+  const showAudit = mode === 'edit' || !!record;
+  const isLocked =
+    record?.status === 'published' || record?.status === 'amended';
 
   const validationSchema = useMemo(
     () =>
@@ -224,20 +254,31 @@ export default function SheetDutyForm({
                 'Select a different registered staff member'
               )
           : Yup.string(),
-        shiftId: Yup.string().required('Shift is required'),
+        shiftTypeId:
+          mode === 'swap' || mode === 'replace'
+            ? Yup.string()
+            : Yup.string().required('Shift is required'),
         dutyDate: Yup.date().nullable().required('Duty date is required'),
-        status: Yup.string().required('Status is required'),
         comments: Yup.string().max(500, 'Must be less than 500 characters')
       }),
     [mode, needsOtherStaff]
   );
 
   const initialValues = useMemo(() => {
-    if (sample && (mode === 'edit' || mode === 'swap' || mode === 'replace')) {
-      return sampleToFormValues(sample, defaultDate);
+    if (record && (mode === 'edit' || mode === 'swap' || mode === 'replace')) {
+      return dutyRosterRowToFormValues(record, defaultDate);
     }
-    return emptyValues(defaultDate);
-  }, [defaultDate, mode, sample]);
+    return emptyDutyFormValues(defaultDate);
+  }, [defaultDate, mode, record]);
+
+  const auditCreatedBy = record?.createdUser?.name || record?.createdBy || '—';
+  const auditUpdatedBy = record?.updatedUser?.name || record?.updatedBy || '—';
+  const auditCreatedAt = record?.createdAt
+    ? formatAuditDateTime(record.createdAt)
+    : '—';
+  const auditUpdatedAt = record?.updatedAt
+    ? formatAuditDateTime(record.updatedAt)
+    : '—';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -254,39 +295,97 @@ export default function SheetDutyForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
+          onSubmit={async (values, helpers) => {
             if (mode === 'swap') {
-              onSwapSubmit?.();
+              onSwapSubmit?.(
+                dutyFormValuesToSwapPayload(values, record?.id)
+              );
               return;
             }
+
             setLoading(true);
-            toast({
-              title:
-                mode === 'edit'
-                  ? 'Update duty assignment'
-                  : mode === 'replace'
-                    ? 'Replace staff'
-                    : 'Assign staff to duty',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
+            try {
+              const respond =
+                mode === 'replace'
+                  ? await replaceDutyStaffAction(
+                      dutyFormValuesToReplacePayload(values, record?.id)
+                    )
+                  : await saveDutyAllocationAction(
+                      dutyFormValuesToSavePayload(values, record?.id)
+                    );
+
+              if (respond?.isError) {
+                const errorMap = respond.errors as Record<
+                  string,
+                  string | string[] | undefined
+                >;
+                const message =
+                  applyFieldErrors(
+                    errorMap,
+                    helpers.setErrors,
+                    helpers.setTouched
+                  ) ?? actionMessage(respond.errors);
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description:
+                    message ??
+                    (mode === 'replace'
+                      ? 'Duty staff could not be replaced.'
+                      : 'Duty assignment could not be saved.')
+                });
+                return;
+              }
+
+              toast({
+                variant: 'success',
+                title: 'Success',
+                description:
+                  mode === 'edit'
+                    ? 'Duty assignment updated.'
+                    : mode === 'replace'
+                      ? 'Duty staff replaced.'
+                      : 'Duty assignment saved.'
+              });
+              onOpenChange(false);
+              router.refresh();
+            } catch (error: unknown) {
+              toast({
+                variant: 'destructive',
+                title: 'Error',
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : 'Duty assignment could not be saved.'
+              });
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
               <AutoShiftTimes
-                shiftId={formik.values.shiftId}
+                shiftTypeId={formik.values.shiftTypeId}
                 startTime={formik.values.startTime}
                 endTime={formik.values.endTime}
+                shiftTypes={formOptions.shiftTypes}
                 setFieldValue={formik.setFieldValue}
               />
               <AutoStaffLocation
                 staffId={formik.values.staffId}
+                staff={formOptions.staff}
                 setFieldValue={formik.setFieldValue}
               />
 
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                {isLocked ? (
+                  <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 text-sm text-orange-800">
+                    This date is published. Direct changes are rejected — use
+                    Roster Amendments instead.
+                  </p>
+                ) : null}
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <CustomSelectField
                     id="staffId"
@@ -294,7 +393,8 @@ export default function SheetDutyForm({
                     value={formik.values.staffId}
                     onChange={(value) => formik.setFieldValue('staffId', value)}
                     required
-                    options={SAMPLE_DUTY_STAFF}
+                    disabled={mode === 'edit' || mode === 'swap' || mode === 'replace'}
+                    options={formOptions.staff}
                     styleClasses={fieldStyleClasses}
                   />
                   {needsOtherStaff ? (
@@ -306,39 +406,40 @@ export default function SheetDutyForm({
                         formik.setFieldValue('otherStaffId', value)
                       }
                       required
-                      options={SAMPLE_DUTY_STAFF.filter(
+                      options={formOptions.staff.filter(
                         (staff) => staff.id !== formik.values.staffId
                       )}
                       styleClasses={fieldStyleClasses}
                     />
                   ) : (
                     <CustomSelectField
-                      id="shiftId"
+                      id="shiftTypeId"
                       placeholder="Shift"
-                      value={formik.values.shiftId}
+                      value={formik.values.shiftTypeId}
                       onChange={(value) =>
-                        formik.setFieldValue('shiftId', value)
+                        formik.setFieldValue('shiftTypeId', value)
                       }
                       required
-                      options={SAMPLE_DUTY_SHIFTS}
+                      options={formOptions.shiftTypes}
                       styleClasses={fieldStyleClasses}
                     />
                   )}
                   {needsOtherStaff ? (
                     <CustomSelectField
-                      id="shiftId"
+                      id="shiftTypeId"
                       placeholder="Shift"
-                      value={formik.values.shiftId}
+                      value={formik.values.shiftTypeId}
                       onChange={(value) =>
-                        formik.setFieldValue('shiftId', value)
+                        formik.setFieldValue('shiftTypeId', value)
                       }
-                      required
-                      options={SAMPLE_DUTY_SHIFTS}
+                      required={false}
+                      disabled
+                      options={formOptions.shiftTypes}
                       styleClasses={fieldStyleClasses}
                     />
                   ) : null}
                   <CustomDatePickerField
-                    id="dutyDate"
+                    id="dutyFormDate"
                     placeholder="Duty Date"
                     value={formik.values.dutyDate}
                     onChange={(value) =>
@@ -346,6 +447,14 @@ export default function SheetDutyForm({
                     }
                     onBlur={formik.handleBlur}
                     required
+                    disabled={mode !== 'assign'}
+                    useFormikError={false}
+                    error={
+                      typeof formik.errors.dutyDate === 'string'
+                        ? formik.errors.dutyDate
+                        : undefined
+                    }
+                    touched={Boolean(formik.touched.dutyDate)}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -370,26 +479,52 @@ export default function SheetDutyForm({
                     disabled
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomFormField
-                    id="dutyLocation"
-                    type="text"
-                    placeholder="Duty Location"
-                    value={formik.values.dutyLocation}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomFormField
-                    id="wardUnit"
-                    type="text"
-                    placeholder="Ward / Unit"
-                    value={formik.values.wardUnit}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Duty Location
+                    </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Select Duty Location"
+                        options={withCurrentOption(
+                          formOptions.locations ?? [],
+                          formik.values.dutyLocation
+                        )}
+                        value={formik.values.dutyLocation}
+                        defaultValue=""
+                        clearable
+                        disabled={needsOtherStaff}
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                        onChange={(value) =>
+                          formik.setFieldValue('dutyLocation', value)
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Ward / Unit
+                    </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Select Ward / Unit"
+                        options={withCurrentOption(
+                          formOptions.units ?? [],
+                          formik.values.wardUnit
+                        )}
+                        value={formik.values.wardUnit}
+                        defaultValue=""
+                        clearable
+                        disabled={needsOtherStaff}
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                        onChange={(value) =>
+                          formik.setFieldValue('wardUnit', value)
+                        }
+                      />
+                    </div>
+                  </div>
                   <CustomSelectField
                     id="supervisorId"
                     placeholder="Supervisor"
@@ -398,16 +533,20 @@ export default function SheetDutyForm({
                       formik.setFieldValue('supervisorId', value)
                     }
                     required={false}
-                    options={SAMPLE_DUTY_SUPERVISORS}
+                    disabled={needsOtherStaff}
+                    options={formOptions.supervisors}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
-                    id="status"
-                    placeholder="Status"
-                    value={formik.values.status}
-                    onChange={(value) => formik.setFieldValue('status', value)}
-                    required
-                    options={SAMPLE_DUTY_STATUS}
+                    id="attendance"
+                    placeholder="Attendance"
+                    value={formik.values.attendance}
+                    onChange={(value) =>
+                      formik.setFieldValue('attendance', value)
+                    }
+                    required={false}
+                    disabled={needsOtherStaff}
+                    options={attendanceOptions}
                     styleClasses={fieldStyleClasses}
                   />
                 </div>
@@ -420,22 +559,21 @@ export default function SheetDutyForm({
                   onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   required={false}
+                  disabled={needsOtherStaff}
                   styleClasses={fieldStyleClasses}
                 />
 
                 <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
-                    Created by:{' '}
-                    {showAudit ? SAMPLE_DUTY_AUDIT.createdBy : '—'}
-                    {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_DUTY_AUDIT.createdAt)}`
+                    Created by: {showAudit ? auditCreatedBy : '—'}
+                    {showAudit && auditCreatedAt !== '—'
+                      ? ` · ${auditCreatedAt}`
                       : null}
                   </p>
                   <p className="sm:text-right">
-                    Last updated:{' '}
-                    {showAudit ? SAMPLE_DUTY_AUDIT.updatedBy : '—'}
-                    {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_DUTY_AUDIT.updatedAt)}`
+                    Last updated: {showAudit ? auditUpdatedBy : '—'}
+                    {showAudit && auditUpdatedAt !== '—'
+                      ? ` · ${auditUpdatedAt}`
                       : null}
                   </p>
                 </div>

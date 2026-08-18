@@ -1,39 +1,81 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Button, useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import { format } from 'date-fns';
-import { dutyRosterColumns } from './columns';
-import type { DutyRosterSample } from './sample-data';
-
-type DutyViewMode = 'daily' | 'weekly' | 'monthly';
+import { Button } from '@archmage/ui';
+import type { DutyRosterRow, DutyRosterViewMode } from '@/types/roster';
+import { dutyRangeLabel, formatDutyDateLabel } from '@/lib/utils/duty-roster-view';
+import { getDutyRosterColumns } from './columns';
 
 type SectionDutyRegisterProps = {
-  items: DutyRosterSample[];
+  items: DutyRosterRow[];
+  totalRecords: number;
+  page?: string;
   dutyDate: Date;
+  viewMode: DutyRosterViewMode;
+  onViewChange: (mode: DutyRosterViewMode) => void;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
-const LATER = 'Will be wired in a later phase.';
+const VIEW_LABELS: Record<DutyRosterViewMode, string> = {
+  daily: 'Daily view',
+  weekly: 'Weekly view',
+  monthly: 'Monthly view'
+};
 
 export default function SectionDutyRegister({
   items,
-  dutyDate
+  totalRecords,
+  page,
+  dutyDate,
+  viewMode,
+  onViewChange,
+  onExport
 }: SectionDutyRegisterProps) {
-  const { toast } = useToast();
-  const dateLabel = format(dutyDate, 'dd MMM yyyy');
-  const viewMode: DutyViewMode = 'daily';
-
-  const handleViewChange = (mode: DutyViewMode) => {
-    if (mode === 'daily') return;
-    toast({
-      title: mode === 'weekly' ? 'Weekly Duty Roster' : 'Monthly Duty Roster',
-      description: LATER
-    });
-  };
+  const dateLabel = dutyRangeLabel(dutyDate, viewMode);
+  const grouped = viewMode !== 'daily';
+  const showDate = grouped;
+  const exportColumns = [
+    ...(showDate ? ['Duty Date'] : []),
+    'Staff ID',
+    'Staff Name',
+    'Shift',
+    'Start Time',
+    'End Time',
+    'Duty Location',
+    'Ward / Unit',
+    'Supervisor',
+    'Status',
+    'Attendance',
+    'Updated By',
+    'Updated At',
+    'Created By',
+    'Created At'
+  ];
+  const exportKeys = [
+    ...(showDate ? ['date'] : []),
+    'staffCode',
+    'staffName',
+    'shiftName',
+    'startTime',
+    'endTime',
+    'dutyLocation',
+    'wardUnit',
+    'supervisorName',
+    'status',
+    'attendance',
+    'updatedBy',
+    'updatedAt',
+    'createdBy',
+    'createdAt'
+  ];
 
   return (
     <Suspense
@@ -45,7 +87,11 @@ export default function SectionDutyRegister({
     >
       <CommonDataTable
         heading={`Duty Roster — ${dateLabel}`}
-        subHeading="Daily duty list derived from Shift Assignment."
+        subHeading={
+          viewMode === 'daily'
+            ? 'Daily duty list from the same allocations as Shift Roster.'
+            : 'Date-range duty list grouped by duty date. Same allocations as Shift Roster.'
+        }
         headingRight={
           <div className="flex flex-wrap items-center gap-2">
             {(
@@ -61,78 +107,41 @@ export default function SectionDutyRegister({
                 size="sm"
                 variant={viewMode === mode ? 'default' : 'outline'}
                 className="h-9"
-                onClick={() => handleViewChange(mode)}
+                onClick={() => onViewChange(mode)}
               >
                 {label}
               </Button>
             ))}
           </div>
         }
-        columns={dutyRosterColumns}
+        columns={getDutyRosterColumns(showDate)}
         data={items}
-        rowCount={items.length}
-        showPagination
+        rowCount={totalRecords}
+        page={page}
+        showPagination={!grouped}
         haveBulkDelete={false}
+        groupBy={grouped ? 'date' : undefined}
+        groupByDefaultExpanded
+        renderGroupHeader={({ value, subRowCount }) => (
+          <span className="font-semibold text-foreground">
+            {formatDutyDateLabel(String(value ?? ''))}
+            <span className="ml-2 font-normal text-muted-foreground">
+              {subRowCount} {subRowCount === 1 ? 'duty' : 'duties'}
+            </span>
+          </span>
+        )}
         toolbarLeft={
           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-            Daily view
+            {VIEW_LABELS[viewMode]}
           </span>
         }
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                staffCode: row.staffCode,
-                staffName: row.staffName,
-                shiftName: row.shiftName,
-                startTime: row.startTime,
-                endTime: row.endTime,
-                dutyLocation: row.dutyLocation,
-                wardUnit: row.wardUnit,
-                supervisorName: row.supervisorName,
-                status: row.status,
-                attendance: row.attendance,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
-            columns={[
-              'Staff ID',
-              'Staff Name',
-              'Shift',
-              'Start Time',
-              'End Time',
-              'Duty Location',
-              'Ward / Unit',
-              'Supervisor',
-              'Status',
-              'Attendance',
-              'Updated By',
-              'Updated At',
-              'Created By',
-              'Created At'
-            ]}
-            keys={[
-              'staffCode',
-              'staffName',
-              'shiftName',
-              'startTime',
-              'endTime',
-              'dutyLocation',
-              'wardUnit',
-              'supervisorName',
-              'status',
-              'attendance',
-              'updatedBy',
-              'updatedAt',
-              'createdBy',
-              'createdAt'
-            ]}
+            serverData={onExport}
+            columns={exportColumns}
+            keys={exportKeys}
             title="Duty Roster"
             fileName="duty-roster"
           />

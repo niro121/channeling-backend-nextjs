@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   Button,
   Sheet,
@@ -10,11 +11,12 @@ import {
   SheetTitle
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import { getSampleDutyHistory, type DutyRosterSample } from './sample-data';
+import { getDutyRosterHistoryAction } from '@/app/actions/roster-actions/duty-roster.actions';
+import type { DutyRosterHistoryEntry, DutyRosterRow } from '@/types/roster';
 
 type SheetDutyHistoryProps = {
   open: boolean;
-  record: DutyRosterSample | null;
+  record: DutyRosterRow | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -23,7 +25,27 @@ export default function SheetDutyHistory({
   record,
   onOpenChange
 }: SheetDutyHistoryProps) {
-  const entries = record ? getSampleDutyHistory(record) : [];
+  const [entries, setEntries] = useState<DutyRosterHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !record?.id) {
+      setEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    void getDutyRosterHistoryAction(record.id).then((result) => {
+      if (cancelled) return;
+      setEntries(result.isError ? [] : (result.data ?? []));
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record?.id]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -41,7 +63,9 @@ export default function SheetDutyHistory({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             <ol className="relative space-y-5 border-l border-border pl-5">

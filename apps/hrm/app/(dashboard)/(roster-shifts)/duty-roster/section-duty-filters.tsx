@@ -11,7 +11,7 @@ import {
   CustomDatePickerField,
   Label
 } from '@archmage/ui';
-import type { DutyRosterFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type DutyFilterValues = {
   departmentId: string;
@@ -23,10 +23,10 @@ export type DutyFilterValues = {
 
 type SectionDutyFiltersProps = {
   values: DutyFilterValues;
-  departmentOptions: DutyRosterFilterOption[];
-  unitOptions: DutyRosterFilterOption[];
-  shiftOptions: DutyRosterFilterOption[];
-  rosterOptions: DutyRosterFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  unitOptions: RosterFilterOption[];
+  shiftOptions: RosterFilterOption[];
+  rosterOptions: RosterFilterOption[];
   onChange: (next: Partial<DutyFilterValues>) => void;
   onLoad: () => void;
   onClear: () => void;
@@ -76,7 +76,7 @@ export default function SectionDutyFilters({
             />
           </div>
           <CustomDatePickerField
-            id="dutyDate"
+            id="dutyFilterDate"
             placeholder="Date"
             value={values.dutyDate}
             onChange={(value) => onChange({ dutyDate: value ?? null })}

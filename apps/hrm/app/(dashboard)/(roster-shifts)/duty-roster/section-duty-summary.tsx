@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardList, Clock } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { DutyRosterSummarySample } from './sample-data';
+import type { DutyRosterSummary, DutyRosterViewMode } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,38 +12,46 @@ type SummaryCard = {
 };
 
 type SectionDutySummaryProps = {
-  summary: DutyRosterSummarySample;
+  summary: DutyRosterSummary;
+  viewMode?: DutyRosterViewMode;
 };
 
 export default function SectionDutySummary({
-  summary
+  summary,
+  viewMode = 'daily'
 }: SectionDutySummaryProps) {
+  const periodLabel =
+    viewMode === 'weekly'
+      ? 'this week'
+      : viewMode === 'monthly'
+        ? 'this month'
+        : 'this date';
   const cards: SummaryCard[] = [
     {
-      label: 'On Duty Today',
+      label: viewMode === 'daily' ? 'On Duty Today' : 'On Duty',
       value: String(summary.onDutyToday),
-      subText: 'Across all units',
+      subText: `Allocations ${periodLabel}`,
       icon: <ClipboardList className="h-4 w-4 text-emerald-700" />,
       iconWrapClass: 'bg-emerald-50'
     },
     {
       label: 'Present',
       value: String(summary.present),
-      subText: 'RFID verified',
+      subText: 'Marked present',
       icon: <CheckCircle2 className="h-4 w-4 text-emerald-700" />,
       iconWrapClass: 'bg-emerald-50'
     },
     {
       label: 'Late Arrivals',
       value: String(summary.lateArrivals),
-      subText: 'Beyond grace period',
+      subText: 'Marked late',
       icon: <Clock className="h-4 w-4 text-orange-600" />,
       iconWrapClass: 'bg-orange-50'
     },
     {
       label: 'Unfilled Duties',
       value: String(summary.unfilledDuties),
-      subText: 'Require replacement',
+      subText: 'Assigned staff with no cell',
       icon: <AlertTriangle className="h-4 w-4 text-red-600" />,
       iconWrapClass: 'bg-red-50'
     }
