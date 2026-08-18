@@ -373,6 +373,7 @@ export default function SheetHolidayForm({
                   />
                   <CustomFormField
                     id="dutyLocation"
+                    type="text"
                     placeholder="Duty Location"
                     value={formik.values.dutyLocation}
                     onChange={formik.handleChange}

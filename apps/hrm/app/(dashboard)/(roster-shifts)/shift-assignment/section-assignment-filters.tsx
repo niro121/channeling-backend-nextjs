@@ -11,7 +11,7 @@ import {
   Input,
   Label
 } from '@archmage/ui';
-import type { ShiftAssignmentFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type AssignmentFilterValues = {
   institutionId: string;
@@ -26,13 +26,13 @@ export type AssignmentFilterValues = {
 
 type SectionAssignmentFiltersProps = {
   values: AssignmentFilterValues;
-  institutionOptions: ShiftAssignmentFilterOption[];
-  departmentOptions: ShiftAssignmentFilterOption[];
-  unitOptions: ShiftAssignmentFilterOption[];
-  designationOptions: ShiftAssignmentFilterOption[];
-  staffCategoryOptions: ShiftAssignmentFilterOption[];
-  staffGradeOptions: ShiftAssignmentFilterOption[];
-  employeeStatusOptions: ShiftAssignmentFilterOption[];
+  institutionOptions: RosterFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  unitOptions: RosterFilterOption[];
+  designationOptions: RosterFilterOption[];
+  staffCategoryOptions: RosterFilterOption[];
+  staffGradeOptions: RosterFilterOption[];
+  employeeStatusOptions: RosterFilterOption[];
   onChange: (next: Partial<AssignmentFilterValues>) => void;
   onSearch: () => void;
   onClear: () => void;

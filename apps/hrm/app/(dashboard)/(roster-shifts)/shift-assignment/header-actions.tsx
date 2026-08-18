@@ -8,7 +8,8 @@ import { useShiftAssignmentUi } from './shift-assignment-ui-context';
 export function ShiftAssignmentHeaderActions() {
   const { toast } = useToast();
   const { has } = usePermissions();
-  const { openAssign, openBulk, selectedCount } = useShiftAssignmentUi();
+  const { openAssign, openBulk, selectedCount, selectedStaffIds } =
+    useShiftAssignmentUi();
   const canAdd = has('shift-roster', 'add');
   const canEdit = has('shift-roster', 'edit');
 
@@ -23,7 +24,7 @@ export function ShiftAssignmentHeaderActions() {
       });
       return;
     }
-    openBulk(selectedCount);
+    openBulk(selectedCount, selectedStaffIds);
   };
 
   return (

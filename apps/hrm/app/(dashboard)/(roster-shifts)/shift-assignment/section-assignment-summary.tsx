@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Layers, UserCheck, Users } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { ShiftAssignmentSummarySample } from './sample-data';
+import type { ShiftAssignmentSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +12,7 @@ type SummaryCard = {
 };
 
 type SectionAssignmentSummaryProps = {
-  summary: ShiftAssignmentSummarySample;
+  summary: ShiftAssignmentSummary;
 };
 
 export default function SectionAssignmentSummary({

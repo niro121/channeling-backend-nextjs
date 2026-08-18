@@ -8,25 +8,28 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { ShiftAssignmentSample } from './sample-data';
+import type { ShiftAssignmentRecord } from '@/types/roster';
 
 export type ShiftAssignmentFormSheetMode = 'assign' | 'edit' | 'bulk';
 
 type FormSheetState = {
   mode: ShiftAssignmentFormSheetMode;
-  record: ShiftAssignmentSample | null;
+  record: ShiftAssignmentRecord | null;
   selectedCount: number;
+  selectedStaffIds: string[];
 };
 
 type ShiftAssignmentUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: ShiftAssignmentSample | null;
+  historyRecord: ShiftAssignmentRecord | null;
   selectedCount: number;
+  selectedStaffIds: string[];
   setSelectedCount: (count: number) => void;
+  setSelectedStaffIds: (staffIds: string[]) => void;
   openAssign: () => void;
-  openEdit: (record: ShiftAssignmentSample) => void;
-  openBulk: (selectedCount: number) => void;
-  openHistory: (record: ShiftAssignmentSample) => void;
+  openEdit: (record: ShiftAssignmentRecord) => void;
+  openBulk: (selectedCount: number, selectedStaffIds: string[]) => void;
+  openHistory: (record: ShiftAssignmentRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -41,22 +44,41 @@ export function ShiftAssignmentUiProvider({
 }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [historyRecord, setHistoryRecord] =
-    useState<ShiftAssignmentSample | null>(null);
+    useState<ShiftAssignmentRecord | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
 
   const openAssign = useCallback(() => {
-    setFormSheet({ mode: 'assign', record: null, selectedCount: 0 });
+    setFormSheet({
+      mode: 'assign',
+      record: null,
+      selectedCount: 0,
+      selectedStaffIds: []
+    });
   }, []);
 
-  const openEdit = useCallback((record: ShiftAssignmentSample) => {
-    setFormSheet({ mode: 'edit', record, selectedCount: 0 });
+  const openEdit = useCallback((record: ShiftAssignmentRecord) => {
+    setFormSheet({
+      mode: 'edit',
+      record,
+      selectedCount: 0,
+      selectedStaffIds: []
+    });
   }, []);
 
-  const openBulk = useCallback((count: number) => {
-    setFormSheet({ mode: 'bulk', record: null, selectedCount: count });
-  }, []);
+  const openBulk = useCallback(
+    (count: number, staffIds: string[]) => {
+      setFormSheet({
+        mode: 'bulk',
+        record: null,
+        selectedCount: count,
+        selectedStaffIds: staffIds
+      });
+    },
+    []
+  );
 
-  const openHistory = useCallback((record: ShiftAssignmentSample) => {
+  const openHistory = useCallback((record: ShiftAssignmentRecord) => {
     setHistoryRecord(record);
   }, []);
 
@@ -68,7 +90,9 @@ export function ShiftAssignmentUiProvider({
       formSheet,
       historyRecord,
       selectedCount,
+      selectedStaffIds,
       setSelectedCount,
+      setSelectedStaffIds,
       openAssign,
       openEdit,
       openBulk,
@@ -80,6 +104,7 @@ export function ShiftAssignmentUiProvider({
       formSheet,
       historyRecord,
       selectedCount,
+      selectedStaffIds,
       openAssign,
       openEdit,
       openBulk,

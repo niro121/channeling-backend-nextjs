@@ -748,3 +748,37 @@ export async function activateShiftTypes(ids: string[]): Promise<{
     };
   }
 }
+
+export type ShiftTypeOption = { id: string; name: string; code: string };
+
+export async function getActiveShiftTypeOptions(): Promise<{
+  success: boolean;
+  data?: ShiftTypeOption[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const records = await prisma.shiftType.findMany({
+      where: { status: 'active' },
+      orderBy: { name: 'asc' },
+      take:
+        Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
+      select: { id: true, name: true, code: true }
+    });
+    return {
+      success: true,
+      data: records.map((record) => ({
+        id: record.id,
+        name: record.name,
+        code: record.code
+      })),
+      message: 'Shift type options fetched'
+    };
+  } catch (error: any) {
+    console.error('getActiveShiftTypeOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to fetch shift type options' }
+    };
+  }
+}

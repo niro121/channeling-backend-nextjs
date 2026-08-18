@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
 import { format, parseISO, isValid } from 'date-fns';
 import AssignmentRecordActions from './record-actions';
-import type { ShiftAssignmentSample } from './sample-data';
+import type { ShiftAssignmentRecord } from '@/types/roster';
 
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
@@ -15,7 +15,7 @@ function formatDisplayDate(value: string | null): string {
   return format(parsed, 'dd MMM yyyy');
 }
 
-export const assignmentColumns: ColumnDef<ShiftAssignmentSample>[] = [
+export const assignmentColumns: ColumnDef<ShiftAssignmentRecord>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -74,9 +74,11 @@ export const assignmentColumns: ColumnDef<ShiftAssignmentSample>[] = [
     )
   },
   {
-    accessorKey: 'assignedShift',
+    accessorKey: 'shiftTypeName',
     header: () => <span className="whitespace-nowrap">Assigned Shift</span>,
-    cell: ({ row }) => <span>{row.original.assignedShift}</span>
+    cell: ({ row }) => (
+      <span>{row.original.shiftTypeName || '—'}</span>
+    )
   },
   {
     accessorKey: 'effectiveFrom',
@@ -124,7 +126,7 @@ export const assignmentColumns: ColumnDef<ShiftAssignmentSample>[] = [
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">{row.original.updatedUser?.name || '—'}</span>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -136,7 +138,7 @@ export const assignmentColumns: ColumnDef<ShiftAssignmentSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">{row.original.createdUser?.name || '—'}</span>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDateTime(row.original.createdAt)}
         </span>

@@ -1,9 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useToast } from '@archmage/ui';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
+import type {
+  RosterFilterOption,
+  ShiftAssignmentFilterOptions,
+  ShiftAssignmentRecord,
+  ShiftAssignmentSummary
+} from '@/types/roster';
 import { ShiftAssignmentHeaderActions } from './header-actions';
 import SectionAssignmentFilters, {
   type AssignmentFilterValues
@@ -13,25 +18,28 @@ import SectionAssignmentSummary from './section-assignment-summary';
 import SheetAssignmentForm from './sheet-assignment-form';
 import SheetAssignmentHistory from './sheet-assignment-history';
 import {
-  SAMPLE_ASSIGNMENT_AUDIT,
-  SAMPLE_DEPARTMENTS,
-  SAMPLE_DESIGNATIONS,
-  SAMPLE_EMPLOYEE_STATUS,
-  SAMPLE_INSTITUTIONS,
-  SAMPLE_STAFF_CATEGORIES,
-  SAMPLE_STAFF_GRADES,
-  SAMPLE_UNITS,
-  type ShiftAssignmentSample,
-  type ShiftAssignmentSummarySample
-} from './sample-data';
-import {
   ShiftAssignmentUiProvider,
   useShiftAssignmentUi
 } from './shift-assignment-ui-context';
 
+type FormOptions = {
+  staff: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
+};
+
 type ShiftAssignmentWorkspaceProps = {
-  initialRows: ShiftAssignmentSample[];
-  summary: ShiftAssignmentSummarySample;
+  records: ShiftAssignmentRecord[];
+  totalRecords: number;
+  page?: string;
+  filters: AssignmentFilterValues;
+  summary: ShiftAssignmentSummary;
+  filterOptions: ShiftAssignmentFilterOptions;
+  formOptions: FormOptions;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 const EMPTY_FILTERS: AssignmentFilterValues = {
@@ -45,50 +53,48 @@ const EMPTY_FILTERS: AssignmentFilterValues = {
   staffSearch: ''
 };
 
-function filterRows(
-  rows: ShiftAssignmentSample[],
-  values: AssignmentFilterValues
-): ShiftAssignmentSample[] {
-  const deptName = SAMPLE_DEPARTMENTS.find(
-    (d) => d.id === values.departmentId
-  )?.name;
-  const unitName = SAMPLE_UNITS.find((u) => u.id === values.unitId)?.name;
-  const designationName = SAMPLE_DESIGNATIONS.find(
-    (d) => d.id === values.designationId
-  )?.name;
-  const q = values.staffSearch.trim().toLowerCase();
-
-  return rows.filter((row) => {
-    if (deptName && row.department !== deptName) return false;
-    if (unitName && row.unit !== unitName) return false;
-    if (designationName && row.designation !== designationName) return false;
-    if (q) {
-      const hay = `${row.staffCode} ${row.staffName}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
-}
-
 function ShiftAssignmentWorkspaceInner({
-  initialRows,
-  summary
+  records,
+  totalRecords,
+  page,
+  filters,
+  summary,
+  filterOptions,
+  formOptions,
+  onExport
 }: ShiftAssignmentWorkspaceProps) {
-  const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {
     formSheet,
     historyRecord,
     closeFormSheet,
     closeHistorySheet
   } = useShiftAssignmentUi();
-  const [draft, setDraft] = useState<AssignmentFilterValues>(EMPTY_FILTERS);
-  const [applied, setApplied] =
-    useState<AssignmentFilterValues>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<AssignmentFilterValues>(filters);
 
-  const rows = useMemo(
-    () => filterRows(initialRows, applied),
-    [initialRows, applied]
-  );
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
+
+  const pushFilters = (next: AssignmentFilterValues) => {
+    const params = new URLSearchParams();
+    const limit = searchParams.get('limit');
+    if (limit) params.set('limit', limit);
+    if (next.institutionId) params.set('institution', next.institutionId);
+    if (next.departmentId) params.set('department', next.departmentId);
+    if (next.unitId) params.set('unit', next.unitId);
+    if (next.designationId) params.set('designation', next.designationId);
+    if (next.staffCategoryId) params.set('staffCategory', next.staffCategoryId);
+    if (next.staffGradeId) params.set('staffGrade', next.staffGradeId);
+    if (next.employeeStatusId) {
+      params.set('employeeStatus', next.employeeStatusId);
+    }
+    if (next.staffSearch.trim()) params.set('search', next.staffSearch.trim());
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
 
   return (
     <div className="space-y-6">
@@ -102,47 +108,38 @@ function ShiftAssignmentWorkspaceInner({
 
       <SectionAssignmentFilters
         values={draft}
-        institutionOptions={SAMPLE_INSTITUTIONS}
-        departmentOptions={SAMPLE_DEPARTMENTS}
-        unitOptions={SAMPLE_UNITS}
-        designationOptions={SAMPLE_DESIGNATIONS}
-        staffCategoryOptions={SAMPLE_STAFF_CATEGORIES}
-        staffGradeOptions={SAMPLE_STAFF_GRADES}
-        employeeStatusOptions={SAMPLE_EMPLOYEE_STATUS}
+        institutionOptions={filterOptions.institutions}
+        departmentOptions={filterOptions.departments}
+        unitOptions={filterOptions.units}
+        designationOptions={filterOptions.designations}
+        staffCategoryOptions={filterOptions.staffCategories}
+        staffGradeOptions={filterOptions.staffGrades}
+        employeeStatusOptions={filterOptions.employeeStatuses}
         onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => {
-          setApplied(draft);
-          toast({
-            title: 'Filters applied',
-            description:
-              'Sample data filtered locally. Server search comes in a later phase.'
-          });
-        }}
+        onSearch={() => pushFilters(draft)}
         onClear={() => {
           setDraft(EMPTY_FILTERS);
-          setApplied(EMPTY_FILTERS);
+          const limit = searchParams.get('limit');
+          router.push(limit ? `${pathname}?limit=${limit}` : pathname);
         }}
       />
 
-      <SectionAssignmentRegister items={rows} />
-
-      <div className="space-y-1 text-xs text-muted-foreground">
-        <p>
-          Created by: {SAMPLE_ASSIGNMENT_AUDIT.createdBy} ·{' '}
-          {formatDateTime(SAMPLE_ASSIGNMENT_AUDIT.createdAt)}
-        </p>
-        <p>
-          Last updated: {SAMPLE_ASSIGNMENT_AUDIT.updatedBy} ·{' '}
-          {formatDateTime(SAMPLE_ASSIGNMENT_AUDIT.updatedAt)}
-        </p>
-      </div>
+      <SectionAssignmentRegister
+        items={records}
+        totalRecords={totalRecords}
+        page={page}
+        onExport={onExport}
+      />
 
       {formSheet ? (
         <SheetAssignmentForm
           open
           mode={formSheet.mode}
-          sample={formSheet.record}
+          record={formSheet.record}
           selectedCount={formSheet.selectedCount}
+          selectedStaffIds={formSheet.selectedStaffIds}
+          staffOptions={formOptions.staff}
+          shiftTypeOptions={formOptions.shiftTypes}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}

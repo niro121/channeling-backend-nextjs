@@ -9,26 +9,38 @@ import {
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { bulkDeleteShiftAssignmentsAction } from '@/app/actions/roster-actions/shift-assignment.actions';
+import type { ShiftAssignmentRecord } from '@/types/roster';
 import { assignmentColumns } from './columns';
-import type { ShiftAssignmentSample } from './sample-data';
 import { useShiftAssignmentUi } from './shift-assignment-ui-context';
 
 type SectionAssignmentRegisterProps = {
-  items: ShiftAssignmentSample[];
+  items: ShiftAssignmentRecord[];
+  totalRecords: number;
+  page?: string;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 const LATER = 'Will be wired in a later phase.';
 
 function SelectionSync() {
-  const { rowSelection } = useCommonDataTableContext();
-  const { setSelectedCount } = useShiftAssignmentUi();
+  const { rowSelection, table } = useCommonDataTableContext();
+  const { setSelectedCount, setSelectedStaffIds } = useShiftAssignmentUi();
 
   useEffect(() => {
-    const count = Object.keys(rowSelection).filter(
+    const selectedKeys = Object.keys(rowSelection).filter(
       (key) => rowSelection[key]
-    ).length;
-    setSelectedCount(count);
-  }, [rowSelection, setSelectedCount]);
+    );
+    const staffIds = selectedKeys.map(
+      (key) => (table.getRow(key).original as ShiftAssignmentRecord).staffId
+    );
+    setSelectedCount(selectedKeys.length);
+    setSelectedStaffIds([...new Set(staffIds)]);
+  }, [rowSelection, setSelectedCount, setSelectedStaffIds, table]);
 
   return null;
 }
@@ -64,7 +76,10 @@ function RegisterToolbarLeft({ totalCount }: { totalCount: number }) {
 }
 
 export default function SectionAssignmentRegister({
-  items
+  items,
+  totalRecords,
+  page,
+  onExport
 }: SectionAssignmentRegisterProps) {
   const { has } = usePermissions();
   const canEdit = has('shift-roster', 'edit');
@@ -84,40 +99,20 @@ export default function SectionAssignmentRegister({
         subHeading="Staff linked to shift types for duty and roster planning."
         columns={assignmentColumns}
         data={items}
-        rowCount={items.length}
+        rowCount={totalRecords}
+        page={page}
         showPagination
         haveBulkDelete={enableRowSelection}
-        deleteServerAction={async (ids) => {
-          throw new Error(
-            `${ids.length} assignment${ids.length === 1 ? '' : 's'} selected. Bulk delete will be wired in a later phase.`
-          );
-        }}
+        deleteServerAction={bulkDeleteShiftAssignmentsAction}
         getBulkDeleteDescription={async (ids) =>
-          `This will permanently delete ${ids.length} assignment${ids.length === 1 ? '' : 's'}. Saving is wired in a later phase.`
+          `This will permanently delete ${ids.length} assignment${ids.length === 1 ? '' : 's'}.`
         }
-        toolbarLeft={<RegisterToolbarLeft totalCount={items.length} />}
+        toolbarLeft={<RegisterToolbarLeft totalCount={totalRecords} />}
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                staffCode: row.staffCode,
-                staffName: row.staffName,
-                department: row.department,
-                unit: row.unit,
-                designation: row.designation,
-                assignedShift: row.assignedShift,
-                effectiveFrom: row.effectiveFrom,
-                effectiveTo: row.effectiveTo ?? '',
-                status: row.status,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
+            serverData={onExport}
             columns={[
               'Staff ID',
               'Staff Name',

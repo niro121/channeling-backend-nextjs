@@ -7,9 +7,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
-**D2:** Shift Types CRUD is live on `/shift-types` (`SHF-n`, Search, Save/Update/Delete/Duplicate).  
+**D3:** Shift Assignment CRUD is live on `/shift-assignment` (`SA-n`, Assign/Edit/Bulk, overlap guard).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D3 Shift Assignment CRUD**.
+Pages must not call Prisma. No business rules in components. Next: **D4 Shift Roster read (Load Roster)**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1352,8 +1352,8 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 
 | Done when |
 |-----------|
-| [ ] Assign / Edit persist; Bulk writes one row per selected staff |
-| [ ] Overlapping effective dates for the same staff rejected in the service |
+| [x] Assign / Edit persist; Bulk writes one row per selected staff |
+| [x] Overlapping effective dates for the same staff rejected in the service |
 
 Auto Assign that **creates week cells** waits for D5.
 

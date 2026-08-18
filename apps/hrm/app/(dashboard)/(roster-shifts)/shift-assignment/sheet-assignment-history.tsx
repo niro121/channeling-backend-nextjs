@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   Button,
   Sheet,
@@ -10,14 +11,15 @@ import {
   SheetTitle
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  getSampleAssignmentHistory,
-  type ShiftAssignmentSample
-} from './sample-data';
+import { getShiftAssignmentHistoryAction } from '@/app/actions/roster-actions/shift-assignment.actions';
+import type {
+  ShiftAssignmentHistoryEntry,
+  ShiftAssignmentRecord
+} from '@/types/roster';
 
 type SheetAssignmentHistoryProps = {
   open: boolean;
-  record: ShiftAssignmentSample | null;
+  record: ShiftAssignmentRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -26,7 +28,27 @@ export default function SheetAssignmentHistory({
   record,
   onOpenChange
 }: SheetAssignmentHistoryProps) {
-  const entries = record ? getSampleAssignmentHistory(record) : [];
+  const [entries, setEntries] = useState<ShiftAssignmentHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !record?.id) {
+      setEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    void getShiftAssignmentHistoryAction(record.id).then((result) => {
+      if (cancelled) return;
+      setEntries(result.isError ? [] : (result.data ?? []));
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record?.id]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -44,7 +66,9 @@ export default function SheetAssignmentHistory({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             <ol className="relative space-y-5 border-l border-border pl-5">

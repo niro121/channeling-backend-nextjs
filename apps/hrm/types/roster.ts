@@ -224,13 +224,80 @@ export type ShiftAssignmentPayload = {
   status?: ShiftAssignmentStatus | string;
 };
 
+export const SHIFT_ASSIGNMENT_ROTATION_PATTERNS = [
+  { id: 'fixed', name: 'Fixed' },
+  { id: '2-shift', name: '2-Shift Rotation' },
+  { id: '3-shift', name: '3-Shift Rotation' },
+  { id: '4-on-2-off', name: '4 On 2 Off' },
+  { id: 'weekly', name: 'Weekly Rotation' },
+  { id: 'custom', name: 'Custom' }
+] as const;
+
+export const SHIFT_ASSIGNMENT_WEEKLY_OFF_DAYS = [
+  { id: 'monday', name: 'Monday' },
+  { id: 'tuesday', name: 'Tuesday' },
+  { id: 'wednesday', name: 'Wednesday' },
+  { id: 'thursday', name: 'Thursday' },
+  { id: 'friday', name: 'Friday' },
+  { id: 'saturday', name: 'Saturday' },
+  { id: 'sunday', name: 'Sunday' }
+] as const;
+
+export const SHIFT_ASSIGNMENT_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'active', name: 'Active' },
+  { id: 'pending', name: 'Pending' },
+  { id: 'inactive', name: 'Inactive' }
+];
+
+export type ShiftAssignmentFormValues = {
+  staffId: string;
+  shiftTypeId: string;
+  rotationPatternId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  weeklyOffDayId: string;
+  status: string;
+  autoAssign: boolean;
+};
+
+export type ShiftAssignmentSummary = {
+  assignedStaff: number;
+  activeStaffTotal: number;
+  unassigned: number;
+  rotationPatterns: number;
+  expiringSoon: number;
+};
+
+export type ShiftAssignmentHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type ShiftAssignmentFilterOptions = {
+  institutions: RosterFilterOption[];
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  designations: RosterFilterOption[];
+  staffCategories: RosterFilterOption[];
+  staffGrades: RosterFilterOption[];
+  employeeStatuses: RosterFilterOption[];
+};
+
 export type GetShiftAssignmentsParams = {
   page?: string;
   limit?: string;
   staffId?: string;
   shiftTypeId?: string;
+  institution?: string;
   department?: string;
   unit?: string;
+  designation?: string;
+  staffCategory?: string;
+  staffGrade?: string;
+  employeeStatus?: string;
   status?: string;
   search?: string;
 };
