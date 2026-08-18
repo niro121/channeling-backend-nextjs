@@ -330,7 +330,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page handover-summary { size: 5in 5in; margin: 0.12in; }
+          @page handover-summary { size: A6 portrait; margin: 5mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,

@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"scopeKey":{"$numberInt":"1"}},"name":"Sequence_scopeKey_key","unique":true}],"uuid":"fd17f52641384d688347d00d2de4ee25","collectionName":"Sequence","type":"collection"}

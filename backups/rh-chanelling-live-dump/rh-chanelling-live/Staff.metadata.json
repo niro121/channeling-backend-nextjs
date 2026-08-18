@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"code":{"$numberInt":"1"}},"name":"Staff_code_key","unique":true},{"v":{"$numberInt":"2"},"key":{"migrateSourceId":{"$numberInt":"1"}},"name":"Staff_migrateSourceId_idx"}],"uuid":"a034ed2b6aaa4a5aa4b1b075451fdb46","collectionName":"Staff","type":"collection"}

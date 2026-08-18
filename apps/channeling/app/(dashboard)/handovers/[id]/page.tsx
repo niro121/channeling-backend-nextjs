@@ -11,6 +11,12 @@ import {
 } from "@/app/actions/reconciliation.actions"
 import { getCashierSummaryReportData } from "@/app/actions/reports/cashier-summary.action"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -49,6 +55,7 @@ import {
   CircleAlert,
   GitBranch,
   Printer,
+  ChevronDown,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
 import { HandoverCashInPrint } from "./handover-cash-in-print"
@@ -521,7 +528,7 @@ export default function HandoverDetailPage() {
     }
     el.textContent =
       mode === "summary"
-        ? "@media print { @page { size: 5in 5in; margin: 0.12in; } }"
+        ? "@media print { @page { size: A6 portrait; margin: 5mm; } }"
         : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
     document.body.classList.toggle("print-handover-summary", mode === "summary")
     const cleanup = () => {
@@ -539,14 +546,23 @@ export default function HandoverDetailPage() {
       <div className="sticky top-14 z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2 bg-background border-b border-border print:hidden">
         <BackButton href="/handovers" />
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => printHandover("report")}>
-            <Printer className="h-4 w-4 mr-1" />
-            Print / PDF
-          </Button>
-          <Button variant="outline" onClick={() => printHandover("summary")}>
-            <Printer className="h-4 w-4 mr-1" />
-            Print 5×5 summary
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Printer className="h-4 w-4 mr-1" />
+                Print
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => printHandover("summary")}>
+                A6 (Default)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => printHandover("report")}>
+                A4
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {isPending && (
             <>
               <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>

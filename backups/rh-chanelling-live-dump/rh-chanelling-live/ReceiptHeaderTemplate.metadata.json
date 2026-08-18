@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"0bfaf17aa31e4423aad3ec70cd4337d3","collectionName":"ReceiptHeaderTemplate","type":"collection"}
