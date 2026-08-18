@@ -6,7 +6,7 @@ import {
   Users
 } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { RosterSummarySample } from './sample-data';
+import type { RosterGridSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -17,7 +17,7 @@ type SummaryCard = {
 };
 
 type SectionRosterSummaryProps = {
-  summary: RosterSummarySample;
+  summary: RosterGridSummary;
   weekRangeShort: string;
 };
 

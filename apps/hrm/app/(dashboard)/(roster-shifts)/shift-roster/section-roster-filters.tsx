@@ -13,7 +13,7 @@ import {
   Label,
   useToast
 } from '@archmage/ui';
-import type { RosterFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type RosterFilterValues = {
   departmentId: string;

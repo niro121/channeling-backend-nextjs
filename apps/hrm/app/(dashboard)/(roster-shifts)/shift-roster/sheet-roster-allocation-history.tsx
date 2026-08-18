@@ -9,15 +9,11 @@ import {
   SheetHeader,
   SheetTitle
 } from '@archmage/ui';
-import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  getSampleAllocationHistory,
-  type RosterStaffRowSample
-} from './sample-data';
+import type { RosterStaffRow } from '@/types/roster';
 
 type SheetRosterAllocationHistoryProps = {
   open: boolean;
-  record: RosterStaffRowSample | null;
+  record: RosterStaffRow | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -26,8 +22,6 @@ export default function SheetRosterAllocationHistory({
   record,
   onOpenChange
 }: SheetRosterAllocationHistoryProps) {
-  const entries = record ? getSampleAllocationHistory(record) : [];
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -44,26 +38,9 @@ export default function SheetRosterAllocationHistory({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No history yet.</p>
-          ) : (
-            <ol className="relative space-y-5 border-l border-border pl-5">
-              {entries.map((entry) => (
-                <li key={entry.id} className="relative">
-                  <span className="absolute -left-[1.4rem] top-1.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-background" />
-                  <p className="text-sm font-medium text-foreground">
-                    {entry.title}
-                  </p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {entry.detail}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {entry.userLabel} · {formatAuditDateTime(entry.at)}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          )}
+          <p className="text-sm text-muted-foreground">
+            History will be available after allocations are persisted (D5).
+          </p>
         </div>
 
         <SheetFooter className="shrink-0 flex-row justify-end border-t border-border bg-background px-6 py-4 sm:space-x-0">

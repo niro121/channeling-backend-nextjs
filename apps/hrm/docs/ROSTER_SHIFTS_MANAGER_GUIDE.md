@@ -7,9 +7,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
-**D3:** Shift Assignment CRUD is live on `/shift-assignment` (`SA-n`, Assign/Edit/Bulk, overlap guard).  
+**D4:** Shift Roster read is live on `/shift-roster` (Load Roster with server filters, live chips from ShiftType, server-side pagination).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D4 Shift Roster read (Load Roster)**.
+Pages must not call Prisma. No business rules in components. Next: **D5 Allocate + save draft**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1371,10 +1371,10 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Load Roster shows real staff for the selected filters |
-| [ ] Existing allocations appear as chips; empty cells stay blank |
-| [ ] Pagination is server-side (`page` / `limit`) |
-| [ ] No save / publish yet |
+| [x] Load Roster shows real staff for the selected filters |
+| [x] Existing allocations appear as chips; empty cells stay blank |
+| [x] Pagination is server-side (`page` / `limit`) |
+| [x] No save / publish yet |
 
 ---
 

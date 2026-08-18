@@ -25,7 +25,6 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
-import { formatDateTime } from '@/lib/utils/date';
 import {
   Table,
   TableBody,
@@ -35,6 +34,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import type { RosterStaffRow, ShiftTypeChip } from '@/types/roster';
 import RosterRecordActions from './record-actions';
 import {
   RosterColumnHeader,
@@ -42,21 +42,19 @@ import {
 } from './roster-column-header';
 import { ShiftChip } from './shift-chip';
 import { ShiftLegend } from './shift-legend';
-import type {
-  RosterRowStatus,
-  RosterStaffRowSample,
-  RosterWeekMeta
-} from './sample-data';
-import { SAMPLE_ROSTER_AUDIT } from './sample-data';
 import { useShiftRosterUi } from './shift-roster-ui-context';
 
 type SectionRosterGridProps = {
-  week: RosterWeekMeta;
-  rows: RosterStaffRowSample[];
+  weekLabel: string;
+  dayIsos: string[];
+  rows: RosterStaffRow[];
   totalRecords: number;
   staffMetaVisible: boolean;
   conflicts: number;
+  shiftTypes: ShiftTypeChip[];
 };
+
+type RowStatus = RosterStaffRow['status'];
 
 type SortableKey =
   | 'staffCode'
@@ -79,22 +77,21 @@ type ColumnFilters = {
   day: Record<string, string>;
 };
 
-const LATER = 'Will be wired in a later phase.';
-
-const STATUS_STYLES: Record<RosterRowStatus, string> = {
+const STATUS_STYLES: Record<RowStatus, string> = {
   published: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
   draft: 'bg-muted text-muted-foreground hover:bg-muted',
-  pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
-  amended: 'bg-sky-100 text-sky-700 hover:bg-sky-100'
+  amended: 'bg-sky-100 text-sky-700 hover:bg-sky-100',
+  none: 'bg-muted/40 text-muted-foreground hover:bg-muted/40'
 };
 
-const STATUS_LABELS: Record<RosterRowStatus, string> = {
+const STATUS_LABELS: Record<RowStatus, string> = {
   published: 'Published',
   draft: 'Draft',
-  pending_approval: 'Pending Approval',
-  amended: 'Amended'
+  amended: 'Amended',
+  none: '—'
 };
 
+const LATER = 'Will be wired in a later phase.';
 const CELL_SEP = 'border-r border-border';
 
 function dayHeader(dayIso: string): string {
@@ -121,17 +118,13 @@ function compareValues(a: string | number, b: string | number): number {
   });
 }
 
-function getSortValue(
-  row: RosterStaffRowSample,
-  key: SortableKey
-): string | number {
+function getSortValue(row: RosterStaffRow, key: SortableKey): string | number {
   if (key.startsWith('day:')) {
     const dayIso = key.slice(4);
     const shift = row.shifts[dayIso];
     if (!shift) return '';
     return `${shift.code} ${shift.label}`;
   }
-
   switch (key) {
     case 'staffCode':
       return row.staffCode;
@@ -161,11 +154,13 @@ function matchesFilter(value: string, query: string): boolean {
 }
 
 export default function SectionRosterGrid({
-  week,
+  weekLabel,
+  dayIsos,
   rows,
   totalRecords,
   staffMetaVisible,
-  conflicts
+  conflicts,
+  shiftTypes
 }: SectionRosterGridProps) {
   const { toast } = useToast();
   const { has } = usePermissions();
@@ -180,12 +175,12 @@ export default function SectionRosterGrid({
   const [sortKey, setSortKey] = useState<SortableKey | null>('staffCode');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(() =>
-    emptyFilters(week.dayIsos)
+    emptyFilters(dayIsos)
   );
 
   useEffect(() => {
     setColumnFilters((prev) => ({
-      ...emptyFilters(week.dayIsos),
+      ...emptyFilters(dayIsos),
       staffCode: prev.staffCode,
       staffName: prev.staffName,
       department: prev.department,
@@ -193,7 +188,7 @@ export default function SectionRosterGrid({
       designation: prev.designation,
       status: prev.status
     }));
-  }, [week.dayIsos]);
+  }, [dayIsos]);
 
   const processedRows = useMemo(() => {
     const filtered = rows.filter((row) => {
@@ -201,14 +196,12 @@ export default function SectionRosterGrid({
       if (!matchesFilter(row.staffName, columnFilters.staffName)) return false;
       if (!matchesFilter(row.department, columnFilters.department)) return false;
       if (!matchesFilter(row.unit, columnFilters.unit)) return false;
-      if (!matchesFilter(row.designation, columnFilters.designation)) {
+      if (!matchesFilter(row.designation, columnFilters.designation))
         return false;
-      }
-      if (!matchesFilter(STATUS_LABELS[row.status], columnFilters.status)) {
+      if (!matchesFilter(STATUS_LABELS[row.status], columnFilters.status))
         return false;
-      }
 
-      for (const dayIso of week.dayIsos) {
+      for (const dayIso of dayIsos) {
         const dayQuery = columnFilters.day[dayIso] ?? '';
         if (!dayQuery.trim()) continue;
         const shift = row.shifts[dayIso];
@@ -231,7 +224,7 @@ export default function SectionRosterGrid({
       return sortDirection === 'asc' ? cmp : -cmp;
     });
     return sorted;
-  }, [rows, columnFilters, sortKey, sortDirection, week.dayIsos]);
+  }, [rows, columnFilters, sortKey, sortDirection, dayIsos]);
 
   const pageCount = Math.max(1, Math.ceil(processedRows.length / pageSize));
   const safePageIndex = Math.min(pageIndex, pageCount - 1);
@@ -256,8 +249,8 @@ export default function SectionRosterGrid({
     toast({ title, description: LATER });
   };
 
-  const toggleLeave = (rowId: string, dateIso: string, current: boolean) => {
-    const key = `${rowId}:${dateIso}`;
+  const toggleLeave = (staffId: string, dateIso: string, current: boolean) => {
+    const key = `${staffId}:${dateIso}`;
     setLeaveOverrides((prev) => ({ ...prev, [key]: !current }));
   };
 
@@ -298,10 +291,12 @@ export default function SectionRosterGrid({
     <Card className="overflow-hidden rounded-lg border border-border shadow-sm">
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 space-y-1.5">
-          <CardTitle className="text-lg font-semibold">{week.weekLabel}</CardTitle>
+          <CardTitle className="text-lg font-semibold">
+            {weekLabel || 'Shift Roster'}
+          </CardTitle>
           <CardDescription>
-            Drag a shift chip to another cell to reassign. Tick &apos;Leave&apos; to
-            mark the cell as leave-covered.
+            Drag a shift chip to another cell to reassign. Tick &apos;Leave&apos;
+            to mark the cell as leave-covered.
           </CardDescription>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -371,7 +366,7 @@ export default function SectionRosterGrid({
       </CardHeader>
 
       <div className="px-6 pb-3">
-        <ShiftLegend />
+        <ShiftLegend shiftTypes={shiftTypes} />
       </div>
 
       <CardContent className="px-0 pb-0">
@@ -459,7 +454,7 @@ export default function SectionRosterGrid({
                         </TableHead>
                       </>
                     ) : null}
-                    {week.dayIsos.map((dayIso) => (
+                    {dayIsos.map((dayIso) => (
                       <TableHead
                         key={dayIso}
                         className={cn('min-w-[9rem]', CELL_SEP)}
@@ -514,7 +509,7 @@ export default function SectionRosterGrid({
                 <TableBody>
                   {pageRows.length ? (
                     pageRows.map((row) => (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.staffId}>
                         <TableCell
                           className={cn(
                             'sticky left-0 z-10 bg-background font-medium',
@@ -542,8 +537,9 @@ export default function SectionRosterGrid({
                             </TableCell>
                           </>
                         ) : null}
-                        {week.dayIsos.map((dayIso) => {
+                        {dayIsos.map((dayIso) => {
                           const shift = row.shifts[dayIso];
+                          const leaveKey = `${row.staffId}:${dayIso}`;
                           if (!shift) {
                             return (
                               <TableCell
@@ -570,7 +566,6 @@ export default function SectionRosterGrid({
                               </TableCell>
                             );
                           }
-                          const leaveKey = `${row.id}:${dayIso}`;
                           const isLeave =
                             leaveOverrides[leaveKey] ?? shift.isLeave;
                           return (
@@ -581,7 +576,7 @@ export default function SectionRosterGrid({
                               <ShiftChip
                                 shift={{ ...shift, isLeave }}
                                 onLeaveToggle={() =>
-                                  toggleLeave(row.id, dayIso, isLeave)
+                                  toggleLeave(row.staffId, dayIso, isLeave)
                                 }
                                 onClick={
                                   canEdit
@@ -616,7 +611,7 @@ export default function SectionRosterGrid({
                         <TableCell className="text-right">
                           <RosterRecordActions
                             record={row}
-                            dayIsos={week.dayIsos}
+                            dayIsos={dayIsos}
                           />
                         </TableCell>
                       </TableRow>
@@ -625,7 +620,7 @@ export default function SectionRosterGrid({
                     <TableRow>
                       <TableCell
                         colSpan={
-                          (staffMetaVisible ? 5 : 2) + week.dayIsos.length + 4
+                          (staffMetaVisible ? 5 : 2) + dayIsos.length + 4
                         }
                         className="h-24 text-center text-muted-foreground"
                       >
@@ -640,8 +635,8 @@ export default function SectionRosterGrid({
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
               <p>
-                Drag a shift chip to another cell to reassign. Tick &apos;Leave&apos;
-                to mark the cell as leave-covered.
+                Drag a shift chip to another cell to reassign. Tick
+                &apos;Leave&apos; to mark the cell as leave-covered.
               </p>
               {hasActiveColumnFilters ? (
                 <Button
@@ -649,7 +644,7 @@ export default function SectionRosterGrid({
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs"
-                  onClick={() => setColumnFilters(emptyFilters(week.dayIsos))}
+                  onClick={() => setColumnFilters(emptyFilters(dayIsos))}
                 >
                   Clear column filters
                 </Button>
@@ -675,12 +670,6 @@ export default function SectionRosterGrid({
             )}
           >
             {conflicts} conflicts
-          </Badge>
-          <Badge
-            variant="outline"
-            className="rounded-full border-emerald-200 text-emerald-800"
-          >
-            {SAMPLE_ROSTER_AUDIT.publishedLabel}
           </Badge>
         </div>
 
@@ -746,17 +735,6 @@ export default function SectionRosterGrid({
           </div>
         </div>
       </CardFooter>
-
-      <div className="space-y-1 border-t border-border px-6 py-3 text-xs text-muted-foreground">
-        <p>
-          Created by: {SAMPLE_ROSTER_AUDIT.createdBy} |{' '}
-          {formatDateTime(SAMPLE_ROSTER_AUDIT.createdAt)}.
-        </p>
-        <p>
-          Last updated: {SAMPLE_ROSTER_AUDIT.updatedBy} |{' '}
-          {formatDateTime(SAMPLE_ROSTER_AUDIT.updatedAt)}.
-        </p>
-      </div>
     </Card>
   );
 }

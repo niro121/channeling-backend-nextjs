@@ -1,7 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@archmage/ui';
+import type {
+  LoadRosterResult,
+  RosterStaffRow,
+  ShiftCell,
+  ShiftTypeChip
+} from '@/types/roster';
 import SectionRosterFilters, {
   type RosterFilterValues
 } from './section-roster-filters';
@@ -10,63 +17,44 @@ import SectionRosterSummary from './section-roster-summary';
 import SheetRosterAllocationForm from './sheet-roster-allocation-form';
 import SheetRosterAllocationHistory from './sheet-roster-allocation-history';
 import {
-  SAMPLE_DEPARTMENTS,
-  SAMPLE_ROSTERS,
-  SAMPLE_ROSTER_TOTAL_RECORDS,
-  SAMPLE_UNITS,
-  staffOptionsFromRows,
-  type RosterStaffRowSample,
-  type RosterSummarySample,
-  type RosterWeekMeta
-} from './sample-data';
-import {
   ShiftRosterUiProvider,
   useShiftRosterUi
 } from './shift-roster-ui-context';
 
 type ShiftRosterWorkspaceProps = {
-  week: RosterWeekMeta;
-  initialRows: RosterStaffRowSample[];
-  summary: RosterSummarySample;
+  data: LoadRosterResult;
 };
 
-function emptyFilters(week: RosterWeekMeta): RosterFilterValues {
+function emptyFilters(data: LoadRosterResult): RosterFilterValues {
   return {
     departmentId: '',
     unitId: '',
     rosterId: '',
-    fromDate: week.fromDateIso,
-    toDate: week.toDateIso,
+    fromDate: data.dayIsos[0] ?? '',
+    toDate: data.dayIsos[data.dayIsos.length - 1] ?? '',
     staffSearch: ''
   };
 }
 
-function filterRows(
-  rows: RosterStaffRowSample[],
-  values: RosterFilterValues,
-  departments: typeof SAMPLE_DEPARTMENTS
-): RosterStaffRowSample[] {
-  const deptName = departments.find((d) => d.id === values.departmentId)?.name;
-  const unitName = SAMPLE_UNITS.find((u) => u.id === values.unitId)?.name;
-  const q = values.staffSearch.trim().toLowerCase();
-
-  return rows.filter((row) => {
-    if (deptName && row.department !== deptName) return false;
-    if (unitName && row.unit !== unitName) return false;
-    if (q) {
-      const hay = `${row.staffCode} ${row.staffName}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  });
+function staffOptionsFromRows(
+  rows: RosterStaffRow[]
+): Array<{ id: string; name: string; staffCode: string; department: string; unit: string; designation: string }> {
+  return rows.map((row) => ({
+    id: row.staffId,
+    name: `${row.staffName} (${row.staffCode})`,
+    staffCode: row.staffCode,
+    department: row.department,
+    unit: row.unit,
+    designation: row.designation
+  }));
 }
 
-function ShiftRosterWorkspaceInner({
-  week,
-  initialRows,
-  summary
-}: ShiftRosterWorkspaceProps) {
+function ShiftRosterWorkspaceInner({ data }: ShiftRosterWorkspaceProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
   const {
     formTarget,
     historyRow,
@@ -74,50 +62,48 @@ function ShiftRosterWorkspaceInner({
     closeHistorySheet
   } = useShiftRosterUi();
   const [draftFilters, setDraftFilters] = useState<RosterFilterValues>(() =>
-    emptyFilters(week)
-  );
-  const [appliedFilters, setAppliedFilters] = useState<RosterFilterValues>(() =>
-    emptyFilters(week)
+    emptyFilters(data)
   );
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
 
-  const visibleRows = useMemo(
-    () => filterRows(initialRows, appliedFilters, SAMPLE_DEPARTMENTS),
-    [initialRows, appliedFilters]
-  );
-
-  const staffOptions = useMemo(
-    () => staffOptionsFromRows(initialRows),
-    [initialRows]
-  );
+  const staffOptions = staffOptionsFromRows(data.rows);
 
   const handleLoad = () => {
-    setAppliedFilters(draftFilters);
-    toast({
-      title: 'Roster loaded',
-      description: 'Sample data filtered locally. Server load comes in Phase 2.'
+    const params = new URLSearchParams();
+    if (draftFilters.departmentId) params.set('department', draftFilters.departmentId);
+    if (draftFilters.unitId) params.set('unit', draftFilters.unitId);
+    if (draftFilters.rosterId) params.set('roster', draftFilters.rosterId);
+    if (draftFilters.fromDate) params.set('fromDate', draftFilters.fromDate);
+    if (draftFilters.toDate) params.set('toDate', draftFilters.toDate);
+    if (draftFilters.staffSearch.trim()) params.set('search', draftFilters.staffSearch.trim());
+    const limit = searchParams.get('limit');
+    if (limit) params.set('limit', limit);
+    const query = params.toString();
+    startTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
     });
   };
 
   const handleClear = () => {
-    const cleared = emptyFilters(week);
-    setDraftFilters(cleared);
-    setAppliedFilters(cleared);
+    setDraftFilters(emptyFilters(data));
     setStaffMetaVisible(true);
+    startTransition(() => {
+      router.push(pathname);
+    });
   };
 
   return (
     <div className="space-y-6">
       <SectionRosterSummary
-        summary={summary}
-        weekRangeShort={week.weekRangeShort}
+        summary={data.summary}
+        weekRangeShort={data.weekRangeShort}
       />
 
       <SectionRosterFilters
         values={draftFilters}
-        departmentOptions={SAMPLE_DEPARTMENTS}
-        unitOptions={SAMPLE_UNITS}
-        rosterOptions={SAMPLE_ROSTERS}
+        departmentOptions={data.filterOptions.departments}
+        unitOptions={data.filterOptions.units}
+        rosterOptions={data.filterOptions.rosters}
         onChange={(next) =>
           setDraftFilters((prev) => ({ ...prev, ...next }))
         }
@@ -129,11 +115,13 @@ function ShiftRosterWorkspaceInner({
       />
 
       <SectionRosterGrid
-        week={week}
-        rows={visibleRows}
-        totalRecords={SAMPLE_ROSTER_TOTAL_RECORDS}
+        weekLabel={data.weekLabel}
+        dayIsos={data.dayIsos}
+        rows={data.rows}
+        totalRecords={data.totalRecords}
         staffMetaVisible={staffMetaVisible}
-        conflicts={summary.conflicts}
+        conflicts={data.summary.conflicts}
+        shiftTypes={data.shiftTypes}
       />
 
       {formTarget ? (
@@ -141,6 +129,7 @@ function ShiftRosterWorkspaceInner({
           open
           target={formTarget}
           staffOptions={staffOptions}
+          shiftTypes={data.shiftTypes}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}

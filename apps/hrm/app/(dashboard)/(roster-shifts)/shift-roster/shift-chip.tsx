@@ -1,9 +1,9 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { ShiftCellSample, ShiftCode } from './sample-data';
+import type { ShiftCell } from '@/types/roster';
 
-const CHIP_STYLES: Record<ShiftCode, string> = {
+const CHIP_STYLES: Record<string, string> = {
   D: 'border-emerald-200 bg-emerald-50 text-emerald-900',
   E: 'border-orange-200 bg-orange-50 text-orange-900',
   N: 'border-violet-200 bg-violet-50 text-violet-900',
@@ -11,8 +11,10 @@ const CHIP_STYLES: Record<ShiftCode, string> = {
   L: 'border-dashed border-border bg-background text-muted-foreground'
 };
 
+const DEFAULT_CHIP = 'border-border bg-muted/40 text-foreground';
+
 type ShiftChipProps = {
-  shift: ShiftCellSample;
+  shift: ShiftCell;
   onLeaveToggle?: () => void;
   onClick?: () => void;
   compact?: boolean;
@@ -24,6 +26,8 @@ export function ShiftChip({
   onClick,
   compact
 }: ShiftChipProps) {
+  const chipStyle = CHIP_STYLES[shift.code] ?? DEFAULT_CHIP;
+
   return (
     <div
       role={onClick ? 'button' : undefined}
@@ -41,7 +45,7 @@ export function ShiftChip({
       }
       className={cn(
         'min-w-[6.5rem] rounded-md border px-2 py-1.5 text-left shadow-sm',
-        CHIP_STYLES[shift.code],
+        chipStyle,
         compact && 'min-w-[5.5rem] px-1.5 py-1',
         onClick && 'cursor-pointer transition-colors hover:brightness-[0.98]'
       )}

@@ -8,30 +8,30 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { RosterStaffRowSample, ShiftCellSample } from './sample-data';
+import type { RosterStaffRow, ShiftCell } from '@/types/roster';
 
 export type RosterAllocationSheetMode = 'add' | 'edit';
 
 export type RosterAllocationFormTarget = {
   mode: RosterAllocationSheetMode;
-  row: RosterStaffRowSample | null;
+  row: RosterStaffRow | null;
   dateIso: string | null;
-  shift: ShiftCellSample | null;
+  shift: ShiftCell | null;
 };
 
 type ShiftRosterUiContextValue = {
   formTarget: RosterAllocationFormTarget | null;
-  historyRow: RosterStaffRowSample | null;
+  historyRow: RosterStaffRow | null;
   openAdd: (prefill?: {
-    row?: RosterStaffRowSample;
+    row?: RosterStaffRow;
     dateIso?: string;
   }) => void;
   openEdit: (args: {
-    row: RosterStaffRowSample;
+    row: RosterStaffRow;
     dateIso: string;
-    shift: ShiftCellSample;
+    shift: ShiftCell;
   }) => void;
-  openHistory: (row: RosterStaffRowSample) => void;
+  openHistory: (row: RosterStaffRow) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -43,12 +43,10 @@ const ShiftRosterUiContext = createContext<ShiftRosterUiContextValue | null>(
 export function ShiftRosterUiProvider({ children }: { children: ReactNode }) {
   const [formTarget, setFormTarget] =
     useState<RosterAllocationFormTarget | null>(null);
-  const [historyRow, setHistoryRow] = useState<RosterStaffRowSample | null>(
-    null
-  );
+  const [historyRow, setHistoryRow] = useState<RosterStaffRow | null>(null);
 
   const openAdd = useCallback(
-    (prefill?: { row?: RosterStaffRowSample; dateIso?: string }) => {
+    (prefill?: { row?: RosterStaffRow; dateIso?: string }) => {
       setFormTarget({
         mode: 'add',
         row: prefill?.row ?? null,
@@ -60,11 +58,7 @@ export function ShiftRosterUiProvider({ children }: { children: ReactNode }) {
   );
 
   const openEdit = useCallback(
-    (args: {
-      row: RosterStaffRowSample;
-      dateIso: string;
-      shift: ShiftCellSample;
-    }) => {
+    (args: { row: RosterStaffRow; dateIso: string; shift: ShiftCell }) => {
       setFormTarget({
         mode: 'edit',
         row: args.row,
@@ -75,7 +69,7 @@ export function ShiftRosterUiProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const openHistory = useCallback((row: RosterStaffRowSample) => {
+  const openHistory = useCallback((row: RosterStaffRow) => {
     setHistoryRow(row);
   }, []);
 

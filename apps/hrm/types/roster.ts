@@ -432,6 +432,79 @@ export type GetRosterAllocationsParams = {
 };
 
 /* ---------------------------------
+Shift Roster grid (D4 — Load Roster)
+--------------------------------- */
+
+export type ShiftCell = {
+  allocationId: string;
+  shiftTypeId: string;
+  code: string;
+  label: string;
+  timeRange: string;
+  isLeave: boolean;
+  hours: number;
+  otHours: number;
+  status: RosterAllocationStatus | string;
+};
+
+export type RosterStaffRow = {
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  designation: string;
+  shifts: Record<string, ShiftCell | null>;
+  totalHours: number;
+  otHours: number;
+  status: 'published' | 'draft' | 'amended' | 'none';
+};
+
+export type RosterGridSummary = {
+  staffRostered: number;
+  departments: number;
+  shiftsThisWeek: number;
+  totalHours: number;
+  conflicts: number;
+};
+
+export type RosterFilterOptions = {
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  rosters: RosterFilterOption[];
+};
+
+export type ShiftTypeChip = {
+  id: string;
+  code: string;
+  name: string;
+  timeRange: string;
+  durationHours: number;
+};
+
+export type LoadRosterParams = {
+  department?: string;
+  unit?: string;
+  roster?: string;
+  fromDate: string;
+  toDate: string;
+  search?: string;
+  page?: string;
+  limit?: string;
+};
+
+export type LoadRosterResult = {
+  rows: RosterStaffRow[];
+  totalRecords: number;
+  summary: RosterGridSummary;
+  filterOptions: RosterFilterOptions;
+  shiftTypes: ShiftTypeChip[];
+  weekLabel: string;
+  weekRangeShort: string;
+  dayIsos: string[];
+};
+
+/* ---------------------------------
 Roster Amendment
 --------------------------------- */
 

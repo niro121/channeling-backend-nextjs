@@ -18,15 +18,17 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
-import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  SAMPLE_ALLOCATION_STATUS_OPTIONS,
-  SAMPLE_ROSTER_AUDIT,
-  SAMPLE_ROSTER_SHIFT_TYPES,
-  shiftTypeIdFromCode,
-  type RosterStaffOption
-} from './sample-data';
+import type { ShiftTypeChip } from '@/types/roster';
 import type { RosterAllocationFormTarget } from './shift-roster-ui-context';
+
+type StaffOption = {
+  id: string;
+  name: string;
+  staffCode: string;
+  department: string;
+  unit: string;
+  designation: string;
+};
 
 export type RosterAllocationFormValues = {
   staffId: string;
@@ -44,7 +46,8 @@ export type RosterAllocationFormValues = {
 type SheetRosterAllocationFormProps = {
   open: boolean;
   target: RosterAllocationFormTarget;
-  staffOptions: RosterStaffOption[];
+  staffOptions: StaffOption[];
+  shiftTypes: ShiftTypeChip[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -53,6 +56,12 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm text-foreground font-semibold',
   inputClassName: 'w-full'
 };
+
+const STATUS_OPTIONS = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'published', name: 'Published' },
+  { id: 'amended', name: 'Amended' }
+];
 
 const validationSchema = Yup.object({
   staffId: Yup.string().required('Staff member is required'),
@@ -66,21 +75,25 @@ const validationSchema = Yup.object({
   comments: Yup.string().max(500, 'Must be less than 500 characters')
 });
 
-function hoursForShiftType(shiftTypeId: string): string {
-  const found = SAMPLE_ROSTER_SHIFT_TYPES.find((s) => s.id === shiftTypeId);
+function hoursForShiftType(
+  shiftTypeId: string,
+  shiftTypes: ShiftTypeChip[]
+): string {
+  const found = shiftTypes.find((s) => s.id === shiftTypeId);
   return found ? String(found.durationHours.toFixed(1)) : '0.0';
 }
 
 function buildInitialValues(
   target: RosterAllocationFormTarget,
-  staffOptions: RosterStaffOption[]
+  staffOptions: StaffOption[],
+  shiftTypes: ShiftTypeChip[]
 ): RosterAllocationFormValues {
-  const staffId = target.row?.id ?? '';
+  const staffId = target.row?.staffId ?? '';
   const staff =
     staffOptions.find((s) => s.id === staffId) ??
     (target.row
       ? {
-          id: target.row.id,
+          id: target.row.staffId,
           name: target.row.staffName,
           staffCode: target.row.staffCode,
           department: target.row.department,
@@ -89,9 +102,7 @@ function buildInitialValues(
         }
       : null);
 
-  const shiftTypeId = target.shift
-    ? shiftTypeIdFromCode(target.shift.code)
-    : '';
+  const shiftTypeId = target.shift?.shiftTypeId ?? '';
 
   return {
     staffId,
@@ -100,12 +111,12 @@ function buildInitialValues(
     unit: staff?.unit ?? '',
     designation: staff?.designation ?? '',
     rosterDate: target.dateIso ? parseISO(target.dateIso) : null,
-    totalHours: hoursForShiftType(shiftTypeId),
+    totalHours: hoursForShiftType(shiftTypeId, shiftTypes),
     otHours:
-      target.mode === 'edit' && target.row
-        ? String(target.row.otHours.toFixed(1))
+      target.mode === 'edit' && target.shift
+        ? String(target.shift.otHours.toFixed(1))
         : '0.0',
-    status: target.row?.status ?? 'draft',
+    status: target.shift?.status ?? 'draft',
     comments: ''
   };
 }
@@ -116,7 +127,7 @@ function AutoStaffMetaSync({
   setFieldValue
 }: {
   staffId: string;
-  staffOptions: RosterStaffOption[];
+  staffOptions: StaffOption[];
   setFieldValue: FormikProps<RosterAllocationFormValues>['setFieldValue'];
 }) {
   useEffect(() => {
@@ -132,13 +143,15 @@ function AutoStaffMetaSync({
 function AutoHoursSync({
   shiftTypeId,
   totalHours,
+  shiftTypes,
   setFieldValue
 }: {
   shiftTypeId: string;
   totalHours: string;
+  shiftTypes: ShiftTypeChip[];
   setFieldValue: FormikProps<RosterAllocationFormValues>['setFieldValue'];
 }) {
-  const next = hoursForShiftType(shiftTypeId);
+  const next = hoursForShiftType(shiftTypeId, shiftTypes);
 
   useEffect(() => {
     if (totalHours !== next) {
@@ -155,15 +168,21 @@ export default function SheetRosterAllocationForm({
   open,
   target,
   staffOptions,
+  shiftTypes,
   onOpenChange
 }: SheetRosterAllocationFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const mode = target.mode;
 
+  const shiftTypeOptions = useMemo(
+    () => shiftTypes.map((st) => ({ id: st.id, name: st.name })),
+    [shiftTypes]
+  );
+
   const initialValues = useMemo(
-    () => buildInitialValues(target, staffOptions),
-    [staffOptions, target]
+    () => buildInitialValues(target, staffOptions, shiftTypes),
+    [staffOptions, shiftTypes, target]
   );
 
   const title =
@@ -173,16 +192,6 @@ export default function SheetRosterAllocationForm({
       ? 'Update the record. All changes are captured in the audit trail.'
       : 'Create a new roster allocation for a staff member.';
   const saveLabel = mode === 'edit' ? 'Save Changes' : 'Save Allocation';
-
-  const showAudit = mode === 'edit' || !!target.row;
-  const auditCreatedBy = showAudit ? SAMPLE_ROSTER_AUDIT.createdBy : '—';
-  const auditCreatedAt = showAudit
-    ? formatAuditDateTime(SAMPLE_ROSTER_AUDIT.createdAt)
-    : '—';
-  const auditUpdatedBy = showAudit ? SAMPLE_ROSTER_AUDIT.updatedBy : '—';
-  const auditUpdatedAt = showAudit
-    ? formatAuditDateTime(SAMPLE_ROSTER_AUDIT.updatedAt)
-    : '—';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -222,6 +231,7 @@ export default function SheetRosterAllocationForm({
               <AutoHoursSync
                 shiftTypeId={formik.values.shiftTypeId}
                 totalHours={formik.values.totalHours}
+                shiftTypes={shiftTypes}
                 setFieldValue={formik.setFieldValue}
               />
 
@@ -244,7 +254,7 @@ export default function SheetRosterAllocationForm({
                       formik.setFieldValue('shiftTypeId', value)
                     }
                     required
-                    options={SAMPLE_ROSTER_SHIFT_TYPES}
+                    options={shiftTypeOptions}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -319,7 +329,7 @@ export default function SheetRosterAllocationForm({
                     value={formik.values.status}
                     onChange={(value) => formik.setFieldValue('status', value)}
                     required
-                    options={SAMPLE_ALLOCATION_STATUS_OPTIONS}
+                    options={STATUS_OPTIONS}
                     styleClasses={fieldStyleClasses}
                   />
                 </div>
@@ -334,17 +344,6 @@ export default function SheetRosterAllocationForm({
                   required={false}
                   styleClasses={fieldStyleClasses}
                 />
-
-                <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
-                  <p>
-                    Created by: {auditCreatedBy}
-                    {auditCreatedAt !== '—' ? ` · ${auditCreatedAt}` : null}
-                  </p>
-                  <p className="sm:text-right">
-                    Last updated: {auditUpdatedBy}
-                    {auditUpdatedAt !== '—' ? ` · ${auditUpdatedAt}` : null}
-                  </p>
-                </div>
               </div>
 
               <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">

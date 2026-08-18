@@ -4,14 +4,11 @@ import { useState } from 'react';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import {
-  findFirstAllocatedDay,
-  type RosterStaffRowSample
-} from './sample-data';
+import type { RosterStaffRow } from '@/types/roster';
 import { useShiftRosterUi } from './shift-roster-ui-context';
 
 type RosterRecordActionsProps = {
-  record: RosterStaffRowSample;
+  record: RosterStaffRow;
   dayIsos: string[];
 };
 
@@ -31,7 +28,7 @@ export default function RosterRecordActions({
   const canDelete = has('shift-roster', 'delete');
 
   const handleEdit = () => {
-    const dateIso = findFirstAllocatedDay(record, dayIsos);
+    const dateIso = dayIsos.find((d) => record.shifts[d] != null);
     if (!dateIso) {
       toast({
         title: 'No shift allocated this week',
