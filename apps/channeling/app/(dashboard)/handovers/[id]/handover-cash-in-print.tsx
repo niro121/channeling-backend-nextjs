@@ -414,6 +414,9 @@ export function HandoverCashInPrint({
           <p className="font-bold tracking-wide">HANDOVER REPORT</p>
           <p className="tabular-nums font-semibold">{billNo}</p>
         </div>
+        <p className="text-center font-bold tracking-wide text-[13px] mb-1">
+          {handoverStatusLabel(handover.status).toUpperCase()}
+        </p>
         <div className="mb-2">
           <PrintGrid
             template="1.1fr 0.8fr 1.6fr"

@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 import { useSession } from "next-auth/react"
 import { formatCents } from "@/lib/format-money"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS } from "@/types/float-request"
+import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts, CashierSummaryIncludedShift } from "@/types/report"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
@@ -30,6 +31,7 @@ type EnteredBreakdown = {
 type SummaryHandover = {
   id: string
   createdAt: Date | string
+  status?: number
   handoverNoString?: string | null
   cashCents: number
   cardCents: number
@@ -111,6 +113,14 @@ function parseBreakdown(raw: unknown): EnteredBreakdown | null {
 
 function sumSummaryRupees(t: CashierSummaryPaymentAmounts): number {
   return t.cash + t.creditCard + t.slip + t.cheque + t.agent + t.agentCredit + t.eWallet
+}
+
+function handoverStatusLabel(status: number | undefined): string {
+  if (status === HANDOVER_STATUS.APPROVED) return "Approved"
+  if (status === HANDOVER_STATUS.REJECTED) return "Rejected"
+  if (status === HANDOVER_STATUS.CANCELLED) return "Cancelled"
+  if (status === HANDOVER_STATUS.PENDING) return "Pending"
+  return "—"
 }
 
 type PrintCell = {
@@ -216,6 +226,8 @@ export function HandoverSummaryPrint({
     window.addEventListener("beforeprint", stamp)
     return () => window.removeEventListener("beforeprint", stamp)
   }, [])
+
+  const reportStatus = handoverStatusLabel(handover.status)
 
   const fromLabel = personLabel(handover.fromUser)
   const toLabel = personLabel(handover.toUser)
@@ -355,6 +367,9 @@ export function HandoverSummaryPrint({
       `}</style>
       <div className="handover-summary-print text-black bg-white font-mono text-[8px] leading-tight">
         <p className="text-center font-bold tracking-wide text-[11px] mb-1">HAND OVER REPORT</p>
+        <p className="text-center font-bold tracking-wide text-[13px] mb-1.5">
+          {reportStatus.toUpperCase()}
+        </p>
         <div className="mb-1.5 space-y-0">
           <p>
             <span className="inline-block w-[4.6rem]">BILL NO</span>: {billNo}
@@ -388,7 +403,7 @@ export function HandoverSummaryPrint({
                 { text: row.billNo, nowrap: true },
                 { text: row.date, nowrap: true },
                 { text: row.from },
-                { text: formatCents(row.valueCents), align: "right", nowrap: true },
+                { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
               ])}
             />
           </div>
@@ -409,7 +424,7 @@ export function HandoverSummaryPrint({
                 { text: row.billNo, nowrap: true },
                 { text: row.date, nowrap: true },
                 { text: row.to },
-                { text: formatCents(row.valueCents), align: "right", nowrap: true },
+                { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
               ])}
             />
           </div>
@@ -433,7 +448,7 @@ export function HandoverSummaryPrint({
               { text: row.to, nowrap: true },
               {
                 text: row.valueCents > 0 ? formatCents(row.valueCents) : "",
-                align: "right",
+                align: "right" as const,
                 nowrap: true,
               },
             ])}
@@ -497,7 +512,7 @@ export function HandoverSummaryPrint({
                   { text: row.name, nowrap: true },
                   { text: row.date, nowrap: true },
                   { text: row.detail, nowrap: true },
-                  { text: formatCents(row.valueCents), align: "right", nowrap: true },
+                  { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
                 ]),
                 [
                   { text: "TOTAL", span: 3, bold: true },
