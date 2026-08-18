@@ -20,6 +20,7 @@ import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/
 import { z } from "zod"
 import { normalizedIncludedIds } from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
+import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 
 const CLOSED_HANDOVER_STATUSES = [
   HANDOVER_STATUS.APPROVED,
@@ -265,6 +266,11 @@ export async function processShiftHandover(
     willSet: !!dataIncludedHandoverIds,
   })
 
+  const documentNumber = await allocateHandoverDocumentNumber(shift.locationId ?? null)
+  if (!documentNumber) {
+    return { success: false, error: "Could not allocate a handover document number. Please try again." }
+  }
+
   // 1) Save previous handover ids on the NEW handover (includedHandoverIds)
   const handover = await prisma.shiftHandover.create({
     data: {
@@ -282,6 +288,8 @@ export async function processShiftHandover(
       discrepancyReason: parsed.data.discrepancyReason?.trim() || null,
       enteredBreakdown: enteredBreakdown != null ? (enteredBreakdown as object) : undefined,
       includedHandoverIds: dataIncludedHandoverIds,
+      handoverNo: documentNumber.handoverNo,
+      handoverNoString: documentNumber.handoverNoString,
     },
   })
 
@@ -807,22 +815,32 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
 
 /** Single handover detail for the recipient (toUserId). Any status is allowed for history/view; approve/reject UI only applies to PENDING. */
 export async function getHandoverByIdForRecipient(handoverId: string, toUserId: string) {
-  return prisma.shiftHandover.findFirst({
+  const handover = await prisma.shiftHandover.findFirst({
     where: { id: handoverId, toUserId },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      journal: { select: { journalNumber: true } },
       shift: {
         select: {
           id: true,
           startedAt: true,
           endedAt: true,
           userId: true,
+          locationId: true,
           location: { select: { name: true, code: true } },
           user: { select: { id: true, name: true } },
         },
       },
     },
   })
+  if (!handover) return null
+  const existingNo = (handover as { handoverNoString?: string | null }).handoverNoString
+  if (existingNo) return handover
+
+  const assigned = await ensureHandoverDocumentNumber(handover.id, handover.shift?.locationId ?? null)
+  if (!assigned) return handover
+  return { ...handover, handoverNoString: assigned }
 }
 
 /**
@@ -1052,7 +1070,7 @@ const includedHandoverSelect = {
   fromUserId: true,
   fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
   shiftId: true,
-  shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
+  shift: { select: { id: true, startedAt: true, userId: true, locationId: true, user: { select: { id: true, name: true } } } },
   cashCents: true,
   cardCents: true,
   slipCents: true,
@@ -1061,6 +1079,7 @@ const includedHandoverSelect = {
   eWalletCents: true,
   totalCents: true,
   createdAt: true,
+  handoverNoString: true,
   includedHandoverIds: true,
   enteredBreakdown: true,
 } as const
@@ -1108,6 +1127,45 @@ export async function getHandoversByForwardedTo(topLevelHandoverId: string) {
     orderBy: { createdAt: "asc" },
     select: includedHandoverSelect,
   })
+}
+
+/**
+ * Previous handovers associated with this handover only:
+ * included on submit, forwarded to this record, or received into the same shift.
+ */
+export async function getPreviousHandoversForHandoverDetail(params: {
+  handoverId: string
+  shiftId: string
+  includedHandoverIds: unknown
+}): Promise<IncludedHandoverForDisplay[]> {
+  const [byIds, byForwarded, receivedOnShift] = await Promise.all([
+    getIncludedHandoversChain(params.includedHandoverIds),
+    getHandoversByForwardedTo(params.handoverId),
+    prisma.shiftHandover.findMany({
+      where: {
+        toShiftId: params.shiftId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: { ...includedHandoverSelect, status: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ])
+
+  const byId = new Map<string, IncludedHandoverForDisplay>()
+  for (const h of byIds) byId.set(h.id, h)
+  for (const h of byForwarded) byId.set(h.id, h)
+  for (const h of receivedOnShift) {
+    if (h.id === params.handoverId) continue
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    const { status: _s, ...rest } = h
+    if (!byId.has(rest.id)) byId.set(rest.id, rest)
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
 }
 
 /** Recursively load full chain of handovers that were forwarded into the given top-level id (order: oldest first). */

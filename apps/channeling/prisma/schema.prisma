@@ -559,11 +559,14 @@ model FloatRequest {
   journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
+  floatNo                Int?
+  floatNoString          String?
 
   @@index([bulkCashierId, status])
   @@index([requestedById])
   @@index([status])
   @@index([toTillId])
+  @@index([floatNoString])
 }
 
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
@@ -603,6 +606,8 @@ model ShiftHandover {
   cancelledAt            DateTime?
   cancelledBy            String?        @db.ObjectId
   createdAt              DateTime       @default(now())
+  handoverNo             Int?
+  handoverNoString       String?
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
   // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
@@ -623,6 +628,7 @@ model ShiftHandover {
   @@index([toShiftId])
   @@index([forwardedToHandoverId])
   @@index([nonCashReconciledAt])
+  @@index([handoverNoString])
   @@index([reconciliationStatus])
   @@index([reconciliationRejectedAt])
   @@index([reconciliationAssignedToUserId])
