@@ -7,8 +7,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
+**D2:** Shift Types CRUD is live on `/shift-types` (`SHF-n`, Search, Save/Update/Delete/Duplicate).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D2 Shift Types CRUD**.
+Pages must not call Prisma. No business rules in components. Next: **D3 Shift Assignment CRUD**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1069,8 +1070,8 @@ Phase 0: Static UI (done)
 
 | Done when |
 |-----------|
-| [ ] Create appears in register as Active/Inactive |
-| [ ] Edit loads form; delete removes row (or soft-status if locked) |
+| [x] Create appears in register as Active/Inactive |
+| [x] Edit loads form; delete removes row (or soft-status if locked) |
 
 ### Shift Types — D2 follow-ons (summary)
 
@@ -1334,8 +1335,8 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 
 | Done when |
 |-----------|
-| [ ] Create appears in register as Active/Inactive |
-| [ ] Edit loads form; delete refuses when allocations or assignments reference the type |
+| [x] Create appears in register as Active/Inactive |
+| [x] Edit loads form; delete refuses when allocations or assignments reference the type |
 
 ---
 

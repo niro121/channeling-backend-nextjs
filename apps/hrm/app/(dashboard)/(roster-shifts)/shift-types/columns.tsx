@@ -5,7 +5,7 @@ import { Badge, Checkbox } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
 import ShiftTypeRecordActions from './record-actions';
-import type { ShiftTypeSample } from './sample-data';
+import type { ShiftTypeRecord } from '@/types/roster';
 
 function YesNoBadge({ value }: { value: boolean }) {
   return (
@@ -23,7 +23,7 @@ function YesNoBadge({ value }: { value: boolean }) {
   );
 }
 
-export const shiftTypeColumns: ColumnDef<ShiftTypeSample>[] = [
+export const shiftTypeColumns: ColumnDef<ShiftTypeRecord>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -130,7 +130,7 @@ export const shiftTypeColumns: ColumnDef<ShiftTypeSample>[] = [
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">{row.original.updatedUser?.name || '—'}</span>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -142,7 +142,7 @@ export const shiftTypeColumns: ColumnDef<ShiftTypeSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">{row.original.createdUser?.name || '—'}</span>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDateTime(row.original.createdAt)}
         </span>

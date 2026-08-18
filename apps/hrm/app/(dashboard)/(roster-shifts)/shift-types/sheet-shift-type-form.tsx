@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Form, Formik, type FormikProps } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import {
   Button,
@@ -18,34 +19,26 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { calcTotalWorkingHours } from '@/lib/helpers/shift-duration';
 import {
-  calcTotalWorkingHours,
-  SAMPLE_SHIFT_CATEGORIES,
-  type ShiftTypeSample
-} from './sample-data';
+  shiftTypeFormValuesToPayload,
+  shiftTypeRecordToFormValues
+} from '@/lib/mappers/shift-type-form.mapper';
+import {
+  createShiftTypeAction,
+  updateShiftTypeAction
+} from '@/app/actions/roster-actions/shift-type.actions';
+import {
+  SHIFT_TYPE_CATEGORY_OPTIONS,
+  type ShiftTypeFormValues,
+  type ShiftTypeRecord
+} from '@/types/roster';
 import type { ShiftTypeFormSheetMode } from './shift-types-ui-context';
-
-export type ShiftTypeFormValues = {
-  code: string;
-  name: string;
-  categoryId: string;
-  startTime: string;
-  endTime: string;
-  breakMinutes: string;
-  durationHours: string;
-  graceMinutes: string;
-  lateThresholdMinutes: string;
-  earlyExitThresholdMinutes: string;
-  isOvernight: boolean;
-  isNightShift: boolean;
-  holidayEligible: boolean;
-  isActive: boolean;
-};
 
 type SheetShiftTypeFormProps = {
   open: boolean;
   mode: ShiftTypeFormSheetMode;
-  sample: ShiftTypeSample | null;
+  record: ShiftTypeRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -127,30 +120,6 @@ const validationSchema = Yup.object({
     .required('Early exit threshold is required')
 });
 
-function sampleToFormValues(
-  sample: ShiftTypeSample,
-  mode: ShiftTypeFormSheetMode
-): ShiftTypeFormValues {
-  const categoryId =
-    SAMPLE_SHIFT_CATEGORIES.find((c) => c.name === sample.category)?.id ?? '';
-  return {
-    code: mode === 'duplicate' ? '' : sample.code,
-    name: mode === 'duplicate' ? `Copy of ${sample.name}` : sample.name,
-    categoryId,
-    startTime: sample.startTime,
-    endTime: sample.endTime,
-    breakMinutes: String(sample.breakMinutes),
-    durationHours: String(sample.durationHours),
-    graceMinutes: String(sample.graceMinutes),
-    lateThresholdMinutes: String(sample.lateThresholdMinutes),
-    earlyExitThresholdMinutes: String(sample.earlyExitThresholdMinutes),
-    isOvernight: sample.isOvernight,
-    isNightShift: sample.isNightShift,
-    holidayEligible: sample.holidayEligible,
-    isActive: sample.status === 'active'
-  };
-}
-
 function sheetCopy(mode: ShiftTypeFormSheetMode) {
   if (mode === 'edit') {
     return {
@@ -213,21 +182,47 @@ function AutoDurationSync({
   return null;
 }
 
-const LATER = 'Will be wired in a later phase.';
+function applyFieldErrors(
+  errorMap: Record<string, string | string[] | undefined> | undefined,
+  setErrors: FormikHelpers<ShiftTypeFormValues>['setErrors'],
+  setTouched: FormikHelpers<ShiftTypeFormValues>['setTouched']
+) {
+  const fieldErrors: Record<string, string> = {};
+  Object.keys(errorMap ?? {}).forEach((key) => {
+    if (key === 'message') return;
+    const mappedKey = key === 'category' ? 'categoryId' : key;
+    const err = errorMap?.[key];
+    const msg = Array.isArray(err) ? err[0] : err;
+    if (msg) fieldErrors[mappedKey] = msg;
+  });
+  if (Object.keys(fieldErrors).length > 0) {
+    setErrors(fieldErrors);
+    setTouched(
+      Object.keys(fieldErrors).reduce(
+        (acc, key) => ({ ...acc, [key]: true }),
+        {} as Record<string, boolean>
+      )
+    );
+  }
+  return (errorMap?.message as string) ?? undefined;
+}
 
 export default function SheetShiftTypeForm({
   open,
   mode,
-  sample,
+  record,
   onOpenChange
 }: SheetShiftTypeFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const copy = sheetCopy(mode);
 
   const initialValues = useMemo(() => {
-    if (sample && (mode === 'edit' || mode === 'duplicate')) {
-      return sampleToFormValues(sample, mode);
+    if (record && (mode === 'edit' || mode === 'duplicate')) {
+      return shiftTypeRecordToFormValues(record, {
+        duplicate: mode === 'duplicate'
+      });
     }
     return {
       ...emptyValues,
@@ -240,14 +235,16 @@ export default function SheetShiftTypeForm({
         )
       )
     };
-  }, [mode, sample]);
+  }, [mode, record]);
 
-  const auditCreatedBy = mode === 'add' ? '—' : (sample?.createdBy ?? '—');
+  const auditCreatedBy =
+    mode === 'add' ? '—' : (record?.createdUser?.name ?? '—');
   const auditCreatedAt =
-    mode === 'add' ? '—' : formatAuditDateTime(sample?.createdAt);
-  const auditUpdatedBy = mode === 'add' ? '—' : (sample?.updatedBy ?? '—');
+    mode === 'add' ? '—' : formatAuditDateTime(record?.createdAt);
+  const auditUpdatedBy =
+    mode === 'add' ? '—' : (record?.updatedUser?.name ?? '—');
   const auditUpdatedAt =
-    mode === 'add' ? '—' : formatAuditDateTime(sample?.updatedAt);
+    mode === 'add' ? '—' : formatAuditDateTime(record?.updatedAt);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -264,19 +261,57 @@ export default function SheetShiftTypeForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
-            setLoading(true);
-            toast({
-              title:
-                mode === 'edit'
-                  ? 'Update shift type'
-                  : mode === 'duplicate'
-                    ? 'Duplicate shift type'
-                    : 'Create shift type',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
+          onSubmit={async (values, helpers) => {
+            const mapped = shiftTypeFormValuesToPayload(values);
+            try {
+              setLoading(true);
+              const respond =
+                mode === 'edit' && record?.id
+                  ? await updateShiftTypeAction(record.id, mapped)
+                  : await createShiftTypeAction(mapped);
+
+              if (respond?.isError) {
+                const errorMap = respond.errors as Record<
+                  string,
+                  string | string[] | undefined
+                >;
+                const message = applyFieldErrors(
+                  errorMap,
+                  helpers.setErrors,
+                  helpers.setTouched
+                );
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description: message ?? 'Shift type could not be saved.'
+                });
+                return;
+              }
+
+              toast({
+                variant: 'success',
+                title: 'Success',
+                description:
+                  mode === 'edit'
+                    ? 'Shift type updated.'
+                    : mode === 'duplicate'
+                      ? 'Shift type duplicated.'
+                      : 'Shift type created.'
+              });
+              onOpenChange(false);
+              router.refresh();
+            } catch (error: unknown) {
+              toast({
+                variant: 'destructive',
+                title: 'Error',
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : 'Shift type could not be saved.'
+              });
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {(formik) => (
@@ -324,7 +359,7 @@ export default function SheetShiftTypeForm({
                       formik.setFieldValue('categoryId', value)
                     }
                     required
-                    options={SAMPLE_SHIFT_CATEGORIES}
+                    options={SHIFT_TYPE_CATEGORY_OPTIONS}
                     styleClasses={fieldStyleClasses}
                   />
                   <div className="hidden sm:block" aria-hidden />

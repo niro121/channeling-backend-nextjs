@@ -79,6 +79,22 @@ export type RosterFilterOption = {
   name: string;
 };
 
+export const SHIFT_TYPE_CATEGORY_OPTIONS: RosterFilterOption[] =
+  SHIFT_TYPE_CATEGORIES.map((name) => ({
+    id: name.toLowerCase(),
+    name
+  }));
+
+export const SHIFT_TYPE_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'active', name: 'Active' },
+  { id: 'inactive', name: 'Inactive' }
+];
+
+export const ROSTER_YES_NO_OPTIONS: RosterFilterOption[] = [
+  { id: 'yes', name: 'Yes' },
+  { id: 'no', name: 'No' }
+];
+
 export type RosterAuditFields = {
   createdAt: string;
   updatedAt: string;
@@ -132,11 +148,46 @@ export type GetShiftTypesParams = {
   page?: string;
   limit?: string;
   search?: string;
+  code?: string;
+  name?: string;
   category?: string;
   status?: string;
   nightShift?: string;
   overnight?: string;
   holidayEligible?: string;
+};
+
+export type ShiftTypeFormValues = {
+  code: string;
+  name: string;
+  categoryId: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: string;
+  durationHours: string;
+  graceMinutes: string;
+  lateThresholdMinutes: string;
+  earlyExitThresholdMinutes: string;
+  isOvernight: boolean;
+  isNightShift: boolean;
+  holidayEligible: boolean;
+  isActive: boolean;
+};
+
+export type ShiftTypeSummary = {
+  total: number;
+  categories: number;
+  active: number;
+  nightOrOvernight: number;
+  holidayEligible: number;
+};
+
+export type ShiftTypeHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
 };
 
 /* ---------------------------------

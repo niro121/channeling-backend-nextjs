@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { Copy, Zap } from 'lucide-react';
 import { Button, useToast } from '@archmage/ui';
+import { useRouter } from 'next/navigation';
 import {
   CommonDataTable,
   DataTableBulkDeleteFeature,
@@ -10,29 +11,46 @@ import {
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import {
+  bulkActivateShiftTypesAction,
+  bulkDeleteShiftTypesAction
+} from '@/app/actions/roster-actions/shift-type.actions';
+import type { ShiftTypeRecord } from '@/types/roster';
 import { shiftTypeColumns } from './columns';
-import type { ShiftTypeSample } from './sample-data';
 import { useShiftTypesUi } from './shift-types-ui-context';
 
 type SectionShiftTypeRegisterProps = {
-  items: ShiftTypeSample[];
+  items: ShiftTypeRecord[];
+  totalRecords: number;
+  page?: string;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 function RegisterToolbarLeft() {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openDuplicate } = useShiftTypesUi();
   const { table, rowSelection } = useCommonDataTableContext();
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
 
-  const handleDuplicate = () => {
+  const selectedRecords = () => {
     const selectedKeys = Object.keys(rowSelection).filter(
       (key) => rowSelection[key]
     );
-    if (selectedKeys.length !== 1) {
+    return selectedKeys.map(
+      (key) => table.getRow(key).original as ShiftTypeRecord
+    );
+  };
+
+  const handleDuplicate = () => {
+    const selected = selectedRecords();
+    if (selected.length !== 1) {
       toast({
         title: 'Select one shift type',
         description:
@@ -40,8 +58,39 @@ function RegisterToolbarLeft() {
       });
       return;
     }
-    const row = table.getRow(selectedKeys[0]).original as ShiftTypeSample;
-    openDuplicate(row);
+    openDuplicate(selected[0]);
+  };
+
+  const handleBulkActivate = async () => {
+    const selected = selectedRecords();
+    if (selected.length === 0) {
+      toast({
+        title: 'Select shift types',
+        description: 'Select one or more rows, then click Bulk Activate.'
+      });
+      return;
+    }
+
+    const result = await bulkActivateShiftTypesAction(
+      selected.map((row) => row.id)
+    );
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Could not activate shift types.'
+      });
+      return;
+    }
+
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: `${result.data?.count ?? selected.length} shift type(s) activated.`
+    });
+    router.refresh();
   };
 
   return (
@@ -63,9 +112,9 @@ function RegisterToolbarLeft() {
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() =>
-              toast({ title: 'Bulk Activate', description: LATER })
-            }
+            onClick={() => {
+              void handleBulkActivate();
+            }}
           >
             <Zap className="h-3.5 w-3.5" />
             Bulk Activate
@@ -78,12 +127,14 @@ function RegisterToolbarLeft() {
 }
 
 export default function SectionShiftTypeRegister({
-  items
+  items,
+  totalRecords,
+  page,
+  onExport
 }: SectionShiftTypeRegisterProps) {
   const { has } = usePermissions();
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
-  // Selection powers Duplicate (edit) and Bulk Delete — enable when either applies.
   const enableRowSelection = canEdit || canDelete;
 
   return (
@@ -99,41 +150,20 @@ export default function SectionShiftTypeRegister({
         subHeading="Master shift definitions available for roster allocation."
         columns={shiftTypeColumns}
         data={items}
-        rowCount={items.length}
+        rowCount={totalRecords}
+        page={page}
         showPagination
         haveBulkDelete={enableRowSelection}
-        deleteServerAction={async (ids) => {
-          throw new Error(
-            `${ids.length} shift type${ids.length === 1 ? '' : 's'} selected. Bulk delete will be wired in a later phase.`
-          );
-        }}
+        deleteServerAction={bulkDeleteShiftTypesAction}
         getBulkDeleteDescription={async (ids) =>
-          `This will permanently delete ${ids.length} shift type${ids.length === 1 ? '' : 's'}. Saving is wired in a later phase.`
+          `This will permanently delete ${ids.length} shift type${ids.length === 1 ? '' : 's'}. Types used by assignments or allocations cannot be deleted.`
         }
         toolbarLeft={<RegisterToolbarLeft />}
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                code: row.code,
-                name: row.name,
-                category: row.category,
-                startTime: row.startTime,
-                endTime: row.endTime,
-                durationHours: row.durationHours,
-                nightShift: row.isNightShift ? 'Yes' : 'No',
-                overnight: row.isOvernight ? 'Yes' : 'No',
-                holidayEligible: row.holidayEligible ? 'Yes' : 'No',
-                status: row.status,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
+            serverData={onExport}
             columns={[
               'Shift Code',
               'Shift Name',

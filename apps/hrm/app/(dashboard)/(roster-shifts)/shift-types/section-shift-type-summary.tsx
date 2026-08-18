@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Clock, Moon, ShieldCheck, Sun } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { ShiftTypeSummarySample } from './sample-data';
+import type { ShiftTypeSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +12,7 @@ type SummaryCard = {
 };
 
 type SectionShiftTypeSummaryProps = {
-  summary: ShiftTypeSummarySample;
+  summary: ShiftTypeSummary;
 };
 
 export default function SectionShiftTypeSummary({

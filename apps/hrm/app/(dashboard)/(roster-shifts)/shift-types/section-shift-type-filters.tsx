@@ -11,7 +11,7 @@ import {
   Input,
   Label
 } from '@archmage/ui';
-import type { ShiftTypeFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type ShiftTypeFilterValues = {
   code: string;
@@ -24,9 +24,9 @@ export type ShiftTypeFilterValues = {
 
 type SectionShiftTypeFiltersProps = {
   values: ShiftTypeFilterValues;
-  categoryOptions: ShiftTypeFilterOption[];
-  yesNoOptions: ShiftTypeFilterOption[];
-  statusOptions: ShiftTypeFilterOption[];
+  categoryOptions: RosterFilterOption[];
+  yesNoOptions: RosterFilterOption[];
+  statusOptions: RosterFilterOption[];
   onChange: (next: Partial<ShiftTypeFilterValues>) => void;
   onSearch: () => void;
   onClear: () => void;

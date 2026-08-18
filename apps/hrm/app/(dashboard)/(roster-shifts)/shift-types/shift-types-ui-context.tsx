@@ -8,22 +8,22 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { ShiftTypeSample } from './sample-data';
+import type { ShiftTypeRecord } from '@/types/roster';
 
 export type ShiftTypeFormSheetMode = 'add' | 'edit' | 'duplicate';
 
 type FormSheetState = {
   mode: ShiftTypeFormSheetMode;
-  record: ShiftTypeSample | null;
+  record: ShiftTypeRecord | null;
 };
 
 type ShiftTypesUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: ShiftTypeSample | null;
+  historyRecord: ShiftTypeRecord | null;
   openAdd: () => void;
-  openEdit: (record: ShiftTypeSample) => void;
-  openDuplicate: (record: ShiftTypeSample) => void;
-  openHistory: (record: ShiftTypeSample) => void;
+  openEdit: (record: ShiftTypeRecord) => void;
+  openDuplicate: (record: ShiftTypeRecord) => void;
+  openHistory: (record: ShiftTypeRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -34,7 +34,7 @@ const ShiftTypesUiContext = createContext<ShiftTypesUiContextValue | null>(
 
 export function ShiftTypesUiProvider({ children }: { children: ReactNode }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
-  const [historyRecord, setHistoryRecord] = useState<ShiftTypeSample | null>(
+  const [historyRecord, setHistoryRecord] = useState<ShiftTypeRecord | null>(
     null
   );
 
@@ -42,15 +42,15 @@ export function ShiftTypesUiProvider({ children }: { children: ReactNode }) {
     setFormSheet({ mode: 'add', record: null });
   }, []);
 
-  const openEdit = useCallback((record: ShiftTypeSample) => {
+  const openEdit = useCallback((record: ShiftTypeRecord) => {
     setFormSheet({ mode: 'edit', record });
   }, []);
 
-  const openDuplicate = useCallback((record: ShiftTypeSample) => {
+  const openDuplicate = useCallback((record: ShiftTypeRecord) => {
     setFormSheet({ mode: 'duplicate', record });
   }, []);
 
-  const openHistory = useCallback((record: ShiftTypeSample) => {
+  const openHistory = useCallback((record: ShiftTypeRecord) => {
     setHistoryRecord(record);
   }, []);
 
