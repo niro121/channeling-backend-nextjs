@@ -230,6 +230,7 @@ export async function getShiftById(id: string) {
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          floatNoString: true,
           status: true,
           amountRequested: true,
           requestedById: true,

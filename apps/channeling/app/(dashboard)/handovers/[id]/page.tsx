@@ -31,7 +31,7 @@ import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
 } from "@/lib/handover-utils"
-import { formatDenomLabel } from "@/types/float-request"
+import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
 import type { CashierSummaryReportSection } from "@/types/report"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -51,6 +51,7 @@ import {
   Printer,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
+import { HandoverCashInPrint } from "./handover-cash-in-print"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { FileCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -101,7 +102,12 @@ function formatDateTime(value: Date | string | null | undefined): string {
   if (!value) return "—"
   const d = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+  const dd = String(d.getDate()).padStart(2, "0")
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const yyyy = d.getFullYear()
+  const hh = String(d.getHours()).padStart(2, "0")
+  const min = String(d.getMinutes()).padStart(2, "0")
+  return `${dd}-${mm}-${yyyy} ${hh}:${min}`
 }
 
 function denomSummary(entries: { value: number; count: number }[] | null | undefined): string {
@@ -112,13 +118,87 @@ function denomSummary(entries: { value: number; count: number }[] | null | undef
   return parts.length > 0 ? parts.join(", ") : "—"
 }
 
+function parseEnteredBreakdown(raw: unknown): EnteredBreakdown | null {
+  if (raw == null) return null
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as EnteredBreakdown
+    } catch {
+      return null
+    }
+  }
+  return raw as EnteredBreakdown
+}
+
+function handoverBreakdownSummary(raw: unknown): string {
+  const b = parseEnteredBreakdown(raw)
+  if (!b) return "—"
+  const parts: string[] = []
+  const cash = (b.cashDenominations ?? []).filter((d) => d.count > 0)
+  if (cash.length) parts.push(`Cash ${denomSummary(cash)}`)
+  const entryGroups: { label: string; entries?: { reference: string; amountCents: number }[] }[] = [
+    { label: "Card", entries: b.cardEntries },
+    { label: "Slips", entries: b.slipEntries },
+    { label: "Cheques", entries: b.checkEntries },
+    { label: "Credit", entries: b.creditEntries },
+    { label: "E-Wallet", entries: b.eWalletEntries },
+  ]
+  for (const g of entryGroups) {
+    const entries = (g.entries ?? []).filter((e) => (e.amountCents ?? 0) > 0 || (e.reference ?? "").trim())
+    if (!entries.length) continue
+    parts.push(
+      `${g.label} ${entries.map((e) => `${e.reference || "—"} ${formatCents(e.amountCents)}`).join("; ")}`
+    )
+  }
+  return parts.length > 0 ? parts.join(" · ") : "—"
+}
+
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-md bg-muted/40 px-3 py-2.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold leading-snug break-words">{value}</p>
-    </div>
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 text-sm">
+      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="font-medium leading-tight break-words">{value}</span>
+    </span>
   )
+}
+
+const tableGrid =
+  "border-collapse text-xs [&_th]:border-r [&_th]:border-border [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-border [&_td:last-child]:border-r-0"
+const thCompact = "h-8 px-2 py-1 text-xs"
+const tdCompact = "px-2 py-1.5 text-xs"
+
+type BreakdownLine = { id: string; method: string; detail: string; amountLabel: string }
+
+function flattenBreakdownLines(breakdown: EnteredBreakdown | null | undefined): BreakdownLine[] {
+  if (!breakdown) return []
+  const lines: BreakdownLine[] = []
+  ;(breakdown.cashDenominations ?? []).forEach((d, i) => {
+    lines.push({
+      id: `cash-${d.value}-${i}`,
+      method: "Cash",
+      detail: `${formatDenomLabel(d.value)} × ${d.count}`,
+      amountLabel: (d.value * d.count).toFixed(2),
+    })
+  })
+  ;(
+    [
+      ["card", breakdown.cardEntries, "Card"],
+      ["slip", breakdown.slipEntries, "Slips"],
+      ["check", breakdown.checkEntries, "Cheques"],
+      ["credit", breakdown.creditEntries, "Credit"],
+      ["eWallet", breakdown.eWalletEntries, "E-Wallet"],
+    ] as const
+  ).forEach(([key, entries, label]) => {
+    ;(entries ?? []).forEach((e, i) => {
+      lines.push({
+        id: `${key}-${i}`,
+        method: label,
+        detail: e.reference || "—",
+        amountLabel: (e.amountCents / 100).toFixed(2),
+      })
+    })
+  })
+  return lines
 }
 
 /** Shape of each item in data.includedHandovers (linked handovers in the chain). */
@@ -127,7 +207,16 @@ type IncludedHandoverRow = {
   fromUserId: string
   fromUser: { name: string | null; staff?: { code: string } | null } | null
   shift?: { startedAt?: Date | string } | null
+  createdAt?: Date | string
+  handoverNoString?: string | null
   totalCents: number
+  cashCents?: number
+  cardCents?: number
+  slipCents?: number
+  checkCents?: number
+  creditCents?: number
+  eWalletCents?: number
+  enteredBreakdown?: unknown
 }
 
 export default function HandoverDetailPage() {
@@ -418,9 +507,17 @@ export default function HandoverDetailPage() {
           : "Completed"
 
   return (
-    <div className="space-y-6 print:space-y-4">
+    <>
+      <HandoverCashInPrint
+        handover={handover}
+        receivedFloats={data.receivedFloats ?? []}
+        includedHandovers={includedHandovers}
+        cashierSummary={data.cashierSummary}
+        tillBreakdown={tillBreakdown}
+      />
+    <div className="handover-screen space-y-3 print:hidden">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
-      <div className="sticky top-14 z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-3 bg-background border-b border-border print:hidden">
+      <div className="sticky top-14 z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2 bg-background border-b border-border print:hidden">
         <BackButton href="/handovers" />
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => window.print()}>
@@ -481,17 +578,17 @@ export default function HandoverDetailPage() {
       </div>
 
       {/* Who, when, how much — labeled so each fact is easy to scan */}
-      <Card className="border-2 print:shadow-none print:break-inside-avoid">
-        <CardContent className="pt-6 space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="print:shadow-none print:break-inside-avoid">
+        <CardContent className="p-3 space-y-2.5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
-              <p className="text-2xl font-semibold tracking-tight mt-1">{fromUserLabel(handover.fromUser)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
+              <p className="text-lg font-semibold tracking-tight leading-tight">{fromUserLabel(handover.fromUser)}</p>
             </div>
             {!isPending && (
-              <div
+              <span
                 className={cn(
-                  "shrink-0 self-start rounded-lg border-2 px-4 py-2.5 text-center sm:min-w-[9rem]",
+                  "shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold",
                   isApproved &&
                     "border-emerald-600 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200",
                   isRejected &&
@@ -501,20 +598,20 @@ export default function HandoverDetailPage() {
                     "border-muted-foreground/40 bg-muted text-muted-foreground"
                 )}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Status</p>
-                <p className="text-2xl font-bold leading-tight tracking-tight">{statusLabel}</p>
-              </div>
+                {statusLabel}
+              </span>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
             <Fact label="Location" value={shiftLocationLabel} />
+            <Fact label="Bill No" value={handover.handoverNoString ?? "—"} />
             <Fact label="Shift started" value={formatDateTime(handover.shift?.startedAt)} />
             <Fact label="Handed over" value={formatDateTime(handover.createdAt)} />
             {isApproved ? (
               <>
-                <Fact label="Approved at" value={formatDateTime(handover.approvedAt)} />
-                <Fact label="Approved by" value={fromUserLabel(data.approvedByUser)} />
+                <Fact label="Approved" value={formatDateTime(handover.approvedAt)} />
+                <Fact label="By" value={fromUserLabel(data.approvedByUser)} />
                 {isInReconciliation ? (
                   <Fact label="Reconciler" value={assignedUserLabel ?? "—"} />
                 ) : null}
@@ -522,207 +619,198 @@ export default function HandoverDetailPage() {
             ) : null}
             {isRejected ? (
               <>
-                <Fact label="Rejected at" value={formatDateTime(handover.rejectedAt)} />
-                <Fact label="Rejected by" value={fromUserLabel(data.rejectedByUser)} />
+                <Fact label="Rejected" value={formatDateTime(handover.rejectedAt)} />
+                <Fact label="By" value={fromUserLabel(data.rejectedByUser)} />
               </>
             ) : null}
           </div>
 
           {(isApproved && handover.approvalComments?.trim()) ||
           (isRejected && handover.rejectReason?.trim()) ||
-          handover.discrepancyReason?.trim() ? (
-            <div className="space-y-2">
+          (!isPending && handover.discrepancyReason?.trim()) ? (
+            <div className="space-y-1 text-sm">
               {isApproved && handover.approvalComments?.trim() ? (
-                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Approval comments</p>
-                  <p className="mt-1 text-sm leading-relaxed">{handover.approvalComments.trim()}</p>
-                </div>
+                <p>
+                  <span className="text-muted-foreground">Comments: </span>
+                  {handover.approvalComments.trim()}
+                </p>
               ) : null}
               {isRejected && handover.rejectReason?.trim() ? (
-                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Reject reason</p>
-                  <p className="mt-1 text-sm leading-relaxed">{handover.rejectReason.trim()}</p>
-                </div>
+                <p>
+                  <span className="text-muted-foreground">Reject reason: </span>
+                  {handover.rejectReason.trim()}
+                </p>
               ) : null}
-              {handover.discrepancyReason?.trim() ? (
-                <div className="rounded-md border bg-muted/30 px-3 py-2.5">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cashier discrepancy reason</p>
-                  <p className="mt-1 text-sm leading-relaxed">{handover.discrepancyReason.trim()}</p>
-                </div>
+              {!isPending && handover.discrepancyReason?.trim() ? (
+                <p>
+                  <span className="text-muted-foreground">Discrepancy: </span>
+                  {handover.discrepancyReason.trim()}
+                </p>
               ) : null}
             </div>
           ) : null}
 
-          <div className="border-t pt-4">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Amounts handed over</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              <div className="rounded-md border bg-background px-3 py-3 sm:col-span-1">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="mt-1 text-xl font-bold tabular-nums tracking-tight">LKR {formatCents(totalCents)}</p>
-              </div>
-              {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => {
-                const Icon = METHOD_ICONS[key]
-                return (
-                  <div key={key} className="rounded-md border bg-muted/30 px-3 py-3">
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Icon className="h-3.5 w-3.5" />
-                      {METHOD_LABELS[key]}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">LKR {formatCents(handover[key] ?? 0)}</p>
-                  </div>
-                )
-              })}
-            </div>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t pt-2 text-sm">
+            <span className="font-bold tabular-nums">LKR {formatCents(totalCents)}</span>
+            {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => {
+              const Icon = METHOD_ICONS[key]
+              return (
+                <span key={key} className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Icon className="h-3.5 w-3.5" />
+                  {METHOD_LABELS[key]}{" "}
+                  <span className="font-medium text-foreground tabular-nums">{formatCents(handover[key] ?? 0)}</span>
+                </span>
+              )
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Floats the cashier received during this shift — times, amounts, denominations */}
+      {/* Floats and previous handovers on the shift being handed over */}
       {(() => {
         const receivedFloats = data.receivedFloats ?? []
-        const floatTotalCents = receivedFloats.reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+        const givenTotalCents = receivedFloats
+          .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
+        const rows = (data.includedHandovers ?? []) as IncludedHandoverRow[]
+        const methodCols = METHOD_KEYS.filter((key) => rows.some((h) => (h[key] ?? 0) > 0))
+        if (receivedFloats.length === 0 && rows.length === 0) return null
         return (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Banknote className="h-5 w-5" />
-                Received floats
-              </CardTitle>
-              <CardDescription>
-                Float this cashier received during the shift being handed over, with request, approval, and receive times.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {receivedFloats.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No floats were received during this shift.</p>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total float received</p>
-                      <p className="text-xl font-bold tabular-nums">LKR {formatCents(floatTotalCents)}</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {receivedFloats.length} float{receivedFloats.length === 1 ? "" : "s"}
-                    </p>
+            <CardContent className="p-3 space-y-3">
+              {receivedFloats.length > 0 ? (
+                <div>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                      <Banknote className="h-4 w-4" />
+                      Floats this shift
+                    </h3>
+                    {givenTotalCents > 0 ? (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        Received LKR {formatCents(givenTotalCents)}
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="space-y-3">
-                    {receivedFloats.map((f, index) => {
-                      const receivedDenoms = f.denominationsApproved?.length
-                        ? f.denominationsApproved
-                        : f.denominationsRequested
-                      const requestedDiffers =
-                        f.amountRequested !== f.amountReceivedCents ||
-                        (f.denominationsApproved?.length ?? 0) > 0
-                      return (
-                        <div key={f.id} className="rounded-md border bg-background/60 p-3 space-y-3">
-                          <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <p className="text-sm font-medium">
-                              Float {index + 1}
-                            </p>
-                            <p className="text-sm tabular-nums font-semibold">
-                              Received LKR {formatCents(f.amountReceivedCents)}
-                              {requestedDiffers && f.amountRequested !== f.amountReceivedCents ? (
-                                <span className="ml-2 font-normal text-muted-foreground">
-                                  (requested {formatCents(f.amountRequested)})
-                                </span>
+                  <Table className={tableGrid}>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className={thCompact}>Bill No</TableHead>
+                        <TableHead className={thCompact}>Status</TableHead>
+                        <TableHead className={thCompact}>From</TableHead>
+                        <TableHead className={`${thCompact} text-right`}>Requested</TableHead>
+                        <TableHead className={`${thCompact} text-right`}>Given</TableHead>
+                        <TableHead className={thCompact}>When</TableHead>
+                        <TableHead className={thCompact}>Denoms</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {receivedFloats.map((f) => {
+                        const givenDenoms = f.denominationsApproved?.length
+                          ? f.denominationsApproved
+                          : f.status === FLOAT_REQUEST_STATUS.RECEIVED
+                            ? f.denominationsRequested
+                            : []
+                        const givenCents =
+                          f.status === FLOAT_REQUEST_STATUS.RECEIVED ||
+                          (f.status === FLOAT_REQUEST_STATUS.APPROVED && (f.denominationsApproved?.length ?? 0) > 0)
+                            ? f.amountReceivedCents
+                            : null
+                        const when =
+                          f.status === FLOAT_REQUEST_STATUS.RECEIVED
+                            ? f.receivedAt
+                            : f.approvedAt ?? f.createdAt
+                        return (
+                          <TableRow key={f.id}>
+                            <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                              {f.floatNoString ?? "—"}
+                            </TableCell>
+                            <TableCell className={`${tdCompact} whitespace-nowrap font-medium`}>
+                              {floatRequestStatusLabel(f.status)}
+                            </TableCell>
+                            <TableCell className={`${tdCompact} whitespace-nowrap`}>{f.bulkCashier?.name ?? "—"}</TableCell>
+                            <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                              {formatCents(f.amountRequested)}
+                            </TableCell>
+                            <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                              {givenCents != null ? formatCents(givenCents) : "—"}
+                            </TableCell>
+                            <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
+                              {formatDateTime(when)}
+                            </TableCell>
+                            <TableCell className={`${tdCompact} text-muted-foreground tabular-nums max-w-[12rem]`}>
+                              {denomSummary(givenDenoms.length ? givenDenoms : f.denominationsRequested)}
+                              {f.reasonForLessThanRequested ? (
+                                <span className="block text-[11px]">{f.reasonForLessThanRequested}</span>
                               ) : null}
-                            </p>
-                          </div>
-                          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                            <div>
-                              <dt className="text-muted-foreground">Requested</dt>
-                              <dd className="font-medium">{formatDateTime(f.createdAt)}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-muted-foreground">Approved</dt>
-                              <dd className="font-medium">{formatDateTime(f.approvedAt)}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-muted-foreground">Received</dt>
-                              <dd className="font-medium">{formatDateTime(f.receivedAt)}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-muted-foreground">From bulk cashier</dt>
-                              <dd className="font-medium">{f.bulkCashier?.name ?? "—"}</dd>
-                            </div>
-                            <div>
-                              <dt className="text-muted-foreground">Received by</dt>
-                              <dd className="font-medium">{f.receivedBy?.name ?? "—"}</dd>
-                            </div>
-                            <div className="sm:col-span-2">
-                              <dt className="text-muted-foreground">Denominations received</dt>
-                              <dd className="font-medium tabular-nums">{denomSummary(receivedDenoms)}</dd>
-                            </div>
-                            {requestedDiffers && f.denominationsRequested?.length ? (
-                              <div className="sm:col-span-2">
-                                <dt className="text-muted-foreground">Denominations requested</dt>
-                                <dd className="font-medium tabular-nums">{denomSummary(f.denominationsRequested)}</dd>
-                              </div>
-                            ) : null}
-                            {f.reasonForLessThanRequested ? (
-                              <div className="sm:col-span-2">
-                                <dt className="text-muted-foreground">Reason given less than requested</dt>
-                                <dd className="font-medium">{f.reasonForLessThanRequested}</dd>
-                              </div>
-                            ) : null}
-                          </dl>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <div>
+                  <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
+                    <GitBranch className="h-4 w-4" />
+                    Previous handovers
+                  </h3>
+                  <Table className={tableGrid}>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className={thCompact}>Bill No</TableHead>
+                        <TableHead className={thCompact}>From</TableHead>
+                        <TableHead className={thCompact}>When</TableHead>
+                        {methodCols.map((key) => (
+                          <TableHead key={key} className={`${thCompact} text-right`}>
+                            {METHOD_LABELS[key]}
+                          </TableHead>
+                        ))}
+                        <TableHead className={`${thCompact} text-right`}>Total</TableHead>
+                        <TableHead className={thCompact}>Breakdown</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((h) => (
+                        <TableRow key={h.id}>
+                          <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                            {h.handoverNoString ?? "—"}
+                          </TableCell>
+                          <TableCell className={`${tdCompact} font-medium whitespace-nowrap`}>
+                            {fromUserLabel(h.fromUser)}
+                          </TableCell>
+                          <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
+                            {formatDateTime(h.createdAt ?? h.shift?.startedAt)}
+                          </TableCell>
+                          {methodCols.map((key) => (
+                            <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
+                              {(h[key] ?? 0) > 0 ? formatCents(h[key] ?? 0) : "—"}
+                            </TableCell>
+                          ))}
+                          <TableCell className={`${tdCompact} text-right tabular-nums font-medium`}>
+                            {formatCents(h.totalCents)}
+                          </TableCell>
+                          <TableCell className={`${tdCompact} text-muted-foreground max-w-[16rem]`}>
+                            {handoverBreakdownSummary(h.enteredBreakdown)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         )
       })()}
 
-      {/* Included handovers (chain): handovers the sender is passing on — read-only */}
-      {data.includedHandovers && data.includedHandovers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5" />
-              Included handovers
-            </CardTitle>
-            <CardDescription>
-              This handover includes the following handovers that were received earlier (passed on in this transfer).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>From</TableHead>
-                  <TableHead>Shift date</TableHead>
-                  <TableHead className="text-right">Total (LKR)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.includedHandovers.map((h: IncludedHandoverRow) => (
-                  <TableRow key={h.id}>
-                    <TableCell className="font-medium">{fromUserLabel(h.fromUser)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {h.shift?.startedAt
-                        ? new Date(h.shift.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{formatCents(h.totalCents)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Issues: only when pending (not needed after approval; balances have moved) */}
       {isPending && (hasIssues || handover.discrepancyReason) && (
-        <Alert variant="destructive" className="border-amber-500/70 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-500/50">
+        <Alert variant="destructive" className="border-amber-500/70 bg-amber-50 py-2 dark:bg-amber-950/30 dark:border-amber-500/50">
           <CircleAlert className="h-4 w-4" />
-          <AlertTitle>Issues detected</AlertTitle>
-          <AlertDescription className="space-y-2">
+          <AlertTitle className="text-sm">Issues detected</AlertTitle>
+          <AlertDescription className="space-y-1 text-xs">
             {tillBreakdown && (() => {
               const diffs = METHOD_KEYS.filter((key) => (tillBreakdown[key] ?? 0) !== (handover[key] ?? 0)).map((key) => ({
                 method: METHOD_LABELS[key],
@@ -733,7 +821,7 @@ export default function HandoverDetailPage() {
               if (diffs.length === 0) return null
               return (
                 <p>
-                  Till balance does not match entered amounts:{" "}
+                  Till vs entered:{" "}
                   {diffs.map((d) => (
                     <span key={d.method} className="mr-2">
                       <strong>{d.method}</strong>{" "}
@@ -755,19 +843,19 @@ export default function HandoverDetailPage() {
       )}
 
       {isApprovedNotReconciled && canSendToReconciliation && (
-        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
+        <Alert className="border-blue-500/50 bg-blue-50 py-2 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
           <FileCheck className="h-4 w-4" />
-          <AlertTitle>Approved — not yet in reconciliation</AlertTitle>
-          <AlertDescription>
-            This handover is approved. Use <strong>Send to reconciliation</strong> above and choose who should reconcile it.
+          <AlertTitle className="text-sm">Approved — not yet in reconciliation</AlertTitle>
+          <AlertDescription className="text-xs">
+            Use <strong>Send to reconciliation</strong> above and choose who should reconcile it.
           </AlertDescription>
         </Alert>
       )}
       {isInReconciliation && (
-        <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
+        <Alert className="border-blue-500/50 bg-blue-50 py-2 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
           <FileCheck className="h-4 w-4" />
-          <AlertTitle>In reconciliation</AlertTitle>
-          <AlertDescription>
+          <AlertTitle className="text-sm">In reconciliation</AlertTitle>
+          <AlertDescription className="text-xs">
             Assigned to <strong>{assignedUserLabel ?? "—"}</strong>. You can change the reconciler until it is completed.
           </AlertDescription>
         </Alert>
@@ -775,114 +863,40 @@ export default function HandoverDetailPage() {
 
       {/* Entries handed over: full breakdown (read-only) for any completed/approved/rejected view */}
       {!isPending && (() => {
-        const hasBreakdown =
-          breakdown?.cashDenominations?.length ||
-          breakdown?.cardEntries?.length ||
-          breakdown?.slipEntries?.length ||
-          breakdown?.checkEntries?.length ||
-          breakdown?.creditEntries?.length ||
-          breakdown?.eWalletEntries?.length
+        const lines = flattenBreakdownLines(breakdown)
         return (
           <Card className="border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                {handover.status === HANDOVER_STATUS.APPROVED
-                  ? "Entries received"
-                  : "Entries handed over"}
-              </CardTitle>
-              <CardDescription>
-                {hasBreakdown
-                  ? "Same breakdown as when this handover was submitted. Shown read-only for reference."
-                  : "No per-line denomination or reference breakdown was saved for this handover. Totals above still reflect what was handed over."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {breakdown?.cashDenominations?.length ? (
-                <div>
-                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                    <Banknote className="h-4 w-4" />
-                    Cash denominations
-                  </h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">✓</TableHead>
-                        <TableHead>Denomination</TableHead>
-                        <TableHead className="text-right">Count</TableHead>
-                        <TableHead className="text-right">Amount (LKR)</TableHead>
+            <CardContent className="p-3 space-y-2">
+              <h3 className="text-sm font-semibold">
+                {handover.status === HANDOVER_STATUS.APPROVED ? "Entries received" : "Entries handed over"}
+              </h3>
+              {lines.length > 0 ? (
+                <Table className={tableGrid}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className={thCompact}>Method</TableHead>
+                      <TableHead className={thCompact}>Detail</TableHead>
+                      <TableHead className={`${thCompact} text-right`}>Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((line) => (
+                      <TableRow key={line.id} className="!bg-emerald-50/50 dark:!bg-emerald-950/30">
+                        <TableCell className={`${tdCompact} whitespace-nowrap`}>{line.method}</TableCell>
+                        <TableCell className={tdCompact}>{line.detail}</TableCell>
+                        <TableCell className={`${tdCompact} text-right tabular-nums`}>{line.amountLabel}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {breakdown.cashDenominations.map((d, i) => (
-                        <TableRow key={i} className="!bg-emerald-50/50 dark:!bg-emerald-950/30">
-                          <TableCell className="border-l-4 border-l-emerald-500 text-emerald-600">✓</TableCell>
-                          <TableCell>{formatDenomLabel(d.value)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{d.count}</TableCell>
-                          <TableCell className="text-right tabular-nums">{(d.value * d.count).toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="border-t-2 font-medium bg-muted/30">
-                        <TableCell colSpan={3} />
-                        <TableCell className="text-right tabular-nums">LKR {formatCents(handover.cashCents)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : null}
-              {[
-                { key: "card" as const, entries: breakdown?.cardEntries, label: "Card", Icon: CreditCard, centsKey: "cardCents" as const },
-                { key: "slip" as const, entries: breakdown?.slipEntries, label: "Slips", Icon: SlipIcon, centsKey: "slipCents" as const },
-                { key: "check" as const, entries: breakdown?.checkEntries, label: "Cheques", Icon: Receipt, centsKey: "checkCents" as const },
-                { key: "credit" as const, entries: breakdown?.creditEntries, label: "Credit", Icon: Wallet, centsKey: "creditCents" as const },
-                { key: "eWallet" as const, entries: breakdown?.eWalletEntries, label: "E-Wallet", Icon: Smartphone, centsKey: "eWalletCents" as const },
-              ].map(
-                ({ key, entries, label, Icon, centsKey }) =>
-                  entries?.length ? (
-                    <div key={key}>
-                      <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </h4>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-10">✓</TableHead>
-                            <TableHead>Reference</TableHead>
-                            <TableHead className="text-right">Amount (LKR)</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {entries.map((e, i) => (
-                            <TableRow key={i} className="!bg-emerald-50/50 dark:!bg-emerald-950/30">
-                              <TableCell className="border-l-4 border-l-emerald-500 text-emerald-600">✓</TableCell>
-                              <TableCell>{e.reference || "—"}</TableCell>
-                              <TableCell className="text-right tabular-nums">{(e.amountCents / 100).toFixed(2)}</TableCell>
-                            </TableRow>
-                          ))}
-                          <TableRow className="border-t-2 font-medium bg-muted/30">
-                            <TableCell colSpan={2} />
-                            <TableCell className="text-right tabular-nums">LKR {formatCents(handover[centsKey] ?? 0)}</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : null
-              )}
-              {!hasBreakdown && (
-                <div className="rounded-md border bg-background/60 p-3">
-                  <p className="text-sm font-medium mb-2">Amounts by method</p>
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                    {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => (
-                      <div key={key}>
-                        <span className="text-muted-foreground">{METHOD_LABELS[key]}: </span>
-                        <span className="font-medium tabular-nums">{formatCents(handover[key] ?? 0)}</span>
-                      </div>
                     ))}
-                    {METHOD_KEYS.every((k) => (handover[k] ?? 0) === 0) && (
-                      <span className="text-muted-foreground">No method amounts recorded.</span>
-                    )}
-                  </div>
-                </div>
+                    <TableRow className="border-t-2 font-medium bg-muted/30">
+                      <TableCell className={tdCompact} colSpan={2}>
+                        Total
+                      </TableCell>
+                      <TableCell className={`${tdCompact} text-right tabular-nums`}>LKR {formatCents(totalCents)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-xs text-muted-foreground">No per-line breakdown saved. Totals above still apply.</p>
               )}
             </CardContent>
           </Card>
@@ -892,20 +906,20 @@ export default function HandoverDetailPage() {
       {/* Entries to check: tick when verified (only when still pending approval) */}
       {isPending && (
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="p-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle>Entries to verify</CardTitle>
-              <CardDescription>
+              <h3 className="text-sm font-semibold">Entries to verify</h3>
+              <p className="text-xs text-muted-foreground">
                 {allTickIds.length > 0
-                  ? "Tick each line when you have checked it. When all are ticked you can Approve and Receive."
-                  : "No per-line breakdown was saved for this handover. You can still approve using the totals above and the till details below."}
-              </CardDescription>
+                  ? "Tick each line when checked. All must be ticked to approve."
+                  : "No per-line breakdown was saved. Approve using totals and till comparison."}
+              </p>
             </div>
             {allTickIds.length > 0 && (
               <div className="flex items-center gap-2">
                 {tickProgress && (
-                  <span className="text-sm text-muted-foreground tabular-nums">{tickProgress}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{tickProgress}</span>
                 )}
                 <Button variant="outline" size="sm" onClick={toggleAll}>
                   {allTicked ? "Deselect all" : "Select all"}
@@ -913,191 +927,124 @@ export default function HandoverDetailPage() {
               </div>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {breakdown?.cashDenominations?.length ? (
-            <div>
-              <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                <Banknote className="h-4 w-4" />
-                Cash denominations
-              </h4>
-              <Table>
+          {(() => {
+            const lines = flattenBreakdownLines(breakdown)
+            if (lines.length === 0) {
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {breakdown == null
+                    ? "No denomination or reference breakdown was saved. Use till comparison below."
+                    : "No entries recorded."}
+                </p>
+              )
+            }
+            return (
+              <Table className={tableGrid}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">Tick</TableHead>
-                    <TableHead>Denomination</TableHead>
-                    <TableHead className="text-right">Count</TableHead>
-                    <TableHead className="text-right">Amount (LKR)</TableHead>
+                    <TableHead className={`${thCompact} w-8`}>Tick</TableHead>
+                    <TableHead className={thCompact}>Method</TableHead>
+                    <TableHead className={thCompact}>Detail</TableHead>
+                    <TableHead className={`${thCompact} text-right`}>Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {breakdown.cashDenominations.map((d, i) => {
-                    const tid = `cash-${d.value}-${i}`
-                    const isTicked = ticked.has(tid)
+                  {lines.map((line) => {
+                    const isTicked = ticked.has(line.id)
                     return (
                       <TableRow
-                        key={tid}
+                        key={line.id}
                         className={`transition-colors ${isTicked ? "!bg-emerald-50 dark:!bg-emerald-950/40 hover:!bg-emerald-100 dark:hover:!bg-emerald-900/50" : ""}`}
                       >
-                        <TableCell className={isTicked ? "border-l-4 border-l-emerald-500 bg-inherit" : undefined}>
-                          <Checkbox checked={isTicked} onCheckedChange={() => toggle(tid)} />
+                        <TableCell className={`${tdCompact} ${isTicked ? "border-l-4 border-l-emerald-500 bg-inherit" : ""}`}>
+                          <Checkbox checked={isTicked} onCheckedChange={() => toggle(line.id)} />
                         </TableCell>
-                        <TableCell>{formatDenomLabel(d.value)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{d.count}</TableCell>
-                        <TableCell className="text-right tabular-nums">{(d.value * d.count).toFixed(2)}</TableCell>
+                        <TableCell className={`${tdCompact} whitespace-nowrap`}>{line.method}</TableCell>
+                        <TableCell className={tdCompact}>{line.detail}</TableCell>
+                        <TableCell className={`${tdCompact} text-right tabular-nums`}>{line.amountLabel}</TableCell>
                       </TableRow>
                     )
                   })}
                   <TableRow className="border-t-2 font-medium bg-muted/30">
-                    <TableCell colSpan={3} />
-                    <TableCell className="text-right tabular-nums">
-                      LKR {formatCents(handover.cashCents)}
+                    <TableCell className={tdCompact} colSpan={3}>
+                      Total
                     </TableCell>
+                    <TableCell className={`${tdCompact} text-right tabular-nums`}>LKR {formatCents(totalCents)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {breakdown == null
-                ? "No denomination or reference breakdown was saved for this handover (it may have been submitted before this feature was added). Use the Till details below to verify totals."
-                : "No cash denominations recorded."}
-            </p>
-          )}
+            )
+          })()}
 
-          {[
-            { key: "card" as const, entries: breakdown?.cardEntries, label: "Card", Icon: CreditCard, centsKey: "cardCents" as const },
-            { key: "slip" as const, entries: breakdown?.slipEntries, label: "Slips", Icon: SlipIcon, centsKey: "slipCents" as const },
-            { key: "check" as const, entries: breakdown?.checkEntries, label: "Cheques", Icon: Receipt, centsKey: "checkCents" as const },
-            { key: "credit" as const, entries: breakdown?.creditEntries, label: "Credit", Icon: Wallet, centsKey: "creditCents" as const },
-            { key: "eWallet" as const, entries: breakdown?.eWalletEntries, label: "E-Wallet", Icon: Smartphone, centsKey: "eWalletCents" as const },
-          ].map(
-            ({ key, entries, label, Icon, centsKey }) =>
-              entries?.length ? (
-                <div key={key}>
-                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">Tick</TableHead>
-                        <TableHead>Reference</TableHead>
-                        <TableHead className="text-right">Amount (LKR)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {entries.map((e, i) => {
-                        const tid = `${key}-${i}`
-                        const isTicked = ticked.has(tid)
-                        return (
-                          <TableRow
-                            key={tid}
-                            className={`transition-colors ${isTicked ? "!bg-emerald-50 dark:!bg-emerald-950/40 hover:!bg-emerald-100 dark:hover:!bg-emerald-900/50" : ""}`}
-                          >
-                            <TableCell className={isTicked ? "border-l-4 border-l-emerald-500 bg-inherit" : undefined}>
-                              <Checkbox checked={isTicked} onCheckedChange={() => toggle(tid)} />
-                            </TableCell>
-                            <TableCell>{e.reference || "—"}</TableCell>
-                            <TableCell className="text-right tabular-nums">{(e.amountCents / 100).toFixed(2)}</TableCell>
-                          </TableRow>
-                        )
-                      })}
-                      <TableRow className="border-t-2 font-medium bg-muted/30">
-                        <TableCell colSpan={2} />
-                        <TableCell className="text-right tabular-nums">
-                          LKR {formatCents(handover[centsKey] ?? 0)}
+          {tillBreakdown ? (
+            <div>
+              <h4 className="mb-1.5 text-sm font-semibold">Till vs entered</h4>
+              <Table className={tableGrid}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className={thCompact}>Method</TableHead>
+                    <TableHead className={`${thCompact} text-right`}>Till</TableHead>
+                    <TableHead className={`${thCompact} text-right`}>Entered</TableHead>
+                    <TableHead className={`${thCompact} text-right`}>Diff</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {METHOD_KEYS.filter((key) => (tillBreakdown[key] ?? 0) !== 0 || (handover[key] ?? 0) !== 0).map((key) => {
+                    const expected = tillBreakdown[key] ?? 0
+                    const entered = handover[key] ?? 0
+                    const diff = entered - expected
+                    const isShort = diff < 0
+                    const isOver = diff > 0
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className={tdCompact}>{METHOD_LABELS[key]}</TableCell>
+                        <TableCell className={`${tdCompact} text-right tabular-nums`}>{formatCents(expected)}</TableCell>
+                        <TableCell className={`${tdCompact} text-right tabular-nums`}>{formatCents(entered)}</TableCell>
+                        <TableCell
+                          className={`${tdCompact} text-right tabular-nums ${isShort ? "text-destructive font-medium" : isOver ? "text-amber-600 dark:text-amber-400 font-medium" : ""}`}
+                        >
+                          {diff === 0 ? "—" : `${diff > 0 ? "+" : ""}${formatCents(diff)}`}
                         </TableCell>
                       </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : null
-          )}
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
-      )}
-
-      {/* Till details: only when pending (after approval, balances have moved so comparison not relevant) */}
-      {isPending && tillBreakdown && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Till balance vs entered</CardTitle>
-            <CardDescription>Compare expected till balance by method with what the cashier entered. Resolve any differences before approving.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Method</TableHead>
-                  <TableHead className="text-right">Till (expected)</TableHead>
-                  <TableHead className="text-right">Entered</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {METHOD_KEYS.map((key) => {
-                  const expected = tillBreakdown[key] ?? 0
-                  const entered = handover[key] ?? 0
-                  const diff = entered - expected
-                  const isShort = diff < 0
-                  const isOver = diff > 0
-                  return (
-                    <TableRow key={key}>
-                      <TableCell>{METHOD_LABELS[key]}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCents(expected)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCents(entered)}</TableCell>
-                      <TableCell
-                        className={`text-right tabular-nums ${isShort ? "text-destructive font-medium" : isOver ? "text-amber-600 dark:text-amber-400 font-medium" : ""}`}
-                      >
-                        {diff === 0 ? "—" : `${diff > 0 ? "+" : ""}${formatCents(diff)}`}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       )}
 
       {/* Need full receipt-level detail: single CTA to summary report */}
-      <Card className="bg-muted/40 print:hidden">
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-semibold">Need full receipt-level detail?</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {summaryLoading
-                  ? "Loading…"
-                  : !cashierSummaryFilters
-                    ? "Open the cashier summary report for this handover to see all receipts and export."
-                    : (() => {
-                        const receiptCount = summarySections.reduce((n, s) => n + s.rows.length, 0)
-                        const cashierCount = cashierSummaryFilters.userIds.length
-                        const chainNote =
-                          includedHandovers.length > 0
-                            ? ` Covers ${cashierCount} cashier${cashierCount === 1 ? "" : "s"} from earliest shift through handover time (including ${includedHandovers.length} linked handover${includedHandovers.length === 1 ? "" : "s"}).`
-                            : cashierCount > 1
-                              ? ` Covers ${cashierCount} cashiers from shift start through handover time.`
-                              : " Covers this shift from start through handover time."
-                        return summarySections.length === 0
-                          ? `Open the cashier summary report for full detail and export.${chainNote}`
-                          : `This range has ${receiptCount} receipt(s). Open the report for full detail and export.${chainNote}`
-                      })()}
-              </p>
-            </div>
-            <Button asChild className="shrink-0">
-              <Link href={cashierSummaryUrl} target="_blank" rel="noopener noreferrer">
-                <FileText className="h-4 w-4 mr-2" />
-                Open cashier summary report
-                <ExternalLink className="h-3 w-3 ml-1" />
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm print:hidden">
+        <p className="text-muted-foreground">
+          {summaryLoading
+            ? "Loading…"
+            : !cashierSummaryFilters
+              ? "Open the cashier summary for receipts and export."
+              : (() => {
+                  const receiptCount = summarySections.reduce((n, s) => n + s.rows.length, 0)
+                  const cashierCount = cashierSummaryFilters.userIds.length
+                  const chainNote =
+                    includedHandovers.length > 0
+                      ? ` Covers ${cashierCount} cashier${cashierCount === 1 ? "" : "s"} including ${includedHandovers.length} linked handover${includedHandovers.length === 1 ? "" : "s"}.`
+                      : cashierCount > 1
+                        ? ` Covers ${cashierCount} cashiers.`
+                        : ""
+                  return summarySections.length === 0
+                    ? `Cashier summary for full detail.${chainNote}`
+                    : `${receiptCount} receipt(s). Open cashier summary for full detail.${chainNote}`
+                })()}
+        </p>
+        <Button asChild size="sm" variant="outline" className="shrink-0">
+          <Link href={cashierSummaryUrl} target="_blank" rel="noopener noreferrer">
+            <FileText className="h-4 w-4 mr-1.5" />
+            Cashier summary
+            <ExternalLink className="h-3 w-3 ml-1" />
+          </Link>
+        </Button>
+      </div>
 
       {/* Approve and Receive dialog: optional comments */}
       {approveOpen && (
@@ -1276,5 +1223,6 @@ export default function HandoverDetailPage() {
         </div>
       )}
     </div>
+    </>
   )
 }

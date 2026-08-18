@@ -344,6 +344,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Bill No</TableHead>
                   <TableHead>Requested by</TableHead>
                   <TableHead>Assigned to</TableHead>
                   <TableHead>Amount (LKR)</TableHead>
@@ -356,7 +357,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               <TableBody>
                 {requests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No requests found.
                     </TableCell>
                   </TableRow>
@@ -365,6 +366,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                     const isAssignedToMe = fr.bulkCashierId === bulkCashierId;
                     return (
                       <TableRow key={fr.id}>
+                        <TableCell className="tabular-nums whitespace-nowrap">{fr.floatNoString ?? '—'}</TableCell>
                         <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
                         <TableCell>
                           {fr.bulkCashier?.name ?? fr.bulkCashierId}
@@ -456,6 +458,7 @@ export function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintDa
   const amountLKR = denoms.length > 0 ? denominationsTotalLKR(denoms) : fr.amountRequested / 100;
   return {
     floatRequestId: fr.id,
+    floatNoString: fr.floatNoString ?? null,
     receiveCode: fr.receiveCode,
     amountLKR,
     denominationsApproved: denoms,
@@ -519,6 +522,7 @@ export function FloatRequestSummaryDialog({
           <DialogDescription>Float request details.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
+          <p><strong>Bill No:</strong> {request.floatNoString ?? '—'}</p>
           <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
           <p><strong>Amount:</strong> {formatCents(request.amountRequested)} LKR</p>
           <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
@@ -632,6 +636,7 @@ export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrin
             </div>
           </div>
           <div className="text-sm space-y-1">
+            {data.floatNoString ? <p><strong>Bill No:</strong> {data.floatNoString}</p> : null}
             <p><strong>Amount:</strong> {formatLKR(data.amountLKR)} LKR</p>
             <p><strong>Requested by:</strong> {data.requestedByName}</p>
             <p><strong>Approved by:</strong> {data.bulkCashierName}</p>
@@ -763,6 +768,7 @@ export function ApproveModal({
         <DialogHeader>
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
+            {request.floatNoString ? `${request.floatNoString}. ` : ""}
             Float will be taken from your active till. You can give up to the requested amount (or less). Cannot give more than requested.
           </DialogDescription>
         </DialogHeader>
