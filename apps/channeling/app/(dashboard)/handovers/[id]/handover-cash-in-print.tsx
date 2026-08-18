@@ -352,7 +352,6 @@ export function HandoverCashInPrint({
       <style>{`
         .handover-cash-in-print { display: none; }
         @media print {
-          @page { size: A4 portrait; margin: 8mm; }
           html, body {
             width: 100% !important;
             max-width: none !important;
@@ -379,6 +378,9 @@ export function HandoverCashInPrint({
             color: #000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          body.print-handover-summary .handover-cash-in-print {
+            display: none !important;
           }
           .handover-cash-in-print .cash-in-grid {
             width: 100% !important;
