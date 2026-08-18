@@ -5,7 +5,12 @@ import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import {
+  copyPreviousMonthRoster,
+  copyPreviousWeekRoster,
+  fillNewRosterDraft,
+  fillOldRosterDraft,
   loadRoster,
+  publishRoster,
   saveRosterAllocationDraft,
   toggleRosterAllocationLeave
 } from '@/services/roster-services/shift-roster.service';
@@ -15,6 +20,14 @@ import type {
   SaveRosterAllocationDraftPayload,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
+
+type RosterWorkflowPayload = {
+  department?: string;
+  unit?: string;
+  roster?: string;
+  fromDate: string;
+  toDate: string;
+};
 
 export async function loadRosterAction(params: LoadRosterParams): Promise<{
   isError: boolean;
@@ -160,6 +173,151 @@ export async function toggleRosterAllocationLeaveAction(
       errors: {
         message: error.message ?? 'Something went wrong. Please try again later'
       }
+    };
+  }
+}
+
+export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
+  await requirePermission('shift-roster', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await fillNewRosterDraft(data, auditUser);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to prepare draft roster');
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'shift.rosterDraft.created',
+        entityType: 'ShiftRoster',
+        importance: 'medium',
+        metadata: { draftCount: result.data?.draftCount ?? 0, ...data }
+      });
+    }
+
+    revalidatePath('/shift-roster');
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('fillNewRosterDraftAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to prepare draft roster' }
+    };
+  }
+}
+
+export async function publishRosterAction(data: RosterWorkflowPayload) {
+  await requirePermission('shift-roster', 'edit');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await publishRoster(data, auditUser);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to publish roster');
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'shift.roster.published',
+        entityType: 'ShiftRoster',
+        importance: 'high',
+        metadata: {
+          rosterCount: result.data?.rosterCount ?? 0,
+          allocationCount: result.data?.allocationCount ?? 0,
+          ...data
+        }
+      });
+    }
+
+    revalidatePath('/shift-roster');
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('publishRosterAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to publish roster' }
+    };
+  }
+}
+
+async function handleCopyAction(
+  action: 'previousWeek' | 'previousMonth' | 'fillOld',
+  data: RosterWorkflowPayload
+) {
+  await requirePermission('shift-roster', 'add');
+  const auditUser = await getAuditUser();
+  const result =
+    action === 'previousWeek'
+      ? await copyPreviousWeekRoster(data, auditUser)
+      : action === 'previousMonth'
+        ? await copyPreviousMonthRoster(data, auditUser)
+        : await fillOldRosterDraft(data, auditUser);
+
+  if (!result.success) {
+    throw new Error(result.error?.message ?? 'Failed to copy roster');
+  }
+  const copyData =
+    'data' in result && result.data
+      ? result.data
+      : { copied: 0, skipped: 0 };
+
+  if (auditUser?.id) {
+    logActivityNonBlocking({
+      userId: auditUser.id,
+      action:
+        action === 'previousWeek'
+          ? 'shift.roster.copiedPreviousWeek'
+          : action === 'previousMonth'
+            ? 'shift.roster.copiedPreviousMonth'
+            : 'shift.roster.filledOld',
+      entityType: 'ShiftRoster',
+      importance: 'high',
+      metadata: { copied: copyData.copied, skipped: copyData.skipped, ...data }
+    });
+  }
+
+  revalidatePath('/shift-roster');
+  return { isError: false, data: copyData, errors: {} };
+}
+
+export async function copyPreviousWeekRosterAction(data: RosterWorkflowPayload) {
+  try {
+    return await handleCopyAction('previousWeek', data);
+  } catch (error: any) {
+    console.error('copyPreviousWeekRosterAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to copy previous week roster' }
+    };
+  }
+}
+
+export async function copyPreviousMonthRosterAction(data: RosterWorkflowPayload) {
+  try {
+    return await handleCopyAction('previousMonth', data);
+  } catch (error: any) {
+    console.error('copyPreviousMonthRosterAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to copy previous month roster' }
+    };
+  }
+}
+
+export async function fillOldRosterDraftAction(data: RosterWorkflowPayload) {
+  try {
+    return await handleCopyAction('fillOld', data);
+  } catch (error: any) {
+    console.error('fillOldRosterDraftAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Failed to fill old roster draft' }
     };
   }
 }

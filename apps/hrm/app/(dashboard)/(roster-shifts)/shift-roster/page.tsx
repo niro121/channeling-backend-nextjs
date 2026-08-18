@@ -6,7 +6,7 @@ import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { loadRosterAction } from '@/app/actions/roster-actions/shift-roster.actions';
-import type { LoadRosterResult } from '@/types/roster';
+import type { LoadRosterParams, LoadRosterResult } from '@/types/roster';
 import { ShiftRosterHeaderActions } from './header-actions';
 import ShiftRosterWorkspace from './shift-roster-workspace';
 
@@ -68,7 +68,7 @@ export default async function ShiftRosterPage({ searchParams }: SearchParams) {
   const params = await searchParams;
   const defaults = defaultWeek();
 
-  const loadParams = {
+  const loadParams: LoadRosterParams = {
     department: params?.department,
     unit: params?.unit,
     roster: params?.roster,
@@ -87,7 +87,7 @@ export default async function ShiftRosterPage({ searchParams }: SearchParams) {
       <CommonManagerHeader
         title="Shift Roster"
         description="Calendar-based roster planning with drag-and-drop allocation, weekly/monthly views, copy, publish and export."
-        actions={<ShiftRosterHeaderActions />}
+        actions={<ShiftRosterHeaderActions initialFilters={loadParams} />}
       />
 
       <ShiftRosterWorkspace data={data} initialFilters={loadParams} />

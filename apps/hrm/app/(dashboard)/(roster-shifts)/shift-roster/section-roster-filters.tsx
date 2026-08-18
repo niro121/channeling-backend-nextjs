@@ -32,6 +32,8 @@ type SectionRosterFiltersProps = {
   onChange: (next: Partial<RosterFilterValues>) => void;
   onLoad: () => void;
   onClear: () => void;
+  onCopyPreviousWeek: () => void;
+  onCopyPreviousMonth: () => void;
   onHideStaffMeta: () => void;
   onShowStaffMeta: () => void;
   staffMetaVisible: boolean;
@@ -47,6 +49,8 @@ export default function SectionRosterFilters({
   onChange,
   onLoad,
   onClear,
+  onCopyPreviousWeek,
+  onCopyPreviousMonth,
   onHideStaffMeta,
   onShowStaffMeta,
   staffMetaVisible
@@ -179,7 +183,7 @@ export default function SectionRosterFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Copy Previous Week')}
+            onClick={onCopyPreviousWeek}
           >
             <Copy className="h-3.5 w-3.5" />
             Copy Previous Week
@@ -189,7 +193,7 @@ export default function SectionRosterFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Copy Previous Month')}
+            onClick={onCopyPreviousMonth}
           >
             <Copy className="h-3.5 w-3.5" />
             Copy Previous Month

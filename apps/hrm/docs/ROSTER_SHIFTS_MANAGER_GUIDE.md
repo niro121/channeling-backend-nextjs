@@ -7,9 +7,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
-**D5:** Shift Roster draft write is live on `/shift-roster` (Allocate Shift persists draft periods + allocations; leave toggle saves).  
+**D6:** Shift Roster workflow is live on `/shift-roster` (publish, fill new, fill old, copy previous week/month, draft save guards on published dates).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D6 Publish / copy / fill**.
+Pages must not call Prisma. No business rules in components. Next: **D7 Duty Roster on the same store**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1411,10 +1411,10 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Publish is idempotent; further allocate/swap on those dates fails without an amendment |
-| [ ] Copy previous week creates a draft with the pattern shifted by 7 days |
-| [ ] Activity log on publish / copy |
-| [ ] Create Fixed Roster still toast |
+| [x] Publish is idempotent; further allocate/swap on those dates fails without an amendment |
+| [x] Copy previous week creates a draft with the pattern shifted by 7 days |
+| [x] Activity log on publish / copy |
+| [x] Create Fixed Roster still toast |
 
 ---
 

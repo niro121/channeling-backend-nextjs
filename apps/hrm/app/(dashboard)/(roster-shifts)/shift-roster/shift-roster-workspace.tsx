@@ -2,6 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useToast } from '@archmage/ui';
+import {
+  copyPreviousMonthRosterAction,
+  copyPreviousWeekRosterAction
+} from '@/app/actions/roster-actions/shift-roster.actions';
 import type {
   LoadRosterParams,
   LoadRosterResult,
@@ -11,6 +16,7 @@ import SectionRosterFilters, {
   type RosterFilterValues
 } from './section-roster-filters';
 import SectionRosterGrid from './section-roster-grid';
+import SectionRosterInstructions from './section-roster-instructions';
 import SectionRosterSummary from './section-roster-summary';
 import SheetRosterAllocationForm from './sheet-roster-allocation-form';
 import SheetRosterAllocationHistory from './sheet-roster-allocation-history';
@@ -55,6 +61,7 @@ function ShiftRosterWorkspaceInner({
   data,
   initialFilters
 }: ShiftRosterWorkspaceProps) {
+  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -71,6 +78,13 @@ function ShiftRosterWorkspaceInner({
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
 
   const staffOptions = staffOptionsFromRows(data.rows);
+  const workflowPayload = {
+    department: draftFilters.departmentId || undefined,
+    unit: draftFilters.unitId || undefined,
+    roster: draftFilters.rosterId || undefined,
+    fromDate: draftFilters.fromDate,
+    toDate: draftFilters.toDate
+  };
 
   const handleLoad = () => {
     const params = new URLSearchParams();
@@ -96,12 +110,58 @@ function ShiftRosterWorkspaceInner({
     });
   };
 
+  const handleCopyPreviousWeek = async () => {
+    const result = await copyPreviousWeekRosterAction(workflowPayload);
+    if (result.isError) {
+      const errorMessage =
+        'message' in result.errors
+          ? (result.errors.message as string | undefined)
+          : undefined;
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: errorMessage ?? 'Could not copy previous week roster.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: `Copied ${result.data?.copied ?? 0} allocation(s).`
+    });
+    router.refresh();
+  };
+
+  const handleCopyPreviousMonth = async () => {
+    const result = await copyPreviousMonthRosterAction(workflowPayload);
+    if (result.isError) {
+      const errorMessage =
+        'message' in result.errors
+          ? (result.errors.message as string | undefined)
+          : undefined;
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: errorMessage ?? 'Could not copy previous month roster.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: `Copied ${result.data?.copied ?? 0} allocation(s).`
+    });
+    router.refresh();
+  };
+
   return (
     <div className="space-y-6">
       <SectionRosterSummary
         summary={data.summary}
         weekRangeShort={data.weekRangeShort}
       />
+
+      <SectionRosterInstructions />
 
       <SectionRosterFilters
         values={draftFilters}
@@ -113,6 +173,8 @@ function ShiftRosterWorkspaceInner({
         }
         onLoad={handleLoad}
         onClear={handleClear}
+        onCopyPreviousWeek={() => void handleCopyPreviousWeek()}
+        onCopyPreviousMonth={() => void handleCopyPreviousMonth()}
         staffMetaVisible={staffMetaVisible}
         onHideStaffMeta={() => setStaffMetaVisible(false)}
         onShowStaffMeta={() => setStaffMetaVisible(true)}
