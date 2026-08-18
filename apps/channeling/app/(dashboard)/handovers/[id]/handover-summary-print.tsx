@@ -95,6 +95,13 @@ function formatPrintDateTime(value: Date | string | null | undefined): string {
   return `${formatPrintDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
+function formatPrintDateTimeCompact(value: Date | string | null | undefined): string {
+  if (!value) return "—"
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return "—"
+  return `${formatPrintDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
 function shortRef(prefix: string, id: string): string {
   return `${prefix}/${id.slice(-8).toUpperCase()}`
 }
@@ -141,7 +148,7 @@ function cellStyle(opts: {
   bold?: boolean
 }): CSSProperties {
   return {
-    padding: "1px 3px",
+    padding: "1px 2px",
     fontWeight: opts.head || opts.bold ? 700 : 400,
     textAlign: opts.align ?? "left",
     whiteSpace: opts.nowrap ? "nowrap" : undefined,
@@ -248,13 +255,13 @@ export function HandoverSummaryPrint({
       .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction !== "out")
       .map((f) => ({
         billNo: f.floatNoString || shortRef("FL", f.id),
-        date: formatPrintDateTime(f.receivedAt ?? f.createdAt),
+        date: formatPrintDateTimeCompact(f.receivedAt ?? f.createdAt),
         from: (f.bulkCashier?.name ?? "BULK CASHIER").toUpperCase(),
         valueCents: f.amountReceivedCents,
       })),
     ...includedHandovers.map((h) => ({
       billNo: h.handoverNoString || shortRef("HO", h.id),
-      date: formatPrintDateTime(h.createdAt),
+      date: formatPrintDateTimeCompact(h.createdAt),
       from: personLabel(h.fromUser),
       valueCents: h.totalCents,
     })),
@@ -263,7 +270,7 @@ export function HandoverSummaryPrint({
     .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction === "out")
     .map((f) => ({
       billNo: f.floatNoString || shortRef("FL", f.id),
-      date: formatPrintDateTime(f.receivedAt ?? f.createdAt),
+      date: formatPrintDateTimeCompact(f.receivedAt ?? f.createdAt),
       to: (f.bulkCashier?.name ?? "CASHIER").toUpperCase(),
       valueCents: f.amountReceivedCents,
     }))
@@ -280,8 +287,8 @@ export function HandoverSummaryPrint({
     {
       name: "CASHIER",
       no: handover.shift?.id ? shortRef("SH", handover.shift.id) : "—",
-      from: formatPrintDateTime(handover.shift?.startedAt),
-      to: formatPrintDateTime(handover.createdAt),
+      from: formatPrintDateTimeCompact(handover.shift?.startedAt),
+      to: formatPrintDateTimeCompact(handover.createdAt),
       valueCents: summaryTotal,
     },
   ]
@@ -360,14 +367,15 @@ export function HandoverSummaryPrint({
             border-bottom: 0 !important;
             color: #000 !important;
             background: #fff !important;
+            overflow-wrap: anywhere !important;
           }
           body.print-handover-summary .summary-last-col { border-right: 0 !important; }
           body.print-handover-summary .summary-last-row { border-bottom: 1px solid #000 !important; }
         }
       `}</style>
-      <div className="handover-summary-print text-black bg-white font-mono text-[8px] leading-tight">
-        <p className="text-center font-bold tracking-wide text-[11px] mb-1">HAND OVER REPORT</p>
-        <p className="text-center font-bold tracking-wide text-[13px] mb-1.5">
+      <div className="handover-summary-print text-black bg-white font-mono text-[9px] leading-tight">
+        <p className="text-center font-bold tracking-wide text-[12px] mb-1">HAND OVER REPORT</p>
+        <p className="text-center font-bold tracking-wide text-[14px] mb-1.5">
           {reportStatus.toUpperCase()}
         </p>
         <div className="mb-1.5 space-y-0">
@@ -392,16 +400,16 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CASH IN</p>
             <MiniGrid
-              template="1.1fr 1.5fr 1.5fr 0.9fr"
+              template="0.9fr 1.2fr 1.4fr 0.7fr"
               headers={[
                 { text: "Bill No", nowrap: true },
-                { text: "Date", nowrap: true },
+                { text: "Date" },
                 { text: "From" },
                 { text: "Value", align: "right", nowrap: true },
               ]}
               rows={cashInRows.map((row) => [
                 { text: row.billNo, nowrap: true },
-                { text: row.date, nowrap: true },
+                { text: row.date },
                 { text: row.from },
                 { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
               ])}
@@ -413,16 +421,16 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CASH OUT</p>
             <MiniGrid
-              template="1.1fr 1.5fr 1.5fr 0.9fr"
+              template="0.9fr 1.2fr 1.4fr 0.7fr"
               headers={[
                 { text: "Bill No", nowrap: true },
-                { text: "Date", nowrap: true },
+                { text: "Date" },
                 { text: "To" },
                 { text: "Value", align: "right", nowrap: true },
               ]}
               rows={cashOutRows.map((row) => [
                 { text: row.billNo, nowrap: true },
-                { text: row.date, nowrap: true },
+                { text: row.date },
                 { text: row.to },
                 { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
               ])}
@@ -433,19 +441,19 @@ export function HandoverSummaryPrint({
         <div className="mb-1.5">
           <p className="text-center font-bold mb-0.5">SUMMARY</p>
           <MiniGrid
-            template="0.9fr 1.1fr 1.4fr 1.4fr 0.8fr"
+            template="0.8fr 0.95fr 1.2fr 1.2fr 0.75fr"
             headers={[
               { text: "Name" },
               { text: "No", nowrap: true },
-              { text: "From", nowrap: true },
-              { text: "To", nowrap: true },
+              { text: "From" },
+              { text: "To" },
               { text: "Value", align: "right", nowrap: true },
             ]}
             rows={summaryRows.map((row) => [
               { text: row.name },
               { text: row.no, nowrap: true },
-              { text: row.from, nowrap: true },
-              { text: row.to, nowrap: true },
+              { text: row.from },
+              { text: row.to },
               {
                 text: row.valueCents > 0 ? formatCents(row.valueCents) : "",
                 align: "right" as const,
@@ -500,18 +508,18 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CHEQUE, CREDIT CARD, SLIP &amp; E-WALLET</p>
             <MiniGrid
-              template="1.2fr 1.0fr 2.0fr 0.9fr"
+              template="1.05fr 0.9fr 1.7fr 0.7fr"
               headers={[
                 { text: "Name", nowrap: true },
-                { text: "Date", nowrap: true },
-                { text: "Detail", nowrap: true },
+                { text: "Date" },
+                { text: "Detail" },
                 { text: "Value", align: "right", nowrap: true },
               ]}
               rows={[
                 ...nonCash.map((row) => [
                   { text: row.name, nowrap: true },
-                  { text: row.date, nowrap: true },
-                  { text: row.detail, nowrap: true },
+                  { text: row.date },
+                  { text: row.detail },
                   { text: formatCents(row.valueCents), align: "right" as const, nowrap: true },
                 ]),
                 [
