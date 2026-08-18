@@ -355,13 +355,13 @@ export function HandoverSummaryPrint({
           body.print-handover-summary .summary-grid { width: 100% !important; }
           body.print-handover-summary .summary-cell {
             border-top: 1px solid #000 !important;
-            border-left: 1px solid #000 !important;
+            border-left: 0 !important;
             border-right: 0 !important;
             border-bottom: 0 !important;
             color: #000 !important;
             background: #fff !important;
           }
-          body.print-handover-summary .summary-last-col { border-right: 1px solid #000 !important; }
+          body.print-handover-summary .summary-last-col { border-right: 0 !important; }
           body.print-handover-summary .summary-last-row { border-bottom: 1px solid #000 !important; }
         }
       `}</style>
