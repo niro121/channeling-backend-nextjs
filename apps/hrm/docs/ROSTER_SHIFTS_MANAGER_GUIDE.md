@@ -7,9 +7,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Status:** Phase 0 layouts complete for all eight screens (minor style / component polish allowed).  
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
-**D4:** Shift Roster read is live on `/shift-roster` (Load Roster with server filters, live chips from ShiftType, server-side pagination).  
+**D5:** Shift Roster draft write is live on `/shift-roster` (Allocate Shift persists draft periods + allocations; leave toggle saves).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D5 Allocate + save draft**.
+Pages must not call Prisma. No business rules in components. Next: **D6 Publish / copy / fill**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1390,10 +1390,10 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Save Draft persists the period + allocations |
-| [ ] Reload after Save shows the same chips on Shift Roster |
-| [ ] Leave checkbox stores `isLeave` without creating a leave application |
-| [ ] Duplicate staff+date is rejected safely |
+| [x] Save Draft persists the period + allocations |
+| [x] Reload after Save shows the same chips on Shift Roster |
+| [x] Leave checkbox stores `isLeave` without creating a leave application |
+| [x] Duplicate staff+date is rejected safely |
 
 ---
 

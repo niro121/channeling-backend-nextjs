@@ -504,6 +504,27 @@ export type LoadRosterResult = {
   dayIsos: string[];
 };
 
+export type SaveRosterAllocationDraftPayload = {
+  allocationId?: string;
+  staffId: string;
+  shiftTypeId: string;
+  rosterDate: Date | string;
+  periodFromDate: Date | string;
+  periodToDate: Date | string;
+  department?: string | null;
+  unit?: string | null;
+  designation?: string | null;
+  roster?: string | null;
+  isLeave?: boolean;
+  otHours?: number;
+  comments?: string | null;
+};
+
+export type ToggleRosterAllocationLeavePayload = {
+  allocationId: string;
+  isLeave: boolean;
+};
+
 /* ---------------------------------
 Roster Amendment
 --------------------------------- */

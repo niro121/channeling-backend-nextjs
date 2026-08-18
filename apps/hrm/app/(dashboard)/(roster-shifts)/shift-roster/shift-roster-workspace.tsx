@@ -2,12 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useToast } from '@archmage/ui';
 import type {
+  LoadRosterParams,
   LoadRosterResult,
-  RosterStaffRow,
-  ShiftCell,
-  ShiftTypeChip
+  RosterStaffRow
 } from '@/types/roster';
 import SectionRosterFilters, {
   type RosterFilterValues
@@ -23,16 +21,20 @@ import {
 
 type ShiftRosterWorkspaceProps = {
   data: LoadRosterResult;
+  initialFilters: LoadRosterParams;
 };
 
-function emptyFilters(data: LoadRosterResult): RosterFilterValues {
+function emptyFilters(
+  data: LoadRosterResult,
+  initialFilters?: LoadRosterParams
+): RosterFilterValues {
   return {
-    departmentId: '',
-    unitId: '',
-    rosterId: '',
-    fromDate: data.dayIsos[0] ?? '',
-    toDate: data.dayIsos[data.dayIsos.length - 1] ?? '',
-    staffSearch: ''
+    departmentId: initialFilters?.department ?? '',
+    unitId: initialFilters?.unit ?? '',
+    rosterId: initialFilters?.roster ?? '',
+    fromDate: initialFilters?.fromDate ?? data.dayIsos[0] ?? '',
+    toDate: initialFilters?.toDate ?? data.dayIsos[data.dayIsos.length - 1] ?? '',
+    staffSearch: initialFilters?.search ?? ''
   };
 }
 
@@ -49,8 +51,10 @@ function staffOptionsFromRows(
   }));
 }
 
-function ShiftRosterWorkspaceInner({ data }: ShiftRosterWorkspaceProps) {
-  const { toast } = useToast();
+function ShiftRosterWorkspaceInner({
+  data,
+  initialFilters
+}: ShiftRosterWorkspaceProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -62,7 +66,7 @@ function ShiftRosterWorkspaceInner({ data }: ShiftRosterWorkspaceProps) {
     closeHistorySheet
   } = useShiftRosterUi();
   const [draftFilters, setDraftFilters] = useState<RosterFilterValues>(() =>
-    emptyFilters(data)
+    emptyFilters(data, initialFilters)
   );
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
 
@@ -130,6 +134,9 @@ function ShiftRosterWorkspaceInner({ data }: ShiftRosterWorkspaceProps) {
           target={formTarget}
           staffOptions={staffOptions}
           shiftTypes={data.shiftTypes}
+          periodFromDate={draftFilters.fromDate}
+          periodToDate={draftFilters.toDate}
+          rosterValue={draftFilters.rosterId}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}

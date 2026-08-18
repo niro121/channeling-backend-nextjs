@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { parseISO } from 'date-fns';
@@ -18,6 +19,7 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import { saveRosterAllocationDraftAction } from '@/app/actions/roster-actions/shift-roster.actions';
 import type { ShiftTypeChip } from '@/types/roster';
 import type { RosterAllocationFormTarget } from './shift-roster-ui-context';
 
@@ -37,6 +39,7 @@ export type RosterAllocationFormValues = {
   unit: string;
   designation: string;
   rosterDate: Date | null;
+  isLeave: boolean;
   totalHours: string;
   otHours: string;
   status: string;
@@ -48,6 +51,9 @@ type SheetRosterAllocationFormProps = {
   target: RosterAllocationFormTarget;
   staffOptions: StaffOption[];
   shiftTypes: ShiftTypeChip[];
+  periodFromDate: string;
+  periodToDate: string;
+  rosterValue: string;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -67,6 +73,7 @@ const validationSchema = Yup.object({
   staffId: Yup.string().required('Staff member is required'),
   shiftTypeId: Yup.string().required('Shift type is required'),
   rosterDate: Yup.date().nullable().required('Roster date is required'),
+  isLeave: Yup.boolean().required(),
   otHours: Yup.number()
     .transform((value, original) => (original === '' ? undefined : value))
     .min(0, 'Must be 0 or greater')
@@ -111,6 +118,7 @@ function buildInitialValues(
     unit: staff?.unit ?? '',
     designation: staff?.designation ?? '',
     rosterDate: target.dateIso ? parseISO(target.dateIso) : null,
+    isLeave: target.shift?.isLeave ?? false,
     totalHours: hoursForShiftType(shiftTypeId, shiftTypes),
     otHours:
       target.mode === 'edit' && target.shift
@@ -169,9 +177,13 @@ export default function SheetRosterAllocationForm({
   target,
   staffOptions,
   shiftTypes,
+  periodFromDate,
+  periodToDate,
+  rosterValue,
   onOpenChange
 }: SheetRosterAllocationFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const mode = target.mode;
 
@@ -191,7 +203,7 @@ export default function SheetRosterAllocationForm({
     mode === 'edit'
       ? 'Update the record. All changes are captured in the audit trail.'
       : 'Create a new roster allocation for a staff member.';
-  const saveLabel = mode === 'edit' ? 'Save Changes' : 'Save Allocation';
+  const saveLabel = 'Save Draft';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -208,17 +220,67 @@ export default function SheetRosterAllocationForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
-            setLoading(true);
-            toast({
-              title:
-                mode === 'edit'
-                  ? 'Update roster allocation'
-                  : 'Create roster allocation',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
+          onSubmit={async (values, helpers) => {
+            try {
+              setLoading(true);
+              const response = await saveRosterAllocationDraftAction({
+                allocationId: target.shift?.allocationId,
+                staffId: values.staffId,
+                shiftTypeId: values.shiftTypeId,
+                rosterDate: values.rosterDate ?? '',
+                periodFromDate,
+                periodToDate,
+                department: values.department,
+                unit: values.unit,
+                designation: values.designation,
+                roster: rosterValue,
+                isLeave: values.isLeave,
+                otHours: Number(values.otHours || 0),
+                comments: values.comments
+              });
+
+              if (response.isError) {
+                const errorMap = response.errors as Record<string, string | string[] | undefined>;
+                const formErrors: Record<string, string> = {};
+                Object.keys(errorMap).forEach((key) => {
+                  if (key === 'message') return;
+                  const value = errorMap[key];
+                  const msg = Array.isArray(value) ? value[0] : value;
+                  if (msg) formErrors[key] = msg;
+                });
+                if (Object.keys(formErrors).length) helpers.setErrors(formErrors);
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description:
+                    (response.errors.message as string) ??
+                    'Roster allocation could not be saved.'
+                });
+                return;
+              }
+
+              toast({
+                variant: 'success',
+                title: 'Success',
+                description:
+                  mode === 'edit'
+                    ? 'Roster draft updated.'
+                    : 'Roster draft saved.'
+              });
+              onOpenChange(false);
+              router.refresh();
+            } catch (error: unknown) {
+              toast({
+                variant: 'destructive',
+                title: 'Error',
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : 'Roster allocation could not be saved.'
+              });
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {(formik) => (
@@ -299,6 +361,20 @@ export default function SheetRosterAllocationForm({
                     }
                     onBlur={formik.handleBlur}
                     required
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomSelectField
+                    id="isLeave"
+                    placeholder="Leave"
+                    value={String(formik.values.isLeave)}
+                    onChange={(value) =>
+                      formik.setFieldValue('isLeave', value === 'true')
+                    }
+                    required
+                    options={[
+                      { id: 'false', name: 'No' },
+                      { id: 'true', name: 'Yes' }
+                    ]}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField

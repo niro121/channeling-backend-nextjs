@@ -44,10 +44,11 @@ export function ShiftChip({
           : undefined
       }
       className={cn(
-        'min-w-[6.5rem] rounded-md border px-2 py-1.5 text-left shadow-sm',
+        'min-w-26 rounded-md border px-2 py-1.5 text-left shadow-sm transition-all',
         chipStyle,
-        compact && 'min-w-[5.5rem] px-1.5 py-1',
-        onClick && 'cursor-pointer transition-colors hover:brightness-[0.98]'
+        compact && 'min-w-22 px-1.5 py-1',
+        onClick &&
+          'cursor-pointer hover:-translate-y-px hover:brightness-[0.98] hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40'
       )}
     >
       <p className="text-xs font-semibold leading-tight">{shift.label}</p>

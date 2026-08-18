@@ -1,6 +1,5 @@
 'use server';
 
-import prisma from '@/lib/prisma';
 import {
   addDays,
   eachDayOfInterval,
@@ -8,6 +7,11 @@ import {
   parseISO,
   startOfWeek
 } from 'date-fns';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
+import type { AuditUser } from '@/lib/audit-user';
+import { toAuditUser } from '@/lib/audit-user';
+import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
   LoadRosterParams,
   LoadRosterResult,
@@ -16,9 +20,12 @@ import type {
   RosterFilterOptions,
   RosterGridSummary,
   RosterStaffRow,
+  SaveRosterAllocationDraftPayload,
   ShiftCell,
-  ShiftTypeChip
+  ShiftTypeChip,
+  ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
+import { SHIFT_ROSTER_CODE_PREFIX } from '@/types/roster';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -60,6 +67,78 @@ function currentWeekRange(): { fromDate: string; toDate: string } {
     fromDate: iso(weekStart),
     toDate: iso(addDays(weekStart, 6))
   };
+}
+
+const saveDraftSchema = z.object({
+  allocationId: z.string().optional(),
+  staffId: z.string().min(1, 'Staff member is required'),
+  shiftTypeId: z.string().min(1, 'Shift type is required'),
+  rosterDate: z.coerce.date(),
+  periodFromDate: z.coerce.date(),
+  periodToDate: z.coerce.date(),
+  department: z.string().optional().nullable(),
+  unit: z.string().optional().nullable(),
+  designation: z.string().optional().nullable(),
+  roster: z.string().optional().nullable(),
+  isLeave: z.boolean().optional().default(false),
+  otHours: z.coerce.number().min(0, 'OT hours must be 0 or greater').optional().default(0),
+  comments: z.string().max(500).optional().nullable()
+});
+
+const toggleLeaveSchema = z.object({
+  allocationId: z.string().min(1, 'Allocation is required'),
+  isLeave: z.boolean()
+});
+
+async function ensureDraftShiftRoster(input: {
+  department: string;
+  unit: string;
+  roster: string;
+  fromDate: Date;
+  toDate: Date;
+  user?: AuditUser;
+}) {
+  const existing = await prisma.shiftRoster.findFirst({
+    where: {
+      department: input.department,
+      unit: input.unit,
+      roster: input.roster,
+      fromDate: input.fromDate,
+      toDate: input.toDate,
+      status: 'draft'
+    },
+    select: { id: true }
+  });
+
+  if (existing) return existing.id;
+
+  const generated = await generateRecordCode(SHIFT_ROSTER_CODE_PREFIX);
+  if (!generated.success) {
+    throw new Error('Failed to generate roster code. Please try again.');
+  }
+
+  const auditUser = toAuditUser(input.user);
+  const rangeLabel = `${format(input.fromDate, 'dd MMM yyyy')} - ${format(input.toDate, 'dd MMM yyyy')}`;
+
+  const created = await prisma.shiftRoster.create({
+    data: {
+      code: generated.code,
+      name: input.roster
+        ? `${input.roster} (${rangeLabel})`
+        : `Shift Roster (${rangeLabel})`,
+      department: input.department,
+      unit: input.unit,
+      roster: input.roster,
+      fromDate: input.fromDate,
+      toDate: input.toDate,
+      status: 'draft',
+      createdBy: auditUser?.id,
+      updatedBy: auditUser?.id
+    },
+    select: { id: true }
+  });
+
+  return created.id;
 }
 
 /* ------------------------------------------------------------------ */
@@ -345,6 +424,245 @@ export async function loadRoster(
       error: {
         message: error.message || 'Failed to load roster'
       }
+    };
+  }
+}
+
+export async function saveRosterAllocationDraft(
+  payload: SaveRosterAllocationDraftPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: { id: string; shiftRosterId: string };
+  message?: string;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const parsed = saveDraftSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const data = parsed.data;
+    const rosterDate = new Date(
+      Date.UTC(
+        data.rosterDate.getFullYear(),
+        data.rosterDate.getMonth(),
+        data.rosterDate.getDate()
+      )
+    );
+    const periodFromDate = new Date(
+      Date.UTC(
+        data.periodFromDate.getFullYear(),
+        data.periodFromDate.getMonth(),
+        data.periodFromDate.getDate()
+      )
+    );
+    const periodToDate = new Date(
+      Date.UTC(
+        data.periodToDate.getFullYear(),
+        data.periodToDate.getMonth(),
+        data.periodToDate.getDate()
+      )
+    );
+
+    if (periodToDate < periodFromDate) {
+      return {
+        success: false,
+        error: {
+          message: 'Period end date must be on or after start date',
+          issues: { periodToDate: ['Must be on or after the start date'] }
+        }
+      };
+    }
+    if (rosterDate < periodFromDate || rosterDate > periodToDate) {
+      return {
+        success: false,
+        error: {
+          message: 'Roster date must be within the selected period',
+          issues: { rosterDate: ['Must be within the selected period'] }
+        }
+      };
+    }
+
+    const [staff, shiftType] = await Promise.all([
+      prisma.staff.findUnique({
+        where: { id: data.staffId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          employmentDetails: true
+        }
+      }),
+      prisma.shiftType.findUnique({
+        where: { id: data.shiftTypeId },
+        select: {
+          id: true,
+          durationHours: true
+        }
+      })
+    ]);
+
+    if (!staff) {
+      return { success: false, error: { message: 'Staff member not found' } };
+    }
+    if (!shiftType) {
+      return { success: false, error: { message: 'Shift type not found' } };
+    }
+
+    const employment = (staff.employmentDetails as { employment?: { roster?: string | null } } | null)?.employment;
+    const rosterValue = (data.roster ?? employment?.roster ?? '').trim();
+    const department = (data.department ?? '').trim();
+    const unit = (data.unit ?? '').trim();
+
+    const duplicate = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId: data.staffId,
+        date: rosterDate,
+        ...(data.allocationId ? { id: { not: data.allocationId } } : {})
+      },
+      select: { id: true }
+    });
+
+    if (duplicate) {
+      return {
+        success: false,
+        error: {
+          message: 'A roster allocation already exists for this staff member on that date',
+          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+        }
+      };
+    }
+
+    const shiftRosterId = await ensureDraftShiftRoster({
+      department,
+      unit,
+      roster: rosterValue,
+      fromDate: periodFromDate,
+      toDate: periodToDate,
+      user
+    });
+
+    const auditUser = toAuditUser(user);
+    const allocationData = {
+      shiftRosterId,
+      staffId: data.staffId,
+      shiftTypeId: data.shiftTypeId,
+      date: rosterDate,
+      staffCode: staff.code ?? '',
+      staffName: staff.name ?? '',
+      department,
+      unit,
+      roster: rosterValue,
+      status: 'draft',
+      isLeave: data.isLeave ?? false,
+      hours: shiftType.durationHours ?? 0,
+      otHours: data.otHours ?? 0,
+      comments: data.comments?.trim() ?? '',
+      updatedBy: auditUser?.id
+    } as const;
+
+    if (data.allocationId) {
+      const existing = await prisma.rosterAllocation.findUnique({
+        where: { id: data.allocationId },
+        select: { id: true }
+      });
+      if (!existing) {
+        return { success: false, error: { message: 'Roster allocation not found' } };
+      }
+
+      const updated = await prisma.rosterAllocation.update({
+        where: { id: data.allocationId },
+        data: allocationData,
+        select: { id: true, shiftRosterId: true }
+      });
+
+      return {
+        success: true,
+        data: { id: updated.id, shiftRosterId: updated.shiftRosterId },
+        message: 'Roster allocation updated'
+      };
+    }
+
+    const created = await prisma.rosterAllocation.create({
+      data: {
+        ...allocationData,
+        createdBy: auditUser?.id
+      },
+      select: { id: true, shiftRosterId: true }
+    });
+
+    return {
+      success: true,
+      data: { id: created.id, shiftRosterId: created.shiftRosterId },
+      message: 'Roster allocation created'
+    };
+  } catch (error: any) {
+    console.error('saveRosterAllocationDraft error:', error);
+    if (error?.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message: 'A roster allocation already exists for this staff member on that date',
+          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+        }
+      };
+    }
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to save roster allocation draft' }
+    };
+  }
+}
+
+export async function toggleRosterAllocationLeave(
+  payload: ToggleRosterAllocationLeavePayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: { id: string; isLeave: boolean };
+  message?: string;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const parsed = toggleLeaveSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const auditUser = toAuditUser(user);
+    const updated = await prisma.rosterAllocation.update({
+      where: { id: parsed.data.allocationId },
+      data: {
+        isLeave: parsed.data.isLeave,
+        updatedBy: auditUser?.id
+      },
+      select: { id: true, isLeave: true }
+    });
+
+    return {
+      success: true,
+      data: updated,
+      message: 'Leave flag updated'
+    };
+  } catch (error: any) {
+    console.error('toggleRosterAllocationLeave error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to update leave flag' }
     };
   }
 }

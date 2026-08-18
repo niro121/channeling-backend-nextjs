@@ -24,6 +24,7 @@ import {
   SelectValue,
   useToast
 } from '@archmage/ui';
+import { toggleRosterAllocationLeaveAction } from '@/app/actions/roster-actions/shift-roster.actions';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -93,6 +94,8 @@ const STATUS_LABELS: Record<RowStatus, string> = {
 
 const LATER = 'Will be wired in a later phase.';
 const CELL_SEP = 'border-r border-border';
+const EMPTY_CELL_NOTICE =
+  'group flex min-h-14 w-full items-center justify-between rounded-md border border-dashed border-primary/20 bg-primary/5 px-2 py-2 text-left text-xs font-medium text-primary/80 transition-all hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40';
 
 function dayHeader(dayIso: string): string {
   return format(parseISO(dayIso), 'EEE dd MMM').toUpperCase();
@@ -249,9 +252,33 @@ export default function SectionRosterGrid({
     toast({ title, description: LATER });
   };
 
-  const toggleLeave = (staffId: string, dateIso: string, current: boolean) => {
+  const toggleLeave = async (
+    allocationId: string,
+    staffId: string,
+    dateIso: string,
+    current: boolean
+  ) => {
     const key = `${staffId}:${dateIso}`;
     setLeaveOverrides((prev) => ({ ...prev, [key]: !current }));
+    const result = await toggleRosterAllocationLeaveAction({
+      allocationId,
+      isLeave: !current
+    });
+    if (result.isError) {
+      setLeaveOverrides((prev) => ({ ...prev, [key]: current }));
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (result.errors.message as string) ?? 'Could not update leave flag.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: !current ? 'Leave enabled.' : 'Leave removed.'
+    });
   };
 
   const handleSort = (key: string) => {
@@ -378,7 +405,7 @@ export default function SectionRosterGrid({
                   <TableRow className="hover:bg-transparent">
                     <TableHead
                       className={cn(
-                        'sticky left-0 z-20 min-w-[8rem] bg-background',
+                        'sticky left-0 z-20 min-w-32 bg-background',
                         CELL_SEP
                       )}
                     >
@@ -395,7 +422,7 @@ export default function SectionRosterGrid({
                     </TableHead>
                     <TableHead
                       className={cn(
-                        'sticky left-[8rem] z-20 min-w-[10rem] bg-background',
+                        'sticky left-32 z-20 min-w-40 bg-background',
                         CELL_SEP
                       )}
                     >
@@ -412,7 +439,7 @@ export default function SectionRosterGrid({
                     </TableHead>
                     {staffMetaVisible ? (
                       <>
-                        <TableHead className={cn('min-w-[8rem]', CELL_SEP)}>
+                        <TableHead className={cn('min-w-32', CELL_SEP)}>
                           <RosterColumnHeader
                             label="Department"
                             sortKey="department"
@@ -426,7 +453,7 @@ export default function SectionRosterGrid({
                             filterPlaceholder="Dept…"
                           />
                         </TableHead>
-                        <TableHead className={cn('min-w-[7rem]', CELL_SEP)}>
+                        <TableHead className={cn('min-w-28', CELL_SEP)}>
                           <RosterColumnHeader
                             label="Unit"
                             sortKey="unit"
@@ -438,7 +465,7 @@ export default function SectionRosterGrid({
                             filterPlaceholder="Unit…"
                           />
                         </TableHead>
-                        <TableHead className={cn('min-w-[9rem]', CELL_SEP)}>
+                        <TableHead className={cn('min-w-36', CELL_SEP)}>
                           <RosterColumnHeader
                             label="Designation"
                             sortKey="designation"
@@ -457,7 +484,7 @@ export default function SectionRosterGrid({
                     {dayIsos.map((dayIso) => (
                       <TableHead
                         key={dayIso}
-                        className={cn('min-w-[9rem]', CELL_SEP)}
+                        className={cn('min-w-36', CELL_SEP)}
                       >
                         <RosterColumnHeader
                           label={dayHeader(dayIso)}
@@ -471,7 +498,7 @@ export default function SectionRosterGrid({
                         />
                       </TableHead>
                     ))}
-                    <TableHead className={cn('min-w-[7rem]', CELL_SEP)}>
+                    <TableHead className={cn('min-w-28', CELL_SEP)}>
                       <RosterColumnHeader
                         label="Total Hours"
                         sortKey="totalHours"
@@ -480,7 +507,7 @@ export default function SectionRosterGrid({
                         onSort={handleSort}
                       />
                     </TableHead>
-                    <TableHead className={cn('min-w-[6rem]', CELL_SEP)}>
+                    <TableHead className={cn('min-w-24', CELL_SEP)}>
                       <RosterColumnHeader
                         label="OT Hours"
                         sortKey="otHours"
@@ -489,7 +516,7 @@ export default function SectionRosterGrid({
                         onSort={handleSort}
                       />
                     </TableHead>
-                    <TableHead className={cn('min-w-[9rem]', CELL_SEP)}>
+                    <TableHead className={cn('min-w-36', CELL_SEP)}>
                       <RosterColumnHeader
                         label="Status"
                         sortKey="status"
@@ -501,7 +528,7 @@ export default function SectionRosterGrid({
                         filterPlaceholder="Status…"
                       />
                     </TableHead>
-                    <TableHead className="min-w-[7.5rem] text-right">
+                    <TableHead className="min-w-30 text-right">
                       <RosterColumnHeader label="Actions" align="right" />
                     </TableHead>
                   </TableRow>
@@ -520,7 +547,7 @@ export default function SectionRosterGrid({
                         </TableCell>
                         <TableCell
                           className={cn(
-                            'sticky left-[8rem] z-10 bg-background',
+                            'sticky left-32 z-10 bg-background',
                             CELL_SEP
                           )}
                         >
@@ -552,13 +579,14 @@ export default function SectionRosterGrid({
                                 {canEdit ? (
                                   <button
                                     type="button"
-                                    className="w-full rounded-md px-1 py-2 text-left hover:bg-muted/50"
+                                    className={EMPTY_CELL_NOTICE}
                                     onClick={() =>
                                       openAdd({ row, dateIso: dayIso })
                                     }
                                     aria-label={`Allocate shift for ${row.staffName} on ${dayIso}`}
                                   >
-                                    —
+                                    <span>Allocate shift</span>
+                                    <Plus className="h-3.5 w-3.5 opacity-70 transition-transform group-hover:translate-x-0.5" />
                                   </button>
                                 ) : (
                                   '—'
@@ -576,7 +604,12 @@ export default function SectionRosterGrid({
                               <ShiftChip
                                 shift={{ ...shift, isLeave }}
                                 onLeaveToggle={() =>
-                                  toggleLeave(row.staffId, dayIso, isLeave)
+                                  void toggleLeave(
+                                    shift.allocationId,
+                                    row.staffId,
+                                    dayIso,
+                                    isLeave
+                                  )
                                 }
                                 onClick={
                                   canEdit

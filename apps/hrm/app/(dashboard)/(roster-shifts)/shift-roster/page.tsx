@@ -90,7 +90,7 @@ export default async function ShiftRosterPage({ searchParams }: SearchParams) {
         actions={<ShiftRosterHeaderActions />}
       />
 
-      <ShiftRosterWorkspace data={data} />
+      <ShiftRosterWorkspace data={data} initialFilters={loadParams} />
     </div>
   );
 }

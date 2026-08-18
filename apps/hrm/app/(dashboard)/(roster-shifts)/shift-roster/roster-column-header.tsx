@@ -54,7 +54,8 @@ export function RosterColumnHeader({
           variant="ghost"
           size="sm"
           className={cn(
-            'h-7 gap-1 px-1.5 text-xs font-medium text-muted-foreground hover:text-foreground',
+            'h-7 gap-1 rounded-md px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary/40',
+            isActive && 'bg-primary/5 text-foreground',
             align === 'right' && 'flex-row-reverse'
           )}
           onClick={() => onSort(sortKey)}
