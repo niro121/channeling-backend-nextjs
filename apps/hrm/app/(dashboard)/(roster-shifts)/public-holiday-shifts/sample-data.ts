@@ -180,6 +180,17 @@ export const SAMPLE_HOLIDAY_STAFF: PublicHolidayStaffOption[] = [
   }
 ];
 
+export const SAMPLE_HOLIDAY_LOCATIONS: PublicHolidayFilterOption[] = [
+  { id: 'Ward 3', name: 'Ward 3' },
+  { id: 'ICU', name: 'ICU' },
+  { id: 'ETU', name: 'ETU' },
+  { id: 'Pathology', name: 'Pathology' },
+  { id: 'OPD', name: 'OPD' },
+  { id: 'Theatre', name: 'Theatre' },
+  { id: 'Ward 7', name: 'Ward 7' },
+  { id: 'Pharmacy', name: 'Pharmacy' }
+];
+
 export const SAMPLE_HOLIDAY_PAY_RATES: PublicHolidayFilterOption[] = [
   { id: '1.50', name: '1.50x' },
   { id: '2.00', name: '2.00x' },

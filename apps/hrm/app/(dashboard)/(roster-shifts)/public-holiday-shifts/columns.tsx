@@ -79,7 +79,7 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftSample>[] = [
     accessorKey: 'staffCode',
     header: () => <span className="whitespace-nowrap">Staff ID</span>,
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">{row.original.staffCode}</span>
+      <span className="font-medium tabular-nums whitespace-nowrap">{row.original.staffCode}</span>
     )
   },
   {

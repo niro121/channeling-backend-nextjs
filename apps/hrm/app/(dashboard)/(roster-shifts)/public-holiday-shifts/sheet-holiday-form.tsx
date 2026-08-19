@@ -25,6 +25,7 @@ import {
   formatHolidayHours,
   formatHolidayMoney,
   SAMPLE_HOLIDAY_AUDIT,
+  SAMPLE_HOLIDAY_LOCATIONS,
   SAMPLE_HOLIDAY_PAY_RATES,
   SAMPLE_HOLIDAY_SHIFTS,
   SAMPLE_HOLIDAY_STAFF,
@@ -281,17 +282,19 @@ export default function SheetHolidayForm({
                 ) : null}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <CustomSelectField
-                    id="holidayId"
-                    placeholder="Select holiday from Holiday Date master"
-                    value={formik.values.holidayId}
-                    onChange={(value) =>
-                      formik.setFieldValue('holidayId', value)
-                    }
-                    required
-                    options={holidayOptions}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className="sm:col-span-2">
+                    <CustomSelectField
+                      id="holidayId"
+                      placeholder="Select holiday from Holiday Date master"
+                      value={formik.values.holidayId}
+                      onChange={(value) =>
+                        formik.setFieldValue('holidayId', value)
+                      }
+                      required
+                      options={holidayOptions}
+                      styleClasses={fieldStyleClasses}
+                    />
+                  </div>
                   <CustomSelectField
                     id="holidayTypeId"
                     placeholder="Holiday Type"
@@ -304,19 +307,17 @@ export default function SheetHolidayForm({
                     styleClasses={fieldStyleClasses}
                   />
                   {showStaff ? (
-                    <div className="sm:col-span-2">
-                      <CustomSelectField
-                        id="staffId"
-                        placeholder="Staff"
-                        value={formik.values.staffId}
-                        onChange={(value) =>
-                          formik.setFieldValue('staffId', value)
-                        }
-                        required
-                        options={SAMPLE_HOLIDAY_STAFF}
-                        styleClasses={fieldStyleClasses}
-                      />
-                    </div>
+                    <CustomSelectField
+                      id="staffId"
+                      placeholder="Staff"
+                      value={formik.values.staffId}
+                      onChange={(value) =>
+                        formik.setFieldValue('staffId', value)
+                      }
+                      required
+                      options={SAMPLE_HOLIDAY_STAFF}
+                      styleClasses={fieldStyleClasses}
+                    />
                   ) : null}
                   <CustomSelectField
                     id="shiftId"
@@ -371,16 +372,17 @@ export default function SheetHolidayForm({
                     required={false}
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomFormField
-                    id="dutyLocation"
-                    type="text"
-                    placeholder="Duty Location"
-                    value={formik.values.dutyLocation}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
+                    <CustomSelectField
+                      id="dutyLocation"
+                      placeholder="Duty Location"
+                      value={formik.values.dutyLocation}
+                      onChange={(value) =>
+                        formik.setFieldValue('dutyLocation', value)
+                      }
+                      required={false}
+                      options={SAMPLE_HOLIDAY_LOCATIONS}
+                      styleClasses={fieldStyleClasses}
+                    />
                   <CustomSelectField
                     id="status"
                     placeholder="Approval Status"
@@ -449,7 +451,7 @@ export default function SheetHolidayForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-                <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
                     Created by:{' '}
                     {showAudit ? SAMPLE_HOLIDAY_AUDIT.createdBy : '—'}
@@ -472,13 +474,14 @@ export default function SheetHolidayForm({
                   type="button"
                   variant="outline"
                   disabled={loading}
-                  className="gap-1.5"
+                  size="sm"
+                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   onClick={() => onOpenChange(false)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" size="sm" disabled={loading}>
                   {copy.saveLabel}
                 </Button>
               </SheetFooter>
