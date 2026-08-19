@@ -337,7 +337,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page handover-summary { size: A6 portrait; margin: 3mm; }
+          @page handover-summary { size: A6 portrait; margin: 4mm 10mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,
@@ -349,18 +349,23 @@ export function HandoverSummaryPrint({
           body.print-handover-summary .handover-summary-print {
             display: block !important;
             position: relative !important;
-            width: calc(100% - 4mm) !important;
-            max-width: none !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 2mm !important;
             box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
             page: handover-summary;
+            font-size: 9px !important;
+            line-height: 1.25 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          body.print-handover-summary .summary-grid { width: 100% !important; }
+          body.print-handover-summary .summary-grid {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
           body.print-handover-summary .summary-cell {
             border-top: 1px solid #000 !important;
             border-left: 0 !important;
@@ -369,9 +374,19 @@ export function HandoverSummaryPrint({
             color: #000 !important;
             background: #fff !important;
             overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            white-space: normal !important;
+            padding: 1px 1px !important;
           }
           body.print-handover-summary .summary-last-col { border-right: 0 !important; }
           body.print-handover-summary .summary-last-row { border-bottom: 1px solid #000 !important; }
+          body.print-handover-summary .handover-summary-print .print-totals {
+            width: auto !important;
+            max-width: 100% !important;
+          }
+          body.print-handover-summary .handover-summary-print .print-signatures {
+            gap: 1rem !important;
+          }
         }
       `}</style>
       <div className="handover-summary-print text-black bg-white font-mono text-[10px] leading-tight">
@@ -401,7 +416,7 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CASH IN</p>
             <MiniGrid
-              template="0.9fr 1.2fr 1.4fr 0.7fr"
+              template="minmax(0,0.85fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,0.75fr)"
               headers={[
                 { text: "Bill No", nowrap: true },
                 { text: "Date" },
@@ -422,7 +437,7 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CASH OUT</p>
             <MiniGrid
-              template="0.9fr 1.2fr 1.4fr 0.7fr"
+              template="minmax(0,0.85fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,0.75fr)"
               headers={[
                 { text: "Bill No", nowrap: true },
                 { text: "Date" },
@@ -442,7 +457,7 @@ export function HandoverSummaryPrint({
         <div className="mb-1.5">
           <p className="text-center font-bold mb-0.5">SUMMARY</p>
           <MiniGrid
-            template="0.8fr 0.95fr 1.2fr 1.2fr 0.75fr"
+            template="minmax(0,0.75fr) minmax(0,0.9fr) minmax(0,1.05fr) minmax(0,1.05fr) minmax(0,0.8fr)"
             headers={[
               { text: "Name" },
               { text: "No", nowrap: true },
@@ -464,7 +479,7 @@ export function HandoverSummaryPrint({
           />
         </div>
 
-        <div className="ml-auto w-[14rem] mb-1.5">
+        <div className="ml-auto print-totals w-[14rem] max-w-full mb-1.5">
           <div className="flex justify-between border-t border-black pt-0.5">
             <span>{cashOutTotal > 0 ? "IN + SUMMARY - OUT" : "CASH IN + SUMMARY"}</span>
             <span className="tabular-nums">{formatCents(cashInPlusSummary)}</span>
@@ -472,7 +487,7 @@ export function HandoverSummaryPrint({
           <div className="border-b-2 border-double border-black mt-0.5" />
         </div>
 
-        <div className="w-[12rem] mb-1.5 space-y-0">
+        <div className="print-totals w-[12rem] max-w-full mb-1.5 space-y-0">
           {methodLines.map((line) => (
             <div key={line.label} className="flex justify-between gap-2">
               <span>{line.label} =</span>
@@ -509,7 +524,7 @@ export function HandoverSummaryPrint({
           <div className="mb-1.5">
             <p className="text-center font-bold mb-0.5">CHEQUE, CREDIT CARD, SLIP &amp; E-WALLET</p>
             <MiniGrid
-              template="1.05fr 0.9fr 1.7fr 0.7fr"
+              template="minmax(0,0.95fr) minmax(0,0.85fr) minmax(0,1.35fr) minmax(0,0.75fr)"
               headers={[
                 { text: "Name", nowrap: true },
                 { text: "Date" },
@@ -532,7 +547,7 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-8">
+        <div className="mt-4 grid grid-cols-2 print-signatures gap-8">
           <div className="text-center">
             <div className="border-t border-black pt-0.5">{toLabel}</div>
           </div>
