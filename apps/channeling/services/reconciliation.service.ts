@@ -7,6 +7,7 @@ import { REFERENCE_TYPES } from "@/types/accounting"
 import {
   getIncludedHandoversChain,
   getFullChainByForwardedTo,
+  getPreviousHandoversForHandoverDetail,
   type IncludedHandoverForDisplay,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
@@ -30,9 +31,13 @@ const NON_CASH_METHODS = [
   RECEIPT_PAYMENT_METHOD.E_WALLET,
 ] as const
 
+const NON_CASH_METHOD_SET = new Set<number>(NON_CASH_METHODS)
+
 /** Receipt row for reconciliation tick list */
 export type ReceiptForReconciliation = {
   id: string
+  /** Parent receipt ID (same as id for non-mixed; the receipt ObjectId for mixed payment line rows). */
+  receiptId: string
   receiptNoString: string
   paymentMethod: number
   amount: number
@@ -60,8 +65,6 @@ export async function getReceiptsForHandoverReconciliation(
   handoverCreatedAt: Date,
   handoverId: string
 ): Promise<ReceiptForReconciliation[]> {
-  // Query: shiftId or legacy window, and non-cash only. Do NOT filter canceledAt/reconciledAt in DB
-  // so that MongoDB null vs missing field doesn't exclude valid receipts; we filter in memory.
   const raw = await prisma.receipt.findMany({
     where: {
       OR: [
@@ -72,7 +75,7 @@ export async function getReceiptsForHandoverReconciliation(
           createdAt: { gte: shiftStartedAt, lte: handoverCreatedAt },
         },
       ],
-      paymentMethod: { in: [...NON_CASH_METHODS] },
+      paymentMethod: { in: [...NON_CASH_METHODS, RECEIPT_PAYMENT_METHOD.MIXED] },
     },
     select: {
       id: true,
@@ -88,6 +91,16 @@ export async function getReceiptsForHandoverReconciliation(
       reconciledAt: true,
       reconciledBy: true,
       reconciledHandoverId: true,
+      paymentLines: {
+        select: {
+          id: true,
+          paymentMethod: true,
+          amount: true,
+          cardReference: true,
+          slipReference: true,
+          slipDate: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   })
@@ -96,19 +109,44 @@ export async function getReceiptsForHandoverReconciliation(
       (r.canceledAt === null || r.canceledAt === undefined) &&
       (r.reconciledAt === null || r.reconciledAt === undefined || r.reconciledHandoverId === handoverId)
   )
-  return eligible.map((r) => ({
-    id: r.id,
-    receiptNoString: r.receiptNoString,
-    paymentMethod: r.paymentMethod,
-    amount: r.amount,
-    type: r.type,
-    createdAt: r.createdAt,
-    cardReference: r.cardReference,
-    slipReference: r.slipReference,
-    slipDate: formatSlipDate(r.slipDate) ?? null,
-    reconciledAt: r.reconciledAt ?? undefined,
-    reconciledBy: r.reconciledBy ?? undefined,
-  }))
+  const result: ReceiptForReconciliation[] = []
+  for (const r of eligible) {
+    if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.MIXED && r.paymentLines.length > 0) {
+      for (const line of r.paymentLines) {
+        if (!NON_CASH_METHOD_SET.has(line.paymentMethod)) continue
+        result.push({
+          id: line.id,
+          receiptId: r.id,
+          receiptNoString: r.receiptNoString,
+          paymentMethod: line.paymentMethod,
+          amount: line.amount,
+          type: r.type,
+          createdAt: r.createdAt,
+          cardReference: line.cardReference ?? "",
+          slipReference: line.slipReference ?? "",
+          slipDate: formatSlipDate(line.slipDate) ?? null,
+          reconciledAt: r.reconciledAt ?? undefined,
+          reconciledBy: r.reconciledBy ?? undefined,
+        })
+      }
+    } else {
+      result.push({
+        id: r.id,
+        receiptId: r.id,
+        receiptNoString: r.receiptNoString,
+        paymentMethod: r.paymentMethod,
+        amount: r.amount,
+        type: r.type,
+        createdAt: r.createdAt,
+        cardReference: r.cardReference,
+        slipReference: r.slipReference,
+        slipDate: formatSlipDate(r.slipDate) ?? null,
+        reconciledAt: r.reconciledAt ?? undefined,
+        reconciledBy: r.reconciledBy ?? undefined,
+      })
+    }
+  }
+  return result
 }
 
 /** Net amount in cents for a payment method from receipt list (DEBIT - CREDIT). Normalizes receipt amount to cents. */
@@ -397,7 +435,11 @@ export async function getReconciliationDocument(
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
 
-  let chainHandovers = await getIncludedHandoversChain(top.includedHandoverIds)
+  let chainHandovers = await getPreviousHandoversForHandoverDetail({
+    handoverId: topLevelHandoverId,
+    shiftId: top.shiftId,
+    includedHandoverIds: top.includedHandoverIds,
+  })
   if (chainHandovers.length === 0) {
     chainHandovers = await getFullChainByForwardedTo(topLevelHandoverId)
   }
@@ -423,7 +465,7 @@ export async function getReconciliationDocument(
     eWalletCents: number
     createdAt: Date
     enteredBreakdown?: unknown
-  }> = [top, ...normalizedChain]
+  }> = [top, ...normalizedChain.filter((h) => h.id !== top.id)]
 
   const receiptsByIndex = await Promise.all(
     allHandovers.map((h) => {
@@ -582,9 +624,14 @@ export async function submitHandoverReconciliation(
 
   const now = new Date()
   const allTickedReceiptIds: string[] = []
+  const parentReceiptIdsToMark = new Set<string>()
   for (const tab of chain) {
     const ids = payload.tickedReceiptIdsByHandoverId[tab.handover.id] ?? []
     allTickedReceiptIds.push(...ids)
+    for (const id of ids) {
+      const receipt = tab.receipts.find((r) => r.id === id)
+      if (receipt) parentReceiptIdsToMark.add(receipt.receiptId)
+    }
   }
   if (allTickedReceiptIds.length === 0) {
     return { success: false, error: "Select at least one receipt to reconcile." }
@@ -673,9 +720,10 @@ export async function submitHandoverReconciliation(
     })
   }
 
-  if (allTickedReceiptIds.length > 0) {
+  const receiptIdsToUpdate = [...parentReceiptIdsToMark]
+  if (receiptIdsToUpdate.length > 0) {
     await prisma.receipt.updateMany({
-      where: { id: { in: allTickedReceiptIds } },
+      where: { id: { in: receiptIdsToUpdate } },
       data: {
         reconciledAt: now,
         reconciledBy: reconciledByUserId,
