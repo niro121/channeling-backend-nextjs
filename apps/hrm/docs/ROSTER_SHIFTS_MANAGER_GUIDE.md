@@ -455,7 +455,7 @@ Daily department/unit duty list. Same permission as the rest of Roster & Shifts 
 └───────────────────────────────────────────────────────────────────────────┘
 
 ┌─ Duty Roster (CommonDataTable) ───────────────────────────────────────────┐
-│ Daily | Weekly* | Monthly*     N of M selected   [ Columns ] [ Print/… ]  │
+│ Daily | Weekly* | Monthly*                       [ Columns ] [ Print/… ]  │
 │ Staff ID │ Name │ Shift │ Start │ End │ Location │ Ward/Unit │ Supervisor │
 │ Status │ Attendance │ Updated │ Created │ Actions (Swap / Edit / Del / Hist)│
 └───────────────────────────────────────────────────────────────────────────┘
@@ -482,7 +482,7 @@ Key files under `app/(dashboard)/(roster-shifts)/duty-roster/`:
 
 - Print / PDF / Excel live on the **table toolbar only** (not the page header).
 - **Daily** is the default list. **Weekly** / **Monthly** load a date-range list for the selected date (Sun–Sat week, like Shift Roster). The staff × day grid stays on `/shift-roster`.
-- Header Swap / Replace open **full forms** (no selected-row requirement).
+- Header Swap / Replace open **full forms** (no selected-row requirement). No table checkboxes — Assign / Swap / Replace / Edit / Delete are header or row actions, not bulk selection.
 
 ### 2D.2 Form sheets
 
