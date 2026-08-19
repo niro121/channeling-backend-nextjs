@@ -356,8 +356,8 @@ export function HandoverSummaryPrint({
             box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
-            font-size: 9px !important;
-            line-height: 1.25 !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
             break-after: avoid !important;
             break-before: avoid !important;
             break-inside: avoid !important;
@@ -366,6 +366,15 @@ export function HandoverSummaryPrint({
             page-break-inside: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          body.print-handover-summary .handover-summary-print .print-title {
+            font-size: 14px !important;
+          }
+          body.print-handover-summary .handover-summary-print .print-status {
+            font-size: 17px !important;
+          }
+          body.print-handover-summary .handover-summary-print .print-section-title {
+            font-size: 11px !important;
           }
           body.print-handover-summary .summary-grid {
             width: 100% !important;
@@ -394,9 +403,9 @@ export function HandoverSummaryPrint({
           }
         }
       `}</style>
-      <div className="handover-summary-print text-black bg-white font-mono text-[10px] leading-tight">
-        <p className="text-center font-bold tracking-wide text-[13px] mb-1">HAND OVER REPORT</p>
-        <p className="text-center font-bold tracking-wide text-[15px] mb-1.5">
+      <div className="handover-summary-print text-black bg-white font-mono text-[11px] leading-snug">
+        <p className="print-title text-center font-bold tracking-wide text-[14px] mb-1">HAND OVER REPORT</p>
+        <p className="print-status text-center font-bold tracking-wide text-[17px] mb-1.5">
           {reportStatus.toUpperCase()}
         </p>
         <div className="mb-1.5 space-y-0">
@@ -419,7 +428,7 @@ export function HandoverSummaryPrint({
 
         {cashInRows.length > 0 ? (
           <div className="mb-1.5">
-            <p className="text-center font-bold mb-0.5">CASH IN</p>
+            <p className="print-section-title text-center font-bold mb-0.5">CASH IN</p>
             <MiniGrid
               template="minmax(0,0.85fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,0.75fr)"
               headers={[
@@ -440,7 +449,7 @@ export function HandoverSummaryPrint({
 
         {cashOutRows.length > 0 ? (
           <div className="mb-1.5">
-            <p className="text-center font-bold mb-0.5">CASH OUT</p>
+            <p className="print-section-title text-center font-bold mb-0.5">CASH OUT</p>
             <MiniGrid
               template="minmax(0,0.85fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,0.75fr)"
               headers={[
@@ -460,7 +469,7 @@ export function HandoverSummaryPrint({
         ) : null}
 
         <div className="mb-1.5">
-          <p className="text-center font-bold mb-0.5">SUMMARY</p>
+          <p className="print-section-title text-center font-bold mb-0.5">SUMMARY</p>
           <MiniGrid
             template="minmax(0,0.75fr) minmax(0,0.9fr) minmax(0,1.05fr) minmax(0,1.05fr) minmax(0,0.8fr)"
             headers={[
@@ -527,7 +536,7 @@ export function HandoverSummaryPrint({
 
         {nonCash.length > 0 ? (
           <div className="mb-1.5">
-            <p className="text-center font-bold mb-0.5">CHEQUE, CREDIT CARD, SLIP &amp; E-WALLET</p>
+            <p className="print-section-title text-center font-bold mb-0.5">CHEQUE, CREDIT CARD, SLIP &amp; E-WALLET</p>
             <MiniGrid
               template="minmax(0,0.95fr) minmax(0,0.85fr) minmax(0,1.35fr) minmax(0,0.75fr)"
               headers={[
