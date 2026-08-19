@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { userTypes } from "@/lib/roles"
 import { getReconciliationDocumentAction } from "@/app/actions/reconciliation.actions"
+import { RECONCILIATION_STATUS } from "@/types/handover"
 import { ReconciliationDocumentView, type HandoverTabData } from "./reconciliation-document-view"
 
 type Props = {
@@ -15,14 +16,25 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
   const result = await getReconciliationDocumentAction(id)
 
   if (!result.success || !("chain" in result)) {
-    notFound()
+    if (result.success === false && result.error === "Handover not found.") {
+      notFound()
+    }
+    return (
+      <div className="flex-1 space-y-2 p-8 pt-6">
+        <h2 className="text-2xl font-bold tracking-tight">Reconciliation document</h2>
+        <p className="text-sm text-muted-foreground">
+          {result.success === false ? result.error : "This handover cannot be opened."}
+        </p>
+      </div>
+    )
   }
 
   const session = await getServerSession(authOptions)
   const isAdmin = session?.user?.userType === userTypes.admin
   const assignedTo = result.reconciliationAssignedToUserId
+  const isOpen = result.reconciliationStatus === RECONCILIATION_STATUS.IN_RECONCILIATION
   const canActAsReconciler =
-    isAdmin || !assignedTo || assignedTo === session?.user?.id
+    isOpen && (isAdmin || !assignedTo || assignedTo === session?.user?.id)
 
   const chain: HandoverTabData[] = result.chain.map((tab) => ({
     handover: {
@@ -44,6 +56,11 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       reconciledAt:
         r.reconciledAt instanceof Date ? r.reconciledAt.toISOString() : (r.reconciledAt ?? null),
+      cannotReconcileAt:
+        r.cannotReconcileAt instanceof Date
+          ? r.cannotReconcileAt.toISOString()
+          : (r.cannotReconcileAt ?? null),
+      cannotReconcileReason: r.cannotReconcileReason ?? null,
     })),
   }))
 
@@ -52,6 +69,10 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
       topLevelHandoverId={id}
       chain={chain}
       canActAsReconciler={canActAsReconciler}
+      reconciliationStatus={result.reconciliationStatus}
+      reconciliationRejectReason={result.reconciliationRejectReason}
+      handoverNoString={result.handoverNoString}
+      hasReconciliationIssues={result.hasReconciliationIssues}
     />
   )
 }

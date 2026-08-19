@@ -3,7 +3,9 @@
 Use this document when building or extending features in `apps/hrm`.  
 **Staff Manager** (`app/(dashboard)/staff`) is the reference implementation for list + tabbed CRUD managers.
 
-Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).
+Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).  
+Overtime features: see **`OVERTIME_MANAGER_GUIDE.md`** (UI-first shell, then dynamic phases).  
+Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).
 
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 

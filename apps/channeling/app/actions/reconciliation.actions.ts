@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/server-permissions"
 import {
   listHandoversForReconciliation,
   getReconciliationDocument,
+  getReconciliationJournals,
   submitHandoverReconciliation,
   rejectHandoverReconciliation,
   sendHandoverToReconciliation,
@@ -64,6 +65,11 @@ export async function getReconciliationDocumentAction(handoverId: string) {
   const { authOptions } = await import("@/lib/auth")
   const session = await getServerSession(authOptions)
   return getReconciliationDocument(handoverId, session?.user?.id ?? null)
+}
+
+export async function getReconciliationJournalsAction(handoverId: string) {
+  await requirePermission("reconciliation", "view")
+  return getReconciliationJournals(handoverId)
 }
 
 export async function submitReconciliationAction(payload: SubmitReconciliationPayload) {

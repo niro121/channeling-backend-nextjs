@@ -38,6 +38,7 @@ type ComboboxProps = {
   triggerClassName?: string;
   /** Optional width/style override for the dropdown panel. */
   popoverClassName?: string;
+  disabled?: boolean;
 };
 
 export function Combobox({
@@ -50,10 +51,13 @@ export function Combobox({
   clearable = false,
   triggerClassName,
   popoverClassName,
+  disabled = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const selectedOption = options.find((opt) => opt.id === value);
-  const canClear = clearable && !loading && options.length > 0 && value !== defaultValue;
+  const isDisabled = disabled || loading || options.length === 0;
+  const canClear =
+    clearable && !isDisabled && options.length > 0 && value !== defaultValue;
 
   return (
     <div className="flex items-center gap-1">
@@ -62,7 +66,7 @@ export function Combobox({
           <Button
             variant="outline"
             role="combobox"
-            disabled={loading || options.length === 0}
+            disabled={isDisabled}
             className={cn('w-60 min-w-0 justify-between gap-2 text-start', triggerClassName)}
           >
             <span

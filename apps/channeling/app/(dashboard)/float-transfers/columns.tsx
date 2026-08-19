@@ -38,6 +38,13 @@ export function getFloatTransferColumns(callbacks: FloatTransferColumnCallbacks)
   const { onApprove, onReject, onViewSummary } = callbacks;
   return [
     {
+      accessorKey: 'floatNoString',
+      header: 'Bill No',
+      cell: ({ row }) => (
+        <span className="tabular-nums whitespace-nowrap">{row.original.floatNoString ?? '—'}</span>
+      ),
+    },
+    {
       accessorKey: 'requestedBy',
       header: 'Requested by',
       cell: ({ row }) => {

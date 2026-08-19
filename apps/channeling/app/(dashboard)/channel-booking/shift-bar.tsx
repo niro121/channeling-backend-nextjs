@@ -9,6 +9,7 @@ import {
   cancelHandoverAction,
   canEndShiftWithoutHandoverAction,
   endShiftAction,
+  getLinkedHandoversForShiftAction,
 } from "@/app/actions/shift.actions"
 import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
@@ -112,6 +113,16 @@ export function ChannelBookingShiftBar() {
   const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
   const [endShiftHandoverOpen, setEndShiftHandoverOpen] = useState(false)
   const [shiftDetailsOpen, setShiftDetailsOpen] = useState(false)
+  const [linkedHandovers, setLinkedHandovers] = useState<
+    {
+      id: string
+      fromLabel: string
+      receivedAt: Date | string
+      totalCents: number
+      includedFrom: { id: string; fromLabel: string; totalCents: number }[]
+    }[]
+  >([])
+  const [linkedHandoversLoading, setLinkedHandoversLoading] = useState(false)
   const handoverDialogShiftRef = useRef<{ shiftId: string; fromUserId: string } | null>(null)
   const forcedHandoverPromptedForShiftIdRef = useRef<string | null>(null)
   const hadPendingFloatRef = useRef(false)
@@ -354,6 +365,26 @@ export function ChannelBookingShiftBar() {
     window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
   }, [hasFloatRequestPermission])
+
+  useEffect(() => {
+    if (!shiftDetailsOpen || !shift?.id) {
+      setLinkedHandovers([])
+      return
+    }
+    let cancelled = false
+    setLinkedHandoversLoading(true)
+    getLinkedHandoversForShiftAction(shift.id)
+      .then((res) => {
+        if (cancelled) return
+        setLinkedHandovers(res.success ? res.data : [])
+      })
+      .finally(() => {
+        if (!cancelled) setLinkedHandoversLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [shiftDetailsOpen, shift?.id])
 
   // When max duration is exceeded: end immediately if till is empty; otherwise force handover
   useEffect(() => {
@@ -646,6 +677,9 @@ export function ChannelBookingShiftBar() {
                 <DropdownMenuContent align="end" className="w-72">
                   <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
                   <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
+                    {pendingFloatRequest.floatNoString ? (
+                      <p className="tabular-nums">Bill No: {pendingFloatRequest.floatNoString}</p>
+                    ) : null}
                     <p className="tabular-nums">
                       Amount: LKR {formatCents(pendingFloatRequest.amountRequested)}
                     </p>
@@ -788,7 +822,7 @@ export function ChannelBookingShiftBar() {
         </DialogContent>
       </Dialog>
       <Dialog open={shiftDetailsOpen} onOpenChange={setShiftDetailsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Shift details</DialogTitle>
             <DialogDescription>Basic details for your current shift.</DialogDescription>
@@ -831,6 +865,40 @@ export function ChannelBookingShiftBar() {
               </>
             ) : null}
           </dl>
+
+          <div className="border-t pt-4 space-y-2">
+            <p className="text-sm font-medium">Received handovers</p>
+            {linkedHandoversLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
+            ) : linkedHandovers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No handovers received on this shift.</p>
+            ) : (
+              <ul className="space-y-2">
+                {linkedHandovers.map((h) => (
+                  <li key={h.id} className="rounded-md border bg-muted/30 px-3 py-2 text-sm space-y-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <p className="font-medium">
+                        From {h.fromLabel}
+                      </p>
+                      <p className="tabular-nums font-semibold">LKR {formatCents(h.totalCents)}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Received {formatShiftDateTime(h.receivedAt)}
+                    </p>
+                    {h.includedFrom.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Linked from{" "}
+                        {h.includedFrom.map((inc) => inc.fromLabel).join(", ")}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShiftDetailsOpen(false)}>
               Close
@@ -922,6 +990,9 @@ function ReceiveFloatForm({
   return (
     <div className="space-y-4 pt-2">
       <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        {request.floatNoString ? (
+          <p className="tabular-nums">Bill No: {request.floatNoString}</p>
+        ) : null}
         <p className="font-medium tabular-nums">Amount: LKR {formatLKR(totalLKR)}</p>
         {denoms.length > 0 && (
           <p className="text-muted-foreground mt-1">

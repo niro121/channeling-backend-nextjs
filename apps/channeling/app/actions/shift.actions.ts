@@ -11,11 +11,14 @@ import {
   getCompletedHandoversToMe,
   getHandoverByIdForRecipient,
   getHandoversReceivedByShift,
+  getLinkedHandoversForShift,
   getIncludableHandoversForSender,
-  getIncludedHandoversChain,
+  getPreviousHandoversForHandoverDetail,
   getNonCashHeldInReconciliation,
+  countPendingIncomingHandovers,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
+import { getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
@@ -23,6 +26,9 @@ import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
+import { deriveHandoverCashierSummaryFilters } from "@/lib/handover-utils"
+import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
+import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 
 // Shift creation: single "shift" resource; view permission allows all shift actions (start, pause, resume, end).
 // Use under Channel Booking: grant "Shift (Channel Booking)" view to allow shift features.
@@ -55,11 +61,15 @@ export async function getMyDefaultLocationForShiftAction(): Promise<{ locationId
   return { locationId: user.userLocation.id, locationName: user.userLocation.name }
 }
 
-export async function startShiftAction(locationId?: string | null) {
+export async function startShiftAction(locationId: string) {
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
-  const shift = await startShiftService(session.user.id, locationId ?? undefined)
+  const trimmed = locationId?.trim()
+  if (!trimmed) {
+    throw new Error("Location is required to start a shift. Set your default location in your profile.")
+  }
+  const shift = await startShiftService(session.user.id, trimmed)
   revalidatePath("/channel-booking")
   return shift
 }
@@ -203,6 +213,42 @@ export async function cancelHandoverAction(handoverId: string) {
   return result
 }
 
+/** Count of pending handovers assigned to the current user (to accept or reject). */
+export async function getPendingIncomingHandoverCountAction(): Promise<{
+  success: true
+  count: number
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: true, count: 0 }
+  const count = await countPendingIncomingHandovers(session.user.id)
+  return { success: true, count }
+}
+
+/** Open floats that block ending the current user's shift (pending approval or waiting to receive). */
+export async function getOpenFloatsBlockingShiftEndAction(): Promise<{
+  success: true
+  blocking: Awaited<ReturnType<typeof getOpenFloatsBlockingShiftEnd>>
+  count: number
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return {
+      success: true,
+      blocking: {
+        outgoingPending: 0,
+        outgoingAwaitingReceive: 0,
+        incomingPendingApproval: 0,
+        incomingAwaitingReceive: 0,
+      },
+      count: 0,
+    }
+  }
+  const blocking = await getOpenFloatsBlockingShiftEnd(session.user.id)
+  return { success: true, blocking, count: await openFloatsBlockingTotal(blocking) }
+}
+
 /** Handovers pending for current user (handed over to me). */
 export async function getHandoversToMeAction(): Promise<
   { success: true; data: Awaited<ReturnType<typeof getHandoversToMe>> } | { success: false; data: []; message: string }
@@ -325,6 +371,19 @@ export async function getHandoversReceivedByShiftAction(shiftId: string) {
   }
 }
 
+/** Approved handovers received into the given shift (who they came from, amounts, linked chain). */
+export async function getLinkedHandoversForShiftAction(shiftId: string) {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false as const, data: [] as Awaited<ReturnType<typeof getLinkedHandoversForShift>>, message: err instanceof Error ? err.message : "Access denied." }
+  }
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false as const, data: [] as Awaited<ReturnType<typeof getLinkedHandoversForShift>>, message: "Unauthorized" }
+  const data = await getLinkedHandoversForShift(shiftId)
+  return { success: true as const, data }
+}
+
 /** Handover detail for recipient: handover + till breakdown + included handovers chain for verification. */
 export async function getHandoverDetailAction(handoverId: string) {
   await requirePermission("handover", "view")
@@ -341,17 +400,49 @@ export async function getHandoverDetailAction(handoverId: string) {
   ].filter((id): id is string => typeof id === "string" && id.trim() !== "")
   const uniqueActorIds = [...new Set(actorIds)]
 
-  const [tillBreakdown, includedHandovers, actors] = await Promise.all([
+  const shiftStartedAt = handover.shift?.startedAt ?? handover.createdAt
+  const windowEnd = handover.shift?.endedAt ?? handover.approvedAt ?? handover.createdAt
+  const ownSummaryFilters = deriveHandoverCashierSummaryFilters({
+    fromUserId: handover.fromUserId,
+    createdAt: handover.createdAt,
+    shift: handover.shift,
+  })
+
+  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
       ? getTillBalanceBreakdown(handover.fromUserId)
       : Promise.resolve(null),
-    getIncludedHandoversChain((handover as { includedHandoverIds?: unknown }).includedHandoverIds),
+    getPreviousHandoversForHandoverDetail({
+      handoverId: handover.id,
+      shiftId: handover.shiftId,
+      includedHandoverIds: (handover as { includedHandoverIds?: unknown }).includedHandoverIds,
+    }),
+    getReceivedFloatsForHandover({
+      cashierUserId: handover.fromUserId,
+      shiftId: handover.shiftId,
+      shiftStartedAt,
+      windowEnd,
+    }),
     uniqueActorIds.length > 0
       ? prisma.user.findMany({
           where: { id: { in: uniqueActorIds } },
           select: { id: true, name: true, staff: { select: { code: true } } },
         })
       : Promise.resolve([] as { id: string; name: string | null; staff: { code: string } | null }[]),
+    ownSummaryFilters
+      ? getCashierSummaryReportService({
+          userId: handover.fromUserId,
+          dateFrom: ownSummaryFilters.dateFrom,
+          dateTo: ownSummaryFilters.dateTo,
+          format: "summary",
+        })
+          .then((r) =>
+            r.success
+              ? { grandTotals: r.grandTotals, includedShifts: r.includedShifts }
+              : null
+          )
+          .catch(() => null)
+      : Promise.resolve(null),
   ])
 
   const actorById = new Map(actors.map((u) => [u.id, u]))
@@ -361,12 +452,22 @@ export async function getHandoverDetailAction(handoverId: string) {
   const assignedId = (handover as { reconciliationAssignedToUserId?: string | null }).reconciliationAssignedToUserId
   const reconciliationAssignedToUser = assignedId ? actorById.get(assignedId) ?? null : null
 
+  const includedWithNumbers = await Promise.all(
+    includedHandovers.map(async (h) => {
+      if (h.handoverNoString) return h
+      const no = await ensureHandoverDocumentNumber(h.id, h.shift?.locationId ?? handover.shift?.locationId ?? null)
+      return no ? { ...h, handoverNoString: no } : h
+    })
+  )
+
   return {
     success: true,
     data: {
       handover,
       tillBreakdown,
-      includedHandovers,
+      includedHandovers: includedWithNumbers,
+      receivedFloats,
+      cashierSummary,
       approvedByUser,
       rejectedByUser,
       cancelledByUser,

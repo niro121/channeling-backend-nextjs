@@ -14,14 +14,18 @@ import {
   getShiftMaxHoursForRole,
 } from "@/lib/shift-duration"
 import { getUserTillsTotalCents } from "@/services/accounting/balance.service"
-import { cancelOpenFloatRequestsOnEmptyShiftEnd } from "@/services/float-request.service"
+import {
+  cancelOpenFloatRequestsOnEmptyShiftEnd,
+  getOpenFloatsBlockingShiftEnd,
+  openFloatsBlockingMessage,
+} from "@/services/float-request.service"
 import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
 
 // ==== SHIFT: VALIDATION SCHEMAS ==== //
 const startShiftSchema = z.object({
   userId: z.string().min(1, "User is required").trim(),
-  locationId: z.string().trim().optional().nullable(),
+  locationId: z.string().min(1, "Location is required").trim(),
 })
 
 const shiftActionSchema = z.object({
@@ -136,8 +140,11 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
-/** Throws if the user does not have an ACTIVE shift within its time limit. */
-export async function requireActiveShift(userId: string): Promise<void> {
+/** Throws if the user does not have an ACTIVE shift. Expired shifts are allowed unless booking/ledger checks separately. */
+export async function requireActiveShift(
+  userId: string,
+  options?: { allowExpired?: boolean }
+): Promise<void> {
   const shift = await getCurrentShift(userId)
   if (!shift) {
     throw new ShiftRequirementError(
@@ -145,7 +152,7 @@ export async function requireActiveShift(userId: string): Promise<void> {
       "NO_ACTIVE_SHIFT"
     )
   }
-  if (isShiftPastMaxDuration(shift)) {
+  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
     throw new ShiftRequirementError(
       "Your shift time limit has ended. Complete handover from the top bar before continuing.",
       "SHIFT_EXPIRED"
@@ -223,6 +230,7 @@ export async function getShiftById(id: string) {
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          floatNoString: true,
           status: true,
           amountRequested: true,
           requestedById: true,
@@ -286,8 +294,32 @@ export async function getActiveShiftsWithUserAndLocation() {
   return shifts
 }
 
-export async function startShift(userId: string, locationId?: string | null) {
-  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
+export async function startShift(userId: string, locationId: string) {
+  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId })
+  const location = await prisma.location.findUnique({
+    where: { id: validLocationId },
+    select: { id: true, status: true, name: true },
+  })
+  if (!location || Number(location.status) !== 1) {
+    throw new Error("Selected location is invalid or inactive.")
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: validUserId },
+    select: {
+      userLocationId: true,
+      bookingLocations: { select: { locationId: true } },
+    },
+  })
+  if (!user) throw new Error("User not found.")
+  const allowedLocationIds = new Set<string>()
+  if (user.userLocationId) allowedLocationIds.add(user.userLocationId)
+  for (const row of user.bookingLocations) {
+    if (row.locationId) allowedLocationIds.add(row.locationId)
+  }
+  if (!allowedLocationIds.has(validLocationId)) {
+    throw new Error("You cannot start a shift at a location that is not assigned to your profile.")
+  }
+
   const isBulkCashier = await isBulkCashierUser(validUserId)
   const maxHours = getShiftMaxHoursForRole(isBulkCashier)
   const now = new Date()
@@ -310,7 +342,7 @@ export async function startShift(userId: string, locationId?: string | null) {
     return txShift.create({
       data: {
         userId: validUserId,
-        locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
+        locationId: validLocationId,
         startedAt: now,
         endsAt,
         status: SHIFT_STATUS.ACTIVE,
@@ -393,21 +425,39 @@ export async function resumeShift(shiftId: string, userId: string) {
 
 /**
  * True when the shift can be closed with no ShiftHandover:
- * every till is empty (or missing), nothing to forward, no handovers waiting to accept.
- * Unused float requests are cancelled on end — they do not force a handover.
+ * every till is empty (or missing), nothing to forward, no handovers waiting to accept,
+ * and no open float requests (pending approval or approved but not yet received).
  */
 export async function canEndShiftWithoutHandover(userId: string): Promise<{
   allowed: boolean
   reason?: string
 }> {
-  const pendingHandoversToMe = await prisma.shiftHandover.count({
-    where: { toUserId: userId, status: HANDOVER_STATUS.PENDING },
+  const incomingHandovers = await prisma.shiftHandover.findMany({
+    where: {
+      toUserId: userId,
+      status: {
+        notIn: [HANDOVER_STATUS.APPROVED, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+      },
+    },
+    select: { status: true },
   })
+  const pendingHandoversToMe = incomingHandovers.filter(
+    (h) => Number(h.status) === HANDOVER_STATUS.PENDING
+  ).length
   if (pendingHandoversToMe > 0) {
     return {
       allowed: false,
       reason:
         "You have handover(s) pending your acceptance. Accept or reject them from the Handovers page before ending your shift.",
+    }
+  }
+
+  const openFloats = await getOpenFloatsBlockingShiftEnd(userId)
+  const openFloatsError = await openFloatsBlockingMessage(openFloats, "end")
+  if (openFloatsError) {
+    return {
+      allowed: false,
+      reason: openFloatsError,
     }
   }
 

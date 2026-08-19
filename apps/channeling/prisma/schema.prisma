@@ -559,11 +559,14 @@ model FloatRequest {
   journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
+  floatNo                Int?
+  floatNoString          String?
 
   @@index([bulkCashierId, status])
   @@index([requestedById])
   @@index([status])
   @@index([toTillId])
+  @@index([floatNoString])
 }
 
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
@@ -603,6 +606,8 @@ model ShiftHandover {
   cancelledAt            DateTime?
   cancelledBy            String?        @db.ObjectId
   createdAt              DateTime       @default(now())
+  handoverNo             Int?
+  handoverNoString       String?
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
   // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
@@ -615,6 +620,7 @@ model ShiftHandover {
   reconciliationRejectedAt  DateTime?
   reconciliationRejectedBy   String?        @db.ObjectId
   reconciliationRejectReason String?
+  hasReconciliationIssues    Boolean?      @default(false)
 
   @@index([shiftId])
   @@index([fromUserId])
@@ -623,6 +629,7 @@ model ShiftHandover {
   @@index([toShiftId])
   @@index([forwardedToHandoverId])
   @@index([nonCashReconciledAt])
+  @@index([handoverNoString])
   @@index([reconciliationStatus])
   @@index([reconciliationRejectedAt])
   @@index([reconciliationAssignedToUserId])
@@ -1088,9 +1095,12 @@ model Receipt {
   reversedReceiptId String?   @db.ObjectId
 
   // Back-office handover reconciliation: set when this receipt was ticked and reconciliation submitted
-  reconciledAt        DateTime?
-  reconciledBy        String?   @db.ObjectId
+  reconciledAt         DateTime?
+  reconciledBy         String?   @db.ObjectId
   reconciledHandoverId String?   @db.ObjectId
+  cannotReconcileAt    DateTime?
+  cannotReconcileBy    String?   @db.ObjectId
+  cannotReconcileReason String?
 
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
@@ -1111,6 +1121,11 @@ model ReceiptPaymentLine {
   slipDate      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  reconciledAt          DateTime?
+  reconciledBy          String?   @db.ObjectId
+  cannotReconcileAt     DateTime?
+  cannotReconcileBy     String?   @db.ObjectId
+  cannotReconcileReason String?
 
   @@index([receiptId])
 }

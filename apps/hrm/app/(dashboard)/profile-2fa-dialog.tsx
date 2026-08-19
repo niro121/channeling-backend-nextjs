@@ -9,9 +9,9 @@ import {
   Button,
   Input,
   Label,
-  useToast,
+  useToast
 } from '@archmage/ui';
-import { changeOwnPassword } from '@/app/actions/user.actions';
+import { changeOwnPassword } from '@/app/actions/user-usergrp-actions/user.actions';
 import { TwoFASettings } from './two-fa-settings';
 import { KeyRound, User } from 'lucide-react';
 
@@ -43,28 +43,46 @@ export function Profile2FADialogContent() {
       .finally(() => setProfileLoading(false));
   }, []);
 
-  const userTypeLabel = (userType: number) => (userType === 1 ? 'Admin' : 'Staff');
+  const userTypeLabel = (userType: number) =>
+    userType === 1 ? 'Admin' : 'Staff';
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Passwords do not match.'
+      });
       return;
     }
     setPasswordSaving(true);
     try {
       const result = await changeOwnPassword(currentPassword, newPassword);
       if (result.isError) {
-        toast({ variant: 'destructive', title: 'Error', description: (result.errors as { message?: string })?.message ?? 'Failed to change password.' });
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Failed to change password.'
+        });
         return;
       }
-      toast({ title: 'Success', description: 'Your password was changed successfully.' });
+      toast({
+        title: 'Success',
+        description: 'Your password was changed successfully.'
+      });
       setShowChangePassword(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error', description: err?.message ?? 'Failed to change password.' });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err?.message ?? 'Failed to change password.'
+      });
     } finally {
       setPasswordSaving(false);
     }
@@ -84,7 +102,9 @@ export function Profile2FADialogContent() {
         {profileLoading ? (
           <div className="flex flex-col items-center">
             <User className="w-10 h-10 animate-pulse text-muted-foreground" />
-            <p className="text-sm text-muted-foreground py-4">Loading profile…</p>
+            <p className="text-sm text-muted-foreground py-4">
+              Loading profile…
+            </p>
           </div>
         ) : profile ? (
           <>
@@ -111,7 +131,9 @@ export function Profile2FADialogContent() {
                 </div>
                 <div>
                   <span className="text-muted-foreground block">User type</span>
-                  <span className="font-medium">{userTypeLabel(profile.userType)}</span>
+                  <span className="font-medium">
+                    {userTypeLabel(profile.userType)}
+                  </span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground pt-1">
@@ -124,12 +146,20 @@ export function Profile2FADialogContent() {
                 Password
               </h3>
               {!showChangePassword ? (
-                <Button type="button" variant="outline" className="gap-2" onClick={() => setShowChangePassword(true)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setShowChangePassword(true)}
+                >
                   <KeyRound className="h-4 w-4" />
                   Change password
                 </Button>
               ) : (
-                <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+                <form
+                  onSubmit={handleChangePassword}
+                  className="space-y-4 max-w-md"
+                >
                   <div className="space-y-2">
                     <Label htmlFor="current-password">Current password</Label>
                     <Input
@@ -156,11 +186,14 @@ export function Profile2FADialogContent() {
                       className="h-10"
                     />
                     <p className="text-xs text-muted-foreground">
-                      At least 8 characters, with uppercase, lowercase, numbers and special characters.
+                      At least 8 characters, with uppercase, lowercase, numbers
+                      and special characters.
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm new password</Label>
+                    <Label htmlFor="confirm-password">
+                      Confirm new password
+                    </Label>
                     <Input
                       id="confirm-password"
                       type="password"
@@ -194,7 +227,9 @@ export function Profile2FADialogContent() {
             </section>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground py-4">Could not load profile.</p>
+          <p className="text-sm text-muted-foreground py-4">
+            Could not load profile.
+          </p>
         )}
       </TabsContent>
 

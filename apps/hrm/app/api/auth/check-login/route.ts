@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { authPrisma } from '@archmage/db-auth';
 import * as argon2 from 'argon2';
+import { isDashboardLoginUserType } from '@/lib/roles';
+import { canAccessHrmApp } from '@/lib/auth-app-access';
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +30,10 @@ export async function POST(request: Request) {
 
     const valid = await argon2.verify(user.password, password);
     if (!valid) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    if (!isDashboardLoginUserType(user.userType) || !canAccessHrmApp(user)) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 

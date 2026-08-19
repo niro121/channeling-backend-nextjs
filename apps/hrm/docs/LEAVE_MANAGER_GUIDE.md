@@ -390,5 +390,7 @@ See **Phase 8**. Summary:
 ## 10. Related docs
 
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` — architecture, Staff reference, workflow
+- `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell, then dynamic phases
+- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — Shift Roster; leave overlap stays independent in v1
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating and Auth grants
 - `apps/hrm/prisma/schema.prisma` — source of truth for leave collections

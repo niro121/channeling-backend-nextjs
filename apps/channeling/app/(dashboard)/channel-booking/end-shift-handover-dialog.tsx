@@ -16,12 +16,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { SearchableUserSelect } from "@/components/common/user-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyTillBalance } from "@/app/actions/till.actions"
-import { getBulkCashierUsersAction, getMyPendingFloatRequestAction } from "@/app/actions/float-request.actions"
+import { getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
 import {
   submitShiftHandoverAction,
   getHandoversReceivedByShiftAction,
   getHandoversToMeAction,
+  getPendingIncomingHandoverCountAction,
+  getOpenFloatsBlockingShiftEndAction,
   getIncludableHandoversForSenderAction,
+  getLinkedHandoversForShiftAction,
   getNonCashHeldInReconciliationAction,
   canEndShiftWithoutHandoverAction,
   endShiftAction,
@@ -95,6 +98,29 @@ function matchDenom(a: number, b: number) {
   return a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6
 }
 
+type OpenFloatsBlocking = {
+  outgoingPending: number
+  outgoingAwaitingReceive: number
+  incomingPendingApproval: number
+  incomingAwaitingReceive: number
+}
+
+const EMPTY_OPEN_FLOATS: OpenFloatsBlocking = {
+  outgoingPending: 0,
+  outgoingAwaitingReceive: 0,
+  incomingPendingApproval: 0,
+  incomingAwaitingReceive: 0,
+}
+
+function openFloatsCount(blocking: OpenFloatsBlocking): number {
+  return (
+    blocking.outgoingPending +
+    blocking.outgoingAwaitingReceive +
+    blocking.incomingPendingApproval +
+    blocking.incomingAwaitingReceive
+  )
+}
+
 type EndShiftHandoverDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -128,16 +154,19 @@ export function EndShiftHandoverDialog({
   const [discrepancyReason, setDiscrepancyReason] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [pendingFloatRequest, setPendingFloatRequest] = useState<{ id: string; amountRequested?: number } | null>(null)
+  const [openFloatsBlocking, setOpenFloatsBlocking] = useState<OpenFloatsBlocking>(EMPTY_OPEN_FLOATS)
   const [pendingHandoversToMe, setPendingHandoversToMe] = useState<{ id: string }[]>([])
   const [includableHandovers, setIncludableHandovers] = useState<{ id: string; createdAt: string; totalCents: number; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
   const [selectedIncludedHandoverIds, setSelectedIncludedHandoverIds] = useState<string[]>([])
-  const [previousHandoversNote, setPreviousHandoversNote] = useState<{ id: string; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
+  const [previousHandoversNote, setPreviousHandoversNote] = useState<
+    { id: string; fromLabel: string; totalCents: number }[]
+  >([])
   const [step1DataReady, setStep1DataReady] = useState(false)
   const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const [canEndWithoutHandover, setCanEndWithoutHandover] = useState(false)
   const [endWithoutLoading, setEndWithoutLoading] = useState(false)
   const { toast } = useToast()
+  const hasOpenFloats = openFloatsCount(openFloatsBlocking) > 0
 
   // Cash: denominations (notes 10+ ; coins 5, 2, 1 + cents)
   const [cashDenoms, setCashDenoms] = useState<DenominationEntry[]>(() =>
@@ -193,16 +222,21 @@ export function EndShiftHandoverDialog({
       setStep1DataReady(false)
       setHandoverPermissionDenied(null)
       setCanEndWithoutHandover(false)
+      setOpenFloatsBlocking(EMPTY_OPEN_FLOATS)
       setBalanceLoading(true)
       Promise.all([
         getMyTillBalance(),
-        getMyPendingFloatRequestAction(),
         getHandoversToMeAction(),
         getIncludableHandoversForSenderAction(),
+        shiftId
+          ? getLinkedHandoversForShiftAction(shiftId)
+          : Promise.resolve({ success: true as const, data: [] }),
         getNonCashHeldInReconciliationAction(),
+        getPendingIncomingHandoverCountAction(),
+        getOpenFloatsBlockingShiftEndAction(),
         canEndShiftWithoutHandoverAction(),
       ])
-        .then(([balanceRes, floatRes, handoversToMeRes, includableRes, heldRes, endWithoutRes]) => {
+        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, endWithoutRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -215,19 +249,34 @@ export function EndShiftHandoverDialog({
             setBalance(null)
           }
           setHeldInReconciliation(heldRes.success && heldRes.data ? heldRes.data : null)
-          setPendingFloatRequest(floatRes.success && floatRes.data ? { id: floatRes.data.id, amountRequested: floatRes.data.amountRequested } : null)
-          setPendingHandoversToMe(handoversToMeRes.success && handoversToMeRes.data?.length ? handoversToMeRes.data.map((h) => ({ id: h.id })) : [])
-          if (!handoversToMeRes.success && "message" in handoversToMeRes && handoversToMeRes.message) {
-            setHandoverPermissionDenied(handoversToMeRes.message)
-            toast({ variant: "destructive", title: "Error", description: handoversToMeRes.message })
-          } else {
-            setHandoverPermissionDenied(null)
-          }
-          if (includableRes.success && includableRes.data?.length) {
+          setOpenFloatsBlocking(openFloatsRes.success ? openFloatsRes.blocking : EMPTY_OPEN_FLOATS)
+          const pendingFromList =
+            handoversToMeRes.success && handoversToMeRes.data?.length
+              ? handoversToMeRes.data.map((h) => ({ id: h.id }))
+              : []
+          const pendingCount = pendingCountRes.success ? pendingCountRes.count : pendingFromList.length
+          setPendingHandoversToMe(
+            pendingFromList.length > 0
+              ? pendingFromList
+              : Array.from({ length: pendingCount }, (_, i) => ({ id: `pending-${i}` }))
+          )
+          setHandoverPermissionDenied(null)
+          if (linkedRes.success && linkedRes.data?.length) {
+            setPreviousHandoversNote(
+              linkedRes.data.map((h) => ({
+                id: h.id,
+                fromLabel: h.fromLabel,
+                totalCents: h.totalCents,
+              }))
+            )
+          } else if (includableRes.success && includableRes.data?.length) {
             setPreviousHandoversNote(
               includableRes.data.map((h) => ({
                 id: h.id,
-                fromUser: h.fromUser ?? { name: null, staff: null },
+                fromLabel: h.fromUser?.staff?.code
+                  ? `${h.fromUser.name ?? "—"} (${h.fromUser.staff.code})`
+                  : h.fromUser?.name ?? "—",
+                totalCents: h.totalCents,
               }))
             )
           } else {
@@ -252,7 +301,7 @@ export function EndShiftHandoverDialog({
           setStep1DataReady(true)
         })
     }
-  }, [open, step])
+  }, [open, step, shiftId])
 
   // Prepopulate non-cash entries from handovers received by this shift (so user only adds what they collected).
   useEffect(() => {
@@ -329,10 +378,46 @@ export function EndShiftHandoverDialog({
     })
   }, [open, step])
 
-  const handleProceed = () => setStep(2)
+  const handleProceed = () => {
+    if (pendingHandoversToMe.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Handovers need your action",
+        description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before submitting a handover.`,
+      })
+      return
+    }
+    if (hasOpenFloats) {
+      toast({
+        variant: "destructive",
+        title: "Float requests are still open",
+        description:
+          "Finish any pending approval or receive (or cancel/reject/decline) before handing over.",
+      })
+      return
+    }
+    setStep(2)
+  }
 
   async function handleEndWithoutHandover() {
     if (!shiftId || !canEndWithoutHandover) return
+    if (pendingHandoversToMe.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Handovers need your action",
+        description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before ending your shift.`,
+      })
+      return
+    }
+    if (hasOpenFloats) {
+      toast({
+        variant: "destructive",
+        title: "Float requests are still open",
+        description:
+          "Finish any pending approval or receive (or cancel/reject/decline) before ending your shift.",
+      })
+      return
+    }
     setEndWithoutLoading(true)
     try {
       await endShiftAction(shiftId)
@@ -505,6 +590,27 @@ export function EndShiftHandoverDialog({
     setValidationErrors([])
     setSubmitLoading(true)
     try {
+      const pendingCheck = await getPendingIncomingHandoverCountAction()
+      if (pendingCheck.success && pendingCheck.count > 0) {
+        setSubmitLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Handovers need your action",
+          description: `You have ${pendingCheck.count} handover(s) pending your acceptance. Accept or reject them on the Handovers page before submitting a handover.`,
+        })
+        return
+      }
+      const pendingFloatCheck = await getOpenFloatsBlockingShiftEndAction()
+      if (pendingFloatCheck.success && pendingFloatCheck.count > 0) {
+        setSubmitLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Float requests are still open",
+          description:
+            "Finish any pending approval or receive (or cancel/reject/decline) before submitting a handover.",
+        })
+        return
+      }
       // Build full breakdown from current state so bulk cashier can verify denominations and references on the detail page
       const enteredBreakdown = {
         cashDenominations: cashDenoms
@@ -585,12 +691,16 @@ export function EndShiftHandoverDialog({
               <Alert className="mb-4 border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40">
                 <CircleAlert className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <AlertTitle className="text-blue-800 dark:text-blue-200">Handovers that will go with this</AlertTitle>
-                <AlertDescription>
-                  You have received handover(s) from{" "}
-                  {previousHandoversNote
-                    .map((h) => (h.fromUser?.staff?.code ? `${h.fromUser.name ?? "—"} (${h.fromUser.staff.code})` : h.fromUser?.name ?? "—"))
-                    .join(", ")}
-                  . They will be included when you hand over in the next steps.
+                <AlertDescription className="space-y-1">
+                  <p>You received these on this shift. They will be included when you hand over.</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {previousHandoversNote.map((h) => (
+                      <li key={h.id} className="flex flex-wrap justify-between gap-x-3 text-sm">
+                        <span className="font-medium text-foreground">From {h.fromLabel}</span>
+                        <span className="tabular-nums">LKR {formatCents(h.totalCents)}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}
@@ -633,22 +743,43 @@ export function EndShiftHandoverDialog({
                 </AlertDescription>
               </Alert>
             )}
-            {pendingFloatRequest && !canEndWithoutHandover && (
+            {hasOpenFloats && (
               <Alert variant="destructive" className="mb-4">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Pending float request</AlertTitle>
-                <AlertDescription>
-                  You have a pending float request waiting for approval. Cancel it from the top bar or wait for
-                  approval before handing over the shift.
-                </AlertDescription>
-              </Alert>
-            )}
-            {pendingFloatRequest && canEndWithoutHandover && (
-              <Alert className="mb-4">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Unused float request</AlertTitle>
-                <AlertDescription>
-                  Ending this shift will cancel the unused float request. Nothing will be handed over.
+                <AlertTitle>Float requests are still open</AlertTitle>
+                <AlertDescription className="space-y-1">
+                  {openFloatsBlocking.outgoingPending > 0 && (
+                    <p>
+                      You have {openFloatsBlocking.outgoingPending} float request
+                      {openFloatsBlocking.outgoingPending !== 1 ? "s" : ""} waiting for bulk cashier approval. Cancel from
+                      the top bar, or wait until it is approved and you have received it.
+                    </p>
+                  )}
+                  {openFloatsBlocking.outgoingAwaitingReceive > 0 && (
+                    <p>
+                      You have {openFloatsBlocking.outgoingAwaitingReceive} approved float
+                      {openFloatsBlocking.outgoingAwaitingReceive !== 1 ? "s" : ""} not received yet. Receive or decline
+                      {openFloatsBlocking.outgoingAwaitingReceive !== 1 ? " them" : " it"} from the top bar first.
+                    </p>
+                  )}
+                  {openFloatsBlocking.incomingPendingApproval > 0 && (
+                    <p>
+                      You have {openFloatsBlocking.incomingPendingApproval} float request
+                      {openFloatsBlocking.incomingPendingApproval !== 1 ? "s" : ""} waiting for you to approve or reject on
+                      the{" "}
+                      <Link href="/bulk-cashier" className="underline font-medium hover:no-underline" onClick={() => onOpenChange(false)}>
+                        Bulk Cashier page
+                      </Link>
+                      .
+                    </p>
+                  )}
+                  {openFloatsBlocking.incomingAwaitingReceive > 0 && (
+                    <p>
+                      You have {openFloatsBlocking.incomingAwaitingReceive} approved float
+                      {openFloatsBlocking.incomingAwaitingReceive !== 1 ? "s" : ""} the cashier has not received yet. Wait
+                      until they receive or decline before you can end this shift.
+                    </p>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
@@ -660,8 +791,7 @@ export function EndShiftHandoverDialog({
               <div className="rounded-lg border bg-muted/40 p-4 space-y-1">
                 <p className="text-sm font-medium">No amount to hand over</p>
                 <p className="text-sm text-muted-foreground">
-                  Till total is {formatCents(balance?.totalCents ?? 0)}. Ending the shift will not create a handover
-                  {pendingFloatRequest ? " and will cancel the unused float request" : ""}.
+                  Till total is {formatCents(balance?.totalCents ?? 0)}. Ending the shift will not create a handover.
                 </p>
               </div>
             ) : balance ? (
@@ -692,7 +822,10 @@ export function EndShiftHandoverDialog({
                 Cancel
               </Button>
               {canEndWithoutHandover ? (
-                <Button onClick={handleEndWithoutHandover} disabled={!step1DataReady || endWithoutLoading}>
+                <Button
+                  onClick={handleEndWithoutHandover}
+                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0 || hasOpenFloats}
+                >
                   {endWithoutLoading || !step1DataReady ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
@@ -701,7 +834,7 @@ export function EndShiftHandoverDialog({
               ) : (
                 <Button
                   onClick={handleProceed}
-                  disabled={!step1DataReady || balanceLoading || !balance || !!pendingFloatRequest || pendingHandoversToMe.length > 0 || !!handoverPermissionDenied}
+                  disabled={!step1DataReady || balanceLoading || !balance || pendingHandoversToMe.length > 0 || hasOpenFloats || !!handoverPermissionDenied}
                 >
                   {!step1DataReady ? (
                     <>
@@ -1150,7 +1283,9 @@ export function EndShiftHandoverDialog({
                   !toUserId ||
                   handoverUsersLoading ||
                   handoverUsers.length === 0 ||
-                  (needsDiscrepancyReason && !discrepancyReason.trim())
+                  (needsDiscrepancyReason && !discrepancyReason.trim()) ||
+                  pendingHandoversToMe.length > 0 ||
+                  hasOpenFloats
                 }
               >
                 {submitLoading ? (

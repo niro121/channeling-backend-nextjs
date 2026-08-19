@@ -40,7 +40,7 @@ export async function cancelDoctorPaymentService(
 ): Promise<CancelDoctorPaymentResult> {
   if (input.canceledBy) {
     try {
-      await requireActiveShift(input.canceledBy);
+      await requireActiveShift(input.canceledBy, { allowExpired: true });
     } catch (e) {
       if (isShiftRequirementError(e)) {
         return {

@@ -7,6 +7,7 @@ import { REFERENCE_TYPES } from "@/types/accounting"
 import {
   getIncludedHandoversChain,
   getFullChainByForwardedTo,
+  getPreviousHandoversForHandoverDetail,
   type IncludedHandoverForDisplay,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
@@ -30,9 +31,13 @@ const NON_CASH_METHODS = [
   RECEIPT_PAYMENT_METHOD.E_WALLET,
 ] as const
 
+const NON_CASH_METHOD_SET = new Set<number>(NON_CASH_METHODS)
+
 /** Receipt row for reconciliation tick list */
 export type ReceiptForReconciliation = {
   id: string
+  /** Parent receipt ID (same as id for non-mixed; the receipt ObjectId for mixed payment line rows). */
+  receiptId: string
   receiptNoString: string
   paymentMethod: number
   amount: number
@@ -45,6 +50,23 @@ export type ReceiptForReconciliation = {
   /** When set, UI should show this receipt as pre-ticked (already reconciled for this handover). */
   reconciledAt?: Date | null
   reconciledBy?: string | null
+  cannotReconcileAt?: Date | null
+  cannotReconcileReason?: string | null
+}
+
+export type ReconciliationJournalLine = {
+  accountName: string
+  debitAmount: number
+  creditAmount: number
+  paymentMethod: number | null
+}
+
+export type ReconciliationJournal = {
+  id: string
+  journalNumber: number | null
+  date: Date
+  description: string
+  lines: ReconciliationJournalLine[]
 }
 
 /**
@@ -60,8 +82,6 @@ export async function getReceiptsForHandoverReconciliation(
   handoverCreatedAt: Date,
   handoverId: string
 ): Promise<ReceiptForReconciliation[]> {
-  // Query: shiftId or legacy window, and non-cash only. Do NOT filter canceledAt/reconciledAt in DB
-  // so that MongoDB null vs missing field doesn't exclude valid receipts; we filter in memory.
   const raw = await prisma.receipt.findMany({
     where: {
       OR: [
@@ -72,7 +92,7 @@ export async function getReceiptsForHandoverReconciliation(
           createdAt: { gte: shiftStartedAt, lte: handoverCreatedAt },
         },
       ],
-      paymentMethod: { in: [...NON_CASH_METHODS] },
+      paymentMethod: { in: [...NON_CASH_METHODS, RECEIPT_PAYMENT_METHOD.MIXED] },
     },
     select: {
       id: true,
@@ -88,27 +108,81 @@ export async function getReceiptsForHandoverReconciliation(
       reconciledAt: true,
       reconciledBy: true,
       reconciledHandoverId: true,
+      cannotReconcileAt: true,
+      cannotReconcileBy: true,
+      cannotReconcileReason: true,
+      paymentLines: {
+        select: {
+          id: true,
+          paymentMethod: true,
+          amount: true,
+          cardReference: true,
+          slipReference: true,
+          slipDate: true,
+          reconciledAt: true,
+          reconciledBy: true,
+          cannotReconcileAt: true,
+          cannotReconcileBy: true,
+          cannotReconcileReason: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   })
-  const eligible = raw.filter(
-    (r) =>
-      (r.canceledAt === null || r.canceledAt === undefined) &&
-      (r.reconciledAt === null || r.reconciledAt === undefined || r.reconciledHandoverId === handoverId)
-  )
-  return eligible.map((r) => ({
-    id: r.id,
-    receiptNoString: r.receiptNoString,
-    paymentMethod: r.paymentMethod,
-    amount: r.amount,
-    type: r.type,
-    createdAt: r.createdAt,
-    cardReference: r.cardReference,
-    slipReference: r.slipReference,
-    slipDate: formatSlipDate(r.slipDate) ?? null,
-    reconciledAt: r.reconciledAt ?? undefined,
-    reconciledBy: r.reconciledBy ?? undefined,
-  }))
+  const eligible = raw.filter((r) => {
+    if (r.canceledAt) return false
+    if (r.reconciledHandoverId && r.reconciledHandoverId !== handoverId) return false
+    if (!r.reconciledHandoverId && (r.reconciledAt || r.cannotReconcileAt)) return false
+    return true
+  })
+  const result: ReceiptForReconciliation[] = []
+  for (const r of eligible) {
+    const parentReconciled = r.reconciledAt ?? undefined
+    const parentCannotAt = r.cannotReconcileAt ?? undefined
+    const parentCannotReason = r.cannotReconcileReason ?? undefined
+    if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.MIXED && r.paymentLines.length > 0) {
+      for (const line of r.paymentLines) {
+        if (!NON_CASH_METHOD_SET.has(line.paymentMethod)) continue
+        const lineCannotAt = line.cannotReconcileAt ?? (line.reconciledAt ? undefined : parentCannotAt)
+        const lineCannotReason = line.cannotReconcileReason ?? (lineCannotAt ? parentCannotReason : undefined)
+        const lineReconciled = lineCannotAt ? undefined : (line.reconciledAt ?? parentReconciled)
+        result.push({
+          id: line.id,
+          receiptId: r.id,
+          receiptNoString: r.receiptNoString,
+          paymentMethod: line.paymentMethod,
+          amount: line.amount,
+          type: r.type,
+          createdAt: r.createdAt,
+          cardReference: line.cardReference ?? "",
+          slipReference: line.slipReference ?? "",
+          slipDate: formatSlipDate(line.slipDate) ?? null,
+          reconciledAt: lineReconciled,
+          reconciledBy: line.reconciledBy ?? r.reconciledBy ?? undefined,
+          cannotReconcileAt: lineCannotAt,
+          cannotReconcileReason: lineCannotReason,
+        })
+      }
+    } else {
+      result.push({
+        id: r.id,
+        receiptId: r.id,
+        receiptNoString: r.receiptNoString,
+        paymentMethod: r.paymentMethod,
+        amount: r.amount,
+        type: r.type,
+        createdAt: r.createdAt,
+        cardReference: r.cardReference,
+        slipReference: r.slipReference,
+        slipDate: formatSlipDate(r.slipDate) ?? null,
+        reconciledAt: parentReconciled,
+        reconciledBy: r.reconciledBy ?? undefined,
+        cannotReconcileAt: parentCannotAt,
+        cannotReconcileReason: parentCannotReason,
+      })
+    }
+  }
+  return result
 }
 
 /** Net amount in cents for a payment method from receipt list (DEBIT - CREDIT). Normalizes receipt amount to cents. */
@@ -125,6 +199,7 @@ function netAmountByMethod(
 export type HandoverForReconciliationList = {
   id: string
   createdAt: Date
+  handoverNoString: string | null
   cardCents: number
   slipCents: number
   checkCents: number
@@ -133,6 +208,11 @@ export type HandoverForReconciliationList = {
   reconciliationStatus: number | null
   reconciliationRejectReason: string | null
   reconciliationAssignedToUserId?: string | null
+  reconciliationRequestedAt: Date | null
+  nonCashReconciledAt: Date | null
+  reconciliationRejectedAt: Date | null
+  actedByUser: { id: string; name: string | null; staff: { code: string } | null } | null
+  hasReconciliationIssues: boolean
   fromUser: { id: string; name: string | null; staff: { code: string } | null }
   toUser: { id: string; name: string | null }
   shift: { id: string; startedAt: Date; userId: string }
@@ -143,6 +223,7 @@ export type ReconciliationListTab = "reconciliation" | "approved" | "rejected"
 const reconciliationListSelect = {
   id: true,
   createdAt: true,
+  handoverNoString: true,
   cardCents: true,
   slipCents: true,
   checkCents: true,
@@ -150,9 +231,14 @@ const reconciliationListSelect = {
   fromUserId: true,
   toUserId: true,
   nonCashReconciledAt: true,
+  nonCashReconciledBy: true,
   reconciliationStatus: true,
   reconciliationRejectReason: true,
+  hasReconciliationIssues: true,
   reconciliationAssignedToUserId: true,
+  reconciliationRequestedAt: true,
+  reconciliationRejectedAt: true,
+  reconciliationRejectedBy: true,
   forwardedToHandoverId: true,
   fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
   toUser: { select: { id: true, name: true } },
@@ -228,6 +314,7 @@ export async function listHandoversForReconciliation(params: {
   let data: Array<{
     id: string
     createdAt: Date
+    handoverNoString?: string | null
     cardCents: number
     slipCents: number
     checkCents: number
@@ -238,6 +325,12 @@ export async function listHandoversForReconciliation(params: {
     reconciliationStatus: number | null
     reconciliationRejectReason: string | null
     reconciliationAssignedToUserId?: string | null
+    hasReconciliationIssues?: boolean | null
+    reconciliationRequestedAt?: Date | null
+    nonCashReconciledAt?: Date | null
+    nonCashReconciledBy?: string | null
+    reconciliationRejectedAt?: Date | null
+    reconciliationRejectedBy?: string | null
     forwardedToHandoverId?: string | null
   }>
   let totalRecords: number
@@ -256,21 +349,56 @@ export async function listHandoversForReconciliation(params: {
   totalRecords = topLevel.length
   data = topLevel.slice(skip, skip + limit)
 
-  const rows: HandoverForReconciliationList[] = data.map((h) => ({
-    id: h.id,
-    createdAt: h.createdAt,
-    cardCents: h.cardCents,
-    slipCents: h.slipCents,
-    checkCents: h.checkCents,
-    eWalletCents: h.eWalletCents,
-    totalNonCashCents: h.cardCents + h.slipCents + h.checkCents + h.eWalletCents,
-    reconciliationStatus: h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING,
-    reconciliationRejectReason: h.reconciliationRejectReason ?? null,
-    reconciliationAssignedToUserId: h.reconciliationAssignedToUserId ?? null,
-    fromUser: h.fromUser,
-    toUser: h.toUser,
-    shift: h.shift,
-  }))
+  const actorIds = [
+    ...new Set(
+      data
+        .flatMap((h) => [
+          h.nonCashReconciledBy,
+          h.reconciliationRejectedBy,
+          h.reconciliationAssignedToUserId,
+        ])
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+  const actors =
+    actorIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, name: true, staff: { select: { code: true } } },
+        })
+      : []
+  const actorById = new Map(actors.map((u) => [u.id, u]))
+
+  const rows: HandoverForReconciliationList[] = data.map((h) => {
+    const status = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+    const actedById =
+      status === RECONCILIATION_STATUS.RECONCILED_APPROVED
+        ? h.nonCashReconciledBy
+        : status === RECONCILIATION_STATUS.RECONCILED_REJECTED
+          ? h.reconciliationRejectedBy
+          : h.reconciliationAssignedToUserId
+    return {
+      id: h.id,
+      createdAt: h.createdAt,
+      handoverNoString: h.handoverNoString ?? null,
+      cardCents: h.cardCents,
+      slipCents: h.slipCents,
+      checkCents: h.checkCents,
+      eWalletCents: h.eWalletCents,
+      totalNonCashCents: h.cardCents + h.slipCents + h.checkCents + h.eWalletCents,
+      reconciliationStatus: status,
+      reconciliationRejectReason: h.reconciliationRejectReason ?? null,
+      reconciliationAssignedToUserId: h.reconciliationAssignedToUserId ?? null,
+      reconciliationRequestedAt: h.reconciliationRequestedAt ?? null,
+      nonCashReconciledAt: h.nonCashReconciledAt ?? null,
+      reconciliationRejectedAt: h.reconciliationRejectedAt ?? null,
+      actedByUser: actedById ? actorById.get(actedById) ?? null : null,
+      hasReconciliationIssues: Boolean(h.hasReconciliationIssues),
+      fromUser: h.fromUser,
+      toUser: h.toUser,
+      shift: h.shift,
+    }
+  })
 
   return { data: rows, totalRecords }
 }
@@ -359,7 +487,16 @@ export async function getReconciliationDocument(
   topLevelHandoverId: string,
   _requestedByUserId?: string | null
 ): Promise<
-  | { success: true; bulkCashierUserId: string; chain: HandoverTabForReconciliation[]; reconciliationAssignedToUserId: string | null }
+  | {
+      success: true
+      bulkCashierUserId: string
+      chain: HandoverTabForReconciliation[]
+      reconciliationAssignedToUserId: string | null
+      reconciliationStatus: number
+      reconciliationRejectReason: string | null
+      handoverNoString: string | null
+      hasReconciliationIssues: boolean
+    }
   | { success: false; error: string }
 > {
   const top = await prisma.shiftHandover.findUnique({
@@ -371,6 +508,7 @@ export async function getReconciliationDocument(
       nonCashReconciledAt: true,
       reconciliationStatus: true,
       reconciliationAssignedToUserId: true,
+      reconciliationRejectReason: true,
       forwardedToHandoverId: true,
       fromUserId: true,
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
@@ -383,21 +521,28 @@ export async function getReconciliationDocument(
       createdAt: true,
       includedHandoverIds: true,
       enteredBreakdown: true,
+      handoverNoString: true,
+      hasReconciliationIssues: true,
     },
   })
 
   if (!top) return { success: false, error: "Handover not found." }
   if (top.status !== HANDOVER_STATUS.APPROVED) return { success: false, error: "Handover is not approved." }
-  if (top.nonCashReconciledAt) return { success: false, error: "Handover is already reconciled." }
   const reconStatus = top.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) return { success: false, error: "Reconciliation was rejected." }
-  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+  const canViewDocument =
+    reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION ||
+    reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED ||
+    reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED
+  if (!canViewDocument) {
     return { success: false, error: "Handover has not been sent to reconciliation yet." }
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
 
-  let chainHandovers = await getIncludedHandoversChain(top.includedHandoverIds)
+  let chainHandovers = await getPreviousHandoversForHandoverDetail({
+    handoverId: topLevelHandoverId,
+    shiftId: top.shiftId,
+    includedHandoverIds: top.includedHandoverIds,
+  })
   if (chainHandovers.length === 0) {
     chainHandovers = await getFullChainByForwardedTo(topLevelHandoverId)
   }
@@ -423,7 +568,7 @@ export async function getReconciliationDocument(
     eWalletCents: number
     createdAt: Date
     enteredBreakdown?: unknown
-  }> = [top, ...normalizedChain]
+  }> = [top, ...normalizedChain.filter((h) => h.id !== top.id)]
 
   const receiptsByIndex = await Promise.all(
     allHandovers.map((h) => {
@@ -450,7 +595,60 @@ export async function getReconciliationDocument(
     success: true,
     bulkCashierUserId: top.toUserId,
     reconciliationAssignedToUserId: top.reconciliationAssignedToUserId ?? null,
+    reconciliationStatus: reconStatus,
+    reconciliationRejectReason: top.reconciliationRejectReason ?? null,
+    handoverNoString: top.handoverNoString ?? null,
+    hasReconciliationIssues: Boolean(top.hasReconciliationIssues),
     chain,
+  }
+}
+
+/** Journals posted for this handover (double entries). Loaded on demand. */
+export async function getReconciliationJournals(
+  handoverId: string
+): Promise<{ success: true; journals: ReconciliationJournal[] } | { success: false; error: string }> {
+  if (!handoverId?.trim()) return { success: false, error: "Handover not found." }
+  const journalsRaw = await prisma.journal.findMany({
+    where: {
+      referenceId: handoverId,
+      OR: [
+        { referenceType: REFERENCE_TYPES.Reconciliation },
+        {
+          referenceType: REFERENCE_TYPES.ShiftHandover,
+          description: { startsWith: "Reconciliation" },
+        },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      journalNumber: true,
+      date: true,
+      description: true,
+      journalLines: {
+        select: {
+          debitAmount: true,
+          creditAmount: true,
+          paymentMethod: true,
+          account: { select: { name: true, code: true } },
+        },
+      },
+    },
+  })
+  return {
+    success: true,
+    journals: journalsRaw.map((j) => ({
+      id: j.id,
+      journalNumber: j.journalNumber ?? null,
+      date: j.date,
+      description: j.description,
+      lines: j.journalLines.map((l) => ({
+        accountName: l.account.code ? `${l.account.name} (${l.account.code})` : l.account.name,
+        debitAmount: l.debitAmount,
+        creditAmount: l.creditAmount,
+        paymentMethod: l.paymentMethod ?? null,
+      })),
+    })),
   }
 }
 
@@ -483,15 +681,25 @@ async function getOrCreateBranchReconciledAccount(locationId: string): Promise<
 const submitPayloadSchema = z.object({
   handoverId: z.string().min(1),
   tickedReceiptIdsByHandoverId: z.record(z.string(), z.array(z.string())),
+  cannotReconcileByHandoverId: z
+    .record(z.string(), z.array(z.object({ id: z.string().min(1), reason: z.string().min(1) })))
+    .optional(),
 })
 
 export type SubmitReconciliationPayload = z.infer<typeof submitPayloadSchema>
 
-/** Submit reconciliation: transfer only ticked amounts from till to reconciled account (one per bulk cashier). Server-side: already reconciled handovers cannot be reconciled again. */
+function isReceiptRowProcessed(r: ReceiptForReconciliation): boolean {
+  return Boolean(r.reconciledAt || r.cannotReconcileAt)
+}
+
+/** Submit a batch: transfer newly ticked / cannot-reconcile amounts from till. Handover stays open until every line is handled. */
 export async function submitHandoverReconciliation(
   payload: SubmitReconciliationPayload,
   reconciledByUserId: string
-): Promise<{ success: true } | { success: false; error: string; issues?: Record<string, string[]> }> {
+): Promise<
+  | { success: true; complete: boolean; remainingCount: number; postedCount: number }
+  | { success: false; error: string; issues?: Record<string, string[]> }
+> {
   const parsed = submitPayloadSchema.safeParse(payload)
   if (!parsed.success) {
     return {
@@ -581,13 +789,32 @@ export async function submitHandoverReconciliation(
     : ""
 
   const now = new Date()
-  const allTickedReceiptIds: string[] = []
+  const cannotByHandover = payload.cannotReconcileByHandoverId ?? {}
+  const newMatchedByHandover: Record<string, ReceiptForReconciliation[]> = {}
+  const newCannotByHandover: Record<string, { row: ReceiptForReconciliation; reason: string }[]> = {}
+  let postedCount = 0
+
   for (const tab of chain) {
-    const ids = payload.tickedReceiptIdsByHandoverId[tab.handover.id] ?? []
-    allTickedReceiptIds.push(...ids)
+    const already = new Set(tab.receipts.filter(isReceiptRowProcessed).map((r) => r.id))
+    const tickedIds = (payload.tickedReceiptIdsByHandoverId[tab.handover.id] ?? []).filter((id) => !already.has(id))
+    const cannotItems = (cannotByHandover[tab.handover.id] ?? []).filter((item) => !already.has(item.id))
+    const cannotIds = new Set(cannotItems.map((item) => item.id))
+    const matched = tab.receipts.filter((r) => tickedIds.includes(r.id) && !cannotIds.has(r.id))
+    const cannotRows: { row: ReceiptForReconciliation; reason: string }[] = []
+    for (const item of cannotItems) {
+      const row = tab.receipts.find((r) => r.id === item.id)
+      if (!row) continue
+      const reason = item.reason.trim()
+      if (!reason) return { success: false, error: "A reason is required to mark a receipt as can't reconcile." }
+      cannotRows.push({ row, reason })
+    }
+    newMatchedByHandover[tab.handover.id] = matched
+    newCannotByHandover[tab.handover.id] = cannotRows
+    postedCount += matched.length + cannotRows.length
   }
-  if (allTickedReceiptIds.length === 0) {
-    return { success: false, error: "Select at least one receipt to reconcile." }
+
+  if (postedCount === 0) {
+    return { success: false, error: "Select at least one open receipt to reconcile, or mark it as can't reconcile." }
   }
 
   const reconResult = await getOrCreateBranchReconciledAccount(branchLocationId)
@@ -603,10 +830,9 @@ export async function submitHandoverReconciliation(
 
   for (const tab of chain) {
     const handover = tab.handover
-    const tickedIds = payload.tickedReceiptIdsByHandoverId[handover.id] ?? []
-    const tickedReceipts = tab.receipts.filter((r) => tickedIds.includes(r.id))
+    const matched = newMatchedByHandover[handover.id] ?? []
     const amounts: { method: number; amount: number }[] = methodOrder
-      .map((method) => ({ method, amount: netAmountByMethod(tickedReceipts, method) }))
+      .map((method) => ({ method, amount: netAmountByMethod(matched, method) }))
       .filter((a) => a.amount > 0)
 
     if (amounts.length === 0) continue
@@ -639,12 +865,12 @@ export async function submitHandoverReconciliation(
     const methodParts = amounts.map(
       (m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.amount / 100).toFixed(2)}`
     )
-    const description = `Reconciliation: Main shift ${mainShiftId}${mainShiftStartedAt ? ` (started ${mainShiftStartedAt})` : ""}, till: ${tillUserName}. From ${fromLabel} handover: ${methodParts.join(", ")} → branch Reconciled account.`
+    const description = `Reconciliation batch: Main shift ${mainShiftId}${mainShiftStartedAt ? ` (started ${mainShiftStartedAt})` : ""}, till: ${tillUserName}. From ${fromLabel}: matched ${matched.length}. ${methodParts.join(", ")} → branch Reconciled account.`
 
     const journalResult = await createJournalEntry({
       date: now,
       description,
-      referenceType: REFERENCE_TYPES.ShiftHandover,
+      referenceType: REFERENCE_TYPES.Reconciliation,
       referenceId: payload.handoverId,
       createdBy: reconciledByUserId,
       lines,
@@ -655,27 +881,66 @@ export async function submitHandoverReconciliation(
     }
   }
 
-  // Update only the top-level (last) handover document with reconciled result; chain handovers stay as-is for audit.
-  await prisma.shiftHandover.update({
-    where: { id: payload.handoverId },
-    data: {
-      nonCashReconciledAt: now,
-      nonCashReconciledBy: reconciledByUserId,
-      reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED,
-    },
-  })
-  // Mark included handovers in the chain as reconciled so they don't show in pending list.
-  const includedIds = chain.map((t) => t.handover.id).filter((id) => id !== payload.handoverId)
-  if (includedIds.length > 0) {
-    await prisma.shiftHandover.updateMany({
-      where: { id: { in: includedIds } },
-      data: { reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED },
-    })
+  const parentIdsTouched = new Set<string>()
+  for (const tab of chain) {
+    for (const row of newMatchedByHandover[tab.handover.id] ?? []) {
+      if (row.id === row.receiptId) {
+        await prisma.receipt.update({
+          where: { id: row.receiptId },
+          data: {
+            reconciledAt: now,
+            reconciledBy: reconciledByUserId,
+            reconciledHandoverId: payload.handoverId,
+          },
+        })
+      } else {
+        await prisma.receiptPaymentLine.update({
+          where: { id: row.id },
+          data: { reconciledAt: now, reconciledBy: reconciledByUserId },
+        })
+        parentIdsTouched.add(row.receiptId)
+      }
+    }
+    for (const { row, reason } of newCannotByHandover[tab.handover.id] ?? []) {
+      if (row.id === row.receiptId) {
+        await prisma.receipt.update({
+          where: { id: row.receiptId },
+          data: {
+            cannotReconcileAt: now,
+            cannotReconcileBy: reconciledByUserId,
+            cannotReconcileReason: reason,
+            reconciledHandoverId: payload.handoverId,
+          },
+        })
+      } else {
+        await prisma.receiptPaymentLine.update({
+          where: { id: row.id },
+          data: {
+            cannotReconcileAt: now,
+            cannotReconcileBy: reconciledByUserId,
+            cannotReconcileReason: reason,
+          },
+        })
+        parentIdsTouched.add(row.receiptId)
+      }
+    }
   }
 
-  if (allTickedReceiptIds.length > 0) {
-    await prisma.receipt.updateMany({
-      where: { id: { in: allTickedReceiptIds } },
+  for (const parentId of parentIdsTouched) {
+    const parent = await prisma.receipt.findUnique({
+      where: { id: parentId },
+      select: {
+        paymentLines: {
+          select: { paymentMethod: true, reconciledAt: true, cannotReconcileAt: true },
+        },
+      },
+    })
+    if (!parent) continue
+    const nonCashLines = parent.paymentLines.filter((l) => NON_CASH_METHOD_SET.has(l.paymentMethod))
+    const allHandled = nonCashLines.length > 0 && nonCashLines.every((l) => l.reconciledAt || l.cannotReconcileAt)
+    if (!allHandled) continue
+    await prisma.receipt.update({
+      where: { id: parentId },
       data: {
         reconciledAt: now,
         reconciledBy: reconciledByUserId,
@@ -684,15 +949,52 @@ export async function submitHandoverReconciliation(
     })
   }
 
+  const remainingCount = chain.reduce((sum, tab) => {
+    const processedNow = new Set([
+      ...(newMatchedByHandover[tab.handover.id] ?? []).map((r) => r.id),
+      ...(newCannotByHandover[tab.handover.id] ?? []).map((c) => c.row.id),
+    ])
+    return (
+      sum +
+      tab.receipts.filter((r) => !isReceiptRowProcessed(r) && !processedNow.has(r.id)).length
+    )
+  }, 0)
+  const complete = remainingCount === 0
+  const hasNewIssues = Object.values(newCannotByHandover).some((rows) => rows.length > 0)
+
+  if (complete) {
+    await prisma.shiftHandover.update({
+      where: { id: payload.handoverId },
+      data: {
+        nonCashReconciledAt: now,
+        nonCashReconciledBy: reconciledByUserId,
+        reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED,
+        ...(hasNewIssues ? { hasReconciliationIssues: true } : {}),
+      },
+    })
+    const includedIds = chain.map((t) => t.handover.id).filter((id) => id !== payload.handoverId)
+    if (includedIds.length > 0) {
+      await prisma.shiftHandover.updateMany({
+        where: { id: { in: includedIds } },
+        data: { reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED },
+      })
+    }
+  } else if (hasNewIssues) {
+    await prisma.shiftHandover.update({
+      where: { id: payload.handoverId },
+      data: { hasReconciliationIssues: true },
+    })
+  }
+
   logActivityNonBlocking({
     userId: reconciledByUserId,
     action: "shift.handover.reconciliation_submitted",
     entityType: "ShiftHandover",
     entityId: payload.handoverId,
-    metadata: { receiptCount: allTickedReceiptIds.length },
+    metadata: { receiptCount: postedCount, complete, remainingCount },
   })
 
-  return { success: true }
+  return { success: true, complete, remainingCount, postedCount }
 }
 
 async function assertUserCanBeReconciler(userId: string): Promise<boolean> {
@@ -729,6 +1031,7 @@ export async function sendHandoverToReconciliation(
       reconciliationStatus: true,
       reconciliationAssignedToUserId: true,
       forwardedToHandoverId: true,
+      includedHandoverIds: true,
     },
   })
   if (!handover) return { success: false, error: "Handover not found." }
@@ -740,9 +1043,6 @@ export async function sendHandoverToReconciliation(
   const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) {
     return { success: false, error: "Handover is already reconciled." }
-  }
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
-    return { success: false, error: "Reconciliation was rejected." }
   }
   if (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION && handover.reconciliationAssignedToUserId) {
     return { success: false, error: "Handover is already in reconciliation. Change the assignee instead." }
@@ -766,6 +1066,15 @@ export async function sendHandoverToReconciliation(
       reconciliationAssignedToUserId: assignedToUserId,
     },
   })
+
+  // Reset chain handovers that were rejected back to IN_RECONCILIATION
+  const includedIds = (handover.includedHandoverIds ?? []) as string[]
+  if (includedIds.length > 0) {
+    await prisma.shiftHandover.updateMany({
+      where: { id: { in: includedIds }, reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_REJECTED },
+      data: { reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION },
+    })
+  }
 
   logActivityNonBlocking({
     userId: requestedByUserId,
@@ -906,6 +1215,22 @@ export async function rejectHandoverReconciliation(
   }
   const trimmedReason = (reason ?? "").trim()
   if (!trimmedReason) return { success: false, error: "Rejection reason is required." }
+
+  const postedJournalCount = await prisma.journal.count({
+    where: {
+      referenceId: topLevelHandoverId,
+      OR: [
+        { referenceType: REFERENCE_TYPES.Reconciliation },
+        {
+          referenceType: REFERENCE_TYPES.ShiftHandover,
+          description: { startsWith: "Reconciliation" },
+        },
+      ],
+    },
+  })
+  if (postedJournalCount > 0) {
+    return { success: false, error: "Cannot reject reconciliation after at least one receipt has been posted." }
+  }
 
   const chainHandovers = await getIncludedHandoversChain(top.includedHandoverIds)
   const handoverIds = [top.id, ...chainHandovers.map((h: { id: string }) => h.id)]

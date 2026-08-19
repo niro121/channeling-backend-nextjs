@@ -344,6 +344,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Bill No</TableHead>
                   <TableHead>Requested by</TableHead>
                   <TableHead>Assigned to</TableHead>
                   <TableHead>Amount (LKR)</TableHead>
@@ -356,7 +357,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               <TableBody>
                 {requests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No requests found.
                     </TableCell>
                   </TableRow>
@@ -365,6 +366,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
                     const isAssignedToMe = fr.bulkCashierId === bulkCashierId;
                     return (
                       <TableRow key={fr.id}>
+                        <TableCell className="tabular-nums whitespace-nowrap">{fr.floatNoString ?? '—'}</TableCell>
                         <TableCell>{fr.requestedBy?.name ?? fr.requestedById}</TableCell>
                         <TableCell>
                           {fr.bulkCashier?.name ?? fr.bulkCashierId}
@@ -456,6 +458,7 @@ export function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintDa
   const amountLKR = denoms.length > 0 ? denominationsTotalLKR(denoms) : fr.amountRequested / 100;
   return {
     floatRequestId: fr.id,
+    floatNoString: fr.floatNoString ?? null,
     receiveCode: fr.receiveCode,
     amountLKR,
     denominationsApproved: denoms,
@@ -519,6 +522,7 @@ export function FloatRequestSummaryDialog({
           <DialogDescription>Float request details.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
+          <p><strong>Bill No:</strong> {request.floatNoString ?? '—'}</p>
           <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
           <p><strong>Amount:</strong> {formatCents(request.amountRequested)} LKR</p>
           <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
@@ -632,6 +636,7 @@ export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrin
             </div>
           </div>
           <div className="text-sm space-y-1">
+            {data.floatNoString ? <p><strong>Bill No:</strong> {data.floatNoString}</p> : null}
             <p><strong>Amount:</strong> {formatLKR(data.amountLKR)} LKR</p>
             <p><strong>Requested by:</strong> {data.requestedByName}</p>
             <p><strong>Approved by:</strong> {data.bulkCashierName}</p>
@@ -690,15 +695,18 @@ export function ApproveModal({
   const [reasonForLess, setReasonForLess] = useState('');
   const [loading, setLoading] = useState(false);
   const [balanceCents, setBalanceCents] = useState<number | null>(null);
+  const [hasTill, setHasTill] = useState<boolean | null>(null);
   const [tillLocationName, setTillLocationName] = useState<string | null>(null);
 
   useEffect(() => {
     getBulkCashierFloatBalanceAction().then((res) => {
-      if (res.success) {
+      if (res.success && res.hasTill) {
+        setHasTill(true);
         setBalanceCents(res.balanceCents);
         setTillLocationName(res.tillLocationName ?? null);
       } else {
-        setBalanceCents(0);
+        setHasTill(false);
+        setBalanceCents(null);
         setTillLocationName(null);
       }
     });
@@ -760,13 +768,14 @@ export function ApproveModal({
         <DialogHeader>
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
+            {request.floatNoString ? `${request.floatNoString}. ` : ""}
             Float will be taken from your active till. You can give up to the requested amount (or less). Cannot give more than requested.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {balanceCents !== null && (
+          {hasTill && balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Your active till balance: </span>
+              <span className="text-muted-foreground">Your current till balance: </span>
               <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
               {tillLocationName ? (
                 <span className="text-muted-foreground"> ({tillLocationName})</span>
@@ -776,6 +785,11 @@ export function ApproveModal({
                   Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.
                 </p>
               )}
+            </div>
+          )}
+          {hasTill === false && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              No till found for your current shift. Start a shift at a location, then try again.
             </div>
           )}
           <div>

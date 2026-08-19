@@ -69,6 +69,7 @@ type HandoverRow = {
   reconciliationAssignedToUserId?: string | null
   nonCashReconciledAt?: Date | string | null
   forwardedToHandoverId?: string | null
+  handoverNoString?: string | null
   fromUser: { id: string; name: string | null; staff?: { code: string } | null }
   shift: {
     id: string
@@ -128,6 +129,7 @@ function needsSendToReconciliation(h: HandoverRow): boolean {
   if (h.forwardedToHandoverId != null) return false
   const recon = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (recon === RECONCILIATION_STATUS.PENDING) return true
+  if (recon === RECONCILIATION_STATUS.RECONCILED_REJECTED) return true
   // Already marked in recon but no assignee (legacy auto-send)
   if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !h.reconciliationAssignedToUserId) return true
   return false
@@ -155,6 +157,7 @@ function HandoverTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Bill No</TableHead>
             <TableHead>From</TableHead>
             <TableHead>Shift started</TableHead>
             <TableHead>Total</TableHead>
@@ -169,6 +172,7 @@ function HandoverTable({
             const canSend = showSendToReconciliation && needsSendToReconciliation(h)
             return (
               <TableRow key={h.id}>
+                <TableCell className="tabular-nums whitespace-nowrap">{h.handoverNoString ?? "—"}</TableCell>
                 <TableCell>{fromUserLabel(h.fromUser)}</TableCell>
                 <TableCell>
                   {h.shift?.startedAt ? new Date(h.shift.startedAt).toLocaleString() : "—"}
