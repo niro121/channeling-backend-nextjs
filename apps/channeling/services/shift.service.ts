@@ -25,7 +25,7 @@ import { z } from "zod"
 // ==== SHIFT: VALIDATION SCHEMAS ==== //
 const startShiftSchema = z.object({
   userId: z.string().min(1, "User is required").trim(),
-  locationId: z.string().trim().optional().nullable(),
+  locationId: z.string().min(1, "Location is required").trim(),
 })
 
 const shiftActionSchema = z.object({
@@ -294,8 +294,32 @@ export async function getActiveShiftsWithUserAndLocation() {
   return shifts
 }
 
-export async function startShift(userId: string, locationId?: string | null) {
-  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId: locationId ?? null })
+export async function startShift(userId: string, locationId: string) {
+  const { userId: validUserId, locationId: validLocationId } = startShiftSchema.parse({ userId, locationId })
+  const location = await prisma.location.findUnique({
+    where: { id: validLocationId },
+    select: { id: true, status: true, name: true },
+  })
+  if (!location || Number(location.status) !== 1) {
+    throw new Error("Selected location is invalid or inactive.")
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: validUserId },
+    select: {
+      userLocationId: true,
+      bookingLocations: { select: { locationId: true } },
+    },
+  })
+  if (!user) throw new Error("User not found.")
+  const allowedLocationIds = new Set<string>()
+  if (user.userLocationId) allowedLocationIds.add(user.userLocationId)
+  for (const row of user.bookingLocations) {
+    if (row.locationId) allowedLocationIds.add(row.locationId)
+  }
+  if (!allowedLocationIds.has(validLocationId)) {
+    throw new Error("You cannot start a shift at a location that is not assigned to your profile.")
+  }
+
   const isBulkCashier = await isBulkCashierUser(validUserId)
   const maxHours = getShiftMaxHoursForRole(isBulkCashier)
   const now = new Date()
@@ -318,7 +342,7 @@ export async function startShift(userId: string, locationId?: string | null) {
     return txShift.create({
       data: {
         userId: validUserId,
-        locationId: validLocationId && validLocationId.length > 0 ? validLocationId : null,
+        locationId: validLocationId,
         startedAt: now,
         endsAt,
         status: SHIFT_STATUS.ACTIVE,
