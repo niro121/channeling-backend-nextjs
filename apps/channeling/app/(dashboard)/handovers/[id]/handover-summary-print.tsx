@@ -337,7 +337,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page handover-summary { size: A6 portrait; margin: 4mm 10mm; }
+          @page { size: A6 portrait; margin: 4mm 14mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,
@@ -352,13 +352,18 @@ export function HandoverSummaryPrint({
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 0 2mm !important;
+            padding: 0 5mm !important;
             box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
-            page: handover-summary;
             font-size: 9px !important;
             line-height: 1.25 !important;
+            break-after: avoid !important;
+            break-before: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            page-break-before: avoid !important;
+            page-break-inside: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
