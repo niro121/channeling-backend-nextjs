@@ -880,11 +880,7 @@ export function ReconciliationDocumentView({
         </Button>
         {canApproveReconciliation && (
           <>
-            {hasPostedReceipts ? (
-              <span className="text-sm text-muted-foreground self-center">
-                Reject is unavailable after a receipt has been posted.
-              </span>
-            ) : (
+            {!hasPostedReceipts && (
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" type="button" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
@@ -930,13 +926,11 @@ export function ReconciliationDocumentView({
             </Button>
           </>
         )}
-        {!canApproveReconciliation && (
+        {!canApproveReconciliation && isOpenForAction && (
           <span className="text-sm text-muted-foreground">
-            {!isOpenForAction
-              ? "Submit and reject are unavailable on a closed reconciliation document."
-              : canActAsReconciler
-                ? "You do not have permission to approve or reject reconciliation."
-                : "Only the assigned reconciler can submit or reject this handover."}
+            {canActAsReconciler
+              ? "You do not have permission to approve or reject reconciliation."
+              : "Only the assigned reconciler can submit or reject this handover."}
           </span>
         )}
       </div>
