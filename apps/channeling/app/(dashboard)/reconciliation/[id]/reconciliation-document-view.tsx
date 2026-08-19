@@ -31,7 +31,14 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { CheckCircle2, CircleAlert, CreditCard, FileText, Landmark, Loader2, Smartphone, XCircle } from "lucide-react"
+import { CheckCircle2, ChevronDown, CircleAlert, CreditCard, FileText, Landmark, Loader2, Printer, Smartphone, XCircle } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ReconciliationPrint } from "./reconciliation-print"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -71,6 +78,7 @@ export type HandoverTabData = {
   }
   receipts: Array<{
     id: string
+    receiptId: string
     receiptNoString: string
     paymentMethod: number
     amount: number
@@ -156,12 +164,32 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
     return chain.some((tab) => (tickedByHandoverId[tab.handover.id] ?? new Set()).size > 0)
   }, [chain, tickedByHandoverId])
 
-  /** Top-level handover (first in chain); required amounts and merged refs compare against this. */
+  /** Top-level handover (first in chain). */
   const topHandover = chain[0]?.handover
 
-  /** Merged reference entries from all handovers in chain (order preserved). */
-  const mergedReferences = useMemo((): HandoverEnteredEntries => {
-    const out: HandoverEnteredEntries = {
+  /** Required amounts summed across ALL handovers in the chain (not just top-level). */
+  const requiredByMethod = useMemo(() => {
+    const totals = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
+    for (const { handover } of chain) {
+      totals.cardCents += handover.cardCents
+      totals.slipCents += handover.slipCents
+      totals.checkCents += handover.checkCents
+      totals.eWalletCents += handover.eWalletCents
+    }
+    return totals
+  }, [chain])
+
+  type RefEntryWithSource = { reference: string; amountCents: number; from: string }
+  type MergedReferences = {
+    cardEntries: RefEntryWithSource[]
+    slipEntries: RefEntryWithSource[]
+    checkEntries: RefEntryWithSource[]
+    eWalletEntries: RefEntryWithSource[]
+  }
+
+  /** Merged reference entries from all handovers in chain with source user label. */
+  const mergedReferences = useMemo((): MergedReferences => {
+    const out: MergedReferences = {
       cardEntries: [],
       slipEntries: [],
       checkEntries: [],
@@ -169,10 +197,11 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
     }
     for (const { handover } of chain) {
       const b = handover.enteredBreakdown
-      if (b?.cardEntries?.length) out.cardEntries!.push(...b.cardEntries)
-      if (b?.slipEntries?.length) out.slipEntries!.push(...b.slipEntries)
-      if (b?.checkEntries?.length) out.checkEntries!.push(...b.checkEntries)
-      if (b?.eWalletEntries?.length) out.eWalletEntries!.push(...b.eWalletEntries)
+      const from = fromUserLabel(handover.fromUser)
+      if (b?.cardEntries?.length) out.cardEntries.push(...b.cardEntries.map((e) => ({ ...e, from })))
+      if (b?.slipEntries?.length) out.slipEntries.push(...b.slipEntries.map((e) => ({ ...e, from })))
+      if (b?.checkEntries?.length) out.checkEntries.push(...b.checkEntries.map((e) => ({ ...e, from })))
+      if (b?.eWalletEntries?.length) out.eWalletEntries.push(...b.eWalletEntries.map((e) => ({ ...e, from })))
     }
     return out
   }, [chain])
@@ -243,11 +272,52 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
     }
   }
 
+  const printReconciliation = (mode: "summary" | "report") => {
+    const styleId = "reconciliation-print-page-size"
+    let el = document.getElementById(styleId) as HTMLStyleElement | null
+    if (!el) {
+      el = document.createElement("style")
+      el.id = styleId
+      document.body.appendChild(el)
+    }
+    el.textContent =
+      mode === "summary"
+        ? "@media print { @page { size: A6 portrait; margin: 4mm 12mm; } }"
+        : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
+    document.body.classList.add("print-reconciliation")
+    const cleanup = () => {
+      document.body.classList.remove("print-reconciliation")
+      el?.remove()
+    }
+    window.addEventListener("afterprint", cleanup, { once: true })
+    window.print()
+  }
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <>
+    <div className="reconciliation-screen flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Reconcile handover</h2>
-        <BackButton href="/reconciliation" />
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Printer className="h-4 w-4 mr-1" />
+                Print
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => printReconciliation("summary")}>
+                A6 (Default)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => printReconciliation("report")}>
+                A4
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <BackButton href="/reconciliation" />
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         Tick the receipts you have verified. Only ticked amounts are transferred from till to the reconciled account. Submit when ready.
@@ -291,7 +361,7 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                     <TableRow key={tab.handover.id}>
                       <TableCell className="tabular-nums text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="font-medium whitespace-nowrap">
-                        {idx === 0 ? "Top level" : `Linked: ${fromUserLabel(tab.handover.fromUser)}`}
+                        {idx === 0 ? "Top level" : `Previous: ${fromUserLabel(tab.handover.fromUser)}`}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{fromUserLabel(tab.handover.fromUser)}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm">{shiftStartedAt}</TableCell>
@@ -326,15 +396,8 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
               <Tabs defaultValue={defaultTab} className="w-full">
                 <TabsList className="flex flex-wrap h-auto gap-1 p-1">
                   {methodTabs.map(({ method, key, entriesKey, Icon }) => {
-                    const requiredCents = topHandover[key]
-                    const tickedCents =
-                      key === "cardCents"
-                        ? totalTickedByMethod.cardCents
-                        : key === "slipCents"
-                          ? totalTickedByMethod.slipCents
-                          : key === "checkCents"
-                            ? totalTickedByMethod.checkCents
-                            : totalTickedByMethod.eWalletCents
+                    const requiredCents = requiredByMethod[key]
+                    const tickedCents = totalTickedByMethod[key]
                     const methodOk = tickedCents === requiredCents
                     const methodLabel = PAYMENT_METHOD_NAMES[method] ?? `Method ${method}`
                     return (
@@ -361,15 +424,8 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                   })}
                 </TabsList>
                 {methodTabs.map(({ method, key, entriesKey, Icon }) => {
-                  const requiredCents = topHandover[key]
-                  const tickedCents =
-                    key === "cardCents"
-                      ? totalTickedByMethod.cardCents
-                      : key === "slipCents"
-                        ? totalTickedByMethod.slipCents
-                        : key === "checkCents"
-                          ? totalTickedByMethod.checkCents
-                          : totalTickedByMethod.eWalletCents
+                  const requiredCents = requiredByMethod[key]
+                  const tickedCents = totalTickedByMethod[key]
                   const methodOk = tickedCents === requiredCents
                   const methodLabel = PAYMENT_METHOD_NAMES[method] ?? `Method ${method}`
                   const handoverEntries = mergedReferences[entriesKey] ?? []
@@ -400,28 +456,57 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                         </span>
                       </div>
 
-                      {/* References: separate compact block */}
-                      {handoverEntries.length > 0 && (
-                        <div className="rounded-md border bg-muted/30 px-3 py-2">
-                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Handover references (to match)</p>
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="hover:bg-transparent border-0">
-                                <TableHead className="h-7 py-0 text-xs font-medium">Reference</TableHead>
-                                <TableHead className="h-7 py-0 text-right text-xs font-medium">Amount</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {handoverEntries.map((entry, i) => (
-                                <TableRow key={i} className="hover:bg-transparent border-0">
-                                  <TableCell className="py-0.5 font-mono text-xs">{entry.reference || "—"}</TableCell>
-                                  <TableCell className="py-0.5 text-right text-xs tabular-nums">{formatCents(entry.amountCents)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
+                      {/* References grouped by source user, top-level shift first */}
+                      {handoverEntries.length > 0 && (() => {
+                        const grouped: { from: string; entries: typeof handoverEntries }[] = []
+                        for (const entry of handoverEntries) {
+                          const last = grouped[grouped.length - 1]
+                          if (last && last.from === entry.from) {
+                            last.entries.push(entry)
+                          } else {
+                            grouped.push({ from: entry.from, entries: [entry] })
+                          }
+                        }
+                        return (
+                          <div className="rounded-md border bg-muted/30 px-3 py-2.5 space-y-3">
+                            <p className="text-xs font-medium text-muted-foreground">Handover references (to match)</p>
+                            {grouped.map((group, gi) => {
+                              const isTopLevel = gi === 0
+                              return (
+                                <div key={gi} className={cn(
+                                  "rounded-md px-2.5 py-2",
+                                  isTopLevel
+                                    ? "border-2 border-primary/40 bg-primary/5 dark:bg-primary/10"
+                                    : "border border-border/50 bg-transparent"
+                                )}>
+                                  <p className={cn(
+                                    "mb-1 font-semibold",
+                                    isTopLevel ? "text-xs text-primary" : "text-[11px] text-muted-foreground"
+                                  )}>
+                                    {group.from}{isTopLevel ? " — Top Level" : ""}
+                                  </p>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="hover:bg-transparent border-0">
+                                        <TableHead className="h-6 py-0 text-xs font-medium">Reference</TableHead>
+                                        <TableHead className="h-6 py-0 text-right text-xs font-medium">Amount</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {group.entries.map((entry, i) => (
+                                        <TableRow key={i} className="hover:bg-transparent border-0">
+                                          <TableCell className="py-0.5 font-mono text-xs">{entry.reference || "—"}</TableCell>
+                                          <TableCell className="py-0.5 text-right text-xs tabular-nums">{formatCents(entry.amountCents)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
 
                       {/* Single table: all receipts for this method */}
                       <div className="rounded-md border">
@@ -544,5 +629,11 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
         )}
       </div>
     </div>
+    <ReconciliationPrint
+      topLevelHandoverId={topLevelHandoverId}
+      chain={chain}
+      tickedByHandoverId={tickedByHandoverId}
+    />
+    </>
   )
 }
