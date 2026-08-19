@@ -1,22 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { OvernightShiftSample } from './sample-data';
+import { deleteOvernightShiftAction } from '@/app/actions/roster-actions/overnight-shift.actions';
+import type { OvernightShiftRecord } from '@/types/roster';
 import { useOvernightShiftsUi } from './overnight-shifts-ui-context';
 
 type OvernightRecordActionsProps = {
-  record: OvernightShiftSample;
+  record: OvernightShiftRecord;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 export default function OvernightRecordActions({
   record
 }: OvernightRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openHistory } = useOvernightShiftsUi();
   const [open, setOpen] = useState(false);
@@ -24,6 +25,32 @@ export default function OvernightRecordActions({
 
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      const result = await deleteOvernightShiftAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Delete failed',
+          description: result.errors?.message ?? 'Could not delete overnight shift'
+        });
+      } else {
+        toast({ title: 'Overnight shift deleted' });
+        router.refresh();
+      }
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Something went wrong'
+      });
+    } finally {
+      setLoading(false);
+      setOpen(false);
+    }
+  };
 
   return (
     <>
@@ -69,13 +96,8 @@ export default function OvernightRecordActions({
         handleVisibilityChange={setOpen}
         loading={loading}
         title="Delete overnight shift?"
-        description={`This will remove the overnight duty for ${record.staffName} (${record.staffCode}). Saving is wired in a later phase.`}
-        handleContinue={() => {
-          setLoading(true);
-          toast({ title: 'Delete overnight shift', description: LATER });
-          setLoading(false);
-          setOpen(false);
-        }}
+        description={`This will remove the overnight duty for ${record.staffName} (${record.staffCode}).`}
+        handleContinue={handleDelete}
       />
     </>
   );

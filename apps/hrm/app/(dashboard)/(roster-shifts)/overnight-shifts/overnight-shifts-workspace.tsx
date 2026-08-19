@@ -1,9 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
+import type {
+  OvernightShiftFilterOptions,
+  OvernightShiftFormOptions,
+  OvernightShiftRecord,
+  OvernightShiftSummary
+} from '@/types/roster';
 import { OvernightShiftsHeaderActions } from './header-actions';
 import SectionOvernightFilters, {
   type OvernightFilterValues
@@ -13,99 +19,63 @@ import SectionOvernightSummary from './section-overnight-summary';
 import SheetOvernightForm from './sheet-overnight-form';
 import SheetOvernightHistory from './sheet-overnight-history';
 import {
-  SAMPLE_OVERNIGHT_ALLOCATIONS,
-  SAMPLE_OVERNIGHT_AUDIT,
-  SAMPLE_OVERNIGHT_DEPARTMENTS,
-  SAMPLE_OVERNIGHT_SHIFT_TYPES,
-  SAMPLE_OVERNIGHT_STATUS,
-  SAMPLE_OVERNIGHT_UNITS,
-  type OvernightShiftSample,
-  type OvernightSummarySample
-} from './sample-data';
-import {
   OvernightShiftsUiProvider,
   useOvernightShiftsUi
 } from './overnight-shifts-ui-context';
 
 type OvernightShiftsWorkspaceProps = {
-  initialRows: OvernightShiftSample[];
-  summary: OvernightSummarySample;
+  records: OvernightShiftRecord[];
+  totalRecords: number;
+  page?: string;
+  summary: OvernightShiftSummary;
+  initialFilters: OvernightFilterValues;
+  filterOptions: OvernightShiftFilterOptions;
+  formOptions: OvernightShiftFormOptions;
+  onExport: () => Promise<{ success: boolean; data?: Record<string, unknown>[]; message?: string }>;
 };
-
-const EMPTY_FILTERS: OvernightFilterValues = {
-  fromDate: null,
-  toDate: null,
-  departmentId: '',
-  unitId: '',
-  shiftTypeId: '',
-  allocationId: '',
-  staffSearch: '',
-  statusId: ''
-};
-
-function toDayStart(value: Date): Date {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function filterRows(
-  rows: OvernightShiftSample[],
-  values: OvernightFilterValues
-): OvernightShiftSample[] {
-  const staffQ = values.staffSearch.trim().toLowerCase();
-  const from = values.fromDate ? toDayStart(values.fromDate) : null;
-  const to = values.toDate ? toDayStart(values.toDate) : null;
-
-  return rows.filter((row) => {
-    if (values.departmentId) {
-      const dept = SAMPLE_OVERNIGHT_DEPARTMENTS.find(
-        (d) => d.id === values.departmentId
-      )?.name;
-      if (dept && row.department !== dept) return false;
-    }
-    if (values.unitId) {
-      const unit = SAMPLE_OVERNIGHT_UNITS.find(
-        (u) => u.id === values.unitId
-      )?.name;
-      if (unit && row.unit !== unit) return false;
-    }
-    if (values.shiftTypeId && row.shiftTypeId !== values.shiftTypeId) {
-      return false;
-    }
-    if (values.allocationId && row.allocationId !== values.allocationId) {
-      return false;
-    }
-    if (values.statusId && row.status !== values.statusId) return false;
-    if (staffQ) {
-      const hay = `${row.staffCode} ${row.staffName}`.toLowerCase();
-      if (!hay.includes(staffQ)) return false;
-    }
-    if (from || to) {
-      const startDay = toDayStart(new Date(`${row.shiftStart}T00:00:00`));
-      if (from && startDay < from) return false;
-      if (to && startDay > to) return false;
-    }
-    return true;
-  });
-}
 
 function OvernightShiftsWorkspaceInner({
-  initialRows,
-  summary
+  records,
+  totalRecords,
+  page,
+  summary,
+  initialFilters,
+  filterOptions,
+  formOptions,
+  onExport
 }: OvernightShiftsWorkspaceProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     formSheet,
     historyRecord,
     closeFormSheet,
     closeHistorySheet
   } = useOvernightShiftsUi();
-  const [draft, setDraft] = useState<OvernightFilterValues>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<OvernightFilterValues>(EMPTY_FILTERS);
 
-  const rows = useMemo(
-    () => filterRows(initialRows, applied),
-    [applied, initialRows]
+  const applyFilters = useCallback(
+    (values: OvernightFilterValues) => {
+      const params = new URLSearchParams();
+      if (values.fromDate) params.set('fromDate', values.fromDate.toISOString().slice(0, 10));
+      if (values.toDate) params.set('toDate', values.toDate.toISOString().slice(0, 10));
+      if (values.departmentId) params.set('department', values.departmentId);
+      if (values.unitId) params.set('unit', values.unitId);
+      if (values.shiftTypeId) params.set('shiftTypeId', values.shiftTypeId);
+      if (values.allocationId) params.set('allocationDate', values.allocationId);
+      if (values.staffSearch) params.set('staffSearch', values.staffSearch);
+      if (values.statusId) params.set('status', values.statusId);
+      const limit = searchParams.get('limit');
+      if (limit) params.set('limit', limit);
+      router.push(`/overnight-shifts?${params.toString()}`);
+    },
+    [router, searchParams]
   );
+
+  const clearFilters = useCallback(() => {
+    const limit = searchParams.get('limit');
+    router.push(limit ? `/overnight-shifts?limit=${limit}` : '/overnight-shifts');
+  }, [router, searchParams]);
 
   return (
     <div className="space-y-6">
@@ -118,45 +88,30 @@ function OvernightShiftsWorkspaceInner({
       <SectionOvernightSummary summary={summary} />
 
       <SectionOvernightFilters
-        values={draft}
-        departmentOptions={SAMPLE_OVERNIGHT_DEPARTMENTS}
-        unitOptions={SAMPLE_OVERNIGHT_UNITS}
-        shiftTypeOptions={SAMPLE_OVERNIGHT_SHIFT_TYPES}
-        allocationOptions={SAMPLE_OVERNIGHT_ALLOCATIONS}
-        statusOptions={SAMPLE_OVERNIGHT_STATUS}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => {
-          setApplied(draft);
-          toast({
-            title: 'Filters applied',
-            description:
-              'Sample data filtered locally. Server search comes in a later phase.'
-          });
-        }}
-        onClear={() => {
-          setDraft(EMPTY_FILTERS);
-          setApplied(EMPTY_FILTERS);
-        }}
+        values={initialFilters}
+        departmentOptions={filterOptions.departments}
+        unitOptions={filterOptions.units}
+        shiftTypeOptions={filterOptions.shiftTypes}
+        allocationOptions={filterOptions.allocationOptions}
+        statusOptions={filterOptions.statuses}
+        onChange={() => undefined}
+        onSearch={applyFilters}
+        onClear={clearFilters}
       />
 
-      <SectionOvernightRegister items={rows} />
-
-      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
-        <p>
-          Created by: {SAMPLE_OVERNIGHT_AUDIT.createdBy} ·{' '}
-          {formatDateTime(SAMPLE_OVERNIGHT_AUDIT.createdAt)}
-        </p>
-        <p>
-          Last updated: {SAMPLE_OVERNIGHT_AUDIT.updatedBy} ·{' '}
-          {formatDateTime(SAMPLE_OVERNIGHT_AUDIT.updatedAt)}
-        </p>
-      </div> */}
+      <SectionOvernightRegister
+        items={records}
+        totalRecords={totalRecords}
+        page={page}
+        onExport={onExport}
+      />
 
       {formSheet ? (
         <SheetOvernightForm
           open
           mode={formSheet.mode}
-          sample={formSheet.record}
+          record={formSheet.record}
+          formOptions={formOptions}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}

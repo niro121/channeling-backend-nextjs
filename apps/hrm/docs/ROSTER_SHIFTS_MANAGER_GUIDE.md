@@ -11,8 +11,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; assign / edit / swap / replace / attendance; published dates locked).  
 **D8:** Roster Amendments is live on `/roster-amendments` (CRUD; Approve applies to published cells; Reject leaves roster unchanged).  
 **D9:** Night Shifts is live on `/night-shifts` (derived from `RosterAllocation` where `ShiftType.isNightShift`; consecutive nights computed; Add refuses existing staff+date).  
+**D10:** Overnight Shifts is live on `/overnight-shifts` (derived from `RosterAllocation` where `ShiftType.isOvernight`; day-split hours stored; Recalculate Splits rewrites fields; Add refuses existing staff+date).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D10 Overnight Shifts**.
+Pages must not call Prisma. No business rules in components. Next: **D11 Public Holiday Shifts**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -683,7 +684,7 @@ Key files under `app/(dashboard)/(roster-shifts)/overnight-shifts/`:
 
 | File | Role |
 |------|------|
-| `page.tsx` | Access check + sample data |
+| `page.tsx` | Access check + server actions (list, filters, form options, export) |
 | `overnight-shifts-workspace.tsx` | Provider, header, filters, register, sheets |
 | `overnight-shifts-ui-context.tsx` | Open Add / Edit / History |
 | `header-actions.tsx` | **Add Overnight Shift**, **Recalculate Splits** (toast) |
@@ -693,7 +694,8 @@ Key files under `app/(dashboard)/(roster-shifts)/overnight-shifts/`:
 | `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
 | `sheet-overnight-form.tsx` | Add / Edit form + auto-split |
 | `sheet-overnight-history.tsx` | Timeline history; **Cancel only** |
-| `sample-data.ts` | Mock overnight duties + options + summary |
+
+Backend: `services/roster-services/overnight-shift.service.ts`, `app/actions/roster-actions/overnight-shift.actions.ts`, `types/roster.ts` (`OvernightShiftRecord`, etc.).
 
 ### 2G.1 Header
 
@@ -713,11 +715,11 @@ Field behaviour (locked):
 
 - Start/End date and time **required and editable**. Shift type prefills times and allowance.
 - **Auto Split Hours at Midnight** on: Day 1 / Day 2 / Total auto and disabled. Off: those three editable. OT and Allowance stay editable.
-- Attendance allocation: **Shift Start Date** / **Shift End Date** (default start).
+- Attendance allocation: **Shift Start Date** / **Shift End Date** / **Split Across Both Days** (default start).
 - **Send to Payroll** maps to Payroll Ready.
-- Status: Draft / Pending Approval / Approved / Rejected / **Amended**. New defaults to Pending Approval.
+- Status: **Draft / Pending Approval / Published / Amended** (from allocation; read-only in edit).
 
-Sticky sheet header. Phase 0 toast save.
+Sticky sheet header. Save calls create/update actions.
 
 ### 2G.3 Register
 
@@ -1238,8 +1240,9 @@ Phase 0: Static UI (done)
 |-----------|
 | [x] `/overnight-shifts` matches the mock (sheets + register + split banner) |
 | [x] Auto Split fills Day 1 / Day 2 / Total from start/end; Recalculate toast |
-| [x] Status includes Draft / Pending Approval / Approved / Rejected / Amended |
+| [x] Status shows Draft / Pending Approval / Published / Amended from allocation |
 | [x] Layout accepted for dynamic work (minor style / component polish allowed) |
+| [x] **D10:** Live register from `RosterAllocation` where `ShiftType.isOvernight` |
 
 ---
 
@@ -1496,8 +1499,13 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Overnight register shows live overnight-flagged cells |
-| [ ] Recalculate updates stored split hours |
+| [x] Overnight register shows live overnight-flagged cells |
+| [x] Recalculate updates stored split hours |
+| [x] Create / update / delete / history wired via actions |
+| [x] Table Print/PDF/Excel export from server |
+| [x] Auto Split computes Day 1 / Day 2 / Total from start/end times |
+| [x] `sendToPayroll` flag persisted on allocation |
+| [x] Add refuses existing staff+date |
 
 ---
 

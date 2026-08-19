@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { parseISO } from 'date-fns';
@@ -21,18 +22,18 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { combineDateAndTime, splitHoursAtMidnight, formatOvernightHours, formatOvernightMoney } from '@/lib/utils/overnight-shift';
+import { overnightRecordToFormValues, overnightFormValuesToPayload } from '@/lib/mappers/overnight-shift-form.mapper';
 import {
-  combineDateAndTime,
-  formatOvernightHours,
-  formatOvernightMoney,
-  SAMPLE_OVERNIGHT_ALLOCATIONS,
-  SAMPLE_OVERNIGHT_AUDIT,
-  SAMPLE_OVERNIGHT_SHIFT_TYPES,
-  SAMPLE_OVERNIGHT_STAFF,
-  SAMPLE_OVERNIGHT_STATUS,
-  splitHoursAtMidnight,
-  type OvernightShiftSample
-} from './sample-data';
+  createOvernightShiftAction,
+  updateOvernightShiftAction
+} from '@/app/actions/roster-actions/overnight-shift.actions';
+import {
+  OVERNIGHT_ALLOCATION_OPTIONS,
+  OVERNIGHT_SHIFT_STATUS_OPTIONS,
+  type OvernightShiftFormOptions,
+  type OvernightShiftRecord
+} from '@/types/roster';
 import type { OvernightFormSheetMode } from './overnight-shifts-ui-context';
 
 export type OvernightFormValues = {
@@ -57,7 +58,8 @@ export type OvernightFormValues = {
 type SheetOvernightFormProps = {
   open: boolean;
   mode: OvernightFormSheetMode;
-  sample: OvernightShiftSample | null;
+  record: OvernightShiftRecord | null;
+  formOptions: OvernightShiftFormOptions;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -79,7 +81,7 @@ function emptyValues(): OvernightFormValues {
     day1Hours: '5.00',
     day2Hours: '7.00',
     totalHours: '12.00',
-    overnightOt: '2.00',
+    overnightOt: '0.00',
     allowance: '3200.00',
     status: 'pending_approval',
     autoSplit: true,
@@ -88,44 +90,25 @@ function emptyValues(): OvernightFormValues {
   };
 }
 
-function sampleToFormValues(sample: OvernightShiftSample): OvernightFormValues {
-  return {
-    staffId: sample.staffId,
-    shiftTypeId: sample.shiftTypeId,
-    allocationId: sample.allocationId,
-    startDate: sample.shiftStart ? parseISO(sample.shiftStart) : null,
-    startTime: sample.startTime,
-    endDate: sample.shiftEnd ? parseISO(sample.shiftEnd) : null,
-    endTime: sample.endTime,
-    day1Hours: formatOvernightHours(sample.day1Hours),
-    day2Hours: formatOvernightHours(sample.day2Hours),
-    totalHours: formatOvernightHours(sample.totalHours),
-    overnightOt: formatOvernightHours(sample.overnightOt),
-    allowance: formatOvernightMoney(sample.allowance).replace(/,/g, ''),
-    status: sample.status,
-    autoSplit: sample.autoSplit,
-    sendToPayroll: sample.payrollReady,
-    remarks: sample.remarks
-  };
-}
-
 function AutoShiftTypeDefaults({
   shiftTypeId,
+  formOptions,
   setFieldValue
 }: {
   shiftTypeId: string;
+  formOptions: OvernightShiftFormOptions;
   setFieldValue: FormikProps<OvernightFormValues>['setFieldValue'];
 }) {
   const previousTypeId = useRef(shiftTypeId);
   useEffect(() => {
     if (previousTypeId.current === shiftTypeId) return;
     previousTypeId.current = shiftTypeId;
-    const found = SAMPLE_OVERNIGHT_SHIFT_TYPES.find((s) => s.id === shiftTypeId);
+    const found = formOptions.shiftTypes.find((s) => s.id === shiftTypeId);
     if (!found) return;
     void setFieldValue('startTime', found.startTime);
     void setFieldValue('endTime', found.endTime);
     void setFieldValue('allowance', found.allowance);
-  }, [setFieldValue, shiftTypeId]);
+  }, [setFieldValue, shiftTypeId, formOptions.shiftTypes]);
   return null;
 }
 
@@ -145,11 +128,8 @@ function AutoSplitHours({
   setFieldValue: FormikProps<OvernightFormValues>['setFieldValue'];
 }) {
   useEffect(() => {
-    if (!autoSplit) return;
-    const start = combineDateAndTime(startDate, startTime);
-    const end = combineDateAndTime(endDate, endTime);
-    if (!start || !end) return;
-    const split = splitHoursAtMidnight(start, end);
+    if (!autoSplit || !startDate || !endDate) return;
+    const split = splitHoursAtMidnight(startDate, startTime, endDate, endTime);
     if (!split) return;
     void setFieldValue('day1Hours', formatOvernightHours(split.day1));
     void setFieldValue('day2Hours', formatOvernightHours(split.day2));
@@ -158,18 +138,25 @@ function AutoSplitHours({
   return null;
 }
 
-const LATER = 'Will be wired in a later phase.';
-
 export default function SheetOvernightForm({
   open,
   mode,
-  sample,
+  record,
+  formOptions,
   onOpenChange
 }: SheetOvernightFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const isEdit = mode === 'edit';
-  const showAudit = isEdit;
+
+  const statusLabel = useMemo(() => {
+    if (!record) return '';
+    return (
+      OVERNIGHT_SHIFT_STATUS_OPTIONS.find((o) => o.id === record.status)?.name ??
+      record.status
+    );
+  }, [record]);
 
   const validationSchema = useMemo(
     () =>
@@ -186,16 +173,46 @@ export default function SheetOvernightForm({
         totalHours: Yup.number().min(0, 'Cannot be negative').nullable(),
         overnightOt: Yup.number().min(0, 'Cannot be negative').nullable(),
         allowance: Yup.number().min(0, 'Cannot be negative').nullable(),
-        status: Yup.string().required('Status is required'),
         remarks: Yup.string().max(500, 'Must be less than 500 characters')
       }),
     []
   );
 
   const initialValues = useMemo(() => {
-    if (sample && isEdit) return sampleToFormValues(sample);
+    if (record && isEdit) return overnightRecordToFormValues(record);
     return emptyValues();
-  }, [isEdit, sample]);
+  }, [isEdit, record]);
+
+  const handleSubmit = async (values: OvernightFormValues) => {
+    setLoading(true);
+    try {
+      const payload = overnightFormValuesToPayload(values);
+      const result = isEdit && record
+        ? await updateOvernightShiftAction(record.id, payload)
+        : await createOvernightShiftAction(payload);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: isEdit ? 'Update failed' : 'Save failed',
+          description: result.errors?.message ?? 'Could not save overnight shift'
+        });
+        return;
+      }
+
+      toast({ title: isEdit ? 'Overnight shift updated' : 'Overnight shift created' });
+      router.refresh();
+      onOpenChange(false);
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Something went wrong'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -218,15 +235,7 @@ export default function SheetOvernightForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
-            setLoading(true);
-            toast({
-              title: isEdit ? 'Update overnight shift' : 'Save overnight shift',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
-          }}
+          onSubmit={handleSubmit}
         >
           {(formik) => {
             const hoursDisabled = formik.values.autoSplit;
@@ -235,6 +244,7 @@ export default function SheetOvernightForm({
               <Form className="flex min-h-0 flex-1 flex-col">
                 <AutoShiftTypeDefaults
                   shiftTypeId={formik.values.shiftTypeId}
+                  formOptions={formOptions}
                   setFieldValue={formik.setFieldValue}
                 />
                 <AutoSplitHours
@@ -255,7 +265,7 @@ export default function SheetOvernightForm({
                       formik.setFieldValue('staffId', value)
                     }
                     required
-                    options={SAMPLE_OVERNIGHT_STAFF}
+                    options={formOptions.staff}
                     styleClasses={fieldStyleClasses}
                   />
 
@@ -268,7 +278,7 @@ export default function SheetOvernightForm({
                         formik.setFieldValue('shiftTypeId', value)
                       }
                       required
-                      options={SAMPLE_OVERNIGHT_SHIFT_TYPES}
+                      options={formOptions.shiftTypes}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomSelectField
@@ -279,7 +289,7 @@ export default function SheetOvernightForm({
                         formik.setFieldValue('allocationId', value)
                       }
                       required
-                      options={SAMPLE_OVERNIGHT_ALLOCATIONS}
+                      options={OVERNIGHT_ALLOCATION_OPTIONS}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomDatePickerField
@@ -382,17 +392,19 @@ export default function SheetOvernightForm({
                       min={0}
                       styleClasses={fieldStyleClasses}
                     />
-                    <CustomSelectField
-                      id="status"
-                      placeholder="Status"
-                      value={formik.values.status}
-                      onChange={(value) =>
-                        formik.setFieldValue('status', value)
-                      }
-                      required
-                      options={SAMPLE_OVERNIGHT_STATUS}
-                      styleClasses={fieldStyleClasses}
-                    />
+                    {isEdit ? (
+                      <CustomFormField
+                        id="allocationStatus"
+                        type="text"
+                        placeholder="Roster Status"
+                        value={statusLabel}
+                        onChange={() => undefined}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        disabled
+                        styleClasses={fieldStyleClasses}
+                      />
+                    ) : null}
                   </div>
 
                   <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
@@ -451,19 +463,23 @@ export default function SheetOvernightForm({
                     styleClasses={fieldStyleClasses}
                   />
 
-<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                     <p>
                       Created by:{' '}
-                      {showAudit ? SAMPLE_OVERNIGHT_AUDIT.createdBy : '—'}
-                      {showAudit
-                        ? ` · ${formatAuditDateTime(SAMPLE_OVERNIGHT_AUDIT.createdAt)}`
+                      {isEdit
+                        ? record?.createdUser?.name || record?.createdBy || '—'
+                        : '—'}
+                      {isEdit && record?.createdAt
+                        ? ` · ${formatAuditDateTime(record.createdAt)}`
                         : null}
                     </p>
                     <p className="sm:text-right">
                       Last updated:{' '}
-                      {showAudit ? SAMPLE_OVERNIGHT_AUDIT.updatedBy : '—'}
-                      {showAudit
-                        ? ` · ${formatAuditDateTime(SAMPLE_OVERNIGHT_AUDIT.updatedAt)}`
+                      {isEdit
+                        ? record?.updatedUser?.name || record?.updatedBy || '—'
+                        : '—'}
+                      {isEdit && record?.updatedAt
+                        ? ` · ${formatAuditDateTime(record.updatedAt)}`
                         : null}
                     </p>
                   </div>
@@ -475,7 +491,7 @@ export default function SheetOvernightForm({
                     variant="outline"
                     disabled={loading}
                     size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                     onClick={() => onOpenChange(false)}
                   >
                     <X className="h-3.5 w-3.5" />

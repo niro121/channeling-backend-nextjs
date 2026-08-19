@@ -6,19 +6,22 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { formatOvernightHours, formatOvernightMoney } from '@/lib/utils/overnight-shift';
+import type { OvernightShiftRecord } from '@/types/roster';
 import { overnightShiftColumns } from './columns';
-import {
-  formatOvernightHours,
-  formatOvernightMoney,
-  type OvernightShiftSample
-} from './sample-data';
 
 type SectionOvernightRegisterProps = {
-  items: OvernightShiftSample[];
+  items: OvernightShiftRecord[];
+  totalRecords: number;
+  page?: string;
+  onExport: () => Promise<{ success: boolean; data?: Record<string, unknown>[]; message?: string }>;
 };
 
 export default function SectionOvernightRegister({
-  items
+  items,
+  totalRecords,
+  page,
+  onExport
 }: SectionOvernightRegisterProps) {
   return (
     <Suspense
@@ -32,7 +35,8 @@ export default function SectionOvernightRegister({
         heading="Overnight Shift Register"
         columns={overnightShiftColumns}
         data={items}
-        rowCount={items.length}
+        rowCount={totalRecords}
+        page={page}
         showPagination
         haveBulkDelete={false}
         toolbarLeft={
@@ -48,36 +52,16 @@ export default function SectionOvernightRegister({
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                staffCode: row.staffCode,
-                staffName: row.staffName,
-                department: row.department,
-                unit: row.unit,
-                shiftStart: `${row.shiftStart} ${row.startTime}`,
-                shiftEnd: `${row.shiftEnd} ${row.endTime}`,
-                day1Hours: formatOvernightHours(row.day1Hours),
-                day2Hours: formatOvernightHours(row.day2Hours),
-                totalHours: formatOvernightHours(row.totalHours),
-                attendanceDate: row.attendanceDate,
-                overnightOt: formatOvernightHours(row.overnightOt),
-                allowance: formatOvernightMoney(row.allowance),
-                payrollReady: row.payrollReady ? 'Yes' : 'No',
-                status: row.status,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
+            serverData={onExport}
             columns={[
               'Staff ID',
               'Staff Name',
               'Department',
               'Unit',
-              'Shift Start',
-              'Shift End',
+              'Start Date',
+              'End Date',
+              'Start Time',
+              'End Time',
               'Day 1 Hours',
               'Day 2 Hours',
               'Total Hours',
@@ -96,8 +80,10 @@ export default function SectionOvernightRegister({
               'staffName',
               'department',
               'unit',
-              'shiftStart',
-              'shiftEnd',
+              'startDate',
+              'endDate',
+              'startTime',
+              'endTime',
               'day1Hours',
               'day2Hours',
               'totalHours',

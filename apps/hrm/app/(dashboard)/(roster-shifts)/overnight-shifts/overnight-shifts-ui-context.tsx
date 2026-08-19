@@ -8,21 +8,21 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { OvernightShiftSample } from './sample-data';
+import type { OvernightShiftRecord } from '@/types/roster';
 
 export type OvernightFormSheetMode = 'create' | 'edit';
 
 type FormSheetState = {
   mode: OvernightFormSheetMode;
-  record: OvernightShiftSample | null;
+  record: OvernightShiftRecord | null;
 };
 
 type OvernightShiftsUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: OvernightShiftSample | null;
+  historyRecord: OvernightShiftRecord | null;
   openCreate: () => void;
-  openEdit: (record: OvernightShiftSample) => void;
-  openHistory: (record: OvernightShiftSample) => void;
+  openEdit: (record: OvernightShiftRecord) => void;
+  openHistory: (record: OvernightShiftRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -37,17 +37,17 @@ export function OvernightShiftsUiProvider({
 }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [historyRecord, setHistoryRecord] =
-    useState<OvernightShiftSample | null>(null);
+    useState<OvernightShiftRecord | null>(null);
 
   const openCreate = useCallback(() => {
     setFormSheet({ mode: 'create', record: null });
   }, []);
 
-  const openEdit = useCallback((record: OvernightShiftSample) => {
+  const openEdit = useCallback((record: OvernightShiftRecord) => {
     setFormSheet({ mode: 'edit', record });
   }, []);
 
-  const openHistory = useCallback((record: OvernightShiftSample) => {
+  const openHistory = useCallback((record: OvernightShiftRecord) => {
     setHistoryRecord(record);
   }, []);
 

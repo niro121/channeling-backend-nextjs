@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowUpRight, Clock, Split, Timer } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { OvernightSummarySample } from './sample-data';
+import type { OvernightShiftSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +12,7 @@ type SummaryCard = {
 };
 
 type SectionOvernightSummaryProps = {
-  summary: OvernightSummarySample;
+  summary: OvernightShiftSummary;
 };
 
 export default function SectionOvernightSummary({

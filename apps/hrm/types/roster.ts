@@ -77,7 +77,7 @@ export const DUTY_ALLOCATION_STATUS_OPTIONS: RosterFilterOption[] =
     name: id === 'draft' ? 'Draft' : id === 'published' ? 'Published' : 'Amended'
   }));
 
-export const OVERNIGHT_ALLOCATION_DATES = ['shift_start', 'shift_end'] as const;
+export const OVERNIGHT_ALLOCATION_DATES = ['shift_start', 'shift_end', 'split_both'] as const;
 export type OvernightAllocationDate =
   (typeof OVERNIGHT_ALLOCATION_DATES)[number];
 
@@ -896,6 +896,116 @@ export const NIGHT_SHIFT_STATUS_OPTIONS: RosterFilterOption[] = [
 export function exceedsConsecutiveNightPolicy(nights: number): boolean {
   return nights > CONSECUTIVE_NIGHT_LIMIT;
 }
+
+/* ---------------------------------
+Overnight Shifts (derived register)
+--------------------------------- */
+
+export type OvernightShiftRecord = RosterAuditFields & {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  shiftTypeId: string;
+  overnightShift: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  day1Hours: number;
+  day2Hours: number;
+  totalHours: number;
+  attendanceAllocation: OvernightAllocationDate;
+  attendanceDate: string;
+  overnightOt: number;
+  overnightAllowance: number;
+  payrollReady: boolean;
+  autoSplit: boolean;
+  status: RosterAllocationStatus | string;
+  remarks: string;
+};
+
+export type OvernightShiftSummary = {
+  overnightShifts: number;
+  cycleLabel: string;
+  crossMidnightHours: number;
+  overnightOtHours: number;
+  allocationConflicts: number;
+};
+
+export type GetOvernightShiftsParams = {
+  page?: string;
+  limit?: string;
+  fromDate?: string;
+  toDate?: string;
+  department?: string;
+  unit?: string;
+  shiftTypeId?: string;
+  allocationDate?: string;
+  staffSearch?: string;
+  status?: string;
+  search?: string;
+};
+
+export type OvernightShiftPayload = {
+  staffId: string;
+  shiftTypeId: string;
+  startDate: Date | string;
+  endDate: Date | string;
+  startTime: string;
+  endTime: string;
+  day1Hours?: number | null;
+  day2Hours?: number | null;
+  totalHours?: number | null;
+  attendanceAllocation?: OvernightAllocationDate;
+  overnightOt?: number | null;
+  overnightAllowance?: number | null;
+  autoSplit?: boolean;
+  sendToPayroll?: boolean;
+  remarks?: string | null;
+};
+
+export type OvernightShiftFilterOptions = {
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
+  allocationOptions: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+};
+
+export type OvernightShiftTypeFormOption = RosterFilterOption & {
+  startTime: string;
+  endTime: string;
+  allowance: string;
+};
+
+export type OvernightShiftFormOptions = {
+  staff: RosterFilterOption[];
+  shiftTypes: OvernightShiftTypeFormOption[];
+};
+
+export type OvernightShiftHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export const OVERNIGHT_SHIFT_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
+  { id: 'published', name: 'Published' },
+  { id: 'amended', name: 'Amended' }
+];
+
+export const OVERNIGHT_ALLOCATION_OPTIONS: RosterFilterOption[] = [
+  { id: 'shift_start', name: 'Shift Start Date' },
+  { id: 'shift_end', name: 'Shift End Date' },
+  { id: 'split_both', name: 'Split Across Both Days' }
+];
 
 /* ---------------------------------
 Holiday Calendar (v1 stub)

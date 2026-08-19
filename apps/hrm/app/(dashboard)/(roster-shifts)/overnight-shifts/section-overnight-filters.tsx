@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { RefreshCw, Search } from 'lucide-react';
 import {
   Button,
@@ -12,7 +13,7 @@ import {
   Input,
   Label
 } from '@archmage/ui';
-import type { OvernightFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type OvernightFilterValues = {
   fromDate: Date | null;
@@ -27,14 +28,25 @@ export type OvernightFilterValues = {
 
 type SectionOvernightFiltersProps = {
   values: OvernightFilterValues;
-  departmentOptions: OvernightFilterOption[];
-  unitOptions: OvernightFilterOption[];
-  shiftTypeOptions: OvernightFilterOption[];
-  allocationOptions: OvernightFilterOption[];
-  statusOptions: OvernightFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  unitOptions: RosterFilterOption[];
+  shiftTypeOptions: RosterFilterOption[];
+  allocationOptions: RosterFilterOption[];
+  statusOptions: RosterFilterOption[];
   onChange: (next: Partial<OvernightFilterValues>) => void;
-  onSearch: () => void;
+  onSearch: (values: OvernightFilterValues) => void;
   onClear: () => void;
+};
+
+const EMPTY_FILTERS: OvernightFilterValues = {
+  fromDate: null,
+  toDate: null,
+  departmentId: '',
+  unitId: '',
+  shiftTypeId: '',
+  allocationId: '',
+  staffSearch: '',
+  statusId: ''
 };
 
 export default function SectionOvernightFilters({
@@ -44,10 +56,14 @@ export default function SectionOvernightFilters({
   shiftTypeOptions,
   allocationOptions,
   statusOptions,
-  onChange,
   onSearch,
   onClear
 }: SectionOvernightFiltersProps) {
+  const [draft, setDraft] = useState<OvernightFilterValues>(values);
+
+  const update = (next: Partial<OvernightFilterValues>) =>
+    setDraft((prev) => ({ ...prev, ...next }));
+
   return (
     <Card className="rounded-lg border border-border shadow-sm">
       <CardHeader className="pb-3">
@@ -58,8 +74,8 @@ export default function SectionOvernightFilters({
           <CustomDatePickerField
             id="fromDate"
             placeholder="From Date"
-            value={values.fromDate}
-            onChange={(value) => onChange({ fromDate: value ?? null })}
+            value={draft.fromDate}
+            onChange={(value) => update({ fromDate: value ?? null })}
             onBlur={() => undefined}
             required={false}
             useFormikError={false}
@@ -72,8 +88,8 @@ export default function SectionOvernightFilters({
           <CustomDatePickerField
             id="toDate"
             placeholder="To Date"
-            value={values.toDate}
-            onChange={(value) => onChange({ toDate: value ?? null })}
+            value={draft.toDate}
+            onChange={(value) => update({ toDate: value ?? null })}
             onBlur={() => undefined}
             required={false}
             useFormikError={false}
@@ -90,9 +106,9 @@ export default function SectionOvernightFilters({
             <Combobox
               label="Select Department"
               options={departmentOptions}
-              value={values.departmentId}
+              value={draft.departmentId}
               defaultValue=""
-              onChange={(value) => onChange({ departmentId: value })}
+              onChange={(value) => update({ departmentId: value })}
               clearable
             />
           </div>
@@ -103,9 +119,9 @@ export default function SectionOvernightFilters({
             <Combobox
               label="Select Unit"
               options={unitOptions}
-              value={values.unitId}
+              value={draft.unitId}
               defaultValue=""
-              onChange={(value) => onChange({ unitId: value })}
+              onChange={(value) => update({ unitId: value })}
               clearable
             />
           </div>
@@ -116,9 +132,9 @@ export default function SectionOvernightFilters({
             <Combobox
               label="Select Shift Type"
               options={shiftTypeOptions}
-              value={values.shiftTypeId}
+              value={draft.shiftTypeId}
               defaultValue=""
-              onChange={(value) => onChange({ shiftTypeId: value })}
+              onChange={(value) => update({ shiftTypeId: value })}
               clearable
             />
           </div>
@@ -129,9 +145,9 @@ export default function SectionOvernightFilters({
             <Combobox
               label="Select Allocation"
               options={allocationOptions}
-              value={values.allocationId}
+              value={draft.allocationId}
               defaultValue=""
-              onChange={(value) => onChange({ allocationId: value })}
+              onChange={(value) => update({ allocationId: value })}
               clearable
             />
           </div>
@@ -148,8 +164,8 @@ export default function SectionOvernightFilters({
                 id="overnight-staff-search"
                 className="pl-8"
                 placeholder="Search staff ID or name"
-                value={values.staffSearch}
-                onChange={(e) => onChange({ staffSearch: e.target.value })}
+                value={draft.staffSearch}
+                onChange={(e) => update({ staffSearch: e.target.value })}
               />
             </div>
           </div>
@@ -160,16 +176,16 @@ export default function SectionOvernightFilters({
             <Combobox
               label="Select Status"
               options={statusOptions}
-              value={values.statusId}
+              value={draft.statusId}
               defaultValue=""
-              onChange={(value) => onChange({ statusId: value })}
+              onChange={(value) => update({ statusId: value })}
               clearable
             />
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" className="h-9" onClick={onSearch}>
+          <Button type="button" size="sm" className="h-9" onClick={() => onSearch(draft)}>
             Search
           </Button>
           <Button
@@ -177,7 +193,10 @@ export default function SectionOvernightFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={onClear}
+            onClick={() => {
+              setDraft(EMPTY_FILTERS);
+              onClear();
+            }}
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Clear

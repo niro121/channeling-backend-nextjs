@@ -1,17 +1,13 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Badge, Checkbox } from '@archmage/ui';
+import { Badge } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
+import { formatOvernightHours, formatOvernightMoney } from '@/lib/utils/overnight-shift';
 import { format, parseISO, isValid } from 'date-fns';
+import type { OvernightShiftRecord } from '@/types/roster';
 import OvernightRecordActions from './record-actions';
-import {
-  formatOvernightHours,
-  formatOvernightMoney,
-  type OvernightShiftSample,
-  type OvernightShiftStatus
-} from './sample-data';
 
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
@@ -24,47 +20,23 @@ function formatShiftDateTime(date: string, time: string): string {
   return `${formatDisplayDate(date)} - ${time}`;
 }
 
-const STATUS_STYLES: Record<OvernightShiftStatus, string> = {
+type OvernightStatus = 'draft' | 'pending_approval' | 'published' | 'amended';
+
+const STATUS_STYLES: Record<OvernightStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
-  approved: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
-  rejected: 'bg-red-100 text-red-700 hover:bg-red-100',
+  published: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
   draft: 'bg-muted text-muted-foreground hover:bg-muted',
   amended: 'bg-slate-100 text-slate-600 hover:bg-slate-100'
 };
 
-const STATUS_LABELS: Record<OvernightShiftStatus, string> = {
+const STATUS_LABELS: Record<OvernightStatus, string> = {
   pending_approval: 'Pending Approval',
-  approved: 'Approved',
-  rejected: 'Rejected',
+  published: 'Published',
   draft: 'Draft',
   amended: 'Amended'
 };
 
-export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-        className="translate-y-0.5"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-0.5"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false
-  },
+export const overnightShiftColumns: ColumnDef<OvernightShiftRecord>[] = [
   {
     accessorKey: 'staffCode',
     header: () => <span className="whitespace-nowrap">Staff ID</span>,
@@ -96,7 +68,7 @@ export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
     header: () => <span className="whitespace-nowrap">Shift Start</span>,
     cell: ({ row }) => (
       <span className="whitespace-nowrap tabular-nums">
-        {formatShiftDateTime(row.original.shiftStart, row.original.startTime)}
+        {formatShiftDateTime(row.original.startDate, row.original.startTime)}
       </span>
     )
   },
@@ -105,7 +77,7 @@ export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
     header: () => <span className="whitespace-nowrap">Shift End</span>,
     cell: ({ row }) => (
       <span className="whitespace-nowrap tabular-nums">
-        {formatShiftDateTime(row.original.shiftEnd, row.original.endTime)}
+        {formatShiftDateTime(row.original.endDate, row.original.endTime)}
       </span>
     )
   },
@@ -155,11 +127,11 @@ export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
     )
   },
   {
-    accessorKey: 'allowance',
+    id: 'allowance',
     header: 'Allowance',
     cell: ({ row }) => (
       <span className="tabular-nums">
-        {formatOvernightMoney(row.original.allowance)}
+        {formatOvernightMoney(row.original.overnightAllowance)}
       </span>
     )
   },
@@ -183,24 +155,27 @@ export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          STATUS_STYLES[row.original.status]
-        )}
-      >
-        {STATUS_LABELS[row.original.status]}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const s = row.original.status as OvernightStatus;
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            STATUS_STYLES[s] ?? 'bg-muted text-muted-foreground'
+          )}
+        >
+          {STATUS_LABELS[s] ?? row.original.status}
+        </Badge>
+      );
+    }
   },
   {
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">{row.original.updatedUser?.name || row.original.updatedBy || '—'}</span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -212,7 +187,7 @@ export const overnightShiftColumns: ColumnDef<OvernightShiftSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">{row.original.createdUser?.name || row.original.createdBy || '—'}</span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.createdAt)}
         </span>

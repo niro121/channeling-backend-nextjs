@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   Button,
   Sheet,
@@ -10,14 +11,12 @@ import {
   SheetTitle
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  getSampleOvernightHistory,
-  type OvernightShiftSample
-} from './sample-data';
+import { getOvernightShiftHistoryAction } from '@/app/actions/roster-actions/overnight-shift.actions';
+import type { OvernightShiftHistoryEntry, OvernightShiftRecord } from '@/types/roster';
 
 type SheetOvernightHistoryProps = {
   open: boolean;
-  record: OvernightShiftSample | null;
+  record: OvernightShiftRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -26,7 +25,28 @@ export default function SheetOvernightHistory({
   record,
   onOpenChange
 }: SheetOvernightHistoryProps) {
-  const entries = record ? getSampleOvernightHistory(record) : [];
+  const [entries, setEntries] = useState<OvernightShiftHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !record?.id) {
+      setEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    getOvernightShiftHistoryAction(record.id)
+      .then((result) => {
+        if (cancelled) return;
+        setEntries(result.isError ? [] : (result.data ?? []));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record?.id]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -44,7 +64,9 @@ export default function SheetOvernightHistory({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             <ol className="relative space-y-5 border-l border-border pl-5">
@@ -70,6 +92,7 @@ export default function SheetOvernightHistory({
           <Button
             type="button"
             variant="outline"
+            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
             onClick={() => onOpenChange(false)}
           >
             Cancel
