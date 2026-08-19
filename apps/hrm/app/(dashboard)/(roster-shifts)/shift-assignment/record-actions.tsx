@@ -109,6 +109,7 @@ export default function AssignmentRecordActions({
         handleContinue={() => {
           void handleDelete();
         }}
+        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
       />
     </>
   );

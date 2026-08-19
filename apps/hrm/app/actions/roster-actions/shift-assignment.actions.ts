@@ -433,7 +433,7 @@ export async function bulkDeleteShiftAssignmentsAction(ids: string[]) {
     if (auditUser?.id) {
       logActivityNonBlocking({
         userId: auditUser.id,
-        action: 'shift.assignment.deleted',
+        action: 'shift.assignment.bulkDeleted',
         entityType: 'ShiftAssignment',
         importance: 'high',
         metadata: { count: ids.length }

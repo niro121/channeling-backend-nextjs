@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { Button, useToast } from '@archmage/ui';
 import {
   CommonDataTable,
+  DataTableBulkDeleteFeature,
   DataTableExportFeature,
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
@@ -50,6 +51,7 @@ function RegisterToolbarLeft({ totalCount }: { totalCount: number }) {
   const { has } = usePermissions();
   const { selectedCount } = useShiftAssignmentUi();
   const canEdit = has('shift-roster', 'edit');
+  const canDelete = has('shift-roster', 'delete');
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -67,6 +69,7 @@ function RegisterToolbarLeft({ totalCount }: { totalCount: number }) {
           Auto Assign All
         </Button>
       ) : null}
+      {canDelete ? <DataTableBulkDeleteFeature /> : null}
       <SelectionSync />
       <span className="text-sm text-muted-foreground">
         {selectedCount} of {totalCount} selected
@@ -105,7 +108,7 @@ export default function SectionAssignmentRegister({
         haveBulkDelete={enableRowSelection}
         deleteServerAction={bulkDeleteShiftAssignmentsAction}
         getBulkDeleteDescription={async (ids) =>
-          `This will permanently delete ${ids.length} assignment${ids.length === 1 ? '' : 's'}.`
+          `This will permanently delete ${ids.length} shift assignment${ids.length === 1 ? '' : 's'}. This action cannot be undone.`
         }
         toolbarLeft={<RegisterToolbarLeft totalCount={totalRecords} />}
         toolbarRight={
