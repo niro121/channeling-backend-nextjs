@@ -12,7 +12,7 @@ import {
   Input,
   Label
 } from '@archmage/ui';
-import type { AmendmentFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type AmendmentFilterValues = {
   amendmentNo: string;
@@ -27,10 +27,10 @@ export type AmendmentFilterValues = {
 
 type SectionAmendmentFiltersProps = {
   values: AmendmentFilterValues;
-  departmentOptions: AmendmentFilterOption[];
-  typeOptions: AmendmentFilterOption[];
-  statusOptions: AmendmentFilterOption[];
-  requesterOptions: AmendmentFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  typeOptions: RosterFilterOption[];
+  statusOptions: RosterFilterOption[];
+  requesterOptions: RosterFilterOption[];
   onChange: (next: Partial<AmendmentFilterValues>) => void;
   onSearch: () => void;
   onClear: () => void;

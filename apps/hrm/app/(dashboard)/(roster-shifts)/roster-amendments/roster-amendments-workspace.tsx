@@ -1,9 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
+import {
+  approveRosterAmendmentsAction,
+  rejectRosterAmendmentsAction
+} from '@/app/actions/roster-actions/roster-amendment.actions';
+import type {
+  RosterAmendmentFilterOptions,
+  RosterAmendmentFormOptions,
+  RosterAmendmentRecord,
+  RosterAmendmentSummary
+} from '@/types/roster';
 import { RosterAmendmentsHeaderActions } from './header-actions';
 import SectionAmendmentFilters, {
   type AmendmentFilterValues
@@ -13,100 +24,123 @@ import SectionAmendmentSummary from './section-amendment-summary';
 import SheetAmendmentForm from './sheet-amendment-form';
 import SheetAmendmentHistory from './sheet-amendment-history';
 import {
-  SAMPLE_AMENDMENT_AUDIT,
-  SAMPLE_AMENDMENT_DEPARTMENTS,
-  SAMPLE_AMENDMENT_REQUESTERS,
-  SAMPLE_AMENDMENT_STATUS,
-  SAMPLE_AMENDMENT_TYPES,
-  type AmendmentSummarySample,
-  type RosterAmendmentSample
-} from './sample-data';
-import {
   RosterAmendmentsUiProvider,
   useRosterAmendmentsUi
 } from './roster-amendments-ui-context';
 
 type RosterAmendmentsWorkspaceProps = {
-  initialRows: RosterAmendmentSample[];
-  summary: AmendmentSummarySample;
+  records: RosterAmendmentRecord[];
+  totalRecords: number;
+  page?: string;
+  summary: RosterAmendmentSummary;
+  initialFilters: AmendmentFilterValues;
+  filterOptions: RosterAmendmentFilterOptions;
+  formOptions: RosterAmendmentFormOptions;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
-
-const EMPTY_FILTERS: AmendmentFilterValues = {
-  amendmentNo: '',
-  staffSearch: '',
-  departmentId: '',
-  amendmentTypeId: '',
-  fromDate: null,
-  toDate: null,
-  statusId: '',
-  requestedById: ''
-};
-
-const LATER = 'Will be wired in a later phase.';
-
-function toDayStart(value: Date): Date {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function filterRows(
-  rows: RosterAmendmentSample[],
-  values: AmendmentFilterValues
-): RosterAmendmentSample[] {
-  const amendmentNo = values.amendmentNo.trim().toLowerCase();
-  const staffQ = values.staffSearch.trim().toLowerCase();
-  const deptName = SAMPLE_AMENDMENT_DEPARTMENTS.find(
-    (d) => d.id === values.departmentId
-  )?.name;
-  const from = values.fromDate ? toDayStart(values.fromDate) : null;
-  const to = values.toDate ? toDayStart(values.toDate) : null;
-
-  return rows.filter((row) => {
-    if (amendmentNo && !row.amendmentNo.toLowerCase().includes(amendmentNo)) {
-      return false;
-    }
-    if (staffQ) {
-      const hay = `${row.staffCode} ${row.staffName}`.toLowerCase();
-      if (!hay.includes(staffQ)) return false;
-    }
-    if (deptName && row.department !== deptName) return false;
-    if (values.amendmentTypeId && row.amendmentTypeId !== values.amendmentTypeId) {
-      return false;
-    }
-    if (values.statusId && row.status !== values.statusId) return false;
-    if (values.requestedById && row.requestedById !== values.requestedById) {
-      return false;
-    }
-    if (from || to) {
-      const roster = toDayStart(new Date(`${row.rosterDate}T00:00:00`));
-      if (from && roster < from) return false;
-      if (to && roster > to) return false;
-    }
-    return true;
-  });
-}
 
 function RosterAmendmentsWorkspaceInner({
-  initialRows,
-  summary
+  records,
+  totalRecords,
+  page,
+  summary,
+  initialFilters,
+  filterOptions,
+  formOptions,
+  onExport
 }: RosterAmendmentsWorkspaceProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
   const {
     formSheet,
     historyRecord,
     confirmKind,
+    selectedRecords,
     closeConfirm,
     closeFormSheet,
     closeHistorySheet
   } = useRosterAmendmentsUi();
-  const [draft, setDraft] = useState<AmendmentFilterValues>(EMPTY_FILTERS);
-  const [applied, setApplied] =
-    useState<AmendmentFilterValues>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<AmendmentFilterValues>(initialFilters);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  const rows = useMemo(
-    () => filterRows(initialRows, applied),
-    [applied, initialRows]
-  );
+  useEffect(() => {
+    setDraft(initialFilters);
+  }, [initialFilters]);
+
+  const pushFilters = (next: AmendmentFilterValues) => {
+    const params = new URLSearchParams();
+    const limit = searchParams.get('limit');
+    if (limit) params.set('limit', limit);
+    if (next.amendmentNo.trim()) params.set('amendmentNo', next.amendmentNo.trim());
+    if (next.staffSearch.trim()) params.set('staffSearch', next.staffSearch.trim());
+    if (next.departmentId) params.set('department', next.departmentId);
+    if (next.amendmentTypeId) params.set('amendmentType', next.amendmentTypeId);
+    if (next.statusId) params.set('status', next.statusId);
+    if (next.requestedById) params.set('requestedById', next.requestedById);
+    if (next.fromDate) params.set('fromDate', format(next.fromDate, 'yyyy-MM-dd'));
+    if (next.toDate) params.set('toDate', format(next.toDate, 'yyyy-MM-dd'));
+    const query = params.toString();
+    startTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
+  };
+
+  const handleApprove = async () => {
+    setConfirmLoading(true);
+    const result = await approveRosterAmendmentsAction(
+      selectedRecords.map((row) => row.id)
+    );
+    setConfirmLoading(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Could not approve selected amendments.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: `${result.data?.count ?? selectedRecords.length} amendment(s) approved and applied to the roster.`
+    });
+    closeConfirm();
+    router.refresh();
+  };
+
+  const handleReject = async () => {
+    setConfirmLoading(true);
+    const result = await rejectRosterAmendmentsAction(
+      selectedRecords.map((row) => row.id)
+    );
+    setConfirmLoading(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Could not reject selected amendments.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: `${result.data?.count ?? selectedRecords.length} amendment(s) rejected. Original roster unchanged.`
+    });
+    closeConfirm();
+    router.refresh();
+  };
 
   return (
     <div className="space-y-6">
@@ -120,43 +154,37 @@ function RosterAmendmentsWorkspaceInner({
 
       <SectionAmendmentFilters
         values={draft}
-        departmentOptions={SAMPLE_AMENDMENT_DEPARTMENTS}
-        typeOptions={SAMPLE_AMENDMENT_TYPES}
-        statusOptions={SAMPLE_AMENDMENT_STATUS}
-        requesterOptions={SAMPLE_AMENDMENT_REQUESTERS}
+        departmentOptions={filterOptions.departments}
+        typeOptions={filterOptions.amendmentTypes}
+        statusOptions={filterOptions.statuses}
+        requesterOptions={filterOptions.requesters}
         onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => {
-          setApplied(draft);
-          toast({
-            title: 'Filters applied',
-            description:
-              'Sample data filtered locally. Server search comes in a later phase.'
-          });
-        }}
-        onClear={() => {
-          setDraft(EMPTY_FILTERS);
-          setApplied(EMPTY_FILTERS);
-        }}
+        onSearch={() => pushFilters(draft)}
+        onClear={() => pushFilters({
+          amendmentNo: '',
+          staffSearch: '',
+          departmentId: '',
+          amendmentTypeId: '',
+          fromDate: null,
+          toDate: null,
+          statusId: '',
+          requestedById: ''
+        })}
       />
 
-      <SectionAmendmentRegister items={rows} />
-
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
-        <p>
-          Created by: {SAMPLE_AMENDMENT_AUDIT.createdBy} ·{' '}
-          {formatDateTime(SAMPLE_AMENDMENT_AUDIT.createdAt)}
-        </p>
-        <p>
-          Last updated: {SAMPLE_AMENDMENT_AUDIT.updatedBy} ·{' '}
-          {formatDateTime(SAMPLE_AMENDMENT_AUDIT.updatedAt)}
-        </p>
-      </div>
+      <SectionAmendmentRegister
+        items={records}
+        totalRecords={totalRecords}
+        page={page}
+        onExport={onExport}
+      />
 
       {formSheet ? (
         <SheetAmendmentForm
           open
           mode={formSheet.mode}
-          sample={formSheet.record}
+          record={formSheet.record}
+          formOptions={formOptions}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}
@@ -180,10 +208,7 @@ function RosterAmendmentsWorkspaceInner({
         title="Approve selected amendments?"
         description="Approved amendments immediately update the published duty roster and notify affected staff and supervisors."
         handleContinue={() => {
-          setConfirmLoading(true);
-          toast({ title: 'Approve amendments', description: LATER });
-          setConfirmLoading(false);
-          closeConfirm();
+          void handleApprove();
         }}
       />
 
@@ -196,10 +221,7 @@ function RosterAmendmentsWorkspaceInner({
         title="Reject selected amendments?"
         description="Rejected amendments leave the original roster unchanged. Remarks are mandatory for audit."
         handleContinue={() => {
-          setConfirmLoading(true);
-          toast({ title: 'Reject amendments', description: LATER });
-          setConfirmLoading(false);
-          closeConfirm();
+          void handleReject();
         }}
       />
     </div>

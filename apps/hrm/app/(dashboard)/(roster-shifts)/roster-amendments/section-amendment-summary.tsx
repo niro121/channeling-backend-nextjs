@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Ban, CheckCircle2, Clock, GitBranch } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { AmendmentSummarySample } from './sample-data';
+import type { RosterAmendmentSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +12,7 @@ type SummaryCard = {
 };
 
 type SectionAmendmentSummaryProps = {
-  summary: AmendmentSummarySample;
+  summary: RosterAmendmentSummary;
 };
 
 export default function SectionAmendmentSummary({

@@ -3,7 +3,7 @@
 import { Check, Plus, X } from 'lucide-react';
 import { Button, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import { isAmendmentLocked } from './sample-data';
+import { isRosterAmendmentLocked } from '@/types/roster';
 import { useRosterAmendmentsUi } from './roster-amendments-ui-context';
 
 export function RosterAmendmentsHeaderActions() {
@@ -31,7 +31,7 @@ export function RosterAmendmentsHeaderActions() {
       return false;
     }
 
-    if (selectedRecords.some((row) => isAmendmentLocked(row.status))) {
+    if (selectedRecords.some((row) => isRosterAmendmentLocked(row.status))) {
       toast({
         title: 'Locked amendments selected',
         description:

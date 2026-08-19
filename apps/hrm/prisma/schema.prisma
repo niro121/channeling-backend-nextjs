@@ -603,7 +603,7 @@ model RosterAmendment {
   dutyDate             DateTime
   originalShiftTypeId  String    @db.ObjectId
   amendedShiftTypeId   String?   @db.ObjectId
-  amendmentType        String // shift_change | shift_swap | duty_cancellation | location_change | extra_duty
+  amendmentType        String // shift_change | shift_swap | staff_replacement | duty_cancellation | location_change | extra_duty
   staffCode            String
   staffName            String
   department           String    @default("")

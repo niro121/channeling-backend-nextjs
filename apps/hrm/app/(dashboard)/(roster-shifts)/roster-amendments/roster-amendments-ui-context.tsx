@@ -8,26 +8,26 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { RosterAmendmentSample } from './sample-data';
+import type { RosterAmendmentRecord } from '@/types/roster';
 
 export type AmendmentFormSheetMode = 'create' | 'edit';
 
 type FormSheetState = {
   mode: AmendmentFormSheetMode;
-  record: RosterAmendmentSample | null;
+  record: RosterAmendmentRecord | null;
 };
 
 type ConfirmKind = 'approve' | 'reject' | null;
 
 type RosterAmendmentsUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: RosterAmendmentSample | null;
-  selectedRecords: RosterAmendmentSample[];
+  historyRecord: RosterAmendmentRecord | null;
+  selectedRecords: RosterAmendmentRecord[];
   confirmKind: ConfirmKind;
-  setSelectedRecords: (records: RosterAmendmentSample[]) => void;
+  setSelectedRecords: (records: RosterAmendmentRecord[]) => void;
   openCreate: () => void;
-  openEdit: (record: RosterAmendmentSample) => void;
-  openHistory: (record: RosterAmendmentSample) => void;
+  openEdit: (record: RosterAmendmentRecord) => void;
+  openHistory: (record: RosterAmendmentRecord) => void;
   requestApproveConfirm: () => void;
   requestRejectConfirm: () => void;
   closeConfirm: () => void;
@@ -45,9 +45,9 @@ export function RosterAmendmentsUiProvider({
 }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [historyRecord, setHistoryRecord] =
-    useState<RosterAmendmentSample | null>(null);
+    useState<RosterAmendmentRecord | null>(null);
   const [selectedRecords, setSelectedRecords] = useState<
-    RosterAmendmentSample[]
+    RosterAmendmentRecord[]
   >([]);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
 
@@ -55,11 +55,11 @@ export function RosterAmendmentsUiProvider({
     setFormSheet({ mode: 'create', record: null });
   }, []);
 
-  const openEdit = useCallback((record: RosterAmendmentSample) => {
+  const openEdit = useCallback((record: RosterAmendmentRecord) => {
     setFormSheet({ mode: 'edit', record });
   }, []);
 
-  const openHistory = useCallback((record: RosterAmendmentSample) => {
+  const openHistory = useCallback((record: RosterAmendmentRecord) => {
     setHistoryRecord(record);
   }, []);
 

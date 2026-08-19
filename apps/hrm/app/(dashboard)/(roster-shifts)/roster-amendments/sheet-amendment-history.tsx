@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   Button,
   Sheet,
@@ -7,17 +8,19 @@ import {
   SheetDescription,
   SheetFooter,
   SheetHeader,
-  SheetTitle
+  SheetTitle,
+  useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  getSampleAmendmentHistory,
-  type RosterAmendmentSample
-} from './sample-data';
+import { getRosterAmendmentHistoryAction } from '@/app/actions/roster-actions/roster-amendment.actions';
+import type {
+  RosterAmendmentHistoryEntry,
+  RosterAmendmentRecord
+} from '@/types/roster';
 
 type SheetAmendmentHistoryProps = {
   open: boolean;
-  record: RosterAmendmentSample | null;
+  record: RosterAmendmentRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -26,7 +29,43 @@ export default function SheetAmendmentHistory({
   record,
   onOpenChange
 }: SheetAmendmentHistoryProps) {
-  const entries = record ? getSampleAmendmentHistory(record) : [];
+  const { toast } = useToast();
+  const [entries, setEntries] = useState<RosterAmendmentHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !record) {
+      setEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    void (async () => {
+      const result = await getRosterAmendmentHistoryAction(record.id);
+      if (cancelled) return;
+      setLoading(false);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Could not load amendment history.'
+        });
+        setEntries([]);
+        return;
+      }
+
+      setEntries(result.data ?? []);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record, toast]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,13 +77,15 @@ export default function SheetAmendmentHistory({
           <SheetTitle>Change History</SheetTitle>
           <SheetDescription>
             {record
-              ? `Audit trail for ${record.amendmentNo}.`
+              ? `Audit trail for ${record.code}.`
               : 'Full audit trail for this record.'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             <ol className="relative space-y-5 border-l border-border pl-5">
@@ -70,6 +111,8 @@ export default function SheetAmendmentHistory({
           <Button
             type="button"
             variant="outline"
+            size="sm"
+            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
             onClick={() => onOpenChange(false)}
           >
             Cancel

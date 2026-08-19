@@ -9,8 +9,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
 **D6:** Shift Roster workflow is live on `/shift-roster` (publish, fill new, fill old, copy previous week/month, draft save guards on published dates).  
 **D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; assign / edit / swap / replace / attendance; published dates locked).  
+**D8:** Roster Amendments is live on `/roster-amendments` (CRUD; Approve applies to published cells; Reject leaves roster unchanged).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D8 Roster Amendments**.
+Pages must not call Prisma. No business rules in components. Next: **D9 Night Shifts**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -1449,9 +1450,11 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Approve changes the live cell; Shift Roster and Duty Roster both show it |
-| [ ] Reject does not change the cell |
-| [ ] Approved / Rejected rows hide Edit and Delete |
+| [x] Approve changes the live cell; Shift Roster and Duty Roster both show it |
+| [x] Reject does not change the cell |
+| [x] Approved / Rejected rows hide Edit and Delete |
+| [x] New / Edit / History sheets on live data |
+| [x] Header Approve / Reject require ≥1 selected draft/pending row |
 
 ---
 

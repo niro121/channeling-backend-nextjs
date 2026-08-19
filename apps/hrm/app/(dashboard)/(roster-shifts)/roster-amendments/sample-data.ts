@@ -7,6 +7,7 @@ export type AmendmentStatus =
 export type AmendmentTypeId =
   | 'shift_change'
   | 'shift_swap'
+  | 'staff_replacement'
   | 'duty_cancellation'
   | 'location_change'
   | 'extra_duty';
@@ -79,6 +80,7 @@ export const SAMPLE_AMENDMENT_DEPARTMENTS: AmendmentFilterOption[] = [
 export const SAMPLE_AMENDMENT_TYPES: AmendmentFilterOption[] = [
   { id: 'shift_change', name: 'Shift Change' },
   { id: 'shift_swap', name: 'Shift Swap' },
+  { id: 'staff_replacement', name: 'Staff Replacement' },
   { id: 'duty_cancellation', name: 'Duty Cancellation' },
   { id: 'location_change', name: 'Location Change' },
   { id: 'extra_duty', name: 'Extra Duty' }

@@ -55,6 +55,7 @@ export type RosterAmendmentStatus = (typeof ROSTER_AMENDMENT_STATUSES)[number];
 export const ROSTER_AMENDMENT_TYPES = [
   'shift_change',
   'shift_swap',
+  'staff_replacement',
   'duty_cancellation',
   'location_change',
   'extra_duty'
@@ -715,14 +716,85 @@ export type RosterAmendmentPayload = {
 export type GetRosterAmendmentsParams = {
   page?: string;
   limit?: string;
+  amendmentNo?: string;
+  staffSearch?: string;
   staffId?: string;
   department?: string;
   amendmentType?: string;
   status?: string;
   fromDate?: string;
   toDate?: string;
+  requestedById?: string;
   search?: string;
 };
+
+export type RosterAmendmentSummary = {
+  totalAmendments: number;
+  pendingApproval: number;
+  approved: number;
+  rejected: number;
+};
+
+export type RosterAmendmentFilterOptions = {
+  departments: RosterFilterOption[];
+  amendmentTypes: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+  requesters: RosterFilterOption[];
+};
+
+export type RosterAmendmentStaffOption = RosterFilterOption & {
+  staffCode: string;
+  department: string;
+  originalShiftTypeId: string;
+  originalShiftLabel: string;
+};
+
+export type RosterAmendmentFormOptions = {
+  staff: RosterAmendmentStaffOption[];
+  replacementStaff: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
+  amendmentTypes: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+  requesters: RosterFilterOption[];
+};
+
+export type RosterAmendmentHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type RosterAmendmentAllocationLookup = {
+  allocationId: string;
+  originalShiftTypeId: string;
+  originalShiftLabel: string;
+  department: string;
+  status: RosterAllocationStatus | string;
+} | null;
+
+export function isRosterAmendmentLocked(
+  status: RosterAmendmentStatus | string
+): boolean {
+  return status === 'approved' || status === 'rejected';
+}
+
+export const ROSTER_AMENDMENT_TYPE_OPTIONS: RosterFilterOption[] = [
+  { id: 'shift_change', name: 'Shift Change' },
+  { id: 'shift_swap', name: 'Shift Swap' },
+  { id: 'staff_replacement', name: 'Staff Replacement' },
+  { id: 'duty_cancellation', name: 'Duty Cancellation' },
+  { id: 'location_change', name: 'Location Change' },
+  { id: 'extra_duty', name: 'Extra Duty' }
+];
+
+export const ROSTER_AMENDMENT_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
+  { id: 'approved', name: 'Approved' },
+  { id: 'rejected', name: 'Rejected' }
+];
 
 /* ---------------------------------
 Holiday Calendar (v1 stub)

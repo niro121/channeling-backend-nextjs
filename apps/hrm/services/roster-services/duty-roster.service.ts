@@ -324,7 +324,8 @@ export async function getDutyRoster(params: GetDutyRosterParams): Promise<{
           where,
           select: allocationSelect,
           orderBy: [{ date: 'asc' }, { staffCode: 'asc' }],
-          ...(unpaged ? { take: 2000 } : { skip, take: pageSize })
+          take: unpaged ? 2000 : pageSize,
+          ...(unpaged ? {} : { skip })
         }),
         prisma.staffShiftAssignment.findMany({
           where: assignmentWhere,
