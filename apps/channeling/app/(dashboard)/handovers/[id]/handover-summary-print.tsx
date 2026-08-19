@@ -337,7 +337,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page { size: A6 portrait; margin: 4mm 14mm; }
+          @page { size: A6 portrait; margin: 4mm 12mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,
@@ -352,7 +352,7 @@ export function HandoverSummaryPrint({
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 0 5mm !important;
+            padding: 0 3mm !important;
             box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
