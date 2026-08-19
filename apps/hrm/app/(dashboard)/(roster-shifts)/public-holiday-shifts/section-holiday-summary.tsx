@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { CalendarDays, Landmark, UserCheck, Wallet } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { PublicHolidaySummarySample } from './sample-data';
+import type { PublicHolidayShiftSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +12,7 @@ type SummaryCard = {
 };
 
 type SectionHolidaySummaryProps = {
-  summary: PublicHolidaySummarySample;
+  summary: PublicHolidayShiftSummary;
 };
 
 export default function SectionHolidaySummary({

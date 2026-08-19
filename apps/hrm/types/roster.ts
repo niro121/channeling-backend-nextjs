@@ -1033,3 +1033,115 @@ export type GetHolidayCalendarParams = {
   toDate?: string;
   search?: string;
 };
+
+/* ---------------------------------
+Public Holiday Shifts
+--------------------------------- */
+
+export const PUBLIC_HOLIDAY_SHIFT_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
+  { id: 'approved', name: 'Approved' },
+  { id: 'rejected', name: 'Rejected' },
+  { id: 'amended', name: 'Amended' }
+];
+
+export type PublicHolidayShiftStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
+  | 'amended';
+
+export type PublicHolidayShiftRecord = RosterAuditFields & {
+  id: string;
+  holidayId: string;
+  holidayName: string;
+  holidayTypeId: string;
+  holidayType: string;
+  dutyDate: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  workedHours: number;
+  payRate: string;
+  holidayAllowance: number;
+  dutyLocation: string;
+  lieuLeave: boolean;
+  sendToPayroll: boolean;
+  status: PublicHolidayShiftStatus;
+  remarks: string;
+};
+
+export type PublicHolidayShiftSummary = {
+  holidayDuties: number;
+  cycleLabel: string;
+  staffOnHolidayDuty: number;
+  holidayPayPayableLabel: string;
+  lieuDaysGranted: number;
+};
+
+export type GetPublicHolidayShiftsParams = {
+  page?: string;
+  limit?: string;
+  holidayId?: string;
+  holidayTypeId?: string;
+  fromDate?: string;
+  toDate?: string;
+  department?: string;
+  unit?: string;
+  payRate?: string;
+  status?: string;
+  search?: string;
+};
+
+export type PublicHolidayShiftPayload = {
+  holidayId: string;
+  staffId: string;
+  shiftTypeId: string;
+  dutyDate: Date | string;
+  workedHours?: number | null;
+  payRate: string;
+  holidayAllowance?: number | null;
+  dutyLocation?: string | null;
+  grantLieuLeave: boolean;
+  sendToPayroll: boolean;
+  status: string;
+  remarks?: string | null;
+};
+
+export type PublicHolidayShiftFilterOptions = {
+  holidays: RosterFilterOption[];
+  holidayTypes: RosterFilterOption[];
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  payRates: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+};
+
+export type PublicHolidayShiftFormOptions = {
+  holidays: (RosterFilterOption & { typeId: string; date: string })[];
+  holidayTypes: RosterFilterOption[];
+  shifts: (RosterFilterOption & { workedHours: string })[];
+  staff: (RosterFilterOption & {
+    staffCode: string;
+    department: string;
+    unit: string;
+    dutyLocation: string;
+  })[];
+  locations: RosterFilterOption[];
+  payRates: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+};
+
+export type PublicHolidayShiftHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};

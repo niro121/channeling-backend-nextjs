@@ -1,9 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
+import type {
+  PublicHolidayShiftFilterOptions,
+  PublicHolidayShiftFormOptions,
+  PublicHolidayShiftRecord,
+  PublicHolidayShiftSummary
+} from '@/types/roster';
 import { PublicHolidayShiftsHeaderActions } from './header-actions';
 import SectionHolidayFilters, {
   type HolidayFilterValues
@@ -13,24 +20,16 @@ import SectionHolidaySummary from './section-holiday-summary';
 import SheetHolidayForm from './sheet-holiday-form';
 import SheetHolidayHistory from './sheet-holiday-history';
 import {
-  SAMPLE_HOLIDAY_AUDIT,
-  SAMPLE_HOLIDAY_DEPARTMENTS,
-  SAMPLE_HOLIDAY_PAY_RATES,
-  SAMPLE_HOLIDAY_STATUS,
-  SAMPLE_HOLIDAY_TYPES,
-  SAMPLE_HOLIDAY_UNITS,
-  SAMPLE_PUBLIC_HOLIDAYS,
-  type PublicHolidayShiftSample,
-  type PublicHolidaySummarySample
-} from './sample-data';
-import {
   PublicHolidayShiftsUiProvider,
   usePublicHolidayShiftsUi
 } from './public-holiday-shifts-ui-context';
 
-type PublicHolidayShiftsWorkspaceProps = {
-  initialRows: PublicHolidayShiftSample[];
-  summary: PublicHolidaySummarySample;
+type Props = {
+  initialRows: PublicHolidayShiftRecord[];
+  totalRecords: number;
+  summary: PublicHolidayShiftSummary;
+  initialFilters: PublicHolidayShiftFilterOptions | null;
+  formOptions: PublicHolidayShiftFormOptions | null;
 };
 
 const EMPTY_FILTERS: HolidayFilterValues = {
@@ -44,49 +43,15 @@ const EMPTY_FILTERS: HolidayFilterValues = {
   statusId: ''
 };
 
-function toDayStart(value: Date): Date {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-}
-
-function filterRows(
-  rows: PublicHolidayShiftSample[],
-  values: HolidayFilterValues
-): PublicHolidayShiftSample[] {
-  const from = values.fromDate ? toDayStart(values.fromDate) : null;
-  const to = values.toDate ? toDayStart(values.toDate) : null;
-
-  return rows.filter((row) => {
-    if (values.holidayId && row.holidayId !== values.holidayId) return false;
-    if (values.holidayTypeId && row.holidayTypeId !== values.holidayTypeId) {
-      return false;
-    }
-    if (values.departmentId) {
-      const dept = SAMPLE_HOLIDAY_DEPARTMENTS.find(
-        (d) => d.id === values.departmentId
-      )?.name;
-      if (dept && row.department !== dept) return false;
-    }
-    if (values.unitId) {
-      const unit = SAMPLE_HOLIDAY_UNITS.find(
-        (u) => u.id === values.unitId
-      )?.name;
-      if (unit && row.unit !== unit) return false;
-    }
-    if (values.payRateId && row.payRate !== values.payRateId) return false;
-    if (values.statusId && row.status !== values.statusId) return false;
-    if (from || to) {
-      const dutyDay = toDayStart(new Date(`${row.dutyDate}T00:00:00`));
-      if (from && dutyDay < from) return false;
-      if (to && dutyDay > to) return false;
-    }
-    return true;
-  });
-}
-
 function PublicHolidayShiftsWorkspaceInner({
   initialRows,
-  summary
-}: PublicHolidayShiftsWorkspaceProps) {
+  totalRecords,
+  summary,
+  initialFilters,
+  formOptions
+}: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const {
     formSheet,
@@ -94,13 +59,50 @@ function PublicHolidayShiftsWorkspaceInner({
     closeFormSheet,
     closeHistorySheet
   } = usePublicHolidayShiftsUi();
-  const [draft, setDraft] = useState<HolidayFilterValues>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<HolidayFilterValues>(EMPTY_FILTERS);
 
-  const rows = useMemo(
-    () => filterRows(initialRows, applied),
-    [applied, initialRows]
+  const appliedFromUrl = useMemo<HolidayFilterValues>(
+    () => ({
+      holidayId: searchParams.get('holidayId') ?? '',
+      holidayTypeId: searchParams.get('holidayTypeId') ?? '',
+      fromDate: searchParams.get('fromDate')
+        ? new Date(`${searchParams.get('fromDate')}T00:00:00`)
+        : null,
+      toDate: searchParams.get('toDate')
+        ? new Date(`${searchParams.get('toDate')}T00:00:00`)
+        : null,
+      departmentId: searchParams.get('department') ?? '',
+      unitId: searchParams.get('unit') ?? '',
+      payRateId: searchParams.get('payRate') ?? '',
+      statusId: searchParams.get('status') ?? ''
+    }),
+    [searchParams]
   );
+
+  const [draft, setDraft] = useState<HolidayFilterValues>(appliedFromUrl);
+
+  const pushFilters = useCallback(
+    (values: HolidayFilterValues) => {
+      const params = new URLSearchParams();
+      if (values.holidayId) params.set('holidayId', values.holidayId);
+      if (values.holidayTypeId) params.set('holidayTypeId', values.holidayTypeId);
+      if (values.fromDate) params.set('fromDate', format(values.fromDate, 'yyyy-MM-dd'));
+      if (values.toDate) params.set('toDate', format(values.toDate, 'yyyy-MM-dd'));
+      if (values.departmentId) params.set('department', values.departmentId);
+      if (values.unitId) params.set('unit', values.unitId);
+      if (values.payRateId) params.set('payRate', values.payRateId);
+      if (values.statusId) params.set('status', values.statusId);
+      const qs = params.toString();
+      router.push(qs ? `?${qs}` : '/public-holiday-shifts');
+    },
+    [router]
+  );
+
+  const holidayOptions = initialFilters?.holidays ?? [];
+  const holidayTypeOptions = initialFilters?.holidayTypes ?? [];
+  const departmentOptions = initialFilters?.departments ?? [];
+  const unitOptions = initialFilters?.units ?? [];
+  const payRateOptions = initialFilters?.payRates ?? [];
+  const statusOptions = initialFilters?.statuses ?? [];
 
   return (
     <div className="space-y-6">
@@ -114,48 +116,38 @@ function PublicHolidayShiftsWorkspaceInner({
 
       <SectionHolidayFilters
         values={draft}
-        holidayOptions={SAMPLE_PUBLIC_HOLIDAYS}
-        holidayTypeOptions={SAMPLE_HOLIDAY_TYPES}
-        departmentOptions={SAMPLE_HOLIDAY_DEPARTMENTS}
-        unitOptions={SAMPLE_HOLIDAY_UNITS}
-        payRateOptions={SAMPLE_HOLIDAY_PAY_RATES}
-        statusOptions={SAMPLE_HOLIDAY_STATUS}
+        holidayOptions={holidayOptions}
+        holidayTypeOptions={holidayTypeOptions}
+        departmentOptions={departmentOptions}
+        unitOptions={unitOptions}
+        payRateOptions={payRateOptions}
+        statusOptions={statusOptions}
         onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => {
-          setApplied(draft);
-          toast({
-            title: 'Filters applied',
-            description:
-              'Sample data filtered locally. Server search comes in a later phase.'
-          });
-        }}
+        onSearch={() => pushFilters(draft)}
         onClear={() => {
           setDraft(EMPTY_FILTERS);
-          setApplied(EMPTY_FILTERS);
+          pushFilters(EMPTY_FILTERS);
         }}
       />
 
-      <SectionHolidayRegister items={rows} />
-
-      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
-        <p>
-          Created by: {SAMPLE_HOLIDAY_AUDIT.createdBy} ·{' '}
-          {formatDateTime(SAMPLE_HOLIDAY_AUDIT.createdAt)}
-        </p>
-        <p>
-          Last updated: {SAMPLE_HOLIDAY_AUDIT.updatedBy} ·{' '}
-          {formatDateTime(SAMPLE_HOLIDAY_AUDIT.updatedAt)}
-        </p>
-      </div> */}
+      <SectionHolidayRegister
+        items={initialRows}
+        totalCount={totalRecords}
+      />
 
       {formSheet ? (
         <SheetHolidayForm
           open
           mode={formSheet.mode}
-          sample={formSheet.record}
+          record={formSheet.record}
           selectedCount={formSheet.selectedCount}
+          formOptions={formOptions}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
+          }}
+          onSaved={() => {
+            closeFormSheet();
+            router.refresh();
           }}
         />
       ) : null}
@@ -171,9 +163,7 @@ function PublicHolidayShiftsWorkspaceInner({
   );
 }
 
-export default function PublicHolidayShiftsWorkspace(
-  props: PublicHolidayShiftsWorkspaceProps
-) {
+export default function PublicHolidayShiftsWorkspace(props: Props) {
   return (
     <PublicHolidayShiftsUiProvider>
       <PublicHolidayShiftsWorkspaceInner {...props} />

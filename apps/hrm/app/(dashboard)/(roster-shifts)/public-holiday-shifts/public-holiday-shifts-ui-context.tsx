@@ -8,25 +8,25 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { PublicHolidayShiftSample } from './sample-data';
+import type { PublicHolidayShiftRecord } from '@/types/roster';
 
 export type PublicHolidayFormSheetMode = 'create' | 'edit' | 'bulk';
 
 type FormSheetState = {
   mode: PublicHolidayFormSheetMode;
-  record: PublicHolidayShiftSample | null;
+  record: PublicHolidayShiftRecord | null;
   selectedCount: number;
 };
 
 type PublicHolidayShiftsUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: PublicHolidayShiftSample | null;
+  historyRecord: PublicHolidayShiftRecord | null;
   selectedCount: number;
   setSelectedCount: (count: number) => void;
   openCreate: () => void;
-  openEdit: (record: PublicHolidayShiftSample) => void;
+  openEdit: (record: PublicHolidayShiftRecord) => void;
   openBulk: (selectedCount: number) => void;
-  openHistory: (record: PublicHolidayShiftSample) => void;
+  openHistory: (record: PublicHolidayShiftRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -41,14 +41,14 @@ export function PublicHolidayShiftsUiProvider({
 }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [historyRecord, setHistoryRecord] =
-    useState<PublicHolidayShiftSample | null>(null);
+    useState<PublicHolidayShiftRecord | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
 
   const openCreate = useCallback(() => {
     setFormSheet({ mode: 'create', record: null, selectedCount: 0 });
   }, []);
 
-  const openEdit = useCallback((record: PublicHolidayShiftSample) => {
+  const openEdit = useCallback((record: PublicHolidayShiftRecord) => {
     setFormSheet({ mode: 'edit', record, selectedCount: 0 });
   }, []);
 
@@ -56,7 +56,7 @@ export function PublicHolidayShiftsUiProvider({
     setFormSheet({ mode: 'bulk', record: null, selectedCount: count });
   }, []);
 
-  const openHistory = useCallback((record: PublicHolidayShiftSample) => {
+  const openHistory = useCallback((record: PublicHolidayShiftRecord) => {
     setHistoryRecord(record);
   }, []);
 

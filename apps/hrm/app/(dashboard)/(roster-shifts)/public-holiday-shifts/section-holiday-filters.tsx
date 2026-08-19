@@ -11,7 +11,7 @@ import {
   CustomDatePickerField,
   Label
 } from '@archmage/ui';
-import type { PublicHolidayFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type HolidayFilterValues = {
   holidayId: string;
@@ -26,12 +26,12 @@ export type HolidayFilterValues = {
 
 type SectionHolidayFiltersProps = {
   values: HolidayFilterValues;
-  holidayOptions: PublicHolidayFilterOption[];
-  holidayTypeOptions: PublicHolidayFilterOption[];
-  departmentOptions: PublicHolidayFilterOption[];
-  unitOptions: PublicHolidayFilterOption[];
-  payRateOptions: PublicHolidayFilterOption[];
-  statusOptions: PublicHolidayFilterOption[];
+  holidayOptions: RosterFilterOption[];
+  holidayTypeOptions: RosterFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  unitOptions: RosterFilterOption[];
+  payRateOptions: RosterFilterOption[];
+  statusOptions: RosterFilterOption[];
   onChange: (next: Partial<HolidayFilterValues>) => void;
   onSearch: () => void;
   onClear: () => void;

@@ -1,24 +1,26 @@
 'use client';
 
 import { Suspense, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Info } from 'lucide-react';
+import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature,
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import { holidayShiftColumns } from './columns';
 import {
-  formatHolidayHours,
-  formatHolidayMoney,
-  formatPayRate,
-  type PublicHolidayShiftSample
-} from './sample-data';
+  deletePublicHolidayShiftAction,
+  getPublicHolidayShiftsExportAction
+} from '@/app/actions/roster-actions/public-holiday-shift.actions';
+import type { PublicHolidayShiftRecord } from '@/types/roster';
+import { holidayShiftColumns } from './columns';
 import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
 
 type SectionHolidayRegisterProps = {
-  items: PublicHolidayShiftSample[];
+  items: PublicHolidayShiftRecord[];
+  totalCount: number;
 };
 
 function SelectionSync() {
@@ -56,8 +58,11 @@ function RegisterToolbarLeft({ totalCount }: { totalCount: number }) {
 }
 
 export default function SectionHolidayRegister({
-  items
+  items,
+  totalCount
 }: SectionHolidayRegisterProps) {
+  const router = useRouter();
+  const { toast } = useToast();
   const { has } = usePermissions();
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
@@ -76,45 +81,43 @@ export default function SectionHolidayRegister({
         subHeading="Staff rostered on gazetted holidays with holiday pay, lieu leave, and payroll posting."
         columns={holidayShiftColumns}
         data={items}
-        rowCount={items.length}
+        rowCount={totalCount}
         showPagination
         haveBulkDelete={enableRowSelection}
         deleteServerAction={async (ids) => {
-          throw new Error(
-            `${ids.length} holiday shift${ids.length === 1 ? '' : 's'} selected. Bulk delete will be wired in a later phase.`
-          );
+          let deleted = 0;
+          for (const id of ids) {
+            const result = await deletePublicHolidayShiftAction(id);
+            if (!result.isError) deleted += 1;
+          }
+          if (deleted > 0) {
+            toast({
+              title: `${deleted} holiday shift${deleted === 1 ? '' : 's'} deleted`
+            });
+            router.refresh();
+          }
+          if (deleted < ids.length) {
+            throw new Error(
+              `${ids.length - deleted} record(s) could not be deleted.`
+            );
+          }
+          return true;
         }}
         getBulkDeleteDescription={async (ids) =>
-          `This will permanently delete ${ids.length} holiday shift${ids.length === 1 ? '' : 's'}. Saving is wired in a later phase.`
+          `This will permanently delete ${ids.length} holiday shift${ids.length === 1 ? '' : 's'}.`
         }
-        toolbarLeft={<RegisterToolbarLeft totalCount={items.length} />}
+        toolbarLeft={<RegisterToolbarLeft totalCount={totalCount} />}
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                staffCode: row.staffCode,
-                staffName: row.staffName,
-                department: row.department,
-                unit: row.unit,
-                holidayName: row.holidayName,
-                holidayType: row.holidayType,
-                dutyDate: row.dutyDate,
-                shiftLabel: row.shiftLabel,
-                workedHours: formatHolidayHours(row.workedHours),
-                payRate: formatPayRate(row.payRate),
-                holidayAllowance: formatHolidayMoney(row.holidayAllowance),
-                dutyLocation: row.dutyLocation,
-                lieuLeave: row.lieuLeave ? 'Yes' : 'No',
-                status: row.status,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
+            serverData={async () => {
+              const result = await getPublicHolidayShiftsExportAction({});
+              if (!result.success) {
+                return { success: false, data: [] };
+              }
+              return { success: true, data: result.data ?? [] };
+            }}
             columns={[
               'Staff ID',
               'Staff Name',
@@ -129,6 +132,7 @@ export default function SectionHolidayRegister({
               'Holiday Allowance',
               'Duty Location',
               'Lieu Leave',
+              'Send to Payroll',
               'Status',
               'Updated By',
               'Updated At',
@@ -149,6 +153,7 @@ export default function SectionHolidayRegister({
               'holidayAllowance',
               'dutyLocation',
               'lieuLeave',
+              'sendToPayroll',
               'status',
               'updatedBy',
               'updatedAt',

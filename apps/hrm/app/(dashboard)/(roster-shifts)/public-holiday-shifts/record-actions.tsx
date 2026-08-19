@@ -1,21 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { PublicHolidayShiftSample } from './sample-data';
+import { deletePublicHolidayShiftAction } from '@/app/actions/roster-actions/public-holiday-shift.actions';
+import type { PublicHolidayShiftRecord } from '@/types/roster';
 import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
 
 type HolidayRecordActionsProps = {
-  record: PublicHolidayShiftSample;
+  record: PublicHolidayShiftRecord;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 export default function HolidayRecordActions({
   record
 }: HolidayRecordActionsProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const { has } = usePermissions();
   const { openEdit, openHistory } = usePublicHolidayShiftsUi();
@@ -69,12 +70,25 @@ export default function HolidayRecordActions({
         handleVisibilityChange={setOpen}
         loading={loading}
         title="Delete holiday shift?"
-        description={`This will remove the holiday duty for ${record.staffName} (${record.staffCode}) on ${record.holidayName}. Saving is wired in a later phase.`}
-        handleContinue={() => {
+        description={`This will remove the holiday duty for ${record.staffName} (${record.staffCode}) on ${record.holidayName}.`}
+        handleContinue={async () => {
           setLoading(true);
-          toast({ title: 'Delete holiday shift', description: LATER });
-          setLoading(false);
-          setOpen(false);
+          try {
+            const result = await deletePublicHolidayShiftAction(record.id);
+            if (result.isError) {
+              toast({
+                title: 'Error',
+                description: result.errors?.message || 'Could not delete',
+                variant: 'destructive'
+              });
+            } else {
+              toast({ title: 'Holiday shift deleted' });
+              router.refresh();
+            }
+          } finally {
+            setLoading(false);
+            setOpen(false);
+          }
         }}
         className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
       />

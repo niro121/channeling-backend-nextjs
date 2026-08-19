@@ -22,42 +22,28 @@ import {
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import {
-  formatHolidayHours,
-  formatHolidayMoney,
-  SAMPLE_HOLIDAY_AUDIT,
-  SAMPLE_HOLIDAY_LOCATIONS,
-  SAMPLE_HOLIDAY_PAY_RATES,
-  SAMPLE_HOLIDAY_SHIFTS,
-  SAMPLE_HOLIDAY_STAFF,
-  SAMPLE_HOLIDAY_STATUS,
-  SAMPLE_HOLIDAY_TYPES,
-  SAMPLE_PUBLIC_HOLIDAYS,
-  type PublicHolidayShiftSample
-} from './sample-data';
+  holidayRecordToFormValues,
+  holidayFormValuesToPayload,
+  type HolidayFormValues
+} from '@/lib/mappers/public-holiday-shift-form.mapper';
+import {
+  createPublicHolidayShiftAction,
+  updatePublicHolidayShiftAction
+} from '@/app/actions/roster-actions/public-holiday-shift.actions';
+import type {
+  PublicHolidayShiftFormOptions,
+  PublicHolidayShiftRecord
+} from '@/types/roster';
 import type { PublicHolidayFormSheetMode } from './public-holiday-shifts-ui-context';
-
-export type HolidayFormValues = {
-  holidayId: string;
-  holidayTypeId: string;
-  staffId: string;
-  shiftId: string;
-  dutyDate: Date | null;
-  workedHours: string;
-  payRate: string;
-  holidayAllowance: string;
-  dutyLocation: string;
-  status: string;
-  grantLieuLeave: boolean;
-  sendToPayroll: boolean;
-  remarks: string;
-};
 
 type SheetHolidayFormProps = {
   open: boolean;
   mode: PublicHolidayFormSheetMode;
-  sample: PublicHolidayShiftSample | null;
+  record: PublicHolidayShiftRecord | null;
   selectedCount: number;
+  formOptions: PublicHolidayShiftFormOptions | null;
   onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
 };
 
 const fieldStyleClasses = {
@@ -84,79 +70,64 @@ function emptyValues(): HolidayFormValues {
   };
 }
 
-function sampleToFormValues(sample: PublicHolidayShiftSample): HolidayFormValues {
-  return {
-    holidayId: sample.holidayId,
-    holidayTypeId: sample.holidayTypeId,
-    staffId: sample.staffId,
-    shiftId: sample.shiftId,
-    dutyDate: sample.dutyDate ? parseISO(sample.dutyDate) : null,
-    workedHours: formatHolidayHours(sample.workedHours),
-    payRate: sample.payRate,
-    holidayAllowance: formatHolidayMoney(sample.holidayAllowance).replace(
-      /,/g,
-      ''
-    ),
-    dutyLocation: sample.dutyLocation,
-    status: sample.status,
-    grantLieuLeave: sample.lieuLeave,
-    sendToPayroll: sample.sendToPayroll,
-    remarks: sample.remarks
-  };
-}
-
 function AutoHoliday({
   holidayId,
+  holidays,
   setFieldValue
 }: {
   holidayId: string;
+  holidays: PublicHolidayShiftFormOptions['holidays'];
   setFieldValue: FormikProps<HolidayFormValues>['setFieldValue'];
 }) {
-  const previousHolidayId = useRef(holidayId);
+  const prev = useRef(holidayId);
   useEffect(() => {
-    if (previousHolidayId.current === holidayId) return;
-    previousHolidayId.current = holidayId;
-    const found = SAMPLE_PUBLIC_HOLIDAYS.find((h) => h.id === holidayId);
+    if (prev.current === holidayId) return;
+    prev.current = holidayId;
+    const found = holidays.find((h) => h.id === holidayId);
     if (!found) return;
     void setFieldValue('holidayTypeId', found.typeId);
     void setFieldValue('dutyDate', parseISO(found.date));
-  }, [holidayId, setFieldValue]);
+  }, [holidayId, holidays, setFieldValue]);
   return null;
 }
 
 function AutoShiftHours({
   shiftId,
+  shifts,
   setFieldValue
 }: {
   shiftId: string;
+  shifts: PublicHolidayShiftFormOptions['shifts'];
   setFieldValue: FormikProps<HolidayFormValues>['setFieldValue'];
 }) {
-  const previousShiftId = useRef(shiftId);
+  const prev = useRef(shiftId);
   useEffect(() => {
-    if (previousShiftId.current === shiftId) return;
-    previousShiftId.current = shiftId;
-    const found = SAMPLE_HOLIDAY_SHIFTS.find((s) => s.id === shiftId);
+    if (prev.current === shiftId) return;
+    prev.current = shiftId;
+    const found = shifts.find((s) => s.id === shiftId);
     if (!found) return;
     void setFieldValue('workedHours', found.workedHours);
-  }, [setFieldValue, shiftId]);
+  }, [setFieldValue, shiftId, shifts]);
   return null;
 }
 
 function AutoStaffLocation({
   staffId,
+  staff,
   setFieldValue
 }: {
   staffId: string;
+  staff: PublicHolidayShiftFormOptions['staff'];
   setFieldValue: FormikProps<HolidayFormValues>['setFieldValue'];
 }) {
-  const previousStaffId = useRef(staffId);
+  const prev = useRef(staffId);
   useEffect(() => {
-    if (previousStaffId.current === staffId) return;
-    previousStaffId.current = staffId;
-    const found = SAMPLE_HOLIDAY_STAFF.find((s) => s.id === staffId);
+    if (prev.current === staffId) return;
+    prev.current = staffId;
+    const found = staff.find((s) => s.id === staffId);
     if (!found) return;
     void setFieldValue('dutyLocation', found.dutyLocation);
-  }, [setFieldValue, staffId]);
+  }, [setFieldValue, staffId, staff]);
   return null;
 }
 
@@ -183,26 +154,31 @@ function sheetCopy(mode: PublicHolidayFormSheetMode) {
   };
 }
 
-const LATER = 'Will be wired in a later phase.';
-
 export default function SheetHolidayForm({
   open,
   mode,
-  sample,
+  record,
   selectedCount,
-  onOpenChange
+  formOptions,
+  onOpenChange,
+  onSaved
 }: SheetHolidayFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const copy = sheetCopy(mode);
   const isBulk = mode === 'bulk';
   const showStaff = mode !== 'bulk';
-  const showAudit = mode === 'edit';
+  const isEdit = mode === 'edit';
 
-  const holidayOptions = SAMPLE_PUBLIC_HOLIDAYS.map((holiday) => ({
-    id: holiday.id,
-    name: holiday.name
-  }));
+  const holidays = formOptions?.holidays ?? [];
+  const holidayTypes = formOptions?.holidayTypes ?? [];
+  const shifts = formOptions?.shifts ?? [];
+  const staffList = formOptions?.staff ?? [];
+  const locations = formOptions?.locations ?? [];
+  const payRates = formOptions?.payRates ?? [];
+  const statuses = formOptions?.statuses ?? [];
+
+  const holidayOptions = holidays.map((h) => ({ id: h.id, name: h.name }));
 
   const validationSchema = useMemo(
     () =>
@@ -214,7 +190,9 @@ export default function SheetHolidayForm({
           : Yup.string(),
         shiftId: Yup.string().required('Shift is required'),
         dutyDate: Yup.date().nullable().required('Duty date is required'),
+        workedHours: Yup.number().min(0, 'Cannot be negative').nullable(),
         payRate: Yup.string().required('Pay rate is required'),
+        holidayAllowance: Yup.number().min(0, 'Cannot be negative').nullable(),
         status: Yup.string().required('Approval status is required'),
         remarks: Yup.string().max(500, 'Must be less than 500 characters')
       }),
@@ -222,9 +200,9 @@ export default function SheetHolidayForm({
   );
 
   const initialValues = useMemo(() => {
-    if (sample && mode === 'edit') return sampleToFormValues(sample);
+    if (record && isEdit) return holidayRecordToFormValues(record);
     return emptyValues();
-  }, [mode, sample]);
+  }, [isEdit, record]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -241,34 +219,54 @@ export default function SheetHolidayForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
+          onSubmit={async (values) => {
             setLoading(true);
-            toast({
-              title:
-                mode === 'edit'
-                  ? 'Update holiday shift'
-                  : mode === 'bulk'
-                    ? 'Bulk assign holiday duty'
-                    : 'Add holiday shift',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
+            try {
+              const payload = holidayFormValuesToPayload(values);
+              const result = isEdit && record
+                ? await updatePublicHolidayShiftAction(record.id, payload)
+                : await createPublicHolidayShiftAction(payload);
+
+              if (result.isError) {
+                toast({
+                  title: 'Error',
+                  description: result.errors?.message || 'Save failed',
+                  variant: 'destructive'
+                });
+                return;
+              }
+
+              toast({
+                title: isEdit ? 'Holiday shift updated' : 'Holiday shift created'
+              });
+              onSaved();
+            } catch (err: any) {
+              toast({
+                title: 'Error',
+                description: err.message || 'Unexpected error',
+                variant: 'destructive'
+              });
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
               <AutoHoliday
                 holidayId={formik.values.holidayId}
+                holidays={holidays}
                 setFieldValue={formik.setFieldValue}
               />
               <AutoShiftHours
                 shiftId={formik.values.shiftId}
+                shifts={shifts}
                 setFieldValue={formik.setFieldValue}
               />
               {showStaff ? (
                 <AutoStaffLocation
                   staffId={formik.values.staffId}
+                  staff={staffList}
                   setFieldValue={formik.setFieldValue}
                 />
               ) : null}
@@ -303,7 +301,7 @@ export default function SheetHolidayForm({
                       formik.setFieldValue('holidayTypeId', value)
                     }
                     required
-                    options={SAMPLE_HOLIDAY_TYPES}
+                    options={holidayTypes}
                     styleClasses={fieldStyleClasses}
                   />
                   {showStaff ? (
@@ -315,7 +313,7 @@ export default function SheetHolidayForm({
                         formik.setFieldValue('staffId', value)
                       }
                       required
-                      options={SAMPLE_HOLIDAY_STAFF}
+                      options={staffList}
                       styleClasses={fieldStyleClasses}
                     />
                   ) : null}
@@ -327,7 +325,7 @@ export default function SheetHolidayForm({
                       formik.setFieldValue('shiftId', value)
                     }
                     required
-                    options={SAMPLE_HOLIDAY_SHIFTS}
+                    options={shifts}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomDatePickerField
@@ -349,6 +347,7 @@ export default function SheetHolidayForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
@@ -359,7 +358,7 @@ export default function SheetHolidayForm({
                       formik.setFieldValue('payRate', value)
                     }
                     required
-                    options={SAMPLE_HOLIDAY_PAY_RATES}
+                    options={payRates}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -370,26 +369,27 @@ export default function SheetHolidayForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
-                    <CustomSelectField
-                      id="dutyLocation"
-                      placeholder="Duty Location"
-                      value={formik.values.dutyLocation}
-                      onChange={(value) =>
-                        formik.setFieldValue('dutyLocation', value)
-                      }
-                      required={false}
-                      options={SAMPLE_HOLIDAY_LOCATIONS}
-                      styleClasses={fieldStyleClasses}
-                    />
+                  <CustomSelectField
+                    id="dutyLocation"
+                    placeholder="Duty Location"
+                    value={formik.values.dutyLocation}
+                    onChange={(value) =>
+                      formik.setFieldValue('dutyLocation', value)
+                    }
+                    required={false}
+                    options={locations}
+                    styleClasses={fieldStyleClasses}
+                  />
                   <CustomSelectField
                     id="status"
                     placeholder="Approval Status"
                     value={formik.values.status}
                     onChange={(value) => formik.setFieldValue('status', value)}
                     required
-                    options={SAMPLE_HOLIDAY_STATUS}
+                    options={statuses}
                     styleClasses={fieldStyleClasses}
                   />
                 </div>
@@ -451,19 +451,23 @@ export default function SheetHolidayForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
                     Created by:{' '}
-                    {showAudit ? SAMPLE_HOLIDAY_AUDIT.createdBy : '—'}
-                    {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_HOLIDAY_AUDIT.createdAt)}`
+                    {isEdit
+                      ? record?.createdUser?.name || record?.createdBy || '—'
+                      : '—'}
+                    {isEdit && record?.createdAt
+                      ? ` · ${formatAuditDateTime(record.createdAt)}`
                       : null}
                   </p>
                   <p className="sm:text-right">
                     Last updated:{' '}
-                    {showAudit ? SAMPLE_HOLIDAY_AUDIT.updatedBy : '—'}
-                    {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_HOLIDAY_AUDIT.updatedAt)}`
+                    {isEdit
+                      ? record?.updatedUser?.name || record?.updatedBy || '—'
+                      : '—'}
+                    {isEdit && record?.updatedAt
+                      ? ` · ${formatAuditDateTime(record.updatedAt)}`
                       : null}
                   </p>
                 </div>

@@ -5,19 +5,20 @@ import { Badge, Checkbox } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
 import { format, parseISO, isValid } from 'date-fns';
-import HolidayRecordActions from './record-actions';
 import {
   formatHolidayHours,
   formatHolidayMoney,
-  formatPayRate,
-  type PublicHolidayPayRate,
-  type PublicHolidayShiftSample,
-  type PublicHolidayShiftStatus
-} from './sample-data';
+  formatPayRate
+} from '@/lib/utils/public-holiday-shift';
+import type {
+  PublicHolidayShiftRecord,
+  PublicHolidayShiftStatus
+} from '@/types/roster';
+import HolidayRecordActions from './record-actions';
 
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
-  const parsed = parseISO(value);
+  const parsed = parseISO(value.slice(0, 10));
   if (!isValid(parsed)) return '—';
   return format(parsed, 'dd MMM yyyy');
 }
@@ -44,13 +45,13 @@ const HOLIDAY_TYPE_STYLES: Record<string, string> = {
   public: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
 };
 
-const PAY_RATE_STYLES: Record<PublicHolidayPayRate, string> = {
+const PAY_RATE_STYLES: Record<string, string> = {
   '1.50': 'bg-sky-100 text-sky-800 hover:bg-sky-100',
   '2.00': 'bg-amber-100 text-amber-800 hover:bg-amber-100',
   '2.50': 'bg-violet-100 text-violet-800 hover:bg-violet-100'
 };
 
-export const holidayShiftColumns: ColumnDef<PublicHolidayShiftSample>[] = [
+export const holidayShiftColumns: ColumnDef<PublicHolidayShiftRecord>[] = [
   {
     id: 'select',
     header: ({ table }) => (
@@ -215,7 +216,7 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftSample>[] = [
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">{row.original.updatedUser?.name || row.original.updatedBy || '—'}</span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -227,7 +228,7 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">{row.original.createdUser?.name || row.original.createdBy || '—'}</span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.createdAt)}
         </span>
