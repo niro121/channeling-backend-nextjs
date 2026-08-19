@@ -25,6 +25,7 @@ export function GlobalStartShiftDialog({
       : shiftMaxHours
   const [open, setOpen] = useState(false)
   const [location, setLocation] = useState<{ locationId: string; locationName: string } | null>(null)
+  const [locationLoading, setLocationLoading] = useState(false)
 
   useEffect(() => {
     if (!hasShiftPermission) return
@@ -35,7 +36,19 @@ export function GlobalStartShiftDialog({
 
   useEffect(() => {
     if (!open || !hasShiftPermission) return
-    getMyDefaultLocationForShiftAction().then(setLocation)
+    let cancelled = false
+    setLocationLoading(true)
+    setLocation(null)
+    getMyDefaultLocationForShiftAction()
+      .then((loc) => {
+        if (!cancelled) setLocation(loc)
+      })
+      .finally(() => {
+        if (!cancelled) setLocationLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [open, hasShiftPermission])
 
   if (!hasShiftPermission) return null
@@ -45,6 +58,7 @@ export function GlobalStartShiftDialog({
       open={open}
       shiftMaxHours={effectiveMaxHours}
       location={location}
+      locationLoading={locationLoading}
       onStarted={() => setOpen(false)}
       onSkipped={() => setOpen(false)}
     />

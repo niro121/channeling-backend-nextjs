@@ -21,18 +21,36 @@ type StartShiftDialogProps = {
   shiftMaxHours: number
   /** User's default location for this shift (from profile). */
   location: { locationId: string; locationName: string } | null
+  /** True while the default location is still loading. */
+  locationLoading?: boolean
   onStarted: () => void
   onSkipped: () => void
 }
 
-export function StartShiftDialog({ open, shiftMaxHours, location, onStarted, onSkipped }: StartShiftDialogProps) {
+export function StartShiftDialog({
+  open,
+  shiftMaxHours,
+  location,
+  locationLoading = false,
+  onStarted,
+  onSkipped,
+}: StartShiftDialogProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const canStart = Boolean(location?.locationId) && !locationLoading
 
   async function handleStart() {
+    if (!location?.locationId) {
+      toast({
+        title: "Location required",
+        description: "Set your default location in your profile before starting a shift.",
+        variant: "destructive",
+      })
+      return
+    }
     setLoading(true)
     try {
-      const shift = await startShiftAction(location?.locationId ?? null)
+      const shift = await startShiftAction(location.locationId)
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("channel-booking:shift-started"))
         window.dispatchEvent(
@@ -57,13 +75,20 @@ export function StartShiftDialog({ open, shiftMaxHours, location, onStarted, onS
           <DialogTitle>Start your shift</DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-2">
-              {location ? (
+              {locationLoading ? (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                  Loading your assigned location…
+                </p>
+              ) : location ? (
                 <p className="flex items-center gap-2 font-medium text-foreground">
                   <MapPin className="h-4 w-4 shrink-0" />
                   You are starting a shift from <span className="font-semibold">{location.locationName}</span>.
                 </p>
               ) : (
-                <p className="text-muted-foreground">You are starting a shift. Set your default location in your profile to see it here.</p>
+                <p className="text-destructive">
+                  No default location is set on your profile. Ask an administrator to assign a location before you can start a shift.
+                </p>
               )}
               <p className="text-muted-foreground">
                 The shift has a {shiftMaxHours}-hour time limit. You can pause or end it anytime from the top bar.
@@ -76,7 +101,7 @@ export function StartShiftDialog({ open, shiftMaxHours, location, onStarted, onS
             <SkipForward className="h-4 w-4 mr-2" />
             Skip
           </Button>
-          <Button type="button" onClick={handleStart} disabled={loading}>
+          <Button type="button" onClick={handleStart} disabled={loading || !canStart}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
             Start shift
           </Button>
