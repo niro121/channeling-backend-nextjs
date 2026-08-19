@@ -945,8 +945,12 @@ export function ReconciliationDocumentView({
     </div>
     <ReconciliationPrint
       topLevelHandoverId={topLevelHandoverId}
+      handoverNoString={handoverNoString}
+      reconciliationStatus={reconciliationStatus}
+      hasReconciliationIssues={hasReconciliationIssues}
       chain={chain}
       tickedByHandoverId={tickedByHandoverId}
+      cannotByHandoverId={cannotByHandoverId}
     />
     </>
   )
