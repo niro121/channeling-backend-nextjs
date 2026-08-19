@@ -620,6 +620,7 @@ model ShiftHandover {
   reconciliationRejectedAt  DateTime?
   reconciliationRejectedBy   String?        @db.ObjectId
   reconciliationRejectReason String?
+  hasReconciliationIssues    Boolean?      @default(false)
 
   @@index([shiftId])
   @@index([fromUserId])

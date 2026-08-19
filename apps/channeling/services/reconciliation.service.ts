@@ -143,9 +143,9 @@ export async function getReceiptsForHandoverReconciliation(
     if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.MIXED && r.paymentLines.length > 0) {
       for (const line of r.paymentLines) {
         if (!NON_CASH_METHOD_SET.has(line.paymentMethod)) continue
-        const lineReconciled = line.reconciledAt ?? parentReconciled
         const lineCannotAt = line.cannotReconcileAt ?? (line.reconciledAt ? undefined : parentCannotAt)
         const lineCannotReason = line.cannotReconcileReason ?? (lineCannotAt ? parentCannotReason : undefined)
+        const lineReconciled = lineCannotAt ? undefined : (line.reconciledAt ?? parentReconciled)
         result.push({
           id: line.id,
           receiptId: r.id,
@@ -212,6 +212,7 @@ export type HandoverForReconciliationList = {
   nonCashReconciledAt: Date | null
   reconciliationRejectedAt: Date | null
   actedByUser: { id: string; name: string | null; staff: { code: string } | null } | null
+  hasReconciliationIssues: boolean
   fromUser: { id: string; name: string | null; staff: { code: string } | null }
   toUser: { id: string; name: string | null }
   shift: { id: string; startedAt: Date; userId: string }
@@ -233,6 +234,7 @@ const reconciliationListSelect = {
   nonCashReconciledBy: true,
   reconciliationStatus: true,
   reconciliationRejectReason: true,
+  hasReconciliationIssues: true,
   reconciliationAssignedToUserId: true,
   reconciliationRequestedAt: true,
   reconciliationRejectedAt: true,
@@ -323,6 +325,7 @@ export async function listHandoversForReconciliation(params: {
     reconciliationStatus: number | null
     reconciliationRejectReason: string | null
     reconciliationAssignedToUserId?: string | null
+    hasReconciliationIssues?: boolean | null
     reconciliationRequestedAt?: Date | null
     nonCashReconciledAt?: Date | null
     nonCashReconciledBy?: string | null
@@ -390,6 +393,7 @@ export async function listHandoversForReconciliation(params: {
       nonCashReconciledAt: h.nonCashReconciledAt ?? null,
       reconciliationRejectedAt: h.reconciliationRejectedAt ?? null,
       actedByUser: actedById ? actorById.get(actedById) ?? null : null,
+      hasReconciliationIssues: Boolean(h.hasReconciliationIssues),
       fromUser: h.fromUser,
       toUser: h.toUser,
       shift: h.shift,
@@ -490,6 +494,8 @@ export async function getReconciliationDocument(
       reconciliationAssignedToUserId: string | null
       reconciliationStatus: number
       reconciliationRejectReason: string | null
+      handoverNoString: string | null
+      hasReconciliationIssues: boolean
     }
   | { success: false; error: string }
 > {
@@ -515,6 +521,8 @@ export async function getReconciliationDocument(
       createdAt: true,
       includedHandoverIds: true,
       enteredBreakdown: true,
+      handoverNoString: true,
+      hasReconciliationIssues: true,
     },
   })
 
@@ -589,6 +597,8 @@ export async function getReconciliationDocument(
     reconciliationAssignedToUserId: top.reconciliationAssignedToUserId ?? null,
     reconciliationStatus: reconStatus,
     reconciliationRejectReason: top.reconciliationRejectReason ?? null,
+    handoverNoString: top.handoverNoString ?? null,
+    hasReconciliationIssues: Boolean(top.hasReconciliationIssues),
     chain,
   }
 }
@@ -950,6 +960,7 @@ export async function submitHandoverReconciliation(
     )
   }, 0)
   const complete = remainingCount === 0
+  const hasNewIssues = Object.values(newCannotByHandover).some((rows) => rows.length > 0)
 
   if (complete) {
     await prisma.shiftHandover.update({
@@ -958,6 +969,7 @@ export async function submitHandoverReconciliation(
         nonCashReconciledAt: now,
         nonCashReconciledBy: reconciledByUserId,
         reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED,
+        ...(hasNewIssues ? { hasReconciliationIssues: true } : {}),
       },
     })
     const includedIds = chain.map((t) => t.handover.id).filter((id) => id !== payload.handoverId)
@@ -967,6 +979,11 @@ export async function submitHandoverReconciliation(
         data: { reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_APPROVED },
       })
     }
+  } else if (hasNewIssues) {
+    await prisma.shiftHandover.update({
+      where: { id: payload.handoverId },
+      data: { hasReconciliationIssues: true },
+    })
   }
 
   logActivityNonBlocking({
