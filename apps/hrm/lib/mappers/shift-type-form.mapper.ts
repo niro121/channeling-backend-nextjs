@@ -4,7 +4,7 @@ import {
   type ShiftTypePayload,
   type ShiftTypeRecord
 } from '@/types/roster';
-import { normalizeShiftTime } from '@/lib/helpers/shift-duration';
+import { normalizeShiftTime } from '@/lib/helpers/shift-duration.helper';
 
 function parseNonNegativeInt(value: string, fallback = 0): number {
   const parsed = Number.parseInt(String(value ?? '').trim(), 10);

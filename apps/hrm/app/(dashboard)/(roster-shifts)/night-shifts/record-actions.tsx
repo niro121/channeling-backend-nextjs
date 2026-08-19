@@ -1,22 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { NightShiftSample } from './sample-data';
+import { deleteNightShiftAction } from '@/app/actions/roster-actions/night-shift.actions';
+import type { NightShiftRecord } from '@/types/roster';
 import { useNightShiftsUi } from './night-shifts-ui-context';
 
 type NightShiftRecordActionsProps = {
-  record: NightShiftSample;
+  record: NightShiftRecord;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 export default function NightShiftRecordActions({
   record
 }: NightShiftRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openHistory } = useNightShiftsUi();
   const [open, setOpen] = useState(false);
@@ -24,6 +25,41 @@ export default function NightShiftRecordActions({
 
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+
+  const handleDelete = async () => {
+    try {
+      setLoading(true);
+      const result = await deleteNightShiftAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Night shift could not be deleted.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: `Night shift for ${record.staffName} deleted.`
+      });
+      setOpen(false);
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Night shift could not be deleted.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -69,12 +105,13 @@ export default function NightShiftRecordActions({
         handleVisibilityChange={setOpen}
         loading={loading}
         title="Delete night shift?"
-        description={`This will remove the night duty for ${record.staffName} (${record.staffCode}). Saving is wired in a later phase.`}
+        description={`This will remove the night duty for ${record.staffName} (${record.staffCode}).`}
         handleContinue={() => {
-          setLoading(true);
-          toast({ title: 'Delete night shift', description: LATER });
-          setLoading(false);
-          setOpen(false);
+          void handleDelete();
+        }}
+        className={{
+          actionButton:
+            'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90'
         }}
       />
     </>

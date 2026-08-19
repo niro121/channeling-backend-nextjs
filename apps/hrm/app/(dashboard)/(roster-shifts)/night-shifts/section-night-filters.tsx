@@ -12,7 +12,7 @@ import {
   Input,
   Label
 } from '@archmage/ui';
-import type { NightShiftFilterOption } from './sample-data';
+import type { RosterFilterOption } from '@/types/roster';
 
 export type NightFilterValues = {
   fromDate: Date | null;
@@ -27,11 +27,11 @@ export type NightFilterValues = {
 
 type SectionNightFiltersProps = {
   values: NightFilterValues;
-  departmentOptions: NightShiftFilterOption[];
-  unitOptions: NightShiftFilterOption[];
-  shiftTypeOptions: NightShiftFilterOption[];
-  statusOptions: NightShiftFilterOption[];
-  salaryCycleOptions: NightShiftFilterOption[];
+  departmentOptions: RosterFilterOption[];
+  unitOptions: RosterFilterOption[];
+  shiftTypeOptions: RosterFilterOption[];
+  statusOptions: RosterFilterOption[];
+  salaryCycleOptions: RosterFilterOption[];
   onChange: (next: Partial<NightFilterValues>) => void;
   onSearch: () => void;
   onClear: () => void;

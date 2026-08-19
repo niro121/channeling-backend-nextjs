@@ -9,7 +9,7 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import {
   calcTotalWorkingHours,
   normalizeShiftTime
-} from '@/lib/helpers/shift-duration';
+} from '@/lib/helpers/shift-duration.helper';
 import {
   SHIFT_TYPE_CATEGORIES,
   SHIFT_TYPE_CATEGORY_OPTIONS,
@@ -761,8 +761,7 @@ export async function getActiveShiftTypeOptions(): Promise<{
     const records = await prisma.shiftType.findMany({
       where: { status: 'active' },
       orderBy: { name: 'asc' },
-      take:
-        Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
+      take: Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
       select: { id: true, name: true, code: true }
     });
     return {

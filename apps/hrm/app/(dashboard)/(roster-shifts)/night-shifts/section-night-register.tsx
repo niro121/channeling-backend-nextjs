@@ -6,20 +6,26 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { CONSECUTIVE_NIGHT_LIMIT } from '@/types/roster';
+import type { NightShiftRecord } from '@/types/roster';
 import { nightShiftColumns } from './columns';
-import {
-  CONSECUTIVE_NIGHT_LIMIT,
-  formatNightHours,
-  formatNightMoney,
-  type NightShiftSample
-} from './sample-data';
 
 type SectionNightRegisterProps = {
-  items: NightShiftSample[];
+  items: NightShiftRecord[];
+  totalRecords: number;
+  page?: string;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 export default function SectionNightRegister({
-  items
+  items,
+  totalRecords,
+  page,
+  onExport
 }: SectionNightRegisterProps) {
   return (
     <Suspense
@@ -33,7 +39,8 @@ export default function SectionNightRegister({
         heading="Night Shift Register"
         columns={nightShiftColumns}
         data={items}
-        rowCount={items.length}
+        rowCount={totalRecords}
+        page={page}
         showPagination
         haveBulkDelete={false}
         toolbarLeft={
@@ -49,28 +56,7 @@ export default function SectionNightRegister({
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => ({
-              success: true,
-              data: items.map((row) => ({
-                staffCode: row.staffCode,
-                staffName: row.staffName,
-                department: row.department,
-                unit: row.unit,
-                shiftDate: row.shiftDate,
-                nightShift: row.nightShift,
-                nightHours: formatNightHours(row.nightHours),
-                nightOt: formatNightHours(row.nightOt),
-                nightAllowance: formatNightMoney(row.nightAllowance),
-                mealAllowance: formatNightMoney(row.mealAllowance),
-                consecutiveNights: row.consecutiveNights,
-                payrollReady: row.payrollReady ? 'Yes' : 'No',
-                status: row.status,
-                updatedBy: row.updatedBy,
-                updatedAt: row.updatedAt,
-                createdBy: row.createdBy,
-                createdAt: row.createdAt
-              }))
-            })}
+            serverData={onExport}
             columns={[
               'Staff ID',
               'Staff Name',

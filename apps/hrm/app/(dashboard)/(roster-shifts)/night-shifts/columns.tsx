@@ -1,65 +1,38 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { Badge, Checkbox } from '@archmage/ui';
+import { Badge } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/utils/date';
+import { formatNightHours, formatNightMoney } from '@/lib/utils/night-shift';
 import { format, parseISO, isValid } from 'date-fns';
-import NightShiftRecordActions from './record-actions';
 import {
+  CONSECUTIVE_NIGHT_LIMIT,
   exceedsConsecutiveNightPolicy,
-  formatNightHours,
-  formatNightMoney,
-  type NightShiftSample,
-  type NightShiftStatus
-} from './sample-data';
+  NIGHT_SHIFT_STATUS_OPTIONS,
+  type NightShiftRecord,
+  type RosterAllocationStatus
+} from '@/types/roster';
+import NightShiftRecordActions from './record-actions';
 
 function formatDisplayDate(value: string | null): string {
   if (!value) return '—';
-  const parsed = parseISO(value);
+  const parsed = parseISO(value.slice(0, 10));
   if (!isValid(parsed)) return '—';
   return format(parsed, 'dd MMM yyyy');
 }
 
-const STATUS_STYLES: Record<NightShiftStatus, string> = {
-  pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
-  approved: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
-  rejected: 'bg-red-100 text-red-700 hover:bg-red-100',
-  draft: 'bg-muted text-muted-foreground hover:bg-muted'
+const STATUS_STYLES: Record<string, string> = {
+  draft: 'bg-muted text-muted-foreground hover:bg-muted',
+  published: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
+  amended: 'bg-orange-100 text-orange-700 hover:bg-orange-100'
 };
 
-const STATUS_LABELS: Record<NightShiftStatus, string> = {
-  pending_approval: 'Pending Approval',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  draft: 'Draft'
-};
+const STATUS_LABELS = Object.fromEntries(
+  NIGHT_SHIFT_STATUS_OPTIONS.map((option) => [option.id, option.name])
+);
 
-export const nightShiftColumns: ColumnDef<NightShiftSample>[] = [
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-        className="translate-y-0.5"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-0.5"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false
-  },
+export const nightShiftColumns: ColumnDef<NightShiftRecord>[] = [
   {
     accessorKey: 'staffCode',
     header: () => <span className="whitespace-nowrap">Staff ID</span>,
@@ -176,24 +149,29 @@ export const nightShiftColumns: ColumnDef<NightShiftSample>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          STATUS_STYLES[row.original.status]
-        )}
-      >
-        {STATUS_LABELS[row.original.status]}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const status = row.original.status as RosterAllocationStatus;
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            STATUS_STYLES[status] ?? STATUS_STYLES.draft
+          )}
+        >
+          {STATUS_LABELS[status] ?? status}
+        </Badge>
+      );
+    }
   },
   {
     id: 'updated',
     header: 'Updated',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.updatedBy || '—'}</span>
+        <span className="text-xs">
+          {row.original.updatedUser?.name || row.original.updatedBy || '—'}
+        </span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.updatedAt)}
         </span>
@@ -205,7 +183,9 @@ export const nightShiftColumns: ColumnDef<NightShiftSample>[] = [
     header: 'Created',
     cell: ({ row }) => (
       <div className="flex flex-col gap-1">
-        <span className="text-xs">{row.original.createdBy || '—'}</span>
+        <span className="text-xs">
+          {row.original.createdUser?.name || row.original.createdBy || '—'}
+        </span>
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(row.original.createdAt)}
         </span>
@@ -219,3 +199,5 @@ export const nightShiftColumns: ColumnDef<NightShiftSample>[] = [
     enableHiding: false
   }
 ];
+
+export { CONSECUTIVE_NIGHT_LIMIT };

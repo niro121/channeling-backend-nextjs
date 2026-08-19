@@ -10,8 +10,9 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **D6:** Shift Roster workflow is live on `/shift-roster` (publish, fill new, fill old, copy previous week/month, draft save guards on published dates).  
 **D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; assign / edit / swap / replace / attendance; published dates locked).  
 **D8:** Roster Amendments is live on `/roster-amendments` (CRUD; Approve applies to published cells; Reject leaves roster unchanged).  
+**D9:** Night Shifts is live on `/night-shifts` (derived from `RosterAllocation` where `ShiftType.isNightShift`; consecutive nights computed; Add refuses existing staff+date).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D9 Night Shifts**.
+Pages must not call Prisma. No business rules in components. Next: **D10 Overnight Shifts**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -30,7 +31,7 @@ Pages must not call Prisma. No business rules in components. Next: **D9 Night Sh
 - Roster Amendments Approve / Reject: **≥1** selected row; skip already Approved/Rejected
 - Roster Amendments status: Draft / Pending Approval / Approved / Rejected; History Cancel-only timeline
 - Night Shifts: **`CommonDataTable`**; header Add only; table-only Print/PDF/Excel; consecutive nights **> 3** red badge
-- Night Shifts status: Draft / Pending Approval / Approved / Rejected; new defaults to Pending Approval
+- Night Shifts status: **Draft / Published / Amended** (allocation status — no separate approval workflow)
 - Night Shifts Overnight / Public Holiday: sibling routes, not tabs on this page
 - Overnight Shifts: **`CommonDataTable`**; header Add + Recalculate Splits (toast); table-only Print/PDF/Excel
 - Overnight Shifts: Auto Split at midnight; attendance allocation Start/End date; Status includes Amended
@@ -613,7 +614,7 @@ Key files under `app/(dashboard)/(roster-shifts)/night-shifts/`:
 
 | File | Role |
 |------|------|
-| `page.tsx` | Access check + sample data |
+| `page.tsx` | Access check + server actions (list, filters, form options, export) |
 | `night-shifts-workspace.tsx` | Provider, header, filters, register, sheets |
 | `night-shifts-ui-context.tsx` | Open Add / Edit / History |
 | `header-actions.tsx` | **Add Night Shift** (no Print/Excel/PDF) |
@@ -623,7 +624,8 @@ Key files under `app/(dashboard)/(roster-shifts)/night-shifts/`:
 | `columns.tsx` / `record-actions.tsx` | Columns + Edit / Delete / History |
 | `sheet-night-shift-form.tsx` | Add / Edit form |
 | `sheet-night-shift-history.tsx` | Timeline history; **Cancel only** |
-| `sample-data.ts` | Mock night duties + options + summary |
+
+Backend: `services/roster-services/night-shift.service.ts`, `app/actions/roster-actions/night-shift.actions.ts`, `types/roster.ts` (`NightShiftRecord`, etc.).
 
 ### 2F.1 Header and policy
 
@@ -635,16 +637,16 @@ Key files under `app/(dashboard)/(roster-shifts)/night-shifts/`:
 | Sheet | Opens from | Notes |
 |-------|------------|--------|
 | Add Night Shift | Header | No selected-row requirement |
-| Edit Night Shift | Row pencil | Prefill sample; Edit/Delete stay on all statuses |
+| Edit Night Shift | Row pencil | Prefill from live record; Edit/Delete on all statuses |
 | Change History | Row clock | Timeline like Shift Types; Cancel only |
 
 Field behaviour (locked):
 
-- **Start / End** auto from Night Shift Type (disabled). Hours / OT / allowances / consecutive nights **editable**.
+- **Start / End** auto from Night Shift Type (disabled). Hours / OT / allowances editable; consecutive nights **read-only** (computed in service).
 - **Send to Payroll** toggle maps to the Payroll Ready Yes/No badge.
-- Status: **Draft / Pending Approval / Approved / Rejected**. New defaults to Pending Approval.
+- Status: **Draft / Published / Amended** (from allocation; not a separate approval dropdown).
 
-Sticky sheet header. Phase 0 toast save.
+Sticky sheet header. Save calls create/update actions.
 
 ### 2F.3 Register
 
@@ -1205,8 +1207,9 @@ Phase 0: Static UI (done)
 |-----------|
 | [x] `/night-shifts` matches the mock (sheets + register + policy badge) |
 | [x] Print/PDF/Excel on table only; Start/End auto from shift type |
-| [x] Status includes Draft / Pending Approval / Approved / Rejected |
+| [x] Status shows Draft / Published / Amended from allocation |
 | [x] Layout accepted for dynamic work (minor style / component polish allowed) |
+| [x] **D9:** Live register from `RosterAllocation` where `ShiftType.isNightShift` |
 
 ---
 
@@ -1472,8 +1475,12 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Night register shows live night-flagged cells |
-| [ ] Exception Add refuses an existing staff+date |
+| [x] Night register shows live night-flagged cells |
+| [x] Exception Add refuses an existing staff+date |
+| [x] Consecutive nights > 3 show red badge + summary alert count |
+| [x] Create / update / delete / history wired via actions |
+| [x] Table Print/PDF/Excel export from server |
+| [x] `sendToPayroll` flag persisted on allocation |
 
 ---
 

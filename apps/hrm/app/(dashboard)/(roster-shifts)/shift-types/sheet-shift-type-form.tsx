@@ -19,7 +19,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import { calcTotalWorkingHours } from '@/lib/helpers/shift-duration';
+import { calcTotalWorkingHours } from '@/lib/helpers/shift-duration.helper';
 import {
   shiftTypeFormValuesToPayload,
   shiftTypeRecordToFormValues

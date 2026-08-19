@@ -797,6 +797,106 @@ export const ROSTER_AMENDMENT_STATUS_OPTIONS: RosterFilterOption[] = [
 ];
 
 /* ---------------------------------
+Night Shifts (D9 — derived from RosterAllocation)
+--------------------------------- */
+
+export const CONSECUTIVE_NIGHT_LIMIT = 3;
+
+export type NightShiftRecord = RosterAuditFields & {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  shiftDate: string;
+  shiftTypeId: string;
+  nightShift: string;
+  startTime: string;
+  endTime: string;
+  nightHours: number;
+  nightOt: number;
+  nightAllowance: number;
+  mealAllowance: number;
+  consecutiveNights: number;
+  payrollReady: boolean;
+  status: RosterAllocationStatus | string;
+  remarks: string;
+};
+
+export type NightShiftSummary = {
+  nightShiftsThisCycle: number;
+  cycleLabel: string;
+  staffOnNightDuty: number;
+  staffUnitsLabel: string;
+  nightAllowancePayable: string;
+  consecutiveNightAlerts: number;
+};
+
+export type GetNightShiftsParams = {
+  page?: string;
+  limit?: string;
+  fromDate?: string;
+  toDate?: string;
+  department?: string;
+  unit?: string;
+  shiftTypeId?: string;
+  staffSearch?: string;
+  status?: string;
+  search?: string;
+};
+
+export type NightShiftPayload = {
+  staffId: string;
+  shiftTypeId: string;
+  shiftDate: Date | string;
+  nightHours?: number | null;
+  nightOt?: number | null;
+  nightAllowance?: number | null;
+  mealAllowance?: number | null;
+  sendToPayroll?: boolean;
+  remarks?: string | null;
+};
+
+export type NightShiftFilterOptions = {
+  departments: RosterFilterOption[];
+  units: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
+  statuses: RosterFilterOption[];
+};
+
+export type NightShiftTypeFormOption = RosterFilterOption & {
+  startTime: string;
+  endTime: string;
+  nightHours: string;
+  nightAllowance: string;
+  mealAllowance: string;
+};
+
+export type NightShiftFormOptions = {
+  staff: RosterFilterOption[];
+  shiftTypes: NightShiftTypeFormOption[];
+};
+
+export type NightShiftHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export const NIGHT_SHIFT_STATUS_OPTIONS: RosterFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'published', name: 'Published' },
+  { id: 'amended', name: 'Amended' }
+];
+
+export function exceedsConsecutiveNightPolicy(nights: number): boolean {
+  return nights > CONSECUTIVE_NIGHT_LIMIT;
+}
+
+/* ---------------------------------
 Holiday Calendar (v1 stub)
 --------------------------------- */
 

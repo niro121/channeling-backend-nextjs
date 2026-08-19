@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   Button,
   Sheet,
@@ -7,17 +8,16 @@ import {
   SheetDescription,
   SheetFooter,
   SheetHeader,
-  SheetTitle
+  SheetTitle,
+  useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import {
-  getSampleNightShiftHistory,
-  type NightShiftSample
-} from './sample-data';
+import { getNightShiftHistoryAction } from '@/app/actions/roster-actions/night-shift.actions';
+import type { NightShiftHistoryEntry, NightShiftRecord } from '@/types/roster';
 
 type SheetNightShiftHistoryProps = {
   open: boolean;
-  record: NightShiftSample | null;
+  record: NightShiftRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -26,7 +26,43 @@ export default function SheetNightShiftHistory({
   record,
   onOpenChange
 }: SheetNightShiftHistoryProps) {
-  const entries = record ? getSampleNightShiftHistory(record) : [];
+  const { toast } = useToast();
+  const [entries, setEntries] = useState<NightShiftHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !record) {
+      setEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    void (async () => {
+      const result = await getNightShiftHistoryAction(record.id);
+      if (cancelled) return;
+      setLoading(false);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Could not load night shift history.'
+        });
+        setEntries([]);
+        return;
+      }
+
+      setEntries(result.data ?? []);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record, toast]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,13 +74,15 @@ export default function SheetNightShiftHistory({
           <SheetTitle>Change History</SheetTitle>
           <SheetDescription>
             {record
-              ? `Audit trail for ${record.staffName} (${record.staffCode}).`
+              ? `Audit trail for ${record.staffName} on ${record.shiftDate.slice(0, 10)}.`
               : 'Full audit trail for this record.'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {entries.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             <ol className="relative space-y-5 border-l border-border pl-5">
@@ -70,6 +108,8 @@ export default function SheetNightShiftHistory({
           <Button
             type="button"
             variant="outline"
+            size="sm"
+            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
             onClick={() => onOpenChange(false)}
           >
             Cancel

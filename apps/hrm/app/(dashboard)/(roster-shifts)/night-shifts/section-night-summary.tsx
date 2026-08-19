@@ -1,7 +1,9 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import { BedDouble, Coins, Moon, ShieldAlert } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import type { NightShiftSummarySample } from './sample-data';
+import type { NightShiftSummary } from '@/types/roster';
 
 type SummaryCard = {
   label: string;
@@ -12,7 +14,7 @@ type SummaryCard = {
 };
 
 type SectionNightSummaryProps = {
-  summary: NightShiftSummarySample;
+  summary: NightShiftSummary;
 };
 
 export default function SectionNightSummary({
@@ -22,7 +24,7 @@ export default function SectionNightSummary({
     {
       label: 'Night Shifts This Cycle',
       value: String(summary.nightShiftsThisCycle),
-      subText: summary.cycleLabel,
+      subText: summary.cycleLabel || 'Current filter range',
       icon: <Moon className="h-4 w-4 text-emerald-700" />,
       iconWrapClass: 'bg-emerald-50'
     },

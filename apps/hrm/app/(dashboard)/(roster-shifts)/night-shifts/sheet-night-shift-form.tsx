@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikProps } from 'formik';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
@@ -22,14 +22,14 @@ import {
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import {
-  formatNightHours,
-  formatNightMoney,
-  SAMPLE_NIGHT_AUDIT,
-  SAMPLE_NIGHT_SHIFT_TYPES,
-  SAMPLE_NIGHT_STAFF,
-  SAMPLE_NIGHT_STATUS,
-  type NightShiftSample
-} from './sample-data';
+  nightShiftFormValuesToPayload,
+  nightShiftRecordToFormValues
+} from '@/lib/mappers/night-shift-form.mapper';
+import {
+  createNightShiftAction,
+  updateNightShiftAction
+} from '@/app/actions/roster-actions/night-shift.actions';
+import { NIGHT_SHIFT_STATUS_OPTIONS, type NightShiftFormOptions, type NightShiftRecord } from '@/types/roster';
 import type { NightShiftFormSheetMode } from './night-shifts-ui-context';
 
 export type NightShiftFormValues = {
@@ -43,7 +43,6 @@ export type NightShiftFormValues = {
   nightAllowance: string;
   mealAllowance: string;
   consecutiveNights: string;
-  status: string;
   sendToPayroll: boolean;
   remarks: string;
 };
@@ -51,7 +50,8 @@ export type NightShiftFormValues = {
 type SheetNightShiftFormProps = {
   open: boolean;
   mode: NightShiftFormSheetMode;
-  sample: NightShiftSample | null;
+  record: NightShiftRecord | null;
+  formOptions: NightShiftFormOptions;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -72,65 +72,55 @@ function emptyValues(): NightShiftFormValues {
     nightOt: '0.00',
     nightAllowance: '2500.00',
     mealAllowance: '450.00',
-    consecutiveNights: '1',
-    status: 'pending_approval',
+    consecutiveNights: '—',
     sendToPayroll: true,
     remarks: ''
   };
 }
 
-function sampleToFormValues(sample: NightShiftSample): NightShiftFormValues {
-  return {
-    staffId: sample.staffId,
-    shiftTypeId: sample.shiftTypeId,
-    shiftDate: sample.shiftDate ? parseISO(sample.shiftDate) : null,
-    startTime: sample.startTime,
-    endTime: sample.endTime,
-    nightHours: formatNightHours(sample.nightHours),
-    nightOt: formatNightHours(sample.nightOt),
-    nightAllowance: formatNightMoney(sample.nightAllowance).replace(/,/g, ''),
-    mealAllowance: formatNightMoney(sample.mealAllowance).replace(/,/g, ''),
-    consecutiveNights: String(sample.consecutiveNights),
-    status: sample.status,
-    sendToPayroll: sample.payrollReady,
-    remarks: sample.remarks
-  };
-}
-
 function AutoShiftDefaults({
   shiftTypeId,
+  shiftTypes,
   setFieldValue
 }: {
   shiftTypeId: string;
+  shiftTypes: NightShiftFormOptions['shiftTypes'];
   setFieldValue: FormikProps<NightShiftFormValues>['setFieldValue'];
 }) {
   const previousTypeId = useRef(shiftTypeId);
   useEffect(() => {
     if (previousTypeId.current === shiftTypeId) return;
     previousTypeId.current = shiftTypeId;
-    const found = SAMPLE_NIGHT_SHIFT_TYPES.find((s) => s.id === shiftTypeId);
+    const found = shiftTypes.find((s) => s.id === shiftTypeId);
     if (!found) return;
     void setFieldValue('startTime', found.startTime);
     void setFieldValue('endTime', found.endTime);
     void setFieldValue('nightHours', found.nightHours);
     void setFieldValue('nightAllowance', found.nightAllowance);
     void setFieldValue('mealAllowance', found.mealAllowance);
-  }, [setFieldValue, shiftTypeId]);
+  }, [setFieldValue, shiftTypeId, shiftTypes]);
   return null;
 }
 
-const LATER = 'Will be wired in a later phase.';
+const nonNegativeNumber = (label: string) =>
+  Yup.number()
+    .transform((value, original) =>
+      original === '' || original == null ? undefined : value
+    )
+    .min(0, `${label} cannot be negative`);
 
 export default function SheetNightShiftForm({
   open,
   mode,
-  sample,
+  record,
+  formOptions,
   onOpenChange
 }: SheetNightShiftFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const isEdit = mode === 'edit';
-  const showAudit = isEdit;
+  const showAudit = isEdit && !!record;
 
   const validationSchema = useMemo(
     () =>
@@ -138,22 +128,32 @@ export default function SheetNightShiftForm({
         staffId: Yup.string().required('Staff member is required'),
         shiftTypeId: Yup.string().required('Night shift type is required'),
         shiftDate: Yup.date().nullable().required('Shift date is required'),
-        status: Yup.string().required('Approval status is required'),
-        consecutiveNights: Yup.number()
-          .transform((value, original) =>
-            original === '' || original == null ? undefined : value
-          )
-          .min(1, 'Must be at least 1')
-          .required('Consecutive nights is required'),
+        nightHours: nonNegativeNumber('Night hours'),
+        nightOt: nonNegativeNumber('Night OT hours'),
+        nightAllowance: nonNegativeNumber('Night allowance'),
+        mealAllowance: nonNegativeNumber('Meal allowance'),
         remarks: Yup.string().max(500, 'Must be less than 500 characters')
       }),
     []
   );
 
   const initialValues = useMemo(() => {
-    if (sample && isEdit) return sampleToFormValues(sample);
+    if (record && isEdit) return nightShiftRecordToFormValues(record);
     return emptyValues();
-  }, [isEdit, sample]);
+  }, [isEdit, record]);
+
+  const shiftTypeOptions = useMemo(
+    () => formOptions.shiftTypes.map(({ id, name }) => ({ id, name })),
+    [formOptions.shiftTypes]
+  );
+
+  const statusLabel = useMemo(() => {
+    if (!record) return '';
+    return (
+      NIGHT_SHIFT_STATUS_OPTIONS.find((option) => option.id === record.status)
+        ?.name ?? record.status
+    );
+  }, [record]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -165,8 +165,8 @@ export default function SheetNightShiftForm({
           <SheetTitle>{isEdit ? 'Edit Night Shift' : 'Add Night Shift'}</SheetTitle>
           <SheetDescription>
             {isEdit
-              ? 'Update the record. All changes are captured in the audit trail.'
-              : 'Record a night duty and its allowances.'}
+              ? 'Update night hours, allowances and payroll flag. Roster cell status follows the published period.'
+              : 'Create a night duty only when the staff member has no roster cell on the selected date.'}
           </SheetDescription>
         </SheetHeader>
 
@@ -174,20 +174,54 @@ export default function SheetNightShiftForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={async () => {
+          onSubmit={async (values) => {
             setLoading(true);
-            toast({
-              title: isEdit ? 'Update night shift' : 'Save night shift',
-              description: LATER
-            });
-            setLoading(false);
-            onOpenChange(false);
+            try {
+              const payload = nightShiftFormValuesToPayload(values);
+              const result =
+                isEdit && record
+                  ? await updateNightShiftAction(record.id, payload)
+                  : await createNightShiftAction(payload);
+
+              if (result.isError) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description:
+                    (result.errors as { message?: string })?.message ??
+                    'Night shift could not be saved.'
+                });
+                return;
+              }
+
+              toast({
+                variant: 'success',
+                title: 'Success',
+                description: isEdit
+                  ? 'Night shift updated.'
+                  : 'Night shift saved.'
+              });
+              onOpenChange(false);
+              router.refresh();
+            } catch (error: unknown) {
+              toast({
+                variant: 'destructive',
+                title: 'Error',
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : 'Night shift could not be saved.'
+              });
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
               <AutoShiftDefaults
                 shiftTypeId={formik.values.shiftTypeId}
+                shiftTypes={formOptions.shiftTypes}
                 setFieldValue={formik.setFieldValue}
               />
 
@@ -198,7 +232,7 @@ export default function SheetNightShiftForm({
                   value={formik.values.staffId}
                   onChange={(value) => formik.setFieldValue('staffId', value)}
                   required
-                  options={SAMPLE_NIGHT_STAFF}
+                  options={formOptions.staff}
                   styleClasses={fieldStyleClasses}
                 />
 
@@ -211,7 +245,7 @@ export default function SheetNightShiftForm({
                       formik.setFieldValue('shiftTypeId', value)
                     }
                     required
-                    options={SAMPLE_NIGHT_SHIFT_TYPES}
+                    options={shiftTypeOptions}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomDatePickerField
@@ -255,6 +289,7 @@ export default function SheetNightShiftForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -265,6 +300,7 @@ export default function SheetNightShiftForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -275,6 +311,7 @@ export default function SheetNightShiftForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
@@ -285,28 +322,33 @@ export default function SheetNightShiftForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomFormField
                     id="consecutiveNights"
-                    type="number"
+                    type="text"
                     placeholder="Consecutive Nights"
                     value={formik.values.consecutiveNights}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
-                    required
-                    min={1}
+                    required={false}
+                    disabled
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomSelectField
-                    id="status"
-                    placeholder="Approval Status"
-                    value={formik.values.status}
-                    onChange={(value) => formik.setFieldValue('status', value)}
-                    required
-                    options={SAMPLE_NIGHT_STATUS}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  {isEdit ? (
+                    <CustomFormField
+                      id="allocationStatus"
+                      type="text"
+                      placeholder="Roster Status"
+                      value={statusLabel}
+                      onChange={() => undefined}
+                      onBlur={formik.handleBlur}
+                      required={false}
+                      disabled
+                      styleClasses={fieldStyleClasses}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
@@ -343,18 +385,23 @@ export default function SheetNightShiftForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-                <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
-                    Created by: {showAudit ? SAMPLE_NIGHT_AUDIT.createdBy : '—'}
+                    Created by:{' '}
                     {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_NIGHT_AUDIT.createdAt)}`
+                      ? record?.createdUser?.name || record?.createdBy || '—'
+                      : '—'}
+                    {showAudit && record?.createdAt
+                      ? ` · ${formatAuditDateTime(record.createdAt)}`
                       : null}
                   </p>
                   <p className="sm:text-right">
                     Last updated:{' '}
-                    {showAudit ? SAMPLE_NIGHT_AUDIT.updatedBy : '—'}
                     {showAudit
-                      ? ` · ${formatAuditDateTime(SAMPLE_NIGHT_AUDIT.updatedAt)}`
+                      ? record?.updatedUser?.name || record?.updatedBy || '—'
+                      : '—'}
+                    {showAudit && record?.updatedAt
+                      ? ` · ${formatAuditDateTime(record.updatedAt)}`
                       : null}
                   </p>
                 </div>
@@ -365,13 +412,14 @@ export default function SheetNightShiftForm({
                   type="button"
                   variant="outline"
                   disabled={loading}
-                  className="gap-1.5"
+                  size="sm"
+                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   onClick={() => onOpenChange(false)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" size="sm" disabled={loading}>
                   {isEdit ? 'Save Changes' : 'Save Night Shift'}
                 </Button>
               </SheetFooter>

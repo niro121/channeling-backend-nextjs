@@ -1,28 +1,21 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode
-} from 'react';
-import type { NightShiftSample } from './sample-data';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import type { NightShiftRecord } from '@/types/roster';
 
 export type NightShiftFormSheetMode = 'create' | 'edit';
 
 type FormSheetState = {
   mode: NightShiftFormSheetMode;
-  record: NightShiftSample | null;
+  record: NightShiftRecord | null;
 };
 
 type NightShiftsUiContextValue = {
   formSheet: FormSheetState | null;
-  historyRecord: NightShiftSample | null;
+  historyRecord: NightShiftRecord | null;
   openCreate: () => void;
-  openEdit: (record: NightShiftSample) => void;
-  openHistory: (record: NightShiftSample) => void;
+  openEdit: (record: NightShiftRecord) => void;
+  openHistory: (record: NightShiftRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -33,7 +26,7 @@ const NightShiftsUiContext = createContext<NightShiftsUiContextValue | null>(
 
 export function NightShiftsUiProvider({ children }: { children: ReactNode }) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
-  const [historyRecord, setHistoryRecord] = useState<NightShiftSample | null>(
+  const [historyRecord, setHistoryRecord] = useState<NightShiftRecord | null>(
     null
   );
 
@@ -41,11 +34,11 @@ export function NightShiftsUiProvider({ children }: { children: ReactNode }) {
     setFormSheet({ mode: 'create', record: null });
   }, []);
 
-  const openEdit = useCallback((record: NightShiftSample) => {
+  const openEdit = useCallback((record: NightShiftRecord) => {
     setFormSheet({ mode: 'edit', record });
   }, []);
 
-  const openHistory = useCallback((record: NightShiftSample) => {
+  const openHistory = useCallback((record: NightShiftRecord) => {
     setHistoryRecord(record);
   }, []);
 
@@ -83,7 +76,9 @@ export function NightShiftsUiProvider({ children }: { children: ReactNode }) {
 export function useNightShiftsUi() {
   const ctx = useContext(NightShiftsUiContext);
   if (!ctx) {
-    throw new Error('useNightShiftsUi must be used within NightShiftsUiProvider');
+    throw new Error(
+      'useNightShiftsUi must be used within NightShiftsUiProvider'
+    );
   }
   return ctx;
 }
