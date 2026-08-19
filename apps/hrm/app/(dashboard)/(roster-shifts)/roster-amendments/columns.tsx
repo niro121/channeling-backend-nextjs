@@ -93,7 +93,7 @@ export const amendmentColumns: ColumnDef<RosterAmendmentRecord>[] = [
   {
     accessorKey: 'originalShiftLabel',
     header: () => <span className="whitespace-nowrap">Original Shift</span>,
-    cell: ({ row }) => <span>{row.original.originalShiftLabel}</span>
+    cell: ({ row }) => <span className="whitespace-nowrap">{row.original.originalShiftLabel}</span>
   },
   {
     accessorKey: 'amendedShiftLabel',
@@ -119,7 +119,7 @@ export const amendmentColumns: ColumnDef<RosterAmendmentRecord>[] = [
   {
     accessorKey: 'requestedByName',
     header: () => <span className="whitespace-nowrap">Requested By</span>,
-    cell: ({ row }) => <span>{row.original.requestedByName || '—'}</span>
+    cell: ({ row }) => <span className="text-xs">{row.original.requestedByName || '—'}</span>
   },
   {
     accessorKey: 'status',
@@ -130,7 +130,7 @@ export const amendmentColumns: ColumnDef<RosterAmendmentRecord>[] = [
         <Badge
           variant="secondary"
           className={cn(
-            'rounded-full border-0 font-medium',
+            'rounded-full border-0 font-medium whitespace-nowrap',
             STATUS_STYLES[status] ?? STATUS_STYLES.draft
           )}
         >
