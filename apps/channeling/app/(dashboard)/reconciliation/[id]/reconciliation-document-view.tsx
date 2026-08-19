@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -118,6 +119,8 @@ type Props = {
   canActAsReconciler?: boolean
   reconciliationStatus?: number
   reconciliationRejectReason?: string | null
+  handoverNoString?: string | null
+  hasReconciliationIssues?: boolean
 }
 
 /** Net amount in cents for comparison with handover cardCents/slipCents etc. */
@@ -163,6 +166,8 @@ export function ReconciliationDocumentView({
   canActAsReconciler = true,
   reconciliationStatus = RECONCILIATION_STATUS.IN_RECONCILIATION,
   reconciliationRejectReason = null,
+  handoverNoString = null,
+  hasReconciliationIssues = false,
 }: Props) {
   const router = useRouter()
   const { toast } = useToast()
@@ -176,7 +181,7 @@ export function ReconciliationDocumentView({
     for (const tab of chain) {
       const preTicked = new Set<string>()
       for (const r of tab.receipts) {
-        if (r.reconciledAt != null) preTicked.add(r.id)
+        if (r.reconciledAt != null && !r.cannotReconcileAt) preTicked.add(r.id)
       }
       o[tab.handover.id] = preTicked
     }
@@ -401,7 +406,10 @@ export function ReconciliationDocumentView({
     <>
     <div className="reconciliation-screen flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Reconcile handover</h2>
+        <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
+          Reconcile handover{handoverNoString ? <span className="font-mono"> {handoverNoString}</span> : null}
+          {hasReconciliationIssues ? <Badge variant="destructive">Issues</Badge> : null}
+        </h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={openJournals}>
             <BookOpen className="h-4 w-4 mr-1" />
@@ -662,8 +670,8 @@ export function ReconciliationDocumentView({
                               allReceiptsThisMethod.map(({ tab, r }) => {
                                 const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
                                 const pendingCannot = cannotByHandoverId[tab.handover.id]?.[r.id]
-                                const postedReconciled = Boolean(r.reconciledAt)
                                 const postedCannot = Boolean(r.cannotReconcileAt)
+                                const postedReconciled = Boolean(r.reconciledAt) && !postedCannot
                                 const locked = postedReconciled || postedCannot || !isOpenForAction
                                 const shiftLabel = tab.handover.shift?.startedAt
                                   ? `${fromUserLabel(tab.handover.fromUser)} · ${formatDateTimeWithSeconds(tab.handover.shift.startedAt)}`
@@ -687,15 +695,15 @@ export function ReconciliationDocumentView({
                                     </TableCell>
                                     <TableCell className="py-1.5 text-xs">{formatReceiptReference(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs text-left align-top min-w-[10rem]">
-                                      {postedReconciled ? (
-                                        <p className="font-medium text-green-700 dark:text-green-400">Posted</p>
-                                      ) : postedCannot ? (
+                                      {postedCannot ? (
                                         <div className="text-left">
                                           <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>
                                           {r.cannotReconcileReason ? (
                                             <p className="mt-0.5 text-[11px] text-muted-foreground whitespace-normal">{r.cannotReconcileReason}</p>
                                           ) : null}
                                         </div>
+                                      ) : postedReconciled ? (
+                                        <p className="font-medium text-green-700 dark:text-green-400">Posted</p>
                                       ) : pendingCannot ? (
                                         <div className="text-left">
                                           <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>

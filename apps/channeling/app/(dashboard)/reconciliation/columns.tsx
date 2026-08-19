@@ -98,7 +98,14 @@ export const ReconciliationColumns: ColumnDef<ReconciliationListRow>[] = [
       const status = row.original.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
       const label = reconciliationStatusLabel(status)
       const variant = status === RECONCILIATION_STATUS.IN_RECONCILIATION ? "secondary" : status === RECONCILIATION_STATUS.RECONCILED_REJECTED ? "destructive" : "outline"
-      return <Badge variant={variant}>{label}</Badge>
+      return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant={variant}>{label}</Badge>
+          {row.original.hasReconciliationIssues ? (
+            <Badge variant="destructive">Issues</Badge>
+          ) : null}
+        </div>
+      )
     },
   },
   {
