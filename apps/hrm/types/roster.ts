@@ -457,6 +457,11 @@ export type ShiftCell = {
   hours: number;
   otHours: number;
   status: RosterAllocationStatus | string;
+  comments?: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  createdUser?: AuthUserSummary | null;
+  updatedUser?: AuthUserSummary | null;
 };
 
 export type RosterStaffRow = {
@@ -505,6 +510,14 @@ export type LoadRosterParams = {
   limit?: string;
 };
 
+export type ShiftRosterPeriodAudit = {
+  createdByLabel: string;
+  createdAt: string | null;
+  updatedByLabel: string;
+  updatedAt: string | null;
+  publishedLabel: string | null;
+};
+
 export type LoadRosterResult = {
   rows: RosterStaffRow[];
   totalRecords: number;
@@ -514,6 +527,7 @@ export type LoadRosterResult = {
   weekLabel: string;
   weekRangeShort: string;
   dayIsos: string[];
+  periodAudit: ShiftRosterPeriodAudit | null;
 };
 
 export type SaveRosterAllocationDraftPayload = {

@@ -92,6 +92,7 @@ export default function RosterRecordActions({
           setLoading(false);
           setOpen(false);
         }}
+        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
       />
     </>
   );

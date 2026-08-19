@@ -46,7 +46,8 @@ const EMPTY_RESULT: LoadRosterResult = {
   shiftTypes: [],
   weekLabel: '',
   weekRangeShort: '',
-  dayIsos: []
+  dayIsos: [],
+  periodAudit: null
 };
 
 export default async function ShiftRosterPage({ searchParams }: SearchParams) {

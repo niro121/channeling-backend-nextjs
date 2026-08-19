@@ -188,6 +188,7 @@ function ShiftRosterWorkspaceInner({
         staffMetaVisible={staffMetaVisible}
         conflicts={data.summary.conflicts}
         shiftTypes={data.shiftTypes}
+        periodAudit={data.periodAudit}
       />
 
       {formTarget ? (

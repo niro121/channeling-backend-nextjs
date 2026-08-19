@@ -13,10 +13,12 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
+import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
   LoadRosterParams,
   LoadRosterResult,
+  ShiftRosterPeriodAudit,
   RosterAllocationStatus,
   RosterFilterOption,
   RosterFilterOptions,
@@ -71,6 +73,48 @@ function currentWeekRange(): { fromDate: string; toDate: string } {
   return {
     fromDate: iso(weekStart),
     toDate: iso(addDays(weekStart, 6))
+  };
+}
+
+async function loadPeriodAudit(input: {
+  department: string;
+  unit: string;
+  roster: string;
+  fromDate: Date;
+  toDate: Date;
+}): Promise<ShiftRosterPeriodAudit | null> {
+  const period = await prisma.shiftRoster.findFirst({
+    where: {
+      department: input.department,
+      unit: input.unit,
+      roster: input.roster,
+      fromDate: input.fromDate,
+      toDate: input.toDate
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      createdAt: true,
+      updatedAt: true,
+      createdBy: true,
+      updatedBy: true,
+      status: true,
+      publishedAt: true
+    }
+  });
+
+  if (!period) return null;
+
+  const [withUsers] = await resolveAuthUsers([period]);
+
+  return {
+    createdByLabel: withUsers.createdUser?.name ?? '—',
+    createdAt: period.createdAt.toISOString(),
+    updatedByLabel: withUsers.updatedUser?.name ?? '—',
+    updatedAt: period.updatedAt.toISOString(),
+    publishedLabel:
+      period.status === 'published' && period.publishedAt
+        ? `Published ${format(period.publishedAt, 'dd MMM yyyy')}`
+        : null
   };
 }
 
@@ -339,11 +383,21 @@ export async function loadRoster(
             isLeave: true,
             hours: true,
             otHours: true,
-            status: true
+            status: true,
+            comments: true,
+            createdAt: true,
+            updatedAt: true,
+            createdBy: true,
+            updatedBy: true
           },
           orderBy: { date: 'asc' }
         })
       : [];
+
+    const allocationsWithUsers = await resolveAuthUsers(allocations);
+    const allocationById = new Map(
+      allocationsWithUsers.map((alloc) => [alloc.id, alloc])
+    );
 
     // Build shift type lookup
     const shiftTypeMap = new Map(
@@ -397,6 +451,7 @@ export async function loadRoster(
 
         if (shifts[dateKey] !== undefined) {
           const st = shiftTypeMap.get(alloc.shiftTypeId);
+          const allocAudit = allocationById.get(alloc.id);
           shifts[dateKey] = {
             allocationId: alloc.id,
             shiftTypeId: alloc.shiftTypeId,
@@ -406,7 +461,12 @@ export async function loadRoster(
             isLeave: alloc.isLeave,
             hours: alloc.hours,
             otHours: alloc.otHours,
-            status: alloc.status as RosterAllocationStatus
+            status: alloc.status as RosterAllocationStatus,
+            comments: alloc.comments ?? '',
+            createdAt: alloc.createdAt.toISOString(),
+            updatedAt: alloc.updatedAt.toISOString(),
+            createdUser: allocAudit?.createdUser ?? null,
+            updatedUser: allocAudit?.updatedUser ?? null
           };
           totalShifts++;
           rowTotalHours += alloc.hours;
@@ -473,6 +533,13 @@ export async function loadRoster(
     };
 
     const shiftTypeChips: ShiftTypeChip[] = [...shiftTypeMap.values()];
+    const periodAudit = await loadPeriodAudit({
+      department: params.department?.trim() ?? '',
+      unit: params.unit?.trim() ?? '',
+      roster: params.roster?.trim() ?? '',
+      fromDate: fromUtc,
+      toDate: toUtc
+    });
 
     return {
       success: true,
@@ -482,6 +549,7 @@ export async function loadRoster(
         summary,
         filterOptions,
         shiftTypes: shiftTypeChips,
+        periodAudit,
         ...weekMeta
       },
       message: 'Roster loaded'

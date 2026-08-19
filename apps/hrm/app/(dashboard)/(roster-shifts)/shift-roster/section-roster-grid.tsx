@@ -26,6 +26,7 @@ import {
 } from '@archmage/ui';
 import { toggleRosterAllocationLeaveAction } from '@/app/actions/roster-actions/shift-roster.actions';
 import { cn } from '@/lib/utils';
+import { formatAuditDateTime } from '@/lib/utils/date';
 import {
   Table,
   TableBody,
@@ -35,7 +36,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { RosterStaffRow, ShiftTypeChip } from '@/types/roster';
+import type { RosterStaffRow, ShiftRosterPeriodAudit, ShiftTypeChip } from '@/types/roster';
 import RosterRecordActions from './record-actions';
 import {
   RosterColumnHeader,
@@ -53,6 +54,7 @@ type SectionRosterGridProps = {
   staffMetaVisible: boolean;
   conflicts: number;
   shiftTypes: ShiftTypeChip[];
+  periodAudit: ShiftRosterPeriodAudit | null;
 };
 
 type RowStatus = RosterStaffRow['status'];
@@ -163,7 +165,8 @@ export default function SectionRosterGrid({
   totalRecords,
   staffMetaVisible,
   conflicts,
-  shiftTypes
+  shiftTypes,
+  periodAudit
 }: SectionRosterGridProps) {
   const { toast } = useToast();
   const { has } = usePermissions();
@@ -704,6 +707,11 @@ export default function SectionRosterGrid({
           >
             {conflicts} conflicts
           </Badge>
+          {periodAudit?.publishedLabel ? (
+            <Badge variant="outline" className="rounded-full">
+              {periodAudit.publishedLabel}
+            </Badge>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -768,6 +776,25 @@ export default function SectionRosterGrid({
           </div>
         </div>
       </CardFooter>
+
+      <div className="border-t border-border px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            <span className="font-semibold text-foreground">Created by:</span>{' '}
+            {periodAudit?.createdByLabel ?? '—'}
+            {periodAudit?.createdAt
+              ? ` · ${formatAuditDateTime(periodAudit.createdAt)}`
+              : null}
+          </p>
+          <p className="sm:text-right">
+            <span className="font-semibold text-foreground">Last updated:</span>{' '}
+            {periodAudit?.updatedByLabel ?? '—'}
+            {periodAudit?.updatedAt
+              ? ` · ${formatAuditDateTime(periodAudit.updatedAt)}`
+              : null}
+          </p>
+        </div>
+      </div>
     </Card>
   );
 }

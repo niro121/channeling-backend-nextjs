@@ -20,6 +20,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { saveRosterAllocationDraftAction } from '@/app/actions/roster-actions/shift-roster.actions';
+import { formatAuditDateTime } from '@/lib/utils/date';
 import type { ShiftTypeChip } from '@/types/roster';
 import type { RosterAllocationFormTarget } from './shift-roster-ui-context';
 
@@ -125,7 +126,7 @@ function buildInitialValues(
         ? String(target.shift.otHours.toFixed(1))
         : '0.0',
     status: target.shift?.status ?? 'draft',
-    comments: ''
+    comments: target.shift?.comments ?? ''
   };
 }
 
@@ -204,6 +205,15 @@ export default function SheetRosterAllocationForm({
       ? 'Update the record. All changes are captured in the audit trail.'
       : 'Create a new roster allocation for a staff member.';
   const saveLabel = 'Save Draft';
+
+  const auditCreatedBy =
+    mode === 'edit' ? (target.shift?.createdUser?.name ?? '—') : '—';
+  const auditCreatedAt =
+    mode === 'edit' ? formatAuditDateTime(target.shift?.createdAt) : '—';
+  const auditUpdatedBy =
+    mode === 'edit' ? (target.shift?.updatedUser?.name ?? '—') : '—';
+  const auditUpdatedAt =
+    mode === 'edit' ? formatAuditDateTime(target.shift?.updatedAt) : '—';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -413,13 +423,34 @@ export default function SheetRosterAllocationForm({
                 <CustomFormField
                   id="comments"
                   type="textarea"
-                  placeholder="Comments"
+                  placeholder="Roster note..."
                   value={formik.values.comments}
                   onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   required={false}
                   styleClasses={fieldStyleClasses}
                 />
+
+                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Created by:
+                    </span>{' '}
+                    {auditCreatedBy}
+                    {mode === 'edit' && auditCreatedAt !== '—'
+                      ? ` · ${auditCreatedAt}`
+                      : null}
+                  </p>
+                  <p className="sm:text-right">
+                    <span className="font-semibold text-foreground">
+                      Last updated:
+                    </span>{' '}
+                    {auditUpdatedBy}
+                    {mode === 'edit' && auditUpdatedAt !== '—'
+                      ? ` · ${auditUpdatedAt}`
+                      : null}
+                  </p>
+                </div>
               </div>
 
               <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
