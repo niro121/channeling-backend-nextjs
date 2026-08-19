@@ -13,6 +13,7 @@ import {
 } from "../ui/alert-dialog"
 //ANCHOR - 
 import { Spinner } from "../icons"
+import { cn } from "../../lib/utils"
 
 type CustomAlertDialogProps = {
   open: boolean
@@ -21,6 +22,9 @@ type CustomAlertDialogProps = {
   handleVisibilityChange: (value: boolean) => void
   handleContinue: () => void
   loading: boolean
+  className?: {
+    actionButton?: string
+  }
 }
 
 const CustomAlertDialog = ({
@@ -30,6 +34,7 @@ const CustomAlertDialog = ({
   handleVisibilityChange,
   handleContinue,
   loading,
+  className,
 }: CustomAlertDialogProps) => {
   return (
     <AlertDialog open={open}>
@@ -46,7 +51,7 @@ const CustomAlertDialog = ({
           >
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} disabled={loading} className="relative cursor-pointer">
+          <AlertDialogAction onClick={handleContinue} disabled={loading} className={cn("relative cursor-pointer", className?.actionButton)}>
             Continue {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>

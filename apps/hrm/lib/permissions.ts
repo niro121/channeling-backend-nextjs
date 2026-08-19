@@ -2,21 +2,24 @@ import { Permissions } from '@archmage/shared';
 
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/staff': 'staff',
-  '/employees': 'employees',
-  '/departments': 'departments',
-  '/positions': 'positions',
-  '/leave-requests': 'leave-requests',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',
   '/leave-application': 'leave-application',
-  '/attendance': 'attendance',
-  '/payroll': 'payroll',
-  '/salary-structures': 'salary-structures',
-  '/reports': 'reports',
+  '/overtime-requests': 'overtime-requests',
+  '/overtime-extra-time': 'overtime-requests',
+  '/overtime-day-off-ph-shift': 'overtime-requests',
+  '/overtime-extra-shift-normal': 'overtime-requests',
+  '/shift-roster': 'shift-roster',
+  '/shift-types': 'shift-roster',
+  '/shift-assignment': 'shift-roster',
+  '/duty-roster': 'shift-roster',
+  '/roster-amendments': 'shift-roster',
+  '/night-shifts': 'shift-roster',
+  '/overnight-shifts': 'shift-roster',
+  '/public-holiday-shifts': 'shift-roster',
   '/users': 'users',
   '/user-groups': 'users',
-  '/admin/api-clients': 'api-clients',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

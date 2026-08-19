@@ -14,6 +14,8 @@ export type UserGroup = {
   name: string;
   description?: string;
   status: number; // 0 = inactive, 1 = active
+  /** App scope: "hrm" | "dpay" | "channeling" (see AUTH_APPS). Null = legacy / unscoped. */
+  app?: string | null;
   permissions: Permissions;
   twoFactorEnabled?: boolean;
   twoFactorMethods?: TwoFactorMethodId[];
