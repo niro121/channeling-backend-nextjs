@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { formatCents, receiptAmountToCents } from "@/lib/format-money"
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import { RECONCILIATION_STATUS } from "@/types/handover"
 import type { HandoverTabData } from "./reconciliation-document-view"
 
 function pad2(n: number): string {
@@ -23,6 +24,21 @@ function fromUserLabel(fromUser: HandoverTabData["handover"]["fromUser"]): strin
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
 }
 
+function reconciliationStatusLabel(status: number | null | undefined): string {
+  switch (status) {
+    case RECONCILIATION_STATUS.IN_RECONCILIATION:
+      return "IN RECONCILIATION"
+    case RECONCILIATION_STATUS.RECONCILED_APPROVED:
+      return "RECONCILED"
+    case RECONCILIATION_STATUS.RECONCILED_REJECTED:
+      return "REJECTED"
+    case RECONCILIATION_STATUS.PENDING:
+      return "PENDING"
+    default:
+      return "—"
+  }
+}
+
 const NON_CASH_METHODS = [
   RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
   RECEIPT_PAYMENT_METHOD.SLIP,
@@ -32,11 +48,23 @@ const NON_CASH_METHODS = [
 
 type Props = {
   topLevelHandoverId: string
+  handoverNoString?: string | null
+  reconciliationStatus?: number
+  hasReconciliationIssues?: boolean
   chain: HandoverTabData[]
   tickedByHandoverId: Record<string, Set<string>>
+  cannotByHandoverId?: Record<string, Record<string, string>>
 }
 
-export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandoverId }: Props) {
+export function ReconciliationPrint({
+  topLevelHandoverId,
+  handoverNoString,
+  reconciliationStatus,
+  hasReconciliationIssues = false,
+  chain,
+  tickedByHandoverId,
+  cannotByHandoverId = {},
+}: Props) {
   const { data: session } = useSession()
   const [generatedAt, setGeneratedAt] = useState(() => formatPrintDateTime(new Date()))
   useEffect(() => {
@@ -63,19 +91,33 @@ export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandove
   }
 
   const tickedByMethod: Record<string, number> = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
-  const tickedReceipts: { receiptNo: string; method: number; amount: number; reference: string; date: string; from: string; ticked: boolean }[] = []
+  const tickedReceipts: {
+    receiptNo: string
+    method: number
+    amount: number
+    reference: string
+    date: string
+    from: string
+    ticked: boolean
+    status: string
+    reason: string
+  }[] = []
 
   for (const tab of chain) {
     const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
+    const cannot = cannotByHandoverId[tab.handover.id] ?? {}
     for (const r of tab.receipts) {
       const method = r.paymentMethod
       if (!NON_CASH_METHODS.includes(method as typeof NON_CASH_METHODS[number])) continue
       const cents = receiptAmountToCents(r.amount)
       const net = r.type === 1 ? cents : -cents
-      const isTicked = ticked.has(r.id)
+      const isCannot = Boolean(r.cannotReconcileAt) || Boolean(cannot[r.id])
+      const isPosted = Boolean(r.reconciledAt) && !isCannot
+      const isTicked = !isCannot && (isPosted || ticked.has(r.id))
       const key = methodKeyMap[method]
       if (isTicked && key) tickedByMethod[key] += net
       const ref = r.cardReference?.trim() || r.slipReference?.trim() || "—"
+      const reason = (r.cannotReconcileReason ?? cannot[r.id] ?? "").trim()
       tickedReceipts.push({
         receiptNo: r.receiptNoString,
         method,
@@ -84,6 +126,8 @@ export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandove
         date: formatPrintDateTime(r.createdAt),
         from: fromUserLabel(tab.handover.fromUser),
         ticked: isTicked,
+        status: isCannot ? "CAN'T RECONCILE" : isPosted ? "POSTED" : isTicked ? "TICKED" : "OPEN",
+        reason: isCannot ? reason : "",
       })
     }
   }
@@ -156,10 +200,17 @@ export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandove
         <p className="recon-title text-center font-bold tracking-wide text-[14px] mb-1">RECONCILIATION REPORT</p>
         <div className="mb-1.5 space-y-0">
           <p>
-            <span className="inline-block w-[5.5rem]">HANDOVER ID</span>: {topLevelHandoverId.slice(-8).toUpperCase()}
+            <span className="inline-block w-[7rem]">HANDOVER NO</span>: {(handoverNoString ?? "—").toUpperCase()}
           </p>
           <p>
-            <span className="inline-block w-[5.5rem]">GENERATED</span>: {generatedAt} ({generatedBy})
+            <span className="inline-block w-[7rem]">STATUS</span>: {reconciliationStatusLabel(reconciliationStatus)}
+            {hasReconciliationIssues ? "  |  ISSUES" : ""}
+          </p>
+          <p>
+            <span className="inline-block w-[7rem]">HANDOVER ID</span>: {topLevelHandoverId.slice(-8).toUpperCase()}
+          </p>
+          <p>
+            <span className="inline-block w-[7rem]">GENERATED</span>: {generatedAt} ({generatedBy})
           </p>
         </div>
 
@@ -245,6 +296,8 @@ export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandove
                     <th>FROM</th>
                     <th>REFERENCE</th>
                     <th className="text-right">AMOUNT</th>
+                    <th>STATUS</th>
+                    <th>REASON</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -255,6 +308,8 @@ export function ReconciliationPrint({ topLevelHandoverId, chain, tickedByHandove
                       <td>{r.from}</td>
                       <td>{r.reference}</td>
                       <td className="text-right">{formatCents(r.amount)}</td>
+                      <td>{r.status}</td>
+                      <td>{r.reason || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
