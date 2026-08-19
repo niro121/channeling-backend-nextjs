@@ -1094,9 +1094,12 @@ model Receipt {
   reversedReceiptId String?   @db.ObjectId
 
   // Back-office handover reconciliation: set when this receipt was ticked and reconciliation submitted
-  reconciledAt        DateTime?
-  reconciledBy        String?   @db.ObjectId
+  reconciledAt         DateTime?
+  reconciledBy         String?   @db.ObjectId
   reconciledHandoverId String?   @db.ObjectId
+  cannotReconcileAt    DateTime?
+  cannotReconcileBy    String?   @db.ObjectId
+  cannotReconcileReason String?
 
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
@@ -1117,6 +1120,11 @@ model ReceiptPaymentLine {
   slipDate      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  reconciledAt          DateTime?
+  reconciledBy          String?   @db.ObjectId
+  cannotReconcileAt     DateTime?
+  cannotReconcileBy     String?   @db.ObjectId
+  cannotReconcileReason String?
 
   @@index([receiptId])
 }
