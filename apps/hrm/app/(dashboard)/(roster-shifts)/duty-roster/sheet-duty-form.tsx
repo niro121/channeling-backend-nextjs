@@ -563,7 +563,7 @@ export default function SheetDutyForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-                <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
                     Created by: {showAudit ? auditCreatedBy : '—'}
                     {showAudit && auditCreatedAt !== '—'
