@@ -61,11 +61,15 @@ export async function getMyDefaultLocationForShiftAction(): Promise<{ locationId
   return { locationId: user.userLocation.id, locationName: user.userLocation.name }
 }
 
-export async function startShiftAction(locationId?: string | null) {
+export async function startShiftAction(locationId: string) {
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
-  const shift = await startShiftService(session.user.id, locationId ?? undefined)
+  const trimmed = locationId?.trim()
+  if (!trimmed) {
+    throw new Error("Location is required to start a shift. Set your default location in your profile.")
+  }
+  const shift = await startShiftService(session.user.id, trimmed)
   revalidatePath("/channel-booking")
   return shift
 }

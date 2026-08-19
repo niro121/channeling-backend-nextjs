@@ -27,6 +27,7 @@ export function ShiftGate({ shiftMaxHours, bulkCashierShiftMaxHours, children }:
       : shiftMaxHours
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(null)
   const [shiftLocation, setShiftLocation] = useState<LocationForShift>(null)
+  const [shiftLocationLoading, setShiftLocationLoading] = useState(false)
   const [skipped, setSkipped] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showStartDialogRequested, setShowStartDialogRequested] = useState(false)
@@ -72,7 +73,19 @@ export function ShiftGate({ shiftMaxHours, bulkCashierShiftMaxHours, children }:
 
   useEffect(() => {
     if (!showDialog || !hasShiftPermission) return
-    getMyDefaultLocationForShiftAction().then(setShiftLocation)
+    let cancelled = false
+    setShiftLocationLoading(true)
+    setShiftLocation(null)
+    getMyDefaultLocationForShiftAction()
+      .then((loc) => {
+        if (!cancelled) setShiftLocation(loc)
+      })
+      .finally(() => {
+        if (!cancelled) setShiftLocationLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [showDialog, hasShiftPermission])
 
   const handleStarted = () => {
@@ -109,6 +122,7 @@ export function ShiftGate({ shiftMaxHours, bulkCashierShiftMaxHours, children }:
           open={showDialog}
           shiftMaxHours={effectiveMaxHours}
           location={shiftLocation}
+          locationLoading={shiftLocationLoading}
           onStarted={handleStarted}
           onSkipped={handleSkipped}
         />
