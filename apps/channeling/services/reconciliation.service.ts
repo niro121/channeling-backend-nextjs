@@ -600,8 +600,14 @@ export async function getReconciliationJournals(
   if (!handoverId?.trim()) return { success: false, error: "Handover not found." }
   const journalsRaw = await prisma.journal.findMany({
     where: {
-      referenceType: REFERENCE_TYPES.ShiftHandover,
       referenceId: handoverId,
+      OR: [
+        { referenceType: REFERENCE_TYPES.Reconciliation },
+        {
+          referenceType: REFERENCE_TYPES.ShiftHandover,
+          description: { startsWith: "Reconciliation" },
+        },
+      ],
     },
     orderBy: { createdAt: "asc" },
     select: {
@@ -854,7 +860,7 @@ export async function submitHandoverReconciliation(
     const journalResult = await createJournalEntry({
       date: now,
       description,
-      referenceType: REFERENCE_TYPES.ShiftHandover,
+      referenceType: REFERENCE_TYPES.Reconciliation,
       referenceId: payload.handoverId,
       createdBy: reconciledByUserId,
       lines,
@@ -1195,8 +1201,14 @@ export async function rejectHandoverReconciliation(
 
   const postedJournalCount = await prisma.journal.count({
     where: {
-      referenceType: REFERENCE_TYPES.ShiftHandover,
       referenceId: topLevelHandoverId,
+      OR: [
+        { referenceType: REFERENCE_TYPES.Reconciliation },
+        {
+          referenceType: REFERENCE_TYPES.ShiftHandover,
+          description: { startsWith: "Reconciliation" },
+        },
+      ],
     },
   })
   if (postedJournalCount > 0) {
