@@ -1,5 +1,3 @@
-'use server';
-
 import { format } from 'date-fns';
 import { z } from 'zod';
 import { authPrisma } from '@archmage/db-auth';
