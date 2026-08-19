@@ -87,17 +87,24 @@ export const SAMPLE_OVERNIGHT_UNITS: OvernightFilterOption[] = [
 export const SAMPLE_OVERNIGHT_SHIFT_TYPES: OvernightShiftTypeOption[] = [
   {
     id: 'st-overnight-12',
-    name: 'Overnight 12 Hr (19:00–07:00)',
+    name: 'Overnight 12hr (19.00–07.00)',
     startTime: '19:00',
     endTime: '07:00',
     allowance: '3200.00'
   },
   {
-    id: 'st-overnight-10',
-    name: 'Overnight 10 Hr (21:00–07:00)',
-    startTime: '21:00',
+    id: 'st-night-8',
+    name: 'Night Shift (23.00–07.00)',
+    startTime: '23:00',
     endTime: '07:00',
-    allowance: '2800.00'
+    allowance: '2400.00'
+  },
+  {
+    id: 'st-custom',
+    name: 'Custom',
+    startTime: '',
+    endTime: '',
+    allowance: '0.00'
   }
 ];
 
@@ -156,7 +163,8 @@ export const SAMPLE_OVERNIGHT_STATUS: OvernightFilterOption[] = [
 
 export const SAMPLE_OVERNIGHT_ALLOCATIONS: OvernightFilterOption[] = [
   { id: 'shift_start', name: 'Shift Start Date' },
-  { id: 'shift_end', name: 'Shift End Date' }
+  { id: 'shift_end', name: 'Shift End Date' },
+  { id: 'split_both', name: 'Split Across Both Days' }
 ];
 
 export const SAMPLE_OVERNIGHT_SUMMARY: OvernightSummarySample = {

@@ -181,6 +181,11 @@ export default function SheetOvernightForm({
         startTime: Yup.string().required('Start time is required'),
         endDate: Yup.date().nullable().required('Shift end date is required'),
         endTime: Yup.string().required('End time is required'),
+        day1Hours: Yup.number().min(0, 'Cannot be negative').nullable(),
+        day2Hours: Yup.number().min(0, 'Cannot be negative').nullable(),
+        totalHours: Yup.number().min(0, 'Cannot be negative').nullable(),
+        overnightOt: Yup.number().min(0, 'Cannot be negative').nullable(),
+        allowance: Yup.number().min(0, 'Cannot be negative').nullable(),
         status: Yup.string().required('Status is required'),
         remarks: Yup.string().max(500, 'Must be less than 500 characters')
       }),
@@ -328,6 +333,7 @@ export default function SheetOvernightForm({
                       onBlur={formik.handleBlur}
                       required={false}
                       disabled={hoursDisabled}
+                      min={0}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
@@ -339,6 +345,7 @@ export default function SheetOvernightForm({
                       onBlur={formik.handleBlur}
                       required={false}
                       disabled={hoursDisabled}
+                      min={0}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
@@ -350,6 +357,7 @@ export default function SheetOvernightForm({
                       onBlur={formik.handleBlur}
                       required={false}
                       disabled={hoursDisabled}
+                      min={0}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
@@ -360,6 +368,7 @@ export default function SheetOvernightForm({
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
+                      min={0}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
@@ -370,6 +379,7 @@ export default function SheetOvernightForm({
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required={false}
+                      min={0}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomSelectField
@@ -441,7 +451,7 @@ export default function SheetOvernightForm({
                     styleClasses={fieldStyleClasses}
                   />
 
-                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                     <p>
                       Created by:{' '}
                       {showAudit ? SAMPLE_OVERNIGHT_AUDIT.createdBy : '—'}
@@ -464,13 +474,14 @@ export default function SheetOvernightForm({
                     type="button"
                     variant="outline"
                     disabled={loading}
-                    className="gap-1.5"
+                    size="sm"
+                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                     onClick={() => onOpenChange(false)}
                   >
                     <X className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
+                  <Button type="submit" size="sm" disabled={loading}>
                     {isEdit ? 'Save Changes' : 'Save Overnight Shift'}
                   </Button>
                 </SheetFooter>

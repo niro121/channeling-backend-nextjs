@@ -888,6 +888,7 @@ export type NightShiftHistoryEntry = {
 
 export const NIGHT_SHIFT_STATUS_OPTIONS: RosterFilterOption[] = [
   { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
   { id: 'published', name: 'Published' },
   { id: 'amended', name: 'Amended' }
 ];

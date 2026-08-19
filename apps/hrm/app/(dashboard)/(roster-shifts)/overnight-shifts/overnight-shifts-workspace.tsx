@@ -141,7 +141,7 @@ function OvernightShiftsWorkspaceInner({
 
       <SectionOvernightRegister items={rows} />
 
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
+      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
         <p>
           Created by: {SAMPLE_OVERNIGHT_AUDIT.createdBy} ·{' '}
           {formatDateTime(SAMPLE_OVERNIGHT_AUDIT.createdAt)}
@@ -150,7 +150,7 @@ function OvernightShiftsWorkspaceInner({
           Last updated: {SAMPLE_OVERNIGHT_AUDIT.updatedBy} ·{' '}
           {formatDateTime(SAMPLE_OVERNIGHT_AUDIT.updatedAt)}
         </p>
-      </div>
+      </div> */}
 
       {formSheet ? (
         <SheetOvernightForm
