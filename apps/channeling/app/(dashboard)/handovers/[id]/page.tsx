@@ -528,7 +528,7 @@ export default function HandoverDetailPage() {
     }
     el.textContent =
       mode === "summary"
-        ? "@media print { @page { size: A6 portrait; margin: 4mm 10mm; } }"
+        ? "@media print { @page { size: A6 portrait; margin: 4mm 14mm; } }"
         : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
     document.body.classList.toggle("print-handover-summary", mode === "summary")
     const cleanup = () => {
