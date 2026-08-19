@@ -129,6 +129,7 @@ function needsSendToReconciliation(h: HandoverRow): boolean {
   if (h.forwardedToHandoverId != null) return false
   const recon = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (recon === RECONCILIATION_STATUS.PENDING) return true
+  if (recon === RECONCILIATION_STATUS.RECONCILED_REJECTED) return true
   // Already marked in recon but no assignee (legacy auto-send)
   if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !h.reconciliationAssignedToUserId) return true
   return false

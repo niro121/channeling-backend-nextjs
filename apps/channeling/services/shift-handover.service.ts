@@ -788,6 +788,7 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
     if (r.forwardedToHandoverId != null) return false
     const recon = r.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
     if (recon === RECONCILIATION_STATUS.PENDING) return true
+    if (recon === RECONCILIATION_STATUS.RECONCILED_REJECTED) return true
     // Legacy / auto-sent without assignee — still needs someone assigned
     if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !r.reconciliationAssignedToUserId) return true
     return false

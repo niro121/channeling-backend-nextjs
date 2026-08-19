@@ -490,6 +490,7 @@ export default function HandoverDetailPage() {
     !handover.nonCashReconciledAt &&
     handover.forwardedToHandoverId == null &&
     (reconStatus === RECONCILIATION_STATUS.PENDING ||
+      reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED ||
       (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION && !handover.reconciliationAssignedToUserId))
   const isInReconciliation =
     isApproved &&
@@ -999,13 +1000,29 @@ export default function HandoverDetailPage() {
       )}
 
       {isApprovedNotReconciled && canSendToReconciliation && (
-        <Alert className="border-blue-500/50 bg-blue-50 py-2 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
-          <FileCheck className="h-4 w-4" />
-          <AlertTitle className="text-sm">Approved — not yet in reconciliation</AlertTitle>
-          <AlertDescription className="text-xs">
-            Use <strong>Send to reconciliation</strong> above and choose who should reconcile it.
-          </AlertDescription>
-        </Alert>
+        <>
+          {reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED && (
+            <Alert className="border-red-500/50 bg-red-50 py-2 dark:bg-red-950/30 dark:border-red-500/40 print:hidden">
+              <CircleAlert className="h-4 w-4" />
+              <AlertTitle className="text-sm">Reconciliation rejected</AlertTitle>
+              <AlertDescription className="text-xs">
+                {(handover as { reconciliationRejectReason?: string | null }).reconciliationRejectReason && (
+                  <span>Reason: <strong>{(handover as { reconciliationRejectReason?: string | null }).reconciliationRejectReason}</strong>. </span>
+                )}
+                You can re-send this handover to reconciliation.
+              </AlertDescription>
+            </Alert>
+          )}
+          {reconStatus !== RECONCILIATION_STATUS.RECONCILED_REJECTED && (
+            <Alert className="border-blue-500/50 bg-blue-50 py-2 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
+              <FileCheck className="h-4 w-4" />
+              <AlertTitle className="text-sm">Approved — not yet in reconciliation</AlertTitle>
+              <AlertDescription className="text-xs">
+                Use <strong>Send to reconciliation</strong> above and choose who should reconcile it.
+              </AlertDescription>
+            </Alert>
+          )}
+        </>
       )}
       {isInReconciliation && (
         <Alert className="border-blue-500/50 bg-blue-50 py-2 dark:bg-blue-950/30 dark:border-blue-500/40 print:hidden">
