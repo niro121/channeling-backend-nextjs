@@ -777,6 +777,7 @@ export async function sendHandoverToReconciliation(
       reconciliationStatus: true,
       reconciliationAssignedToUserId: true,
       forwardedToHandoverId: true,
+      includedHandoverIds: true,
     },
   })
   if (!handover) return { success: false, error: "Handover not found." }
@@ -788,9 +789,6 @@ export async function sendHandoverToReconciliation(
   const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) {
     return { success: false, error: "Handover is already reconciled." }
-  }
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
-    return { success: false, error: "Reconciliation was rejected." }
   }
   if (reconStatus === RECONCILIATION_STATUS.IN_RECONCILIATION && handover.reconciliationAssignedToUserId) {
     return { success: false, error: "Handover is already in reconciliation. Change the assignee instead." }
@@ -814,6 +812,15 @@ export async function sendHandoverToReconciliation(
       reconciliationAssignedToUserId: assignedToUserId,
     },
   })
+
+  // Reset chain handovers that were rejected back to IN_RECONCILIATION
+  const includedIds = (handover.includedHandoverIds ?? []) as string[]
+  if (includedIds.length > 0) {
+    await prisma.shiftHandover.updateMany({
+      where: { id: { in: includedIds }, reconciliationStatus: RECONCILIATION_STATUS.RECONCILED_REJECTED },
+      data: { reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION },
+    })
+  }
 
   logActivityNonBlocking({
     userId: requestedByUserId,
