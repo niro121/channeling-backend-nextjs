@@ -18,7 +18,7 @@ import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { formatCents, formatReceiptAmount, receiptAmountToCents } from "@/lib/format-money"
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
-import { submitReconciliationAction, rejectReconciliationAction } from "@/app/actions/reconciliation.actions"
+import { submitReconciliationAction, rejectReconciliationAction, getReconciliationJournalsAction } from "@/app/actions/reconciliation.actions"
 import { BackButton } from "@/components/common/back-button"
 import {
   Dialog,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { CheckCircle2, ChevronDown, CircleAlert, CreditCard, FileText, Landmark, Loader2, Printer, Smartphone, XCircle } from "lucide-react"
+import { CheckCircle2, ChevronDown, CircleAlert, CreditCard, FileText, Landmark, Loader2, BookOpen, Printer, Smartphone, XCircle } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +41,8 @@ import {
 import { ReconciliationPrint } from "./reconciliation-print"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { RECONCILIATION_STATUS } from "@/types/handover"
 
 /** Date/time with AM/PM and seconds for display. */
 function formatDateTimeWithSeconds(d: Date | string): string {
@@ -91,7 +93,22 @@ export type HandoverTabData = {
     /** When set, receipt was already reconciled for this handover; UI shows it pre-ticked. */
     reconciledAt?: string | null
     reconciledBy?: string | null
+    cannotReconcileAt?: string | null
+    cannotReconcileReason?: string | null
   }>
+}
+
+export type ReconciliationJournalView = {
+  id: string
+  journalNumber: number | null
+  date: string
+  description: string
+  lines: {
+    accountName: string
+    debitAmount: number
+    creditAmount: number
+    paymentMethod: number | null
+  }[]
 }
 
 type Props = {
@@ -99,6 +116,8 @@ type Props = {
   chain: HandoverTabData[]
   /** Assigned reconciler (or admin) may submit/reject. */
   canActAsReconciler?: boolean
+  reconciliationStatus?: number
+  reconciliationRejectReason?: string | null
 }
 
 /** Net amount in cents for comparison with handover cardCents/slipCents etc. */
@@ -138,31 +157,58 @@ const NON_CASH_METHODS_ORDERED: {
   { method: RECEIPT_PAYMENT_METHOD.E_WALLET, key: "eWalletCents", entriesKey: "eWalletEntries", Icon: Smartphone },
 ]
 
-export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAsReconciler = true }: Props) {
+export function ReconciliationDocumentView({
+  topLevelHandoverId,
+  chain,
+  canActAsReconciler = true,
+  reconciliationStatus = RECONCILIATION_STATUS.IN_RECONCILIATION,
+  reconciliationRejectReason = null,
+}: Props) {
   const router = useRouter()
   const { toast } = useToast()
   const { has } = usePermissions()
-  const canApproveReconciliation = has("reconciliation", "approve-reconciliation") && canActAsReconciler
+  const isOpenForAction = reconciliationStatus === RECONCILIATION_STATUS.IN_RECONCILIATION
+  const canApproveReconciliation =
+    isOpenForAction && has("reconciliation", "approve-reconciliation") && canActAsReconciler
 
   const [tickedByHandoverId, setTickedByHandoverId] = useState<Record<string, Set<string>>>(() => {
     const o: Record<string, Set<string>> = {}
     for (const tab of chain) {
       const preTicked = new Set<string>()
       for (const r of tab.receipts) {
-        if (r.reconciledAt != null || r.reconciledBy != null) preTicked.add(r.id)
+        if (r.reconciledAt != null) preTicked.add(r.id)
       }
       o[tab.handover.id] = preTicked
     }
     return o
   })
   const [submitting, setSubmitting] = useState(false)
+  const [cannotByHandoverId, setCannotByHandoverId] = useState<Record<string, Record<string, string>>>({})
+  const [cannotDialog, setCannotDialog] = useState<{ handoverId: string; receiptId: string } | null>(null)
+  const [cannotReason, setCannotReason] = useState("")
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [rejecting, setRejecting] = useState(false)
+  const [journalsOpen, setJournalsOpen] = useState(false)
+  const [journalsLoading, setJournalsLoading] = useState(false)
+  const [journals, setJournals] = useState<ReconciliationJournalView[] | null>(null)
+  const [journalsError, setJournalsError] = useState<string | null>(null)
 
-  const hasAnyTickedReceipt = useMemo(() => {
-    return chain.some((tab) => (tickedByHandoverId[tab.handover.id] ?? new Set()).size > 0)
-  }, [chain, tickedByHandoverId])
+  const hasPostedReceipts = useMemo(
+    () => chain.some((tab) => tab.receipts.some((r) => Boolean(r.reconciledAt))),
+    [chain]
+  )
+
+  const hasBatchToPost = useMemo(() => {
+    return chain.some((tab) => {
+      const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
+      const cannot = cannotByHandoverId[tab.handover.id] ?? {}
+      return tab.receipts.some((r) => {
+        if (r.reconciledAt || r.cannotReconcileAt) return false
+        return ticked.has(r.id) || Boolean(cannot[r.id])
+      })
+    })
+  }, [chain, tickedByHandoverId, cannotByHandoverId])
 
   /** Top-level handover (first in chain). */
   const topHandover = chain[0]?.handover
@@ -206,16 +252,31 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
     return out
   }, [chain])
 
-  /** Total ticked amount per method across all handovers (for comparison with top-level required). */
+  /** Posted + currently selected ticked amount per method (can't-reconcile is not deducted). */
   const totalTickedByMethod = useMemo(() => {
-    const card = chain.reduce((s, tab) => s + netAmount(tab.receipts, tickedByHandoverId[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.CREDIT_CARD), 0)
-    const slip = chain.reduce((s, tab) => s + netAmount(tab.receipts, tickedByHandoverId[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.SLIP), 0)
-    const check = chain.reduce((s, tab) => s + netAmount(tab.receipts, tickedByHandoverId[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.CHECK), 0)
-    const eWallet = chain.reduce((s, tab) => s + netAmount(tab.receipts, tickedByHandoverId[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.E_WALLET), 0)
+    const handledIdsByHandover: Record<string, Set<string>> = {}
+    for (const tab of chain) {
+      const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
+      const ids = new Set<string>()
+      for (const r of tab.receipts) {
+        if (r.reconciledAt || ticked.has(r.id)) ids.add(r.id)
+      }
+      handledIdsByHandover[tab.handover.id] = ids
+    }
+    const card = chain.reduce((s, tab) => s + netAmount(tab.receipts, handledIdsByHandover[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.CREDIT_CARD), 0)
+    const slip = chain.reduce((s, tab) => s + netAmount(tab.receipts, handledIdsByHandover[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.SLIP), 0)
+    const check = chain.reduce((s, tab) => s + netAmount(tab.receipts, handledIdsByHandover[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.CHECK), 0)
+    const eWallet = chain.reduce((s, tab) => s + netAmount(tab.receipts, handledIdsByHandover[tab.handover.id] ?? new Set(), RECEIPT_PAYMENT_METHOD.E_WALLET), 0)
     return { cardCents: card, slipCents: slip, checkCents: check, eWalletCents: eWallet }
   }, [chain, tickedByHandoverId])
 
   const toggleReceipt = (handoverId: string, receiptId: string) => {
+    setCannotByHandoverId((prev) => {
+      if (!prev[handoverId]?.[receiptId]) return prev
+      const next = { ...prev[handoverId] }
+      delete next[receiptId]
+      return { ...prev, [handoverId]: next }
+    })
     setTickedByHandoverId((prev) => {
       const set = new Set(prev[handoverId] ?? [])
       if (set.has(receiptId)) set.delete(receiptId)
@@ -225,20 +286,34 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
   }
 
   const handleSubmit = async () => {
-    if (!hasAnyTickedReceipt || !canApproveReconciliation) return
+    if (!hasBatchToPost || !canApproveReconciliation) return
     setSubmitting(true)
     try {
       const tickedReceiptIdsByHandoverId: Record<string, string[]> = {}
-      for (const [handoverId, set] of Object.entries(tickedByHandoverId)) {
-        tickedReceiptIdsByHandoverId[handoverId] = Array.from(set)
+      const cannotReconcileByHandoverId: Record<string, { id: string; reason: string }[]> = {}
+      for (const tab of chain) {
+        const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
+        const cannot = cannotByHandoverId[tab.handover.id] ?? {}
+        tickedReceiptIdsByHandoverId[tab.handover.id] = tab.receipts
+          .filter((r) => !r.reconciledAt && !r.cannotReconcileAt && ticked.has(r.id) && !cannot[r.id])
+          .map((r) => r.id)
+        cannotReconcileByHandoverId[tab.handover.id] = Object.entries(cannot)
+          .filter(([id]) => tab.receipts.some((r) => r.id === id && !r.reconciledAt && !r.cannotReconcileAt))
+          .map(([id, reason]) => ({ id, reason }))
       }
       const result = await submitReconciliationAction({
         handoverId: topLevelHandoverId,
         tickedReceiptIdsByHandoverId,
+        cannotReconcileByHandoverId,
       })
       if (result.success) {
-        toast({ title: "Reconciliation submitted successfully." })
-        router.push("/reconciliation")
+        if (result.complete) {
+          toast({ title: `Posted ${result.postedCount} item(s). Reconciliation complete.` })
+          router.push("/reconciliation")
+        } else {
+          toast({ title: `Posted ${result.postedCount} item(s). ${result.remainingCount} still open.` })
+        }
+        setJournals(null)
         router.refresh()
       } else {
         toast({ title: result.error ?? "Submit failed", variant: "destructive" })
@@ -255,6 +330,10 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
       return
     }
     if (!canApproveReconciliation) return
+    if (hasPostedReceipts) {
+      toast({ title: "Cannot reject after a receipt has been posted.", variant: "destructive" })
+      return
+    }
     setRejecting(true)
     try {
       const result = await rejectReconciliationAction(topLevelHandoverId, reason)
@@ -269,6 +348,31 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
       }
     } finally {
       setRejecting(false)
+    }
+  }
+
+  const openJournals = async () => {
+    setJournalsOpen(true)
+    setJournalsError(null)
+    setJournalsLoading(true)
+    try {
+      const result = await getReconciliationJournalsAction(topLevelHandoverId)
+      if (!result.success) {
+        setJournalsError(result.error ?? "Failed to load journals.")
+        setJournals([])
+        return
+      }
+      setJournals(
+        result.journals.map((j) => ({
+          ...j,
+          date: j.date instanceof Date ? j.date.toISOString() : String(j.date),
+        }))
+      )
+    } catch {
+      setJournalsError("Failed to load journals.")
+      setJournals([])
+    } finally {
+      setJournalsLoading(false)
     }
   }
 
@@ -299,6 +403,10 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Reconcile handover</h2>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openJournals}>
+            <BookOpen className="h-4 w-4 mr-1" />
+            Double entries
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -319,9 +427,27 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
           <BackButton href="/reconciliation" />
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Tick the receipts you have verified. Only ticked amounts are transferred from till to the reconciled account. Submit when ready.
-      </p>
+      {reconciliationStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED ? (
+        <Alert className="border-red-500/50 bg-red-50 dark:bg-red-950/30 dark:border-red-500/40">
+          <CircleAlert className="h-4 w-4" />
+          <AlertTitle>Reconciliation rejected</AlertTitle>
+          <AlertDescription>
+            {reconciliationRejectReason
+              ? <>Reason: <strong>{reconciliationRejectReason}</strong>. This document is read-only until the bulk cashier sends it again.</>
+              : "This document is read-only until the bulk cashier sends it again."}
+          </AlertDescription>
+        </Alert>
+      ) : reconciliationStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED ? (
+        <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/30 dark:border-green-500/40">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>Already reconciled</AlertTitle>
+          <AlertDescription>This handover has been submitted as reconciled. The document is read-only.</AlertDescription>
+        </Alert>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Post in batches. Only ticked receipts are deducted from the cashier till. Mark leftover lines as can&apos;t reconcile (they stay on the till) so the document can close.
+        </p>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
@@ -448,11 +574,11 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                       >
                         <span className="text-muted-foreground">Target:</span>
                         <span className="font-semibold tabular-nums">{formatCents(requiredCents)}</span>
-                        <span className="text-muted-foreground">Ticked:</span>
+                        <span className="text-muted-foreground">Posted / selected:</span>
                         <span className="font-semibold tabular-nums">{formatCents(tickedCents)}</span>
                         <span className={cn("ml-auto flex items-center gap-1 font-medium", methodOk ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400")}>
                           {methodOk ? <CheckCircle2 className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}
-                          {methodOk ? "Match" : "Tick receipts below to match target"}
+                          {methodOk ? "Match" : "Post remaining receipts below"}
                         </span>
                       </div>
 
@@ -511,7 +637,7 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                       {/* Single table: all receipts for this method */}
                       <div className="rounded-md border">
                         <p className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/20">
-                          Tick receipts so total equals target above
+                          Tick matched receipts to deduct from till. Mark leftover as can&apos;t reconcile to close the document without deducting.
                         </p>
                         <Table>
                           <TableHeader>
@@ -522,26 +648,32 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                               <TableHead className="py-2 text-xs">Date</TableHead>
                               <TableHead className="py-2 text-right text-xs">Amount</TableHead>
                               <TableHead className="py-2 text-xs">Reference</TableHead>
+                              <TableHead className="py-2 text-xs text-left">Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {allReceiptsThisMethod.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-muted-foreground text-center py-4 text-sm">
+                                <TableCell colSpan={7} className="text-muted-foreground text-center py-4 text-sm">
                                   No {methodLabel} receipts
                                 </TableCell>
                               </TableRow>
                             ) : (
                               allReceiptsThisMethod.map(({ tab, r }) => {
                                 const ticked = tickedByHandoverId[tab.handover.id] ?? new Set()
+                                const pendingCannot = cannotByHandoverId[tab.handover.id]?.[r.id]
+                                const postedReconciled = Boolean(r.reconciledAt)
+                                const postedCannot = Boolean(r.cannotReconcileAt)
+                                const locked = postedReconciled || postedCannot || !isOpenForAction
                                 const shiftLabel = tab.handover.shift?.startedAt
                                   ? `${fromUserLabel(tab.handover.fromUser)} · ${formatDateTimeWithSeconds(tab.handover.shift.startedAt)}`
                                   : fromUserLabel(tab.handover.fromUser)
                                 return (
-                                  <TableRow key={r.id}>
+                                  <TableRow key={r.id} className={cn(postedCannot || pendingCannot ? "bg-amber-50/60 dark:bg-amber-950/20" : postedReconciled ? "bg-green-50/50 dark:bg-green-950/20" : "")}>
                                     <TableCell className="py-1.5">
                                       <Checkbox
-                                        checked={ticked.has(r.id)}
+                                        checked={postedReconciled || (!postedCannot && ticked.has(r.id))}
+                                        disabled={locked || postedCannot || Boolean(pendingCannot)}
                                         onCheckedChange={() => toggleReceipt(tab.handover.id, r.id)}
                                       />
                                     </TableCell>
@@ -554,6 +686,60 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                                       {r.type === 1 ? "" : "−"} {formatReceiptAmount(r.amount)}
                                     </TableCell>
                                     <TableCell className="py-1.5 text-xs">{formatReceiptReference(r)}</TableCell>
+                                    <TableCell className="py-1.5 text-xs text-left align-top min-w-[10rem]">
+                                      {postedReconciled ? (
+                                        <p className="font-medium text-green-700 dark:text-green-400">Posted</p>
+                                      ) : postedCannot ? (
+                                        <div className="text-left">
+                                          <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>
+                                          {r.cannotReconcileReason ? (
+                                            <p className="mt-0.5 text-[11px] text-muted-foreground whitespace-normal">{r.cannotReconcileReason}</p>
+                                          ) : null}
+                                        </div>
+                                      ) : pendingCannot ? (
+                                        <div className="text-left">
+                                          <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>
+                                          <p className="mt-0.5 text-[11px] text-muted-foreground whitespace-normal">{pendingCannot}</p>
+                                          {isOpenForAction && (
+                                            <Button
+                                              variant="link"
+                                              size="sm"
+                                              className="h-auto px-0 mt-1 text-xs"
+                                              onClick={() => {
+                                                setCannotByHandoverId((prev) => {
+                                                  const next = { ...(prev[tab.handover.id] ?? {}) }
+                                                  delete next[r.id]
+                                                  return { ...prev, [tab.handover.id]: next }
+                                                })
+                                              }}
+                                            >
+                                              Undo
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ) : ticked.has(r.id) ? (
+                                        <p className="font-medium text-green-700 dark:text-green-400">Ticked</p>
+                                      ) : isOpenForAction ? (
+                                        <Button
+                                          variant="link"
+                                          size="sm"
+                                          className="h-auto px-0 text-xs font-medium text-red-700 dark:text-red-400"
+                                          onClick={() => {
+                                            setTickedByHandoverId((prev) => {
+                                              const set = new Set(prev[tab.handover.id] ?? [])
+                                              set.delete(r.id)
+                                              return { ...prev, [tab.handover.id]: set }
+                                            })
+                                            setCannotReason("")
+                                            setCannotDialog({ handoverId: tab.handover.id, receiptId: r.id })
+                                          }}
+                                        >
+                                          Can&apos;t reconcile
+                                        </Button>
+                                      ) : (
+                                        <span className="text-muted-foreground">Open</span>
+                                      )}
+                                    </TableCell>
                                   </TableRow>
                                 )
                               })
@@ -570,12 +756,135 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
         )
       })()}
 
+      <Dialog open={journalsOpen} onOpenChange={setJournalsOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Double entries (journals)</DialogTitle>
+            <DialogDescription>
+              Each post credits the cashier till and debits the branch Reconciled account.
+            </DialogDescription>
+          </DialogHeader>
+          {journalsLoading ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Loading journals…
+            </div>
+          ) : journalsError ? (
+            <p className="text-sm text-destructive py-4">{journalsError}</p>
+          ) : !journals || journals.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No journals posted yet for this handover.</p>
+          ) : (
+            <div className="space-y-4">
+              {journals.map((j) => (
+                <div key={j.id} className="rounded-md border overflow-x-auto">
+                  <div className="px-3 py-2 border-b bg-muted/20 text-xs">
+                    <span className="font-medium">
+                      {j.journalNumber != null ? `Journal #${j.journalNumber}` : "Journal"}
+                    </span>
+                    <span className="text-muted-foreground"> · {formatDateTimeWithSeconds(j.date)}</span>
+                    <p className="mt-1 text-muted-foreground">{j.description}</p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Account</TableHead>
+                        <TableHead className="text-xs">Method</TableHead>
+                        <TableHead className="text-right text-xs">Debit</TableHead>
+                        <TableHead className="text-right text-xs">Credit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {j.lines.map((line, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs">{line.accountName}</TableCell>
+                          <TableCell className="text-xs">
+                            {line.paymentMethod != null ? (PAYMENT_METHOD_NAMES[line.paymentMethod] ?? `Method ${line.paymentMethod}`) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">
+                            {line.debitAmount > 0 ? formatCents(line.debitAmount) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-xs tabular-nums">
+                            {line.creditAmount > 0 ? formatCents(line.creditAmount) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={cannotDialog != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCannotDialog(null)
+            setCannotReason("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Can&apos;t reconcile</DialogTitle>
+            <DialogDescription>
+              This does not deduct from the cashier till. The receipt is marked can&apos;t reconcile so leftover lines can be closed. A reason is required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="cannot-reason">Reason (required)</Label>
+            <Textarea
+              id="cannot-reason"
+              placeholder="e.g. Bank slip missing / reference does not match"
+              value={cannotReason}
+              onChange={(e) => setCannotReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCannotDialog(null)
+                setCannotReason("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!cannotDialog || !cannotReason.trim()) return
+                setCannotByHandoverId((prev) => ({
+                  ...prev,
+                  [cannotDialog.handoverId]: {
+                    ...(prev[cannotDialog.handoverId] ?? {}),
+                    [cannotDialog.receiptId]: cannotReason.trim(),
+                  },
+                }))
+                setCannotDialog(null)
+                setCannotReason("")
+              }}
+              disabled={!cannotReason.trim()}
+            >
+              Mark can&apos;t reconcile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex justify-end gap-2">
         <Button variant="outline" asChild>
           <Link href="/reconciliation">Cancel</Link>
         </Button>
         {canApproveReconciliation && (
           <>
+            {hasPostedReceipts ? (
+              <span className="text-sm text-muted-foreground self-center">
+                Reject is unavailable after a receipt has been posted.
+              </span>
+            ) : (
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" type="button" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
@@ -611,20 +920,23 @@ export function ReconciliationDocumentView({ topLevelHandoverId, chain, canActAs
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
             <Button
               onClick={handleSubmit}
-              disabled={!hasAnyTickedReceipt || submitting}
+              disabled={!hasBatchToPost || submitting}
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Submit as reconciled
+              Post selected
             </Button>
           </>
         )}
         {!canApproveReconciliation && (
           <span className="text-sm text-muted-foreground">
-            {canActAsReconciler
-              ? "You do not have permission to approve or reject reconciliation."
-              : "Only the assigned reconciler can submit or reject this handover."}
+            {!isOpenForAction
+              ? "Submit and reject are unavailable on a closed reconciliation document."
+              : canActAsReconciler
+                ? "You do not have permission to approve or reject reconciliation."
+                : "Only the assigned reconciler can submit or reject this handover."}
           </span>
         )}
       </div>
