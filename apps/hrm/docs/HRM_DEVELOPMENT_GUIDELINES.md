@@ -5,7 +5,8 @@ Use this document when building or extending features in `apps/hrm`.
 
 Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).  
 Overtime features: see **`OVERTIME_MANAGER_GUIDE.md`** (UI-first shell, then dynamic phases).  
-Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).
+Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).  
+HR Administration: see **`docs/HR_ADMINISTRATION_GUIDE.md`** (Holiday Calendar first; other modules added incrementally).
 
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 
