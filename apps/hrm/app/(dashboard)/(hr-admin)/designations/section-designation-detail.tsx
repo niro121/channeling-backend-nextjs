@@ -1,0 +1,364 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
+import * as Yup from 'yup';
+import { format } from 'date-fns';
+import { SaveIcon, Trash2, X } from 'lucide-react';
+import {
+  Button,
+  CustomAlertDialog,
+  CustomFormField,
+  CustomSelectField,
+  useToast
+} from '@archmage/ui';
+import { cn } from '@/lib/utils';
+import {
+  DESIGNATION_CATEGORIES,
+  DESIGNATION_CATEGORY_LABELS,
+  type DesignationCategoryId,
+  type DesignationFormValues
+} from '@/types/designation';
+import {
+  createDesignationAction,
+  deleteDesignationAction,
+  updateDesignationAction
+} from '@/app/actions/hr-admin-actions/designation.actions';
+import { useDesignationUi } from './designation-ui-context';
+
+const fieldStyleClasses = {
+  parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
+  labelClassName: 'text-xs font-medium uppercase tracking-wide text-muted-foreground',
+  inputClassName: 'w-full'
+};
+
+const validationSchema = Yup.object({
+  name: Yup.string().trim().required('Designation name is required'),
+  categoryId: Yup.string().required('Category is required'),
+  description: Yup.string().max(200, 'Must be less than 200 characters')
+});
+
+const categoryOptions = DESIGNATION_CATEGORIES.map((id) => ({
+  id,
+  name: DESIGNATION_CATEGORY_LABELS[id]
+}));
+
+function emptyDesignationFormValues(): DesignationFormValues {
+  return {
+    name: '',
+    code: '',
+    categoryId: '',
+    description: ''
+  };
+}
+
+function formatAuditLine(name?: string, role?: string, at?: string | null): string {
+  if (!name || !at) return '—';
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return '—';
+  const namePart = role ? `${name} (${role})` : name;
+  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
+}
+
+export default function SectionDesignationDetail() {
+  const { toast } = useToast();
+  const router = useRouter();
+  const {
+    records,
+    selectedId,
+    setSelectedId,
+    isNew,
+    setIsNew,
+    detailFormHighlight
+  } = useDesignationUi();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const selectedRecord = useMemo(
+    () => records.find((record) => record.id === selectedId) ?? null,
+    [records, selectedId]
+  );
+
+  const formKey = isNew ? 'new' : (selectedId ?? 'empty');
+  const initialValues = useMemo<DesignationFormValues>(() => {
+    if (isNew || !selectedRecord) return emptyDesignationFormValues();
+    return {
+      name: selectedRecord.name,
+      code: selectedRecord.code,
+      categoryId: selectedRecord.categoryId,
+      description: selectedRecord.description
+    };
+  }, [isNew, selectedRecord]);
+
+  useEffect(() => {
+    if (!detailFormHighlight) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById('name')?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [detailFormHighlight, formKey]);
+
+  const showEmptyState = !isNew && !selectedRecord;
+
+  const handleSave = async (
+    values: DesignationFormValues,
+    helpers: FormikHelpers<DesignationFormValues>
+  ) => {
+    setSaving(true);
+    try {
+      const payload = {
+        name: values.name.trim(),
+        categoryId: values.categoryId,
+        description: values.description.trim()
+      };
+
+      const result =
+        isNew || !selectedRecord
+          ? await createDesignationAction(payload)
+          : await updateDesignationAction(selectedRecord.id, payload);
+
+      if (result.isError || !result.data) {
+        const errors = result.errors as Record<string, unknown>;
+        if (errors && typeof errors === 'object' && !('message' in errors)) {
+          const fieldErrors: Record<string, string> = {};
+          for (const [key, value] of Object.entries(errors)) {
+            if (Array.isArray(value) && value[0]) {
+              fieldErrors[key] = String(value[0]);
+            }
+          }
+          if (Object.keys(fieldErrors).length) {
+            helpers.setErrors(fieldErrors);
+          }
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description:
+            (typeof (errors as any)?.message === 'string' && (errors as any).message) ||
+            (typeof (errors as any)?.name?.[0] === 'string' && (errors as any).name[0]) ||
+            'Unable to save designation.'
+        });
+        return;
+      }
+
+      setIsNew(false);
+      setSelectedId(result.data.id);
+      toast({
+        title: 'Saved',
+        description: isNew || !selectedRecord ? 'Designation created.' : 'Designation updated.'
+      });
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedRecord) return;
+
+    setSaving(true);
+    try {
+      const result = await deleteDesignationAction(selectedRecord.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Cannot delete',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to delete designation.'
+        });
+        setDeleteOpen(false);
+        return;
+      }
+
+      setDeleteOpen(false);
+      setSelectedId(null);
+      setIsNew(false);
+      toast({ title: 'Deleted', description: 'Designation removed.' });
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      id="designation-detail-form"
+      className={cn(
+        'flex h-full min-h-[32rem] flex-col rounded-lg border border-primary/15 bg-card transition-all duration-300',
+        detailFormHighlight && 'border-primary ring-2 ring-primary/40'
+      )}
+    >
+      <div className="border-b border-primary/10 px-4 py-3">
+        <h2 className="text-base font-semibold text-foreground">Designation Details</h2>
+      </div>
+
+      {showEmptyState ? (
+        <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+          Select a designation from the list or click Add to create one.
+        </div>
+      ) : (
+        <Formik
+          key={formKey}
+          initialValues={initialValues}
+          validationSchema={validationSchema}
+          enableReinitialize
+          onSubmit={handleSave}
+        >
+          {(formik) => {
+            const categoryLabel =
+              DESIGNATION_CATEGORY_LABELS[
+                formik.values.categoryId as DesignationCategoryId
+              ] ?? '';
+
+            return (
+              <Form id="designation-form" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <CustomFormField
+                      id="name"
+                      type="text"
+                      placeholder="Designation Name"
+                      value={formik.values.name}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      required
+                      styleClasses={fieldStyleClasses}
+                    />
+
+                    <CustomFormField
+                      id="code"
+                      type="text"
+                      placeholder="Auto-generated"
+                      value={formik.values.code}
+                      onChange={() => undefined}
+                      onBlur={() => undefined}
+                      disabled
+                      required={false}
+                      styleClasses={fieldStyleClasses}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <CustomSelectField
+                      id="categoryId"
+                      placeholder="Select Category"
+                      value={formik.values.categoryId}
+                      onChange={(value) => formik.setFieldValue('categoryId', value)}
+                      required
+                      options={categoryOptions}
+                      styleClasses={fieldStyleClasses}
+                    />
+
+                    <div className="rounded-lg border border-primary/10 bg-muted/40 px-3 py-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Selected Category
+                      </p>
+                      <p className="mt-1 text-sm text-foreground">
+                        {categoryLabel || 'Select a category'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <CustomFormField
+                    id="description"
+                    type="text"
+                    placeholder="Short description..."
+                    value={formik.values.description}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    required={false}
+                    styleClasses={fieldStyleClasses}
+                  />
+
+                  <div className="grid gap-3 rounded-lg border border-border bg-muted/40 px-3 py-3 text-xs md:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-foreground">Created by:</span>
+                      <span className="text-muted-foreground">
+                        {selectedRecord && !isNew
+                          ? formatAuditLine(
+                              selectedRecord.createdByUser.name,
+                              selectedRecord.createdByUser.role,
+                              selectedRecord.createdAt
+                            )
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-foreground">Last updated:</span>
+                      <span className="text-muted-foreground">
+                        {selectedRecord && !isNew
+                          ? formatAuditLine(
+                              selectedRecord.updatedByUser.name,
+                              selectedRecord.updatedByUser.role,
+                              selectedRecord.updatedAt
+                            )
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-primary/10 px-4 py-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={saving}
+                    onClick={() => {
+                      if (isNew) {
+                        setIsNew(false);
+                        setSelectedId(records[0]?.id ?? null);
+                        return;
+                      }
+                      formik.resetForm();
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteOpen(true)}
+                    disabled={!selectedRecord || isNew || saving}
+                    className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                  <Button
+                    type="submit"
+                    form="designation-form"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={saving}
+                  >
+                    <SaveIcon className="h-4 w-4" />
+                    Save
+                  </Button>
+                </div>
+              </Form>
+            );
+          }}
+        </Formik>
+      )}
+
+      <CustomAlertDialog
+        open={deleteOpen}
+        title="Delete designation?"
+        description={
+          selectedRecord
+            ? `Remove "${selectedRecord.name}" from the designation master? This cannot be undone.`
+            : 'Remove this designation?'
+        }
+        handleVisibilityChange={setDeleteOpen}
+        handleContinue={handleDelete}
+        loading={saving}
+      />
+    </div>
+  );
+}

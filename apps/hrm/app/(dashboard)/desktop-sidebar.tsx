@@ -275,12 +275,12 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {hasAccess('/holiday-calendar') && (
+        {(hasAccess('/holiday-calendar') || hasAccess('/designations')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
               icon={<Building2 className="h-5 w-5" />}
-              paths={['/holiday-calendar']}
+              paths={['/holiday-calendar', '/designations']}
               defaultOpen
             >
               {hasAccess('/holiday-calendar') && (
@@ -288,6 +288,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/holiday-calendar"
                   label="Holiday Calendar"
                   icon={<CalendarHeart className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/designations') && (
+                <NavLink
+                  href="/designations"
+                  label="Designations"
+                  icon={<Tags className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

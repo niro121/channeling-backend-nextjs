@@ -8,11 +8,17 @@ Use with:
 - `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — downstream consumer of `HolidayCalendar`
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — future holiday-aware leave day counting
 
-**Status:** HR Administration sidebar group and modules are **not built yet**.  
-**First module:** **Holiday Calendar** (`/holiday-calendar`).  
+**Status:** HR Administration sidebar group is live.  
+**Implemented module:** **Holiday Calendar** (`/holiday-calendar`).  
+**Current module in progress:** **Designation Management** (`/designations`).  
 **Build path:** Types/Zod → Service → Actions → master–detail UI → wire downstream reads.
 
-This document covers **Holiday Calendar only**. Other HR Administration modules (Designations, Staff Grade, Salary Cycle, Manage Rosters, etc.) will be documented here as they are scoped.
+This document currently covers:
+
+- **Holiday Calendar** — implemented
+- **Designation Management** — documented for UI-first delivery; backend phases follow
+
+Other HR Administration modules (Staff Grade, Salary Cycle, Manage Rosters, etc.) will be added here as they are scoped.
 
 ---
 
@@ -351,4 +357,162 @@ sendToPayroll     → Boolean
 
 ---
 
-*Last updated: Aug 2026 — Holiday Calendar module only.*
+## 13. Designation Management — product surface
+
+| Route | Resource key (planned) | Role |
+|-------|-------------------------|------|
+| `/designations` | `designations` | Master list + detail editor for the hospital designation master |
+
+**Permission:** dedicated Auth User Group resource `designations` (display name **Designations**).  
+Keep this separate from `staff` and `shift-roster` so HR users can maintain the designation master without broader staff-edit or roster rights.
+
+**Activity keys (planned):**
+
+| Action | Key |
+|--------|-----|
+| Page visit | `designations.visited` |
+| Create | `designations.created` |
+| Update | `designations.updated` |
+| Delete | `designations.deleted` |
+
+---
+
+## 14. Designation domain model (planned)
+
+Designation Management becomes the source of truth for job titles used across the hospital.
+
+### Proposed v1 fields
+
+| Field | Rule |
+|-------|------|
+| `code` | Auto-generated human code (e.g. `D1000`, `D1001`) |
+| `name` | Required designation title (e.g. *Assistant Maintenance Officer*) |
+| `categoryId` | Fixed selector value in v1; **not free text** |
+| `description` | Optional short note / summary |
+| `createdAt` / `updatedAt` | Audit timestamps |
+| `createdBy` / `updatedBy` | Auth User ObjectIds resolved with `resolveAuthUsers` |
+
+### Locked product decisions
+
+| Topic | Decision |
+|-------|----------|
+| Workspace pattern | **Master–detail**, same family as Holiday Calendar |
+| Category input | **`CustomSelectField`**, not text entry |
+| Category values | Fixed v1 options: **Clinical**, **Non-Clinical** |
+| Code entry | Treat as generated master code; show read-only in form |
+| Ownership | HR Administration owns CRUD; Staff and Roster consume it |
+| Delete | Block when downstream staff records still reference the designation |
+
+---
+
+## 15. Designation categories
+
+Define category constants in a dedicated type module (for example `types/designation.ts`) and expose a shared labels/options helper for UI and services.
+
+```ts
+export const DESIGNATION_CATEGORIES = ['clinical', 'non-clinical'] as const;
+export type DesignationCategoryId = (typeof DESIGNATION_CATEGORIES)[number];
+```
+
+| `categoryId` | UI label |
+|--------------|----------|
+| `clinical` | Clinical |
+| `non-clinical` | Non-Clinical |
+
+Use a `CustomSelectField` with these options in the detail form. Do not allow ad-hoc category text in v1.
+
+---
+
+## 16. Designation UI map — master–detail
+
+Match the approved mock and the Holiday Calendar interaction style: left register, right detail form.
+
+```
+┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
+│ Designation Management                                                    │
+│ Maintain the master list of job designations used across the hospital.    │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ ~35% Designation List ─────────┐  ┌─ ~65% Designation Details ───────────┐
+│ Search                    [+]   │  │ Designation Name * [______________] │
+│ ┌─────────────────────────────┐ │  │ Code              [ D1000 ]          │
+│ │ Assistant Pharmacist  D1001 │ │  │ Category *        [ Clinical ▼ ]     │
+│ │ Billing Officer       D1004 │ │  │ Description       [______________]   │
+│ │ Consultant Physician  D1008 │ │  │                                     │
+│ └─────────────────────────────┘ │  │ [ Delete ]                 [ Save ]  │
+└─────────────────────────────────┘  └──────────────────────────────────────┘
+```
+
+### UX rules
+
+| Rule | Detail |
+|------|--------|
+| Selection | Click list row → load form in the right panel |
+| Add | Clears form, highlights detail panel, scrolls/focuses form, does not save yet |
+| Category | Use **`CustomSelectField`** only |
+| Code | Read-only display in detail form once record exists; blank / placeholder for new |
+| Save | Create or update via server action; toast; refresh list; keep selection |
+| Delete | In detail header with confirm dialog; disabled while creating or when in use |
+| Audit | Show Created by / Last updated footer using resolved auth users |
+| Form stack | **Formik + Yup** client-side; **Zod** in service |
+
+### Planned file layout
+
+```
+apps/hrm/
+  app/(dashboard)/(hr-admin)/designations/
+    page.tsx
+    designation-workspace.tsx
+    designation-ui-context.tsx
+    section-designation-list.tsx
+    section-designation-detail.tsx
+    sample-data.ts                    # UI-first only; remove once actions/service ship
+
+  app/actions/hr-admin-actions/
+    designation.actions.ts
+
+  services/hr-admin-services/
+    designation.service.ts
+
+  lib/helpers/
+    designation-category.helper.ts
+
+  lib/mappers/
+    designation-form.mapper.ts
+
+  types/
+    designation.ts
+```
+
+---
+
+## 17. Designation development phases
+
+| Phase | Deliverable |
+|-------|-------------|
+| **D0 — Doc & types** | This guide section; category constants; UI types | **Done** |
+| **D1 — UI shell** | Route, sidebar, breadcrumbs, workspace layout, sample data | **Done** |
+| **D2 — Interactive detail form** | Search, Add highlight, selector-based category, Save/Delete, audit footer | **Done** |
+| **D3 — Schema & service** | Prisma model, Zod CRUD, unique name guard, `DES-n` code generation | **Done** |
+| **D4 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **D5 — Wire CRUD** | Page + detail form use real actions; sample data removed from imports | **Done** |
+| **D6 — Staff integration (deferred)** | Staff Employment selects from designation master | Later |
+| **D7 — Roster integration (deferred)** | Roster filters/snapshots consume designation master consistently | Later |
+
+**D0–D5 shipped.** D6 and D7 are deferred to a future integration phase.
+
+---
+
+## 18. Designation testing checklist (manual)
+
+- [ ] Register shows designation cards with name left and code right
+- [ ] Search filters by designation name or code
+- [ ] Add highlights the detail panel and focuses the form
+- [ ] Category renders as a `CustomSelectField`, not as a text input
+- [ ] Existing record shows read-only code in the form
+- [ ] Save / Cancel / Delete buttons appear at the bottom of the detail form
+- [ ] Delete is disabled for new records
+
+---
+
+*Last updated: Aug 2026 — Holiday Calendar implemented; Designation Management D0–D5 complete (integration deferred).*

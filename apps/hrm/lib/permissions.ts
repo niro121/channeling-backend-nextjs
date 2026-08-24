@@ -19,6 +19,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/overnight-shifts': 'shift-roster',
   '/public-holiday-shifts': 'shift-roster',
   '/holiday-calendar': 'holiday-calendar',
+  '/designations': 'designations',
   '/users': 'users',
   '/user-groups': 'users',
 };
