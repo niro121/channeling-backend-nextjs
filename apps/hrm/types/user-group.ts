@@ -24,5 +24,6 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: 'shift-roster', name: 'Roster & Shifts' },
   { id: 'holiday-calendar', name: 'Holiday Calendar' },
   { id: 'designations', name: 'Designations' },
+  { id: 'staff-grades', name: 'Area / Staff Grade' },
   { id: 'users', name: 'Users & User Groups' },
 ];

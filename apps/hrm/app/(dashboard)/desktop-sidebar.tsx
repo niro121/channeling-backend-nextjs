@@ -27,6 +27,7 @@ import {
   Users,
   Building2,
   CalendarHeart,
+  Award,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -275,12 +276,14 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/holiday-calendar') || hasAccess('/designations')) && (
+        {(hasAccess('/holiday-calendar') ||
+          hasAccess('/designations') ||
+          hasAccess('/staff-grades')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
               icon={<Building2 className="h-5 w-5" />}
-              paths={['/holiday-calendar', '/designations']}
+              paths={['/holiday-calendar', '/designations', '/staff-grades']}
               defaultOpen
             >
               {hasAccess('/holiday-calendar') && (
@@ -295,6 +298,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/designations"
                   label="Designations"
                   icon={<Tags className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/staff-grades') && (
+                <NavLink
+                  href="/staff-grades"
+                  label="Area / Staff Grade"
+                  icon={<Award className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

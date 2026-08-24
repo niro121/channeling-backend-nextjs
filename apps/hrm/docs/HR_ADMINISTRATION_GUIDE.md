@@ -9,16 +9,16 @@ Use with:
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Implemented module:** **Holiday Calendar** (`/holiday-calendar`).  
-**Current module in progress:** **Designation Management** (`/designations`).  
+**Implemented modules:** **Holiday Calendar**, **Designation Management**, **Area / Staff Grade**.  
 **Build path:** Types/Zod → Service → Actions → master–detail UI → wire downstream reads.
 
 This document currently covers:
 
 - **Holiday Calendar** — implemented
-- **Designation Management** — documented for UI-first delivery; backend phases follow
+- **Designation Management** — D0–D5 complete (Staff/Roster integration deferred)
+- **Area / Staff Grade** — G0–G5 complete (Staff/Roster integration deferred)
 
-Other HR Administration modules (Staff Grade, Salary Cycle, Manage Rosters, etc.) will be added here as they are scoped.
+Other HR Administration modules (Salary Cycle, Manage Rosters, etc.) will be added here as they are scoped.
 
 ---
 
@@ -515,4 +515,160 @@ apps/hrm/
 
 ---
 
-*Last updated: Aug 2026 — Holiday Calendar implemented; Designation Management D0–D5 complete (integration deferred).*
+## 19. Area / Staff Grade — product surface
+
+| Route | Resource key | Role |
+|-------|--------------|------|
+| `/staff-grades` | `staff-grades` | Master list + detail editor for hospital areas / staff grades |
+
+**Permission:** dedicated Auth User Group resource `staff-grades` (display name **Area / Staff Grade**).  
+Keep this separate from `staff` and `shift-roster`.
+
+**Activity keys (planned):**
+
+| Action | Key |
+|--------|-----|
+| Page visit | `staff-grades.visited` |
+| Create | `staff-grades.created` |
+| Update | `staff-grades.updated` |
+| Delete | `staff-grades.deleted` |
+
+---
+
+## 20. Area / Staff Grade domain model (planned)
+
+This module is the source of truth for **area / staff grade** records used later by Staff Employment and Roster filters.
+
+Today Staff stores free-text `employmentDetails.employment.staffGrade` and Roster filters collect unique strings from staff. Those stay unchanged until a later integration phase.
+
+### Proposed v1 fields
+
+| Field | Rule |
+|-------|------|
+| `code` | Auto-generated (`SG-n` via `generateRecordCode`) |
+| `name` | Required area name (e.g. *Staff Nurse Grade 1*, *Store Keeper*) |
+| `gradeLevelId` | Fixed selector value in v1; **not free text** |
+| `createdAt` / `updatedAt` | Audit timestamps |
+| `createdBy` / `updatedBy` | Auth User ObjectIds resolved with `resolveAuthUsers` |
+
+### Locked product decisions
+
+| Topic | Decision |
+|-------|----------|
+| Workspace pattern | **Master–detail**, same family as Designations |
+| Grade Level input | **`CustomSelectField`**, not text entry |
+| Grade Level values | Fixed v1 options aligned with Staff placeholders: **Grade I**, **Grade II**, **Grade III**, **Executive** |
+| Code entry | Generated master code; read-only on the form |
+| Actions | Cancel / Delete / Save at the **bottom of the detail form** (not list footer; no separate Update) |
+| Ownership | HR Administration owns CRUD; Staff and Roster consume it later |
+| Integrations | **Deferred** — do not change Staff Employment or Roster in this build |
+
+---
+
+## 21. Grade levels
+
+Define in `types/staff-grade.ts` (canonical for this master). Staff’s `STAFF_GRADE_OPTIONS` remains a placeholder until integration.
+
+```ts
+export const STAFF_GRADE_LEVELS = ['grade_i', 'grade_ii', 'grade_iii', 'executive'] as const;
+export type StaffGradeLevelId = (typeof STAFF_GRADE_LEVELS)[number];
+```
+
+| `gradeLevelId` | UI label |
+|----------------|----------|
+| `grade_i` | Grade I |
+| `grade_ii` | Grade II |
+| `grade_iii` | Grade III |
+| `executive` | Executive |
+
+Use a `CustomSelectField` with these options. Do not allow ad-hoc grade text in v1.
+
+---
+
+## 22. Area / Staff Grade UI map — master–detail
+
+```
+┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
+│ Area / Staff Grade Management                                             │
+│ Configure staff areas and grades used across the roster and payroll.      │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ ~35% Area List ──────────────┐  ┌─ ~65% Area Details ────────────────────┐
+│ Search                  [+]   │  │ Area Name *     [________________]    │
+│ ┌───────────────────────────┐ │  │ Code            [ SG-1 ]              │
+│ │ Pharmacy Assistant        │ │  │ Grade Level *   [ Grade I ▼ ]         │
+│ │ Store Keeper (selected)   │ │  │                                       │
+│ │ Staff Nurse Grade 1       │ │  │ [ Cancel ] [ Delete ]        [ Save ] │
+│ └───────────────────────────┘ │  └───────────────────────────────────────┘
+└───────────────────────────────┘
+```
+
+### UX rules
+
+| Rule | Detail |
+|------|--------|
+| Selection | Click list row → load form in the right panel |
+| Add | Clears form, highlights detail panel, focuses name, does not save yet |
+| Grade Level | Use **`CustomSelectField`** only |
+| Code | Read-only once a record exists; placeholder for new |
+| Save | Create or update; toast; refresh list; keep selection |
+| Delete | Confirm dialog; disabled while creating |
+| Audit | Created by / Last updated footer |
+| Form stack | **Formik + Yup** client-side; **Zod** in service |
+
+### Planned file layout
+
+```
+apps/hrm/
+  app/(dashboard)/(hr-admin)/staff-grades/
+    page.tsx
+    staff-grade-workspace.tsx
+    staff-grade-ui-context.tsx
+    section-staff-grade-list.tsx
+    section-staff-grade-detail.tsx
+
+  app/actions/hr-admin-actions/
+    staff-grade.actions.ts
+
+  services/hr-admin-services/
+    staff-grade.service.ts
+
+  lib/mappers/
+    staff-grade-form.mapper.ts
+
+  types/
+    staff-grade.ts
+```
+
+---
+
+## 23. Area / Staff Grade development phases
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **G0 — Doc & types** | This guide section; grade-level constants; UI types | **Done** |
+| **G1 — UI shell** | Route, sidebar, breadcrumbs, workspace, sample data | **Done** |
+| **G2 — Interactive detail form** | Search, Add highlight, `CustomSelectField` grade, Save/Delete, audit footer | **Done** |
+| **G3 — Schema & service** | Prisma model, Zod CRUD, unique name, `SG-n` codes | **Done** |
+| **G4 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **G5 — Wire CRUD** | Page + detail form use real actions; sample data removed | **Done** |
+| **G6 — Staff integration (deferred)** | Staff Employment `staffGrade` selects from this master | Later |
+| **G7 — Roster integration (deferred)** | Roster filters consume this master | Later |
+
+**G0–G5 shipped.** G6 and G7 are deferred to a future integration phase.
+
+---
+
+## 24. Area / Staff Grade testing checklist (manual)
+
+- [ ] Register shows area cards with name and grade
+- [ ] Search filters by name, code, or grade label
+- [ ] Add highlights the detail panel and focuses the form
+- [ ] Grade Level renders as a `CustomSelectField`, not as a text input
+- [ ] Existing record shows read-only code in the form
+- [ ] Save / Cancel / Delete buttons appear at the bottom of the detail form
+- [ ] Delete is disabled for new records
+
+---
+
+*Last updated: Aug 2026 — Holiday Calendar, Designations, and Area / Staff Grade shipped (integrations deferred).*

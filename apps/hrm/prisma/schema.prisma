@@ -674,6 +674,20 @@ model Designation {
   @@index([categoryId])
 }
 
+model StaffGrade {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  code         String @unique // SG-n
+  name         String @unique
+  gradeLevelId String // grade_i | grade_ii | grade_iii | executive
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([gradeLevelId])
+}
+
 /* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
