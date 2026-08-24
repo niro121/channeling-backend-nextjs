@@ -108,7 +108,7 @@ export default function SectionLeaveFormList({
         columns={columns}
         data={records}
         rowCount={records.length}
-        showPagination={false}
+        showPagination={true}
         haveBulkDelete
         deleteServerAction={onBulkDelete}
         getBulkDeleteDescription={getBulkDeleteDescription}
@@ -116,6 +116,7 @@ export default function SectionLeaveFormList({
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle
+            showPrintButton
             serverData={onExport}
             columns={[
               'Form No',

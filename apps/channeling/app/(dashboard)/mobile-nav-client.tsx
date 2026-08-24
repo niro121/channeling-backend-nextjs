@@ -85,7 +85,7 @@ export default function MobileNavClient({
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channeling</p>
               <div className="space-y-0.5">
                 {hasAccess('/channel-booking') && <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />}
-                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />}
+                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handovers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
               </div>
             </div>

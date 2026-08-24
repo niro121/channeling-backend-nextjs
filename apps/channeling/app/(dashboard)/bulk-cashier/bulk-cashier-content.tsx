@@ -48,6 +48,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye, Wallet, FileText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatCents, formatLKR } from '@/lib/format-money';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
@@ -468,6 +470,73 @@ export function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintDa
   };
 }
 
+function floatRequestStatusBadgeClass(status: number) {
+  switch (status) {
+    case FLOAT_REQUEST_STATUS.PENDING:
+      return { variant: 'secondary' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.APPROVED:
+      return { variant: 'default' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.RECEIVED:
+      return {
+        variant: 'outline' as const,
+        className: 'border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+      };
+    case FLOAT_REQUEST_STATUS.REJECTED:
+      return { variant: 'destructive' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.CANCELLED:
+      return { variant: 'outline' as const, className: 'text-muted-foreground' };
+    default:
+      return { variant: 'outline' as const, className: '' };
+  }
+}
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+}
+
+function formatDenoms(entries?: { value: number; count: number }[] | null) {
+  if (!entries?.length) return null;
+  const str = entries
+    .filter((d) => d.count > 0)
+    .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+    .join(', ');
+  return str || null;
+}
+
+function TimelineStep({
+  label,
+  at,
+}: {
+  label: string;
+  at: Date | string | null | undefined;
+}) {
+  const formatted = formatDateTime(at);
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            'h-2 w-2 shrink-0 rounded-full',
+            formatted ? 'bg-emerald-600' : 'bg-muted-foreground/30'
+          )}
+        />
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      </div>
+      <p
+        className={cn(
+          'mt-1 pl-3.5 text-sm leading-snug',
+          formatted ? 'font-medium' : 'text-muted-foreground'
+        )}
+      >
+        {formatted ?? '—'}
+      </p>
+    </div>
+  );
+}
+
 export function FloatRequestSummaryDialog({
   request,
   onClose,
@@ -514,45 +583,120 @@ export function FloatRequestSummaryDialog({
     };
   }, [request.id, request.status, request.journalId]);
 
+  const statusBadge = floatRequestStatusBadgeClass(request.status);
+  const requestedDenoms = formatDenoms(request.denominationsRequested);
+  const approvedDenoms = formatDenoms(request.denominationsApproved);
+  const thirdStepLabel =
+    request.status === FLOAT_REQUEST_STATUS.REJECTED
+      ? 'Rejected'
+      : request.status === FLOAT_REQUEST_STATUS.CANCELLED
+        ? 'Cancelled'
+        : 'Received';
+  const thirdStepAt =
+    request.status === FLOAT_REQUEST_STATUS.REJECTED
+      ? request.rejectedAt
+      : request.status === FLOAT_REQUEST_STATUS.CANCELLED
+        ? request.cancelledAt
+        : request.receivedAt;
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Request summary</DialogTitle>
-          <DialogDescription>Float request details.</DialogDescription>
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <div className="min-w-0 space-y-1">
+              <DialogTitle>Request summary</DialogTitle>
+              <DialogDescription className="font-mono text-foreground">
+                {request.floatNoString ?? '—'}
+              </DialogDescription>
+            </div>
+            <Badge
+              variant={statusBadge.variant}
+              className={cn('shrink-0 px-3 py-1 text-sm', statusBadge.className)}
+            >
+              {floatRequestStatusLabel(request.status)}
+            </Badge>
+          </div>
         </DialogHeader>
-        <div className="space-y-3 text-sm">
-          <p><strong>Bill No:</strong> {request.floatNoString ?? '—'}</p>
-          <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
-          <p><strong>Amount:</strong> {formatCents(request.amountRequested)} LKR</p>
-          <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
-          <p><strong>Bulk cashier:</strong> {request.bulkCashier?.name ?? '—'}</p>
-          <p><strong>Requested at:</strong> {new Date(request.createdAt).toLocaleString()}</p>
-          {request.denominationsRequested?.length > 0 && (
-            <p><strong>Denominations requested:</strong>{' '}
-              {request.denominationsRequested
-                .filter((d) => d.count > 0)
-                .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
-                .join(', ') || '—'}
+
+        <div className="space-y-4 text-sm">
+          <div className="flex items-center justify-between rounded-lg bg-muted/60 px-4 py-3">
+            <span className="text-muted-foreground">Amount</span>
+            <span className="text-xl font-semibold tabular-nums">
+              {formatCents(request.amountRequested)} LKR
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Requested by</p>
+              <p className="mt-0.5 font-medium">
+                {request.requestedBy?.name ?? request.requestedById}
+              </p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Bulk cashier</p>
+              <p className="mt-0.5 font-medium">{request.bulkCashier?.name ?? '—'}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border px-3 py-3">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Timeline
             </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <TimelineStep label="Requested" at={request.createdAt} />
+              <TimelineStep label="Approved" at={request.approvedAt} />
+              <TimelineStep label={thirdStepLabel} at={thirdStepAt} />
+            </div>
+          </div>
+
+          {(requestedDenoms || approvedDenoms) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {requestedDenoms && (
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Denominations requested</p>
+                  <p className="mt-0.5 font-medium">{requestedDenoms}</p>
+                </div>
+              )}
+              {approvedDenoms && (
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Denominations approved</p>
+                  <p className="mt-0.5 font-medium">{approvedDenoms}</p>
+                </div>
+              )}
+            </div>
           )}
-          {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.approvedAt && (
-            <p><strong>Approved at:</strong> {new Date(request.approvedAt).toLocaleString()}</p>
-          )}
+
           {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.receiveCode && (
-            <p><strong>Receive code:</strong> <span className="font-mono font-semibold">{request.receiveCode}</span></p>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Receive code</p>
+              <p className="mt-0.5 font-mono text-base font-semibold tracking-widest">
+                {request.receiveCode}
+              </p>
+            </div>
+          )}
+          {request.reasonForLessThanRequested && (
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Reason for less than requested</p>
+              <p className="mt-0.5">{request.reasonForLessThanRequested}</p>
+            </div>
           )}
           {request.status === FLOAT_REQUEST_STATUS.REJECTED && request.rejectReason && (
-            <p><strong>Reject reason:</strong> {request.rejectReason}</p>
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Reject reason</p>
+              <p className="mt-0.5">{request.rejectReason}</p>
+            </div>
           )}
           {request.status === FLOAT_REQUEST_STATUS.CANCELLED && request.cancelReason && (
-            <p><strong>Cancel reason:</strong> {request.cancelReason}</p>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Cancel reason</p>
+              <p className="mt-0.5">{request.cancelReason}</p>
+            </div>
           )}
-          {request.status === FLOAT_REQUEST_STATUS.RECEIVED && request.receivedAt && (
-            <p><strong>Received at:</strong> {new Date(request.receivedAt).toLocaleString()}</p>
-          )}
+
           {request.status === FLOAT_REQUEST_STATUS.RECEIVED && (
-            <div className="rounded-md border border-border pt-3 mt-1">
+            <div className="rounded-md border pt-3">
               <p className="px-3 font-medium mb-2">Double entry</p>
               {journalLoading ? (
                 <p className="px-3 pb-3 text-muted-foreground text-xs">Loading journal…</p>

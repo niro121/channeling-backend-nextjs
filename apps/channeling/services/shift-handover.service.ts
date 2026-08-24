@@ -814,10 +814,10 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
   return filtered
 }
 
-/** Single handover detail for the recipient (toUserId). Any status is allowed for history/view; approve/reject UI only applies to PENDING. */
-export async function getHandoverByIdForRecipient(handoverId: string, toUserId: string) {
+/** Single handover by id. Access (participant vs view-any) is enforced in the action. */
+export async function getHandoverById(handoverId: string) {
   const handover = await prisma.shiftHandover.findFirst({
-    where: { id: handoverId, toUserId },
+    where: { id: handoverId },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
@@ -890,6 +890,128 @@ export async function getCompletedHandoversToMe(
   return { data, totalRecords }
 }
 
+export type HandoverHistoryDirection = "all" | "given" | "received"
+export type HandoverHistoryStatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled"
+
+const HISTORY_STATUS_MAP: Record<Exclude<HandoverHistoryStatusFilter, "all">, number> = {
+  pending: HANDOVER_STATUS.PENDING,
+  approved: HANDOVER_STATUS.APPROVED,
+  rejected: HANDOVER_STATUS.REJECTED,
+  cancelled: HANDOVER_STATUS.CANCELLED,
+}
+
+/**
+ * Handovers the current user gave or received (any status), with search, filters, and pagination.
+ */
+export async function getMyHandoverHistory(
+  userId: string,
+  params: {
+    page?: number
+    limit?: number
+    dateFrom?: string | null
+    dateTo?: string | null
+    direction?: string | null
+    status?: string | null
+    otherUserId?: string | null
+    search?: string | null
+  } = {}
+): Promise<{
+  data: Array<Awaited<ReturnType<typeof fetchCompletedHandoverPage>>[number] & { direction: "given" | "received" }>
+  totalRecords: number
+}> {
+  const page = Math.max(1, params.page ?? 1)
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20))
+  const skip = (page - 1) * limit
+
+  const direction: HandoverHistoryDirection =
+    params.direction === "given" || params.direction === "received" ? params.direction : "all"
+  const statusKey = (params.status ?? "all").trim()
+  const status: HandoverHistoryStatusFilter = statusKey in HISTORY_STATUS_MAP ? (statusKey as HandoverHistoryStatusFilter) : "all"
+  const otherUserId =
+    params.otherUserId && params.otherUserId.trim() !== "" && params.otherUserId !== "__all__"
+      ? params.otherUserId.trim()
+      : null
+
+  const and: Prisma.ShiftHandoverWhereInput[] = []
+
+  if (direction === "given") {
+    and.push({ fromUserId: userId })
+    if (otherUserId) and.push({ toUserId: otherUserId })
+  } else if (direction === "received") {
+    and.push({ toUserId: userId })
+    if (otherUserId) and.push({ fromUserId: otherUserId })
+  } else if (otherUserId) {
+    and.push({
+      OR: [
+        { fromUserId: userId, toUserId: otherUserId },
+        { toUserId: userId, fromUserId: otherUserId },
+      ],
+    })
+  } else {
+    and.push({ OR: [{ fromUserId: userId }, { toUserId: userId }] })
+  }
+
+  if (status !== "all") {
+    and.push({ status: HISTORY_STATUS_MAP[status] })
+  }
+
+  if (params.dateFrom || params.dateTo) {
+    const from = params.dateFrom ? parseReportDateTime(params.dateFrom.trim(), false) : null
+    const to = params.dateTo ? parseReportDateTime(params.dateTo.trim(), true) : null
+    const createdAt: Prisma.DateTimeFilter = {}
+    if (from) createdAt.gte = from
+    if (to) createdAt.lte = to
+    if (from || to) and.push({ createdAt })
+  }
+
+  const q = params.search?.trim() ?? ""
+  if (q) {
+    const [nameUsers, staffHits] = await Promise.all([
+      prisma.user.findMany({
+        where: { name: { contains: q, mode: "insensitive" } },
+        select: { id: true },
+        take: 50,
+      }),
+      prisma.staff.findMany({
+        where: { code: { contains: q, mode: "insensitive" } },
+        select: { id: true },
+        take: 50,
+      }),
+    ])
+    const staffUsers =
+      staffHits.length > 0
+        ? await prisma.user.findMany({
+            where: { staffId: { in: staffHits.map((s) => s.id) } },
+            select: { id: true },
+            take: 50,
+          })
+        : []
+    const matchedUserIds = [...new Set([...nameUsers, ...staffUsers].map((u) => u.id))].filter((id) => id !== userId)
+    const searchOr: Prisma.ShiftHandoverWhereInput[] = [
+      { handoverNoString: { contains: q, mode: "insensitive" } },
+    ]
+    if (matchedUserIds.length > 0) {
+      searchOr.push({ fromUserId: { in: matchedUserIds } }, { toUserId: { in: matchedUserIds } })
+    }
+    and.push({ OR: searchOr })
+  }
+
+  const where: Prisma.ShiftHandoverWhereInput = { AND: and }
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.shiftHandover.count({ where }),
+    fetchCompletedHandoverPage(where, skip, limit),
+  ])
+
+  return {
+    data: rows.map((h) => ({
+      ...h,
+      direction: h.fromUserId === userId ? ("given" as const) : ("received" as const),
+    })),
+    totalRecords,
+  }
+}
+
 async function fetchCompletedHandoverPage(
   where: Prisma.ShiftHandoverWhereInput,
   skip: number,
@@ -902,6 +1024,7 @@ async function fetchCompletedHandoverPage(
     take,
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })

@@ -31,7 +31,14 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     actionLabels: { view: "Book into blocked numbers" },
   },
   { id: "shift", name: "Shift (Channel Booking)" },
-  { id: "handover", name: "Handed over to me", actions: ["view"] },
+  {
+    id: "handover",
+    name: "Handovers",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "view-any", name: "View any handover" },
+    ],
+  },
   { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
   { id: "sessions", name: "Sessions" },

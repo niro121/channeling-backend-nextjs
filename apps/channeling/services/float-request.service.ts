@@ -355,6 +355,40 @@ export async function getFloatRequestsForBulkCashierPaginated(
   return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
 }
 
+export type GetFloatRequestsRequestedByUserPaginatedParams = {
+  page?: number;
+  limit?: number;
+  status?: number | null;
+  bulkCashierId?: string | null;
+};
+
+/** Paginated list of float requests submitted by this user (Float Transfers "Requested" tab). */
+export async function getFloatRequestsRequestedByUserPaginated(
+  requestedById: string,
+  params: GetFloatRequestsRequestedByUserPaginatedParams = {}
+) {
+  const page = Math.max(0, params.page ?? 0);
+  const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+  const where: { requestedById: string; status?: number; bulkCashierId?: string } = {
+    requestedById,
+  };
+  if (params.status !== undefined && params.status !== null) where.status = params.status;
+  if (params.bulkCashierId) where.bulkCashierId = params.bulkCashierId;
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.floatRequest.count({ where: where as never }),
+    prisma.floatRequest.findMany({
+      where: where as never,
+      include: includeFloatRequest(),
+      orderBy: { createdAt: 'desc' },
+      skip: page * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
+}
+
 // --- getPendingFloatRequestByUserId ---
 export async function getPendingFloatRequestByUserId(
   userId: string

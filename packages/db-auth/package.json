@@ -10,7 +10,8 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "backfill:user-group-app": "node scripts/backfill-user-group-app.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0"

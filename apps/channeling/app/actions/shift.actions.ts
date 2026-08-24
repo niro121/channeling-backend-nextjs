@@ -9,7 +9,8 @@ import {
   getHandoversToMe,
   getHandoversApprovedByMeNotReconciled,
   getCompletedHandoversToMe,
-  getHandoverByIdForRecipient,
+  getMyHandoverHistory,
+  getHandoverById,
   getHandoversReceivedByShift,
   getLinkedHandoversForShift,
   getIncludableHandoversForSender,
@@ -24,7 +25,7 @@ import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
-import { requirePermission } from "@/lib/server-permissions"
+import { requirePermission, checkPermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
 import { deriveHandoverCashierSummaryFilters } from "@/lib/handover-utils"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
@@ -299,6 +300,27 @@ export async function getCompletedHandoversToMeAction(params?: {
   return { success: true, data: result.data, totalRecords: result.totalRecords }
 }
 
+/** Handovers I gave or received, searchable and paginated. */
+export async function getMyHandoverHistoryAction(params?: {
+  page?: number
+  limit?: number
+  dateFrom?: string | null
+  dateTo?: string | null
+  direction?: string | null
+  status?: string | null
+  otherUserId?: string | null
+  search?: string | null
+}): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getMyHandoverHistory>>["data"]; totalRecords: number }
+  | { success: false; data: []; totalRecords: 0; message: string }
+> {
+  await requirePermission("handover", "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false, data: [], totalRecords: 0, message: "Unauthorized" }
+  const result = await getMyHandoverHistory(session.user.id, params ?? {})
+  return { success: true, data: result.data, totalRecords: result.totalRecords }
+}
+
 /** Active users for Completed-tab "Handed over by" filter (excludes current user). */
 export async function getHandoverFromUserFilterOptionsAction(): Promise<
   | { success: true; data: { id: string; name: string }[] }
@@ -384,13 +406,25 @@ export async function getLinkedHandoversForShiftAction(shiftId: string) {
   return { success: true as const, data }
 }
 
-/** Handover detail for recipient: handover + till breakdown + included handovers chain for verification. */
+/** Handover detail: sender/recipient may view; others need handover "view-any". */
 export async function getHandoverDetailAction(handoverId: string) {
   await requirePermission("handover", "view")
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { success: false, data: null, error: "Unauthorized" }
-  const handover = await getHandoverByIdForRecipient(handoverId, session.user.id)
-  if (!handover) return { success: false, data: null, error: "Handover not found or you are not the recipient." }
+  const handover = await getHandoverById(handoverId)
+  if (!handover) return { success: false, data: null, error: "Handover not found." }
+  const isParty =
+    handover.fromUserId === session.user.id || handover.toUserId === session.user.id
+  if (!isParty) {
+    const canViewAny = await checkPermission("handover", "view-any")
+    if (!canViewAny) {
+      return {
+        success: false,
+        data: null,
+        error: "You don't have permission to view this handover.",
+      }
+    }
+  }
 
   const actorIds = [
     handover.approvedBy,

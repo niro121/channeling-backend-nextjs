@@ -13,7 +13,18 @@ import {
   CalendarClock,
   Tags,
   FilePlus2,
+  CalendarOff,
+  CalendarPlus,
+  CalendarRange,
+  ClipboardList,
+  ClipboardCheck,
+  FilePenLine,
+  Moon,
+  MoonStar,
+  PartyPopper,
   ChevronDown,
+  Clock,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -119,29 +130,149 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         <div className="space-y-0.5">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
         </div>
-        <SidebarGroup label="People">
-          {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
-        </SidebarGroup>
-        <SidebarGroup label="Leave Management">
-          <SidebarCollapsible
-            label="Leave"
-            icon={<CalendarDays className="h-5 w-5" />}
-            paths={["/leave-entitlement", "/leave-management", "/leave-application", "/leave-types"]}
-          >
-            {hasAccess("/leave-entitlement") && (
-              <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+        {(hasAccess('/user-groups') || hasAccess('/users') || hasAccess('/staff')) && (
+          <SidebarGroup label="Administration">
+            {hasAccess('/user-groups') && (
+              <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
             )}
-            {hasAccess("/leave-management") && (
-              <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+            {hasAccess('/users') && (
+              <NavLink href="/users" label="Users" icon={<UsersRound className="h-5 w-5" />} />
             )}
-            {hasAccess("/leave-application") && (
-              <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
-            )}
-            {hasAccess("/leave-types") && (
-              <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
-            )}
-          </SidebarCollapsible>
-        </SidebarGroup>
+            {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
+        {(hasAccess('/leave-entitlement') ||
+          hasAccess('/leave-management') ||
+          hasAccess('/leave-application') ||
+          hasAccess('/leave-types')) && (
+          <SidebarGroup label="Leave Management">
+            <SidebarCollapsible
+              label="Leave"
+              icon={<CalendarDays className="h-5 w-5" />}
+              paths={["/leave-entitlement", "/leave-management", "/leave-application", "/leave-types"]}
+            >
+              {hasAccess("/leave-entitlement") && (
+                <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-management") && (
+                <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-application") && (
+                <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-types") && (
+                <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/overtime-requests') ||
+          hasAccess('/overtime-extra-time') ||
+          hasAccess('/overtime-day-off-ph-shift') ||
+          hasAccess('/overtime-extra-shift-normal')) && (
+          <SidebarGroup label="Overtime Management">
+            <SidebarCollapsible
+              label="Overtime"
+              icon={<Clock className="h-5 w-5" />}
+              paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
+            >
+              {hasAccess("/overtime-requests") && (
+                <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-extra-time") && (
+                <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-day-off-ph-shift") && (
+                <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-extra-shift-normal") && (
+                <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/shift-roster') ||
+          hasAccess('/shift-types') ||
+          hasAccess('/shift-assignment') ||
+          hasAccess('/duty-roster') ||
+          hasAccess('/roster-amendments') ||
+          hasAccess('/night-shifts') ||
+          hasAccess('/overnight-shifts') ||
+          hasAccess('/public-holiday-shifts')) && (
+          <SidebarGroup label="Roster & Shifts">
+            <SidebarCollapsible
+              label="Roster & Shifts"
+              icon={<CalendarRange className="h-5 w-5" />}
+              paths={[
+                '/shift-roster',
+                '/shift-types',
+                '/shift-assignment',
+                '/duty-roster',
+                '/roster-amendments',
+                '/night-shifts',
+                '/overnight-shifts',
+                '/public-holiday-shifts'
+              ]}
+            >
+              {hasAccess('/shift-roster') && (
+                <NavLink
+                  href="/shift-roster"
+                  label="Shift Roster"
+                  icon={<CalendarRange className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shift-types') && (
+                <NavLink
+                  href="/shift-types"
+                  label="Shift Types"
+                  icon={<Tags className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shift-assignment') && (
+                <NavLink
+                  href="/shift-assignment"
+                  label="Shift Assignment"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/duty-roster') && (
+                <NavLink
+                  href="/duty-roster"
+                  label="Duty Roster"
+                  icon={<ClipboardCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/roster-amendments') && (
+                <NavLink
+                  href="/roster-amendments"
+                  label="Roster Amendments"
+                  icon={<FilePenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/night-shifts') && (
+                <NavLink
+                  href="/night-shifts"
+                  label="Night Shifts"
+                  icon={<Moon className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/overnight-shifts') && (
+                <NavLink
+                  href="/overnight-shifts"
+                  label="Overnight Shifts"
+                  icon={<MoonStar className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/public-holiday-shifts') && (
+                <NavLink
+                  href="/public-holiday-shifts"
+                  label="Public Holiday Shifts"
+                  icon={<PartyPopper className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">

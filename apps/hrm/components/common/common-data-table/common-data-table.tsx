@@ -551,7 +551,7 @@ export function CommonDataTable<TData, TValue>({
               <AlertDialogAction
                 onClick={onDeleteConfirmation}
                 disabled={loading || fetchingDescription}
-                className="relative cursor-pointer"
+                className="relative cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Continue
                 {(loading || fetchingDescription) && (

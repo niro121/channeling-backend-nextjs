@@ -6,6 +6,7 @@ import {
   createFloatRequest,
   getFloatRequestsForBulkCashier,
   getFloatRequestsForBulkCashierPaginated,
+  getFloatRequestsRequestedByUserPaginated,
   getAllFloatRequestsForDashboard,
   getFloatRequestById,
   getPendingFloatRequestByUserId,
@@ -331,6 +332,28 @@ export async function getFloatRequestsForBulkCashierPaginatedAction(
     return { success: true, data: result.data, totalRecords: result.totalRecords };
   } catch (e) {
     console.error('getFloatRequestsForBulkCashierPaginatedAction error:', e);
+    return { success: false, data: [], totalRecords: 0, message: e instanceof Error ? e.message : 'Failed to load' };
+  }
+}
+
+/** Paginated float requests submitted by the current user (Float Transfers "Requested" tab). */
+export async function getFloatRequestsRequestedByMePaginatedAction(params: {
+  page?: number;
+  limit?: number;
+  status?: number | null;
+  bulkCashierId?: string | null;
+}) {
+  await requirePermission('float-transfers', 'view');
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, data: [], totalRecords: 0, message: 'Unauthorized' };
+  }
+  try {
+    const result = await getFloatRequestsRequestedByUserPaginated(userId, params);
+    return { success: true, data: result.data, totalRecords: result.totalRecords };
+  } catch (e) {
+    console.error('getFloatRequestsRequestedByMePaginatedAction error:', e);
     return { success: false, data: [], totalRecords: 0, message: e instanceof Error ? e.message : 'Failed to load' };
   }
 }

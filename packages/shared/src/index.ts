@@ -1,5 +1,6 @@
 export * from "./types/user";
 export * from "./types/user-group";
+export * from "./types/auth-apps";
 export * from "./types/2fa";
 export * from "./types/staff";
 export * from "./types/shift";
