@@ -27,6 +27,7 @@ const PATH_NAMES = [
   { path: 'night-shifts', name: 'Night Shifts' },
   { path: 'overnight-shifts', name: 'Overnight Shifts' },
   { path: 'public-holiday-shifts', name: 'Public Holiday Shifts' },
+  { path: 'holiday-calendar', name: 'Holiday Calendar' },
   { path: 'attendance', name: 'Attendance' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },

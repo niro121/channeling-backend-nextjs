@@ -25,6 +25,8 @@ import {
   ChevronDown,
   Clock,
   Users,
+  Building2,
+  CalendarHeart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -268,6 +270,24 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/public-holiday-shifts"
                   label="Public Holiday Shifts"
                   icon={<PartyPopper className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/holiday-calendar') && (
+          <SidebarGroup label="HR Administration">
+            <SidebarCollapsible
+              label="HR Administration"
+              icon={<Building2 className="h-5 w-5" />}
+              paths={['/holiday-calendar']}
+              defaultOpen
+            >
+              {hasAccess('/holiday-calendar') && (
+                <NavLink
+                  href="/holiday-calendar"
+                  label="Holiday Calendar"
+                  icon={<CalendarHeart className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
