@@ -121,7 +121,7 @@ async function MobileNav({
                 {hasAccess('/channel-room-dashboard') && (
                   <NavLink href="/channel-room-dashboard" label="Channel Room Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
                 )}
-                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />}
+                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handovers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
               </div>
             </div>
