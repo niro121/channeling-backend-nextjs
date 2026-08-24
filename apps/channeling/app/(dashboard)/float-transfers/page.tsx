@@ -5,9 +5,11 @@ import { fetchServerSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import {
   getFloatRequestsForBulkCashierPaginatedAction,
+  getFloatRequestsRequestedByMePaginatedAction,
   getFloatRequestUserOptionsAction,
 } from '@/app/actions/float-request.actions';
 import { FloatTransfersContent } from './float-transfers-content';
+import { parseFloatTransferTab } from './float-transfers-types';
 import Loading from '../loading';
 
 type SearchParams = {
@@ -16,6 +18,8 @@ type SearchParams = {
     limit?: string;
     status?: string;
     requestedById?: string;
+    bulkCashierId?: string;
+    tab?: string;
   }>;
 };
 
@@ -34,6 +38,7 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
   });
 
   const params = await searchParams;
+  const tab = parseFloatTransferTab(params?.tab);
   const page = params?.page ? parseInt(params.page, 10) : 0;
   const limit = params?.limit ? parseInt(params.limit, 10) : 10;
   const statusParam = params?.status;
@@ -47,13 +52,25 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
       ? params.requestedById
       : null;
 
+  const bulkCashierFilterId =
+    params?.bulkCashierId && params.bulkCashierId !== '__all__'
+      ? params.bulkCashierId
+      : null;
+
   const [result, userOptionsResult] = await Promise.all([
-    getFloatRequestsForBulkCashierPaginatedAction(bulkCashierId, {
-      page,
-      limit,
-      status: status ?? null,
-      requestedById,
-    }),
+    tab === 'requested'
+      ? getFloatRequestsRequestedByMePaginatedAction({
+          page,
+          limit,
+          status: status ?? null,
+          bulkCashierId: bulkCashierFilterId,
+        })
+      : getFloatRequestsForBulkCashierPaginatedAction(bulkCashierId, {
+          page,
+          limit,
+          status: status ?? null,
+          requestedById,
+        }),
     getFloatRequestUserOptionsAction(),
   ]);
 
@@ -74,6 +91,8 @@ export default async function FloatTransfersPage({ searchParams }: SearchParams)
           limit={params?.limit}
           status={params?.status}
           requestedById={params?.requestedById}
+          bulkCashierFilterId={params?.bulkCashierId}
+          tab={tab}
         />
       </Suspense>
     </div>

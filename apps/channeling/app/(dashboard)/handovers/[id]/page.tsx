@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { getHandoverDetailAction, approveHandoverAction, rejectHandoverAction } from "@/app/actions/shift.actions"
 import {
   sendHandoverToReconciliationAction,
@@ -232,6 +233,8 @@ type IncludedHandoverRow = {
 export default function HandoverDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { data: session } = useSession()
+  const currentUserId = session?.user?.id
   const id = typeof params.id === "string" ? params.id : ""
   const [data, setData] = useState<HandoverDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -484,6 +487,9 @@ export default function HandoverDetailPage() {
   const isPending = handover.status === HANDOVER_STATUS.PENDING
   const isApproved = handover.status === HANDOVER_STATUS.APPROVED
   const isRejected = handover.status === HANDOVER_STATUS.REJECTED
+  const isRecipient = currentUserId != null && handover.toUserId === currentUserId
+  const isSender = currentUserId != null && handover.fromUserId === currentUserId
+  const canActAsRecipient = isRecipient && isPending
   const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   const isApprovedNotReconciled =
     isApproved &&
@@ -545,7 +551,7 @@ export default function HandoverDetailPage() {
     <div className="handover-screen space-y-3 print:hidden">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
       <div className="sticky top-14 z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2 bg-background border-b border-border print:hidden">
-        <BackButton href="/handovers" />
+        <BackButton href={isSender && !isRecipient ? "/handovers?tab=history" : "/handovers"} />
         <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -564,7 +570,7 @@ export default function HandoverDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {isPending && (
+          {canActAsRecipient && (
             <>
               <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>
                 <XCircle className="h-4 w-4 mr-1" />
@@ -580,7 +586,7 @@ export default function HandoverDetailPage() {
               </Button>
             </>
           )}
-          {isApprovedNotReconciled && canSendToReconciliation && (
+          {isApprovedNotReconciled && canSendToReconciliation && isRecipient && (
             <>
               <Button
                 onClick={() => {
@@ -597,7 +603,7 @@ export default function HandoverDetailPage() {
               </Button>
             </>
           )}
-          {isInReconciliation && canSendToReconciliation && (
+          {isInReconciliation && canSendToReconciliation && isRecipient && (
             <>
               <Button
                 variant="outline"
@@ -622,7 +628,9 @@ export default function HandoverDetailPage() {
         <CardContent className="p-3 space-y-2.5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                {isSender && !isRecipient ? "Handover you gave" : "Handover from"}
+              </p>
               <p className="text-lg font-semibold tracking-tight leading-tight">{fromUserLabel(handover.fromUser)}</p>
             </div>
             <span
@@ -646,6 +654,7 @@ export default function HandoverDetailPage() {
 
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <Fact label="Location" value={shiftLocationLabel} />
+            <Fact label="To" value={fromUserLabel(handover.toUser)} />
             <Fact label="Bill No" value={handover.handoverNoString ?? "—"} />
             <Fact label="Shift started" value={formatDateTime(handover.shift?.startedAt)} />
             <Fact label="Handed over" value={formatDateTime(handover.createdAt)} />
@@ -999,7 +1008,7 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {isApprovedNotReconciled && canSendToReconciliation && (
+      {isApprovedNotReconciled && canSendToReconciliation && isRecipient && (
         <>
           {reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED && (
             <Alert className="border-red-500/50 bg-red-50 py-2 dark:bg-red-950/30 dark:border-red-500/40 print:hidden">
@@ -1034,8 +1043,8 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {/* Entries handed over: full breakdown (read-only) for any completed/approved/rejected view */}
-      {!isPending && (() => {
+      {/* Entries handed over: full breakdown (read-only) for completed views, and for the sender while still pending */}
+      {(!isPending || !isRecipient) && (() => {
         const lines = flattenBreakdownLines(breakdown)
         return (
           <Card className="border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20">
@@ -1076,8 +1085,8 @@ export default function HandoverDetailPage() {
         )
       })()}
 
-      {/* Entries to check: tick when verified (only when still pending approval) */}
-      {isPending && (
+      {/* Entries to check: tick when verified (only when still pending approval and you are the recipient) */}
+      {isPending && isRecipient && (
       <Card>
         <CardContent className="p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
