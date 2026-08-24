@@ -87,6 +87,7 @@ export type HandoverTabData = {
     amount: number
     type: number
     createdAt: string
+    bank: string
     cardReference: string
     slipReference: string
     /** YYYY-MM-DD when set */
@@ -140,12 +141,61 @@ function fromUserLabel(fromUser: HandoverTabData["handover"]["fromUser"]): strin
   return fromUser.staff?.code ? `${name} (${fromUser.staff.code})` : name
 }
 
+function formatReceiptBank(r: HandoverTabData["receipts"][number]): string {
+  return r.bank?.trim() || "—"
+}
+
 function formatReceiptReference(r: HandoverTabData["receipts"][number]): string {
-  if (r.cardReference?.trim()) return r.cardReference.trim()
+  if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+    return r.cardReference?.trim() || "—"
+  }
+  if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP) {
+    const slipRef = r.slipReference?.trim()
+    const slipDate = r.slipDate?.trim()
+    if (!slipRef && !slipDate) return "—"
+    if (slipRef && slipDate) return `${slipRef} · ${slipDate}`
+    return slipRef || slipDate || "—"
+  }
+  if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK) {
+    const chequeRef = r.slipReference?.trim() || r.cardReference?.trim()
+    const chequeDate = r.slipDate?.trim()
+    if (!chequeRef && !chequeDate) return "—"
+    if (chequeRef && chequeDate) return `${chequeRef} · ${chequeDate}`
+    return chequeRef || chequeDate || "—"
+  }
+  if (r.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET) {
+    return r.cardReference?.trim() || r.slipReference?.trim() || "—"
+  }
+  const cardRef = r.cardReference?.trim()
+  if (cardRef) return cardRef
   const slipRef = r.slipReference?.trim()
   if (!slipRef) return "—"
   const slipDate = r.slipDate?.trim()
   return slipDate ? `${slipRef} · ${slipDate}` : slipRef
+}
+
+export function formatReceiptMatchLine(r: HandoverTabData["receipts"][number]): string {
+  const bank = formatReceiptBank(r)
+  const reference = formatReceiptReference(r)
+  if (bank === "—" && reference === "—") return "—"
+  if (bank === "—") return reference
+  if (reference === "—") return bank
+  return `${bank} · ${reference}`
+}
+
+function referenceColumnLabel(method: number): string {
+  switch (method) {
+    case RECEIPT_PAYMENT_METHOD.CREDIT_CARD:
+      return "Card ref"
+    case RECEIPT_PAYMENT_METHOD.SLIP:
+      return "Slip ref"
+    case RECEIPT_PAYMENT_METHOD.CHECK:
+      return "Cheque ref"
+    case RECEIPT_PAYMENT_METHOD.E_WALLET:
+      return "E-Wallet ref"
+    default:
+      return "Reference"
+  }
 }
 
 const NON_CASH_METHODS_ORDERED: {
@@ -655,14 +705,15 @@ export function ReconciliationDocumentView({
                               <TableHead className="py-2 text-xs">Receipt #</TableHead>
                               <TableHead className="py-2 text-xs">Date</TableHead>
                               <TableHead className="py-2 text-right text-xs">Amount</TableHead>
-                              <TableHead className="py-2 text-xs">Reference</TableHead>
+                              <TableHead className="py-2 text-xs">Bank</TableHead>
+                              <TableHead className="py-2 text-xs">{referenceColumnLabel(method)}</TableHead>
                               <TableHead className="py-2 text-xs text-left">Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {allReceiptsThisMethod.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={7} className="text-muted-foreground text-center py-4 text-sm">
+                                <TableCell colSpan={8} className="text-muted-foreground text-center py-4 text-sm">
                                   No {methodLabel} receipts
                                 </TableCell>
                               </TableRow>
@@ -693,7 +744,8 @@ export function ReconciliationDocumentView({
                                     <TableCell className="py-1.5 text-right text-xs tabular-nums">
                                       {r.type === 1 ? "" : "−"} {formatReceiptAmount(r.amount)}
                                     </TableCell>
-                                    <TableCell className="py-1.5 text-xs">{formatReceiptReference(r)}</TableCell>
+                                    <TableCell className="py-1.5 text-xs">{formatReceiptBank(r)}</TableCell>
+                                    <TableCell className="py-1.5 text-xs font-mono">{formatReceiptReference(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs text-left align-top min-w-[10rem]">
                                       {postedCannot ? (
                                         <div className="text-left">
