@@ -24,6 +24,7 @@ import {
 import type { NotificationListItem } from '@/services/notification.service';
 import { NOTIFICATION_TYPES } from '@/types/notification';
 import { UserCircle, Wallet, Bell, FileText, Loader2 } from 'lucide-react';
+import { io, type Socket } from 'socket.io-client';
 
 function getInitial(name?: string | null, email?: string | null): string {
   if (name?.trim()) return name.trim().charAt(0).toUpperCase();
@@ -33,11 +34,15 @@ function getInitial(name?: string | null, email?: string | null): string {
 
 function getNotificationIcon(type: string) {
   switch (type) {
+    case NOTIFICATION_TYPES.FloatRequested:
     case NOTIFICATION_TYPES.FloatApproved:
     case NOTIFICATION_TYPES.FloatRejected:
+    case NOTIFICATION_TYPES.FloatCancelled:
       return <Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />;
+    case NOTIFICATION_TYPES.HandoverSubmitted:
     case NOTIFICATION_TYPES.HandoverApproved:
     case NOTIFICATION_TYPES.HandoverRejected:
+    case NOTIFICATION_TYPES.HandoverCancelled:
       return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />;
     default:
       return <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />;
@@ -96,6 +101,38 @@ export function Profile() {
     const onFocus = () => session?.user?.id && refreshUnreadCount();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
+  }, [session?.user?.id, refreshUnreadCount]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const interval = setInterval(() => {
+      refreshUnreadCount();
+    }, 20_000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id, refreshUnreadCount]);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (typeof window === 'undefined' || !userId) return;
+
+    const socket: Socket = io(window.location.origin, {
+      path: '/socket.io',
+      addTrailingSlash: false,
+    });
+    const subscribe = () => socket.emit('notification:subscribe', { userId });
+    if (socket.connected) subscribe();
+    else socket.once('connect', subscribe);
+
+    const onNotificationUpdate = () => {
+      refreshUnreadCount();
+    };
+    socket.on('notification-update', onNotificationUpdate);
+
+    return () => {
+      socket.emit('notification:unsubscribe', { userId });
+      socket.off('notification-update', onNotificationUpdate);
+      socket.disconnect();
+    };
   }, [session?.user?.id, refreshUnreadCount]);
 
   async function handleNotificationsOpenChange(open: boolean) {

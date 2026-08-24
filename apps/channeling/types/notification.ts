@@ -1,13 +1,17 @@
 /**
  * In-app notification center types.
- * Used for float approvals/rejections, handover approvals/rejections, and future notification types.
+ * Used for float and handover submit/approve/reject, and reconciliation assignment.
  */
 
 export const NOTIFICATION_TYPES = {
+  FloatRequested: 'float_requested',
   FloatApproved: 'float_approved',
   FloatRejected: 'float_rejected',
+  FloatCancelled: 'float_cancelled',
+  HandoverSubmitted: 'handover_submitted',
   HandoverApproved: 'handover_approved',
   HandoverRejected: 'handover_rejected',
+  HandoverCancelled: 'handover_cancelled',
   ReconciliationAssigned: 'reconciliation_assigned',
 } as const;
 

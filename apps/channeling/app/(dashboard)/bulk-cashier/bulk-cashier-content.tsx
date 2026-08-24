@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import {
   getAllFloatRequestsForDashboardAction,
   getFloatRequestUserOptionsAction,
@@ -117,7 +118,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     loadFloatSummary();
   }, [bulkCashierId]);
 
-  const loadRequests = () => {
+  const loadRequests = useCallback(() => {
     setLoading(true);
     getAllFloatRequestsForDashboardAction({
       status: statusFilter,
@@ -127,7 +128,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         if (res.success && res.data) setRequests(res.data);
       })
       .finally(() => setLoading(false));
-  };
+  }, [statusFilter, requestedByFilter]);
 
   useEffect(() => {
     getFloatRequestUserOptionsAction()
@@ -138,7 +139,33 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
   useEffect(() => {
     loadRequests();
-  }, [bulkCashierId, statusFilter, requestedByFilter]);
+  }, [bulkCashierId, loadRequests]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !bulkCashierId) return;
+
+    const socket: Socket = io(window.location.origin, {
+      path: '/socket.io',
+      addTrailingSlash: false,
+    });
+    const subscribe = () => socket.emit('float-request:subscribe', { userId: bulkCashierId });
+    if (socket.connected) subscribe();
+    else socket.once('connect', subscribe);
+
+    const onFloatRequestUpdate = (data?: { status?: number }) => {
+      loadRequests();
+      if (data?.status === FLOAT_REQUEST_STATUS.PENDING) {
+        toast({ title: 'New float request received' });
+      }
+    };
+    socket.on('float-request-update', onFloatRequestUpdate);
+
+    return () => {
+      socket.emit('float-request:unsubscribe', { userId: bulkCashierId });
+      socket.off('float-request-update', onFloatRequestUpdate);
+      socket.disconnect();
+    };
+  }, [bulkCashierId, loadRequests, toast]);
 
   const loadActiveShifts = () => {
     setActiveShiftsLoading(true);

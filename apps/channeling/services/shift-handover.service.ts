@@ -21,6 +21,7 @@ import { z } from "zod"
 import { normalizedIncludedIds } from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
+import { formatCents } from "@/lib/format-money"
 
 const CLOSED_HANDOVER_STATUSES = [
   HANDOVER_STATUS.APPROVED,
@@ -251,10 +252,16 @@ export async function processShiftHandover(
   const totalCents =
     amt.cashCents + amt.cardCents + amt.slipCents + amt.checkCents + amt.creditCents + amt.eWalletCents
 
-  const toUser = await prisma.user.findUnique({
-    where: { id: validTo },
-    select: { id: true, name: true },
-  })
+  const [fromUser, toUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: validFrom },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: validTo },
+      select: { id: true, name: true },
+    }),
+  ])
   if (!toUser) {
     return { success: false, error: "Handover recipient not found." }
   }
@@ -323,6 +330,17 @@ export async function processShiftHandover(
       toUserId: validTo,
       totalCents,
     },
+  })
+
+  const fromName = fromUser?.name?.trim() || "A cashier"
+  const handoverLabel = handover.handoverNoString ? ` ${handover.handoverNoString}` : ""
+  await createNotification({
+    userId: validTo,
+    type: NOTIFICATION_TYPES.HandoverSubmitted,
+    title: "Handover submitted to you",
+    message: `${fromName} submitted handover${handoverLabel} totaling LKR ${formatCents(totalCents)}. Approve or reject it.`,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handover.id,
   })
 
   const io = getIO()
@@ -709,7 +727,7 @@ export async function cancelHandover(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const handover = await prisma.shiftHandover.findUnique({
     where: { id: handoverId },
-    include: { shift: true },
+    include: { shift: true, fromUser: { select: { name: true } } },
   })
   if (!handover) {
     return { success: false, error: "Handover not found." }
@@ -742,6 +760,16 @@ export async function cancelHandover(
     entityType: "ShiftHandover",
     entityId: handoverId,
     metadata: { shiftId: handover.shiftId, toUserId: handover.toUserId },
+  })
+
+  const fromName = handover.fromUser?.name?.trim() || "The sender"
+  await createNotification({
+    userId: handover.toUserId,
+    type: NOTIFICATION_TYPES.HandoverCancelled,
+    title: "Handover cancelled",
+    message: `${fromName} cancelled the pending handover.`,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
   })
 
   const io = getIO()

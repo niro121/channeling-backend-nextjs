@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { io, type Socket } from "socket.io-client"
 import {
   getHandoversToMeAction,
   getHandoversApprovedByMeNotReconciledAction,
@@ -329,6 +331,7 @@ function CompletedPagination({
 }
 
 export default function HandoversPageClient() {
+  const { data: session } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -453,6 +456,30 @@ export default function HandoversPageClient() {
     window.addEventListener("focus", onFocus)
     return () => window.removeEventListener("focus", onFocus)
   }, [fetchActive, fetchHistory, tab])
+
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (typeof window === "undefined" || !userId) return
+
+    const socket: Socket = io(window.location.origin, {
+      path: "/socket.io",
+      addTrailingSlash: false,
+    })
+    const subscribe = () => socket.emit("shift:subscribe", { userId })
+    if (socket.connected) subscribe()
+    else socket.once("connect", subscribe)
+
+    const onShiftUpdate = () => {
+      fetchActive()
+    }
+    socket.on("shift-update", onShiftUpdate)
+
+    return () => {
+      socket.emit("shift:unsubscribe", { userId })
+      socket.off("shift-update", onShiftUpdate)
+      socket.disconnect()
+    }
+  }, [session?.user?.id, fetchActive])
 
   const pendingCount = list.length
   const reconCount = approvedNotReconciledList.length
