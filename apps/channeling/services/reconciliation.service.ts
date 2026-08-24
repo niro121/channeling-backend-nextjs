@@ -43,6 +43,7 @@ export type ReceiptForReconciliation = {
   amount: number
   type: number
   createdAt: Date
+  bank: string
   cardReference: string
   slipReference: string
   /** YYYY-MM-DD when set */
@@ -101,6 +102,8 @@ export async function getReceiptsForHandoverReconciliation(
       amount: true,
       type: true,
       createdAt: true,
+      bank: true,
+      bankId: true,
       cardReference: true,
       slipReference: true,
       slipDate: true,
@@ -116,6 +119,8 @@ export async function getReceiptsForHandoverReconciliation(
           id: true,
           paymentMethod: true,
           amount: true,
+          bank: true,
+          bankId: true,
           cardReference: true,
           slipReference: true,
           slipDate: true,
@@ -136,6 +141,7 @@ export async function getReceiptsForHandoverReconciliation(
     return true
   })
   const result: ReceiptForReconciliation[] = []
+  const unresolvedBankIds: (string | null)[] = []
   for (const r of eligible) {
     const parentReconciled = r.reconciledAt ?? undefined
     const parentCannotAt = r.cannotReconcileAt ?? undefined
@@ -146,6 +152,7 @@ export async function getReceiptsForHandoverReconciliation(
         const lineCannotAt = line.cannotReconcileAt ?? (line.reconciledAt ? undefined : parentCannotAt)
         const lineCannotReason = line.cannotReconcileReason ?? (lineCannotAt ? parentCannotReason : undefined)
         const lineReconciled = lineCannotAt ? undefined : (line.reconciledAt ?? parentReconciled)
+        const bank = (line.bank ?? "").trim() || (r.bank ?? "").trim()
         result.push({
           id: line.id,
           receiptId: r.id,
@@ -154,6 +161,7 @@ export async function getReceiptsForHandoverReconciliation(
           amount: line.amount,
           type: r.type,
           createdAt: r.createdAt,
+          bank,
           cardReference: line.cardReference ?? "",
           slipReference: line.slipReference ?? "",
           slipDate: formatSlipDate(line.slipDate) ?? null,
@@ -162,8 +170,10 @@ export async function getReceiptsForHandoverReconciliation(
           cannotReconcileAt: lineCannotAt,
           cannotReconcileReason: lineCannotReason,
         })
+        unresolvedBankIds.push(bank ? null : (line.bankId ?? r.bankId ?? null))
       }
     } else {
+      const bank = (r.bank ?? "").trim()
       result.push({
         id: r.id,
         receiptId: r.id,
@@ -172,6 +182,7 @@ export async function getReceiptsForHandoverReconciliation(
         amount: r.amount,
         type: r.type,
         createdAt: r.createdAt,
+        bank,
         cardReference: r.cardReference,
         slipReference: r.slipReference,
         slipDate: formatSlipDate(r.slipDate) ?? null,
@@ -180,7 +191,21 @@ export async function getReceiptsForHandoverReconciliation(
         cannotReconcileAt: parentCannotAt,
         cannotReconcileReason: parentCannotReason,
       })
+      unresolvedBankIds.push(bank ? null : (r.bankId ?? null))
     }
+  }
+  const missingBankIds = [...new Set(unresolvedBankIds.filter((id): id is string => !!id))]
+  if (missingBankIds.length > 0) {
+    const tags = await prisma.tag.findMany({
+      where: { id: { in: missingBankIds } },
+      select: { id: true, name: true },
+    })
+    const nameById = new Map(tags.map((t) => [t.id, (t.name ?? "").trim()]))
+    result.forEach((row, i) => {
+      if (row.bank) return
+      const name = unresolvedBankIds[i] ? nameById.get(unresolvedBankIds[i] as string) : ""
+      if (name) row.bank = name
+    })
   }
   return result
 }

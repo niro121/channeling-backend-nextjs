@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { formatCents, receiptAmountToCents } from "@/lib/format-money"
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { RECONCILIATION_STATUS } from "@/types/handover"
-import type { HandoverTabData } from "./reconciliation-document-view"
+import { formatReceiptMatchLine, type HandoverTabData } from "./reconciliation-document-view"
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0")
@@ -116,7 +116,7 @@ export function ReconciliationPrint({
       const isTicked = !isCannot && (isPosted || ticked.has(r.id))
       const key = methodKeyMap[method]
       if (isTicked && key) tickedByMethod[key] += net
-      const ref = r.cardReference?.trim() || r.slipReference?.trim() || "—"
+      const ref = formatReceiptMatchLine(r)
       const reason = (r.cannotReconcileReason ?? cannot[r.id] ?? "").trim()
       tickedReceipts.push({
         receiptNo: r.receiptNoString,
@@ -294,7 +294,7 @@ export function ReconciliationPrint({
                     <th>TICK</th>
                     <th>RECEIPT #</th>
                     <th>FROM</th>
-                    <th>REFERENCE</th>
+                    <th>BANK / REFERENCE</th>
                     <th className="text-right">AMOUNT</th>
                     <th>STATUS</th>
                     <th>REASON</th>

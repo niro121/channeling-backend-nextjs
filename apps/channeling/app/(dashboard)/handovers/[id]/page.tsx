@@ -588,21 +588,16 @@ export default function HandoverDetailPage() {
             </>
           )}
           {isApprovedNotReconciled && canSendToReconciliation && isRecipient && (
-            <>
-              <Button
-                onClick={() => {
-                  setReconcilerUserId("")
-                  setSendReconOpen(true)
-                }}
-                disabled={sendToReconLoading}
-              >
-                {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
-                Send to reconciliation
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/reconciliation">Reconciliation page</Link>
-              </Button>
-            </>
+            <Button
+              onClick={() => {
+                setReconcilerUserId("")
+                setSendReconOpen(true)
+              }}
+              disabled={sendToReconLoading}
+            >
+              {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+              Send to reconciliation
+            </Button>
           )}
           {isInReconciliation && canSendToReconciliation && isRecipient && (
             <>

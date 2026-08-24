@@ -98,6 +98,39 @@ function matchDenom(a: number, b: number) {
   return a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6
 }
 
+function handoverDiffLabel(enteredCents: number, availableCents: number): string {
+  const diff = availableCents - enteredCents
+  if (diff === 0) return "difference: 0.00"
+  if (diff > 0) return `difference: Short ${formatCents(diff)}`
+  return `difference: Over ${formatCents(Math.abs(diff))}`
+}
+
+function HandoverTabAmountSummary({
+  label,
+  enteredCents,
+  availableCents,
+  availableSuffix,
+}: {
+  label: string
+  enteredCents: number
+  availableCents: number
+  availableSuffix?: string
+}) {
+  const mismatch = enteredCents !== availableCents
+  const availableText = availableSuffix
+    ? `available to hand over ${availableSuffix}`
+    : "available to hand over"
+  return (
+    <p className="text-sm font-medium tabular-nums">
+      {label} entered: {formatCents(enteredCents)}
+      <span className={mismatch ? "text-destructive font-medium" : "text-muted-foreground"}>
+        {" "}
+        ({availableText}: {formatCents(availableCents)} · {handoverDiffLabel(enteredCents, availableCents)})
+      </span>
+    </p>
+  )
+}
+
 type OpenFloatsBlocking = {
   outgoingPending: number
   outgoingAwaitingReceive: number
@@ -908,17 +941,11 @@ export function EndShiftHandoverDialog({
 
               <TabsContent value="cash" className="mt-3 overflow-y-auto max-h-[50vh] pr-1">
                 <div className="space-y-3">
-                  <p className="text-sm font-medium tabular-nums">
-                    Cash entered: {formatCents(cashTotalCents)}
-                    <span
-                      className={
-                        cashTotalCents !== expectedBalance.cashCents ? "text-destructive font-medium" : "text-muted-foreground"
-                      }
-                    >
-                      {" "}
-                      (available to hand over: {formatCents(expectedBalance.cashCents)})
-                    </span>
-                  </p>
+                  <HandoverTabAmountSummary
+                    label="Cash"
+                    enteredCents={cashTotalCents}
+                    availableCents={expectedBalance.cashCents}
+                  />
                   <div className="flex gap-4">
                     <div className="flex-1 min-w-0 rounded-md border overflow-hidden">
                       <div className="bg-muted/60 px-2 py-1.5 text-xs font-medium">Notes & Coins (10 LKR+)</div>
@@ -979,17 +1006,12 @@ export function EndShiftHandoverDialog({
                   return (
                     <TabsContent key={key} value={tabValue} className="mt-3 overflow-y-auto max-h-[50vh] pr-1">
                       <div className="space-y-2">
-                        <p className="text-sm font-medium tabular-nums">
-                          {tabLabel} entered: {formatCents(total)}
-                          <span
-                            className={
-                              total !== expected ? "text-destructive font-medium" : "text-muted-foreground"
-                            }
-                          >
-                            {" "}
-                            (available to hand over {tillBalanceLabel}: {formatCents(expected)})
-                          </span>
-                        </p>
+                        <HandoverTabAmountSummary
+                          label={tabLabel}
+                          enteredCents={total}
+                          availableCents={expected}
+                          availableSuffix={tillBalanceLabel}
+                        />
                         <div className="flex justify-end">
                           <Button
                             type="button"
