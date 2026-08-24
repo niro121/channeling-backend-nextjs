@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react"
 import { useSession } from "next-auth/react"
 import { formatCents } from "@/lib/format-money"
+import { cashierSummaryGrandTotalRupees } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts, CashierSummaryIncludedShift } from "@/types/report"
@@ -119,7 +120,7 @@ function parseBreakdown(raw: unknown): EnteredBreakdown | null {
 }
 
 function sumSummaryRupees(t: CashierSummaryPaymentAmounts): number {
-  return t.cash + t.creditCard + t.slip + t.cheque + t.agent + t.agentCredit + t.eWallet
+  return cashierSummaryGrandTotalRupees(t)
 }
 
 function handoverStatusLabel(status: number | undefined): string {

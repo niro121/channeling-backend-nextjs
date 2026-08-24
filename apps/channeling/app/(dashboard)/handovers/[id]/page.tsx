@@ -38,6 +38,7 @@ import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
 } from "@/lib/handover-utils"
+import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
 import type { CashierSummaryReportSection } from "@/types/report"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -718,7 +719,7 @@ export default function HandoverDetailPage() {
           {(() => {
             const cs = data.cashierSummary
             const summaryValueCents = cs
-              ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+              ? cashierSummaryGrandTotalCents(cs.grandTotals)
               : totalCents
             return (
               <div className="border-t pt-2">
@@ -942,7 +943,7 @@ export default function HandoverDetailPage() {
         const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
         const cs = data.cashierSummary
         const summaryVal = cs
-          ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+          ? cashierSummaryGrandTotalCents(cs.grandTotals)
           : totalCents
         const collectionTotal = floatsInTotal + summaryVal + prevTotal - floatsOutTotal
         const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
