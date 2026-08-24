@@ -198,6 +198,25 @@ export async function createFloatRequest(
     include: includeFloatRequest(),
   });
 
+  const requesterName = row.requestedBy?.name?.trim() || 'A cashier';
+  const floatLabel = row.floatNoString ? ` ${row.floatNoString}` : '';
+  await createNotification({
+    userId: input.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatRequested,
+    title: 'Float request submitted to you',
+    message: `${requesterName} requested LKR ${formatCents(input.amountRequested)}${floatLabel}. Approve or reject it.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: row.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(input.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: row.id,
+      status: FLOAT_REQUEST_STATUS.PENDING,
+    });
+  }
+
   return { success: true, floatRequest: mapFloatRequest(row) };
 }
 
@@ -796,6 +815,24 @@ export async function cancelFloatRequest(
     },
     include: includeFloatRequest(),
   });
+
+  const requesterName = updated.requestedBy?.name?.trim() || 'The requester';
+  await createNotification({
+    userId: fr.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatCancelled,
+    title: 'Float request cancelled',
+    message: `${requesterName} cancelled their pending float request.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: updated.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(fr.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: updated.id,
+      status: FLOAT_REQUEST_STATUS.CANCELLED,
+    });
+  }
 
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }

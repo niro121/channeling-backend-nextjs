@@ -26,6 +26,12 @@ function getNotificationHref(item: NotificationListItem): string | null {
     return `/handovers/${item.referenceId}`;
   }
   if (item.referenceType === REFERENCE_TYPES.FloatRequest && item.referenceId) {
+    if (
+      item.type === NOTIFICATION_TYPES.FloatRequested ||
+      item.type === NOTIFICATION_TYPES.FloatCancelled
+    ) {
+      return '/bulk-cashier';
+    }
     return '/channel-booking';
   }
   return null;
@@ -33,11 +39,15 @@ function getNotificationHref(item: NotificationListItem): string | null {
 
 function getNotificationIcon(type: string) {
   switch (type) {
+    case NOTIFICATION_TYPES.FloatRequested:
     case NOTIFICATION_TYPES.FloatApproved:
     case NOTIFICATION_TYPES.FloatRejected:
+    case NOTIFICATION_TYPES.FloatCancelled:
       return <Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />;
+    case NOTIFICATION_TYPES.HandoverSubmitted:
     case NOTIFICATION_TYPES.HandoverApproved:
     case NOTIFICATION_TYPES.HandoverRejected:
+    case NOTIFICATION_TYPES.HandoverCancelled:
       return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />;
     default:
       return <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />;

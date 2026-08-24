@@ -34,6 +34,11 @@ export function shiftUpdateRoom(userId: string): string {
   return `shift:${userId}`
 }
 
+/** Room name for in-app notification bell updates: per user. */
+export function notificationRoom(userId: string): string {
+  return `notification:${userId}`
+}
+
 const CHANNEL_ROOM_PREFIX = "channel-room:"
 
 /** Socket room for channel-room dashboard live updates (per location). */
