@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { settleBookingService } from "@/services/channel-booking/settle-booking.service"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -82,23 +83,7 @@ const settleBookingSchema = z
         | { doctorArrivalTime?: unknown; doctorDepatureTime?: unknown }
         | null
       if (!session) return true
-      const parse = (json: unknown): { time: string }[] => {
-        if (!Array.isArray(json)) return []
-        return json.filter(
-          (item): item is { time: string } =>
-            item != null &&
-            typeof item === "object" &&
-            "time" in item &&
-            typeof (item as { time: string }).time === "string"
-        )
-      }
-      const arrivals = parse(session.doctorArrivalTime)
-      const departures = parse(session.doctorDepatureTime)
-      if (departures.length === 0) return true
-      const lastDep = Math.max(
-        ...departures.map((e) => parseInt(e.time, 10) || 0)
-      )
-      return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
+      return !isSessionDoctorDeparted(session)
     },
     {
       message:
