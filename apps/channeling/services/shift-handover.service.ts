@@ -18,7 +18,12 @@ import {
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
-import { normalizedIncludedIds } from "@/lib/handover-utils"
+import {
+  expectedHandoverAvailableFromTill,
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
+  normalizedIncludedIds,
+} from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 import { formatCents } from "@/lib/format-money"
@@ -83,8 +88,6 @@ const processHandoverSchema = z
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const shiftModel = (prisma as any).shift
-
-const OVER_TOLERANCE_CENTS = 100 // Ask for reason when over > 100 cents (1 LKR)
 
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
 export async function processShiftHandover(
@@ -222,27 +225,23 @@ export async function processShiftHandover(
 
   // Non-cash still on till but held in open reconciliation must stay with this bulk cashier.
   const held = await getNonCashHeldInReconciliation(validFrom)
-  const expectedCard = Math.max(0, breakdown.cardCents - held.cardCents)
-  const expectedSlip = Math.max(0, breakdown.slipCents - held.slipCents)
-  const expectedCheck = Math.max(0, breakdown.checkCents - held.checkCents)
-  const expectedEWallet = Math.max(0, breakdown.eWalletCents - held.eWalletCents)
+  const available = expectedHandoverAvailableFromTill(breakdown, held)
+  const overs = getHandoverAmountOvers(amt, available)
+  if (overs.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(overs, "submit"),
+    }
+  }
 
   const hasShort =
-    amt.cashCents < breakdown.cashCents ||
-    amt.cardCents < expectedCard ||
-    amt.slipCents < expectedSlip ||
-    amt.checkCents < expectedCheck ||
-    amt.creditCents < breakdown.creditCents ||
-    amt.eWalletCents < expectedEWallet
-  const hasOverOver100 =
-    (amt.cashCents - breakdown.cashCents > OVER_TOLERANCE_CENTS) ||
-    (amt.cardCents - expectedCard > OVER_TOLERANCE_CENTS) ||
-    (amt.slipCents - expectedSlip > OVER_TOLERANCE_CENTS) ||
-    (amt.checkCents - expectedCheck > OVER_TOLERANCE_CENTS) ||
-    (amt.creditCents - breakdown.creditCents > OVER_TOLERANCE_CENTS) ||
-    (amt.eWalletCents - expectedEWallet > OVER_TOLERANCE_CENTS)
-  const needsReason = hasShort || hasOverOver100
-  if (needsReason && !parsed.data.discrepancyReason?.trim()) {
+    amt.cashCents < available.cashCents ||
+    amt.cardCents < available.cardCents ||
+    amt.slipCents < available.slipCents ||
+    amt.checkCents < available.checkCents ||
+    amt.creditCents < available.creditCents ||
+    amt.eWalletCents < available.eWalletCents
+  if (hasShort && !parsed.data.discrepancyReason?.trim()) {
     return {
       success: false,
       error: "Please provide a reason for the discrepancy.",
@@ -502,6 +501,26 @@ export async function approveHandover(
   const breakdown = await getTillBalanceBreakdown(handover.fromUserId)
   if (!breakdown.tillAccountId) {
     return { success: false, error: "Sender till account not found." }
+  }
+
+  const held = await getNonCashHeldInReconciliation(handover.fromUserId)
+  const available = expectedHandoverAvailableFromTill(breakdown, held)
+  const overs = getHandoverAmountOvers(
+    {
+      cashCents: handover.cashCents,
+      cardCents: handover.cardCents,
+      slipCents: handover.slipCents,
+      checkCents: handover.checkCents,
+      creditCents: handover.creditCents,
+      eWalletCents: handover.eWalletCents,
+    },
+    available
+  )
+  if (overs.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(overs, "approve"),
+    }
   }
 
   const totalCents =

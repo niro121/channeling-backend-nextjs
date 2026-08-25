@@ -27,7 +27,7 @@ import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { requirePermission, checkPermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
-import { deriveHandoverCashierSummaryFilters } from "@/lib/handover-utils"
+import { deriveHandoverCashierSummaryFilters, expectedHandoverAvailableFromTill } from "@/lib/handover-utils"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
 import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 
@@ -444,7 +444,13 @@ export async function getHandoverDetailAction(handoverId: string) {
 
   const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
-      ? getTillBalanceBreakdown(handover.fromUserId)
+      ? Promise.all([
+          getTillBalanceBreakdown(handover.fromUserId),
+          getNonCashHeldInReconciliation(handover.fromUserId),
+        ]).then(([till, held]) => ({
+          ...till,
+          ...expectedHandoverAvailableFromTill(till, held),
+        }))
       : Promise.resolve(null),
     getPreviousHandoversForHandoverDetail({
       handoverId: handover.id,
