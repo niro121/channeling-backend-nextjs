@@ -206,6 +206,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/designations` | `designations` | Designations |
 | `/staff-grades` | `staff-grades` | Area / Staff Grade |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
+| `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE §34)* |
 | `/leave-requests` | `leave-requests` | Leave Requests |
 | `/leave-types` | `leave-types` | Leave Types |
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |
