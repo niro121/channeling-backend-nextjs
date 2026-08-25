@@ -191,6 +191,28 @@ export async function createLedgerReceipt(
   if (!input.branchId?.trim()) {
     return { success: false, errorCode: "VALIDATION", message: "Branch is required." }
   }
+  const isBranchIncomeOrExpense =
+    input.transactionType === "BRANCH_INCOME" || input.transactionType === "BRANCH_EXPENSE"
+  if (isBranchIncomeOrExpense && input.createdBy) {
+    const user = await prisma.user.findUnique({
+      where: { id: input.createdBy },
+      select: { userLocationId: true },
+    })
+    if (!user?.userLocationId?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "You must have a branch assigned to record branch income or expense.",
+      }
+    }
+    if (input.branchId !== user.userLocationId) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "You can only record branch income or expense for your assigned branch.",
+      }
+    }
+  }
   if (typeof input.amount !== "number" || input.amount <= 0) {
     return { success: false, errorCode: "VALIDATION", message: "Amount must be a positive number." }
   }
