@@ -1,3 +1,87 @@
+import { formatCents } from "@/lib/format-money"
+
+export const HANDOVER_AMOUNT_METHOD_KEYS = [
+  "cashCents",
+  "cardCents",
+  "slipCents",
+  "checkCents",
+  "creditCents",
+  "eWalletCents",
+] as const
+
+export type HandoverMethodAmountKey = (typeof HANDOVER_AMOUNT_METHOD_KEYS)[number]
+
+export type HandoverMethodAmounts = Record<HandoverMethodAmountKey, number>
+
+export const HANDOVER_AMOUNT_METHOD_LABELS: Record<HandoverMethodAmountKey, string> = {
+  cashCents: "Cash",
+  cardCents: "Card",
+  slipCents: "Slips",
+  checkCents: "Cheques",
+  creditCents: "Credit",
+  eWalletCents: "E-Wallet",
+}
+
+export type HandoverAmountOver = {
+  key: HandoverMethodAmountKey
+  label: string
+  enteredCents: number
+  availableCents: number
+}
+
+/** Available to hand over: full till minus non-cash already held in open reconciliation. */
+export function expectedHandoverAvailableFromTill(
+  till: HandoverMethodAmounts,
+  held?: { cardCents?: number; slipCents?: number; checkCents?: number; eWalletCents?: number } | null
+): HandoverMethodAmounts {
+  return {
+    cashCents: till.cashCents,
+    cardCents: Math.max(0, till.cardCents - (held?.cardCents ?? 0)),
+    slipCents: Math.max(0, till.slipCents - (held?.slipCents ?? 0)),
+    checkCents: Math.max(0, till.checkCents - (held?.checkCents ?? 0)),
+    creditCents: till.creditCents,
+    eWalletCents: Math.max(0, till.eWalletCents - (held?.eWalletCents ?? 0)),
+  }
+}
+
+/** Methods where entered is greater than available. Shortfalls are allowed. */
+export function getHandoverAmountOvers(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverAmountOver[] {
+  const overs: HandoverAmountOver[] = []
+  for (const key of HANDOVER_AMOUNT_METHOD_KEYS) {
+    const enteredCents = entered[key] ?? 0
+    const availableCents = available[key] ?? 0
+    if (enteredCents > availableCents) {
+      overs.push({
+        key,
+        label: HANDOVER_AMOUNT_METHOD_LABELS[key],
+        enteredCents,
+        availableCents,
+      })
+    }
+  }
+  return overs
+}
+
+export function formatHandoverOverAmountError(
+  overs: HandoverAmountOver[],
+  context: "submit" | "approve"
+): string {
+  if (overs.length === 0) return ""
+  const details = overs
+    .map(
+      (m) =>
+        `${m.label}: entered ${formatCents(m.enteredCents)}, available ${formatCents(m.availableCents)}`
+    )
+    .join("; ")
+  if (context === "submit") {
+    return `Cannot hand over more than the till holds. ${details}. You may hand over less than available, but not more.`
+  }
+  return `Cannot approve this handover: amounts exceed the sender's available till. ${details}. Reject the handover so the sender can resubmit with amounts that do not exceed the till.`
+}
+
 /** Normalize JSON field to string[] (MongoDB/Prisma sometimes returns array as object { "0": "id1", "1": "id2" }). */
 export function normalizedIncludedIds(includedHandoverIds: string[] | null | unknown): string[] {
   if (Array.isArray(includedHandoverIds)) {
