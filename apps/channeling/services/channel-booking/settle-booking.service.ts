@@ -23,24 +23,10 @@ import {
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import { parseSlipDateInput } from "@/lib/slip-date"
-
-type ArrivalDepartureEntry = { time: string; createdBy: string }
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 
 function toCents(value: number): number {
   return Math.round(Number(value || 0) * 100)
-}
-
-function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (item): item is ArrivalDepartureEntry =>
-      item != null &&
-      typeof item === "object" &&
-      "time" in item &&
-      "createdBy" in item &&
-      typeof (item as ArrivalDepartureEntry).time === "string" &&
-      typeof (item as ArrivalDepartureEntry).createdBy === "string"
-  )
 }
 
 function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: number) {
@@ -237,18 +223,12 @@ export async function settleBookingService(
     }
   }
 
-  const arrivals = parseArrivalDepartureJson(sessionWithMeta?.doctorArrivalTime)
-  const departures = parseArrivalDepartureJson(sessionWithMeta?.doctorDepatureTime)
-  if (departures.length > 0) {
-    const lastDepTime = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
-    const hasArrivalAfterLastDep = arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDepTime)
-    if (!hasArrivalAfterLastDep) {
-      return {
-        success: false,
-        errorCode: "doctor_departed",
-        message:
-          "Doctor has departed. Doctor must arrive again before settlement is allowed.",
-      }
+  if (isSessionDoctorDeparted(sessionWithMeta)) {
+    return {
+      success: false,
+      errorCode: "doctor_departed",
+      message:
+        "Doctor has departed. Doctor must arrive again before settlement is allowed.",
     }
   }
 

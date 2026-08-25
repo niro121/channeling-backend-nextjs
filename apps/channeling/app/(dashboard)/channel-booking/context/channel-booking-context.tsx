@@ -179,7 +179,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [selectedDoctor, setSelectedDoctor] = useState<ChannelBookingDoctorOption | null>(null)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<ChannelBookingRecord | null>(null)
-  const [sessions, setSessions] = useState<Session[]>([])
+  const [sessions, setSessionsState] = useState<Session[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [bookings, setBookings] = useState<ChannelBookingRecord[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
@@ -190,6 +190,14 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
   const [referredAgencyId, setReferredAgencyId] = useState<string | null>(null)
   const [referredStaffId, setReferredStaffId] = useState<string | null>(null)
   const [selectedTransferBookingIds, setSelectedTransferBookingIdsState] = useState<string[]>([])
+
+  const setSessions = useCallback((next: Session[]) => {
+    setSessionsState(next)
+    setSelectedSession((cur) => {
+      if (!cur) return cur
+      return next.find((s) => s.id === cur.id) ?? cur
+    })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -255,7 +263,7 @@ export function ChannelBookingProvider({ children }: { children: React.ReactNode
         >
       >
     ) => {
-      setSessions((prev) =>
+      setSessionsState((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, ...update } : s))
       )
       setSelectedSession((cur) =>
