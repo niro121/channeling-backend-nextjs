@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
-import { formatCents, receiptAmountToCents } from "@/lib/format-money"
+import { formatCents, signedReceiptAmountToCents } from "@/lib/format-money"
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { RECONCILIATION_STATUS } from "@/types/handover"
 import { formatReceiptMatchLine, type HandoverTabData } from "./reconciliation-document-view"
@@ -109,8 +109,7 @@ export function ReconciliationPrint({
     for (const r of tab.receipts) {
       const method = r.paymentMethod
       if (!NON_CASH_METHODS.includes(method as typeof NON_CASH_METHODS[number])) continue
-      const cents = receiptAmountToCents(r.amount)
-      const net = r.type === 1 ? cents : -cents
+      const net = signedReceiptAmountToCents(r.amount, r.type)
       const isCannot = Boolean(r.cannotReconcileAt) || Boolean(cannot[r.id])
       const isPosted = Boolean(r.reconciledAt) && !isCannot
       const isTicked = !isCannot && (isPosted || ticked.has(r.id))
