@@ -46,8 +46,9 @@ flowchart TB
     end
     subgraph Other["Other"]
         direction TB
-        FloatApprove[Float approve] --> FloatSource[Source account balance]
-        FloatReceive[Float receive] --> FloatJ[Journal]
+        FloatApprove[Float approve] --> FloatSource[Cash balance check]
+        FloatReceive[Float receive] --> FloatCash[Cash balance check]
+        FloatCash --> FloatJ[Journal]
         Manual[Manual journal] --> ManualJ[Journal]
     end
     SaveJ --> Core[Min max check then write]
@@ -151,10 +152,11 @@ const OTHER_CODE = `
 flowchart TB
     subgraph Float["Float request"]
         direction TB
-        FA1[Approve - validate request] --> FA2[Source account balance check]
+        FA1[Approve - validate request] --> FA2[Cash balance check]
         FA2 --> FA3[Update request with receive code]
         FA3 --> FR1[Receive - cashier enters code]
-        FR1 --> FR2[Create journal - min max check]
+        FR1 --> FR2[Cash balance check]
+        FR2 --> FR3[Create journal - min max check]
     end
     subgraph Manual["Manual journal entry"]
         direction TB

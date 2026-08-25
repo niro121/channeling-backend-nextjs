@@ -18,12 +18,13 @@ import {
   lkrToCents,
 } from '@/types/float-request';
 import {
-  getAccountBalance,
+  getTillBalanceBreakdownForAccount,
   createJournalEntry,
   resolveTillForUserAndLocation,
   type ResolvedTill,
 } from '@/services/accounting.service';
 import { SHIFT_STATUS } from '@/types/shift';
+import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
@@ -62,11 +63,12 @@ export async function resolveBulkCashierSourceTill(userId: string): Promise<Reso
 export async function getBulkCashierSourceTillSummary(userId: string): Promise<{
   till: ResolvedTill | null;
   balanceCents: number;
+  cashCents: number;
 }> {
   const till = await resolveBulkCashierSourceTill(userId);
-  if (!till) return { till: null, balanceCents: 0 };
-  const balanceCents = await getAccountBalance(till.accountId);
-  return { till, balanceCents };
+  if (!till) return { till: null, balanceCents: 0, cashCents: 0 };
+  const breakdown = await getTillBalanceBreakdownForAccount(till.accountId);
+  return { till, balanceCents: breakdown.totalCents, cashCents: breakdown.cashCents };
 }
 
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
@@ -496,11 +498,11 @@ export async function approveFloatRequest(
     };
   }
 
-  const fromBalanceCents = await getAccountBalance(fromTill.accountId);
-  if (fromBalanceCents < approvedTotalCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fromTill.accountId)).cashCents;
+  if (fromCashCents < approvedTotalCents) {
     return {
       success: false,
-      error: `Insufficient balance in your active till. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
+      error: `Insufficient cash in your active till. Available cash: ${formatCents(fromCashCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -635,11 +637,11 @@ export async function receiveFloatRequest(
   if (amountCents <= 0) {
     return { success: false, error: 'Approved amount is missing or zero.' };
   }
-  const fromBalanceCents = await getAccountBalance(fr.fromAccountId);
-  if (fromBalanceCents < amountCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fr.fromAccountId)).cashCents;
+  if (fromCashCents < amountCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR.`,
+      error: `Insufficient cash in source till. Available cash: ${formatCents(fromCashCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -651,8 +653,18 @@ export async function receiveFloatRequest(
     referenceId: fr.id,
     createdBy: input.receivedById,
     lines: [
-      { accountId: toAccountId, debitAmount: amountCents, creditAmount: 0 },
-      { accountId: fr.fromAccountId, debitAmount: 0, creditAmount: amountCents },
+      {
+        accountId: toAccountId,
+        debitAmount: amountCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
+      {
+        accountId: fr.fromAccountId,
+        debitAmount: 0,
+        creditAmount: amountCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
     ],
   });
 
