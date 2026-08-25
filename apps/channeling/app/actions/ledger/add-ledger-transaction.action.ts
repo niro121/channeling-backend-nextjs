@@ -61,11 +61,14 @@ export async function addLedgerTransaction(
   const { transactionType, branchId: clientBranchId, agencyId, amount, remarks } = parsed.data
   const isAgencyType = (AGENCY_TYPES as readonly string[]).includes(transactionType)
   const isBankDeposit = transactionType === "BANK_DEPOSIT"
+  const isBranchIncomeOrExpense =
+    transactionType === "BRANCH_INCOME" || transactionType === "BRANCH_EXPENSE"
+  const lockBranchToUserLocation = isAgencyType || isBankDeposit || isBranchIncomeOrExpense
   let userLocationId: string | null = null
 
-  // For agency and bank-deposit types, branch is the user's location (not from form).
+  // Branch income/expense, agency, and bank-deposit types use the user's location (not a chosen branch).
   let branchId = clientBranchId ?? ""
-  if (isAgencyType || isBankDeposit) {
+  if (lockBranchToUserLocation) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { userLocationId: true },
@@ -76,13 +79,22 @@ export async function addLedgerTransaction(
         success: false,
         message: isBankDeposit
           ? "You must have a branch assigned to record bank deposits."
-          : "You must have a branch assigned to record agency transactions.",
+          : isBranchIncomeOrExpense
+            ? "You must have a branch assigned to record branch income or expense."
+            : "You must have a branch assigned to record agency transactions.",
+        errorCode: "VALIDATION",
+      }
+    }
+    if (isBranchIncomeOrExpense && clientBranchId?.trim() && clientBranchId !== userLocationId) {
+      return {
+        success: false,
+        message: "You can only record branch income or expense for your assigned branch.",
         errorCode: "VALIDATION",
       }
     }
     branchId = userLocationId
   }
-  if (!isAgencyType && !isBankDeposit && !branchId.trim()) {
+  if (!lockBranchToUserLocation && !branchId.trim()) {
     return { success: false, message: "Branch is required.", errorCode: "VALIDATION" }
   }
 

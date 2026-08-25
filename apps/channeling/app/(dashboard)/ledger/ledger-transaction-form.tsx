@@ -30,6 +30,15 @@ const AGENCY_TYPES_FOR_VALIDATION: string[] = [
   "AGENCY_WITHDRAW",
 ]
 const BANK_DEPOSIT_TYPE = "BANK_DEPOSIT"
+const BRANCH_INCOME_EXPENSE_TYPES: string[] = ["BRANCH_INCOME", "BRANCH_EXPENSE"]
+
+function usesAssignedUserLocation(type: string): boolean {
+  return (
+    AGENCY_TYPES_FOR_VALIDATION.includes(type) ||
+    type === BANK_DEPOSIT_TYPE ||
+    BRANCH_INCOME_EXPENSE_TYPES.includes(type)
+  )
+}
 
 type LedgerFormValues = {
   transactionType: LedgerTransactionType
@@ -50,8 +59,7 @@ const validationSchema = Yup.object({
     .oneOf(LEDGER_TRANSACTION_TYPES as unknown as string[])
     .required("Transaction type is required"),
   branchId: Yup.string().when("transactionType", {
-    is: (type: string) =>
-      !AGENCY_TYPES_FOR_VALIDATION.includes(type) && type !== BANK_DEPOSIT_TYPE,
+    is: (type: string) => !usesAssignedUserLocation(type),
     then: (schema) => schema.required("Please select a branch."),
     otherwise: (schema) => schema,
   }),
@@ -244,14 +252,18 @@ export function LedgerTransactionForm({
   ) {
     const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
     const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
-    const effectiveBranchId =
-      isAgencyType || isBankDeposit ? (userLocationId ?? "") : values.branchId
-    if ((isAgencyType || isBankDeposit) && !effectiveBranchId.trim()) {
+    const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(values.transactionType)
+    const effectiveBranchId = usesAssignedUserLocation(values.transactionType)
+      ? (userLocationId ?? "")
+      : values.branchId
+    if (usesAssignedUserLocation(values.transactionType) && !effectiveBranchId.trim()) {
       toast({
         title: "Validation",
         description: isBankDeposit
           ? "You must have a branch assigned to record bank deposits."
-          : "You must have a branch assigned to record agency transactions.",
+          : isBranchIncomeOrExpense
+            ? "You must have a branch assigned to record branch income or expense."
+            : "You must have a branch assigned to record agency transactions.",
         variant: "destructive",
       })
       setSubmitting(false)
@@ -365,6 +377,10 @@ export function LedgerTransactionForm({
         const isAgencyType = AGENCY_TYPES.includes(formik.values.transactionType)
         const isAgencyDeposit = formik.values.transactionType === "AGENCY_DEPOSIT"
         const isBankDeposit = formik.values.transactionType === "BANK_DEPOSIT"
+        const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(
+          formik.values.transactionType
+        )
+        const showAssignedBranch = isAgencyType || isBranchIncomeOrExpense
         const showPaymentDetails = isAgencyDeposit
         const showBank = showPaymentDetails && formik.values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
         const isCard = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
@@ -393,7 +409,7 @@ export function LedgerTransactionForm({
               </Select>
             </div>
 
-            {!isAgencyType && !isBankDeposit && (
+            {!isAgencyType && !isBankDeposit && !isBranchIncomeOrExpense && (
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
                 <ReferenceSelect
@@ -436,7 +452,7 @@ export function LedgerTransactionForm({
               </div>
             )}
 
-            {isAgencyType && (
+            {showAssignedBranch && (
               <div className="space-y-2">
                 <Label>Branch</Label>
                 <p className="text-sm text-muted-foreground">
@@ -444,7 +460,9 @@ export function LedgerTransactionForm({
                     ? userLocationName
                       ? `Your branch: ${userLocationName}`
                       : "Your branch will be used"
-                    : "You must have a branch assigned to record agency transactions."}
+                    : isBranchIncomeOrExpense
+                      ? "You must have a branch assigned to record branch income or expense."
+                      : "You must have a branch assigned to record agency transactions."}
                 </p>
               </div>
             )}
