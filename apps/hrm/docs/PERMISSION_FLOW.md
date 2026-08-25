@@ -200,8 +200,12 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 |-------|-------------|--------------------------|
 | `/staff` | `staff` | *(mapped; ensure Auth group has staff if used)* |
 | `/employees` | `employees` | Employees |
-| `/departments` | `departments` | Departments |
-| `/positions` | `positions` | Positions |
+| `/departments` | `departments` | Departments *(planned HR Admin master — see HR_ADMINISTRATION_GUIDE §31)* |
+| `/positions` | `positions` | Positions *(prefer Designations unless product requires separate screen)* |
+| `/holiday-calendar` | `holiday-calendar` | Holiday Calendar |
+| `/designations` | `designations` | Designations |
+| `/staff-grades` | `staff-grades` | Area / Staff Grade |
+| `/manage-rosters` | `manage-rosters` | Manage Rosters |
 | `/leave-requests` | `leave-requests` | Leave Requests |
 | `/leave-types` | `leave-types` | Leave Types |
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |
@@ -213,7 +217,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/overtime-extra-shift-normal` | `overtime-requests` | OT Requests (same grant) |
 | `/attendance` | `attendance` | Attendance |
 | `/payroll` | `payroll` | Payroll |
-| `/salary-structures` | `salary-structures` | Salary Structures |
+| `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
 | `/reports` | `reports` | Reports |
 | `/users` | `users` | Users & User Groups |
 | `/user-groups` | `users` | (same resource) |

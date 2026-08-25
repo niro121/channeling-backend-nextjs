@@ -9,17 +9,20 @@ Use with:
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Implemented modules:** **Holiday Calendar**, **Designation Management**, **Area / Staff Grade**, **Manage Rosters**.  
-**Build path:** Types/Zod → Service → Actions → master–detail UI → wire downstream reads.
+**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Manage Rosters.  
+**Strategy:** Finish remaining **HR Admin master modules** first, then run a single **cross-manager integration** wave (Staff, Roster & Shifts, Leave).  
+**Build path (each module):** Doc/types → UI-first master–detail → Prisma/Zod service → Actions → live CRUD.  
+**Do not** wire Staff / Roster / Leave consumers until the related master is shipped (or that master is explicitly out of scope for the wave).
 
-This document currently covers:
+### Coverage in this document
 
-- **Holiday Calendar** — implemented
-- **Designation Management** — D0–D5 complete (Staff/Roster integration deferred)
-- **Area / Staff Grade** — G0–G5 complete (Staff/Roster integration deferred)
-- **Manage Rosters** — R0–R5 complete (Staff/Roster integration deferred)
-
-Other HR Administration modules (Salary Cycle, etc.) will be added here as they are scoped.
+| Module | Status | Detail sections |
+|--------|--------|-----------------|
+| Holiday Calendar | Shipped | §2–12 |
+| Designation Management | Shipped (D0–D5); D6/D7 deferred | §13–18 |
+| Area / Staff Grade | Shipped (G0–G5); G6/G7 deferred | §19–24 |
+| Manage Rosters | Shipped (R0–R5); R6/R7 deferred | §25–30 |
+| Remaining masters + integration backlog | Tracking only | §31–33 |
 
 ---
 
@@ -27,18 +30,42 @@ Other HR Administration modules (Salary Cycle, etc.) will be added here as they 
 
 HR Administration is the **master-data and configuration** area for hospital HR operations. It sits alongside existing sidebar groups (Administration, Leave Management, Overtime Management, Roster & Shifts) and owns reference data that other modules consume.
 
+### Live sidebar
+
+Collapsible group **HR Administration** (add links only when a module ships — do not pre-populate unbuilt routes):
+
+| Link | Route | Resource |
+|------|-------|----------|
+| Holiday Calendar | `/holiday-calendar` | `holiday-calendar` |
+| Designations | `/designations` | `designations` |
+| Area / Staff Grade | `/staff-grades` | `staff-grades` |
+| Manage Rosters | `/manage-rosters` | `manage-rosters` |
+
+### Concern map
+
 | Concern | Owner | Notes |
 |---------|-------|-------|
-| Holiday dates & types | **Holiday Calendar** (this doc) | Source of truth for PH / Poya / Mercantile days |
-| Job designations | **Designation Management** (this doc) | Master list; Staff/Roster integration deferred |
-| Area / staff grades | **Area / Staff Grade** (this doc) | Master list; Staff/Roster integration deferred |
-| Roster groups (team/ward) | **Manage Rosters** (this doc) | Business roster master (`CHN`); not `ShiftRoster` period codes (`SR-n`) |
-| Shift templates for holidays | Roster & Shifts (`ShiftType.holidayEligible`) | Consumes holiday dates; does not define them |
-| PH duty allocations | Roster & Shifts (`/public-holiday-shifts`) | Joins `RosterAllocation` → `HolidayCalendar` |
-| Leave day counting | Leave (`/leave-application`) | Future: skip holidays when computing `days` |
-| Payroll PH allowance | External / future | Flags and allowances on allocations today; no payroll engine in v1 |
+| Holiday dates & types | **Holiday Calendar** | Source of truth for PH / Poya / Mercantile days |
+| Job designations | **Designation Management** | CRUD shipped; Staff/Roster select still placeholder |
+| Area / staff grades | **Area / Staff Grade** | CRUD shipped; Staff/Roster select still placeholder |
+| Roster groups (team/ward) | **Manage Rosters** | Business code `CHN` ≠ period code `SR-n`; Staff/Roster still placeholder |
+| Departments | **Backlog** (§31) | Placeholders in Staff, Manage Rosters, Roster filters |
+| Units / wards | **Backlog** (§31) | Heavy use in Roster & Shifts; may nest under Department |
+| Institutions | **Backlog** (§31) | Staff Employment placeholder |
+| Salary cycle | **Backlog** (§31) | Appears on Overnight / payroll-adjacent Roster UI |
+| Salary structures | **Backlog** (§31) | Listed in permission map; not built |
+| Shift templates for holidays | Roster & Shifts | Consumes holiday dates; does not define them |
+| PH duty allocations | Roster & Shifts | Joins `RosterAllocation` → `HolidayCalendar` |
+| Leave day counting | Leave | Future: skip holidays when computing `days` |
+| Payroll PH allowance | External / future | Flags on allocations today; no payroll engine in v1 |
 
-**Sidebar (planned):** collapsible group **HR Administration** with **Holiday Calendar** as the first link. Additional links will be added module-by-module — do not pre-populate the sidebar with unbuilt routes.
+### Delivery rule
+
+```
+1) Ship next HR Admin master (CRUD only)
+2) Repeat until backlog masters for this wave are done
+3) Then one integration wave → Staff Employment + Roster filters + derived counts
+```
 
 ---
 
@@ -500,10 +527,10 @@ apps/hrm/
 | **D3 — Schema & service** | Prisma model, Zod CRUD, unique name guard, `DES-n` code generation | **Done** |
 | **D4 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **D5 — Wire CRUD** | Page + detail form use real actions; sample data removed from imports | **Done** |
-| **D6 — Staff integration (deferred)** | Staff Employment selects from designation master | Later |
-| **D7 — Roster integration (deferred)** | Roster filters/snapshots consume designation master consistently | Later |
+| **D6 — Staff integration (deferred)** | Staff Employment selects from designation master | Later — see §32 |
+| **D7 — Roster integration (deferred)** | Roster filters/snapshots consume designation master consistently | Later — see §32 |
 
-**D0–D5 shipped.** D6 and D7 are deferred to a future integration phase.
+**D0–D5 shipped.** D6/D7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
 
 ---
 
@@ -656,10 +683,10 @@ apps/hrm/
 | **G3 — Schema & service** | Prisma model, Zod CRUD, unique name, `SG-n` codes | **Done** |
 | **G4 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **G5 — Wire CRUD** | Page + detail form use real actions; sample data removed | **Done** |
-| **G6 — Staff integration (deferred)** | Staff Employment `staffGrade` selects from this master | Later |
-| **G7 — Roster integration (deferred)** | Roster filters consume this master | Later |
+| **G6 — Staff integration (deferred)** | Staff Employment `staffGrade` selects from this master | Later — see §32 |
+| **G7 — Roster integration (deferred)** | Roster filters consume this master | Later — see §32 |
 
-**G0–G5 shipped.** G6 and G7 are deferred to a future integration phase.
+**G0–G5 shipped.** G6/G7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
 
 ---
 
@@ -834,10 +861,10 @@ apps/hrm/
 | **R3 — Schema & service** | Prisma `ManageRoster`, Zod CRUD, unique name + unique code | Done |
 | **R4 — Actions** | Permissions, activity log, revalidate | Done |
 | **R5 — Wire CRUD** | Live list + mutations; sample data removed | Done |
-| **R6 — Staff integration (deferred)** | Staff Employment roster select from this master | Later |
-| **R7 — Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods | Later |
+| **R6 — Staff integration (deferred)** | Staff Employment roster select from this master | Later — see §32 |
+| **R7 — Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods | Later — see §32 |
 
-**R0–R5** shipped. Keep R6/R7 deferred.
+**R0–R5** shipped. R6/R7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31). Prefer shipping **Departments** first so Manage Rosters can drop its department placeholder enum.
 
 ---
 
@@ -856,4 +883,100 @@ apps/hrm/
 
 ---
 
-*Last updated: Aug 2026 — Manage Rosters R0–R5 complete (`CHN` ≠ `SR-n`; Staff/Roster integration deferred).*
+## 31. Remaining HR Admin modules (backlog)
+
+Track here until each module gets its own detailed sections (same pattern as Holiday / Designation / Grade / Roster).  
+**Do not add sidebar links until CRUD ships.** Prefer master–detail under `(hr-admin)/`, one Auth resource per screen.
+
+### Suggested build order
+
+| Priority | Module (working name) | Likely route | Likely resource | Why next |
+|----------|----------------------|--------------|-----------------|----------|
+| **P1** | **Departments** | `/departments` | `departments` | Unblocks Manage Rosters `departmentId`, Staff Employment, Roster filters |
+| **P2** | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Roster & Shifts filters/snapshots; confirm if nested under Department |
+| **P3** | **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment still uses `INSTITUTION_OPTIONS` placeholder |
+| **P4** | **Salary Cycle** | `/salary-cycles` (TBD) | `salary-cycles` (TBD) | Overnight / payroll-adjacent Roster columns; payroll prep |
+| **P5** | **Salary Structures** | `/salary-structures` | `salary-structures` | Already named in permission map; payroll prep |
+
+> **Positions:** `/positions` appears in the legacy permission map. Prefer treating **Designations** as the job-title master unless product requires a separate Positions screen.
+
+### Placeholder sources to replace later
+
+| Consumer | Placeholder file / pattern | Replace with |
+|----------|----------------------------|--------------|
+| Staff Employment | `types/staff-employment-options.ts` (`DEPARTMENT_OPTIONS`, `INSTITUTION_OPTIONS`, …) | Live masters |
+| Staff Employment | Same file (`STAFF_DESIGNATION_OPTIONS`, `STAFF_GRADE_OPTIONS`, `ROSTER_OPTIONS`) | Designation / Staff Grade / Manage Roster masters (§32) |
+| Manage Rosters | `MANAGE_ROSTER_DEPARTMENTS` in `types/manage-roster.ts` | Departments master |
+| Roster & Shifts | Filter option loaders / snapshot strings | Departments, Units, Designations, Rosters, Grades |
+
+### Per-module checklist (copy when starting a new master)
+
+- [ ] Guide section drafted (product surface, domain, UI map, phases)
+- [ ] Types + sample data (UI-first)
+- [ ] Route + sidebar + breadcrumbs + permission resource
+- [ ] Master–detail Formik/Yup UI (actions at bottom of detail)
+- [ ] Prisma model + Zod service + unique guards / codes
+- [ ] Server actions (permissions, activity log, revalidate)
+- [ ] Wire live CRUD; remove sample data
+- [ ] Leave Staff/Roster integration for §32 unless explicitly in-scope
+
+---
+
+## 32. Cross-manager integration backlog (deferred)
+
+**Gate:** Prefer completing P1–P3 (or the subset product locks for this wave) before a broad integration pass. Holiday Calendar already feeds Public Holiday Shifts; other masters do not yet replace Staff/Roster placeholders.
+
+### Staff Manager (`/staff` — Employment tab)
+
+| ID | Work | Depends on | Status |
+|----|------|------------|--------|
+| **INT-S1** | Designation select from `Designation` master (store code or id consistently) | Designations | Deferred (D6) |
+| **INT-S2** | Staff grade select from `StaffGrade` master | Staff Grades | Deferred (G6) |
+| **INT-S3** | Roster select from `ManageRoster` master (store business **code**, e.g. `CHN`) | Manage Rosters | Deferred (R6) |
+| **INT-S4** | Department select from Departments master | Departments (P1) | Blocked |
+| **INT-S5** | Institution select from Institutions master | Institutions (P3) | Blocked |
+| **INT-S6** | Remove obsolete entries from `staff-employment-options.ts` once live | INT-S1–S5 | Deferred |
+
+### Roster & Shifts
+
+| ID | Work | Depends on | Status |
+|----|------|------------|--------|
+| **INT-R1** | Designation filters / snapshots use Designation master | Designations | Deferred (D7) |
+| **INT-R2** | Staff grade filters use Staff Grade master | Staff Grades | Deferred (G7) |
+| **INT-R3** | Roster filters/options use Manage Roster codes (`CHN`); keep `SR-n` for period IDs only | Manage Rosters | Deferred (R7) |
+| **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply | Manage Rosters + R7 | Deferred |
+| **INT-R5** | Department / Unit filters and snapshots from masters | Departments (P1), Units (P2) | Blocked |
+| **INT-R6** | Manage Rosters summary: assigned staff count (match `employment.roster` → code) | INT-S3 | Deferred |
+| **INT-R7** | Manage Rosters summary: active shifts (when roster↔shift-type link exists) | R7 scope | Deferred |
+| **INT-R8** | Confirm Holiday Calendar ownership notes in Roster guide (stub language is outdated) | Holiday Calendar | Docs follow-up |
+
+### Leave / other
+
+| ID | Work | Depends on | Status |
+|----|------|------------|--------|
+| **INT-L1** | Leave day counting skips `HolidayCalendar` dates where product requires | Holiday Calendar | Deferred |
+| **INT-P1** | Payroll / PH allowance consumes holiday + salary masters | Salary Cycle / Structures | Future |
+
+### Integration wave checklist
+
+- [ ] Product confirms which §31 masters are in-scope for the wave
+- [ ] Staff Employment options loaded from live list actions (not static arrays)
+- [ ] Stored keys documented (code vs ObjectId) per field
+- [ ] Roster filter option loaders updated
+- [ ] Derived counts on Manage Rosters verified
+- [ ] Placeholder constants deleted or reduced to non-master enums only
+- [ ] Manual QA on Staff create/edit + one Roster filter screen
+
+---
+
+## 33. Recommended next steps
+
+1. **Manual QA** shipped modules (Holiday, Designation, Staff Grade, Manage Rosters) if not already signed off.
+2. **Start P1 — Departments:** document in this guide → UI-first → CRUD (same shell as Designations).
+3. **Clarify P2 Units** with product (separate master vs children of Department).
+4. Continue **P3–P5** as needed for payroll / institution scope.
+5. Only then run **§32 integration wave** (batch Staff Employment + Roster filters together).
+
+---
+
+*Last updated: Aug 2026 — Remaining HR Admin backlog + deferred integration tracking (§31–33); shipped masters keep Staff/Roster wiring deferred.*
