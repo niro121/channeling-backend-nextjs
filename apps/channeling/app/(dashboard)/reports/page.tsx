@@ -6,6 +6,8 @@ import { reportColumns, type ReportListItem } from './columns';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
 
+export const dynamic = 'force-dynamic';
+
 const reportsData: ReportListItem[] = [
   {
     id: '1',
@@ -34,6 +36,14 @@ const reportsData: ReportListItem[] = [
     masterData: 'Doctor Appointment Count Report ( By Session Date )',
     description: 'Counts are based on receipt entries matched to bookings by session date, with booking/session filter options.',
     route: '/reports/doctor-appointment-count'
+  },
+  {
+    id: '6',
+    rank: 6,
+    masterData: 'Doctor Balance Report',
+    description:
+      'View doctor payable balances as of a selected date, with doctor, speciality, and status filters.',
+    route: '/reports/doctor-balance'
   },
   {
     id: '5',
@@ -274,6 +284,7 @@ export default async function ReportsPage() {
       '/reports/all-doctor-view',
       '/reports/doctor-leave',
       '/reports/doctor-appointment-count',
+      '/reports/doctor-balance',
     ].includes(r.route)
   );
   const channel = reportsData.filter((r) =>
