@@ -84,6 +84,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const [floatSummary, setFloatSummary] = useState<{
     floatAccountId: string | null;
     balanceCents: number;
+    cashCents: number;
     tillLocationName: string | null;
   } | null>(null);
   const [hasFloatAccount, setHasFloatAccount] = useState<boolean | null>(null);
@@ -97,11 +98,12 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         setFloatSummary({
           floatAccountId: res.floatAccountId ?? null,
           balanceCents: res.balanceCents ?? 0,
+          cashCents: res.cashCents ?? 0,
           tillLocationName: res.tillLocationName ?? null,
         });
         setHasFloatAccount(!!res.floatAccountId);
       } else {
-        setFloatSummary({ floatAccountId: null, balanceCents: 0, tillLocationName: null });
+        setFloatSummary({ floatAccountId: null, balanceCents: 0, cashCents: 0, tillLocationName: null });
         setHasFloatAccount(false);
       }
     });
@@ -204,7 +206,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
       <section className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Active till balance:</span>
+          <span className="text-sm text-muted-foreground">Active till:</span>
           <span className="text-lg font-semibold tabular-nums">
             {floatSummary === null ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -214,6 +216,14 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               `${formatCents(floatSummary.balanceCents)} LKR`
             )}
           </span>
+          {floatSummary && (
+            <>
+              <span className="text-sm text-muted-foreground">· Cash:</span>
+              <span className="text-lg font-semibold tabular-nums">
+                {formatCents(floatSummary.cashCents)} LKR
+              </span>
+            </>
+          )}
           {floatSummary?.tillLocationName ? (
             <span className="text-sm text-muted-foreground">({floatSummary.tillLocationName})</span>
           ) : null}
@@ -940,20 +950,20 @@ export function ApproveModal({
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
             {request.floatNoString ? `${request.floatNoString}. ` : ""}
-            Float will be taken from your active till. You can give up to the requested amount (or less). Cannot give more than requested.
+            Float is cash and will be taken from your active till cash. You can give up to the requested amount (or less). Cannot give more than requested, and cash cannot go below zero.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {hasTill && balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Your current till balance: </span>
+              <span className="text-muted-foreground">Your current cash: </span>
               <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
               {tillLocationName ? (
                 <span className="text-muted-foreground"> ({tillLocationName})</span>
               ) : null}
               {insufficientBalance && (
                 <p className="mt-1.5 text-destructive font-medium">
-                  Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.
+                  Insufficient cash. You have {formatCents(balanceCents)} LKR cash, required {formatCents(totalCents)} LKR.
                 </p>
               )}
             </div>

@@ -102,18 +102,18 @@ export async function hasBulkCashierFloatAccountAction() {
   }
 }
 
-/** Current user's (bulk cashier) active till balance in cents. For balance check/warning in Approve modal. */
+/** Current user's (bulk cashier) active till cash in cents. Float is always cash. */
 export async function getBulkCashierFloatBalanceAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
   if (!userId) return { success: true, hasTill: false, balanceCents: null, tillLocationName: null };
   try {
-    const { till, balanceCents } = await getBulkCashierSourceTillSummary(userId);
+    const { till, cashCents } = await getBulkCashierSourceTillSummary(userId);
     return {
       success: true,
       hasTill: !!till,
-      balanceCents: till ? balanceCents : null,
+      balanceCents: till ? cashCents : null,
       tillLocationName: till?.locationName ?? till?.locationCode ?? null,
     };
   } catch (e) {
@@ -127,18 +127,19 @@ export async function getBulkCashierFloatSummaryAction() {
   await requirePermission('bulk-cashier', 'bulk-cashier-dashboard');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
-  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0, tillLocationName: null };
+  if (!userId) return { success: true, floatAccountId: null, balanceCents: 0, cashCents: 0, tillLocationName: null };
   try {
-    const { till, balanceCents } = await getBulkCashierSourceTillSummary(userId);
+    const { till, balanceCents, cashCents } = await getBulkCashierSourceTillSummary(userId);
     return {
       success: true,
       floatAccountId: till?.accountId ?? null,
       balanceCents,
+      cashCents,
       tillLocationName: till?.locationName ?? till?.locationCode ?? null,
     };
   } catch (e) {
     console.error('getBulkCashierFloatSummaryAction error:', e);
-    return { success: true, floatAccountId: null, balanceCents: 0, tillLocationName: null };
+    return { success: true, floatAccountId: null, balanceCents: 0, cashCents: 0, tillLocationName: null };
   }
 }
 
