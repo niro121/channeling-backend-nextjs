@@ -270,9 +270,9 @@ export default function SectionStaffGradeDetail() {
               <div className="flex items-center justify-end gap-2 border-t border-primary/10 px-4 py-3">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-9 gap-1.5"
+                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
                   disabled={saving}
                   onClick={() => {
                     if (isNew) {
