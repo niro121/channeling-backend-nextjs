@@ -278,12 +278,18 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         )}
         {(hasAccess('/holiday-calendar') ||
           hasAccess('/designations') ||
-          hasAccess('/staff-grades')) && (
+          hasAccess('/staff-grades') ||
+          hasAccess('/manage-rosters')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
               icon={<Building2 className="h-5 w-5" />}
-              paths={['/holiday-calendar', '/designations', '/staff-grades']}
+              paths={[
+                '/holiday-calendar',
+                '/designations',
+                '/staff-grades',
+                '/manage-rosters'
+              ]}
               defaultOpen
             >
               {hasAccess('/holiday-calendar') && (
@@ -305,6 +311,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/staff-grades"
                   label="Area / Staff Grade"
                   icon={<Award className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/manage-rosters') && (
+                <NavLink
+                  href="/manage-rosters"
+                  label="Manage Rosters"
+                  icon={<ClipboardList className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

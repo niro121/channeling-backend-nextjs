@@ -9,7 +9,7 @@ Use with:
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Implemented modules:** **Holiday Calendar**, **Designation Management**, **Area / Staff Grade**.  
+**Implemented modules:** **Holiday Calendar**, **Designation Management**, **Area / Staff Grade**, **Manage Rosters**.  
 **Build path:** Types/Zod → Service → Actions → master–detail UI → wire downstream reads.
 
 This document currently covers:
@@ -17,8 +17,9 @@ This document currently covers:
 - **Holiday Calendar** — implemented
 - **Designation Management** — D0–D5 complete (Staff/Roster integration deferred)
 - **Area / Staff Grade** — G0–G5 complete (Staff/Roster integration deferred)
+- **Manage Rosters** — R0–R5 complete (Staff/Roster integration deferred)
 
-Other HR Administration modules (Salary Cycle, Manage Rosters, etc.) will be added here as they are scoped.
+Other HR Administration modules (Salary Cycle, etc.) will be added here as they are scoped.
 
 ---
 
@@ -29,6 +30,9 @@ HR Administration is the **master-data and configuration** area for hospital HR 
 | Concern | Owner | Notes |
 |---------|-------|-------|
 | Holiday dates & types | **Holiday Calendar** (this doc) | Source of truth for PH / Poya / Mercantile days |
+| Job designations | **Designation Management** (this doc) | Master list; Staff/Roster integration deferred |
+| Area / staff grades | **Area / Staff Grade** (this doc) | Master list; Staff/Roster integration deferred |
+| Roster groups (team/ward) | **Manage Rosters** (this doc) | Business roster master (`CHN`); not `ShiftRoster` period codes (`SR-n`) |
 | Shift templates for holidays | Roster & Shifts (`ShiftType.holidayEligible`) | Consumes holiday dates; does not define them |
 | PH duty allocations | Roster & Shifts (`/public-holiday-shifts`) | Joins `RosterAllocation` → `HolidayCalendar` |
 | Leave day counting | Leave (`/leave-application`) | Future: skip holidays when computing `days` |
@@ -671,4 +675,185 @@ apps/hrm/
 
 ---
 
-*Last updated: Aug 2026 — Holiday Calendar, Designations, and Area / Staff Grade shipped (integrations deferred).*
+---
+
+## 25. Manage Rosters — product surface
+
+| Route | Resource key | Role |
+|-------|--------------|------|
+| `/manage-rosters` | `manage-rosters` | Master list + detail editor for hospital roster groups (team/ward) |
+
+**Permission:** dedicated Auth User Group resource `manage-rosters` (display name **Manage Rosters**).  
+Keep this separate from `shift-roster` (operational scheduling) so HR can maintain the roster master without publish rights.
+
+**Activity keys (planned):**
+
+| Action | Key |
+|--------|-----|
+| Page visit | `manage-rosters.visited` |
+| Create | `manage-rosters.created` |
+| Update | `manage-rosters.updated` |
+| Delete | `manage-rosters.deleted` |
+
+---
+
+## 26. Manage Rosters ↔ Roster & Shifts (mechanism)
+
+Two different “roster codes” exist. Do **not** conflate them.
+
+| Code | Owner | Example | Meaning |
+|------|-------|---------|---------|
+| **Roster group code** | **Manage Rosters** (HR Admin) | `CHN` | Stable business key for a team/ward roster (CHANNEL) |
+| **Period code** | Roster & Shifts `ShiftRoster` | `SR-1` | Auto ID for one scheduling period (dept + unit + roster + date range) |
+
+### How they connect
+
+```
+Staff.employment.roster  ──►  "CHN" (membership key)
+                │
+                ▼
+     Manage Rosters master (name, code, department, max shifts/day)
+                │
+                ▼
+ShiftRoster period (code = SR-n) + RosterAllocation cells
+  department + unit + roster snapshot + from/to
+```
+
+| Layer | Role |
+|-------|------|
+| **Manage Rosters** | Defines the catalog: CHANNEL / `CHN`, linked department, shifts-per-person-per-day rule |
+| **Staff Employment** | Assigns a staff member to a roster group (today free-text / placeholder options) |
+| **Shift Roster / Duty / OT** | Filters and snapshots the roster **string**; builds `ShiftRoster` periods with auto `SR-n` |
+
+### Locked product decisions
+
+| Topic | Decision |
+|-------|----------|
+| Workspace pattern | **Master–detail**, same family as Designations / Staff Grade |
+| Roster code (`CHN`) | **Human-entered** short unique key (uppercase); **not** `generateRecordCode('SR')` |
+| Period codes (`SR-n`) | Stay owned by Roster & Shifts; never reused here |
+| Department | **`CustomSelectField`** (placeholder options until Department master exists) |
+| Shifts per person per day | Required positive integer; scheduling rule for later Roster & Shifts enforcement |
+| Actions | Cancel / Delete / Save at the **bottom of the detail form** |
+| Summary cards | Informational (active shifts / linked dept / assigned staff) — sample or derived counts; full wiring later |
+| Integrations | **Deferred** — do not change Staff Employment or Roster & Shifts filters in this build |
+| Snapshot strategy (later) | Prefer storing master **code** (`CHN`) on staff/allocations; show name in UI |
+
+See also: `ROSTER_SHIFTS_MANAGER_GUIDE.md` — Staff roster field is a string today; no Roster master FK in Roster v1.
+
+---
+
+## 27. Manage Rosters domain model
+
+### Prisma `ManageRoster`
+
+| Field | Rule |
+|-------|------|
+| `code` | Unique short roster code (e.g. `CHN`) — HR-entered, normalized uppercase (not auto `SR-n`) |
+| `name` | Required unique display name (e.g. *CHANNEL*) |
+| `departmentId` | Selector value (placeholder enum/options until Department master) |
+| `shiftsPerPersonPerDay` | Integer ≥ 1 |
+| `createdAt` / `updatedAt` | Audit timestamps |
+| `createdBy` / `updatedBy` | Auth User ObjectIds via `resolveAuthUsers` |
+
+Derived (UI / later queries, not stored on the model):
+
+| Display | Source (later) |
+|---------|----------------|
+| Assigned staff count | Count Staff where `employment.roster` matches `code` (returns `0` until R6) |
+| Linked department label | Resolve `departmentId` → name |
+| Active shifts | Count of active shift types (returns `0` until R7) |
+
+---
+
+## 28. Manage Rosters UI map — master–detail
+
+```
+┌─ CommonManagerHeader ─────────────────────────────────────────────────────┐
+│ Manage Rosters                                                            │
+│ Master list of hospital rosters — one roster per team/ward, mapped to a   │
+│ department.                                                               │
+└───────────────────────────────────────────────────────────────────────────┘
+
+┌─ ~35% Rosters ──────────────┐  ┌─ ~65% Roster Details ────────────────────┐
+│ Search                      │  │ Name *              [ CHANNEL ]         │
+│ ┌─────────────────────────┐ │  │ Department *        [ Channel ▼ ]       │
+│ │ ACCOUNTS · 10 staff     │ │  │ Shifts / person / day * [ 3 ]           │
+│ │ CHANNEL · 32 staff (sel)│ │  │ Roster code         [ CHN ]             │
+│ │ ADMINISTRATION · 29 …   │ │  │ ┌ Active shifts ┐ ┌ Linked dept ┐ …    │
+│ └─────────────────────────┘ │  │ [ Cancel ] [ Delete ]         [ Save ]  │
+│                             │  │ Created by … · Last updated …           │
+└─────────────────────────────┘  └─────────────────────────────────────────┘
+```
+
+### UX rules
+
+| Rule | Detail |
+|------|--------|
+| Selection | Click list row → load detail form |
+| Add | Clears form, highlights detail, focuses name; no persist until Save |
+| Department | **`CustomSelectField`** only |
+| Roster code | Editable short code; unique; normalize to uppercase on save |
+| Summary cards | Show sample/derived stats under the form fields |
+| Save / Delete | Bottom of detail form (confirm on delete) |
+| Form stack | **Formik + Yup** client; **Zod** in service |
+
+### File layout
+
+```
+apps/hrm/
+  app/(dashboard)/(hr-admin)/manage-rosters/
+    page.tsx
+    manage-roster-workspace.tsx
+    manage-roster-ui-context.tsx
+    section-manage-roster-list.tsx
+    section-manage-roster-detail.tsx
+
+  app/actions/hr-admin-actions/
+    manage-roster.actions.ts
+
+  services/hr-admin-services/
+    manage-roster.service.ts
+
+  lib/mappers/
+    manage-roster-form.mapper.ts
+
+  types/
+    manage-roster.ts
+```
+
+---
+
+## 29. Manage Rosters development phases
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **R0 — Doc & types** | This guide; code vs `SR-n` clarity; UI types | Done |
+| **R1 — UI shell** | Route, sidebar, breadcrumbs, workspace | Done |
+| **R2 — Interactive detail form** | Search, Add highlight, department select, Save/Delete, summary cards, audit | Done |
+| **R3 — Schema & service** | Prisma `ManageRoster`, Zod CRUD, unique name + unique code | Done |
+| **R4 — Actions** | Permissions, activity log, revalidate | Done |
+| **R5 — Wire CRUD** | Live list + mutations; sample data removed | Done |
+| **R6 — Staff integration (deferred)** | Staff Employment roster select from this master | Later |
+| **R7 — Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods | Later |
+
+**R0–R5** shipped. Keep R6/R7 deferred.
+
+---
+
+## 30. Manage Rosters testing checklist (manual)
+
+- [ ] Register shows roster name + staff count (staff count `0` until R6)
+- [ ] Search filters by name or roster code
+- [ ] Add highlights the detail panel and focuses the form
+- [ ] Department renders as a `CustomSelectField`
+- [ ] Roster code is editable, unique, and uppercased on save
+- [ ] Duplicate name or code shows a field error
+- [ ] Summary cards render under the fields
+- [ ] Save / Cancel / Delete buttons appear at the bottom of the detail form
+- [ ] Delete is disabled for new records
+- [ ] Create / update / delete persist after refresh
+
+---
+
+*Last updated: Aug 2026 — Manage Rosters R0–R5 complete (`CHN` ≠ `SR-n`; Staff/Roster integration deferred).*

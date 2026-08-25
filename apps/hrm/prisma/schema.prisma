@@ -688,6 +688,21 @@ model StaffGrade {
   @@index([gradeLevelId])
 }
 
+model ManageRoster {
+  id                    String @id @default(auto()) @map("_id") @db.ObjectId
+  code                  String @unique // HR-entered business key, e.g. CHN (not SR-n)
+  name                  String @unique
+  departmentId          String // placeholder enum until Department master
+  shiftsPerPersonPerDay Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([departmentId])
+}
+
 /* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
