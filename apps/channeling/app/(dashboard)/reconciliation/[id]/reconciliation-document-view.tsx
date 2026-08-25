@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { formatCents, formatReceiptAmount, receiptAmountToCents } from "@/lib/format-money"
+import { formatCents, formatSignedReceiptAmount, signedReceiptAmountToCents } from "@/lib/format-money"
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { submitReconciliationAction, rejectReconciliationAction, getReconciliationJournalsAction } from "@/app/actions/reconciliation.actions"
 import { BackButton } from "@/components/common/back-button"
@@ -132,7 +132,7 @@ function netAmount(
 ): number {
   return receipts
     .filter((r) => r.paymentMethod === method && tickedIds.has(r.id))
-    .reduce((sum, r) => sum + (r.type === 1 ? receiptAmountToCents(r.amount) : -receiptAmountToCents(r.amount)), 0)
+    .reduce((sum, r) => sum + signedReceiptAmountToCents(r.amount, r.type), 0)
 }
 
 function fromUserLabel(fromUser: HandoverTabData["handover"]["fromUser"]): string {
@@ -742,7 +742,7 @@ export function ReconciliationDocumentView({
                                       {formatDateTimeWithSeconds(r.createdAt)}
                                     </TableCell>
                                     <TableCell className="py-1.5 text-right text-xs tabular-nums">
-                                      {r.type === 1 ? "" : "−"} {formatReceiptAmount(r.amount)}
+                                      {formatSignedReceiptAmount(r.amount, r.type)}
                                     </TableCell>
                                     <TableCell className="py-1.5 text-xs">{formatReceiptBank(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs font-mono">{formatReceiptReference(r)}</TableCell>
