@@ -40,6 +40,7 @@ import {
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
 import { Prisma } from "@prisma/client"
@@ -228,6 +229,15 @@ export async function saveBookingService(
       success: false,
       errorCode: "SERVER_ERROR",
       message: "Cannot Book Past Sessions.",
+    }
+  }
+
+  if (isSessionDoctorDeparted(session)) {
+    return {
+      success: false,
+      errorCode: "DOCTOR_DEPARTED",
+      message:
+        "Doctor has departed. Doctor must arrive again before booking is allowed.",
     }
   }
 

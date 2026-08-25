@@ -4,19 +4,7 @@ import { BOOKING_METHODS } from "@/types/channel-booking"
 import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
-
-function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (item): item is { time: string; createdBy: string } =>
-      item != null &&
-      typeof item === "object" &&
-      "time" in item &&
-      "createdBy" in item &&
-      typeof (item as { time: string }).time === "string" &&
-      typeof (item as { createdBy: string }).createdBy === "string"
-  )
-}
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 
 /** One row for the receipts table on the Booking tab. */
 export type ReceiptRowView = {
@@ -539,13 +527,7 @@ export async function getBookingDetailsService(
       sessionDateForSettle: b.session?.date
         ? new Date(b.session.date).toISOString().slice(0, 10)
         : undefined,
-      sessionCanSettleArrival: (() => {
-        const arrivals = parseArrivalDepartureForSettle(b.session?.doctorArrivalTime)
-        const departures = parseArrivalDepartureForSettle(b.session?.doctorDepatureTime)
-        if (departures.length === 0) return true
-        const lastDep = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
-        return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
-      })(),
+      sessionCanSettleArrival: !isSessionDoctorDeparted(b.session),
       settlePreview,
     }
     return { success: true, data }

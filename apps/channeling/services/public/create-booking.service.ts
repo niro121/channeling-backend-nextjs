@@ -129,6 +129,7 @@ function mapSaveBookingError(
     code === "AMOUNT_ERROR" ||
     code === "AGENCY_REF_ERROR" ||
     code === "PREVIOUS_SESSION_FILL" ||
+    code === "DOCTOR_DEPARTED" ||
     code === "CREDIT_LIMIT_VIOLATION" ||
     code === "AGENCY_CREDIT_EXCEED" ||
     code === "AGENCY_NO_LINKED_ACCOUNT" ||

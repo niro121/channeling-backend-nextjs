@@ -84,6 +84,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import type { PaymentMethodIconKey } from "@/types/channel-booking"
 import { PAYMENT_METHODS, SEX_OPTIONS } from "@/types/channel-booking"
 import { getSexForTitle, TITLE_OPTIONS } from "@/types/title"
@@ -453,6 +454,14 @@ export function NewBookingDetailsTab() {
 
   async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedSession || !selectedDoctor || !selectedArea) return
+    if (isSessionDoctorDeparted(selectedSession)) {
+      toast({
+        title: "Doctor has departed",
+        description: "Doctor must arrive again before booking is allowed.",
+        variant: "destructive",
+      })
+      return
+    }
     if (discountCapExceededMessage) {
       toast({
         title: "Discount error",
@@ -823,6 +832,17 @@ export function NewBookingDetailsTab() {
             {!createdAt && createdBy && `Leave created by ${createdBy}.`}
           </p>
         )}
+      </div>
+    )
+  }
+
+  if (hasSession && isSessionDoctorDeparted(selectedSession)) {
+    return (
+      <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 text-center space-y-1">
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Doctor has departed</p>
+        <p className="text-xs text-muted-foreground">
+          Doctor must arrive again before booking is allowed.
+        </p>
       </div>
     )
   }
