@@ -49,6 +49,10 @@ import {
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
+import {
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
+} from "@/lib/handover-utils"
 import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
@@ -590,7 +594,16 @@ export function EndShiftHandoverDialog({
     eWalletCents: eWalletEntries,
   } as const
 
-  const OVER_TOLERANCE_CENTS = 100 // Same as backend: reason required when over > 100 cents
+  const enteredAmounts = {
+    cashCents: cashTotalCents,
+    cardCents,
+    slipCents,
+    checkCents,
+    creditCents,
+    eWalletCents,
+  }
+  const amountOvers = expectedBalance ? getHandoverAmountOvers(enteredAmounts, expectedBalance) : []
+  const hasOver = amountOvers.length > 0
   const hasShort =
     expectedBalance &&
     (cashTotalCents < expectedBalance.cashCents ||
@@ -599,20 +612,15 @@ export function EndShiftHandoverDialog({
       checkCents < expectedBalance.checkCents ||
       creditCents < expectedBalance.creditCents ||
       eWalletCents < expectedBalance.eWalletCents)
-  const hasOverOver100 =
-    expectedBalance &&
-    (cashTotalCents - expectedBalance.cashCents > OVER_TOLERANCE_CENTS ||
-      cardCents - expectedBalance.cardCents > OVER_TOLERANCE_CENTS ||
-      slipCents - expectedBalance.slipCents > OVER_TOLERANCE_CENTS ||
-      checkCents - expectedBalance.checkCents > OVER_TOLERANCE_CENTS ||
-      creditCents - expectedBalance.creditCents > OVER_TOLERANCE_CENTS ||
-      eWalletCents - expectedBalance.eWalletCents > OVER_TOLERANCE_CENTS)
-  const needsDiscrepancyReason = !!hasShort || !!hasOverOver100
+  const needsDiscrepancyReason = !!hasShort && !hasOver
 
   const validateAndSubmit = async () => {
     if (!expectedBalance || !toUserId) return
     const errors: string[] = []
     errors.push(...validateMethodEntries())
+    if (hasOver) {
+      errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
+    }
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
       errors.push("Please provide a reason for the discrepancy.")
     }
@@ -712,7 +720,7 @@ export function EndShiftHandoverDialog({
                 ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
                 : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
-              "Entries from handovers not sent to reconciliation are pre-filled. Handovers already in (or finished) reconciliation stay with you and are not included. We warn if amounts do not match what is available to hand over."}
+              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available (with a reason). You cannot hand over more than the till holds."}
             {step === 3 &&
               "Review the summary below, check any warnings, select the person receiving the handover, then confirm."}
           </DialogDescription>
@@ -1193,11 +1201,17 @@ export function EndShiftHandoverDialog({
               return mismatches.length > 0 ? (
                 <Alert variant="destructive" className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Entered amounts do not match available to hand over</AlertTitle>
+                  <AlertTitle>
+                    {hasOver
+                      ? "Cannot hand over more than the till holds"
+                      : "Entered amounts are less than available"}
+                  </AlertTitle>
                   <AlertDescription>
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        The following methods have a discrepancy (till minus amounts held in reconciliation). The transfer will use the amounts you entered. Any shortfall remains in your till until reconciled.
+                        {hasOver
+                          ? formatHandoverOverAmountError(amountOvers, "submit")
+                          : "You may hand over less than available. A reason is required. The transfer will use the amounts you entered; any shortfall remains in your till."}
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
@@ -1305,6 +1319,7 @@ export function EndShiftHandoverDialog({
                   !toUserId ||
                   handoverUsersLoading ||
                   handoverUsers.length === 0 ||
+                  hasOver ||
                   (needsDiscrepancyReason && !discrepancyReason.trim()) ||
                   pendingHandoversToMe.length > 0 ||
                   hasOpenFloats

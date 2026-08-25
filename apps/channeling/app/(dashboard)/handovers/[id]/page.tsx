@@ -37,6 +37,8 @@ import { formatCents, formatLKR } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
 } from "@/lib/handover-utils"
 import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
@@ -349,8 +351,30 @@ export default function HandoverDetailPage() {
     entries?.forEach((e, i) => allTickIds.push(`${method}-${i}`))
   })
   const allTicked = allTickIds.length > 0 && allTickIds.every((tid) => ticked.has(tid))
+  const amountOvers =
+    handover && tillBreakdown
+      ? getHandoverAmountOvers(
+          {
+            cashCents: handover.cashCents,
+            cardCents: handover.cardCents,
+            slipCents: handover.slipCents,
+            checkCents: handover.checkCents,
+            creditCents: handover.creditCents,
+            eWalletCents: handover.eWalletCents,
+          },
+          {
+            cashCents: tillBreakdown.cashCents ?? 0,
+            cardCents: tillBreakdown.cardCents ?? 0,
+            slipCents: tillBreakdown.slipCents ?? 0,
+            checkCents: tillBreakdown.checkCents ?? 0,
+            creditCents: tillBreakdown.creditCents ?? 0,
+            eWalletCents: tillBreakdown.eWalletCents ?? 0,
+          }
+        )
+      : []
+  const hasAmountOver = amountOvers.length > 0
   /** Approve and Receive is only enabled when there are no entries to verify, or all entries have been ticked. */
-  const canApproveAndReceive = allTickIds.length === 0 || allTicked
+  const canApproveAndReceive = (allTickIds.length === 0 || allTicked) && !hasAmountOver
 
   const toggleAll = () => {
     if (allTicked) setTicked(new Set())
@@ -368,6 +392,14 @@ export default function HandoverDetailPage() {
 
   async function handleApproveAndReceive(comments?: string) {
     if (!id) return
+    if (hasAmountOver) {
+      toast({
+        title: "Cannot approve",
+        description: formatHandoverOverAmountError(amountOvers, "approve"),
+        variant: "destructive",
+      })
+      return
+    }
     setActionLoading("approve")
     try {
       await approveHandoverAction(id, comments?.trim() || undefined)
@@ -580,7 +612,13 @@ export default function HandoverDetailPage() {
               <Button
                 onClick={() => setApproveOpen(true)}
                 disabled={!!actionLoading || !canApproveAndReceive}
-                title={!canApproveAndReceive ? "Tick all entered entries first to approve and receive." : undefined}
+                title={
+                  hasAmountOver
+                    ? formatHandoverOverAmountError(amountOvers, "approve")
+                    : !canApproveAndReceive
+                      ? "Tick all entered entries first to approve and receive."
+                      : undefined
+                }
               >
                 {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
                 Approve and Receive
@@ -968,11 +1006,18 @@ export default function HandoverDetailPage() {
         )
       })()}
 
-      {isPending && (hasIssues || handover.discrepancyReason) && (
+      {isPending && (hasIssues || handover.discrepancyReason || hasAmountOver) && (
         <Alert variant="destructive" className="border-amber-500/70 bg-amber-50 py-2 dark:bg-amber-950/30 dark:border-amber-500/50">
           <CircleAlert className="h-4 w-4" />
-          <AlertTitle className="text-sm">Issues detected</AlertTitle>
+          <AlertTitle className="text-sm">
+            {hasAmountOver ? "Cannot approve — amounts exceed till" : "Issues detected"}
+          </AlertTitle>
           <AlertDescription className="space-y-1 text-xs">
+            {hasAmountOver && (
+              <p className="font-medium text-destructive">
+                {formatHandoverOverAmountError(amountOvers, "approve")}
+              </p>
+            )}
             {tillBreakdown && (() => {
               const diffs = METHOD_KEYS.filter((key) => (tillBreakdown[key] ?? 0) !== (handover[key] ?? 0)).map((key) => ({
                 method: METHOD_LABELS[key],
@@ -987,7 +1032,7 @@ export default function HandoverDetailPage() {
                   {diffs.map((d) => (
                     <span key={d.method} className="mr-2">
                       <strong>{d.method}</strong>{" "}
-                      <span className={d.diff < 0 ? "text-destructive font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}>
+                      <span className={d.diff < 0 ? "text-muted-foreground" : "text-destructive font-medium"}>
                         ({d.diff < 0 ? "Short" : "Over"} {formatCents(Math.abs(d.diff))})
                       </span>
                     </span>
@@ -1231,7 +1276,9 @@ export default function HandoverDetailPage() {
             <CardHeader>
               <CardTitle>Approve and Receive</CardTitle>
               <CardDescription>
-                Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records). Send to reconciliation is a separate step after approval.
+                {hasAmountOver
+                  ? formatHandoverOverAmountError(amountOvers, "approve")
+                  : "Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records). Send to reconciliation is a separate step after approval."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1250,7 +1297,7 @@ export default function HandoverDetailPage() {
                 <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""))} disabled={!!actionLoading}>
                   Cancel
                 </Button>
-                <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading}>
+                <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading || hasAmountOver}>
                   {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
                   Approve and Receive
                 </Button>
