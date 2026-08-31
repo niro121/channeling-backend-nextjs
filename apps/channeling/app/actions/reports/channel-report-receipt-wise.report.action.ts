@@ -60,6 +60,10 @@ export async function exportChannelReportReceiptWiseData(
       agency: row.agency,
       creditCustomer: row.creditCustomer,
       creator: row.creator,
+      cancelReason: row.cancelReason,
+      reversedReceiptNo: row.reversedReceiptNo,
+      whdAmount: row.whdAmount !== 0 ? row.whdAmount.toFixed(2) : '-',
+      netAmount: row.netAmount.toFixed(2),
     }));
 
     return { success: true, data: rows };
