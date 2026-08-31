@@ -258,6 +258,7 @@ export async function processDoctorPaymentService(
     shiftId,
     whd: Math.round(whtAmount),
     whdPercentage: whtPercentage,
+    doctorId,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
