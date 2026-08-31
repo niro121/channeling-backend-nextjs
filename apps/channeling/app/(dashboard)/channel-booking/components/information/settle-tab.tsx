@@ -8,6 +8,7 @@ import {
   isDiscountApplicableForBookingType,
   type DiscountCriteria,
 } from "@/lib/channel-booking-discount"
+import { getRefundFeeTypes, hasCreditCardPayment } from "@/lib/booking-fees"
 import { formatLKR } from "@/lib/format-money"
 import type { SettleDiscountSchemeView } from "@/services/channel-booking/get-booking-details.service"
 import {
@@ -90,9 +91,20 @@ function schemeToCriteria(scheme: SettleDiscountSchemeView): DiscountCriteria {
 function computeSettleAmounts(
   preview: NonNullable<BookingDetailsView["settlePreview"]>,
   settleMethod: number,
-  foreigner: boolean
+  foreigner: boolean,
+  hasCreditCardLine: boolean
 ) {
-  const gross = preview.professionalFee + preview.hospitalFee
+  const feeContext = {
+    payment_method: preview.bookingMethod,
+    payment_type: 0,
+    hasCreditCardLine,
+  }
+  const { professional_fee, hospital_fee } = getRefundFeeTypes(
+    preview.sessionFees,
+    foreigner,
+    feeContext
+  )
+  const gross = professional_fee + hospital_fee
   const applied: Array<{ name: string; amount: number; applyTo: number }> = []
   const schemes: DiscountCriteria[] = []
 
@@ -111,13 +123,15 @@ function computeSettleAmounts(
     const before = computeDiscountDivisionClient(
       preview.sessionFees,
       foreigner,
-      schemes
+      schemes,
+      feeContext
     )
     schemes.push(criteria)
     const after = computeDiscountDivisionClient(
       preview.sessionFees,
       foreigner,
-      schemes
+      schemes,
+      feeContext
     )
     const added = Math.round((after.total - before.total) * 100) / 100
     if (added > 0) {
@@ -131,18 +145,28 @@ function computeSettleAmounts(
   const capExceededMessage = getDiscountCapExceededMessage(
     preview.sessionFees,
     foreigner,
-    schemes
+    schemes,
+    feeContext
   )
 
   const division = computeDiscountDivisionClient(
     preview.sessionFees,
     foreigner,
-    schemes
+    schemes,
+    feeContext
   )
   const amountToSettle =
     Math.round((gross - division.total) * 100) / 100
 
-  return { gross, division, amountToSettle, applied, capExceededMessage }
+  return {
+    gross,
+    professionalFee: professional_fee,
+    hospitalFee: hospital_fee,
+    division,
+    amountToSettle,
+    applied,
+    capExceededMessage,
+  }
 }
 
 function formatSettledAt(d: Date): string {
@@ -278,6 +302,8 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     if (!details.settlePreview) {
       return {
         gross: details.billSubTotal,
+        professionalFee: details.refundableBreakdown?.professionalFee ?? 0,
+        hospitalFee: details.refundableBreakdown?.hospitalFee ?? 0,
         amountToSettle: details.billTotal,
         division: {
           total: details.discount,
@@ -289,12 +315,14 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         capExceededMessage: null as string | null,
       }
     }
+    const hasCreditCardLine = hasCreditCardPayment(settleMethod, mixedLines)
     return computeSettleAmounts(
       details.settlePreview,
       settleMethod,
-      details.foreigner
+      details.foreigner,
+      hasCreditCardLine
     )
-  }, [details, settleMethod])
+  }, [details, settleMethod, mixedLines])
 
   if (!selectedBooking) {
     return (
@@ -665,11 +693,11 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         <div className="rounded-md border border-border/60 bg-muted/20 p-2.5 space-y-1 text-xs">
           <div className="flex justify-between gap-2">
             <span className="text-muted-foreground">Doctor fee</span>
-            <span>{formatRs(details.settlePreview?.professionalFee ?? 0)}</span>
+            <span>{formatRs(settleAmounts.professionalFee ?? details.settlePreview?.professionalFee ?? 0)}</span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-muted-foreground">Hospital fee</span>
-            <span>{formatRs(details.settlePreview?.hospitalFee ?? 0)}</span>
+            <span>{formatRs(settleAmounts.hospitalFee ?? details.settlePreview?.hospitalFee ?? 0)}</span>
           </div>
           <div className="flex justify-between gap-2 border-t border-border/40 pt-1">
             <span className="text-muted-foreground">Subtotal</span>

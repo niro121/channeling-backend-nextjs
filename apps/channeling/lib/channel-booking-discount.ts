@@ -3,6 +3,13 @@
  * Uses session.fees and discount criteria so no server call is needed.
  */
 
+import {
+  getRefundFeeTypes,
+  type BookingFeeContext,
+} from "@/lib/booking-fees"
+
+export type { BookingFeeContext }
+
 /** Spec payment_method → Prisma DiscountMethod (matches server get-processed-discount). */
 export const PAYMENT_METHOD_TO_ENUM: Record<number, string> = {
   0: "POS",
@@ -42,34 +49,13 @@ export function isDiscountApplicableForBookingType(
   return okMethod && okType
 }
 
-type FeeEntry = {
-  localFee?: number
-  foreignFee?: number
-  local_value?: number
-  foreign_value?: number
-}
-
-function parseFees(fees: unknown): FeeEntry[] {
-  if (!Array.isArray(fees)) return []
-  return fees as FeeEntry[]
-}
-
-function getValue(fee: FeeEntry, foriegner: boolean): number {
-  if (foriegner) {
-    return (fee.foreignFee ?? fee.foreign_value ?? 0) as number
-  }
-  return (fee.localFee ?? fee.local_value ?? 0) as number
-}
-
-/** Spec §6.4: first = professional, rest = hospital */
+/** Spec §6.4: payment-aware professional / hospital split. */
 export function getRefundFeeTypesClient(
   fees: unknown,
-  foriegner: boolean
+  foriegner: boolean,
+  context?: BookingFeeContext
 ): { professional_fee: number; hospital_fee: number } {
-  const arr = parseFees(fees)
-  const professional_fee = arr.length > 0 ? getValue(arr[0], foriegner) : 0
-  const hospital_fee = arr.slice(1).reduce((sum, f) => sum + getValue(f, foriegner), 0)
-  return { professional_fee, hospital_fee }
+  return getRefundFeeTypes(fees, foriegner, context)
 }
 
 export type DiscountCriteria = {
@@ -123,9 +109,14 @@ function accumulateDiscountDivision(
   fees: unknown,
   foriegner: boolean,
   discounts: DiscountCriteria[],
-  capToFees: boolean
+  capToFees: boolean,
+  context?: BookingFeeContext
 ): DiscountDivisionClient {
-  const { professional_fee, hospital_fee } = getRefundFeeTypesClient(fees, foriegner)
+  const { professional_fee, hospital_fee } = getRefundFeeTypesClient(
+    fees,
+    foriegner,
+    context
+  )
   let hospitalFeeDiscount = 0
   let professionalFeeDiscount = 0
   const otherDiscount = 0
@@ -151,11 +142,16 @@ function accumulateDiscountDivision(
 export function getDiscountCapExceededMessage(
   fees: unknown,
   foriegner: boolean,
-  discounts: DiscountCriteria[]
+  discounts: DiscountCriteria[],
+  context?: BookingFeeContext
 ): string | null {
   if (discounts.length === 0) return null
-  const { professional_fee, hospital_fee } = getRefundFeeTypesClient(fees, foriegner)
-  const uncapped = accumulateDiscountDivision(fees, foriegner, discounts, false)
+  const { professional_fee, hospital_fee } = getRefundFeeTypesClient(
+    fees,
+    foriegner,
+    context
+  )
+  const uncapped = accumulateDiscountDivision(fees, foriegner, discounts, false, context)
 
   if (uncapped.hospitalFeeDiscount > hospital_fee) {
     return `Combined hospital discounts (${formatRs(uncapped.hospitalFeeDiscount)}) exceed the hospital fee (${formatRs(hospital_fee)}). Remove or change a discount scheme.`
@@ -174,9 +170,10 @@ function formatRs(amount: number): string {
 export function computeDiscountDivisionClient(
   fees: unknown,
   foriegner: boolean,
-  discounts: DiscountCriteria[]
+  discounts: DiscountCriteria[],
+  context?: BookingFeeContext
 ): DiscountDivisionClient {
-  return accumulateDiscountDivision(fees, foriegner, discounts, true)
+  return accumulateDiscountDivision(fees, foriegner, discounts, true, context)
 }
 
 /** e.g. "Discount : 100.00 (Hospital Fee Discount)" */
@@ -194,7 +191,8 @@ export function formatCategoryDiscountLabel(
 export function computeTotalDiscountClient(
   fees: unknown,
   foriegner: boolean,
-  discounts: DiscountCriteria[]
+  discounts: DiscountCriteria[],
+  context?: BookingFeeContext
 ): number {
-  return computeDiscountDivisionClient(fees, foriegner, discounts).total
+  return computeDiscountDivisionClient(fees, foriegner, discounts, context).total
 }
