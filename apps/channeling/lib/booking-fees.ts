@@ -71,6 +71,9 @@ export function hasCreditCardPayment(
 /**
  * Booking-type fee set, then Credit Card Commission (id 5) is unioned when
  * hasCreditCardLine is true (Card pay, Mixed with a Card line, or settle by Card).
+ *
+ * Cash / Staff / Slip / Credit Customer / E-wallet always include Credit Card
+ * Commission so a settlement-method discount can offset it.
  */
 export function getApplicableFeeIds(
   payment_method: number,
@@ -87,7 +90,7 @@ export function getApplicableFeeIds(
   } else if (payment_type === SAVE_PAYMENT_TYPE_MIXED && hasCreditCardLine) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.CREDIT_CARD]
   } else {
-    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL]
+    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.CREDIT_CARD]
   }
   if (hasCreditCardLine && !ids.includes(FEE_ID.CREDIT_CARD)) {
     ids = [...ids, FEE_ID.CREDIT_CARD]
