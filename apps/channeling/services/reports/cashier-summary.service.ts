@@ -486,6 +486,7 @@ export async function getCashierSummaryReportService(
     include: {
       paymentLines: { select: { paymentMethod: true, amount: true } },
       shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+      doctor: { select: { title: true, name: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -542,6 +543,9 @@ export async function getCashierSummaryReportService(
   }
 
   function resolveDoctorConsultant(r: (typeof doctorPayments)[0]): string | null {
+    if (r.doctor) {
+      return `${r.doctor.title} ${r.doctor.name}`.trim() || null;
+    }
     if (r.method === RECEIPT_METHOD.DOCTOR_PAYMENT) {
       return (
         consultantByPaymentReceiptId.get(r.id) ?? consultantByJournalRefId.get(r.id) ?? null

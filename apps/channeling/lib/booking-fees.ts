@@ -72,8 +72,8 @@ export function hasCreditCardPayment(
  * Booking-type fee set, then Credit Card Commission (id 5) is unioned when
  * hasCreditCardLine is true (Card pay, Mixed with a Card line, or settle by Card).
  *
- * Cash / Staff / Slip / Credit Customer / E-wallet always include Credit Card
- * Commission so a settlement-method discount can offset it.
+ * Agent, On-Call, Cash / Staff / Slip / Credit Customer / E-wallet always include
+ * Credit Card Commission so a settlement-method discount can offset it.
  */
 export function getApplicableFeeIds(
   payment_method: number,
@@ -82,9 +82,9 @@ export function getApplicableFeeIds(
 ): number[] {
   let ids: number[]
   if (payment_method === SAVE_BOOKING_METHOD_AGENT) {
-    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.AGENCY]
+    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.AGENCY, FEE_ID.CREDIT_CARD]
   } else if (payment_method === SAVE_BOOKING_METHOD_ON_CALL) {
-    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.ON_CALL]
+    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.ON_CALL, FEE_ID.CREDIT_CARD]
   } else if (payment_type === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.CREDIT_CARD]
   } else if (payment_type === SAVE_PAYMENT_TYPE_MIXED && hasCreditCardLine) {
