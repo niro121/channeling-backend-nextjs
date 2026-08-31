@@ -17,6 +17,7 @@ import {
   checkConsecutiveSessionFull,
   computeBookingDiscounts,
   getRefundFeeTypes,
+  toBookingFeeContext,
   verifyAgencyReferenceWithReason,
   getAgentBalance,
   getBookingForSaveBooking,
@@ -282,11 +283,18 @@ export async function saveBookingService(
     }
   }
 
+  const feeContext = toBookingFeeContext(
+    input.payment_method,
+    input.payment_type,
+    input.payment_lines
+  )
+
   const discountResult = await computeBookingDiscounts({
     autoDiscountId: input.auto_discount_type ?? null,
     manualDiscountId: input.discount_type ?? null,
     payment_method: input.payment_method,
     payment_type: input.payment_type,
+    hasCreditCardLine: feeContext.hasCreditCardLine,
     session,
     foriegner: input.foriegner,
     strict: true,
@@ -314,7 +322,8 @@ export async function saveBookingService(
 
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     session.fees,
-    input.foriegner
+    input.foriegner,
+    feeContext
   )
 
   const baseAmount = professional_fee + hospital_fee
