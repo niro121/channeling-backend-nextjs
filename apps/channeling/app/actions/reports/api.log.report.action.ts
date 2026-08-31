@@ -16,7 +16,7 @@ export async function getApiLogReportData(query: ApiLogReportQuery) {
       success: result.success,
       data: result.data ?? [],
       totalRecords: result.totalRecords ?? 0,
-      message: result.message,
+      message: result.message ?? result.error?.message,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to fetch API log report';
@@ -36,7 +36,7 @@ export async function exportApiLogReportData(
   try {
     const result = await getApiLogReportService(query);
     if (!result.success || !result.data?.length) {
-      return { success: false, message: result.message ?? 'No data available' };
+      return { success: false, message: result.message ?? result.error?.message ?? 'No data available' };
     }
     const mapped: ApiLogReportExportRow[] = result.data.map((row: any) => ({
       id: row.id ?? '-',
