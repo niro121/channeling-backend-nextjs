@@ -412,7 +412,8 @@ export async function createLedgerReceipt(
     input.transactionType === "AGENCY_CREDIT_NOTE" ||
     input.transactionType === "AGENCY_WITHDRAW" ||
     input.transactionType === "BANK_DEPOSIT";
-  const receiptAmount = isOutflow ? -1 * Math.round(input.amount) : Math.round(input.amount);
+  const amountRupees = Math.round(input.amount * 100) / 100
+  const receiptAmount = isOutflow ? -amountRupees : amountRupees
 
   // Branch is always saved in locationId. For sequence: branch income/expense use locationId;
   // agency types (debit/credit note, deposit, withdraw) use userLocationId (same branch).
@@ -479,18 +480,17 @@ export async function createLedgerReceipt(
   }
 
   const receipt = result.receipt
-  const amountRounded = Math.round(input.amount)
 
   if (input.agencyId) {
     if (input.transactionType === "AGENCY_DEBIT_NOTE") {
-      await updateAgentBalance(input.agencyId, amountRounded)
+      await updateAgentBalance(input.agencyId, amountRupees)
     } else if (input.transactionType === "AGENCY_CREDIT_NOTE") {
-      await updateAgentBalance(input.agencyId, -amountRounded)
+      await updateAgentBalance(input.agencyId, -amountRupees)
     } else if (input.transactionType === "AGENCY_DEPOSIT") {
-      await updateAgentBalance(input.agencyId, -amountRounded)
+      await updateAgentBalance(input.agencyId, -amountRupees)
       await clearAgencyViolationIfEligible(input.agencyId, input.createdBy ?? null)
     } else if (input.transactionType === "AGENCY_WITHDRAW") {
-      await updateAgentBalance(input.agencyId, amountRounded)
+      await updateAgentBalance(input.agencyId, amountRupees)
     }
   }
 
