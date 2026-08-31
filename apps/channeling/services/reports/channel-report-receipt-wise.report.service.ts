@@ -148,6 +148,7 @@ export async function getChannelReportReceiptWiseService(
         whd: true,
         agency: { select: { name: true } },
         creditCustomer: { select: { name: true } },
+        doctor: { select: { code: true, title: true, name: true } },
         booking: {
           select: {
             bookingid_string: true,
@@ -193,9 +194,16 @@ export async function getChannelReportReceiptWiseService(
     const rows: ChannelReportReceiptWiseRow[] = receipts.map((receipt) => {
       const booking = receipt.booking;
       const session = booking?.session;
-      const doctorCode = booking?.doctor?.code?.trim();
-      const doctorName = booking?.doctor?.name?.trim();
-      const consultant = [doctorCode, doctorName].filter(Boolean).join(' - ') || '-';
+      const receiptDoctorCode = receipt.doctor?.code?.trim()
+      const receiptDoctorName = [receipt.doctor?.title, receipt.doctor?.name]
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      const bookingDoctorCode = booking?.doctor?.code?.trim()
+      const bookingDoctorName = booking?.doctor?.name?.trim()
+      const doctorCode = receiptDoctorCode || bookingDoctorCode
+      const doctorName = receiptDoctorName || bookingDoctorName
+      const consultant = [doctorCode, doctorName].filter(Boolean).join(' - ') || '-'
       const sessionTime =
         session?.startTime && session?.endTime
           ? `${new Date(session.startTime).toLocaleTimeString('en-GB', {

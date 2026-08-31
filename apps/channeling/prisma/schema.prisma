@@ -227,6 +227,7 @@ model Doctor {
   doctorSessions DoctorSession[] @relation("SessionToDoctor")
   sessions       Session[]       @relation("DoctorToSession")
   bookings       Booking[]       @relation("DoctorToBooking")
+  receipts       Receipt[]       @relation("DoctorToReceipt")
   doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
   doctorLocations DoctorLocation[]
   createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -1075,6 +1076,9 @@ model Receipt {
   agency            Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
   creditCustomerId  String?   @db.ObjectId
   creditCustomer    CreditCustomer? @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  /// Doctor paid (or payment canceled) on this receipt — method 4 / 5
+  doctorId          String?   @db.ObjectId
+  doctor            Doctor?   @relation("DoctorToReceipt", fields: [doctorId], references: [id], onDelete: SetNull)
   createdBy         String?   @db.ObjectId
   shiftId           String?   @db.ObjectId
   shift             Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
@@ -1105,6 +1109,7 @@ model Receipt {
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
   @@index([shiftId])
+  @@index([doctorId])
 }
 
 model ReceiptPaymentLine {
