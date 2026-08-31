@@ -4,7 +4,15 @@ export {
   getPreviousSessionTransferStatus,
   type PreviousSessionTransferStatus,
 } from "./get-previous-session-transfer-status"
-export { getRefundFeeTypes } from "./get-refund-fee-types"
+export {
+  getRefundFeeTypes,
+  getApplicableFeeIds,
+  hasCreditCardPayment,
+  toBookingFeeContext,
+  computeBookingBaseAmount,
+  FEE_ID,
+  type BookingFeeContext,
+} from "./get-refund-fee-types"
 export {
   getProcessedDiscount,
   type ProcessedDiscountResult,

@@ -25,6 +25,7 @@ import {
   PAYMENT_METHOD_TO_ENUM,
   PAYMENT_TYPE_TO_ENUM,
 } from "@/lib/channel-booking-discount"
+import { getRefundFeeTypes, toBookingFeeContext } from "@/lib/booking-fees"
 import { formatLKR } from "@/lib/format-money"
 import {
   getPaymentMethodAndType,
@@ -211,10 +212,6 @@ export function NewBookingDetailsTab() {
   const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({})
-  const baseAmount =
-    foreigner
-      ? (reservationDetails?.amountForeign ?? 0)
-      : (reservationDetails?.amountLocal ?? 0)
   const hasSession = !!selectedSession
   const hasBlockedAppointmentNumbers =
     (selectedSession?.blockedAppointmentNumbers?.length ?? 0) > 0
@@ -257,6 +254,18 @@ export function NewBookingDetailsTab() {
   const { payment_method, payment_type } = getPaymentMethodAndType(
     Number(paymentMethodId)
   )
+  const feeContext = useMemo(
+    () => toBookingFeeContext(payment_method, payment_type, mixedLines),
+    [payment_method, payment_type, mixedLines]
+  )
+  const { professional_fee, hospital_fee } = useMemo(
+    () =>
+      selectedSession?.fees != null
+        ? getRefundFeeTypes(selectedSession.fees, foreigner, feeContext)
+        : { professional_fee: 0, hospital_fee: 0 },
+    [selectedSession?.fees, foreigner, feeContext]
+  )
+  const baseAmount = professional_fee + hospital_fee
   const methodStr = PAYMENT_METHOD_TO_ENUM[payment_method]
   const typeStr = PAYMENT_TYPE_TO_ENUM[payment_type]
   const filterByBookingType = useMemo(() => {
@@ -295,7 +304,8 @@ export function NewBookingDetailsTab() {
         ? computeDiscountDivisionClient(
             selectedSession.fees,
             foreigner,
-            discountsToApply
+            discountsToApply,
+            feeContext
           )
         : {
             total: 0,
@@ -303,7 +313,7 @@ export function NewBookingDetailsTab() {
             professionalFeeDiscount: 0,
             otherDiscount: 0,
           },
-    [selectedSession?.fees, foreigner, discountsToApply]
+    [selectedSession?.fees, foreigner, discountsToApply, feeContext]
   )
   const computedDiscountAmount = discountDivision.total
   const discountCapExceededMessage = useMemo(
@@ -312,13 +322,14 @@ export function NewBookingDetailsTab() {
         ? getDiscountCapExceededMessage(
             selectedSession.fees,
             foreigner,
-            discountsToApply
+            discountsToApply,
+            feeContext
           )
         : null,
-    [selectedSession?.fees, foreigner, discountsToApply]
+    [selectedSession?.fees, foreigner, discountsToApply, feeContext]
   )
   /** Amount to pay (base − discount). Sent to server and shown on Book button. */
-  const amountToPay = baseAmount - computedDiscountAmount
+  const amountToPay = Math.round((baseAmount - computedDiscountAmount) * 100) / 100
 
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {

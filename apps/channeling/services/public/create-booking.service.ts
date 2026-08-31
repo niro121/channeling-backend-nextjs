@@ -7,6 +7,7 @@ import {
   computeBookingDiscounts,
   getRefundFeeTypes,
   loadSessionForSaveBooking,
+  toBookingFeeContext,
 } from "@/services/channel-booking/helpers"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
@@ -304,11 +305,14 @@ export async function createPublicAgentBooking(
     : SAVE_BOOKING_METHOD_AGENT
   const payment_type = isOnCall ? SAVE_PAYMENT_TYPE_CASH : SAVE_PAYMENT_TYPE_AGENT
 
+  const feeContext = toBookingFeeContext(payment_method, payment_type)
+
   const discountResult = await computeBookingDiscounts({
     autoDiscountId: null,
     manualDiscountId: null,
     payment_method,
     payment_type,
+    hasCreditCardLine: feeContext.hasCreditCardLine,
     session,
     foriegner,
     strict: true,
@@ -322,7 +326,11 @@ export async function createPublicAgentBooking(
     }
   }
 
-  const { professional_fee, hospital_fee } = getRefundFeeTypes(session.fees, foriegner)
+  const { professional_fee, hospital_fee } = getRefundFeeTypes(
+    session.fees,
+    foriegner,
+    feeContext
+  )
   const baseAmount = professional_fee + hospital_fee
   const amount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
 

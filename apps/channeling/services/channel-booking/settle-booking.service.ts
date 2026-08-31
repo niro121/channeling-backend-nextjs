@@ -10,6 +10,7 @@ import {
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
   resolveReceiptLocationId,
+  hasCreditCardPayment,
 } from "./helpers"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
@@ -241,9 +242,19 @@ export async function settleBookingService(
   }
 
   const sessionForDiscount = { fees: booking.session.fees }
+  const hasCreditCardLine = hasCreditCardPayment(
+    input.settle_method,
+    input.payment_lines
+  )
+  const feeContext = {
+    payment_method: booking.method,
+    payment_type: 0,
+    hasCreditCardLine,
+  }
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     sessionForDiscount.fees,
-    booking.foriegner
+    booking.foriegner,
+    feeContext
   )
   const grossAmount = professional_fee + hospital_fee
 
@@ -252,6 +263,8 @@ export async function settleBookingService(
     manualDiscountId: booking.discountId ?? null,
     payment_method: booking.method,
     payment_type: input.settle_method,
+    hasCreditCardLine,
+    feeContext,
     session: sessionForDiscount,
     foriegner: booking.foriegner,
     strict: false,
@@ -374,6 +387,8 @@ export async function settleBookingService(
         discount,
         autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
         amount,
+        professionalFee: professional_fee,
+        hospitalFee: hospital_fee,
         receiptNo: receipt.receiptNo,
         receiptNoString: receipt.receiptNoString,
         receiptPaymentMethod: input.settle_method === SAVE_PAYMENT_TYPE_MIXED ? SAVE_PAYMENT_TYPE_MIXED : input.settle_method,
