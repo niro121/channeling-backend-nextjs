@@ -142,6 +142,10 @@ export async function getChannelReportReceiptWiseService(
         paymentLines: { select: { paymentMethod: true, amount: true } },
         method: true,
         createdBy: true,
+        cancelReason: true,
+        reverseReceiptId: true,
+        reversedReceiptId: true,
+        whd: true,
         agency: { select: { name: true } },
         creditCustomer: { select: { name: true } },
         booking: {
@@ -172,6 +176,20 @@ export async function getChannelReportReceiptWiseService(
       creators.map((u) => [u.id, formatUserDisplayName(u.name, u.id, u.staff?.code)])
     );
 
+    const relatedReceiptIds = Array.from(
+      new Set(
+        receipts.flatMap((r) => [r.reversedReceiptId, r.reverseReceiptId].filter(Boolean)) as string[]
+      )
+    );
+    const relatedReceipts =
+      relatedReceiptIds.length > 0
+        ? await prisma.receipt.findMany({
+            where: { id: { in: relatedReceiptIds } },
+            select: { id: true, receiptNoString: true, cancelReason: true },
+          })
+        : [];
+    const relatedById = new Map(relatedReceipts.map((r) => [r.id, r]));
+
     const rows: ChannelReportReceiptWiseRow[] = receipts.map((receipt) => {
       const booking = receipt.booking;
       const session = booking?.session;
@@ -191,6 +209,17 @@ export async function getChannelReportReceiptWiseService(
             })}`
           : '-';
 
+      const receiptAmount = Number(receipt.amount ?? 0);
+      const whdAbs = Math.max(0, Number(receipt.whd ?? 0));
+      const deductedWhd = Math.min(whdAbs, Math.abs(receiptAmount));
+      const signedWhd =
+        deductedWhd <= 0 || receiptAmount === 0
+          ? 0
+          : receiptAmount < 0
+            ? deductedWhd
+            : -deductedWhd;
+      const netAmount = receiptAmount + signedWhd;
+
       return {
         id: receipt.id,
         receiptScope: booking ? 'Channel' : 'Other',
@@ -203,7 +232,7 @@ export async function getChannelReportReceiptWiseService(
                 .join(' + ')
             : PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? String(receipt.paymentMethod),
         transactionType: RECEIPT_METHOD_NAMES[receipt.method] ?? String(receipt.method),
-        receiptAmount: Number(receipt.amount ?? 0),
+        receiptAmount,
         bookingNo: booking?.bookingid_string || '-',
         appointmentNo:
           typeof booking?.appointmentNo === 'number' ? String(booking.appointmentNo) : '-',
@@ -218,6 +247,22 @@ export async function getChannelReportReceiptWiseService(
         agency: booking?.agency?.name || receipt.agency?.name || '-',
         creditCustomer: receipt.creditCustomer?.name || '-',
         creator: receipt.createdBy ? creatorById.get(receipt.createdBy) || 'Unknown user' : 'System',
+        cancelReason:
+          receipt.cancelReason?.trim() ||
+          (receipt.reversedReceiptId
+            ? relatedById.get(receipt.reversedReceiptId)?.cancelReason?.trim() || ''
+            : '') ||
+          '-',
+        reversedReceiptNo:
+          (receipt.reversedReceiptId
+            ? relatedById.get(receipt.reversedReceiptId)?.receiptNoString
+            : null) ||
+          (receipt.reverseReceiptId
+            ? relatedById.get(receipt.reverseReceiptId)?.receiptNoString
+            : null) ||
+          '-',
+        whdAmount: signedWhd,
+        netAmount,
       };
     });
 
