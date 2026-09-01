@@ -38,11 +38,13 @@ import { SHIFT_STATUS } from "@/types/shift"
 import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw, Info } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw, Info, Camera } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { RequestFloatDialog } from "./request-float-dialog"
 import { EndShiftHandoverDialog } from "./end-shift-handover-dialog"
 import { formatDenomLabel } from "@/types/float-request"
+import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
 
 const HANDOVER_METHOD_LABELS: Record<string, string> = {
   cashCents: "Cash",
@@ -123,6 +125,7 @@ export function ChannelBookingShiftBar() {
     }[]
   >([])
   const [linkedHandoversLoading, setLinkedHandoversLoading] = useState(false)
+  const [billPhotoCount, setBillPhotoCount] = useState(0)
   const handoverDialogShiftRef = useRef<{ shiftId: string; fromUserId: string } | null>(null)
   const forcedHandoverPromptedForShiftIdRef = useRef<string | null>(null)
   const hadPendingFloatRef = useRef(false)
@@ -229,6 +232,18 @@ export function ChannelBookingShiftBar() {
       setApprovedFloatRequest(null)
     }
   }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
+
+  useEffect(() => {
+    if (!shift?.id) {
+      setBillPhotoCount(0)
+      return
+    }
+    listMyShiftBillAttachmentsAction()
+      .then((result) => {
+        if (result.success) setBillPhotoCount(result.data.length)
+      })
+      .catch(() => setBillPhotoCount(0))
+  }, [shift?.id])
 
   // Socket: when user has a shift, subscribe to shift-update (so other tabs refresh on handover/pause/resume); optionally float-balance and float-request
   const socketRef = useRef<Socket | null>(null)
@@ -659,6 +674,22 @@ export function ChannelBookingShiftBar() {
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>        </DropdownMenu>
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          className="relative gap-1.5 rounded-md"
+        >
+          <Link href="/shift-bills" title="Shift bill photos">
+            <Camera className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Bills</span>
+            {billPhotoCount > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                {billPhotoCount > 99 ? "99+" : billPhotoCount}
+              </span>
+            )}
+          </Link>
+        </Button>
         {hasFloatRequestPermission && (
           <>
             {pendingFloatRequest ? (

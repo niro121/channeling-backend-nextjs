@@ -47,7 +47,7 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   // '3': <Mail className="h-5 w-5" />,
 };
 
-const LoginForm = () => {
+const LoginForm = ({ callbackUrl = '/welcome' }: { callbackUrl?: string }) => {
   const { toast } = useToast();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -85,7 +85,7 @@ const LoginForm = () => {
           return;
         }
         setIsRedirecting(true);
-        router.replace('/welcome');
+        router.replace(callbackUrl);
         return;
       }
 
@@ -133,7 +133,7 @@ const LoginForm = () => {
       }
 
       setIsRedirecting(true);
-      router.replace('/welcome');
+      router.replace(callbackUrl);
     } catch (error: any) {
       console.error('auth-error', error);
       toast({
@@ -226,7 +226,7 @@ const LoginForm = () => {
             return;
           }
           setIsRedirecting(true);
-          router.replace('/welcome');
+          router.replace(callbackUrl);
         }}
       />
       <div className="lg:hidden mb-6 text-center">
