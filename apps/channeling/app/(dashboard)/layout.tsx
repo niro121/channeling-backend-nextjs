@@ -160,7 +160,7 @@ async function MobileNav({
               </div>
             </div>
           )}
-          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/agencies/allowed-credit-limits") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/reconciliation") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/agencies/allowed-credit-limits") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/reconciliation") || hasAccess("/approvals") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
               <div className="space-y-0.5">
@@ -178,6 +178,7 @@ async function MobileNav({
                 {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
                 {hasAccess('/bank-accounts') && <NavLink href="/bank-accounts" label="Bank Accounts" icon={<Building2 className="h-5 w-5" />} />}
                 {hasAccess('/reconciliation') && <NavLink href="/reconciliation" label="Reconciliation" icon={<CheckSquare className="h-5 w-5" />} />}
+                {hasAccess('/approvals') && <NavLink href="/approvals" label="Approval Center" icon={<CheckSquare className="h-5 w-5" />} />}
                 {hasAccess('/my-till') && <NavLink href="/my-till" label="My Till" icon={<Wallet className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
                 {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}

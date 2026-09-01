@@ -5,6 +5,8 @@ import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
 import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
+import { getBookingApprovalSummaries } from "@/services/approval-request.service"
+import type { BookingApprovalSummary } from "@/types/approval-request"
 
 /** One row for the receipts table on the Booking tab. */
 export type ReceiptRowView = {
@@ -189,6 +191,8 @@ export type BookingDetailsView = {
   sessionCanSettleArrival?: boolean
   /** Pending bookings: fee + discount scheme data for settle preview (recomputed by payment method). */
   settlePreview?: SettlePreviewView
+  openApproval?: BookingApprovalSummary | null
+  latestClosedApproval?: BookingApprovalSummary | null
   /** When movedFromSessionId is set: session the booking was moved from. */
   movedFromSession: {
     id: string
@@ -362,6 +366,7 @@ export async function getBookingDetailsService(
       b.referredStaff != null ? [b.referredStaff.name, b.referredStaff.code].filter(Boolean).join(" ").trim() || null : null
     const referredParts = [referredDoctorName, referredAgencyName, referredStaffName].filter(Boolean)
     const referredBy = referredParts.length > 0 ? referredParts.join(" · ") : ""
+    const approvalSummaries = await getBookingApprovalSummaries(b.id)
 
     const movedByUserId = (b as { movedBy?: string | null }).movedBy ?? null
     const movedAt = (b as { movedAt?: Date | null }).movedAt ?? null
@@ -529,6 +534,8 @@ export async function getBookingDetailsService(
         : undefined,
       sessionCanSettleArrival: !isSessionDoctorDeparted(b.session),
       settlePreview,
+      openApproval: approvalSummaries.openApproval,
+      latestClosedApproval: approvalSummaries.latestClosedApproval,
     }
     return { success: true, data }
   } catch (error) {

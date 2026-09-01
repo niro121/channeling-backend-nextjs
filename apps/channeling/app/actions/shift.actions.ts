@@ -250,6 +250,24 @@ export async function getOpenFloatsBlockingShiftEndAction(): Promise<{
   return { success: true, blocking, count: await openFloatsBlockingTotal(blocking) }
 }
 
+export async function getOpenApprovalRequestsBlockingShiftEndAction(): Promise<{
+  success: true
+  count: number
+  message: string | null
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return { success: true, count: 0, message: null }
+  }
+  const { countOpenApprovalsForUser, openApprovalsBlockingShiftMessage } = await import(
+    "@/services/approval-request.service"
+  )
+  const count = await countOpenApprovalsForUser(session.user.id)
+  const message = await openApprovalsBlockingShiftMessage(session.user.id)
+  return { success: true, count, message }
+}
+
 /** Handovers pending for current user (handed over to me). */
 export async function getHandoversToMeAction(): Promise<
   { success: true; data: Awaited<ReturnType<typeof getHandoversToMe>> } | { success: false; data: []; message: string }
