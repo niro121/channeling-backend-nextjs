@@ -22,6 +22,7 @@ import {
   type LedgerTransactionType,
 } from "@/services/ledger/create-ledger-receipt.service"
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import Link from "next/link"
 
 const AGENCY_TYPES_FOR_VALIDATION: string[] = [
   "AGENCY_DEBIT_NOTE",
@@ -314,6 +315,35 @@ export function LedgerTransactionForm({
       })
 
       if (result.success) {
+        if ("pendingApproval" in result && result.pendingApproval) {
+          toast({
+            title: "Deposit requested",
+            description: "Waiting for approval. Nothing has been posted to the ledger yet.",
+          })
+          setValues({
+            ...values,
+            amount: "",
+            remarks: "",
+            bankAccountId: "",
+            cardReference: "",
+            slipReference: "",
+            slipDate: "",
+            bankId: "",
+          })
+          onSuccess?.()
+          printAfterSubmitRef.current = false
+          setSubmitting(false)
+          return
+        }
+        if (!("receiptId" in result) || !("receiptNoString" in result)) {
+          toast({
+            title: "Error",
+            description: "Unexpected response after recording the transaction.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
         setLastReceiptNo(result.receiptNoString)
         toast({
           title: "Transaction recorded",
@@ -681,6 +711,14 @@ export function LedgerTransactionForm({
               )}
             </div>
 
+            {isBankDeposit && (
+              <p className="text-sm text-muted-foreground">
+                Bank deposits are sent for approval. The ledger receipt and till deduction happen only after a manager approves.{" "}
+                <Link href="/approvals" className="underline font-medium hover:no-underline">
+                  Open Approval Center
+                </Link>
+              </p>
+            )}
             {lastReceiptNo && (
               <p className="text-sm text-muted-foreground">
                 Last receipt: <span className="font-medium text-foreground">{lastReceiptNo}</span>
@@ -689,9 +727,13 @@ export function LedgerTransactionForm({
 
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={formik.isSubmitting}>
-                {formik.isSubmitting ? "Saving…" : "Add transaction"}
+                {formik.isSubmitting
+                  ? "Saving…"
+                  : isBankDeposit
+                    ? "Request deposit"
+                    : "Add transaction"}
               </Button>
-              {onSuccessWithReceiptId && (
+              {onSuccessWithReceiptId && !isBankDeposit && (
                 <Button
                   type="button"
                   variant="outline"

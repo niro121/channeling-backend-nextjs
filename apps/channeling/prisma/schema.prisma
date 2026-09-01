@@ -437,6 +437,7 @@ model Location {
   tills                Till[]                @relation("LocationToTill")
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
+  approvalRequests     ApprovalRequest[]     @relation("ApprovalRequestLocation")
 
   @@index([order])
 }
@@ -460,6 +461,7 @@ model BankAccount {
   @@index([institution])
   @@index([accountId])
   @@index([status])
+  approvalRequests ApprovalRequest[] @relation("ApprovalRequestBankAccount")
 }
 
 model Room {
@@ -574,15 +576,16 @@ model FloatRequest {
   @@index([floatNoString])
 }
 
-/// Channel cancel/refund approval: request → manager approve → requester executes.
-/// status: pending | approved | rejected | withdrawn | completed
-/// type: channel_cancel | channel_refund
+/// Approval: channel cancel/refund (request → approve → requester executes)
+/// or bank deposit (request → approve posts ledger receipt).
+/// status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
+/// type: channel_cancel | channel_refund | bank_deposit
 model ApprovalRequest {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   type            String
   status          Int      @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
-  bookingId       String   @db.ObjectId
-  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId       String?  @db.ObjectId
+  booking         Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   requestedById   String   @db.ObjectId
   requestedBy     User     @relation("ApprovalRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
   shiftId         String?  @db.ObjectId
@@ -593,6 +596,12 @@ model ApprovalRequest {
   professionalFee Float    @default(0)
   hospitalFee     Float    @default(0)
   paymentLines    Json?
+  bankAccountId   String?  @db.ObjectId
+  bankAccount     BankAccount? @relation("ApprovalRequestBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
+  locationId      String?  @db.ObjectId
+  location        Location? @relation("ApprovalRequestLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  receiptId       String?  @db.ObjectId
+  receipt         Receipt? @relation("ApprovalRequestReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
   approvedAt      DateTime?
   approvedById    String?  @db.ObjectId
   approvedBy      User?    @relation("ApprovalRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
@@ -1129,6 +1138,7 @@ model Receipt {
   userLocationId String?   @db.ObjectId
   userLocation   Location? @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
   paymentLines   ReceiptPaymentLine[]
+  approvalRequest ApprovalRequest[] @relation("ApprovalRequestReceipt")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

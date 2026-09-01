@@ -17,12 +17,19 @@ import {
   type ApprovalRequestListItem,
   type ApprovalRequestStatus,
   type ApprovalRequestType,
+  type BankDepositSnapshot,
   type BookingApprovalSummary,
 } from "@/types/approval-request"
 import type { RefundChannelInput } from "@/services/channel-booking/refund-channel.service"
+import {
+  createLedgerReceipt,
+  validateBankDepositReady,
+} from "@/services/ledger/create-ledger-receipt.service"
 
 export type ApprovalFailure = { success: false; errorCode: string; message: string }
-export type ApprovalActionResult = { success: true; data?: { id: string } } | ApprovalFailure
+export type ApprovalActionResult =
+  | { success: true; data?: { id: string; receiptId?: string; receiptNoString?: string } }
+  | ApprovalFailure
 
 export type RequestChannelApprovalInput = {
   booking_id: string
@@ -36,19 +43,32 @@ export type RequestChannelApprovalInput = {
 
 const OPEN_STATUS = [...OPEN_APPROVAL_STATUSES]
 
-function labelForType(type: ApprovalRequestType): string {
-  return type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL ? "cancel" : "refund"
+function isBankDepositType(type: string): boolean {
+  return type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
 }
 
-function activityAction(type: ApprovalRequestType, event: "requested" | "approved" | "rejected" | "withdrawn" | "completed"): string {
+function labelForType(type: ApprovalRequestType | string): string {
+  if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return "cancel"
+  if (type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND) return "refund"
+  if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return "bank deposit"
+  return "request"
+}
+
+function activityAction(type: ApprovalRequestType | string, event: "requested" | "approved" | "rejected" | "withdrawn" | "completed"): string {
+  if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return `ledger.deposit.${event}`
   const kind = type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL ? "cancel" : "refund"
   return `booking.${kind}.${event}`
 }
 
-function approvePermissionForType(type: ApprovalRequestType): string {
-  return type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
-    ? APPROVAL_ACTION.APPROVE_CHANNEL_CANCEL
-    : APPROVAL_ACTION.APPROVE_CHANNEL_REFUND
+function approvePermissionForType(type: ApprovalRequestType | string): string {
+  if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return APPROVAL_ACTION.APPROVE_CHANNEL_CANCEL
+  if (type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND) return APPROVAL_ACTION.APPROVE_CHANNEL_REFUND
+  return APPROVAL_ACTION.APPROVE_BANK_DEPOSIT
+}
+
+function depositSnapshot(raw: unknown): BankDepositSnapshot {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
+  return raw as BankDepositSnapshot
 }
 
 function formatRs(amount: number): string {
@@ -127,7 +147,7 @@ export async function countOpenApprovalsForUser(userId: string): Promise<number>
 export async function openApprovalsBlockingShiftMessage(userId: string): Promise<string | null> {
   const count = await countOpenApprovalsForUser(userId)
   if (count <= 0) return null
-  return `You have ${count} pending/approved refund or cancel request${count === 1 ? "" : "s"}. Complete, withdraw, or wait for rejection before ending your shift.`
+  return `You have ${count} open approval request${count === 1 ? "" : "s"}. Complete, withdraw, or wait for rejection before ending your shift.`
 }
 
 export async function assertNoOpenApproval(bookingId: string): Promise<ApprovalFailure | null> {
@@ -181,11 +201,12 @@ export async function markApprovalCompleted(requestId: string, userId: string): 
     select: { bookingId: true, type: true, amount: true, remarks: true, refundTo: true },
   })
   if (!row) return
+  const isDeposit = isBankDepositType(row.type)
   logActivityNonBlocking({
     userId,
-    action: activityAction(row.type as ApprovalRequestType, "completed"),
-    entityType: "Booking",
-    entityId: row.bookingId,
+    action: activityAction(row.type, "completed"),
+    entityType: isDeposit ? "ApprovalRequest" : "Booking",
+    entityId: isDeposit ? requestId : row.bookingId ?? requestId,
     importance: "high",
     metadata: {
       requestId,
@@ -363,6 +384,89 @@ export async function requestChannelApproval(
   return { success: true, data: { id: row.id } }
 }
 
+export async function requestBankDepositApproval(
+  input: {
+    amount: number
+    remarks: string
+    bankAccountId: string
+    locationId: string
+    userLocationId: string | null
+  },
+  userId: string
+): Promise<ApprovalActionResult> {
+  try {
+    await requireActiveShift(userId)
+  } catch (err) {
+    if (isShiftRequirementError(err)) {
+      return { success: false, errorCode: "shift_required", message: err.message }
+    }
+    throw err
+  }
+
+  const remarks = input.remarks.trim()
+  if (!remarks) {
+    return { success: false, errorCode: "invalid_input", message: "Remarks are required." }
+  }
+
+  const ready = await validateBankDepositReady({
+    createdBy: userId,
+    amount: input.amount,
+    bankAccountId: input.bankAccountId,
+    branchId: input.locationId,
+    userLocationId: input.userLocationId,
+  })
+  if (!ready.success) return ready
+
+  const bankAccount = await prisma.bankAccount.findFirst({
+    where: { id: input.bankAccountId, status: 1 },
+    select: { id: true, name: true, accountNumber: true },
+  })
+  if (!bankAccount) {
+    return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not active or not found." }
+  }
+
+  const currentShift = await getCurrentShift(userId)
+  const snapshot: BankDepositSnapshot = {
+    bank_name: bankAccount.name,
+    account_number: bankAccount.accountNumber,
+  }
+
+  const row = await prisma.approvalRequest.create({
+    data: {
+      type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
+      status: APPROVAL_REQUEST_STATUS.PENDING,
+      requestedById: userId,
+      shiftId: currentShift?.id ?? null,
+      amount: input.amount,
+      remarks,
+      bankAccountId: bankAccount.id,
+      locationId: input.locationId,
+      paymentLines: snapshot as object,
+    },
+    include: { requestedBy: { select: { name: true } } },
+  })
+
+  const requesterName = row.requestedBy?.name?.trim() || "A cashier"
+  logActivityNonBlocking({
+    userId,
+    action: activityAction(APPROVAL_REQUEST_TYPE.BANK_DEPOSIT, "requested"),
+    entityType: "ApprovalRequest",
+    entityId: row.id,
+    importance: "high",
+    metadata: { requestId: row.id, amount: input.amount, remarks, bankAccountId: bankAccount.id },
+  })
+
+  const managerIds = await getUsersWithApprovePermission(APPROVAL_ACTION.APPROVE_BANK_DEPOSIT, userId)
+  await notifyUsers(managerIds, {
+    type: NOTIFICATION_TYPES.ApprovalRequested,
+    title: "New bank deposit request",
+    message: `${requesterName} requested a bank deposit of ${formatRs(input.amount)} to ${bankAccount.name}. Review it in Approval Center.`,
+    referenceId: row.id,
+  })
+
+  return { success: true, data: { id: row.id } }
+}
+
 export async function withdrawApprovalRequest(
   requestId: string,
   userId: string
@@ -377,7 +481,11 @@ export async function withdrawApprovalRequest(
   if (row.requestedById !== userId) {
     return { success: false, errorCode: "forbidden", message: "You can only withdraw your own request." }
   }
-  if (row.status !== APPROVAL_REQUEST_STATUS.PENDING && row.status !== APPROVAL_REQUEST_STATUS.APPROVED) {
+  if (isBankDepositType(row.type)) {
+    if (row.status !== APPROVAL_REQUEST_STATUS.PENDING) {
+      return { success: false, errorCode: "invalid_state", message: "This request cannot be withdrawn." }
+    }
+  } else if (row.status !== APPROVAL_REQUEST_STATUS.PENDING && row.status !== APPROVAL_REQUEST_STATUS.APPROVED) {
     return { success: false, errorCode: "invalid_state", message: "This request cannot be withdrawn." }
   }
 
@@ -386,24 +494,22 @@ export async function withdrawApprovalRequest(
     data: { status: APPROVAL_REQUEST_STATUS.WITHDRAWN, withdrawnAt: new Date() },
   })
 
-  const kind = labelForType(row.type as ApprovalRequestType)
+  const kind = labelForType(row.type)
+  const isDeposit = isBankDepositType(row.type)
   logActivityNonBlocking({
     userId,
-    action: activityAction(row.type as ApprovalRequestType, "withdrawn"),
-    entityType: "Booking",
-    entityId: row.bookingId,
+    action: activityAction(row.type, "withdrawn"),
+    entityType: isDeposit ? "ApprovalRequest" : "Booking",
+    entityId: isDeposit ? requestId : row.bookingId ?? requestId,
     importance: "high",
     metadata: { requestId, amount: row.amount, remarks: row.remarks, refundTo: row.refundTo },
   })
 
-  const managerIds = await getUsersWithApprovePermission(
-    approvePermissionForType(row.type as ApprovalRequestType),
-    userId
-  )
+  const managerIds = await getUsersWithApprovePermission(approvePermissionForType(row.type), userId)
   const requesterName = row.requestedBy?.name?.trim() || "A cashier"
   await notifyUsers(managerIds, {
     type: NOTIFICATION_TYPES.ApprovalWithdrawn,
-    title: `Channel ${kind} request withdrawn`,
+    title: isDeposit ? "Bank deposit request withdrawn" : `Channel ${kind} request withdrawn`,
     message: `${requesterName} withdrew a ${kind} request for ${formatRs(row.amount)}.`,
     referenceId: row.id,
   })
@@ -430,9 +536,83 @@ export async function approveApprovalRequest(
   if (row.requestedById === userId) {
     return { success: false, errorCode: "forbidden", message: "You cannot approve your own request." }
   }
-  const needed = approvePermissionForType(row.type as ApprovalRequestType)
+  const needed = approvePermissionForType(row.type)
   if (!isAdmin && !hasPermission(permissions, "approvals", needed)) {
     return { success: false, errorCode: "forbidden", message: "You do not have permission to approve this request." }
+  }
+
+  if (isBankDepositType(row.type)) {
+    if (!row.bankAccountId || !row.locationId) {
+      return { success: false, errorCode: "invalid_state", message: "This deposit request is missing bank or branch details." }
+    }
+    try {
+      await requireActiveShift(row.requestedById)
+    } catch (err) {
+      if (isShiftRequirementError(err)) {
+        return {
+          success: false,
+          errorCode: "shift_required",
+          message: "The requester must have an open shift before this deposit can be posted.",
+        }
+      }
+      throw err
+    }
+    const posted = await createLedgerReceipt({
+      transactionType: "BANK_DEPOSIT",
+      branchId: row.locationId,
+      userLocationId: row.locationId,
+      bankAccountId: row.bankAccountId,
+      amount: row.amount,
+      remarks: row.remarks,
+      createdBy: row.requestedById,
+    })
+    if (!posted.success) return posted
+
+    const now = new Date()
+    await prisma.approvalRequest.update({
+      where: { id: requestId },
+      data: {
+        status: APPROVAL_REQUEST_STATUS.COMPLETED,
+        approvedAt: now,
+        approvedById: userId,
+        completedAt: now,
+        receiptId: posted.receiptId,
+      },
+    })
+
+    logActivityNonBlocking({
+      userId,
+      action: activityAction(row.type, "approved"),
+      entityType: "ApprovalRequest",
+      entityId: requestId,
+      importance: "high",
+      metadata: {
+        requestId,
+        amount: row.amount,
+        remarks: row.remarks,
+        receiptId: posted.receiptId,
+        receiptNo: posted.receiptNoString,
+      },
+    })
+    logActivityNonBlocking({
+      userId,
+      action: activityAction(row.type, "completed"),
+      entityType: "ApprovalRequest",
+      entityId: requestId,
+      importance: "high",
+      metadata: { requestId, receiptId: posted.receiptId, receiptNo: posted.receiptNoString },
+    })
+
+    await createNotification({
+      userId: row.requestedById,
+      type: NOTIFICATION_TYPES.ApprovalApproved,
+      title: "Your bank deposit was approved",
+      message: `Your bank deposit of ${formatRs(row.amount)} was posted as receipt ${posted.receiptNoString}.`,
+      referenceType: REFERENCE_TYPES.ApprovalRequest,
+      referenceId: row.id,
+    })
+
+    return { success: true, data: { id: row.id, receiptId: posted.receiptId, receiptNoString: posted.receiptNoString } }
   }
 
   await prisma.approvalRequest.update({
@@ -444,12 +624,12 @@ export async function approveApprovalRequest(
     },
   })
 
-  const kind = labelForType(row.type as ApprovalRequestType)
+  const kind = labelForType(row.type)
   logActivityNonBlocking({
     userId,
-    action: activityAction(row.type as ApprovalRequestType, "approved"),
+    action: activityAction(row.type, "approved"),
     entityType: "Booking",
-    entityId: row.bookingId,
+    entityId: row.bookingId ?? requestId,
     importance: "high",
     metadata: { requestId, amount: row.amount, remarks: row.remarks, refundTo: row.refundTo },
   })
@@ -484,13 +664,17 @@ export async function rejectApprovalRequest(
   if (!row) {
     return { success: false, errorCode: "not_found", message: "Request not found." }
   }
-  if (row.status !== APPROVAL_REQUEST_STATUS.PENDING && row.status !== APPROVAL_REQUEST_STATUS.APPROVED) {
+  if (isBankDepositType(row.type)) {
+    if (row.status !== APPROVAL_REQUEST_STATUS.PENDING) {
+      return { success: false, errorCode: "invalid_state", message: "This request cannot be rejected." }
+    }
+  } else if (row.status !== APPROVAL_REQUEST_STATUS.PENDING && row.status !== APPROVAL_REQUEST_STATUS.APPROVED) {
     return { success: false, errorCode: "invalid_state", message: "This request cannot be rejected." }
   }
   if (row.requestedById === userId) {
     return { success: false, errorCode: "forbidden", message: "You cannot reject your own request." }
   }
-  const needed = approvePermissionForType(row.type as ApprovalRequestType)
+  const needed = approvePermissionForType(row.type)
   if (!isAdmin && !hasPermission(permissions, "approvals", needed)) {
     return { success: false, errorCode: "forbidden", message: "You do not have permission to reject this request." }
   }
@@ -505,12 +689,13 @@ export async function rejectApprovalRequest(
     },
   })
 
-  const kind = labelForType(row.type as ApprovalRequestType)
+  const kind = labelForType(row.type)
+  const isDeposit = isBankDepositType(row.type)
   logActivityNonBlocking({
     userId,
-    action: activityAction(row.type as ApprovalRequestType, "rejected"),
-    entityType: "Booking",
-    entityId: row.bookingId,
+    action: activityAction(row.type, "rejected"),
+    entityType: isDeposit ? "ApprovalRequest" : "Booking",
+    entityId: isDeposit ? requestId : row.bookingId ?? requestId,
     importance: "high",
     metadata: {
       requestId,
@@ -524,7 +709,7 @@ export async function rejectApprovalRequest(
   await createNotification({
     userId: row.requestedById,
     type: NOTIFICATION_TYPES.ApprovalRejected,
-    title: `Your channel ${kind} was rejected`,
+    title: isDeposit ? "Your bank deposit was rejected" : `Your channel ${kind} was rejected`,
     message: `Your ${kind} of ${formatRs(row.amount)} was rejected: ${rejectReason}`,
     referenceType: REFERENCE_TYPES.ApprovalRequest,
     referenceId: row.id,
@@ -556,8 +741,10 @@ export type ApprovalAccess = {
   canAttend: boolean
   canSeeCancels: boolean
   canSeeRefunds: boolean
+  canSeeDeposits: boolean
   canApproveCancel: boolean
   canApproveRefund: boolean
+  canApproveBankDeposit: boolean
 }
 
 export function getApprovalAccess(
@@ -571,24 +758,31 @@ export function getApprovalAccess(
       canAttend: true,
       canSeeCancels: true,
       canSeeRefunds: true,
+      canSeeDeposits: true,
       canApproveCancel: true,
       canApproveRefund: true,
+      canApproveBankDeposit: true,
     }
   }
   const canApproveCancel = hasPermission(permissions, "approvals", APPROVAL_ACTION.APPROVE_CHANNEL_CANCEL)
   const canApproveRefund = hasPermission(permissions, "approvals", APPROVAL_ACTION.APPROVE_CHANNEL_REFUND)
+  const canApproveBankDeposit = hasPermission(permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT)
   const canView = hasPermission(permissions, "approvals", APPROVAL_ACTION.VIEW)
   const canEditBooking = hasPermission(permissions, "channel-booking", "edit")
+  const canAddLedger = hasPermission(permissions, "ledger", "add")
   const canSeeCancels = canView || canApproveCancel
   const canSeeRefunds = canView || canApproveRefund
+  const canSeeDeposits = canView || canApproveBankDeposit
   return {
-    canOpen: canView || canApproveCancel || canApproveRefund || canEditBooking,
-    canSeeMine: canEditBooking || canView || canApproveCancel || canApproveRefund,
-    canAttend: canSeeCancels || canSeeRefunds,
+    canOpen: canView || canApproveCancel || canApproveRefund || canApproveBankDeposit || canEditBooking || canAddLedger,
+    canSeeMine: canEditBooking || canAddLedger || canView || canApproveCancel || canApproveRefund || canApproveBankDeposit,
+    canAttend: canSeeCancels || canSeeRefunds || canSeeDeposits,
     canSeeCancels,
     canSeeRefunds,
+    canSeeDeposits,
     canApproveCancel,
     canApproveRefund,
+    canApproveBankDeposit,
   }
 }
 
@@ -613,9 +807,11 @@ function buildListWhere(
 ): Prisma.ApprovalRequestWhereInput | null {
   const includeCancel = type === "all" || type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
   const includeRefund = type === "all" || type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+  const includeDeposit = type === "all" || type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
   const types: string[] = []
   if (includeCancel && (view === "mine" || access.canSeeCancels)) types.push(APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL)
   if (includeRefund && (view === "mine" || access.canSeeRefunds)) types.push(APPROVAL_REQUEST_TYPE.CHANNEL_REFUND)
+  if (includeDeposit && (view === "mine" || access.canSeeDeposits)) types.push(APPROVAL_REQUEST_TYPE.BANK_DEPOSIT)
   if (types.length === 0) return null
 
   const typeWhere: Prisma.ApprovalRequestWhereInput =
@@ -678,6 +874,8 @@ export async function listApprovalRequests(
       requestedBy: { select: { name: true } },
       approvedBy: { select: { name: true } },
       rejectedBy: { select: { name: true } },
+      bankAccount: { select: { name: true, accountNumber: true } },
+      receipt: { select: { id: true, receiptNoString: true } },
       booking: {
         select: {
           id: true,
@@ -702,23 +900,44 @@ export async function listApprovalRequests(
   })
 
   const data: ApprovalRequestListItem[] = rows.map((row) => {
-    const sessionDate = row.booking.session?.date
-      ? new Date(row.booking.session.date).toLocaleDateString("en-US", {
+    const snap = depositSnapshot(row.paymentLines)
+    const isDeposit = isBankDepositType(row.type)
+    const sess = row.booking?.session
+    const sessionDate = sess?.date
+      ? new Date(sess.date).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
           year: "numeric",
         })
       : "—"
-    const doctor = row.booking.session?.doctor
-      ? `${row.booking.session.doctor.title ?? ""} ${row.booking.session.doctor.name ?? ""}`.trim()
+    const doctor = sess?.doctor
+      ? `${sess.doctor.title ?? ""} ${sess.doctor.name ?? ""}`.trim()
       : "—"
+    const patientName = `${row.booking?.title ?? ""} ${row.booking?.name ?? ""}`.trim() || "—"
+    const bankLabel =
+      row.bankAccount?.name ||
+      snap.bank_name ||
+      "Bank deposit"
+    const bankSub = [
+      row.bankAccount?.accountNumber || snap.account_number,
+      snap.slip_ref ? `Slip ${snap.slip_ref}` : null,
+      row.receipt?.receiptNoString,
+    ]
+      .filter(Boolean)
+      .join(" · ")
     return {
       ...mapSummary(row),
       bookingId: row.bookingId,
-      patientName: `${row.booking.title ?? ""} ${row.booking.name ?? ""}`.trim() || "—",
-      appointmentNo: row.booking.appointmentNo,
-      billNo: row.booking.receiptNoString ?? row.booking.bookingid_string ?? row.booking.id,
-      sessionLabel: `${doctor} · ${sessionDate}`,
+      patientName,
+      appointmentNo: row.booking?.appointmentNo ?? null,
+      billNo: row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.receipt?.receiptNoString ?? row.id,
+      sessionLabel: isDeposit ? bankSub : `${doctor} · ${sessionDate}`,
+      detailTitle: isDeposit ? bankLabel : patientName,
+      detailSub: isDeposit
+        ? bankSub
+        : `Appt ${String(row.booking?.appointmentNo ?? 0).padStart(2, "0")} · ${row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.booking?.id ?? "—"}`,
+      receiptId: row.receiptId,
+      receiptNoString: row.receipt?.receiptNoString ?? null,
       requestedAt: row.createdAt,
       approvedAt: row.approvedAt,
       approvedByName: row.approvedBy?.name ?? null,
@@ -761,5 +980,12 @@ export async function getApprovedRequestSnapshotForExecute(
   if (!row) {
     return { success: false as const, errorCode: "not_found", message: "Request not found." }
   }
-  return { success: true as const, requestId: row.id, input: snapshotToRefundInput(row) }
+  if (!row.bookingId) {
+    return { success: false as const, errorCode: "not_found", message: "Request is not tied to a booking." }
+  }
+  return {
+    success: true as const,
+    requestId: row.id,
+    input: snapshotToRefundInput({ ...row, bookingId: row.bookingId }),
+  }
 }

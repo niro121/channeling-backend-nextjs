@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { createLedgerReceipt } from "@/services/ledger/create-ledger-receipt.service"
+import { requestBankDepositApproval } from "@/services/approval-request.service"
 import {
   type LedgerTransactionType,
   LEDGER_TRANSACTION_TYPES,
@@ -37,6 +38,7 @@ const addLedgerTransactionSchema = z.object({
 
 export type AddLedgerTransactionResult =
   | { success: true; receiptId: string; receiptNoString: string }
+  | { success: true; pendingApproval: true; requestId: string }
   | { success: false; message: string; errorCode?: string; issues?: Record<string, string[]> }
 
 export async function addLedgerTransaction(
@@ -177,6 +179,23 @@ export async function addLedgerTransaction(
   }
 
   try {
+    if (isBankDeposit) {
+      const pending = await requestBankDepositApproval(
+        {
+          amount,
+          remarks,
+          bankAccountId: parsed.data.bankAccountId!.trim(),
+          locationId: branchId,
+          userLocationId,
+        },
+        userId
+      )
+      if (!pending.success) {
+        return { success: false, message: pending.message, errorCode: pending.errorCode }
+      }
+      return { success: true, pendingApproval: true, requestId: pending.data?.id ?? "" }
+    }
+
     const result = await createLedgerReceipt({
       transactionType: transactionType as LedgerTransactionType,
       branchId,

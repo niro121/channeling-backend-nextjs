@@ -102,6 +102,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "view", name: "View" },
       { id: "approve-channel-cancel", name: "Approve Channel Cancellations" },
       { id: "approve-channel-refund", name: "Approve Channel Refunds" },
+      { id: "approve-bank-deposit", name: "Approve Bank Deposits" },
     ],
   },
 ];
