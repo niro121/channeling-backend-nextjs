@@ -30,6 +30,7 @@ import { HANDOVER_STATUS } from "@/types/handover"
 import { deriveHandoverCashierSummaryFilters, expectedHandoverAvailableFromTill } from "@/lib/handover-utils"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
 import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
+import { listShiftBillAttachmentsForHandover } from "@/services/shift-bill-attachment.service"
 
 // Shift creation: single "shift" resource; view permission allows all shift actions (start, pause, resume, end).
 // Use under Channel Booking: grant "Shift (Channel Booking)" view to allow shift features.
@@ -149,11 +150,12 @@ export type SubmitShiftHandoverPayload = {
     eWalletEntries?: { reference: string; amountCents: number }[]
   }
   includedHandoverIds?: string[]
+  attachmentIds?: string[]
 }
 
 /** Submit shift handover: create PENDING handover, set shift to handover pending. Journal created only when recipient approves. */
 export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayload) {
-  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds } = payload
+  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds } = payload
   console.log("[submitShiftHandoverAction] payload.includedHandoverIds:", includedHandoverIds, "length:", includedHandoverIds?.length)
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
@@ -165,7 +167,8 @@ export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayl
     amounts,
     discrepancyReason,
     enteredBreakdown,
-    includedHandoverIds
+    includedHandoverIds,
+    attachmentIds
   )
   if (!result.success) throw new Error(result.error)
   revalidatePath("/channel-booking")
@@ -460,7 +463,7 @@ export async function getHandoverDetailAction(handoverId: string) {
     shift: handover.shift,
   })
 
-  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary] = await Promise.all([
+  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary, billAttachments] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
       ? Promise.all([
           getTillBalanceBreakdown(handover.fromUserId),
@@ -501,6 +504,7 @@ export async function getHandoverDetailAction(handoverId: string) {
           )
           .catch(() => null)
       : Promise.resolve(null),
+    listShiftBillAttachmentsForHandover(handover.id),
   ])
 
   const actorById = new Map(actors.map((u) => [u.id, u]))
@@ -526,6 +530,7 @@ export async function getHandoverDetailAction(handoverId: string) {
       includedHandovers: includedWithNumbers,
       receivedFloats,
       cashierSummary,
+      billAttachments,
       approvedByUser,
       rejectedByUser,
       cancelledByUser,

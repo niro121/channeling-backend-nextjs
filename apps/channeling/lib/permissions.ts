@@ -35,6 +35,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/bulk-cashier": "bulk-cashier",
   "/float-transfers": "float-transfers",
   "/shifts": "shifts",
+  "/shift-bills": "shift",
   "/handovers": "handover",
   "/doctor-payments": "doctor-payments",
   "/receipt-manager": "receipt-manager",
