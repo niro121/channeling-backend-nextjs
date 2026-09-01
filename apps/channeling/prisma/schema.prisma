@@ -708,10 +708,13 @@ model ShiftBillAttachment {
   uploadedById String   @db.ObjectId
   uploadedAt   DateTime?
   createdAt    DateTime @default(now())
+  /// Set when this row was copied onto a receiving shift from a previous handover.
+  sourceAttachmentId String? @db.ObjectId
 
   @@index([shiftId, createdAt])
   @@index([handoverId])
   @@index([uploadedById])
+  @@index([sourceAttachmentId])
 }
 
 // In-app notification center: float/handover approvals and rejections (extensible)

@@ -15,6 +15,7 @@ import {
   SHIFT_BILL_KIND_LABELS,
   SHIFT_BILL_KINDS,
   SHIFT_BILL_MAX_BYTES,
+  shiftBillUploaderTag,
   type ShiftBillAttachmentDto,
   type ShiftBillKind,
 } from "@/types/shift-bill-attachment"
@@ -23,12 +24,18 @@ import { compressBillImage } from "@/lib/compress-bill-image"
 import { ShiftBillLightbox } from "@/components/shift-bills/shift-bill-lightbox"
 
 type ShiftBillsGalleryProps = {
+  shiftId: string
   canUpload: boolean
   emptyHint?: string
   onCountChange?: (count: number) => void
 }
 
-export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: ShiftBillsGalleryProps) {
+export function ShiftBillsGallery({
+  shiftId,
+  canUpload,
+  emptyHint,
+  onCountChange,
+}: ShiftBillsGalleryProps) {
   const { toast } = useToast()
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const libraryInputRef = useRef<HTMLInputElement>(null)
@@ -50,6 +57,9 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
 
   useEffect(() => {
     let cancelled = false
+    setItems([])
+    setKind("")
+    setLightboxId(null)
     setLoading(true)
     listMyShiftBillAttachmentsAction()
       .then((result) => {
@@ -67,7 +77,7 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
     return () => {
       cancelled = true
     }
-  }, [onCountChange, toast])
+  }, [shiftId, onCountChange, toast])
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length || !canUpload || uploading) return
@@ -92,6 +102,8 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
           continue
         }
         const blob = await compressBillImage(file)
+        // Let Android reclaim decoder memory before the next photo.
+        await new Promise((resolve) => setTimeout(resolve, 0))
         if (blob.size > SHIFT_BILL_MAX_BYTES) {
           toast({ title: "Image is still too large after compression.", variant: "destructive" })
           continue
@@ -204,7 +216,7 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
                   className="h-full w-full object-cover"
                 />
               </button>
-              {canUpload && !item.handoverId && (
+              {canUpload && !item.handoverId && !item.inherited && (
                 <button
                   type="button"
                   className="absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white"
@@ -214,11 +226,10 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
-              {item.kind ? (
-                <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-black/50 px-1.5 py-1 text-[10px] font-medium text-white">
-                  {SHIFT_BILL_KIND_LABELS[item.kind]}
-                </span>
-              ) : null}
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 space-y-0.5 bg-black/55 px-1.5 py-1 text-[10px] font-medium text-white">
+                <span className="block truncate">{item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"}</span>
+                <span className="block truncate opacity-90">{shiftBillUploaderTag(item)}</span>
+              </span>
             </div>
           ))}
         </div>
@@ -277,7 +288,7 @@ export function ShiftBillsGallery({ canUpload, emptyHint, onCountChange }: Shift
         item={lightboxItem}
         onClose={() => setLightboxId(null)}
         onDelete={
-          canUpload && lightboxItem && !lightboxItem.handoverId
+          canUpload && lightboxItem && !lightboxItem.handoverId && !lightboxItem.inherited
             ? () => handleDelete(lightboxItem.id)
             : undefined
         }

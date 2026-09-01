@@ -19,6 +19,7 @@ import {
   putBillAttachmentObject,
 } from "@/lib/s3"
 import sharp from "sharp"
+import { normalizedIncludedIds } from "@/lib/handover-utils"
 import { hasPermission } from "@/lib/permissions"
 import { userTypes } from "@/lib/roles"
 import type { Permissions } from "@/types/user-group"
@@ -29,17 +30,22 @@ const EXT_BY_CONTENT_TYPE: Record<string, string> = {
   "image/webp": "webp",
 }
 
-function toDto(row: {
-  id: string
-  shiftId: string
-  handoverId: string | null
-  contentType: string
-  sizeBytes: number
-  kind: string | null
-  note: string | null
-  uploadedAt: Date | null
-  createdAt: Date
-}): ShiftBillAttachmentDto {
+function toDto(
+  row: {
+    id: string
+    shiftId: string
+    handoverId: string | null
+    contentType: string
+    sizeBytes: number
+    kind: string | null
+    note: string | null
+    uploadedAt: Date | null
+    createdAt: Date
+    uploadedById: string
+    sourceAttachmentId?: string | null
+  },
+  uploadedByName: string | null
+): ShiftBillAttachmentDto {
   return {
     id: row.id,
     shiftId: row.shiftId,
@@ -52,7 +58,118 @@ function toDto(row: {
     createdAt: row.createdAt.toISOString(),
     viewUrl: `/api/shift-attachments/${row.id}`,
     thumbUrl: `/api/shift-attachments/${row.id}?size=thumb`,
+    uploadedById: row.uploadedById,
+    uploadedByName,
+    inherited: Boolean(row.sourceAttachmentId),
   }
+}
+
+async function namesByUserId(userIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(userIds.filter(Boolean))]
+  if (unique.length === 0) return new Map()
+  const users = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, name: true },
+  })
+  return new Map(users.map((user) => [user.id, user.name ?? ""]))
+}
+
+async function toDtoList(
+  rows: Array<{
+    id: string
+    shiftId: string
+    handoverId: string | null
+    contentType: string
+    sizeBytes: number
+    kind: string | null
+    note: string | null
+    uploadedAt: Date | null
+    createdAt: Date
+    uploadedById: string
+    sourceAttachmentId?: string | null
+  }>
+): Promise<ShiftBillAttachmentDto[]> {
+  const names = await namesByUserId(rows.map((row) => row.uploadedById))
+  return rows.map((row) => toDto(row, names.get(row.uploadedById) || null))
+}
+
+async function collectHandoverChainIds(rootIds: string[]): Promise<string[]> {
+  const seen = new Set<string>()
+  let pending = [...new Set(rootIds.filter((id) => typeof id === "string" && id.trim()))]
+  while (pending.length > 0) {
+    const batch = pending.filter((id) => !seen.has(id))
+    pending = []
+    if (batch.length === 0) break
+    for (const id of batch) seen.add(id)
+    const handovers = await prisma.shiftHandover.findMany({
+      where: { id: { in: batch } },
+      select: { id: true, includedHandoverIds: true },
+    })
+    for (const handover of handovers) {
+      pending.push(...normalizedIncludedIds(handover.includedHandoverIds))
+    }
+  }
+  return [...seen]
+}
+
+export async function carryForwardBillAttachmentsToShift(params: {
+  sourceHandoverIds: string[]
+  toShiftId: string
+}): Promise<void> {
+  const handoverIds = await collectHandoverChainIds(params.sourceHandoverIds)
+  if (handoverIds.length === 0) return
+
+  const photos = await prisma.shiftBillAttachment.findMany({
+    where: { handoverId: { in: handoverIds }, uploadedAt: { not: null } },
+  })
+  if (photos.length === 0) return
+
+  const existing = await prisma.shiftBillAttachment.findMany({
+    where: {
+      shiftId: params.toShiftId,
+      OR: [
+        { s3Key: { in: photos.map((photo) => photo.s3Key) } },
+        { sourceAttachmentId: { in: photos.map((photo) => photo.id) } },
+      ],
+    },
+    select: { s3Key: true, sourceAttachmentId: true },
+  })
+  const existingKeys = new Set(existing.map((row) => row.s3Key))
+  const existingSources = new Set(existing.map((row) => row.sourceAttachmentId).filter(Boolean))
+
+  const toCreate = photos.filter(
+    (photo) => !existingKeys.has(photo.s3Key) && !existingSources.has(photo.id)
+  )
+  if (toCreate.length === 0) return
+
+  await prisma.shiftBillAttachment.createMany({
+    data: toCreate.map((photo) => ({
+      shiftId: params.toShiftId,
+      handoverId: null,
+      s3Key: photo.s3Key,
+      thumbS3Key: photo.thumbS3Key,
+      contentType: photo.contentType,
+      sizeBytes: photo.sizeBytes,
+      kind: photo.kind,
+      note: photo.note,
+      uploadedById: photo.uploadedById,
+      uploadedAt: photo.uploadedAt,
+      createdAt: photo.createdAt,
+      sourceAttachmentId: photo.sourceAttachmentId ?? photo.id,
+    })),
+  })
+}
+
+export async function ensureReceivedBillPhotosOnShift(shiftId: string): Promise<void> {
+  const received = await prisma.shiftHandover.findMany({
+    where: { toShiftId: shiftId, status: HANDOVER_STATUS.APPROVED },
+    select: { id: true },
+  })
+  if (received.length === 0) return
+  await carryForwardBillAttachmentsToShift({
+    sourceHandoverIds: received.map((handover) => handover.id),
+    toShiftId: shiftId,
+  })
 }
 
 export function canUploadToShiftStatus(status: number): boolean {
@@ -125,7 +242,7 @@ export async function requestShiftBillUpload(params: {
 
   try {
     const uploadUrl = await presignBillAttachmentPut(s3Key, contentType)
-    return { success: true, attachment: toDto(updated), uploadUrl }
+    return { success: true, attachment: (await toDtoList([updated]))[0], uploadUrl }
   } catch (error) {
     await prisma.shiftBillAttachment.delete({ where: { id: created.id } }).catch(() => undefined)
     const message = error instanceof Error ? error.message : "Could not prepare upload."
@@ -144,7 +261,7 @@ export async function confirmShiftBillUpload(params: {
     return { success: false, error: "Attachment not found." }
   }
   if (row.uploadedAt) {
-    return { success: true, attachment: toDto(row) }
+    return { success: true, attachment: (await toDtoList([row]))[0] }
   }
 
   const exists = await headBillAttachmentObject(row.s3Key)
@@ -170,7 +287,7 @@ export async function confirmShiftBillUpload(params: {
     where: { id: row.id },
     data: { uploadedAt: new Date(), thumbS3Key },
   })
-  return { success: true, attachment: toDto(updated) }
+  return { success: true, attachment: (await toDtoList([updated]))[0] }
 }
 
 export async function listShiftBillAttachmentsForShift(params: {
@@ -188,11 +305,13 @@ export async function listShiftBillAttachmentsForShift(params: {
     return { success: false, error: "You can only list photos for your own shift." }
   }
 
+  await ensureReceivedBillPhotosOnShift(shift.id)
+
   const rows = await prisma.shiftBillAttachment.findMany({
     where: { shiftId: shift.id, uploadedAt: { not: null } },
     orderBy: { createdAt: "desc" },
   })
-  return { success: true, data: rows.map(toDto) }
+  return { success: true, data: await toDtoList(rows) }
 }
 
 export async function listShiftBillAttachmentsForHandover(
@@ -202,7 +321,7 @@ export async function listShiftBillAttachmentsForHandover(
     where: { handoverId, uploadedAt: { not: null } },
     orderBy: { createdAt: "asc" },
   })
-  return rows.map(toDto)
+  return toDtoList(rows)
 }
 
 export async function deleteShiftBillAttachment(params: {
@@ -219,6 +338,9 @@ export async function deleteShiftBillAttachment(params: {
   if (!row) {
     return { success: false, error: "Attachment not found." }
   }
+  if (row.sourceAttachmentId) {
+    return { success: false, error: "This photo was received with a handover and cannot be deleted." }
+  }
   if (row.shift.userId !== params.userId && row.uploadedById !== params.userId) {
     return { success: false, error: "You cannot delete this photo." }
   }
@@ -228,13 +350,18 @@ export async function deleteShiftBillAttachment(params: {
     }
   }
 
-  try {
-    await deleteBillAttachmentObject(row.s3Key)
-    if (row.thumbS3Key) {
-      await deleteBillAttachmentObject(row.thumbS3Key)
+  const shared = await prisma.shiftBillAttachment.count({
+    where: { s3Key: row.s3Key, id: { not: row.id } },
+  })
+  if (shared === 0) {
+    try {
+      await deleteBillAttachmentObject(row.s3Key)
+      if (row.thumbS3Key) {
+        await deleteBillAttachmentObject(row.thumbS3Key)
+      }
+    } catch {
+      // Continue so a missing S3 object cannot trap the cashier.
     }
-  } catch {
-    // Continue so a missing S3 object cannot trap the cashier.
   }
   await prisma.shiftBillAttachment.delete({ where: { id: row.id } })
   return { success: true }
@@ -258,7 +385,6 @@ export async function attachShiftBillsToHandover(params: {
   const invalid = rows.find(
     (row) =>
       row.shiftId !== params.shiftId ||
-      row.uploadedById !== params.fromUserId ||
       !row.uploadedAt ||
       row.handoverId != null
   )
