@@ -1,6 +1,7 @@
 export const APPROVAL_REQUEST_TYPE = {
   CHANNEL_CANCEL: "channel_cancel",
   CHANNEL_REFUND: "channel_refund",
+  BANK_DEPOSIT: "bank_deposit",
 } as const
 
 export type ApprovalRequestType =
@@ -52,6 +53,13 @@ export type ApprovalPaymentLineSnapshot = {
   card?: string
 }
 
+export type BankDepositSnapshot = {
+  bank_name?: string
+  account_number?: string
+  slip_ref?: string
+  slip_date?: string
+}
+
 export type BookingApprovalSummary = {
   id: string
   type: ApprovalRequestType
@@ -68,11 +76,15 @@ export type BookingApprovalSummary = {
 }
 
 export type ApprovalRequestListItem = BookingApprovalSummary & {
-  bookingId: string
+  bookingId: string | null
   patientName: string
-  appointmentNo: number
+  appointmentNo: number | null
   billNo: string
   sessionLabel: string
+  detailTitle: string
+  detailSub: string
+  receiptId: string | null
+  receiptNoString: string | null
   requestedAt: Date
   approvedAt: Date | null
   approvedByName: string | null
@@ -84,4 +96,5 @@ export const APPROVAL_ACTION = {
   VIEW: "view",
   APPROVE_CHANNEL_CANCEL: "approve-channel-cancel",
   APPROVE_CHANNEL_REFUND: "approve-channel-refund",
+  APPROVE_BANK_DEPOSIT: "approve-bank-deposit",
 } as const

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +24,6 @@ import { DateRangePicker } from "@/components/common/date-range-picker"
 import { useToast } from "@/components/hooks/use-toast"
 import {
   approveApprovalRequestAction,
-  getApprovalAccessAction,
   listApprovalRequestsAction,
   rejectApprovalRequestAction,
   withdrawApprovalRequestAction,
@@ -47,6 +46,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  Search,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -69,7 +69,9 @@ function statusBadge(status: ApprovalRequestStatus) {
 }
 
 function typeLabel(type: string) {
-  return type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL ? "Cancel" : "Refund"
+  if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return "Cancel"
+  if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return "Bank deposit"
+  return "Refund"
 }
 
 function ListPagination({
@@ -165,59 +167,66 @@ function ListPagination({
   )
 }
 
-export function ApprovalCenterContent() {
+export function ApprovalCenterContent({
+  initialAccess,
+  initialView,
+  initialRows,
+  initialTotal,
+}: {
+  initialAccess: ApprovalAccess
+  initialView: ApprovalListView
+  initialRows: ApprovalRequestListItem[]
+  initialTotal: number
+}) {
   const { data: session } = useSession()
   const currentUserId = session?.user?.id ?? null
   const { toast } = useToast()
-  const [access, setAccess] = useState<ApprovalAccess | null>(null)
-  const [accessFailed, setAccessFailed] = useState(false)
-  const [view, setView] = useState<ApprovalListView>("attend")
+  const access = initialAccess
+  const [view, setView] = useState<ApprovalListView>(initialView)
   const [typeFilter, setTypeFilter] = useState<ApprovalListTypeFilter>("all")
   const [statusFilter, setStatusFilter] = useState<"open" | "all">("open")
   const [dateFrom, setDateFrom] = useState<string | undefined>()
   const [dateTo, setDateTo] = useState<string | undefined>()
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
-  const [total, setTotal] = useState(0)
-  const [rows, setRows] = useState<ApprovalRequestListItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [total, setTotal] = useState(initialTotal)
+  const [rows, setRows] = useState<ApprovalRequestListItem[]>(initialRows)
+  const [loading, setLoading] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequestListItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
-  const loadAccess = useCallback(async () => {
-    try {
-      const res = await getApprovalAccessAction()
-      if (res?.success) {
-        setAccessFailed(false)
-        setAccess(res.access)
-        setView(res.access.canAttend ? "attend" : "mine")
-      } else {
-        setAccessFailed(true)
-        toast({ title: "Error", description: actionError(res), variant: "destructive" })
-      }
-    } catch {
-      setAccessFailed(true)
-      toast({ title: "Error", description: "Could not load Approval Center.", variant: "destructive" })
-    }
-  }, [toast])
-
-  const loadRows = useCallback(async () => {
+  async function loadRows(overrides?: {
+    view?: ApprovalListView
+    type?: ApprovalListTypeFilter
+    status?: "open" | "all"
+    dateFrom?: string | null
+    dateTo?: string | null
+    page?: number
+    limit?: number
+  }) {
+    const nextView = overrides?.view ?? view
+    const nextType = overrides?.type ?? typeFilter
+    const nextStatus = overrides?.status ?? statusFilter
+    const nextFrom = "dateFrom" in (overrides ?? {}) ? overrides?.dateFrom : dateFrom
+    const nextTo = "dateTo" in (overrides ?? {}) ? overrides?.dateTo : dateTo
+    const nextPage = overrides?.page ?? page
+    const nextLimit = overrides?.limit ?? limit
     setLoading(true)
     try {
       const res = await listApprovalRequestsAction({
-        view,
-        type: typeFilter,
-        status: statusFilter,
-        dateFrom: dateFrom ?? null,
-        dateTo: dateTo ?? null,
-        page,
-        limit,
+        view: nextView,
+        type: nextType,
+        status: nextStatus,
+        dateFrom: nextFrom ?? null,
+        dateTo: nextTo ?? null,
+        page: nextPage,
+        limit: nextLimit,
       })
       if (res?.success) {
         setRows(res.data)
         setTotal(res.total)
-        if (res.page !== page) setPage(res.page)
+        if (res.page !== nextPage) setPage(res.page)
       } else {
         toast({ title: "Error", description: actionError(res), variant: "destructive" })
         setRows([])
@@ -230,21 +239,12 @@ export function ApprovalCenterContent() {
     } finally {
       setLoading(false)
     }
-  }, [view, typeFilter, statusFilter, dateFrom, dateTo, page, limit, toast])
-
-  useEffect(() => {
-    void loadAccess()
-  }, [loadAccess])
-
-  const accessReady = !!access
-  useEffect(() => {
-    if (!accessReady) return
-    void loadRows()
-  }, [accessReady, loadRows])
+  }
 
   function changeView(next: ApprovalListView) {
     setView(next)
     setPage(1)
+    void loadRows({ view: next, page: 1 })
   }
   function changeType(next: ApprovalListTypeFilter) {
     setTypeFilter(next)
@@ -262,6 +262,11 @@ export function ApprovalCenterContent() {
   function changeLimit(next: number) {
     setLimit(next)
     setPage(1)
+    void loadRows({ limit: next, page: 1 })
+  }
+  function handleSearch() {
+    setPage(1)
+    void loadRows({ page: 1 })
   }
 
   async function handleApprove(row: ApprovalRequestListItem) {
@@ -269,7 +274,13 @@ export function ApprovalCenterContent() {
     try {
       const result = await approveApprovalRequestAction(row.id)
       if (result?.success) {
-        toast({ title: "Approved", description: "The requester can now complete this on the booking." })
+        toast({
+          title: "Approved",
+          description:
+            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+              ? `Posted to ledger${result.data?.receiptNoString ? ` as ${result.data.receiptNoString}` : ""}.`
+              : "The requester can now complete this on the booking.",
+        })
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
@@ -312,24 +323,10 @@ export function ApprovalCenterContent() {
     }
   }
 
-  if (!access) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-        {accessFailed ? (
-          "Could not load Approval Center."
-        ) : (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Loading…
-          </>
-        )}
-      </div>
-    )
-  }
-
   const showViewToggle = access.canAttend && access.canSeeMine
   const showCancelType = view === "mine" || access.canSeeCancels
   const showRefundType = view === "mine" || access.canSeeRefunds
+  const showDepositType = view === "mine" || access.canSeeDeposits
 
   return (
     <div className="space-y-4">
@@ -337,8 +334,8 @@ export function ApprovalCenterContent() {
         <h1 className="text-xl font-semibold">Approval Center</h1>
         <p className="text-sm text-muted-foreground">
           {view === "attend"
-            ? "Pending cancellations and refunds waiting for approval."
-            : "Requests you have sent. Complete approved ones on the booking."}
+            ? "Pending requests waiting for approval. Bank deposits post to the ledger when you approve."
+            : "Requests you have sent."}
         </p>
       </div>
 
@@ -394,6 +391,9 @@ export function ApprovalCenterContent() {
               {showRefundType && (
                 <SelectItem value={APPROVAL_REQUEST_TYPE.CHANNEL_REFUND}>Refunds</SelectItem>
               )}
+              {showDepositType && (
+                <SelectItem value={APPROVAL_REQUEST_TYPE.BANK_DEPOSIT}>Bank deposits</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -414,6 +414,15 @@ export function ApprovalCenterContent() {
             </Select>
           </div>
         )}
+        <Button
+          type="button"
+          className="h-10 shrink-0 gap-2 self-end"
+          disabled={loading}
+          onClick={() => void handleSearch()}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          Search
+        </Button>
       </div>
 
       {loading ? (
@@ -434,8 +443,7 @@ export function ApprovalCenterContent() {
               <tr className="border-b bg-muted/40 text-left">
                 <th className="p-2 font-medium">Requested</th>
                 <th className="p-2 font-medium">Type</th>
-                <th className="p-2 font-medium">Patient</th>
-                <th className="p-2 font-medium">Session</th>
+                <th className="p-2 font-medium">Details</th>
                 <th className="p-2 font-medium">Amount</th>
                 <th className="p-2 font-medium">Status</th>
                 <th className="p-2 font-medium">Remarks</th>
@@ -445,21 +453,22 @@ export function ApprovalCenterContent() {
             <tbody>
               {rows.map((row) => {
                 const isOwn = row.requestedById === currentUserId
+                const isDeposit = row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+                const canActOnType =
+                  (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
+                  (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund) ||
+                  (isDeposit && access.canApproveBankDeposit)
                 const canApprove =
-                  !isOwn &&
-                  row.status === APPROVAL_REQUEST_STATUS.PENDING &&
-                  ((row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
-                    (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund))
+                  !isOwn && row.status === APPROVAL_REQUEST_STATUS.PENDING && canActOnType
                 const canReject =
                   !isOwn &&
+                  canActOnType &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    row.status === APPROVAL_REQUEST_STATUS.APPROVED) &&
-                  ((row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
-                    (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund))
+                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 const canWithdraw =
                   isOwn &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    row.status === APPROVAL_REQUEST_STATUS.APPROVED)
+                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 return (
                   <tr key={row.id} className="border-b last:border-0">
                     <td className="p-2">
@@ -470,12 +479,9 @@ export function ApprovalCenterContent() {
                     </td>
                     <td className="p-2">{typeLabel(row.type)}</td>
                     <td className="p-2">
-                      <div>{row.patientName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Appt {String(row.appointmentNo).padStart(2, "0")} · {row.billNo}
-                      </div>
+                      <div>{row.detailTitle}</div>
+                      <div className="text-xs text-muted-foreground">{row.detailSub}</div>
                     </td>
-                    <td className="p-2 text-xs">{row.sessionLabel}</td>
                     <td className="p-2 whitespace-nowrap">{formatRs(row.amount)}</td>
                     <td className="p-2">{statusBadge(row.status)}</td>
                     <td className="p-2 max-w-[220px]">
@@ -521,9 +527,14 @@ export function ApprovalCenterContent() {
                               Withdraw
                             </Button>
                           )}
-                          {row.status === APPROVAL_REQUEST_STATUS.APPROVED && isOwn && (
+                          {row.status === APPROVAL_REQUEST_STATUS.APPROVED && isOwn && !isDeposit && (
                             <Button size="sm" variant="secondary" asChild>
                               <Link href="/channel-booking">Complete on booking</Link>
+                            </Button>
+                          )}
+                          {isDeposit && row.receiptId && (
+                            <Button size="sm" variant="secondary" asChild>
+                              <Link href={`/ledger/${row.receiptId}/edit`}>View receipt</Link>
                             </Button>
                           )}
                         </div>
@@ -546,7 +557,10 @@ export function ApprovalCenterContent() {
         page={page}
         limit={limit}
         total={total}
-        onPageChange={setPage}
+        onPageChange={(nextPage) => {
+          setPage(nextPage)
+          void loadRows({ page: nextPage })
+        }}
         onLimitChange={changeLimit}
       />
 

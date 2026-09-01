@@ -82,9 +82,8 @@ export async function requestChannelApprovalAction(raw: unknown) {
 }
 
 export async function withdrawApprovalRequestAction(requestId: string) {
-  try {
-    await requirePermission("channel-booking", "edit")
-  } catch {
+  const canOpen = await checkRouteAccess("/approvals")
+  if (!canOpen) {
     return { success: false as const, errorCode: "forbidden", message: "Permission denied" }
   }
   const actor = await getActor()
