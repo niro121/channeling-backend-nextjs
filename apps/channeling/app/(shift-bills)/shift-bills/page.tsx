@@ -84,6 +84,8 @@ export default function ShiftBillsPage() {
         </Alert>
       )}
       <ShiftBillsGallery
+        key={shift.id}
+        shiftId={shift.id}
         canUpload={canUpload}
         emptyHint={canUpload ? "Tap the camera to photograph a bill." : "No bill photos on this shift yet."}
       />
