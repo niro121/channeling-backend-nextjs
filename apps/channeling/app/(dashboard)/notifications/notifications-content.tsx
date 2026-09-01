@@ -12,7 +12,7 @@ import {
 } from '@/app/actions/notification.actions';
 import type { NotificationListItem } from '@/services/notification.service';
 import { NOTIFICATION_TYPES, REFERENCE_TYPES } from '@/types/notification';
-import { Bell, CheckCheck, Loader2, Wallet, FileText, Inbox } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, Wallet, FileText, Inbox, CheckSquare } from 'lucide-react';
 
 function formatDate(d: Date): string {
   return new Date(d).toLocaleString(undefined, {
@@ -34,6 +34,9 @@ function getNotificationHref(item: NotificationListItem): string | null {
     }
     return '/channel-booking';
   }
+  if (item.referenceType === REFERENCE_TYPES.ApprovalRequest) {
+    return "/approvals";
+  }
   return null;
 }
 
@@ -49,6 +52,11 @@ function getNotificationIcon(type: string) {
     case NOTIFICATION_TYPES.HandoverRejected:
     case NOTIFICATION_TYPES.HandoverCancelled:
       return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />;
+    case NOTIFICATION_TYPES.ApprovalRequested:
+    case NOTIFICATION_TYPES.ApprovalApproved:
+    case NOTIFICATION_TYPES.ApprovalRejected:
+    case NOTIFICATION_TYPES.ApprovalWithdrawn:
+      return <CheckSquare className="h-4 w-4 shrink-0 text-muted-foreground" />;
     default:
       return <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />;
   }
@@ -115,7 +123,7 @@ export function NotificationsContent() {
           <Inbox className="h-12 w-12 text-muted-foreground mb-3" />
           <p className="text-muted-foreground">No notifications yet.</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Float and handover updates will appear here.
+            Float, handover, and approval updates will appear here.
           </p>
         </CardContent>
       </Card>

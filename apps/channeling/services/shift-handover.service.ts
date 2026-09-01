@@ -130,6 +130,12 @@ export async function processShiftHandover(
     return { success: false, error: "Handover cannot be to yourself. Please select another recipient." }
   }
 
+  const { openApprovalsBlockingShiftMessage } = await import("@/services/approval-request.service")
+  const openApprovalsError = await openApprovalsBlockingShiftMessage(validFrom)
+  if (openApprovalsError) {
+    return { success: false, error: openApprovalsError }
+  }
+
   const idsFromClient = Array.isArray(includedHandoverIds) ? includedHandoverIds.filter((id) => typeof id === "string" && id.trim() !== "") : []
 
   // Same criteria as getIncludableHandoversForSender: approved, not forwarded, not held/done in reconciliation.

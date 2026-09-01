@@ -148,6 +148,10 @@ export async function settleBookingService(
     }
   }
 
+  const { assertNoOpenApproval } = await import("@/services/approval-request.service")
+  const openBlock = await assertNoOpenApproval(input.booking_id)
+  if (openBlock) return openBlock
+
   if (booking.session?.status === 0) {
     return {
       success: false,

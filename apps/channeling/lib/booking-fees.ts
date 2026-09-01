@@ -74,6 +74,7 @@ export function hasCreditCardPayment(
  *
  * Agent, On-Call, Cash / Staff / Slip / Credit Customer / E-wallet always include
  * Credit Card Commission so a settlement-method discount can offset it.
+ * Doctor + Hospital + Scan is the base set for every booking type.
  */
 export function getApplicableFeeIds(
   payment_method: number,
@@ -90,7 +91,7 @@ export function getApplicableFeeIds(
   } else if (payment_type === SAVE_PAYMENT_TYPE_MIXED && hasCreditCardLine) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.CREDIT_CARD]
   } else {
-    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.CREDIT_CARD]
+    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.CREDIT_CARD]
   }
   if (hasCreditCardLine && !ids.includes(FEE_ID.CREDIT_CARD)) {
     ids = [...ids, FEE_ID.CREDIT_CARD]
