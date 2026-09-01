@@ -29,7 +29,8 @@ import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/
 import { formatCents } from "@/lib/format-money"
 import {
   attachShiftBillsToHandover,
-  listShiftBillAttachmentsForHandover,
+  carryForwardBillAttachmentsToShift,
+  ensureReceivedBillPhotosOnShift,
   unlinkShiftBillsFromHandover,
 } from "@/services/shift-bill-attachment.service"
 
@@ -317,11 +318,28 @@ export async function processShiftHandover(
   })
   console.log("[processShiftHandover] after create, re-fetched handover includedHandoverIds:", verify?.includedHandoverIds, "type:", typeof verify?.includedHandoverIds)
 
+  await ensureReceivedBillPhotosOnShift(validShiftId)
+  const inheritedPhotos = await prisma.shiftBillAttachment.findMany({
+    where: {
+      shiftId: validShiftId,
+      uploadedAt: { not: null },
+      handoverId: null,
+      sourceAttachmentId: { not: null },
+    },
+    select: { id: true },
+  })
+  const attachIds = [
+    ...new Set([
+      ...(Array.isArray(attachmentIds) ? attachmentIds : []),
+      ...inheritedPhotos.map((photo) => photo.id),
+    ]),
+  ]
+
   const attachResult = await attachShiftBillsToHandover({
     shiftId: validShiftId,
     fromUserId: validFrom,
     handoverId: handover.id,
-    attachmentIds: Array.isArray(attachmentIds) ? attachmentIds : [],
+    attachmentIds: attachIds,
   })
   if (!attachResult.success) {
     await prisma.shiftHandover.delete({ where: { id: handover.id } }).catch(() => undefined)
@@ -642,6 +660,11 @@ export async function approveHandover(
         nonCashReconciledBy: approvedByUserId,
       }),
     },
+  })
+
+  await carryForwardBillAttachmentsToShift({
+    sourceHandoverIds: [handoverId],
+    toShiftId: approverShift.id,
   })
 
   await shiftModel.update({

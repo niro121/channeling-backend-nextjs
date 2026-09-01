@@ -674,22 +674,24 @@ export function ChannelBookingShiftBar() {
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>        </DropdownMenu>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="relative gap-1.5 rounded-md"
-        >
-          <Link href="/shift-bills" title="Shift bill photos">
-            <Camera className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Bills</span>
-            {billPhotoCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-                {billPhotoCount > 99 ? "99+" : billPhotoCount}
-              </span>
-            )}
-          </Link>
-        </Button>
+        <span className="relative inline-flex shrink-0 overflow-visible pt-1.5 pr-1.5">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="relative gap-1.5 overflow-visible rounded-md"
+          >
+            <Link href="/shift-bills" title="Shift bill photos" className="relative">
+              <Camera className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Bills</span>
+              {billPhotoCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium leading-none text-primary-foreground">
+                  {billPhotoCount > 99 ? "99+" : billPhotoCount}
+                </span>
+              )}
+            </Link>
+          </Button>
+        </span>
         {hasFloatRequestPermission && (
           <>
             {pendingFloatRequest ? (

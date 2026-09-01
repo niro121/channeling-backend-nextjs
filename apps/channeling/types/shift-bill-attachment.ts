@@ -29,8 +29,17 @@ export type ShiftBillAttachmentDto = {
   createdAt: string
   viewUrl: string
   thumbUrl: string
+  uploadedById: string
+  uploadedByName: string | null
+  inherited: boolean
 }
 
 export function isShiftBillKind(value: string | null | undefined): value is ShiftBillKind {
   return !!value && (SHIFT_BILL_KINDS as readonly string[]).includes(value)
+}
+
+export function shiftBillUploaderTag(item: ShiftBillAttachmentDto): string {
+  const name = item.uploadedByName?.trim()
+  if (item.inherited) return name ? `From ${name}` : "Received"
+  return name || "You"
 }

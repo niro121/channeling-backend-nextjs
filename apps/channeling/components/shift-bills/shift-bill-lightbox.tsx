@@ -1,9 +1,10 @@
 "use client"
 
-import { Trash2, X } from "lucide-react"
+import { Trash2, X, ZoomIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   SHIFT_BILL_KIND_LABELS,
+  shiftBillUploaderTag,
   type ShiftBillAttachmentDto,
 } from "@/types/shift-bill-attachment"
 
@@ -39,8 +40,17 @@ export function ShiftBillLightbox({
           <span className="truncate">
             {item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"}
             {item.note ? ` · ${item.note}` : ""}
+            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-[11px]">
+              {shiftBillUploaderTag(item)}
+            </span>
           </span>
           <div className="flex items-center gap-1">
+            <Button asChild type="button" size="sm" variant="secondary">
+              <a href={item.viewUrl} target="_blank" rel="noopener noreferrer">
+                <ZoomIn className="h-4 w-4" />
+                Open in new tab
+              </a>
+            </Button>
             {onDelete && (
               <Button type="button" size="sm" variant="destructive" onClick={onDelete}>
                 <Trash2 className="h-4 w-4" />

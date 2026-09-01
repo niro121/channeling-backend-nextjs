@@ -48,11 +48,12 @@ import {
   CircleAlert,
   CheckCircle2,
   Camera,
+  ZoomIn,
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
 import type { ShiftBillAttachmentDto } from "@/types/shift-bill-attachment"
-import { SHIFT_BILL_KIND_LABELS } from "@/types/shift-bill-attachment"
+import { SHIFT_BILL_KIND_LABELS, shiftBillUploaderTag } from "@/types/shift-bill-attachment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
 import {
@@ -1361,35 +1362,69 @@ export function EndShiftHandoverDialog({
                 ) : (
                   <div className="space-y-2 rounded-md border p-2">
                     <p className="text-xs text-muted-foreground">
-                      Selected photos will be attached to this handover.
+                      Selected photos will be attached to this handover. Photos received from a previous handover are included automatically.
                     </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {billAttachments.map((item) => {
                       const checked = selectedAttachmentIds.includes(item.id)
+                      const label = item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"
                       return (
-                        <label key={item.id} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(value) => {
-                              setSelectedAttachmentIds((prev) =>
-                                value === true
-                                  ? prev.includes(item.id)
-                                    ? prev
-                                    : [...prev, item.id]
-                                  : prev.filter((id) => id !== item.id)
-                              )
-                            }}
-                          />
-                          <span className="h-10 w-10 overflow-hidden rounded border bg-muted shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={item.thumbUrl} alt="" className="h-full w-full object-cover" />
-                          </span>
-                          <span className="truncate">
-                            {item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"}
-                            {item.note ? ` · ${item.note}` : ""}
-                          </span>
-                        </label>
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "relative overflow-hidden rounded-md border bg-muted",
+                            checked && "ring-2 ring-primary ring-offset-1"
+                          )}
+                        >
+                          <label className="block cursor-pointer">
+                            <span className="absolute left-1.5 top-1.5 z-10 rounded-sm bg-background/90">
+                              <Checkbox
+                                checked={checked || item.inherited}
+                                disabled={item.inherited}
+                                onCheckedChange={(value) => {
+                                  if (item.inherited) return
+                                  setSelectedAttachmentIds((prev) =>
+                                    value === true
+                                      ? prev.includes(item.id)
+                                        ? prev
+                                        : [...prev, item.id]
+                                      : prev.filter((id) => id !== item.id)
+                                  )
+                                }}
+                              />
+                            </span>
+                            <span className="block aspect-square">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.thumbUrl}
+                                alt={label}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                            <span className="block px-2 py-1.5">
+                              <span className="block truncate text-xs font-medium">
+                                {label}
+                                {item.note ? ` · ${item.note}` : ""}
+                              </span>
+                              <span className="mt-0.5 inline-flex max-w-full truncate rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {shiftBillUploaderTag(item)}
+                              </span>
+                            </span>
+                          </label>
+                          <a
+                            href={item.viewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open large view in a new tab"
+                            className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-1 text-[11px] font-medium text-foreground shadow-sm hover:bg-background"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                            View
+                          </a>
+                        </div>
                       )
                     })}
+                    </div>
                   </div>
                 )}
               </div>
