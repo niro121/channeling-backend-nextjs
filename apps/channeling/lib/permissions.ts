@@ -94,7 +94,9 @@ export function canAccessRoute(
       hasPermission(permissions, resource, "view") ||
       hasPermission(permissions, resource, "approve-channel-cancel") ||
       hasPermission(permissions, resource, "approve-channel-refund") ||
-      hasPermission(permissions, "channel-booking", "edit")
+      hasPermission(permissions, resource, "approve-bank-deposit") ||
+      hasPermission(permissions, "channel-booking", "edit") ||
+      hasPermission(permissions, "ledger", "add")
     )
   }
   return hasPermission(permissions, resource, action)
