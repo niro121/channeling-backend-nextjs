@@ -60,13 +60,15 @@ import {
   GitBranch,
   Printer,
   ChevronDown,
+  FileCheck,
+  Camera,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
 import { HandoverCashInPrint } from "./handover-cash-in-print"
 import { HandoverSummaryPrint } from "./handover-summary-print"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
-import { FileCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { HandoverBillGallery } from "@/components/shift-bills/handover-bill-gallery"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
@@ -1125,6 +1127,16 @@ export default function HandoverDetailPage() {
           </Card>
         )
       })()}
+
+      <Card className="print:hidden">
+        <CardContent className="p-3 space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Camera className="h-4 w-4" />
+            Bill photos
+          </h3>
+          <HandoverBillGallery items={data.billAttachments ?? []} />
+        </CardContent>
+      </Card>
 
       {/* Entries to check: tick when verified (only when still pending approval and you are the recipient) */}
       {isPending && isRecipient && (

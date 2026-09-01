@@ -524,6 +524,7 @@ model Shift {
   handoversReceived ShiftHandover[] @relation("HandoversReceivedByShift")
   receipts     Receipt[]
   approvalRequests ApprovalRequest[]
+  billAttachments ShiftBillAttachment[]
 
   @@index([userId, status])
   @@index([locationId])
@@ -658,6 +659,7 @@ model ShiftHandover {
   createdAt              DateTime       @default(now())
   handoverNo             Int?
   handoverNoString       String?
+  billAttachments        ShiftBillAttachment[]
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
   // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
@@ -687,6 +689,29 @@ model ShiftHandover {
   @@index([status, reconciliationStatus, createdAt(sort: Desc)])
   @@index([status, reconciliationStatus, nonCashReconciledAt(sort: Desc)])
   @@index([status, reconciliationStatus, reconciliationRejectedAt(sort: Desc)])
+}
+
+/// Cashier-captured bill photos for a shift; linked to a handover on submit.
+/// Files live in a private S3 bucket; this record is metadata only.
+model ShiftBillAttachment {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  shiftId      String   @db.ObjectId
+  shift        Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  handoverId   String?  @db.ObjectId
+  handover     ShiftHandover? @relation(fields: [handoverId], references: [id], onDelete: SetNull)
+  s3Key        String
+  thumbS3Key   String?
+  contentType  String
+  sizeBytes    Int
+  kind         String?
+  note         String?
+  uploadedById String   @db.ObjectId
+  uploadedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([shiftId, createdAt])
+  @@index([handoverId])
+  @@index([uploadedById])
 }
 
 // In-app notification center: float/handover approvals and rejections (extensible)

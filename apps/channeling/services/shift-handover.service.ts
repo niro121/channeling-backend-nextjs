@@ -27,6 +27,11 @@ import {
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 import { formatCents } from "@/lib/format-money"
+import {
+  attachShiftBillsToHandover,
+  listShiftBillAttachmentsForHandover,
+  unlinkShiftBillsFromHandover,
+} from "@/services/shift-bill-attachment.service"
 
 const CLOSED_HANDOVER_STATUSES = [
   HANDOVER_STATUS.APPROVED,
@@ -97,7 +102,8 @@ export async function processShiftHandover(
   amounts: ShiftHandoverAmounts,
   discrepancyReason?: string,
   enteredBreakdown?: ShiftHandoverEnteredBreakdown,
-  includedHandoverIds?: string[]
+  includedHandoverIds?: string[],
+  attachmentIds?: string[]
 ): Promise<
   | { success: true; handoverId: string }
   | { success: false; error: string }
@@ -310,6 +316,17 @@ export async function processShiftHandover(
     select: { id: true, includedHandoverIds: true },
   })
   console.log("[processShiftHandover] after create, re-fetched handover includedHandoverIds:", verify?.includedHandoverIds, "type:", typeof verify?.includedHandoverIds)
+
+  const attachResult = await attachShiftBillsToHandover({
+    shiftId: validShiftId,
+    fromUserId: validFrom,
+    handoverId: handover.id,
+    attachmentIds: Array.isArray(attachmentIds) ? attachmentIds : [],
+  })
+  if (!attachResult.success) {
+    await prisma.shiftHandover.delete({ where: { id: handover.id } }).catch(() => undefined)
+    return { success: false, error: attachResult.error }
+  }
 
   // 2) Set forwardedToHandoverId on each PREVIOUS (included) handover so we know where it was forwarded
   for (const includedId of validatedIncludeIds) {
@@ -713,6 +730,7 @@ export async function rejectHandover(
       rejectReason: trimmed,
     },
   })
+  await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
     where: { id: handover.shiftId },
@@ -773,6 +791,7 @@ export async function cancelHandover(
       cancelledBy: cancelledByUserId,
     },
   })
+  await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
     where: { id: handover.shiftId },

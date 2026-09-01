@@ -47,7 +47,12 @@ import {
   Smartphone,
   CircleAlert,
   CheckCircle2,
+  Camera,
 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
+import type { ShiftBillAttachmentDto } from "@/types/shift-bill-attachment"
+import { SHIFT_BILL_KIND_LABELS } from "@/types/shift-bill-attachment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
 import {
@@ -205,6 +210,9 @@ export function EndShiftHandoverDialog({
   const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const [canEndWithoutHandover, setCanEndWithoutHandover] = useState(false)
   const [endWithoutLoading, setEndWithoutLoading] = useState(false)
+  const [billAttachments, setBillAttachments] = useState<ShiftBillAttachmentDto[]>([])
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([])
+  const [billAttachmentsLoading, setBillAttachmentsLoading] = useState(false)
   const { toast } = useToast()
   const hasOpenFloats = openFloatsCount(openFloatsBlocking) > 0
   const hasOpenApprovalRequests = openApprovalRequestsCount > 0
@@ -267,6 +275,19 @@ export function EndShiftHandoverDialog({
       setOpenApprovalRequestsCount(0)
       setOpenApprovalRequestsMessage(null)
       setBalanceLoading(true)
+      setBillAttachmentsLoading(true)
+      listMyShiftBillAttachmentsAction()
+        .then((res) => {
+          if (res.success) {
+            const unattached = res.data.filter((item) => !item.handoverId)
+            setBillAttachments(unattached)
+            setSelectedAttachmentIds(unattached.map((item) => item.id))
+          } else {
+            setBillAttachments([])
+            setSelectedAttachmentIds([])
+          }
+        })
+        .finally(() => setBillAttachmentsLoading(false))
       Promise.all([
         getMyTillBalance(),
         getHandoversToMeAction(),
@@ -729,6 +750,7 @@ export function EndShiftHandoverDialog({
         discrepancyReason: discrepancyReason.trim() || undefined,
         enteredBreakdown,
         includedHandoverIds: idsToInclude,
+        attachmentIds: selectedAttachmentIds.length > 0 ? selectedAttachmentIds : undefined,
       })
       const recipientName = handoverUsers.find((u) => u.id === toUserId)?.name ?? "recipient"
       toast({ title: `Handover submitted. Waiting for ${recipientName} to approve.` })
@@ -1322,6 +1344,53 @@ export function EndShiftHandoverDialog({
                 )}
                 {handoverUsers.length === 0 && !handoverUsersLoading && (
                   <p className="text-xs text-muted-foreground">No other users available.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Camera className="h-3.5 w-3.5" />
+                  Bill photos
+                </Label>
+                {billAttachmentsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading photos…</p>
+                ) : billAttachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No photos on this shift. You can still submit. Add photos from the camera button on the shift bar.
+                  </p>
+                ) : (
+                  <div className="space-y-2 rounded-md border p-2">
+                    <p className="text-xs text-muted-foreground">
+                      Selected photos will be attached to this handover.
+                    </p>
+                    {billAttachments.map((item) => {
+                      const checked = selectedAttachmentIds.includes(item.id)
+                      return (
+                        <label key={item.id} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              setSelectedAttachmentIds((prev) =>
+                                value === true
+                                  ? prev.includes(item.id)
+                                    ? prev
+                                    : [...prev, item.id]
+                                  : prev.filter((id) => id !== item.id)
+                              )
+                            }}
+                          />
+                          <span className="h-10 w-10 overflow-hidden rounded border bg-muted shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={item.thumbUrl} alt="" className="h-full w-full object-cover" />
+                          </span>
+                          <span className="truncate">
+                            {item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"}
+                            {item.note ? ` · ${item.note}` : ""}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
 
