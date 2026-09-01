@@ -1,11 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import {
   getBookingDetails,
   getBookingsBySession,
   refundChannelAction,
 } from "@/app/actions/channel-booking"
+import {
+  completeApprovedRefundAction,
+  requestChannelApprovalAction,
+  withdrawApprovalRequestAction,
+} from "@/app/actions/approval.actions"
+import { APPROVAL_REQUEST_STATUS, APPROVAL_REQUEST_TYPE } from "@/types/approval-request"
 import type { BookingDetailsView } from "@/services/channel-booking/get-booking-details.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
@@ -53,6 +60,11 @@ function getRefundToOptionsForCancel(
   return [cash]
 }
 
+function actionError(result: { success?: boolean; message?: string } | undefined | null): string {
+  if (!result || result.success) return "Something went wrong."
+  return result.message ?? "Something went wrong."
+}
+
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -89,6 +101,8 @@ function getPaymentMethodIcon(paymentMethod: number) {
 export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void }) {
   const { selectedBooking, selectedSession, setBookings, setSelectedBooking } = useChannelBooking()
   const { toast } = useToast()
+  const { data: session } = useSession()
+  const currentUserId = session?.user?.id ?? null
   const [details, setDetails] = useState<BookingDetailsView | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -190,12 +204,75 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     )
   }
 
+  if (details.openApproval && details.openApproval.type !== APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+        This booking has an open refund request. It must be completed, withdrawn, or rejected before a cancellation can be requested.
+      </div>
+    )
+  }
+
   const isPaid = details.status === 1
+  const openApproval = details.openApproval
+  const isRequester = !!openApproval && openApproval.requestedById === currentUserId
+  const isPendingRequest = openApproval?.status === APPROVAL_REQUEST_STATUS.PENDING
+  const isApprovedRequest = openApproval?.status === APPROVAL_REQUEST_STATUS.APPROVED
+  const closed = !openApproval ? details.latestClosedApproval : null
   const isMixedCancelEligible =
     isPaid && details.settlement?.paymentMethod === SAVE_PAYMENT_TYPE_MIXED
   const refundAmount = isPaid ? details.billTotal : 0
   const mixedTotal = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
   const mixedRemaining = refundAmount - mixedTotal
+
+  async function refreshBooking() {
+    if (!selectedBooking || !selectedSession?.id) return
+    const res = await getBookingsBySession(selectedSession.id)
+    if (res.success && res.data) {
+      setBookings(res.data)
+      const updated = res.data.find((b) => b.id === selectedBooking.id)
+      if (updated) setSelectedBooking(updated)
+    }
+    const detailsRes = await getBookingDetails(selectedBooking.id)
+    if (detailsRes.success && detailsRes.data) setDetails(detailsRes.data)
+  }
+
+  async function handleWithdraw() {
+    if (!openApproval) return
+    setSubmitting(true)
+    try {
+      const result = await withdrawApprovalRequestAction(openApproval.id)
+      if (result?.success) {
+        toast({ title: "Request withdrawn", description: "You can request cancellation again if needed." })
+        await refreshBooking()
+      } else {
+        toast({ title: "Error", description: actionError(result), variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Withdraw failed.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleExecute() {
+    if (!selectedBooking) return
+    setSubmitting(true)
+    try {
+      const result = await completeApprovedRefundAction(selectedBooking.id, APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL)
+      if (result?.success) {
+        toast({ title: "Canceled", description: "Booking has been canceled." })
+        await refreshBooking()
+        setRemarks("")
+        onCancelSuccess?.()
+      } else {
+        toast({ title: "Error", description: actionError(result), variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Cancel failed.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleCancel(
     mixedPaymentLines?: Array<{
@@ -214,29 +291,43 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     }
     setSubmitting(true)
     try {
-      const result = await refundChannelAction({
-        booking_id: selectedBooking.id,
-        refund_type: 0,
-        professional_fee: 0,
-        hospital_fee: 0,
-        refund_to: refundTo,
-        payment_lines: mixedPaymentLines,
-        remarks: remarks.trim(),
-      })
-      if (result.success) {
-        toast({ title: "Canceled", description: "Booking has been canceled." })
-        if (selectedSession?.id) {
-          const res = await getBookingsBySession(selectedSession.id)
-          if (res.success && res.data) {
-            setBookings(res.data)
-            const updated = res.data.find((b) => b.id === selectedBooking?.id)
-            if (updated) setSelectedBooking(updated)
-          }
+      if (!isPaid) {
+        const result = await refundChannelAction({
+          booking_id: selectedBooking.id,
+          refund_type: 0,
+          professional_fee: 0,
+          hospital_fee: 0,
+          refund_to: refundTo,
+          payment_lines: mixedPaymentLines,
+          remarks: remarks.trim(),
+        })
+        if (result?.success) {
+          toast({ title: "Canceled", description: "Booking has been canceled." })
+          await refreshBooking()
+          setRemarks("")
+          onCancelSuccess?.()
+        } else {
+          toast({ title: "Error", description: actionError(result), variant: "destructive" })
         }
-        setRemarks("")
-        onCancelSuccess?.()
       } else {
-        toast({ title: "Error", description: result.message ?? result.errorCode, variant: "destructive" })
+        const result = await requestChannelApprovalAction({
+          booking_id: selectedBooking.id,
+          type: APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL,
+          refund_to: refundTo,
+          professional_fee: 0,
+          hospital_fee: 0,
+          payment_lines: mixedPaymentLines,
+          remarks: remarks.trim(),
+        })
+        if (result?.success) {
+          toast({
+            title: "Cancellation requested",
+            description: "A manager must approve this before you can cancel and refund.",
+          })
+          await refreshBooking()
+        } else {
+          toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        }
       }
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Cancel failed.", variant: "destructive" })
@@ -282,12 +373,84 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       })
       return
     }
-    await handleCancel(lines)
+    if (isApprovedRequest) {
+      await handleExecute()
+    } else {
+      await handleCancel(lines)
+    }
     resetMixedDialog()
   }
 
   return (
     <div className="space-y-3">
+      {closed?.status === APPROVAL_REQUEST_STATUS.REJECTED && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Previous request was rejected{closed.rejectReason ? `: ${closed.rejectReason}` : "."} You can request again.
+        </div>
+      )}
+      {isPendingRequest && (
+        <div className="rounded-md border border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 px-3 py-2 text-xs space-y-2">
+          <p>
+            {isRequester
+              ? "Awaiting manager approval. You cannot end your shift until this is approved and completed, withdrawn, or rejected."
+              : `Awaiting manager approval. Requested by ${openApproval?.requestedByName}.`}
+          </p>
+          {isRequester && (
+            <Button variant="outline" size="sm" onClick={() => void handleWithdraw()} disabled={submitting}>
+              {submitting ? "Withdrawing…" : "Withdraw request"}
+            </Button>
+          )}
+        </div>
+      )}
+      {isApprovedRequest && (
+        <div className="rounded-md border border-emerald-300/70 bg-emerald-50/80 dark:bg-emerald-950/20 px-3 py-2 text-xs space-y-2">
+          {isRequester ? (
+            <>
+              <p>Approved. Complete the cancellation to refund {formatRs(openApproval?.amount ?? refundAmount)}.</p>
+              <div className="flex gap-2">
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                  onClick={() => {
+                    if (openApproval && details.settlement?.paymentMethod === SAVE_PAYMENT_TYPE_MIXED) {
+                      const settlementLines = details.settlement?.paymentLines ?? []
+                      setMixedLines(
+                        settlementLines
+                          .filter((line) => Number(line.amount) > 0)
+                          .map((line) => ({
+                            payment_method: line.paymentMethod,
+                            payment_method_label: line.paymentMethodName,
+                            amount: Math.round(Number(line.amount) * 100) / 100,
+                            bank_id: line.bankId ?? undefined,
+                            bank_name: line.bank?.trim() || undefined,
+                            card: line.cardReference?.trim() || undefined,
+                            slip_ref: line.slipReference?.trim() || undefined,
+                            slip_date: line.slipDate?.trim() || undefined,
+                          }))
+                      )
+                      setMixedDialogOpen(true)
+                      return
+                    }
+                    void handleExecute()
+                  }}
+                  disabled={submitting}
+                >
+                  {submitting ? "Canceling…" : `Cancel Booking - ${formatRs(openApproval?.amount ?? refundAmount)}`}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => void handleWithdraw()} disabled={submitting}>
+                  Withdraw
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p>
+              Requested by {openApproval?.requestedByName} — only they can complete this cancellation.
+            </p>
+          )}
+        </div>
+      )}
+      {!openApproval && (
+      <>
       <div className="space-y-1.5">
         <Label className="text-xs">Cancel Remarks <span className="text-destructive">*</span></Label>
         <Textarea
@@ -351,8 +514,10 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         }}
         disabled={submitting || !remarks.trim()}
       >
-        {submitting ? "Canceling…" : isPaid ? `Cancel Booking - ${formatRs(refundAmount)}` : "Cancel Booking"}
+        {submitting ? "Requesting…" : isPaid ? `Request cancellation - ${formatRs(refundAmount)}` : "Cancel Booking"}
       </Button>
+      </>
+      )}
       <Dialog
         open={mixedDialogOpen}
         onOpenChange={(open) => {
@@ -423,6 +588,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
                 </span>
               </div>
             </div>
+            {isApprovedRequest && (
             <div className="rounded-md border border-amber-300/70 bg-amber-50/70 dark:bg-amber-950/20 p-2.5">
               <div className="flex items-start gap-2">
                 <Checkbox
@@ -438,6 +604,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
                 </label>
               </div>
             </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={resetMixedDialog}>
@@ -446,9 +613,13 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
             <Button
               type="button"
               onClick={() => void handleMixedCancelNow()}
-              disabled={submitting || Math.abs(mixedRemaining) > 0.0001 || !voidConfirmed}
+              disabled={
+                submitting ||
+                Math.abs(mixedRemaining) > 0.0001 ||
+                (isApprovedRequest && !voidConfirmed)
+              }
             >
-              Confirm Cancel Refund
+              {isApprovedRequest ? "Confirm Cancel Refund" : "Request cancellation"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -23,7 +23,7 @@ import {
 } from '@/app/actions/notification.actions';
 import type { NotificationListItem } from '@/services/notification.service';
 import { NOTIFICATION_TYPES } from '@/types/notification';
-import { UserCircle, Wallet, Bell, FileText, Loader2 } from 'lucide-react';
+import { UserCircle, Wallet, Bell, FileText, Loader2, CheckSquare } from 'lucide-react';
 import { io, type Socket } from 'socket.io-client';
 
 function getInitial(name?: string | null, email?: string | null): string {
@@ -44,6 +44,11 @@ function getNotificationIcon(type: string) {
     case NOTIFICATION_TYPES.HandoverRejected:
     case NOTIFICATION_TYPES.HandoverCancelled:
       return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />;
+    case NOTIFICATION_TYPES.ApprovalRequested:
+    case NOTIFICATION_TYPES.ApprovalApproved:
+    case NOTIFICATION_TYPES.ApprovalRejected:
+    case NOTIFICATION_TYPES.ApprovalWithdrawn:
+      return <CheckSquare className="h-4 w-4 shrink-0 text-muted-foreground" />;
     default:
       return <Bell className="h-4 w-4 shrink-0 text-muted-foreground" />;
   }

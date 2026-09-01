@@ -104,6 +104,9 @@ model User {
   handoversFrom          ShiftHandover[]                @relation("ShiftHandoverFrom")
   handoversTo            ShiftHandover[]                @relation("ShiftHandoverTo")
   notifications          Notification[]                 @relation("UserNotifications")
+  approvalRequestsRequested ApprovalRequest[]           @relation("ApprovalRequestRequestedBy")
+  approvalRequestsApproved  ApprovalRequest[]           @relation("ApprovalRequestApprovedBy")
+  approvalRequestsRejected  ApprovalRequest[]           @relation("ApprovalRequestRejectedBy")
 }
 
 model UserGroup {
@@ -518,6 +521,7 @@ model Shift {
   handovers    ShiftHandover[]
   handoversReceived ShiftHandover[] @relation("HandoversReceivedByShift")
   receipts     Receipt[]
+  approvalRequests ApprovalRequest[]
 
   @@index([userId, status])
   @@index([locationId])
@@ -568,6 +572,42 @@ model FloatRequest {
   @@index([status])
   @@index([toTillId])
   @@index([floatNoString])
+}
+
+/// Channel cancel/refund approval: request → manager approve → requester executes.
+/// status: pending | approved | rejected | withdrawn | completed
+/// type: channel_cancel | channel_refund
+model ApprovalRequest {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  type            String
+  status          Int      @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
+  bookingId       String   @db.ObjectId
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  requestedById   String   @db.ObjectId
+  requestedBy     User     @relation("ApprovalRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  shiftId         String?  @db.ObjectId
+  shift           Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  amount          Float
+  remarks         String
+  refundTo        Int?
+  professionalFee Float    @default(0)
+  hospitalFee     Float    @default(0)
+  paymentLines    Json?
+  approvedAt      DateTime?
+  approvedById    String?  @db.ObjectId
+  approvedBy      User?    @relation("ApprovalRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedAt      DateTime?
+  rejectedById    String?  @db.ObjectId
+  rejectedBy      User?    @relation("ApprovalRequestRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectReason    String?
+  withdrawnAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([bookingId, status])
+  @@index([requestedById, status])
+  @@index([type, status, createdAt(sort: Desc)])
 }
 
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
@@ -1042,6 +1082,8 @@ model Booking {
   hmisPatientId              String?
   /// HMIS Medical Record Number (urn:hmis:mrn) when available
   hmisMrn                    String?
+
+  approvalRequests ApprovalRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

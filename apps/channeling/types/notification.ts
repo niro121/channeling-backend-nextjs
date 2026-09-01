@@ -13,6 +13,10 @@ export const NOTIFICATION_TYPES = {
   HandoverRejected: 'handover_rejected',
   HandoverCancelled: 'handover_cancelled',
   ReconciliationAssigned: 'reconciliation_assigned',
+  ApprovalRequested: 'approval_requested',
+  ApprovalApproved: 'approval_approved',
+  ApprovalRejected: 'approval_rejected',
+  ApprovalWithdrawn: 'approval_withdrawn',
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -20,6 +24,7 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICA
 export const REFERENCE_TYPES = {
   FloatRequest: 'FloatRequest',
   ShiftHandover: 'ShiftHandover',
+  ApprovalRequest: 'ApprovalRequest',
 } as const;
 
 export type Notification = {

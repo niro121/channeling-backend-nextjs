@@ -95,6 +95,15 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "approve-reconciliation", name: "Approve Reconciliation" },
     ],
   },
+  {
+    id: "approvals",
+    name: "Approval Center",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "approve-channel-cancel", name: "Approve Channel Cancellations" },
+      { id: "approve-channel-refund", name: "Approve Channel Refunds" },
+    ],
+  },
 ];
 
 /** Extended permission actions specific to Bulk Cashier (use with customActions). */

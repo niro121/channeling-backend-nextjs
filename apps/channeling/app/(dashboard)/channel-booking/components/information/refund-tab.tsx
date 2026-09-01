@@ -1,11 +1,17 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import {
   getBookingDetails,
   getBookingsBySession,
-  refundChannelAction,
 } from "@/app/actions/channel-booking"
+import {
+  completeApprovedRefundAction,
+  requestChannelApprovalAction,
+  withdrawApprovalRequestAction,
+} from "@/app/actions/approval.actions"
+import { APPROVAL_REQUEST_STATUS, APPROVAL_REQUEST_TYPE } from "@/types/approval-request"
 import type { BookingDetailsView } from "@/services/channel-booking/get-booking-details.service"
 import { useChannelBooking } from "../../context/channel-booking-context"
 import { useToast } from "@/components/hooks/use-toast"
@@ -36,6 +42,11 @@ function getRefundToOptionsForRefund(paymentMethod: number | undefined): { value
   return [cash]
 }
 
+function actionError(result: { success?: boolean; message?: string } | undefined | null): string {
+  if (!result || result.success) return "Something went wrong."
+  return result.message ?? "Something went wrong."
+}
+
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -43,6 +54,8 @@ function formatRs(amount: number): string {
 export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void }) {
   const { selectedBooking, selectedSession, setBookings, setSelectedBooking } = useChannelBooking()
   const { toast } = useToast()
+  const { data: session } = useSession()
+  const currentUserId = session?.user?.id ?? null
   const [details, setDetails] = useState<BookingDetailsView | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -146,6 +159,14 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
     )
   }
 
+  if (details.openApproval && details.openApproval.type !== APPROVAL_REQUEST_TYPE.CHANNEL_REFUND) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+        This booking has an open cancellation request. It must be completed, withdrawn, or rejected before a refund can be requested.
+      </div>
+    )
+  }
+
   const breakdown = details.refundableBreakdown
   if (!breakdown) {
     return (
@@ -159,6 +180,63 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
   const hospitalRefundable = breakdown.refundableHospital
   const totalRefund =
     (professionalChecked ? professionalRefundable : 0) + (hospitalChecked ? hospitalRefundable : 0)
+  const openApproval = details.openApproval
+  const isRequester = !!openApproval && openApproval.requestedById === currentUserId
+  const isPendingRequest = openApproval?.status === APPROVAL_REQUEST_STATUS.PENDING
+  const isApprovedRequest = openApproval?.status === APPROVAL_REQUEST_STATUS.APPROVED
+  const closed = !openApproval ? details.latestClosedApproval : null
+
+  async function refreshBooking() {
+    if (!selectedBooking || !selectedSession?.id) return
+    const res = await getBookingsBySession(selectedSession.id)
+    if (res.success && res.data) {
+      setBookings(res.data)
+      const updated = res.data.find((b) => b.id === selectedBooking.id)
+      if (updated) setSelectedBooking(updated)
+    }
+    const detailsRes = await getBookingDetails(selectedBooking.id)
+    if (detailsRes.success && detailsRes.data) setDetails(detailsRes.data)
+  }
+
+  async function handleWithdraw() {
+    if (!openApproval) return
+    setSubmitting(true)
+    try {
+      const result = await withdrawApprovalRequestAction(openApproval.id)
+      if (result?.success) {
+        toast({ title: "Request withdrawn", description: "You can request a refund again if needed." })
+        await refreshBooking()
+      } else {
+        toast({ title: "Error", description: actionError(result), variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Withdraw failed.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleExecute() {
+    if (!selectedBooking) return
+    setSubmitting(true)
+    try {
+      const result = await completeApprovedRefundAction(selectedBooking.id, APPROVAL_REQUEST_TYPE.CHANNEL_REFUND)
+      if (result?.success) {
+        toast({ title: "Refunded", description: "Refund has been recorded." })
+        await refreshBooking()
+        setRemarks("")
+        setProfessionalChecked(false)
+        setHospitalChecked(false)
+        onRefundSuccess?.()
+      } else {
+        toast({ title: "Error", description: actionError(result), variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Refund failed.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleRefund() {
     if (!selectedBooking) return
@@ -172,33 +250,25 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
     }
     setSubmitting(true)
     try {
-      const result = await refundChannelAction({
+      const result = await requestChannelApprovalAction({
         booking_id: selectedBooking.id,
-        refund_type: 1,
+        type: APPROVAL_REQUEST_TYPE.CHANNEL_REFUND,
         professional_fee: professionalChecked ? professionalRefundable : 0,
         hospital_fee: hospitalChecked ? hospitalRefundable : 0,
         refund_to: refundTo,
         remarks: remarks.trim(),
       })
-      if (result.success) {
-        toast({ title: "Refunded", description: "Refund has been recorded." })
-        if (selectedSession?.id) {
-          const res = await getBookingsBySession(selectedSession.id)
-          if (res.success && res.data) {
-            setBookings(res.data)
-            const updated = res.data.find((b) => b.id === selectedBooking?.id)
-            if (updated) setSelectedBooking(updated)
-          }
-        }
-        setRemarks("")
-        setProfessionalChecked(false)
-        setHospitalChecked(false)
-        onRefundSuccess?.()
+      if (result?.success) {
+        toast({
+          title: "Refund requested",
+          description: "A manager must approve this before you can refund.",
+        })
+        await refreshBooking()
       } else {
-        toast({ title: "Error", description: result.message ?? result.errorCode, variant: "destructive" })
+        toast({ title: "Error", description: actionError(result), variant: "destructive" })
       }
     } catch (e) {
-      toast({ title: "Error", description: e instanceof Error ? e.message : "Refund failed.", variant: "destructive" })
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Request failed.", variant: "destructive" })
     } finally {
       setSubmitting(false)
     }
@@ -206,6 +276,51 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
 
   return (
     <div className="space-y-3">
+      {closed?.status === APPROVAL_REQUEST_STATUS.REJECTED && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Previous request was rejected{closed.rejectReason ? `: ${closed.rejectReason}` : "."} You can request again.
+        </div>
+      )}
+      {isPendingRequest && (
+        <div className="rounded-md border border-amber-300/70 bg-amber-50/80 dark:bg-amber-950/20 px-3 py-2 text-xs space-y-2">
+          <p>
+            {isRequester
+              ? "Awaiting manager approval. You cannot end your shift until this is approved and completed, withdrawn, or rejected."
+              : `Awaiting manager approval. Requested by ${openApproval?.requestedByName}.`}
+          </p>
+          {isRequester && (
+            <Button variant="outline" size="sm" onClick={() => void handleWithdraw()} disabled={submitting}>
+              {submitting ? "Withdrawing…" : "Withdraw request"}
+            </Button>
+          )}
+        </div>
+      )}
+      {isApprovedRequest && (
+        <div className="rounded-md border border-emerald-300/70 bg-emerald-50/80 dark:bg-emerald-950/20 px-3 py-2 text-xs space-y-2">
+          {isRequester ? (
+            <>
+              <p>Approved. Complete the refund of {formatRs(openApproval?.amount ?? totalRefund)}.</p>
+              <div className="flex gap-2">
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                  onClick={() => void handleExecute()}
+                  disabled={submitting}
+                >
+                  {submitting ? "Refunding…" : `Refund ${formatRs(openApproval?.amount ?? totalRefund)}`}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => void handleWithdraw()} disabled={submitting}>
+                  Withdraw
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p>Requested by {openApproval?.requestedByName} — only they can complete this refund.</p>
+          )}
+        </div>
+      )}
+      {!openApproval && (
+      <>
       <div className="space-y-1.5">
         <Label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Refundable items
@@ -299,8 +414,10 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         onClick={handleRefund}
         disabled={submitting || totalRefund <= 0 || !remarks.trim()}
       >
-        {submitting ? "Refunding…" : `Refund ${formatRs(totalRefund)}`}
+        {submitting ? "Requesting…" : `Request refund ${formatRs(totalRefund)}`}
       </Button>
+      </>
+      )}
     </div>
   )
 }
