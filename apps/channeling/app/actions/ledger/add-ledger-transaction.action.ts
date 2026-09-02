@@ -34,6 +34,9 @@ const addLedgerTransactionSchema = z.object({
   cardReference: z.string().optional(),
   slipReference: z.string().optional(),
   slipDate: z.string().optional(),
+  slipImageKey: z.string().optional().nullable(),
+  slipImageContentType: z.string().optional().nullable(),
+  slipImageName: z.string().optional().nullable(),
 })
 
 export type AddLedgerTransactionResult =
@@ -187,6 +190,9 @@ export async function addLedgerTransaction(
           bankAccountId: parsed.data.bankAccountId!.trim(),
           locationId: branchId,
           userLocationId,
+          slipImageKey: parsed.data.slipImageKey,
+          slipImageContentType: parsed.data.slipImageContentType,
+          slipImageName: parsed.data.slipImageName,
         },
         userId
       )

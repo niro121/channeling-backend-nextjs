@@ -125,6 +125,7 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'Agency',
         'Credit Customer',
         'Creator',
+        'Handover Person',
       ]}
       exportKeys={[
         'receiptScope',
@@ -146,6 +147,7 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'agency',
         'creditCustomer',
         'creator',
+        'handoverPerson',
       ]}
       exportTitle="Receipt Report"
       exportFileName="receipt-report"
