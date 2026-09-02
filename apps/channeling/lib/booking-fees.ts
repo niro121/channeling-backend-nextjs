@@ -101,7 +101,7 @@ export function getApplicableFeeIds(
 
 /**
  * Split session fees into professional (Doctor) vs hospital (selected others).
- * When context is omitted, sums every row after Doctor (catalog / public listing).
+ * When context is omitted, sums every row after Doctor (full catalog).
  */
 export function getRefundFeeTypes(
   fees: unknown,
