@@ -25,6 +25,7 @@ import {
   createLedgerReceipt,
   validateBankDepositReady,
 } from "@/services/ledger/create-ledger-receipt.service"
+import { resolveBankDepositSlipSnapshot } from "@/services/bank-deposit-slip.service"
 
 export type ApprovalFailure = { success: false; errorCode: string; message: string }
 export type ApprovalActionResult =
@@ -391,6 +392,9 @@ export async function requestBankDepositApproval(
     bankAccountId: string
     locationId: string
     userLocationId: string | null
+    slipImageKey?: string | null
+    slipImageContentType?: string | null
+    slipImageName?: string | null
   },
   userId: string
 ): Promise<ApprovalActionResult> {
@@ -425,10 +429,21 @@ export async function requestBankDepositApproval(
     return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not active or not found." }
   }
 
+  const slip = await resolveBankDepositSlipSnapshot({
+    userId,
+    slipImageKey: input.slipImageKey,
+    slipImageContentType: input.slipImageContentType,
+    slipImageName: input.slipImageName,
+  })
+  if (!slip.success) {
+    return { success: false, errorCode: slip.errorCode, message: slip.message }
+  }
+
   const currentShift = await getCurrentShift(userId)
   const snapshot: BankDepositSnapshot = {
     bank_name: bankAccount.name,
     account_number: bankAccount.accountNumber,
+    ...slip.snapshot,
   }
 
   const row = await prisma.approvalRequest.create({
@@ -938,6 +953,7 @@ export async function listApprovalRequests(
         : `Appt ${String(row.booking?.appointmentNo ?? 0).padStart(2, "0")} · ${row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.booking?.id ?? "—"}`,
       receiptId: row.receiptId,
       receiptNoString: row.receipt?.receiptNoString ?? null,
+      slipImageUrl: isDeposit && snap.slip_image_key ? `/api/approval-attachments/${row.id}` : null,
       requestedAt: row.createdAt,
       approvedAt: row.approvedAt,
       approvedByName: row.approvedBy?.name ?? null,

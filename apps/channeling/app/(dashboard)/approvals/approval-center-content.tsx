@@ -195,6 +195,7 @@ export function ApprovalCenterContent({
   const [actingId, setActingId] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequestListItem | null>(null)
   const [rejectReason, setRejectReason] = useState("")
+  const [slipPreview, setSlipPreview] = useState<ApprovalRequestListItem | null>(null)
 
   async function loadRows(overrides?: {
     view?: ApprovalListView
@@ -481,6 +482,21 @@ export function ApprovalCenterContent({
                     <td className="p-2">
                       <div>{row.detailTitle}</div>
                       <div className="text-xs text-muted-foreground">{row.detailSub}</div>
+                      {isDeposit && row.slipImageUrl && (
+                        <button
+                          type="button"
+                          className="mt-1.5 flex items-center gap-2 rounded-md border bg-muted/40 p-1 pr-2 text-left hover:bg-muted"
+                          onClick={() => setSlipPreview(row)}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`${row.slipImageUrl}?size=thumb`}
+                            alt="Deposit slip"
+                            className="h-10 w-10 rounded object-cover"
+                          />
+                          <span className="text-xs font-medium">View slip</span>
+                        </button>
+                      )}
                     </td>
                     <td className="p-2 whitespace-nowrap">{formatRs(row.amount)}</td>
                     <td className="p-2">{statusBadge(row.status)}</td>
@@ -597,6 +613,38 @@ export function ApprovalCenterContent({
               Reject
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!slipPreview}
+        onOpenChange={(open) => {
+          if (!open) setSlipPreview(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {slipPreview?.detailTitle ? `Deposit slip · ${slipPreview.detailTitle}` : "Deposit slip"}
+            </DialogTitle>
+          </DialogHeader>
+          {slipPreview?.slipImageUrl && (
+            <div className="space-y-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={slipPreview.slipImageUrl}
+                alt="Deposit slip"
+                className="max-h-[70vh] w-full rounded-md border object-contain bg-muted"
+              />
+              <div className="flex justify-end">
+                <Button asChild type="button" size="sm" variant="outline">
+                  <a href={slipPreview.slipImageUrl} target="_blank" rel="noopener noreferrer">
+                    Open full size
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

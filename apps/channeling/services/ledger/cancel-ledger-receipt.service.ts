@@ -103,6 +103,13 @@ export async function cancelLedgerReceiptService(
   if (!LEDGER_METHODS.includes(original.method as (typeof LEDGER_METHODS)[number])) {
     return { success: false, errorCode: "INVALID", message: "This receipt type cannot be canceled." }
   }
+  if (original.method === RECEIPT_METHOD.BANK_DEPOSIT) {
+    return {
+      success: false,
+      errorCode: "NOT_ALLOWED",
+      message: "Bank deposits cannot be canceled.",
+    }
+  }
   if (original.canceledAt != null || original.reverseReceiptId != null) {
     return { success: false, errorCode: "ALREADY_CANCELED", message: "This entry is already canceled." }
   }

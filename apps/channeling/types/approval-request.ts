@@ -53,11 +53,23 @@ export type ApprovalPaymentLineSnapshot = {
   card?: string
 }
 
+export const BANK_DEPOSIT_SLIP_ALLOWED_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const
+
+export const BANK_DEPOSIT_SLIP_MAX_BYTES = 2 * 1024 * 1024
+
 export type BankDepositSnapshot = {
   bank_name?: string
   account_number?: string
   slip_ref?: string
   slip_date?: string
+  slip_image_key?: string
+  slip_image_thumb_key?: string
+  slip_image_content_type?: string
+  slip_image_name?: string
 }
 
 export type BookingApprovalSummary = {
@@ -85,6 +97,7 @@ export type ApprovalRequestListItem = BookingApprovalSummary & {
   detailSub: string
   receiptId: string | null
   receiptNoString: string | null
+  slipImageUrl: string | null
   requestedAt: Date
   approvedAt: Date | null
   approvedByName: string | null

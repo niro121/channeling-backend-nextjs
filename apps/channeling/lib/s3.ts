@@ -46,10 +46,28 @@ function getClient(): S3Client {
   return client
 }
 
+function getBankDepositSlipPrefix() {
+  return (process.env.S3_BANK_DEPOSIT_SLIPS_PREFIX?.trim() || "bank-deposit-slips").replace(
+    /^\/+|\/+$/g,
+    ""
+  )
+}
+
 export function getBillAttachmentObjectKey(shiftId: string, attachmentId: string, ext: string) {
   const { prefix } = getS3Config()
   const safeExt = ext.replace(/[^a-z0-9]/gi, "") || "jpg"
   return `${prefix}/${shiftId}/${attachmentId}.${safeExt}`
+}
+
+export function bankDepositSlipKeyPrefixForUser(userId: string) {
+  const safeUser = userId.replace(/[^a-zA-Z0-9]/g, "")
+  return `${getBankDepositSlipPrefix()}/${safeUser}/`
+}
+
+export function getBankDepositSlipObjectKey(userId: string, uploadId: string, ext: string) {
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "") || "jpg"
+  const safeUpload = uploadId.replace(/[^a-zA-Z0-9-]/g, "")
+  return `${bankDepositSlipKeyPrefixForUser(userId)}${safeUpload}.${safeExt}`
 }
 
 export async function presignBillAttachmentPut(key: string, contentType: string): Promise<string> {

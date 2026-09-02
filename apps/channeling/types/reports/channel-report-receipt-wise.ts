@@ -24,6 +24,7 @@ export type ChannelReportReceiptWiseRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
+  handoverPerson: string;
   cancelReason: string;
   reversedReceiptNo: string;
   whdAmount: number;
@@ -47,6 +48,7 @@ export type ChannelReportReceiptWiseExportRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
+  handoverPerson: string;
   cancelReason: string;
   reversedReceiptNo: string;
   whdAmount: string;

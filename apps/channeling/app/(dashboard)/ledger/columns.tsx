@@ -8,7 +8,7 @@ import { formatLKR } from "@/lib/format-money"
 import { ReceiptNoCell } from "./receipt-no-cell"
 import { LedgerRecordActions } from "./ledger-record-actions"
 
-export function getLedgerColumns(canAdd: boolean): ColumnDef<LedgerReceiptListItem>[] {
+export function getLedgerColumns(canCancel: boolean): ColumnDef<LedgerReceiptListItem>[] {
   return [
   {
     accessorKey: "receiptNoString",
@@ -136,7 +136,7 @@ export function getLedgerColumns(canAdd: boolean): ColumnDef<LedgerReceiptListIt
     header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => (
       <div className="text-right">
-        <LedgerRecordActions row={row} canAdd={canAdd} />
+        <LedgerRecordActions row={row} canCancel={canCancel} />
       </div>
     ),
   },

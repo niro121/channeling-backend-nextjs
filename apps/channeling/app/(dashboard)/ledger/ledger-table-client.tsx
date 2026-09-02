@@ -13,6 +13,7 @@ type LedgerTableClientProps = {
   data: LedgerReceiptListItem[]
   totalRecords: number
   canAdd: boolean
+  canCancel: boolean
   page?: string
   limit?: string
   branchId?: string
@@ -40,6 +41,7 @@ export function LedgerTableClient({
   data,
   totalRecords,
   canAdd,
+  canCancel,
   page,
   limit,
   branchId,
@@ -56,7 +58,7 @@ export function LedgerTableClient({
     <CustomDataTable
       heading="Ledger"
       subHeading="Branch income/expense and agency debit note, credit note, deposit, withdraw."
-      columns={getLedgerColumns(canAdd)}
+      columns={getLedgerColumns(canCancel)}
       data={data}
       rowCount={totalRecords}
       haveBulkDelete={false}
