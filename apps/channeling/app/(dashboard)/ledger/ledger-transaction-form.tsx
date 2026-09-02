@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { useToast } from "@/components/hooks/use-toast"
@@ -17,11 +17,17 @@ import {
 import { ReferenceSelect } from "@/components/common/reference-select"
 import type { ReferenceSelectOption } from "@/types/reference"
 import { addLedgerTransaction } from "@/app/actions/ledger/add-ledger-transaction.action"
+import { requestBankDepositSlipUploadAction } from "@/app/actions/ledger/bank-deposit-slip.actions"
 import {
   LEDGER_TRANSACTION_TYPES,
   type LedgerTransactionType,
 } from "@/services/ledger/create-ledger-receipt.service"
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import {
+  BANK_DEPOSIT_SLIP_MAX_BYTES,
+} from "@/types/approval-request"
+import { compressBillImage } from "@/lib/compress-bill-image"
+import { Camera, ImagePlus, X } from "lucide-react"
 import Link from "next/link"
 
 const AGENCY_TYPES_FOR_VALIDATION: string[] = [
@@ -232,6 +238,35 @@ export function LedgerTransactionForm({
   const { toast } = useToast()
   const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
   const printAfterSubmitRef = useRef(false)
+  const slipInputRef = useRef<HTMLInputElement>(null)
+  const slipCameraInputRef = useRef<HTMLInputElement>(null)
+  const [slipFile, setSlipFile] = useState<File | null>(null)
+  const [slipPreviewUrl, setSlipPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    }
+  }, [slipPreviewUrl])
+
+  function clearSlipImage() {
+    if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    setSlipFile(null)
+    setSlipPreviewUrl(null)
+    if (slipInputRef.current) slipInputRef.current.value = ""
+    if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
+  }
+
+  function handleSlipSelect(file: File | undefined) {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please choose an image.", variant: "destructive" })
+      return
+    }
+    if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    setSlipFile(file)
+    setSlipPreviewUrl(URL.createObjectURL(file))
+  }
 
   const initialValues: LedgerFormValues = {
     transactionType: "BRANCH_INCOME",
@@ -273,6 +308,48 @@ export function LedgerTransactionForm({
 
     const amountNum = parseFloat(values.amount)
     try {
+      let slipImageKey: string | undefined
+      if (isBankDeposit && slipFile) {
+        const blob = await compressBillImage(slipFile)
+        if (blob.size > BANK_DEPOSIT_SLIP_MAX_BYTES) {
+          toast({
+            title: "Image too large",
+            description: "Deposit slip must be 2 MB or smaller after compression.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        const requested = await requestBankDepositSlipUploadAction({
+          contentType: "image/jpeg",
+          sizeBytes: blob.size,
+        })
+        if (!requested.success) {
+          toast({
+            title: "Could not upload slip",
+            description: requested.error,
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        const put = await fetch(requested.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob,
+        })
+        if (!put.ok) {
+          toast({
+            title: "Could not upload slip",
+            description: "Upload to storage failed. Try again.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        slipImageKey = requested.slipKey
+      }
+
       const result = await addLedgerTransaction({
         transactionType: values.transactionType,
         branchId: effectiveBranchId,
@@ -312,6 +389,9 @@ export function LedgerTransactionForm({
             values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
             ? values.slipDate
             : undefined,
+        slipImageKey,
+        slipImageContentType: slipImageKey ? "image/jpeg" : undefined,
+        slipImageName: slipImageKey ? slipFile?.name : undefined,
       })
 
       if (result.success) {
@@ -330,6 +410,7 @@ export function LedgerTransactionForm({
             slipDate: "",
             bankId: "",
           })
+          clearSlipImage()
           onSuccess?.()
           printAfterSubmitRef.current = false
           setSubmitting(false)
@@ -424,7 +505,10 @@ export function LedgerTransactionForm({
               <Label htmlFor="transactionType">Transaction type</Label>
               <Select
                 value={formik.values.transactionType}
-                onValueChange={(v) => formik.setFieldValue("transactionType", v)}
+                onValueChange={(v) => {
+                  formik.setFieldValue("transactionType", v)
+                  if (v !== BANK_DEPOSIT_TYPE) clearSlipImage()
+                }}
               >
                 <SelectTrigger id="transactionType">
                   <SelectValue />
@@ -712,6 +796,73 @@ export function LedgerTransactionForm({
             </div>
 
             {isBankDeposit && (
+              <div className="space-y-2">
+                <Label htmlFor="depositSlip">Deposit slip (optional)</Label>
+                <input
+                  ref={slipInputRef}
+                  id="depositSlip"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/*"
+                  className="hidden"
+                  onChange={(e) => handleSlipSelect(e.target.files?.[0])}
+                />
+                <input
+                  ref={slipCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => handleSlipSelect(e.target.files?.[0])}
+                />
+                {slipPreviewUrl ? (
+                  <div className="relative w-fit">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={slipPreviewUrl}
+                      alt="Deposit slip preview"
+                      className="h-36 w-auto max-w-full rounded-md border object-contain bg-muted"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute top-1 right-1 h-7 w-7"
+                      onClick={clearSlipImage}
+                      aria-label="Remove deposit slip"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => slipCameraInputRef.current?.click()}
+                      className="gap-2"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Take photo
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => slipInputRef.current?.click()}
+                      className="gap-2"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      Choose file
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Upload a photo of the bank slip so the approver can verify it. JPEG, PNG, or WebP, up to 2 MB.
+                </p>
+              </div>
+            )}
+            {isBankDeposit && (
               <p className="text-sm text-muted-foreground">
                 Bank deposits are sent for approval. The ledger receipt and till deduction happen only after a manager approves.{" "}
                 <Link href="/approvals" className="underline font-medium hover:no-underline">
@@ -728,7 +879,9 @@ export function LedgerTransactionForm({
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={formik.isSubmitting}>
                 {formik.isSubmitting
-                  ? "Saving…"
+                  ? isBankDeposit && slipFile
+                    ? "Uploading…"
+                    : "Saving…"
                   : isBankDeposit
                     ? "Request deposit"
                     : "Add transaction"}
