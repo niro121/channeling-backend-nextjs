@@ -134,6 +134,7 @@ function mapSaveBookingError(
     code === "CREDIT_LIMIT_VIOLATION" ||
     code === "AGENCY_CREDIT_EXCEED" ||
     code === "AGENCY_NO_LINKED_ACCOUNT" ||
+    code === "INSUFFICIENT_BALANCE" ||
     code === "LIMIT_EXCEEDED"
   ) {
     return "booking_error"

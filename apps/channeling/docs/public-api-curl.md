@@ -332,6 +332,79 @@ Use **Get Bookings** with `includePending=true` to list pending (On-Call) bookin
 
 ---
 
+## 7. Get agency by code
+
+**GET** `/api/public/agencies/by-code/:code`
+
+Returns a published agency by unique code. Requires a valid Bearer token. Used by the website admin when creating agent users.
+
+Agencies without a linked active PAYABLE account return `400` with `booking_error_code: AGENCY_NO_LINKED_ACCOUNT`. The website will not create an agent user in that case.
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/public/agencies/by-code/001" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Example success response (200)
+
+```json
+{
+  "agency": {
+    "id": "...",
+    "code": "001",
+    "name": "Online Booking Agency",
+    "status": 1,
+    "hasLinkedPayableAccount": true
+  }
+}
+```
+
+Unpublished or unknown codes return `404`. Agencies with no linked PAYABLE account return `400`:
+
+```json
+{
+  "error": "no_linked_account",
+  "error_description": "This hospital agency has no linked PAYABLE account. Link a payable account in the hospital system before creating a website agent.",
+  "booking_error_code": "AGENCY_NO_LINKED_ACCOUNT"
+}
+```
+
+---
+
+## 8. Get agency balance
+
+**GET** `/api/public/agencies/:agencyId/balance`
+
+Live credit from the agency’s linked PAYABLE account (same source as Agent bookings). Requires a valid Bearer token.
+
+`availableCredit` is `balance + allowedCreditLimit` (the same check used when creating a paid Agent booking).
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/public/agencies/AGENCY_ID/balance" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Example success response (200)
+
+```json
+{
+  "agencyId": "...",
+  "agencyCode": "001",
+  "name": "Online Booking Agency",
+  "balance": 12500.00,
+  "allowedCreditLimit": 5000.00,
+  "availableCredit": 17500.00
+}
+```
+
+Paid Agent bookings (`POST /api/public/bookings` with `paid: yes`) still enforce this on the server. Website agent credit should send `bookReference` as the website reservation id (leaf-book format is not required on the public path).
+
+---
+
 ## Postman collection
 
 Import the collection to run these in Postman:
