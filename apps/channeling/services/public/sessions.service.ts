@@ -1,8 +1,18 @@
 import prisma from "@/lib/prisma"
 import { getSessionsForChannelBookingService } from "@/services/channel-booking/get-sessions.service"
-import { getRefundFeeTypes } from "@/services/channel-booking/helpers"
+import { getRefundFeeTypes, toBookingFeeContext } from "@/services/channel-booking/helpers"
+import {
+  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_PAYMENT_TYPE_AGENT,
+} from "@/types/save-booking"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
+
+/** Same fee set as an Agent booking in channel booking (excludes On-Call). */
+const PUBLIC_SESSION_FEE_CONTEXT = toBookingFeeContext(
+  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_PAYMENT_TYPE_AGENT
+)
 
 export type PublicSessionFeeBreakdown = {
   professionalFee: number
@@ -32,6 +42,10 @@ export type PublicSessionDto = {
   appointmentNo: number
   /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
   isFull: boolean
+  /** True when the doctor session template allows advance booking (advancedBookingDays > 0) */
+  advancedBookingEnabled: boolean
+  /** Days in advance booking is open on the template (0 = same day only / disabled) */
+  advancedBookingDays: number
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
   location: { id: string; name: string; city: string } | null
@@ -50,8 +64,8 @@ function mapPublicSessionFees(fees: unknown): {
   local: PublicSessionFeeBreakdown
   foreign: PublicSessionFeeBreakdown
 } {
-  const localParts = getRefundFeeTypes(fees, false)
-  const foreignParts = getRefundFeeTypes(fees, true)
+  const localParts = getRefundFeeTypes(fees, false, PUBLIC_SESSION_FEE_CONTEXT)
+  const foreignParts = getRefundFeeTypes(fees, true, PUBLIC_SESSION_FEE_CONTEXT)
   const localAmount = localParts.professional_fee + localParts.hospital_fee
   const foreignAmount = foreignParts.professional_fee + foreignParts.hospital_fee
   return {
@@ -65,18 +79,6 @@ function mapPublicSessionFees(fees: unknown): {
       hospitalFee: foreignParts.hospital_fee,
       amount: foreignAmount,
     },
-  }
-}
-
-/** Prefer session.fees breakdown; use stored session totals for `amount` when set. */
-function resolvePublicSessionAmount(
-  sessionTotal: number | null | undefined,
-  parts: PublicSessionFeeBreakdown
-): PublicSessionFeeBreakdown {
-  return {
-    professionalFee: parts.professionalFee,
-    hospitalFee: parts.hospitalFee,
-    amount: sessionTotal ?? parts.amount,
   }
 }
 
@@ -175,6 +177,23 @@ export async function getPublicSessionsByDoctorCode(
     )
   }
 
+  const doctorSessionIds = [
+    ...new Set(orderedSessions.map((s) => s.doctorSessionId).filter(Boolean)),
+  ]
+  const doctorSessionTemplates =
+    doctorSessionIds.length > 0
+      ? await prisma.doctorSession.findMany({
+          where: { id: { in: doctorSessionIds } },
+          select: { id: true, advancedBookingDays: true },
+        })
+      : []
+  const advancedBookingDaysByTemplate = new Map(
+    doctorSessionTemplates.map((template) => [
+      template.id,
+      template.advancedBookingDays ?? 0,
+    ])
+  )
+
   const sessions: PublicSessionDto[] = orderedSessions.map((s: Session) => {
     const consecutiveChainFull = isConsecutiveChainFull(
       s,
@@ -191,6 +210,8 @@ export async function getPublicSessionsByDoctorCode(
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
+    const advancedBookingDays =
+      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -203,8 +224,10 @@ export async function getPublicSessionsByDoctorCode(
       maxPatientNumber,
       appointmentNo,
       isFull: sessionFull,
-      amountLocal: resolvePublicSessionAmount(s.amountLocal, feeBreakdown.local),
-      amountForeign: resolvePublicSessionAmount(s.amountForeign, feeBreakdown.foreign),
+      advancedBookingEnabled: advancedBookingDays > 0,
+      advancedBookingDays,
+      amountLocal: feeBreakdown.local,
+      amountForeign: feeBreakdown.foreign,
       location: s.location
         ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,

@@ -42,6 +42,8 @@ export async function loadSessionForSaveBooking(
     fees: r.fees,
     amountLocal: r.amountLocal,
     amountForeign: r.amountForeign,
+    doctorArrivalTime: r.doctorArrivalTime,
+    doctorDepatureTime: r.doctorDepatureTime,
     status: r.status,
     remarks: r.remarks,
     appointmentNo: r.appointmentNo,

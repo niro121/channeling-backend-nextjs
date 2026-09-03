@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { createLedgerReceipt } from "@/services/ledger/create-ledger-receipt.service"
+import { requestBankDepositApproval } from "@/services/approval-request.service"
 import {
   type LedgerTransactionType,
   LEDGER_TRANSACTION_TYPES,
@@ -33,10 +34,14 @@ const addLedgerTransactionSchema = z.object({
   cardReference: z.string().optional(),
   slipReference: z.string().optional(),
   slipDate: z.string().optional(),
+  slipImageKey: z.string().optional().nullable(),
+  slipImageContentType: z.string().optional().nullable(),
+  slipImageName: z.string().optional().nullable(),
 })
 
 export type AddLedgerTransactionResult =
   | { success: true; receiptId: string; receiptNoString: string }
+  | { success: true; pendingApproval: true; requestId: string }
   | { success: false; message: string; errorCode?: string; issues?: Record<string, string[]> }
 
 export async function addLedgerTransaction(
@@ -61,11 +66,14 @@ export async function addLedgerTransaction(
   const { transactionType, branchId: clientBranchId, agencyId, amount, remarks } = parsed.data
   const isAgencyType = (AGENCY_TYPES as readonly string[]).includes(transactionType)
   const isBankDeposit = transactionType === "BANK_DEPOSIT"
+  const isBranchIncomeOrExpense =
+    transactionType === "BRANCH_INCOME" || transactionType === "BRANCH_EXPENSE"
+  const lockBranchToUserLocation = isAgencyType || isBankDeposit || isBranchIncomeOrExpense
   let userLocationId: string | null = null
 
-  // For agency and bank-deposit types, branch is the user's location (not from form).
+  // Branch income/expense, agency, and bank-deposit types use the user's location (not a chosen branch).
   let branchId = clientBranchId ?? ""
-  if (isAgencyType || isBankDeposit) {
+  if (lockBranchToUserLocation) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { userLocationId: true },
@@ -76,13 +84,22 @@ export async function addLedgerTransaction(
         success: false,
         message: isBankDeposit
           ? "You must have a branch assigned to record bank deposits."
-          : "You must have a branch assigned to record agency transactions.",
+          : isBranchIncomeOrExpense
+            ? "You must have a branch assigned to record branch income or expense."
+            : "You must have a branch assigned to record agency transactions.",
+        errorCode: "VALIDATION",
+      }
+    }
+    if (isBranchIncomeOrExpense && clientBranchId?.trim() && clientBranchId !== userLocationId) {
+      return {
+        success: false,
+        message: "You can only record branch income or expense for your assigned branch.",
         errorCode: "VALIDATION",
       }
     }
     branchId = userLocationId
   }
-  if (!isAgencyType && !isBankDeposit && !branchId.trim()) {
+  if (!lockBranchToUserLocation && !branchId.trim()) {
     return { success: false, message: "Branch is required.", errorCode: "VALIDATION" }
   }
 
@@ -165,6 +182,26 @@ export async function addLedgerTransaction(
   }
 
   try {
+    if (isBankDeposit) {
+      const pending = await requestBankDepositApproval(
+        {
+          amount,
+          remarks,
+          bankAccountId: parsed.data.bankAccountId!.trim(),
+          locationId: branchId,
+          userLocationId,
+          slipImageKey: parsed.data.slipImageKey,
+          slipImageContentType: parsed.data.slipImageContentType,
+          slipImageName: parsed.data.slipImageName,
+        },
+        userId
+      )
+      if (!pending.success) {
+        return { success: false, message: pending.message, errorCode: pending.errorCode }
+      }
+      return { success: true, pendingApproval: true, requestId: pending.data?.id ?? "" }
+    }
+
     const result = await createLedgerReceipt({
       transactionType: transactionType as LedgerTransactionType,
       branchId,

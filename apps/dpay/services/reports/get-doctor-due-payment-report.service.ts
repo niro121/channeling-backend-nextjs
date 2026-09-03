@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
 import {
   eligibleDoctorPayoutBillWhere,
   unpaidDoctorLineWhere,
@@ -13,24 +14,6 @@ import type {
 const DISPLAY_LIMIT = 10000;
 const EXPORT_LIMIT = 10000;
 
-/** Asia/Colombo (UTC+05:30) — matches patient bills list date filtering. */
-const APP_TZ_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-function startOfAppDay(dateStr: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  return new Date(Date.UTC(year, month - 1, day) - APP_TZ_OFFSET_MS);
-}
-
-function endOfAppDay(dateStr: string): Date | null {
-  const start = startOfAppDay(dateStr);
-  if (!start) return null;
-  return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-}
-
 function buildBillWhere(
   params: DoctorDuePaymentReportParams
 ): Prisma.PatientBillWhereInput {
@@ -43,11 +26,11 @@ function buildBillWhere(
 
   const admissionDateFilter: Prisma.DateTimeFilter = {};
   if (params.dateFrom) {
-    const from = startOfAppDay(params.dateFrom);
+    const from = parseReportDateTimeSl(params.dateFrom, false);
     if (from) admissionDateFilter.gte = from;
   }
   if (params.dateTo) {
-    const to = endOfAppDay(params.dateTo);
+    const to = parseReportDateTimeSl(params.dateTo, true);
     if (to) admissionDateFilter.lte = to;
   }
   if (Object.keys(admissionDateFilter).length > 0) {

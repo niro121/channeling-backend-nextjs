@@ -95,6 +95,25 @@ export function receiptToAmountsDoctorPaymentNet(
   return result;
 }
 
+/**
+ * Cashier summary Grand Total (rupees): credit (slip + customer credit) + cash methods.
+ * Agent is listed separately on the report and is not included.
+ */
+export function cashierSummaryGrandTotalRupees(t: CashierSummaryPaymentAmounts): number {
+  return (
+    Number(t.cash) +
+    Number(t.creditCard) +
+    Number(t.slip) +
+    Number(t.cheque) +
+    Number(t.agentCredit) +
+    Number(t.eWallet)
+  )
+}
+
+export function cashierSummaryGrandTotalCents(t: CashierSummaryPaymentAmounts): number {
+  return Math.round(cashierSummaryGrandTotalRupees(t) * 100)
+}
+
 export function addCashierSummaryAmounts(
   a: CashierSummaryPaymentAmounts,
   b: CashierSummaryPaymentAmounts

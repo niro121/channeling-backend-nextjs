@@ -21,11 +21,34 @@ export const ChannelReportReceiptWiseColumns: ColumnDef<ChannelReportReceiptWise
   },
   { accessorKey: 'receiptMethod', header: 'Payment Method' },
   { accessorKey: 'transactionType', header: 'Transaction Type' },
+  { accessorKey: 'cancelReason', header: 'Cancel Reason' },
+  { accessorKey: 'reversedReceiptNo', header: 'Reversed Receipt' },
   {
     accessorKey: 'receiptAmount',
     header: () => <span className="block text-right">Amount</span>,
     cell: ({ row }) => (
       <span className="block text-right tabular-nums font-semibold">{formatLKR(Number(row.original.receiptAmount ?? 0))}</span>
+    ),
+  },
+  {
+    accessorKey: 'whdAmount',
+    header: () => <span className="block text-right">WHT</span>,
+    cell: ({ row }) => {
+      const whd = Number(row.original.whdAmount ?? 0);
+      return (
+        <span className="block text-right tabular-nums">
+          {whd !== 0 ? formatLKR(whd) : '-'}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: 'netAmount',
+    header: () => <span className="block text-right">Net Amount</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums font-semibold">
+        {formatLKR(Number(row.original.netAmount ?? row.original.receiptAmount ?? 0))}
+      </span>
     ),
   },
   { accessorKey: 'appointmentNo', header: 'App No' },
@@ -41,4 +64,5 @@ export const ChannelReportReceiptWiseColumns: ColumnDef<ChannelReportReceiptWise
   { accessorKey: 'agency', header: 'Agency' },
   { accessorKey: 'creditCustomer', header: 'Credit Customer' },
   { accessorKey: 'creator', header: 'Creator' },
+  { accessorKey: 'handoverPerson', header: 'Handover Person' },
 ];

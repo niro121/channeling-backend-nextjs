@@ -5,39 +5,43 @@ import { Button } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 
 type CancelActionButtonProps = {
-  /** Tooltip and accessible name (e.g. "Cancel receipt"). Defaults to "Cancel". */
+  /** Visible button text. Defaults to "Cancel". */
   label?: string;
+  /** Tooltip; defaults to label. */
+  title?: string;
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
+  iconClassName?: string;
 };
 
 /**
- * Shared icon-only cancel control (Ban).
+ * Shared cancel control (Ban icon + label, destructive outline).
  * Use for cancel receipt / payment / bill actions only — not dialog dismiss.
  */
 export function CancelActionButton({
   label = 'Cancel',
+  title,
   onClick,
   disabled,
   className,
+  iconClassName,
 }: CancelActionButtonProps) {
   return (
     <Button
       type="button"
-      variant="ghost"
-      size="icon"
+      variant="outline"
+      size="sm"
       className={cn(
-        'h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive',
+        'h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive',
         className
       )}
-      title={label}
-      aria-label={label}
+      title={title ?? label}
       disabled={disabled}
       onClick={onClick}
     >
-      <Ban className="h-4 w-4" />
-      <span className="sr-only">{label}</span>
+      <Ban className={cn('h-3.5 w-3.5', iconClassName)} />
+      {label}
     </Button>
   );
 }

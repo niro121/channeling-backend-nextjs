@@ -87,6 +87,67 @@ function getTillPaymentMethodLabel(pm: number): string {
   return labels[pm] ?? "cash"
 }
 
+/** Till + bank account checks for a bank deposit, without creating a receipt. */
+export async function validateBankDepositReady(input: {
+  createdBy: string
+  amount: number
+  bankAccountId: string
+  branchId: string
+  userLocationId: string | null
+}): Promise<{ success: true } | { success: false; errorCode: string; message: string }> {
+  if (!input.bankAccountId?.trim()) {
+    return { success: false, errorCode: "VALIDATION", message: "Bank account is required for bank deposit." }
+  }
+  if (typeof input.amount !== "number" || input.amount <= 0) {
+    return { success: false, errorCode: "VALIDATION", message: "Amount must be a positive number." }
+  }
+
+  const reqResult = await requireReceiptJournalAccounts(
+    {
+      locationId: input.branchId,
+      createdBy: input.createdBy,
+      userLocationId: input.userLocationId ?? null,
+      agencyId: null,
+      needTill: true,
+    },
+    { needTill: true, isAgent: false }
+  )
+  if (!reqResult.success) {
+    return { success: false, errorCode: reqResult.errorCode, message: reqResult.error }
+  }
+  const accounts = reqResult.accounts
+  if (!accounts.cashierAccountId) {
+    return { success: false, errorCode: "CASHIER_ACCOUNT_ERROR", message: "Till account could not be resolved for bank deposit." }
+  }
+
+  const amountCents = Math.round(input.amount * 100)
+  const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+  const tillBalanceCents = getTillBalanceCentsByMethod(breakdown, RECEIPT_PAYMENT_METHOD.CASH)
+  if (tillBalanceCents < amountCents) {
+    const methodLabel = getTillPaymentMethodLabel(RECEIPT_PAYMENT_METHOD.CASH)
+    return {
+      success: false,
+      errorCode: "INSUFFICIENT_TILL_BALANCE",
+      message:
+        tillBalanceCents <= 0
+          ? `Till has no ${methodLabel} balance. Cannot complete this transaction until the till has sufficient ${methodLabel}.`
+          : `Insufficient ${methodLabel} balance in till. Available: ${formatCents(tillBalanceCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
+    }
+  }
+
+  const bankDepositAccount = await prisma.bankAccount.findFirst({
+    where: { id: input.bankAccountId, status: 1 },
+    select: { id: true, accountId: true },
+  })
+  if (!bankDepositAccount) {
+    return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not active or not found." }
+  }
+  if (!bankDepositAccount.accountId) {
+    return { success: false, errorCode: "VALIDATION", message: "Selected bank account is not linked to a GL account." }
+  }
+  return { success: true }
+}
+
 async function clearAgencyViolationIfEligible(
   agencyId: string,
   actingUserId: string | null
@@ -190,6 +251,28 @@ export async function createLedgerReceipt(
 
   if (!input.branchId?.trim()) {
     return { success: false, errorCode: "VALIDATION", message: "Branch is required." }
+  }
+  const isBranchIncomeOrExpense =
+    input.transactionType === "BRANCH_INCOME" || input.transactionType === "BRANCH_EXPENSE"
+  if (isBranchIncomeOrExpense && input.createdBy) {
+    const user = await prisma.user.findUnique({
+      where: { id: input.createdBy },
+      select: { userLocationId: true },
+    })
+    if (!user?.userLocationId?.trim()) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "You must have a branch assigned to record branch income or expense.",
+      }
+    }
+    if (input.branchId !== user.userLocationId) {
+      return {
+        success: false,
+        errorCode: "VALIDATION",
+        message: "You can only record branch income or expense for your assigned branch.",
+      }
+    }
   }
   if (typeof input.amount !== "number" || input.amount <= 0) {
     return { success: false, errorCode: "VALIDATION", message: "Amount must be a positive number." }
@@ -390,7 +473,8 @@ export async function createLedgerReceipt(
     input.transactionType === "AGENCY_CREDIT_NOTE" ||
     input.transactionType === "AGENCY_WITHDRAW" ||
     input.transactionType === "BANK_DEPOSIT";
-  const receiptAmount = isOutflow ? -1 * Math.round(input.amount) : Math.round(input.amount);
+  const amountRupees = Math.round(input.amount * 100) / 100
+  const receiptAmount = isOutflow ? -amountRupees : amountRupees
 
   // Branch is always saved in locationId. For sequence: branch income/expense use locationId;
   // agency types (debit/credit note, deposit, withdraw) use userLocationId (same branch).
@@ -457,18 +541,17 @@ export async function createLedgerReceipt(
   }
 
   const receipt = result.receipt
-  const amountRounded = Math.round(input.amount)
 
   if (input.agencyId) {
     if (input.transactionType === "AGENCY_DEBIT_NOTE") {
-      await updateAgentBalance(input.agencyId, amountRounded)
+      await updateAgentBalance(input.agencyId, amountRupees)
     } else if (input.transactionType === "AGENCY_CREDIT_NOTE") {
-      await updateAgentBalance(input.agencyId, -amountRounded)
+      await updateAgentBalance(input.agencyId, -amountRupees)
     } else if (input.transactionType === "AGENCY_DEPOSIT") {
-      await updateAgentBalance(input.agencyId, -amountRounded)
+      await updateAgentBalance(input.agencyId, -amountRupees)
       await clearAgencyViolationIfEligible(input.agencyId, input.createdBy ?? null)
     } else if (input.transactionType === "AGENCY_WITHDRAW") {
-      await updateAgentBalance(input.agencyId, amountRounded)
+      await updateAgentBalance(input.agencyId, amountRupees)
     }
   }
 

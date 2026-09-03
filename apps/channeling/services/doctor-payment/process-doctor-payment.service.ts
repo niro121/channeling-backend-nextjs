@@ -19,6 +19,7 @@ import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequen
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { formatCents } from "@/lib/format-money";
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
+import { isShiftRequirementError } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
@@ -100,8 +101,15 @@ export async function processDoctorPaymentService(
 
   if (userId) {
     try {
-      await requireActiveShift(userId);
+      await requireActiveShift(userId, { allowExpired: true });
     } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        };
+      }
       return {
         success: false,
         errorCode: "NO_ACTIVE_SHIFT",
@@ -189,6 +197,18 @@ export async function processDoctorPaymentService(
     return { success: false, errorCode: "INVALID_STATUS", message: "All selected bookings must be paid (status 1)." };
   }
 
+  const { findOpenApprovalForBooking } = await import("@/services/approval-request.service");
+  for (const b of existing) {
+    const open = await findOpenApprovalForBooking(b.id);
+    if (open) {
+      return {
+        success: false,
+        errorCode: "approval_pending",
+        message: "A selected booking has an open cancel or refund request and cannot be paid to the doctor.",
+      };
+    }
+  }
+
   const accountsResult = await resolveDoctorPaymentAccounts({
     doctorId,
     locationId,
@@ -250,6 +270,7 @@ export async function processDoctorPaymentService(
     shiftId,
     whd: Math.round(whtAmount),
     whdPercentage: whtPercentage,
+    doctorId,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });

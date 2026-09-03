@@ -129,6 +129,19 @@ export async function transferBookingsService(
     }
   }
 
+  const { findOpenApprovalForBooking } = await import("@/services/approval-request.service")
+  for (const b of bookingObjs) {
+    const open = await findOpenApprovalForBooking(b.id)
+    if (open) {
+      return {
+        success: false,
+        errorCode: "approval_pending",
+        message:
+          "A selected booking has an open cancel or refund request and cannot be transferred.",
+      }
+    }
+  }
+
   const todayStart = moment().startOf("day").unix()
   for (const b of bookingObjs) {
     if (b.sessionStartTime < todayStart) {

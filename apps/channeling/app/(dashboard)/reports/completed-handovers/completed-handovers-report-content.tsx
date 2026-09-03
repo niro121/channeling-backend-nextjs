@@ -26,7 +26,15 @@ type Props = {
 };
 
 const STATUS_OPTIONS = [
+  { id: 'pending', name: 'Pending' },
   { id: 'approved', name: 'Approved' },
+  { id: 'rejected', name: 'Rejected' },
+];
+
+const RECONCILIATION_STATUS_OPTIONS = [
+  { id: 'pending', name: 'Pending' },
+  { id: 'in_reconciliation', name: 'In reconciliation' },
+  { id: 'reconciled', name: 'Reconciled' },
   { id: 'rejected', name: 'Rejected' },
 ];
 
@@ -41,6 +49,7 @@ function getDefaultFilterValues(): Record<string, string> {
     fromUserId: '__all__',
     toUserId: '__all__',
     status: '__all__',
+    reconciliationStatus: '__all__',
   };
 }
 
@@ -53,12 +62,13 @@ function ContentInner({ currentUserName, userOptions }: Props) {
     fromUserId: searchParams.get('fromUserId') ?? '__all__',
     toUserId: searchParams.get('toUserId') ?? '__all__',
     status: searchParams.get('status') ?? '__all__',
+    reconciliationStatus: searchParams.get('reconciliationStatus') ?? '__all__',
   });
 
   return (
     <ReportTemplate<CompletedHandoversReportRow, CompletedHandoversReportExportRow>
-      title="Completed Handovers"
-      description="View approved and rejected shift handovers for any user. Filter by date, sender, recipient, and status."
+      title="Handovers Report"
+      description="View pending, approved, and rejected shift handovers for any user. Filter by date, sender, recipient, handover status, and reconciliation status."
       filterButtonLabel="Search"
       showBackButton={false}
       containerClassName="w-full py-2 space-y-3"
@@ -70,6 +80,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
           const fromUserId = values.fromUserId ?? '__all__';
           const toUserId = values.toUserId ?? '__all__';
           const status = values.status ?? '__all__';
+          const reconciliationStatus = values.reconciliationStatus ?? '__all__';
           const fromLabel =
             fromUserId === '__all__'
               ? 'All Users'
@@ -82,6 +93,11 @@ function ContentInner({ currentUserName, userOptions }: Props) {
             status === '__all__'
               ? 'All Statuses'
               : STATUS_OPTIONS.find((s) => s.id === status)?.name ?? status;
+          const reconLabel =
+            reconciliationStatus === '__all__'
+              ? 'All Reconciliation Statuses'
+              : RECONCILIATION_STATUS_OPTIONS.find((s) => s.id === reconciliationStatus)?.name ??
+                reconciliationStatus;
           return (
             <>
               <div>
@@ -90,6 +106,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
               <div>
                 From: {fromLabel} | To: {toLabel} | Status: {statusLabel}
               </div>
+              <div>Reconciliation: {reconLabel}</div>
             </>
           );
         },
@@ -129,6 +146,13 @@ function ContentInner({ currentUserName, userOptions }: Props) {
             value={values.status}
             onChange={(v) => setValue('status', v)}
           />
+
+          <Selector
+            label="All Reconciliation Statuses"
+            options={RECONCILIATION_STATUS_OPTIONS}
+            value={values.reconciliationStatus}
+            onChange={(v) => setValue('reconciliationStatus', v)}
+          />
         </div>
       )}
       fetchData={async (params) => {
@@ -138,6 +162,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
           fromUserId: params.get('fromUserId') ?? '__all__',
           toUserId: params.get('toUserId') ?? '__all__',
           status: params.get('status') ?? '__all__',
+          reconciliationStatus: params.get('reconciliationStatus') ?? '__all__',
         };
         return getCompletedHandoversReportData(query);
       }}
@@ -156,6 +181,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'E-wallet',
         'Total',
         'Status',
+        'Reconciliation status',
         'Handover date',
         'Completed at',
         'Discrepancy',
@@ -173,12 +199,13 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'eWallet',
         'total',
         'status',
+        'reconciliationStatus',
         'createdAt',
         'completedAt',
         'discrepancyReason',
       ]}
-      exportTitle="Completed Handovers"
-      exportFileName="completed-handovers"
+      exportTitle="Handovers Report"
+      exportFileName="handovers-report"
       getRowId={(row) => row.id}
       footerRow={(rows) => {
         const totalCents = rows.reduce((acc, r) => acc + (Number(r.totalCents) || 0), 0);
@@ -200,14 +227,14 @@ function ContentInner({ currentUserName, userOptions }: Props) {
             <TableCell className="text-right tabular-nums">{formatCents(credit)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatCents(eWallet)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatCents(totalCents)}</TableCell>
-            <TableCell colSpan={5} />
+            <TableCell colSpan={6} />
           </TableRow>
         );
       }}
       skipFetchWhenNoParams={true}
       initialFilterValues={getDefaultFilterValues()}
-      initialEmptyMessage="No completed handovers found. Select filters and click Search."
-      emptyMessage="No completed handovers found for the selected filters."
+      initialEmptyMessage="No handovers found. Select filters and click Search."
+      emptyMessage="No handovers found for the selected filters."
     />
   );
 }

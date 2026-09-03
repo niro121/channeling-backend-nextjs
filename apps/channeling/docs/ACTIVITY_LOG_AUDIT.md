@@ -302,6 +302,7 @@ This document lists all user activities recorded in the application’s activity
 | `shift.paused` | High | User pauses a shift |
 | `shift.resumed` | High | User resumes a shift |
 | `shift.ended` | High | User ends a shift |
+| `shift.leftover.ended_on_handover` | High | Leftover open shifts are ended when a later full-till handover is approved |
 
 ---
 

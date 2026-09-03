@@ -36,7 +36,7 @@ export async function getConsultantPaymentsReportData(query: ConsultantPaymentsR
       success: result.success,
       data: result.data ?? [],
       totalRecords: result.totalRecords ?? 0,
-      message: result.message,
+      message: result.message ?? result.error?.message,
     };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to fetch consultant payments report';
@@ -56,7 +56,7 @@ export async function exportConsultantPaymentsReportData(
   try {
     const result = await getConsultantPaymentsReportService(query);
     if (!result.success || !result.data?.length) {
-      return { success: false, message: result.message ?? 'No data available' };
+      return { success: false, message: result.message ?? result.error?.message ?? 'No data available' };
     }
     const mapped: ConsultantPaymentsReportExportRow[] = result.data.map((row: any) => {
       return {

@@ -7,7 +7,7 @@ import { ExternalLink, Eye, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCents } from '@/lib/format-money';
-import { HANDOVER_STATUS } from '@/types/handover';
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from '@/types/handover';
 import type { CompletedHandoversReportRow } from '@/types/reports/completed-handovers';
 
 function amountCell(cents: number) {
@@ -19,7 +19,17 @@ function statusBadgeVariant(
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === HANDOVER_STATUS.APPROVED) return 'default';
   if (status === HANDOVER_STATUS.REJECTED) return 'destructive';
+  if (status === HANDOVER_STATUS.PENDING) return 'outline';
   return 'secondary';
+}
+
+function reconStatusBadgeVariant(
+  status: number
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === RECONCILIATION_STATUS.RECONCILED_APPROVED) return 'default';
+  if (status === RECONCILIATION_STATUS.RECONCILED_REJECTED) return 'destructive';
+  if (status === RECONCILIATION_STATUS.IN_RECONCILIATION) return 'secondary';
+  return 'outline';
 }
 
 export const CompletedHandoversColumns: ColumnDef<CompletedHandoversReportRow>[] = [
@@ -90,6 +100,15 @@ export const CompletedHandoversColumns: ColumnDef<CompletedHandoversReportRow>[]
     header: 'Status',
     cell: ({ row }) => (
       <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.statusLabel}</Badge>
+    ),
+  },
+  {
+    accessorKey: 'reconciliationStatusLabel',
+    header: 'Reconciliation status',
+    cell: ({ row }) => (
+      <Badge variant={reconStatusBadgeVariant(row.original.reconciliationStatus)}>
+        {row.original.reconciliationStatusLabel}
+      </Badge>
     ),
   },
   {

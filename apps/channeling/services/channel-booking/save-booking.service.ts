@@ -17,6 +17,7 @@ import {
   checkConsecutiveSessionFull,
   computeBookingDiscounts,
   getRefundFeeTypes,
+  toBookingFeeContext,
   verifyAgencyReferenceWithReason,
   getAgentBalance,
   getBookingForSaveBooking,
@@ -40,6 +41,7 @@ import {
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { emitSessionUpdateAfterBlocks } from "@/services/channel-booking/manage-session-appointment-blocks.service"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
 import { Prisma } from "@prisma/client"
@@ -231,6 +233,15 @@ export async function saveBookingService(
     }
   }
 
+  if (isSessionDoctorDeparted(session)) {
+    return {
+      success: false,
+      errorCode: "DOCTOR_DEPARTED",
+      message:
+        "Doctor has departed. Doctor must arrive again before booking is allowed.",
+    }
+  }
+
   // Consecutive session rule: if this session has a previous session, it must be full before booking here
   if (session.previousDoctorSession) {
     const previousFull = await checkConsecutiveSessionFull(sessionId)
@@ -272,11 +283,18 @@ export async function saveBookingService(
     }
   }
 
+  const feeContext = toBookingFeeContext(
+    input.payment_method,
+    input.payment_type,
+    input.payment_lines
+  )
+
   const discountResult = await computeBookingDiscounts({
     autoDiscountId: input.auto_discount_type ?? null,
     manualDiscountId: input.discount_type ?? null,
     payment_method: input.payment_method,
     payment_type: input.payment_type,
+    hasCreditCardLine: feeContext.hasCreditCardLine,
     session,
     foriegner: input.foriegner,
     strict: true,
@@ -304,7 +322,8 @@ export async function saveBookingService(
 
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     session.fees,
-    input.foriegner
+    input.foriegner,
+    feeContext
   )
 
   const baseAmount = professional_fee + hospital_fee
@@ -339,7 +358,8 @@ export async function saveBookingService(
     }
   }
 
-  // Agent booking: verify agency ref, ensure linked account exists for balance check, and that credit limit is not exceeded.
+  // Agency ref: always verify uniqueness when agency is present.
+  // Linked-account / credit-limit checks only when settling (Agent/POS receipt) — On-Call may store agency ref without debiting.
   const normalizedAgencyRef = options?.agencyRefUniqueOnly
     ? (input.agency_ref ?? "").toUpperCase().trim()
     : await buildNormalizedAgencyRef(input)
@@ -355,39 +375,41 @@ export async function saveBookingService(
         message: refResult.reason ?? "Agency Reference Error.",
       }
     }
-    const agency = await prisma.agency.findUnique({
-      where: { id: input.agency.id },
-      select: {
-        allowedCreditLimit: true,
-        accounts: {
-          where: { type: "PAYABLE", isActive: true },
-          take: 1,
-          select: { id: true },
+    if (settleOnCreate) {
+      const agency = await prisma.agency.findUnique({
+        where: { id: input.agency.id },
+        select: {
+          allowedCreditLimit: true,
+          accounts: {
+            where: { type: "PAYABLE", isActive: true },
+            take: 1,
+            select: { id: true },
+          },
         },
-      },
-    })
-    const hasLinkedAccount = agency?.accounts?.[0] != null
-    if (!hasLinkedAccount) {
-      return {
-        success: false,
-        errorCode: "AGENCY_NO_LINKED_ACCOUNT",
-        message:
-          "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a PAYABLE account to the agency.",
+      })
+      const hasLinkedAccount = agency?.accounts?.[0] != null
+      if (!hasLinkedAccount) {
+        return {
+          success: false,
+          errorCode: "AGENCY_NO_LINKED_ACCOUNT",
+          message:
+            "This booking cannot be saved because the agency has no linked account. Balance cannot be checked. Please link a PAYABLE account to the agency.",
+        }
       }
-    }
-    const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
-    const balanceCents = await getAgentBalance(input.agency.id)
-    /** PAYABLE signed balance (rupees): positive = prepaid with us; may be negative if over limit. */
-    const balanceRupees = balanceCents / 100
+      const allowedCreditLimit = agency?.allowedCreditLimit ?? 0
+      const balanceCents = await getAgentBalance(input.agency.id)
+      /** PAYABLE signed balance (rupees): positive = prepaid with us; may be negative if over limit. */
+      const balanceRupees = balanceCents / 100
 
-    // Soft limit: booking amount must not exceed prepaid balance + allowed credit line (not sum vs limit alone).
-    // (Legacy RECEIVABLE compared limit to amount+balance when prepaid showed negative; PAYABLE needs this form.)
-    if (amountToUse > balanceRupees + allowedCreditLimit) {
-      return {
-        success: false,
-        errorCode: "CREDIT_LIMIT_VIOLATION",
-        message:
-          "Booking exceeds the agency's allowed credit limit. Please complete a deposit or adjust the booking amount.",
+      // Soft limit: booking amount must not exceed prepaid balance + allowed credit line (not sum vs limit alone).
+      // (Legacy RECEIVABLE compared limit to amount+balance when prepaid showed negative; PAYABLE needs this form.)
+      if (amountToUse > balanceRupees + allowedCreditLimit) {
+        return {
+          success: false,
+          errorCode: "CREDIT_LIMIT_VIOLATION",
+          message:
+            "Booking exceeds the agency's allowed credit limit. Please complete a deposit or adjust the booking amount.",
+        }
       }
     }
   }

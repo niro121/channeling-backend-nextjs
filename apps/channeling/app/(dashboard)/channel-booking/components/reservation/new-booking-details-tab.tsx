@@ -25,6 +25,7 @@ import {
   PAYMENT_METHOD_TO_ENUM,
   PAYMENT_TYPE_TO_ENUM,
 } from "@/lib/channel-booking-discount"
+import { getRefundFeeTypes, toBookingFeeContext } from "@/lib/booking-fees"
 import { formatLKR } from "@/lib/format-money"
 import {
   getPaymentMethodAndType,
@@ -84,6 +85,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import type { PaymentMethodIconKey } from "@/types/channel-booking"
 import { PAYMENT_METHODS, SEX_OPTIONS } from "@/types/channel-booking"
 import { getSexForTitle, TITLE_OPTIONS } from "@/types/title"
@@ -210,10 +212,6 @@ export function NewBookingDetailsTab() {
   const allAutoDiscounts = initialData?.discounts?.auto ?? []
   /** Snapshot of which fields were invalid when user last clicked Book Now (validation only on action). */
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({})
-  const baseAmount =
-    foreigner
-      ? (reservationDetails?.amountForeign ?? 0)
-      : (reservationDetails?.amountLocal ?? 0)
   const hasSession = !!selectedSession
   const hasBlockedAppointmentNumbers =
     (selectedSession?.blockedAppointmentNumbers?.length ?? 0) > 0
@@ -256,6 +254,18 @@ export function NewBookingDetailsTab() {
   const { payment_method, payment_type } = getPaymentMethodAndType(
     Number(paymentMethodId)
   )
+  const feeContext = useMemo(
+    () => toBookingFeeContext(payment_method, payment_type, mixedLines),
+    [payment_method, payment_type, mixedLines]
+  )
+  const { professional_fee, hospital_fee } = useMemo(
+    () =>
+      selectedSession?.fees != null
+        ? getRefundFeeTypes(selectedSession.fees, foreigner, feeContext)
+        : { professional_fee: 0, hospital_fee: 0 },
+    [selectedSession?.fees, foreigner, feeContext]
+  )
+  const baseAmount = professional_fee + hospital_fee
   const methodStr = PAYMENT_METHOD_TO_ENUM[payment_method]
   const typeStr = PAYMENT_TYPE_TO_ENUM[payment_type]
   const filterByBookingType = useMemo(() => {
@@ -294,7 +304,8 @@ export function NewBookingDetailsTab() {
         ? computeDiscountDivisionClient(
             selectedSession.fees,
             foreigner,
-            discountsToApply
+            discountsToApply,
+            feeContext
           )
         : {
             total: 0,
@@ -302,7 +313,7 @@ export function NewBookingDetailsTab() {
             professionalFeeDiscount: 0,
             otherDiscount: 0,
           },
-    [selectedSession?.fees, foreigner, discountsToApply]
+    [selectedSession?.fees, foreigner, discountsToApply, feeContext]
   )
   const computedDiscountAmount = discountDivision.total
   const discountCapExceededMessage = useMemo(
@@ -311,13 +322,14 @@ export function NewBookingDetailsTab() {
         ? getDiscountCapExceededMessage(
             selectedSession.fees,
             foreigner,
-            discountsToApply
+            discountsToApply,
+            feeContext
           )
         : null,
-    [selectedSession?.fees, foreigner, discountsToApply]
+    [selectedSession?.fees, foreigner, discountsToApply, feeContext]
   )
   /** Amount to pay (base − discount). Sent to server and shown on Book button. */
-  const amountToPay = baseAmount - computedDiscountAmount
+  const amountToPay = Math.round((baseAmount - computedDiscountAmount) * 100) / 100
 
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {
@@ -453,6 +465,14 @@ export function NewBookingDetailsTab() {
 
   async function submitBooking(mixedPaymentLines?: Array<{ payment_method: number; amount: number }>) {
     if (!selectedSession || !selectedDoctor || !selectedArea) return
+    if (isSessionDoctorDeparted(selectedSession)) {
+      toast({
+        title: "Doctor has departed",
+        description: "Doctor must arrive again before booking is allowed.",
+        variant: "destructive",
+      })
+      return
+    }
     if (discountCapExceededMessage) {
       toast({
         title: "Discount error",
@@ -823,6 +843,17 @@ export function NewBookingDetailsTab() {
             {!createdAt && createdBy && `Leave created by ${createdBy}.`}
           </p>
         )}
+      </div>
+    )
+  }
+
+  if (hasSession && isSessionDoctorDeparted(selectedSession)) {
+    return (
+      <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4 text-center space-y-1">
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Doctor has departed</p>
+        <p className="text-xs text-muted-foreground">
+          Doctor must arrive again before booking is allowed.
+        </p>
       </div>
     )
   }

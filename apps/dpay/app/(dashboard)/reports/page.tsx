@@ -44,11 +44,19 @@ const financialReports: ReportListItem[] = [
       'Patients who overpaid their bills, with excess amount for refund follow-up.',
     route: '/reports/patient-excess',
   },
+  {
+    id: '6',
+    rank: 6,
+    masterData: 'Admission List Report',
+    description:
+      'Admitted patients with BHT, bill number, and patient details. Date filters, search, print, and export.',
+    route: '/reports/admission-list',
+  },
 ];
 
 const systemReports: ReportListItem[] = [
   {
-    id: '6',
+    id: '7',
     rank: 1,
     masterData: 'User Activity Report',
     description:

@@ -5,7 +5,7 @@ import { getCashBookAccountForBranch, getMainCashBookAccount } from './account.s
 import { getAccountBalance } from './balance-calc.service';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { TILL_PAYMENT_METHOD } from '@/types/accounting';
-import { resolveActiveTillForUserLocation } from './till.service';
+import { listTillsForUser, resolveActiveTillForUserLocation } from './till.service';
 
 // --- getBranchCashBalance ---
 export async function getBranchCashBalance(locationId: string): Promise<number> {
@@ -41,6 +41,21 @@ export type TillBalanceBreakdown = {
   tillAccountName: string | null;
   tillAccountCode: string | null;
 };
+
+/** Sum of balances across every active till for this user (all locations). */
+export async function getUserTillsTotalCents(userId: string): Promise<number> {
+  const tills = await listTillsForUser(userId);
+  if (tills.length === 0) {
+    const breakdown = await getTillBalanceBreakdown(userId);
+    return breakdown.totalCents ?? 0;
+  }
+  let totalCents = 0;
+  for (const till of tills) {
+    const breakdown = await getTillBalanceBreakdownForAccount(till.accountId);
+    totalCents += breakdown.totalCents ?? 0;
+  }
+  return totalCents;
+}
 
 // --- getTillBalanceBreakdown: cashier till balance by payment method ---
 // Uses DB aggregation (groupBy + _sum) so it stays fast with millions of lines.

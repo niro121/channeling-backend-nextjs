@@ -11,8 +11,8 @@ function formatDoctorName(d: { title?: string | null; name?: string | null }): s
 }
 
 /**
- * Resolve doctor for doctor-payment receipts from linked bookings, falling back to journal lines
- * (needed when a payment was canceled and booking links were cleared).
+ * Resolve doctor for doctor-payment receipts from Receipt.doctorId, then linked bookings,
+ * then journal lines (needed when a payment was canceled and booking links were cleared).
  */
 export async function resolveDoctorsByReceiptIds(
   receiptIds: string[]
@@ -20,8 +20,27 @@ export async function resolveDoctorsByReceiptIds(
   const result = new Map<string, ResolvedDoctor>();
   if (receiptIds.length === 0) return result;
 
+  const receipts = await prisma.receipt.findMany({
+    where: { id: { in: receiptIds }, doctorId: { not: null } },
+    select: {
+      id: true,
+      doctorId: true,
+      doctor: { select: { id: true, title: true, name: true } },
+    },
+  });
+  for (const r of receipts) {
+    if (!r.doctorId) continue;
+    result.set(r.id, {
+      doctorId: r.doctorId,
+      doctorName: r.doctor ? formatDoctorName(r.doctor) : "—",
+    });
+  }
+
+  const missingAfterReceipt = receiptIds.filter((id) => !result.has(id));
+  if (missingAfterReceipt.length === 0) return result;
+
   const bookings = await prisma.booking.findMany({
-    where: { doctorPaymentReceiptId: { in: receiptIds } },
+    where: { doctorPaymentReceiptId: { in: missingAfterReceipt } },
     select: {
       doctorPaymentReceiptId: true,
       doctorId: true,

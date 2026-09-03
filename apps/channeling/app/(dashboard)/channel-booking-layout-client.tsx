@@ -52,7 +52,7 @@ export function ChannelBookingLayoutClient({
       {/* Main content: no left padding when sidebar hidden on focus pages */}
       <div
         className={cn(
-          "flex flex-1 flex-col min-h-screen transition-[padding] duration-200",
+          "flex flex-1 flex-col min-h-screen transition-[padding] duration-200 print:!pl-0",
           isSidebarAutoCollapsedPage && !sidebarOpen ? "pl-0" : "sm:pl-52"
         )}
       >

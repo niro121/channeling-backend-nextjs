@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { io, type Socket } from "socket.io-client"
 import {
   getHandoversToMeAction,
   getHandoversApprovedByMeNotReconciledAction,
-  getCompletedHandoversToMeAction,
+  getMyHandoverHistoryAction,
   getHandoverFromUserFilterOptionsAction,
 } from "@/app/actions/shift.actions"
 import { Button } from "@/components/ui/button"
@@ -30,12 +32,13 @@ import {
 import { DateRangePicker } from "@/components/common/date-range-picker"
 import { Combobox } from "@/components/common/combobox"
 import { FilterWrapper } from "@/app/(dashboard)/filter-wrapper"
+import { Input } from "@/components/ui/input"
 import { formatCents } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
 } from "@/lib/handover-utils"
-import { HANDOVER_STATUS } from "@/types/handover"
+import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import {
   Loader2,
   Eye,
@@ -65,7 +68,14 @@ type HandoverRow = {
   createdAt: Date | string
   approvedAt?: Date | string | null
   rejectedAt?: Date | string | null
+  reconciliationStatus?: number | null
+  reconciliationAssignedToUserId?: string | null
+  nonCashReconciledAt?: Date | string | null
+  forwardedToHandoverId?: string | null
+  handoverNoString?: string | null
+  direction?: "given" | "received"
   fromUser: { id: string; name: string | null; staff?: { code: string } | null }
+  toUser?: { id: string; name: string | null; staff?: { code: string } | null } | null
   shift: {
     id: string
     startedAt: Date | string
@@ -118,16 +128,32 @@ function reportUrlForHandover(h: HandoverRow): string | null {
   return filters ? buildCashierSummaryReportUrl(filters, "detail") : null
 }
 
+function needsSendToReconciliation(h: HandoverRow): boolean {
+  if (h.status !== HANDOVER_STATUS.APPROVED) return false
+  if (h.nonCashReconciledAt != null) return false
+  if (h.forwardedToHandoverId != null) return false
+  const recon = h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+  if (recon === RECONCILIATION_STATUS.PENDING) return true
+  if (recon === RECONCILIATION_STATUS.RECONCILED_REJECTED) return true
+  // Already marked in recon but no assignee (legacy auto-send)
+  if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !h.reconciliationAssignedToUserId) return true
+  return false
+}
+
 function HandoverTable({
   rows,
   emptyMessage,
   showStatus,
   showReport,
+  showSendToReconciliation,
+  showDirection,
 }: {
   rows: HandoverRow[]
   emptyMessage: string
   showStatus?: boolean
   showReport?: boolean
+  showSendToReconciliation?: boolean
+  showDirection?: boolean
 }) {
   if (rows.length === 0) {
     return <p className="text-muted-foreground py-8">{emptyMessage}</p>
@@ -138,7 +164,10 @@ function HandoverTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Bill No</TableHead>
+            {showDirection && <TableHead>Direction</TableHead>}
             <TableHead>From</TableHead>
+            {showDirection && <TableHead>To</TableHead>}
             <TableHead>Shift started</TableHead>
             <TableHead>Total</TableHead>
             {showStatus && <TableHead>Status</TableHead>}
@@ -149,9 +178,20 @@ function HandoverTable({
         <TableBody>
           {rows.map((h) => {
             const reportUrl = showReport ? reportUrlForHandover(h) : null
+            const canSend =
+              showSendToReconciliation && h.direction !== "given" && needsSendToReconciliation(h)
             return (
               <TableRow key={h.id}>
+                <TableCell className="tabular-nums whitespace-nowrap">{h.handoverNoString ?? "—"}</TableCell>
+                {showDirection && (
+                  <TableCell>
+                    <Badge variant={h.direction === "given" ? "outline" : "secondary"}>
+                      {h.direction === "given" ? "Given" : "Received"}
+                    </Badge>
+                  </TableCell>
+                )}
                 <TableCell>{fromUserLabel(h.fromUser)}</TableCell>
+                {showDirection && <TableCell>{fromUserLabel(h.toUser)}</TableCell>}
                 <TableCell>
                   {h.shift?.startedAt ? new Date(h.shift.startedAt).toLocaleString() : "—"}
                 </TableCell>
@@ -172,6 +212,14 @@ function HandoverTable({
                         View
                       </Link>
                     </Button>
+                    {canSend && (
+                      <Button size="sm" asChild>
+                        <Link href={`/handovers/${h.id}`}>
+                          <FileCheck className="h-4 w-4 mr-1" />
+                          Send to reconciliation
+                        </Link>
+                      </Button>
+                    )}
                     {reportUrl && (
                       <Button size="sm" variant="secondary" asChild>
                         <Link href={reportUrl} target="_blank" rel="noopener noreferrer">
@@ -283,15 +331,20 @@ function CompletedPagination({
 }
 
 export default function HandoversPageClient() {
+  const { data: session } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const tab = searchParams.get("tab") === "completed" ? "completed" : "active"
+  const tabParam = searchParams.get("tab")
+  const tab = tabParam === "history" || tabParam === "completed" ? "history" : "active"
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1)
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10) || 20))
   const dateFrom = searchParams.get("dateFrom") ?? ""
   const dateTo = searchParams.get("dateTo") ?? ""
-  const fromUserId = searchParams.get("fromUserId") ?? "__all__"
+  const otherUserId = searchParams.get("otherUserId") ?? searchParams.get("fromUserId") ?? "__all__"
+  const direction = searchParams.get("direction") ?? "__all__"
+  const statusFilter = searchParams.get("status") ?? "__all__"
+  const search = searchParams.get("q") ?? ""
 
   const [list, setList] = useState<HandoverRow[]>([])
   const [approvedNotReconciledList, setApprovedNotReconciledList] = useState<HandoverRow[]>([])
@@ -319,8 +372,8 @@ export default function HandoversPageClient() {
   )
 
   const setTab = (next: string) => {
-    if (next === "completed") {
-      router.push(`${pathname}?tab=completed&page=1&limit=${limit}`, { scroll: false })
+    if (next === "history") {
+      router.push(`${pathname}?tab=history&page=1&limit=${limit}`, { scroll: false })
     } else {
       router.push(pathname, { scroll: false })
     }
@@ -353,14 +406,17 @@ export default function HandoversPageClient() {
     Promise.all(promises).finally(() => setLoadingActive(false))
   }, [canSendToReconciliation, toast])
 
-  const fetchCompleted = useCallback(() => {
+  const fetchHistory = useCallback(() => {
     setLoadingCompleted(true)
-    getCompletedHandoversToMeAction({
+    getMyHandoverHistoryAction({
       page,
       limit,
       dateFrom: dateFrom || null,
       dateTo: dateTo || null,
-      fromUserId: fromUserId !== "__all__" ? fromUserId : null,
+      direction: direction !== "__all__" ? direction : null,
+      status: statusFilter !== "__all__" ? statusFilter : null,
+      otherUserId: otherUserId !== "__all__" ? otherUserId : null,
+      search: search || null,
     })
       .then((res) => {
         if (res.success) {
@@ -375,7 +431,7 @@ export default function HandoversPageClient() {
         }
       })
       .finally(() => setLoadingCompleted(false))
-  }, [page, limit, dateFrom, dateTo, fromUserId, toast])
+  }, [page, limit, dateFrom, dateTo, direction, statusFilter, otherUserId, search, toast])
 
   useEffect(() => {
     fetchActive()
@@ -388,37 +444,79 @@ export default function HandoversPageClient() {
   }, [fetchActive])
 
   useEffect(() => {
-    if (tab !== "completed") return
-    fetchCompleted()
-  }, [tab, fetchCompleted])
+    if (tab !== "history") return
+    fetchHistory()
+  }, [tab, fetchHistory])
 
   useEffect(() => {
     const onFocus = () => {
       fetchActive()
-      if (tab === "completed") fetchCompleted()
+      if (tab === "history") fetchHistory()
     }
     window.addEventListener("focus", onFocus)
     return () => window.removeEventListener("focus", onFocus)
-  }, [fetchActive, fetchCompleted, tab])
+  }, [fetchActive, fetchHistory, tab])
+
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (typeof window === "undefined" || !userId) return
+
+    const socket: Socket = io(window.location.origin, {
+      path: "/socket.io",
+      addTrailingSlash: false,
+    })
+    const subscribe = () => socket.emit("shift:subscribe", { userId })
+    if (socket.connected) subscribe()
+    else socket.once("connect", subscribe)
+
+    const onShiftUpdate = () => {
+      fetchActive()
+    }
+    socket.on("shift-update", onShiftUpdate)
+
+    return () => {
+      socket.emit("shift:unsubscribe", { userId })
+      socket.off("shift-update", onShiftUpdate)
+      socket.disconnect()
+    }
+  }, [session?.user?.id, fetchActive])
 
   const pendingCount = list.length
   const reconCount = approvedNotReconciledList.length
 
-  const fromUserOptions = useMemo(
-    () => [{ id: "__all__", name: "All users" }, ...userOptions],
+  const otherUserOptions = useMemo(
+    () => [{ id: "__all__", name: "All people" }, ...userOptions],
     [userOptions]
   )
+  const directionOptions = useMemo(
+    () => [
+      { id: "__all__", name: "All (given & received)" },
+      { id: "given", name: "Given by me" },
+      { id: "received", name: "Received by me" },
+    ],
+    []
+  )
+  const statusOptions = useMemo(
+    () => [
+      { id: "__all__", name: "All statuses" },
+      { id: "pending", name: "Pending" },
+      { id: "approved", name: "Approved" },
+      { id: "rejected", name: "Rejected" },
+      { id: "cancelled", name: "Cancelled" },
+    ],
+    []
+  )
 
-  const pageTitle = tab === "completed" ? "Completed handovers" : "Handed over to me"
+  const pageTitle = tab === "history" ? "Handover history" : "Handed over to me"
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">{pageTitle}</h1>
         <p className="text-muted-foreground">
-          {tab === "completed"
-            ? "Previous handovers you received. Filter by date and sender, then open View or Report."
-            : "Pending handovers waiting for your approval."}
+          {tab === "history"
+            ? "Handovers you gave and received. Search by bill no, name, or staff code. Open View to see detail and print."
+            : "Pending handovers waiting for your approval. Approved ones that still need reconciliation appear below."}
         </p>
       </div>
 
@@ -428,7 +526,7 @@ export default function HandoversPageClient() {
             Handovers
             {pendingCount > 0 ? ` (${pendingCount})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-8 mt-4">
@@ -449,14 +547,15 @@ export default function HandoversPageClient() {
                       {reconCount > 0 ? ` (${reconCount})` : ""}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Handovers you approved that are not yet in reconciliation. Open and use
-                      &quot;Send to reconciliation&quot; to move them to the Reconciliation page.
+                      Handovers you approved that are not yet in reconciliation. Use{" "}
+                      <strong>Send to reconciliation</strong> and choose who should reconcile them.
                     </p>
                   </div>
                   <HandoverTable
                     rows={approvedNotReconciledList}
                     emptyMessage="None."
                     showReport
+                    showSendToReconciliation
                   />
                 </div>
               )}
@@ -464,19 +563,32 @@ export default function HandoversPageClient() {
           )}
         </TabsContent>
 
-        <TabsContent value="completed" className="mt-4 space-y-4">
+        <TabsContent value="history" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <FilterWrapper
               initialValues={{
                 dateFrom,
                 dateTo,
-                fromUserId,
-                tab: "completed",
+                otherUserId,
+                direction,
+                status: statusFilter,
+                q: search,
+                tab: "history",
+                fromUserId: "",
               }}
               buttonLabel="Search"
             >
               {({ values, setValue }) => (
                 <>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">Search</span>
+                    <Input
+                      placeholder="Bill no, name, or staff code"
+                      value={values.q ?? ""}
+                      onChange={(e) => setValue("q", e.target.value)}
+                      className="h-10 w-[220px]"
+                    />
+                  </div>
                   <DateRangePicker
                     from={values.dateFrom}
                     to={values.dateTo}
@@ -486,11 +598,25 @@ export default function HandoversPageClient() {
                     }}
                   />
                   <Combobox
-                    label="Handed over by"
-                    options={fromUserOptions}
-                    value={values.fromUserId ?? "__all__"}
+                    label="Direction"
+                    options={directionOptions}
+                    value={values.direction ?? "__all__"}
                     defaultValue="__all__"
-                    onChange={(v) => setValue("fromUserId", v)}
+                    onChange={(v) => setValue("direction", v)}
+                  />
+                  <Combobox
+                    label="Status"
+                    options={statusOptions}
+                    value={values.status ?? "__all__"}
+                    defaultValue="__all__"
+                    onChange={(v) => setValue("status", v)}
+                  />
+                  <Combobox
+                    label="Other party"
+                    options={otherUserOptions}
+                    value={values.otherUserId ?? "__all__"}
+                    defaultValue="__all__"
+                    onChange={(v) => setValue("otherUserId", v)}
                   />
                 </>
               )}
@@ -500,7 +626,7 @@ export default function HandoversPageClient() {
               variant="ghost"
               className="h-10"
               onClick={() =>
-                router.push(`${pathname}?tab=completed&page=1&limit=${limit}`, { scroll: false })
+                router.push(`${pathname}?tab=history&page=1&limit=${limit}`, { scroll: false })
               }
             >
               Clear
@@ -515,9 +641,11 @@ export default function HandoversPageClient() {
             )}
             <HandoverTable
               rows={completedList}
-              emptyMessage="No completed handovers match these filters."
+              emptyMessage="No handovers match these filters."
               showStatus
               showReport
+              showDirection
+              showSendToReconciliation={canSendToReconciliation}
             />
             <CompletedPagination
               page={page}

@@ -17,6 +17,7 @@ import {
 } from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
+import { isShiftRequirementError } from "@/lib/shift-requirement-error";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -39,8 +40,15 @@ export async function cancelDoctorPaymentService(
 ): Promise<CancelDoctorPaymentResult> {
   if (input.canceledBy) {
     try {
-      await requireActiveShift(input.canceledBy);
+      await requireActiveShift(input.canceledBy, { allowExpired: true });
     } catch (e) {
+      if (isShiftRequirementError(e)) {
+        return {
+          success: false,
+          errorCode: e.code,
+          message: e.message,
+        };
+      }
       return {
         success: false,
         errorCode: "NO_ACTIVE_SHIFT",
@@ -124,6 +132,7 @@ export async function cancelDoctorPaymentService(
     shiftId,
     whd: original.whd ?? 0,
     whdPercentage: original.whdPercentage ?? 0,
+    doctorId: original.doctorId ?? doctorId,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });

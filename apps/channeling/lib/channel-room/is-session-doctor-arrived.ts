@@ -21,3 +21,20 @@ export function isSessionDoctorArrived(session: {
   const departures = parseArrivalDepartureJson(session.doctorDepatureTime)
   return arrivals.length > departures.length
 }
+
+/**
+ * True when the doctor has departed and has not arrived again after the last departure.
+ * Same rule as settlement: no departures → not departed; otherwise require an arrival after last departure.
+ */
+export function isSessionDoctorDeparted(session: {
+  doctorArrivalTime?: unknown
+  doctorDepatureTime?: unknown
+} | null | undefined): boolean {
+  if (!session) return false
+  const arrivals = parseArrivalDepartureJson(session.doctorArrivalTime)
+  const departures = parseArrivalDepartureJson(session.doctorDepatureTime)
+  if (departures.length === 0) return false
+  const lastDepTime = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
+  const hasArrivalAfterLastDep = arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDepTime)
+  return !hasArrivalAfterLastDep
+}

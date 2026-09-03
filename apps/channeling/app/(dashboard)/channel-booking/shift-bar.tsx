@@ -7,6 +7,9 @@ import {
   pauseShiftAction,
   resumeShiftAction,
   cancelHandoverAction,
+  canEndShiftWithoutHandoverAction,
+  endShiftAction,
+  getLinkedHandoversForShiftAction,
 } from "@/app/actions/shift.actions"
 import { getMyFloatBalanceAction, getMyPendingFloatRequestAction, getMyApprovedFloatRequestAction, cancelFloatRequestAction, receiveFloatRequestAction, declineApprovedFloatRequestAction } from "@/app/actions/float-request.actions"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
@@ -35,11 +38,13 @@ import { SHIFT_STATUS } from "@/types/shift"
 import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
-import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw } from "lucide-react"
+import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw, Info, Camera } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { RequestFloatDialog } from "./request-float-dialog"
 import { EndShiftHandoverDialog } from "./end-shift-handover-dialog"
 import { formatDenomLabel } from "@/types/float-request"
+import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
 
 const HANDOVER_METHOD_LABELS: Record<string, string> = {
   cashCents: "Cash",
@@ -57,6 +62,7 @@ type ShiftRecord = {
   endsAt: Date | string
   status: number
   pausedAt?: Date | string | null
+  location?: { id: string; name: string; code?: string | null } | null
   handovers?: {
     id: string
     cashCents: number
@@ -69,6 +75,12 @@ type ShiftRecord = {
     discrepancyReason: string | null
     toUser: { id: string; name: string | null }
   }[]
+}
+
+function formatShiftDateTime(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(value) : value
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "—"
+  return date.toLocaleString()
 }
 
 /** Format elapsed as stopwatch-style HH:MM:SS (e.g. 00:05:05). */
@@ -102,7 +114,20 @@ export function ChannelBookingShiftBar() {
   const [cancelLoading, setCancelLoading] = useState(false)
   const [floatBalanceRefreshing, setFloatBalanceRefreshing] = useState(false)
   const [endShiftHandoverOpen, setEndShiftHandoverOpen] = useState(false)
+  const [shiftDetailsOpen, setShiftDetailsOpen] = useState(false)
+  const [linkedHandovers, setLinkedHandovers] = useState<
+    {
+      id: string
+      fromLabel: string
+      receivedAt: Date | string
+      totalCents: number
+      includedFrom: { id: string; fromLabel: string; totalCents: number }[]
+    }[]
+  >([])
+  const [linkedHandoversLoading, setLinkedHandoversLoading] = useState(false)
+  const [billPhotoCount, setBillPhotoCount] = useState(0)
   const handoverDialogShiftRef = useRef<{ shiftId: string; fromUserId: string } | null>(null)
+  const forcedHandoverPromptedForShiftIdRef = useRef<string | null>(null)
   const hadPendingFloatRef = useRef(false)
   const floatRequestSocketUserIdRef = useRef<string | null>(null)
   const floatBalanceUserIdRef = useRef<string | null>(null)
@@ -153,9 +178,9 @@ export function ChannelBookingShiftBar() {
     }
   }
 
-  // Live-updating clock when shift is active (tick every second)
+  // Live clock while an open shift exists (also detects max-duration expiry)
   useEffect(() => {
-    if (!shift || shift.status !== SHIFT_STATUS.ACTIVE) return
+    if (!shift || shift.status === SHIFT_STATUS.HANDOVER_PENDING) return
     setNow(new Date())
     const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
@@ -207,6 +232,18 @@ export function ChannelBookingShiftBar() {
       setApprovedFloatRequest(null)
     }
   }, [shift?.id, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
+
+  useEffect(() => {
+    if (!shift?.id) {
+      setBillPhotoCount(0)
+      return
+    }
+    listMyShiftBillAttachmentsAction()
+      .then((result) => {
+        if (result.success) setBillPhotoCount(result.data.length)
+      })
+      .catch(() => setBillPhotoCount(0))
+  }, [shift?.id])
 
   // Socket: when user has a shift, subscribe to shift-update (so other tabs refresh on handover/pause/resume); optionally float-balance and float-request
   const socketRef = useRef<Socket | null>(null)
@@ -344,6 +381,75 @@ export function ChannelBookingShiftBar() {
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
   }, [hasFloatRequestPermission])
 
+  useEffect(() => {
+    if (!shiftDetailsOpen || !shift?.id) {
+      setLinkedHandovers([])
+      return
+    }
+    let cancelled = false
+    setLinkedHandoversLoading(true)
+    getLinkedHandoversForShiftAction(shift.id)
+      .then((res) => {
+        if (cancelled) return
+        setLinkedHandovers(res.success ? res.data : [])
+      })
+      .finally(() => {
+        if (!cancelled) setLinkedHandoversLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [shiftDetailsOpen, shift?.id])
+
+  // When max duration is exceeded: end immediately if till is empty; otherwise force handover
+  useEffect(() => {
+    if (!shift) {
+      forcedHandoverPromptedForShiftIdRef.current = null
+      return
+    }
+    if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) return
+    const endsAt = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
+    if (endsAt.getTime() > now.getTime()) return
+    if (forcedHandoverPromptedForShiftIdRef.current === shift.id) return
+    forcedHandoverPromptedForShiftIdRef.current = shift.id
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const check = await canEndShiftWithoutHandoverAction()
+        if (cancelled) return
+        if (check.allowed) {
+          try {
+            await endShiftAction(shift.id)
+          } catch {
+            // Already ended (e.g. user clicked End at the same time) — do not open handover.
+          }
+          if (cancelled) return
+          refresh()
+          toast({
+            title: "Shift ended",
+            description: "Time limit reached with no till balance — closed without a handover.",
+          })
+          return
+        }
+      } catch {
+        // Could not determine empty-close eligibility; still prompt handover below.
+      }
+      if (cancelled) return
+      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
+      setEndShiftHandoverOpen(true)
+      toast({
+        title: "Shift time limit ended",
+        description: "Complete handover to close this shift before starting a new one.",
+        variant: "destructive",
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [shift?.id, shift?.userId, shift?.status, shift?.endsAt, now, toast, refresh])
+
   if (!hasShiftPermission) return null
   if (loading) return null
 
@@ -378,6 +484,8 @@ export function ChannelBookingShiftBar() {
   const isActive = shift.status === SHIFT_STATUS.ACTIVE
   const isPaused = shift.status === SHIFT_STATUS.PAUSED
   const isHandoverPending = shift.status === SHIFT_STATUS.HANDOVER_PENDING
+  const endsAtDate = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
+  const isExpired = endsAtDate.getTime() <= now.getTime()
   const pendingHandover = shift.handovers?.[0]
   const asOf = isPaused && shift.pausedAt
     ? typeof shift.pausedAt === "string"
@@ -385,6 +493,30 @@ export function ChannelBookingShiftBar() {
       : shift.pausedAt
     : now
   const elapsed = formatElapsed(shift.startedAt, asOf)
+
+  async function openEndShiftHandover() {
+    if (!shift) return
+    setActionLoading("end-shift")
+    try {
+      const check = await canEndShiftWithoutHandoverAction()
+      if (check.allowed) {
+        await endShiftAction(shift.id)
+        refresh()
+        toast({ title: "Shift ended", description: "No till balance — closed without a handover." })
+        return
+      }
+      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
+      setEndShiftHandoverOpen(true)
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to end shift",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   async function handlePause() {
     if (!shift) return
@@ -414,13 +546,6 @@ export function ChannelBookingShiftBar() {
     }
   }
 
-  function openEndShiftHandover() {
-    if (shift) {
-      handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
-      setEndShiftHandoverOpen(true)
-    }
-  }
-
   async function handleCancelHandover() {
     if (!pendingHandover) return
     setActionLoading("cancel-handover")
@@ -445,8 +570,9 @@ export function ChannelBookingShiftBar() {
               disabled={!!actionLoading}
               className={cn(
                 "gap-2 rounded-md font-medium",
-                isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
-                isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
+                isExpired && !isHandoverPending && "bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+                !isExpired && isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+                !isExpired && isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
                 isHandoverPending && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
               )}
             >
@@ -458,10 +584,12 @@ export function ChannelBookingShiftBar() {
               <span className="flex items-center gap-1.5">
                 {isHandoverPending
                   ? "Handover pending"
-                  : isActive
-                    ? "Shift active"
-                    : "Shift paused"}
-                {!isHandoverPending && (
+                  : isExpired
+                    ? "Shift expired — handover required"
+                    : isActive
+                      ? "Shift active"
+                      : "Shift paused"}
+                {!isHandoverPending && !isExpired && (
                   <span className="opacity-90 tabular-nums">
                     {elapsed}
                   </span>
@@ -514,30 +642,56 @@ export function ChannelBookingShiftBar() {
                 </DropdownMenuItem>
               </>
             )}
-            {isActive && !isHandoverPending && (
+            {isActive && !isHandoverPending && !isExpired && (
               <DropdownMenuItem onClick={handlePause} disabled={!!actionLoading}>
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
               </DropdownMenuItem>
             )}
-            {isPaused && (
+            {isPaused && !isExpired && (
               <DropdownMenuItem onClick={handleResume} disabled={!!actionLoading}>
                 <Play className="h-4 w-4 mr-2" />
                 Resume
               </DropdownMenuItem>
             )}
-            {isActive && !isHandoverPending && (
+            {isExpired && !isHandoverPending && (
+              <DropdownMenuLabel className="font-normal text-muted-foreground text-xs max-w-64 whitespace-normal">
+                Time limit ended. End the shift (empty till) or complete a handover if you have a balance.
+              </DropdownMenuLabel>
+            )}
+            <DropdownMenuItem onSelect={() => setShiftDetailsOpen(true)}>
+              <Info className="h-4 w-4 mr-2" />
+              View shift details
+            </DropdownMenuItem>
+            {(isActive || (isPaused && isExpired)) && !isHandoverPending && (
               <DropdownMenuItem
                 onClick={openEndShiftHandover}
                 disabled={!!actionLoading}
                 className="text-destructive focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
               >
                 <Square className="h-4 w-4 mr-2" />
-                End shift
+                {isExpired ? "End / complete handover" : "End shift"}
               </DropdownMenuItem>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenuContent>        </DropdownMenu>
+        <span className="relative inline-flex shrink-0 overflow-visible pt-1.5 pr-1.5">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="relative gap-1.5 overflow-visible rounded-md"
+          >
+            <Link href="/shift-bills" title="Shift bill photos" className="relative">
+              <Camera className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Bills</span>
+              {billPhotoCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium leading-none text-primary-foreground">
+                  {billPhotoCount > 99 ? "99+" : billPhotoCount}
+                </span>
+              )}
+            </Link>
+          </Button>
+        </span>
         {hasFloatRequestPermission && (
           <>
             {pendingFloatRequest ? (
@@ -556,6 +710,9 @@ export function ChannelBookingShiftBar() {
                 <DropdownMenuContent align="end" className="w-72">
                   <DropdownMenuLabel>Float request is pending</DropdownMenuLabel>
                   <div className="px-2 py-1.5 text-sm text-muted-foreground space-y-0.5">
+                    {pendingFloatRequest.floatNoString ? (
+                      <p className="tabular-nums">Bill No: {pendingFloatRequest.floatNoString}</p>
+                    ) : null}
                     <p className="tabular-nums">
                       Amount: LKR {formatCents(pendingFloatRequest.amountRequested)}
                     </p>
@@ -697,6 +854,91 @@ export function ChannelBookingShiftBar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={shiftDetailsOpen} onOpenChange={setShiftDetailsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Shift details</DialogTitle>
+            <DialogDescription>Basic details for your current shift.</DialogDescription>
+          </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">Status</dt>
+            <dd className="font-medium">
+              {isHandoverPending
+                ? "Handover pending"
+                : isExpired
+                  ? "Expired — handover required"
+                  : isPaused
+                    ? "Paused"
+                    : "Active"}
+            </dd>
+            <dt className="text-muted-foreground">Location</dt>
+            <dd>
+              {shift.location?.name
+                ? shift.location.code
+                  ? `${shift.location.name} (${shift.location.code})`
+                  : shift.location.name
+                : "—"}
+            </dd>
+            <dt className="text-muted-foreground">Started</dt>
+            <dd>{formatShiftDateTime(shift.startedAt)}</dd>
+            <dt className="text-muted-foreground">Time limit ends</dt>
+            <dd>{formatShiftDateTime(shift.endsAt)}</dd>
+            {shift.pausedAt ? (
+              <>
+                <dt className="text-muted-foreground">Paused at</dt>
+                <dd>{formatShiftDateTime(shift.pausedAt)}</dd>
+              </>
+            ) : null}
+            <dt className="text-muted-foreground">{isExpired ? "Elapsed" : "Running"}</dt>
+            <dd className="tabular-nums">{elapsed}</dd>
+            {isHandoverPending && pendingHandover?.toUser?.name ? (
+              <>
+                <dt className="text-muted-foreground">Handing over to</dt>
+                <dd>{pendingHandover.toUser.name}</dd>
+              </>
+            ) : null}
+          </dl>
+
+          <div className="border-t pt-4 space-y-2">
+            <p className="text-sm font-medium">Received handovers</p>
+            {linkedHandoversLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
+            ) : linkedHandovers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No handovers received on this shift.</p>
+            ) : (
+              <ul className="space-y-2">
+                {linkedHandovers.map((h) => (
+                  <li key={h.id} className="rounded-md border bg-muted/30 px-3 py-2 text-sm space-y-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <p className="font-medium">
+                        From {h.fromLabel}
+                      </p>
+                      <p className="tabular-nums font-semibold">LKR {formatCents(h.totalCents)}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Received {formatShiftDateTime(h.receivedAt)}
+                    </p>
+                    {h.includedFrom.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Linked from{" "}
+                        {h.includedFrom.map((inc) => inc.fromLabel).join(", ")}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShiftDetailsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {endShiftHandoverOpen && (shift?.id ?? handoverDialogShiftRef.current?.shiftId) && (shift?.userId ?? handoverDialogShiftRef.current?.fromUserId) ? (
         <EndShiftHandoverDialog
           open={endShiftHandoverOpen}
@@ -781,6 +1023,9 @@ function ReceiveFloatForm({
   return (
     <div className="space-y-4 pt-2">
       <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        {request.floatNoString ? (
+          <p className="tabular-nums">Bill No: {request.floatNoString}</p>
+        ) : null}
         <p className="font-medium tabular-nums">Amount: LKR {formatLKR(totalLKR)}</p>
         {denoms.length > 0 && (
           <p className="text-muted-foreground mt-1">

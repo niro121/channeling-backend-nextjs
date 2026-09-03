@@ -24,7 +24,13 @@ import {
   getDoctorDuePaymentReport,
   getDoctorDuePaymentReportExport,
 } from '@/services/reports/get-doctor-due-payment-report.service';
+import {
+  getAdmissionListReport,
+  getAdmissionListReportExport,
+} from '@/services/reports/get-admission-list-report.service';
 import type {
+  AdmissionListReportExportRow,
+  AdmissionListReportParams,
   DoctorPaymentReportExportRow,
   DoctorPaymentReportParams,
   DoctorDuePaymentReportExportRow,
@@ -63,6 +69,7 @@ export async function getReceiptReportExportAction(
     const items = await getReceiptReportExport(params);
     const data: ReceiptReportExportRow[] = items.map((item) => ({
       receiptNumber: item.receiptNumber,
+      reference: item.reference || '—',
       patientName: item.patientName,
       billNumber: item.billNumber,
       paymentDate: format(new Date(item.paymentDate), 'yyyy-MM-dd'),
@@ -161,7 +168,10 @@ export async function getPatientDueReportExportAction(
       billNumber: item.billNumber,
       bxtNumber: item.bxtNumber,
       patientName: item.patientName,
-      admissionDate: format(new Date(item.admissionDate), 'yyyy-MM-dd'),
+      admissionAndDischarge: formatAdmissionAndDischarge(
+        item.admissionDate,
+        item.dischargeDate
+      ),
       totalAmount: formatLkr(item.totalAmount),
       paidAmount: formatLkr(item.paidAmount),
       dueAmount: formatLkr(item.dueAmount),
@@ -252,6 +262,58 @@ export async function getDoctorDuePaymentReportExportAction(
         err instanceof Error
           ? err.message
           : 'Failed to export doctor due payment report',
+    };
+  }
+}
+
+function formatAdmissionAndDischarge(
+  admissionDate: string,
+  dischargeDate: string | null
+): string {
+  const admission = format(new Date(admissionDate), 'yyyy-MM-dd');
+  const discharge = dischargeDate
+    ? format(new Date(dischargeDate), 'yyyy-MM-dd')
+    : '—';
+  return `${admission} / ${discharge}`;
+}
+
+export async function getAdmissionListReportAction(
+  params: AdmissionListReportParams = {}
+) {
+  await requirePermission('reports', 'view');
+  return getAdmissionListReport(params);
+}
+
+export async function getAdmissionListReportExportAction(
+  params: AdmissionListReportParams = {}
+): Promise<{
+  success: boolean;
+  data?: AdmissionListReportExportRow[];
+  message?: string;
+}> {
+  await requirePermission('reports', 'view');
+
+  try {
+    const items = await getAdmissionListReportExport(params);
+    const data: AdmissionListReportExportRow[] = items.map((item) => ({
+      billNumber: item.billNumber,
+      bxtNumber: item.bxtNumber,
+      patientName: item.patientName,
+      patientNicPhone: item.patientNicPhone || '—',
+      patientAddress: item.patientAddress || '—',
+      admissionAndDischarge: formatAdmissionAndDischarge(
+        item.admissionDate,
+        item.dischargeDate
+      ),
+      status: patientBillStatusLabel(item.status),
+    }));
+
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      message:
+        err instanceof Error ? err.message : 'Failed to export admission list report',
     };
   }
 }

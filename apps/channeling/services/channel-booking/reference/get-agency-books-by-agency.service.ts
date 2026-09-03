@@ -20,7 +20,7 @@ export async function getAgencyBooksByAgencyForChannelBookingService(
   try {
     const records = await prisma.agencyBook.findMany({
       where: { agencyId, status: 1 },
-      orderBy: { bookNumber: "asc" },
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         bookNumber: true,

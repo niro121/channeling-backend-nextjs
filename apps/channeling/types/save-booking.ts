@@ -49,12 +49,15 @@ export type SaveBookingErrorCode =
   | "INVALID_SESSION"
   | "SERVER_ERROR"
   | "PREVIOUS_SESSION_FILL"
+  /** Doctor has departed and has not arrived again; same rule as settlement. */
+  | "DOCTOR_DEPARTED"
   | "DISCOUNT_ERROR"
   | "AMOUNT_ERROR"
   | "LIMIT_EXCEEDED"
   | "NO_ACTIVE_SHIFT"
   | "SHIFT_PAUSED"
   | "HANDOVER_NOT_COMPLETE"
+  | "SHIFT_EXPIRED"
   /** Soft limit: booking amount > agency prepaid (PAYABLE balance) + Agency.allowedCreditLimit (agent only). */
   | "AGENCY_CREDIT_EXCEED"
   | "CREDIT_LIMIT_VIOLATION"

@@ -12,7 +12,7 @@ import * as Yup from "yup"
 import { MOBILE_REGEX, MOBILE_VALIDATION_MESSAGE } from "@/lib/validations/phone"
 import { useDialog } from "@/components/common/custom-dialog"
 import { Separator } from "@/components/ui/separator"
-import { createNewUser, updateUser, updateUserPassword, getLocationOptions, getDoctorOptionsForUsers, fetchUserById } from "@/app/actions/user.actions"
+import { createNewUser, updateUser, updateUserPassword, getLocationOptions, getDoctorOptionsForUsers, fetchUserById, userHasOpenShiftAction } from "@/app/actions/user.actions"
 import { getStaffOptionsAction } from "@/app/actions/staff.actions"
 import { Combobox } from "@/components/common/combobox"
 import { useToast } from "@/components/hooks/use-toast"
@@ -45,6 +45,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
     const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([])
     const [doctorOptionsLoading, setDoctorOptionsLoading] = useState(false)
     const [linkedDoctorId, setLinkedDoctorId] = useState<string>(user?.doctorId ?? "")
+    const [hasOpenShift, setHasOpenShift] = useState(false)
     const { setDialogOpen } = useDialog()
     const { toast } = useToast()
 
@@ -99,6 +100,21 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
         }
         loadLinkedDoctor()
     }, [isEditMode, user?.id, user?.userType, user?.doctorId])
+
+    useEffect(() => {
+        const loadOpenShift = async () => {
+            if (!isEditMode || !user?.id) {
+                setHasOpenShift(false)
+                return
+            }
+            try {
+                setHasOpenShift(await userHasOpenShiftAction(user.id))
+            } catch {
+                setHasOpenShift(false)
+            }
+        }
+        loadOpenShift()
+    }, [isEditMode, user?.id])
 
     const bookingLocationIdsFromUser = (u: User | null): string[] => {
         if (!u?.bookingLocations?.length) return []
@@ -822,6 +838,7 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                         )}
                                         {formik.values.userType !== userTypes.apiUser && (
                                         <>
+                                        <div>
                                         <CustomSelectField
                                             id="userLocationId"
                                             placeholder="User Location"
@@ -831,10 +848,17 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                                                 formik.setFieldTouched("userLocationId", true);
                                             }}
                                             required={true}
+                                            disabled={hasOpenShift}
                                             options={[{ id: "__none__", name: "None" }, ...locationOptions]}
                                             styleClasses={styleClasses}
                                             loading={locationOptionsLoading}
                                         />
+                                        {hasOpenShift && (
+                                            <p className="text-muted-foreground text-xs mt-1">
+                                                Location cannot be changed while this user has an active, paused, or pending shift.
+                                            </p>
+                                        )}
+                                        </div>
                                         <div>
                                             <CustomSelectField
                                                 id="defaultBookingMethod"

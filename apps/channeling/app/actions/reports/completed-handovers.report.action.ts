@@ -17,7 +17,7 @@ export async function getCompletedHandoversReportData(query: CompletedHandoversR
   try {
     return await getCompletedHandoversReportService(query);
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed to fetch completed handovers report';
+    const msg = error instanceof Error ? error.message : 'Failed to fetch handovers report';
     return { success: false, data: [], totalRecords: 0, message: msg };
   }
 }
@@ -45,6 +45,7 @@ export async function exportCompletedHandoversReportData(
       eWallet: formatCents(r.eWalletCents),
       total: formatCents(r.totalCents),
       status: r.statusLabel,
+      reconciliationStatus: r.reconciliationStatusLabel,
       createdAt: r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',
       completedAt: r.completedAt ? moment(r.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-',
       discrepancyReason: r.discrepancyReason?.trim() || '-',
@@ -63,6 +64,7 @@ export async function exportCompletedHandoversReportData(
           fromUserId: query.fromUserId ?? '__all__',
           toUserId: query.toUserId ?? '__all__',
           status: query.status ?? '__all__',
+          reconciliationStatus: query.reconciliationStatus ?? '__all__',
           count: mapped.length,
         },
       });

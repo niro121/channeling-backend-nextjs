@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import {
   getAllAccounts,
+  getLinkedAccountUserOptions,
   getAccountById as getAccountByIdService,
   createAccount as createAccountService,
   updateAccount as updateAccountService,
@@ -19,6 +20,8 @@ import type { Account, CreateAccountInput, UpdateAccountInput } from '@/types/ac
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getColomboYmd } from '@/lib/dashboard-date-range';
 import prisma from '@/lib/prisma';
 
 export type GetAccountsParams = {
@@ -26,6 +29,7 @@ export type GetAccountsParams = {
   limit?: string | number;
   type?: string | null;
   locationId?: string | null;
+  userId?: string | null;
   keyword?: string | null;
 };
 
@@ -48,6 +52,7 @@ export async function getAccounts(
           : Number(process.env.DEFAULT_PER_PAGE ?? '10'),
       type: (params.type as GetAllAccountsParams['type']) ?? undefined,
       locationId: params.locationId ?? undefined,
+      userId: params.userId ?? undefined,
       keyword: params.keyword ?? undefined,
     };
 
@@ -74,6 +79,27 @@ export async function getAccounts(
       message: error instanceof Error ? error.message : 'Error loading accounts',
       data: [],
       totalRecords: 0,
+    };
+  }
+}
+
+/** Users with at least one linked account, for the Accounting filter. */
+export async function getLinkedAccountUserOptionsAction(): Promise<{
+  success: boolean;
+  data: Array<{ id: string; name: string }>;
+  message?: string;
+}> {
+  await requirePermission('accounting', 'view');
+
+  try {
+    const data = await getLinkedAccountUserOptions();
+    return { success: true, data };
+  } catch (error: unknown) {
+    console.error('getLinkedAccountUserOptionsAction error:', error);
+    return {
+      success: false,
+      data: [],
+      message: error instanceof Error ? error.message : 'Error loading users',
     };
   }
 }
@@ -235,6 +261,17 @@ export async function updateAccount(id: string, payload: UpdateAccountInput) {
   }
 }
 
+function toStatementBound(value: string | Date | undefined, asEnd: boolean): Date {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value;
+  }
+  const raw = typeof value === 'string' ? value.trim() : '';
+  const parsed = raw ? parseReportDateTimeSl(raw, asEnd) : null;
+  if (parsed) return parsed;
+  const today = getColomboYmd();
+  return parseReportDateTimeSl(today, asEnd) ?? new Date();
+}
+
 export async function getAccountStatement(
   accountId: string,
   fromDate?: string | Date,
@@ -243,8 +280,8 @@ export async function getAccountStatement(
   await requirePermission('accounting', 'view');
 
   try {
-    const from = fromDate ? new Date(fromDate) : undefined;
-    const to = toDate ? new Date(toDate) : undefined;
+    const from = toStatementBound(fromDate, false);
+    const to = toStatementBound(toDate, true);
     const statement = await getAccountStatementService(accountId, from, to);
     return { success: true, data: statement };
   } catch (error: unknown) {

@@ -24,6 +24,11 @@ export type ChannelReportReceiptWiseRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
+  handoverPerson: string;
+  cancelReason: string;
+  reversedReceiptNo: string;
+  whdAmount: number;
+  netAmount: number;
 };
 
 export type ChannelReportReceiptWiseExportRow = {
@@ -43,6 +48,11 @@ export type ChannelReportReceiptWiseExportRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
+  handoverPerson: string;
+  cancelReason: string;
+  reversedReceiptNo: string;
+  whdAmount: string;
+  netAmount: string;
 };
 
 export const RECEIPT_SCOPE_OPTIONS = [

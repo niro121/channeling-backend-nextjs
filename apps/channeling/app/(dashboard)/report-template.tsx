@@ -202,6 +202,7 @@ function ReportTemplateContent<T, E = T>({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<T[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const lastFetchedParamsRef = React.useRef<string | null>(null);
   const [lastRun, setLastRun] = useState<{
     values: FilterValues;
@@ -238,6 +239,7 @@ function ReportTemplateContent<T, E = T>({
     try {
       const result = await fetchData(params);
       if (result.success) {
+        setFetchError(null);
         setData(result.data);
         setTotalRecords(result.totalRecords);
         // Treat any successful fetch as a "run" so meta shows even for 0 results.
@@ -248,23 +250,28 @@ function ReportTemplateContent<T, E = T>({
           });
         }
       } else {
+        const msg = result.message || 'Failed to fetch report data';
         toast({
           variant: 'destructive',
-          title: 'Error',
-          description: result.message || 'Failed to fetch report data'
+          title: 'Unable to load report',
+          description: msg
         });
+        setFetchError(msg);
         setData([]);
         setTotalRecords(0);
+        setLastRun(null);
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to fetch report data';
       toast({
         variant: 'destructive',
-        title: 'Error',
+        title: 'Unable to load report',
         description: msg
       });
+      setFetchError(msg);
       setData([]);
       setTotalRecords(0);
+      setLastRun(null);
     } finally {
       setLoading(false);
     }
@@ -275,6 +282,7 @@ function ReportTemplateContent<T, E = T>({
       setLoading(false);
       setData([]);
       setTotalRecords(0);
+      setFetchError(null);
       lastFetchedParamsRef.current = null;
       setLastRun(null);
       return;
@@ -428,6 +436,12 @@ function ReportTemplateContent<T, E = T>({
 
             {loading ? (
               <Loading />
+            ) : fetchError ? (
+              <ReportEmptyStateCard
+                variant="error"
+                title="Unable to load report"
+                description={fetchError}
+              />
             ) : data.length === 0 ? (
               <ReportEmptyStateCard
                 title={isInitialNoParams ? 'Run a search to view results' : 'No results'}

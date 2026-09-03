@@ -2,7 +2,7 @@ import {
   getProcessedDiscount,
   type SessionForDiscount,
 } from "./get-processed-discount"
-import { getRefundFeeTypes } from "./get-refund-fee-types"
+import { getRefundFeeTypes, type BookingFeeContext } from "./get-refund-fee-types"
 
 export type BookingDiscountDivision = {
   hospital_fee_discount: number
@@ -79,6 +79,9 @@ export async function computeBookingDiscounts(params: {
   payment_type: number
   session: SessionForDiscount
   foriegner: boolean
+  hasCreditCardLine?: boolean
+  /** When set (settle), used for the fee split; payment_method/type still drive discount eligibility. */
+  feeContext?: BookingFeeContext
   /**
    * When true, inapplicable schemes return an error (save-booking).
    * When false, they are skipped (settle when payment type changes).
@@ -90,9 +93,15 @@ export async function computeBookingDiscounts(params: {
    */
   rejectExceedsFeeCap?: boolean
 }): Promise<ComputeBookingDiscountsResult> {
+  const feeContext: BookingFeeContext = params.feeContext ?? {
+    payment_method: params.payment_method,
+    payment_type: params.payment_type,
+    hasCreditCardLine: params.hasCreditCardLine === true,
+  }
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     params.session.fees,
-    params.foriegner
+    params.foriegner,
+    feeContext
   )
   const failInapplicable = params.strict === true
   const rejectCap = params.rejectExceedsFeeCap ?? failInapplicable
@@ -109,7 +118,8 @@ export async function computeBookingDiscounts(params: {
       params.payment_method,
       params.payment_type,
       params.session,
-      params.foriegner
+      params.foriegner,
+      feeContext
     )
     if (!result.status) {
       if (failInapplicable) {
@@ -142,7 +152,8 @@ export async function computeBookingDiscounts(params: {
       params.payment_method,
       params.payment_type,
       params.session,
-      params.foriegner
+      params.foriegner,
+      feeContext
     )
     if (!result.status) {
       if (failInapplicable) {

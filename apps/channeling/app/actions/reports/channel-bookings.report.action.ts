@@ -18,7 +18,7 @@ export async function getChannelBookingsReportData(query: ChannelBookingsReportQ
       success: result.success,
       data: result.data ?? [],
       totalRecords: result.totalRecords ?? 0,
-      message: result.message,
+      message: result.message ?? result.error?.message,
     };
   } catch (error: unknown) {
     const msg =
@@ -43,7 +43,7 @@ export async function exportChannelBookingsReportData(
   try {
     const result = await getChannelBookingsReportService(query);
     if (!result.success || !result.data?.length) {
-      return { success: false, message: result.message ?? 'No data available' };
+      return { success: false, message: result.message ?? result.error?.message ?? 'No data available' };
     }
     const STATUS_LABELS: Record<number, string> = {
       0: 'Pending',

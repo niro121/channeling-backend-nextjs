@@ -17,8 +17,14 @@ import {
   denominationsTotalLKR,
   lkrToCents,
 } from '@/types/float-request';
-import { getAccountBalance, getCashAccountByUserId, createJournalEntry } from '@/services/accounting.service';
-import { resolveTillForUserAndLocation } from '@/services/accounting.service';
+import {
+  getTillBalanceBreakdownForAccount,
+  createJournalEntry,
+  resolveTillForUserAndLocation,
+  type ResolvedTill,
+} from '@/services/accounting.service';
+import { SHIFT_STATUS } from '@/types/shift';
+import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
@@ -26,8 +32,44 @@ import { createNotification } from '@/services/notification.service';
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from '@/types/notification';
 import type { ReferenceSelectOption } from '@/types/reference';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
+import { allocateFloatDocumentNumber, ensureFloatDocumentNumber } from '@/services/float-request-sequence';
 
 const FLOAT_REFERENCE_TYPE = 'FloatRequest';
+
+const OPEN_SHIFT_STATUSES = [
+  SHIFT_STATUS.ACTIVE,
+  SHIFT_STATUS.PAUSED,
+  SHIFT_STATUS.HANDOVER_PENDING,
+] as const;
+
+/**
+ * Till float is taken from: the bulk cashier's current open shift location till.
+ * Shift validity (expired / paused / handover) is enforced at approve time, not here,
+ * so the modal can show the real till balance.
+ */
+export async function resolveBulkCashierSourceTill(userId: string): Promise<ResolvedTill | null> {
+  const shift = await prisma.shift.findFirst({
+    where: {
+      userId,
+      status: { in: [...OPEN_SHIFT_STATUSES] },
+    },
+    select: { locationId: true },
+    orderBy: { startedAt: 'desc' },
+  });
+  if (!shift?.locationId) return null;
+  return resolveTillForUserAndLocation(userId, shift.locationId);
+}
+
+export async function getBulkCashierSourceTillSummary(userId: string): Promise<{
+  till: ResolvedTill | null;
+  balanceCents: number;
+  cashCents: number;
+}> {
+  const till = await resolveBulkCashierSourceTill(userId);
+  if (!till) return { till: null, balanceCents: 0, cashCents: 0 };
+  const breakdown = await getTillBalanceBreakdownForAccount(till.accountId);
+  return { till, balanceCents: breakdown.totalCents, cashCents: breakdown.cashCents };
+}
 
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
 export async function getBulkCashierUsers(
@@ -123,6 +165,27 @@ export async function createFloatRequest(
     return { success: false, error: 'You already have a pending float request. Wait for it to be approved or rejected before requesting again.' };
   }
 
+  let locationId: string | null = null;
+  if (input.shiftId) {
+    const shift = await prisma.shift.findUnique({
+      where: { id: input.shiftId },
+      select: { locationId: true },
+    });
+    locationId = shift?.locationId ?? null;
+  }
+  if (!locationId) {
+    const requester = await prisma.user.findUnique({
+      where: { id: input.requestedById },
+      select: { userLocationId: true },
+    });
+    locationId = requester?.userLocationId ?? null;
+  }
+
+  const documentNumber = await allocateFloatDocumentNumber(locationId);
+  if (!documentNumber) {
+    return { success: false, error: 'Could not allocate a float document number. Please try again.' };
+  }
+
   const row = await prisma.floatRequest.create({
     data: {
       requestedById: input.requestedById,
@@ -131,9 +194,30 @@ export async function createFloatRequest(
       amountRequested: input.amountRequested,
       denominationsRequested: input.denominationsRequested as object,
       shiftId: input.shiftId ?? null,
-    },
+      floatNo: documentNumber.floatNo,
+      floatNoString: documentNumber.floatNoString,
+    } as never,
     include: includeFloatRequest(),
   });
+
+  const requesterName = row.requestedBy?.name?.trim() || 'A cashier';
+  const floatLabel = row.floatNoString ? ` ${row.floatNoString}` : '';
+  await createNotification({
+    userId: input.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatRequested,
+    title: 'Float request submitted to you',
+    message: `${requesterName} requested LKR ${formatCents(input.amountRequested)}${floatLabel}. Approve or reject it.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: row.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(input.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: row.id,
+      status: FLOAT_REQUEST_STATUS.PENDING,
+    });
+  }
 
   return { success: true, floatRequest: mapFloatRequest(row) };
 }
@@ -155,7 +239,7 @@ export async function getFloatRequestsForBulkCashier(
     orderBy: { createdAt: 'desc' },
   });
 
-  return rows.map(mapFloatRequest);
+  return Promise.all(rows.map(withFloatDocumentNumber));
 }
 
 export type GetAllFloatRequestsForDashboardParams = {
@@ -255,7 +339,7 @@ export async function getAllFloatRequestsForDashboard(
     orderBy: { createdAt: 'desc' },
   });
 
-  return rows.map(mapFloatRequest);
+  return Promise.all(rows.map(withFloatDocumentNumber));
 }
 
 export type GetFloatRequestsForBulkCashierPaginatedParams = {
@@ -289,7 +373,41 @@ export async function getFloatRequestsForBulkCashierPaginated(
     }),
   ]);
 
-  return { data: rows.map(mapFloatRequest), totalRecords };
+  return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
+}
+
+export type GetFloatRequestsRequestedByUserPaginatedParams = {
+  page?: number;
+  limit?: number;
+  status?: number | null;
+  bulkCashierId?: string | null;
+};
+
+/** Paginated list of float requests submitted by this user (Float Transfers "Requested" tab). */
+export async function getFloatRequestsRequestedByUserPaginated(
+  requestedById: string,
+  params: GetFloatRequestsRequestedByUserPaginatedParams = {}
+) {
+  const page = Math.max(0, params.page ?? 0);
+  const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+  const where: { requestedById: string; status?: number; bulkCashierId?: string } = {
+    requestedById,
+  };
+  if (params.status !== undefined && params.status !== null) where.status = params.status;
+  if (params.bulkCashierId) where.bulkCashierId = params.bulkCashierId;
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.floatRequest.count({ where: where as never }),
+    prisma.floatRequest.findMany({
+      where: where as never,
+      include: includeFloatRequest(),
+      orderBy: { createdAt: 'desc' },
+      skip: page * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
 }
 
 // --- getPendingFloatRequestByUserId ---
@@ -301,7 +419,7 @@ export async function getPendingFloatRequestByUserId(
     include: includeFloatRequest(),
     orderBy: { createdAt: 'desc' },
   });
-  return row ? mapFloatRequest(row) : null;
+  return row ? withFloatDocumentNumber(row) : null;
 }
 
 // --- getFloatRequestById ---
@@ -312,7 +430,7 @@ export async function getFloatRequestById(
     where: { id },
     include: includeFloatRequest(),
   });
-  return row ? mapFloatRequest(row) : null;
+  return row ? withFloatDocumentNumber(row) : null;
 }
 
 // --- approveFloatRequest ---
@@ -361,21 +479,30 @@ export async function approveFloatRequest(
     }
   }
 
-  // Source is always the bulk cashier's own float account (CASH account linked to approvedBy user)
-  const fromAccount = await getCashAccountByUserId(input.approvedBy);
-  if (!fromAccount) {
+  let fromTill: ResolvedTill | null = null;
+  try {
+    fromTill = await resolveBulkCashierSourceTill(input.approvedBy);
+  } catch (e) {
     return {
       success: false,
-      error: 'You need a float account to approve requests. Create one from the Bulk Cashier page.',
+      error: e instanceof Error ? e.message : 'Cannot resolve your active till.',
+      errorCode: 'NO_FLOAT_ACCOUNT',
+    };
+  }
+  if (!fromTill) {
+    return {
+      success: false,
+      error:
+        'You need an active shift at a location to approve float requests.',
       errorCode: 'NO_FLOAT_ACCOUNT',
     };
   }
 
-  const fromBalanceCents = await getAccountBalance(fromAccount.id);
-  if (fromBalanceCents < approvedTotalCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fromTill.accountId)).cashCents;
+  if (fromCashCents < approvedTotalCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
+      error: `Insufficient cash in your active till. Available cash: ${formatCents(fromCashCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -399,7 +526,7 @@ export async function approveFloatRequest(
   const updateData = {
     status: FLOAT_REQUEST_STATUS.APPROVED,
     denominationsApproved: input.denominationsApproved as object,
-    fromAccountId: fromAccount.id,
+    fromAccountId: fromTill.accountId,
     toAccountId: toTill.accountId,
     toTillId: toTill.tillId,
     approvedAt: new Date(),
@@ -416,8 +543,10 @@ export async function approveFloatRequest(
     include: includeFloatRequest(),
   });
 
+  const mappedApproved = await withFloatDocumentNumber(updated);
   const printData: FloatRequestPrintData = {
     floatRequestId: updated.id,
+    floatNoString: mappedApproved.floatNoString ?? null,
     receiveCode,
     amountLKR: approvedTotalCents / 100,
     denominationsApproved: (input.denominationsApproved as DenominationEntry[]) ?? [],
@@ -444,7 +573,7 @@ export async function approveFloatRequest(
     referenceId: updated.id,
   });
 
-  return { success: true, floatRequest: mapFloatRequest(updated), printData };
+  return { success: true, floatRequest: mappedApproved, printData };
 }
 
 // --- getApprovedFloatRequestByUserId: APPROVED (not yet received) for cashier to confirm receipt ---
@@ -456,7 +585,7 @@ export async function getApprovedFloatRequestByUserId(
     include: includeFloatRequest(),
     orderBy: { approvedAt: 'desc' },
   });
-  return row ? mapFloatRequest(row) : null;
+  return row ? withFloatDocumentNumber(row) : null;
 }
 
 // --- receiveFloatRequest: cashier enters code → create journal, set RECEIVED ---
@@ -508,11 +637,11 @@ export async function receiveFloatRequest(
   if (amountCents <= 0) {
     return { success: false, error: 'Approved amount is missing or zero.' };
   }
-  const fromBalanceCents = await getAccountBalance(fr.fromAccountId);
-  if (fromBalanceCents < amountCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fr.fromAccountId)).cashCents;
+  if (fromCashCents < amountCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR.`,
+      error: `Insufficient cash in source till. Available cash: ${formatCents(fromCashCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -524,8 +653,18 @@ export async function receiveFloatRequest(
     referenceId: fr.id,
     createdBy: input.receivedById,
     lines: [
-      { accountId: toAccountId, debitAmount: amountCents, creditAmount: 0 },
-      { accountId: fr.fromAccountId, debitAmount: 0, creditAmount: amountCents },
+      {
+        accountId: toAccountId,
+        debitAmount: amountCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
+      {
+        accountId: fr.fromAccountId,
+        debitAmount: 0,
+        creditAmount: amountCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
     ],
   });
 
@@ -558,6 +697,57 @@ export async function receiveFloatRequest(
   }
 
   return { success: true, floatRequest: mapFloatRequest(updated) };
+}
+
+/** Journal double-entry posted when a float request is received (null if not received / no journal). */
+export type FloatRequestJournalDetail = {
+  id: string;
+  journalNumber: number | null;
+  date: Date;
+  description: string;
+  lines: {
+    accountId: string;
+    accountName: string;
+    accountCode: string | null;
+    debitAmount: number;
+    creditAmount: number;
+  }[];
+};
+
+export async function getFloatRequestJournal(
+  floatRequestId: string
+): Promise<FloatRequestJournalDetail | null> {
+  const fr = await prisma.floatRequest.findUnique({
+    where: { id: floatRequestId },
+    select: { journalId: true },
+  });
+  if (!fr?.journalId) return null;
+
+  const journal = await prisma.journal.findUnique({
+    where: { id: fr.journalId },
+    include: {
+      journalLines: {
+        include: {
+          account: { select: { id: true, name: true, code: true } },
+        },
+      },
+    },
+  });
+  if (!journal) return null;
+
+  return {
+    id: journal.id,
+    journalNumber: journal.journalNumber,
+    date: journal.date,
+    description: journal.description,
+    lines: journal.journalLines.map((l) => ({
+      accountId: l.accountId,
+      accountName: l.account.name,
+      accountCode: l.account.code ?? null,
+      debitAmount: l.debitAmount,
+      creditAmount: l.creditAmount,
+    })),
+  };
 }
 
 // --- rejectFloatRequest ---
@@ -638,6 +828,24 @@ export async function cancelFloatRequest(
     include: includeFloatRequest(),
   });
 
+  const requesterName = updated.requestedBy?.name?.trim() || 'The requester';
+  await createNotification({
+    userId: fr.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatCancelled,
+    title: 'Float request cancelled',
+    message: `${requesterName} cancelled their pending float request.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: updated.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(fr.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: updated.id,
+      status: FLOAT_REQUEST_STATUS.CANCELLED,
+    });
+  }
+
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }
 
@@ -681,6 +889,242 @@ export async function declineApprovedFloatRequest(
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }
 
+/** Cancel leftover PENDING / APPROVED-unreceived float requests when a shift ends with no till to hand over. */
+export async function cancelOpenFloatRequestsOnEmptyShiftEnd(
+  userId: string
+): Promise<{ cancelledIds: string[] }> {
+  const open = await prisma.floatRequest.findMany({
+    where: {
+      requestedById: userId,
+      status: { in: [FLOAT_REQUEST_STATUS.PENDING, FLOAT_REQUEST_STATUS.APPROVED] as never },
+    },
+    select: { id: true },
+  });
+  if (open.length === 0) return { cancelledIds: [] };
+
+  const now = new Date();
+  const cancelledIds = open.map((row) => row.id);
+  await prisma.floatRequest.updateMany({
+    where: { id: { in: cancelledIds } },
+    data: {
+      status: FLOAT_REQUEST_STATUS.CANCELLED as never,
+      cancelledAt: now,
+      cancelledBy: userId,
+      cancelReason: 'Shift ended with no till balance. Unused float request cancelled.',
+    },
+  });
+
+  const io = getIO();
+  if (io) {
+    for (const id of cancelledIds) {
+      io.to(floatRequestRoom(userId)).emit('float-request-update', {
+        floatRequestId: id,
+        status: FLOAT_REQUEST_STATUS.CANCELLED,
+      });
+    }
+  }
+
+  return { cancelledIds };
+}
+
+export type OpenFloatsBlockingShiftEnd = {
+  outgoingPending: number
+  outgoingAwaitingReceive: number
+  incomingPendingApproval: number
+  incomingAwaitingReceive: number
+}
+
+export async function openFloatsBlockingTotal(blocking: OpenFloatsBlockingShiftEnd): Promise<number> {
+  return (
+    blocking.outgoingPending +
+    blocking.outgoingAwaitingReceive +
+    blocking.incomingPendingApproval +
+    blocking.incomingAwaitingReceive
+  )
+}
+
+export async function openFloatsBlockingMessage(
+  blocking: OpenFloatsBlockingShiftEnd,
+  action: "handover" | "end"
+): Promise<string | null> {
+  const total = await openFloatsBlockingTotal(blocking)
+  if (total === 0) return null
+  const parts: string[] = []
+  if (blocking.outgoingPending > 0) {
+    parts.push(
+      `${blocking.outgoingPending} request(s) still waiting for bulk cashier approval (cancel it or wait until it is approved and received)`
+    )
+  }
+  if (blocking.outgoingAwaitingReceive > 0) {
+    parts.push(
+      `${blocking.outgoingAwaitingReceive} approved float(s) you have not received yet (receive or decline them)`
+    )
+  }
+  if (blocking.incomingPendingApproval > 0) {
+    parts.push(
+      `${blocking.incomingPendingApproval} request(s) waiting for you to approve or reject`
+    )
+  }
+  if (blocking.incomingAwaitingReceive > 0) {
+    parts.push(
+      `${blocking.incomingAwaitingReceive} approved float(s) the cashier has not received yet`
+    )
+  }
+  const verb = action === "end" ? "ending your shift" : "handing over"
+  return `You have open float request(s): ${parts.join("; ")}. Finish them before ${verb}.`
+}
+
+/**
+ * Open floats that block ending a shift / handing over:
+ * pending approval, or approved but not yet received — as requester or as bulk cashier.
+ */
+export async function getOpenFloatsBlockingShiftEnd(
+  userId: string
+): Promise<OpenFloatsBlockingShiftEnd> {
+  const rows = await prisma.floatRequest.findMany({
+    where: {
+      OR: [{ requestedById: userId }, { bulkCashierId: userId }],
+      status: {
+        notIn: [
+          FLOAT_REQUEST_STATUS.RECEIVED,
+          FLOAT_REQUEST_STATUS.REJECTED,
+          FLOAT_REQUEST_STATUS.CANCELLED,
+        ] as never,
+      },
+    },
+    select: { requestedById: true, bulkCashierId: true, status: true },
+  })
+
+  const blocking: OpenFloatsBlockingShiftEnd = {
+    outgoingPending: 0,
+    outgoingAwaitingReceive: 0,
+    incomingPendingApproval: 0,
+    incomingAwaitingReceive: 0,
+  }
+
+  for (const row of rows) {
+    const status = Number(row.status)
+    const isRequester = row.requestedById === userId
+    const isBulk = row.bulkCashierId === userId
+    if (isRequester && status === FLOAT_REQUEST_STATUS.PENDING) blocking.outgoingPending += 1
+    if (isRequester && status === FLOAT_REQUEST_STATUS.APPROVED) blocking.outgoingAwaitingReceive += 1
+    if (isBulk && status === FLOAT_REQUEST_STATUS.PENDING) blocking.incomingPendingApproval += 1
+    if (isBulk && status === FLOAT_REQUEST_STATUS.APPROVED) blocking.incomingAwaitingReceive += 1
+  }
+
+  return blocking
+}
+
+export type HandoverReceivedFloat = {
+  id: string
+  floatNoString?: string | null
+  status: number
+  direction: "in" | "out"
+  amountRequested: number
+  amountReceivedCents: number
+  denominationsRequested: DenominationEntry[]
+  denominationsApproved: DenominationEntry[] | null
+  reasonForLessThanRequested: string | null
+  createdAt: Date
+  approvedAt: Date | null
+  receivedAt: Date | null
+  requestedBy: { id: string; name: string } | null
+  bulkCashier: { id: string; name: string } | null
+  receivedBy: { id: string; name: string } | null
+}
+
+/** Floats this cashier received (in) or issued as bulk (out) during the shift being handed over. */
+export async function getReceivedFloatsForHandover(params: {
+  cashierUserId: string
+  shiftId: string
+  shiftStartedAt: Date
+  windowEnd: Date
+}): Promise<HandoverReceivedFloat[]> {
+  const inWindow = {
+    gte: params.shiftStartedAt,
+    lte: params.windowEnd,
+  }
+  const rows = await prisma.floatRequest.findMany({
+    where: {
+      OR: [
+        { shiftId: params.shiftId },
+        {
+          requestedById: params.cashierUserId,
+          createdAt: inWindow,
+        },
+        {
+          bulkCashierId: params.cashierUserId,
+          OR: [
+            { createdAt: inWindow },
+            { approvedAt: inWindow },
+            { receivedAt: inWindow },
+          ],
+        },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      status: true,
+      amountRequested: true,
+      denominationsRequested: true,
+      denominationsApproved: true,
+      reasonForLessThanRequested: true,
+      createdAt: true,
+      approvedAt: true,
+      receivedAt: true,
+      floatNoString: true,
+      requestedBy: { select: { id: true, name: true } },
+      bulkCashier: { select: { id: true, name: true } },
+      receivedBy: { select: { id: true, name: true } },
+      shift: { select: { locationId: true } },
+    },
+  })
+
+  const seen = new Set<string>()
+  const unique = rows.filter((row) => {
+    if (seen.has(row.id)) return false
+    seen.add(row.id)
+    return true
+  })
+  return Promise.all(
+    unique.map(async (row) => {
+      const approved = (row.denominationsApproved as DenominationEntry[] | null) ?? null
+      const receivedCents = approved && approved.length > 0
+        ? lkrToCents(denominationsTotalLKR(approved))
+        : row.amountRequested
+      const existingNo = (row as { floatNoString?: string | null }).floatNoString ?? null
+      const floatNoString =
+        existingNo ||
+        (await ensureFloatDocumentNumber(
+          row.id,
+          (row as { shift?: { locationId?: string | null } | null }).shift?.locationId ?? null
+        ))
+      const requestedById = row.requestedBy?.id ?? null
+      const bulkCashierId = row.bulkCashier?.id ?? null
+      const isOut =
+        bulkCashierId === params.cashierUserId && requestedById !== params.cashierUserId
+      return {
+        id: row.id,
+        floatNoString,
+        status: Number(row.status),
+        direction: isOut ? "out" : "in",
+        amountRequested: row.amountRequested,
+        amountReceivedCents: receivedCents,
+        denominationsRequested: (row.denominationsRequested as DenominationEntry[]) ?? [],
+        denominationsApproved: approved,
+        reasonForLessThanRequested: row.reasonForLessThanRequested ?? null,
+        createdAt: row.createdAt,
+        approvedAt: row.approvedAt,
+        receivedAt: row.receivedAt,
+        requestedBy: row.requestedBy ?? null,
+        bulkCashier: row.bulkCashier ?? null,
+        receivedBy: row.receivedBy ?? null,
+      }
+    })
+  )
+}
+
 // --- helpers ---
 function includeFloatRequest() {
   return {
@@ -690,7 +1134,7 @@ function includeFloatRequest() {
     toAccount: { select: { id: true, name: true, code: true } },
     toTill: { select: { id: true, locationId: true, accountId: true } },
     receivedBy: { select: { id: true, name: true } },
-    shift: { select: { id: true, startedAt: true } },
+    shift: { select: { id: true, startedAt: true, locationId: true } },
   };
 }
 
@@ -728,13 +1172,15 @@ function mapFloatRequest(
     journalId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    floatNo?: number | null;
+    floatNoString?: string | null;
     requestedBy?: { id: string; name: string; email?: string } | null;
     bulkCashier?: { id: string; name: string; email?: string } | null;
     fromAccount?: { id: string; name: string; code: string | null } | null;
     toAccount?: { id: string; name: string; code: string | null } | null;
     toTill?: { id: string; locationId: string; accountId: string } | null;
     receivedBy?: { id: string; name: string } | null;
-    shift?: { id: string; startedAt: Date } | null;
+    shift?: { id: string; startedAt: Date; locationId?: string | null } | null;
   }
 ): FloatRequestType {
   const status = normalizeStatus(row.status);
@@ -765,6 +1211,8 @@ function mapFloatRequest(
     journalId: row.journalId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    floatNo: row.floatNo ?? null,
+    floatNoString: row.floatNoString ?? null,
     requestedBy: row.requestedBy ?? null,
     bulkCashier: row.bulkCashier ?? null,
     fromAccount: row.fromAccount ?? null,
@@ -773,4 +1221,14 @@ function mapFloatRequest(
     receivedBy: row.receivedBy ?? null,
     shift: row.shift ?? null,
   };
+}
+
+async function withFloatDocumentNumber(
+  row: Parameters<typeof mapFloatRequest>[0]
+): Promise<FloatRequestType> {
+  const mapped = mapFloatRequest(row);
+  if (mapped.floatNoString) return mapped;
+  const locationId = row.shift?.locationId ?? row.toTill?.locationId ?? null;
+  const no = await ensureFloatDocumentNumber(mapped.id, locationId);
+  return no ? { ...mapped, floatNoString: no } : mapped;
 }

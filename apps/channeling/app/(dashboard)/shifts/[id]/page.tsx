@@ -124,6 +124,7 @@ export default async function ShiftDetailPage({ params }: PageProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Bill No</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Amount (LKR)</TableHead>
                     <TableHead>Requested</TableHead>
@@ -136,6 +137,7 @@ export default async function ShiftDetailPage({ params }: PageProps) {
                     (shift as {
                       floatRequests: Array<{
                         id: string;
+                        floatNoString?: string | null;
                         status: number;
                         amountRequested: number;
                         approvedAt: Date | null;
@@ -145,6 +147,9 @@ export default async function ShiftDetailPage({ params }: PageProps) {
                     }).floatRequests
                   ).map((fr) => (
                     <TableRow key={fr.id}>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {fr.floatNoString ?? "—"}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
                           {floatRequestStatusLabel(fr.status)}

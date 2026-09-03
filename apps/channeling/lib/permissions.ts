@@ -35,10 +35,12 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/bulk-cashier": "bulk-cashier",
   "/float-transfers": "float-transfers",
   "/shifts": "shifts",
+  "/shift-bills": "shift",
   "/handovers": "handover",
   "/doctor-payments": "doctor-payments",
   "/receipt-manager": "receipt-manager",
   "/reconciliation": "reconciliation",
+  "/approvals": "approvals",
 }
 
 /** When set, route access requires this action instead of "view" (e.g. bulk-cashier uses "bulk-cashier-dashboard") */
@@ -88,6 +90,16 @@ export function canAccessRoute(
   }
 
   const action = ROUTE_REQUIRED_ACTION[route] ?? "view"
+  if (route === "/approvals") {
+    return (
+      hasPermission(permissions, resource, "view") ||
+      hasPermission(permissions, resource, "approve-channel-cancel") ||
+      hasPermission(permissions, resource, "approve-channel-refund") ||
+      hasPermission(permissions, resource, "approve-bank-deposit") ||
+      hasPermission(permissions, "channel-booking", "edit") ||
+      hasPermission(permissions, "ledger", "add")
+    )
+  }
   return hasPermission(permissions, resource, action)
 }
 

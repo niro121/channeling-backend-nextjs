@@ -36,12 +36,17 @@ export const patientDueReportColumns: ColumnDef<PatientDueReportRow>[] = [
     ),
   },
   {
-    accessorKey: 'admissionDate',
-    header: 'Admission Date',
+    id: 'admissionAndDischarge',
+    header: 'Admission & Discharge',
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground whitespace-nowrap">
-        {format(new Date(row.original.admissionDate), 'yyyy-MM-dd')}
-      </span>
+      <div className="space-y-0.5 text-sm whitespace-nowrap">
+        <p>{format(new Date(row.original.admissionDate), 'yyyy-MM-dd')}</p>
+        <p className="text-muted-foreground">
+          {row.original.dischargeDate
+            ? format(new Date(row.original.dischargeDate), 'yyyy-MM-dd')
+            : '—'}
+        </p>
+      </div>
     ),
   },
   {

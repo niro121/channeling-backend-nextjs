@@ -49,8 +49,13 @@ import { GlobalStartShiftDialog } from "./global-start-shift-dialog";
 import { SignOutShiftReminder } from "./signout-shift-reminder";
 import { NavigationLoadingWrapper } from "./navigation-loading-wrapper";
 import { HeaderClientControls } from './header-client-controls';
+import {
+  getBulkCashierShiftMaxHours,
+  getDefaultShiftMaxHours,
+} from "@/lib/shift-duration";
 
-const SHIFT_MAX_HOURS = Number(process.env.SHIFT_MAX_DURATION_HOURS) || 36;
+const SHIFT_MAX_HOURS = getDefaultShiftMaxHours();
+const SHIFT_MAX_HOURS_BULK = getBulkCashierShiftMaxHours();
 const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
 
@@ -116,7 +121,7 @@ async function MobileNav({
                 {hasAccess('/channel-room-dashboard') && (
                   <NavLink href="/channel-room-dashboard" label="Channel Room Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
                 )}
-                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handed over to me" icon={<ArrowRightLeft className="h-5 w-5" />} />}
+                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handovers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
                 {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
               </div>
             </div>
@@ -155,7 +160,7 @@ async function MobileNav({
               </div>
             </div>
           )}
-          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/agencies/allowed-credit-limits") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/reconciliation") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
+          {(hasAccess("/agency-books") || hasAccess("/agencies") || hasAccess("/agencies/allowed-credit-limits") || hasAccess("/discounts") || hasAccess("/accounting") || hasAccess("/ledger") || hasAccess("/bank-accounts") || hasAccess("/reconciliation") || hasAccess("/approvals") || hasAccess("/my-till") || hasAccess("/bulk-cashier") || hasAccess("/float-transfers")) && (
             <div className="space-y-1">
               <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
               <div className="space-y-0.5">
@@ -173,6 +178,7 @@ async function MobileNav({
                 {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
                 {hasAccess('/bank-accounts') && <NavLink href="/bank-accounts" label="Bank Accounts" icon={<Building2 className="h-5 w-5" />} />}
                 {hasAccess('/reconciliation') && <NavLink href="/reconciliation" label="Reconciliation" icon={<CheckSquare className="h-5 w-5" />} />}
+                {hasAccess('/approvals') && <NavLink href="/approvals" label="Approval Center" icon={<CheckSquare className="h-5 w-5" />} />}
                 {hasAccess('/my-till') && <NavLink href="/my-till" label="My Till" icon={<Wallet className="h-5 w-5" />} />}
                 {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
                 {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
@@ -228,7 +234,10 @@ export default async function DashboardLayout({
     <Providers session={session}>
       <NavigationLoadingWrapper>
         <SignOutShiftReminder />
-        <GlobalStartShiftDialog shiftMaxHours={SHIFT_MAX_HOURS} />
+        <GlobalStartShiftDialog
+          shiftMaxHours={SHIFT_MAX_HOURS}
+          bulkCashierShiftMaxHours={SHIFT_MAX_HOURS_BULK}
+        />
         <div className="flex min-h-screen w-full flex-col bg-background">
           <ChannelBookingLayoutClient session={session} e2eRunEnabled={E2E_RUN_ENABLED}>
             <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
@@ -240,7 +249,7 @@ export default async function DashboardLayout({
                 <HeaderClientControls session={session} e2eRunEnabled={E2E_RUN_ENABLED} />
               </div>
             </header>
-            <main className="flex-1 p-4 sm:p-6">
+            <main className="flex-1 p-4 sm:p-6 print:!p-0">
               {children}
             </main>
           </ChannelBookingLayoutClient>

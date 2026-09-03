@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import type { Account } from '@/types/accounting';
 import { AccountType } from '@prisma/client';
+import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getAccountBalance } from '../balance-calc.service';
 import { mapAccount } from '../map-account';
 
@@ -90,8 +91,26 @@ export type GetAllAccountsParams = {
   limit?: number;
   type?: AccountType | null;
   locationId?: string | null;
+  /** Specific user id, or `'__none__'` for accounts with no linked user. */
+  userId?: string | null;
   keyword?: string | null;
 };
+
+/** Users who have at least one active linked account (for the Accounting filter). */
+export async function getLinkedAccountUserOptions(): Promise<
+  Array<{ id: string; name: string }>
+> {
+  const users = await prisma.user.findMany({
+    where: { accounts: { some: { isActive: true } } },
+    select: { id: true, name: true, staff: { select: { code: true } } },
+    orderBy: { name: 'asc' },
+  });
+
+  return users.map((u) => ({
+    id: u.id,
+    name: formatUserDisplayName(u.name, u.id, u.staff?.code),
+  }));
+}
 
 /** List accounts for Accounting page (with balance). */
 export async function getAllAccounts(
@@ -102,17 +121,20 @@ export async function getAllAccounts(
   totalRecords?: number;
   error?: string;
 }> {
-  const { page = 0, limit = 50, type, locationId, keyword } = params;
+  const { page = 0, limit = 50, type, locationId, userId, keyword } = params;
 
   const where: {
     isActive?: boolean;
     type?: AccountType;
     locationId?: string | null;
+    userId?: string | null;
     OR?: { name?: { contains: string; mode: 'insensitive' }; code?: { contains: string; mode: 'insensitive' } }[];
   } = { isActive: true };
 
   if (type) where.type = type;
   if (locationId) where.locationId = locationId;
+  if (userId === '__none__') where.userId = null;
+  else if (userId) where.userId = userId;
   if (keyword && keyword.trim()) {
     where.OR = [
       { name: { contains: keyword.trim(), mode: 'insensitive' } },

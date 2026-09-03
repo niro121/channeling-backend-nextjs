@@ -1,3 +1,4 @@
+import prisma from "@/lib/prisma"
 import { getRefundFeeTypes } from "@/services/channel-booking/helpers"
 import type { PublicSessionDto } from "@/services/public/sessions.service"
 import moment from "moment"
@@ -36,10 +37,10 @@ function isConsecutiveChainFull(
 }
 
 /** Maps channel-booking session rows to the mobile app / public session DTO shape. */
-export function mapDoctorAppSessionsToDto(
+export async function mapDoctorAppSessionsToDto(
   rawSessions: Session[],
   doctor: DoctorSummary
-): PublicSessionDto[] {
+): Promise<PublicSessionDto[]> {
   const now = new Date()
   const orderedSessions = [...rawSessions].sort((a, b) => {
     const dateA = new Date(a.date).getTime()
@@ -58,6 +59,23 @@ export function mapDoctorAppSessionsToDto(
       s
     )
   }
+
+  const doctorSessionIds = [
+    ...new Set(orderedSessions.map((s) => s.doctorSessionId).filter(Boolean)),
+  ]
+  const doctorSessionTemplates =
+    doctorSessionIds.length > 0
+      ? await prisma.doctorSession.findMany({
+          where: { id: { in: doctorSessionIds } },
+          select: { id: true, advancedBookingDays: true },
+        })
+      : []
+  const advancedBookingDaysByTemplate = new Map(
+    doctorSessionTemplates.map((template) => [
+      template.id,
+      template.advancedBookingDays ?? 0,
+    ])
+  )
 
   return orderedSessions.map((s) => {
     const consecutiveChainFull = isConsecutiveChainFull(
@@ -87,6 +105,9 @@ export function mapDoctorAppSessionsToDto(
       amount: s.amountForeign ?? foreignAmount,
     }
 
+    const advancedBookingDays =
+      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
+
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -99,6 +120,8 @@ export function mapDoctorAppSessionsToDto(
       maxPatientNumber: s.maxPatientNumber ?? 0,
       appointmentNo: s.appointmentNo ?? 0,
       isFull: sessionFull,
+      advancedBookingEnabled: advancedBookingDays > 0,
+      advancedBookingDays,
       amountLocal,
       amountForeign,
       location: s.location

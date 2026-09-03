@@ -11,10 +11,13 @@ import { CheckCircle, XCircle, Eye } from 'lucide-react';
 
 export type FloatTransferListRow = FloatRequest;
 
+export type FloatTransferTableMode = 'given' | 'requested';
+
 export type FloatTransferColumnCallbacks = {
   onApprove: (fr: FloatRequest) => void;
   onReject: (fr: FloatRequest) => void;
   onViewSummary: (fr: FloatRequest) => void;
+  mode?: FloatTransferTableMode;
 };
 
 const statusVariant = (status: number) => {
@@ -35,14 +38,23 @@ const statusVariant = (status: number) => {
 };
 
 export function getFloatTransferColumns(callbacks: FloatTransferColumnCallbacks): ColumnDef<FloatRequest>[] {
-  const { onApprove, onReject, onViewSummary } = callbacks;
+  const { onApprove, onReject, onViewSummary, mode = 'given' } = callbacks;
+  const isGiven = mode === 'given';
   return [
     {
-      accessorKey: 'requestedBy',
-      header: 'Requested by',
+      accessorKey: 'floatNoString',
+      header: 'Bill No',
+      cell: ({ row }) => (
+        <span className="tabular-nums whitespace-nowrap">{row.original.floatNoString ?? '—'}</span>
+      ),
+    },
+    {
+      id: 'counterparty',
+      header: isGiven ? 'Requested by' : 'Assigned to',
       cell: ({ row }) => {
         const fr = row.original;
-        return fr.requestedBy?.name ?? fr.requestedById;
+        if (isGiven) return fr.requestedBy?.name ?? fr.requestedById;
+        return fr.bulkCashier?.name ?? fr.bulkCashierId;
       },
     },
     {
@@ -91,7 +103,7 @@ export function getFloatTransferColumns(callbacks: FloatTransferColumnCallbacks)
               <Eye className="h-4 w-4 mr-1" />
               View
             </Button>
-            {fr.status === FLOAT_REQUEST_STATUS.PENDING && (
+            {isGiven && fr.status === FLOAT_REQUEST_STATUS.PENDING && (
               <>
                 <Button size="sm" variant="default" onClick={() => onApprove(fr)}>
                   <CheckCircle className="h-4 w-4 mr-1" />

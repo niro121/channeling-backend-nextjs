@@ -4,7 +4,11 @@ import { z } from "zod"
 import prisma from "@/lib/prisma"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
+import { logActivityNonBlocking } from "@/lib/activity-log"
 import { settleBookingService } from "@/services/channel-booking/settle-booking.service"
+import { BOOKING_METHODS } from "@/types/channel-booking"
+import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -82,23 +86,7 @@ const settleBookingSchema = z
         | { doctorArrivalTime?: unknown; doctorDepatureTime?: unknown }
         | null
       if (!session) return true
-      const parse = (json: unknown): { time: string }[] => {
-        if (!Array.isArray(json)) return []
-        return json.filter(
-          (item): item is { time: string } =>
-            item != null &&
-            typeof item === "object" &&
-            "time" in item &&
-            typeof (item as { time: string }).time === "string"
-        )
-      }
-      const arrivals = parse(session.doctorArrivalTime)
-      const departures = parse(session.doctorDepatureTime)
-      if (departures.length === 0) return true
-      const lastDep = Math.max(
-        ...departures.map((e) => parseInt(e.time, 10) || 0)
-      )
-      return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
+      return !isSessionDoctorDeparted(session)
     },
     {
       message:
@@ -285,7 +273,40 @@ export async function settleBookingAction(
   }
 
   const result = await settleBookingService(parsed.data, userId)
-  if (result.success) return { success: true, data: result.data }
+  if (result.success) {
+    if (userId) {
+      const data = result.data as {
+        id?: string
+        amount?: number
+        method?: number
+        receiptNoString?: string | null
+        receiptNoId?: string | null
+        sessionId?: string | null
+      } | null
+      const bookingId = data?.id ?? parsed.data.booking_id
+      logActivityNonBlocking({
+        userId,
+        action: "booking.settled",
+        entityType: "Booking",
+        entityId: bookingId,
+        importance: "high",
+        metadata: {
+          bookingId,
+          receiptId: data?.receiptNoId ?? undefined,
+          receiptNo: data?.receiptNoString ?? undefined,
+          amount: data?.amount,
+          settleMethod: parsed.data.settle_method,
+          paymentMethodName:
+            PAYMENT_METHOD_NAMES[parsed.data.settle_method] ?? String(parsed.data.settle_method),
+          bookingMethod: data?.method,
+          bookingMethodName:
+            BOOKING_METHODS.find((m) => m.id === data?.method)?.name ?? undefined,
+          sessionId: data?.sessionId ?? undefined,
+        },
+      })
+    }
+    return { success: true, data: result.data }
+  }
   return {
     success: false,
     errorCode: result.errorCode,

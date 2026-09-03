@@ -31,7 +31,26 @@ function reconciliationStatusLabel(status: number | null): string {
 
 export type ReconciliationListRow = HandoverForReconciliationList
 
+function formatListDateTime(d: Date | string | null | undefined): string {
+  if (!d) return "—"
+  const date = d instanceof Date ? d : new Date(d)
+  if (Number.isNaN(date.getTime())) return "—"
+  return date.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })
+}
+
 export const ReconciliationColumns: ColumnDef<ReconciliationListRow>[] = [
+  {
+    id: "handoverNoString",
+    header: "Handover no",
+    cell: ({ row }) => (
+      <Link
+        href={`/reconciliation/${row.original.id}`}
+        className="font-mono text-primary hover:underline underline-offset-2 whitespace-nowrap"
+      >
+        {row.original.handoverNoString ?? "—"}
+      </Link>
+    ),
+  },
   {
     accessorKey: "createdAt",
     header: "Handover date",
@@ -42,10 +61,17 @@ export const ReconciliationColumns: ColumnDef<ReconciliationListRow>[] = [
           href={`/reconciliation/${row.original.id}`}
           className="text-primary hover:underline underline-offset-2"
         >
-          {d ? new Date(d).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—"}
+          {formatListDateTime(d)}
         </Link>
       )
     },
+  },
+  {
+    id: "reconciliationRequestedAt",
+    header: "Requested",
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap">{formatListDateTime(row.original.reconciliationRequestedAt)}</span>
+    ),
   },
   {
     id: "fromUser",
@@ -72,7 +98,37 @@ export const ReconciliationColumns: ColumnDef<ReconciliationListRow>[] = [
       const status = row.original.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
       const label = reconciliationStatusLabel(status)
       const variant = status === RECONCILIATION_STATUS.IN_RECONCILIATION ? "secondary" : status === RECONCILIATION_STATUS.RECONCILED_REJECTED ? "destructive" : "outline"
-      return <Badge variant={variant}>{label}</Badge>
+      return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant={variant}>{label}</Badge>
+          {row.original.hasReconciliationIssues ? (
+            <Badge variant="destructive">Issues</Badge>
+          ) : null}
+        </div>
+      )
+    },
+  },
+  {
+    id: "nonCashReconciledAt",
+    header: "Reconciled",
+    cell: ({ row }) => {
+      const status = row.original.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
+      if (status === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
+        return <span className="whitespace-nowrap">{formatListDateTime(row.original.reconciliationRejectedAt)}</span>
+      }
+      return <span className="whitespace-nowrap">{formatListDateTime(row.original.nonCashReconciledAt)}</span>
+    },
+  },
+  {
+    id: "actedByUser",
+    header: "By",
+    cell: ({ row }) => {
+      const label = fromUserLabel(row.original.actedByUser)
+      return (
+        <span className="truncate block max-w-40" title={label}>
+          {label}
+        </span>
+      )
     },
   },
   {

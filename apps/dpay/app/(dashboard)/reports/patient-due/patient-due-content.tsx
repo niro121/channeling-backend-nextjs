@@ -27,7 +27,10 @@ import {
 import { ExportWrapper } from '../../export-wrapper';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import type { PatientDueReportExportRow, PatientDueReportRow } from '@/types/reports';
-import { ReportDateRangeFields } from '../report-date-range-fields';
+import {
+  DateTimeRangePicker,
+  getDefaultDateTimeRange,
+} from '@/components/common/date-time-range-picker';
 import { patientDueReportColumns } from './columns';
 
 export default function PatientDueReportContent() {
@@ -38,15 +41,15 @@ export default function PatientDueReportContent() {
   const [totalDue, setTotalDue] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [fromDate, setFromDate] = useState<string | undefined>();
-  const [toDate, setToDate] = useState<string | undefined>();
+  const [fromDate, setFromDate] = useState(() => getDefaultDateTimeRange().from);
+  const [toDate, setToDate] = useState(() => getDefaultDateTimeRange().to);
 
   const fetchReportData = async () => {
     if (!fromDate || !toDate) {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
       return;
     }
@@ -82,9 +85,9 @@ export default function PatientDueReportContent() {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
-        description: 'Please select both from date and to date',
+        description: 'Please select both from and to date & time',
       });
-      return { success: false, message: 'Please select date range' };
+      return { success: false, message: 'Please select date & time range' };
     }
 
     return getPatientDueReportExportAction({
@@ -98,7 +101,7 @@ export default function PatientDueReportContent() {
     'Bill No',
     'BHT No',
     'Patient',
-    'Admission Date',
+    'Admission & Discharge',
     'Total',
     'Paid',
     'Due',
@@ -108,7 +111,7 @@ export default function PatientDueReportContent() {
     'billNumber',
     'bxtNumber',
     'patientName',
-    'admissionDate',
+    'admissionAndDischarge',
     'totalAmount',
     'paidAmount',
     'dueAmount',
@@ -155,12 +158,14 @@ export default function PatientDueReportContent() {
               />
             </div>
 
-            <ReportDateRangeFields
-              idPrefix="patient-due"
-              dateFrom={fromDate ?? ''}
-              dateTo={toDate ?? ''}
-              onDateFromChange={setFromDate}
-              onDateToChange={setToDate}
+            <DateTimeRangePicker
+              label="Date & Time Range"
+              from={fromDate}
+              to={toDate}
+              onChange={({ from, to }) => {
+                setFromDate(from ?? '');
+                setToDate(to ?? '');
+              }}
             />
 
             <Button

@@ -25,6 +25,9 @@ export type Session = {
   doctorLeaveRemark?: string | null;
   doctorLeaveCreator?: string | null;
   doctorLeaveCreatedAt?: number | null; // Unix seconds
+  /** JSON array of { time, createdBy }; used to block booking/settle after departure. */
+  doctorArrivalTime?: unknown;
+  doctorDepatureTime?: unknown;
   remarks: string | null;
   appointmentNo: number;
   /** Numbers auto-allocation skips; managed from channel Bookings panel. */

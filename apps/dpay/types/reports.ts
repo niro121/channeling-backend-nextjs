@@ -4,6 +4,7 @@ import type { PatientBillPaymentMethod, PatientBillReceiptStatus } from '@/types
 export type ReceiptReportRow = {
   id: string;
   receiptNumber: string;
+  reference: string;
   patientName: string;
   billId: string;
   billNumber: string;
@@ -29,6 +30,7 @@ export type ReceiptReportResult = {
 
 export type ReceiptReportExportRow = {
   receiptNumber: string;
+  reference: string;
   patientName: string;
   billNumber: string;
   paymentDate: string;
@@ -81,6 +83,7 @@ export type PatientDueReportRow = {
   bxtNumber: string;
   patientName: string;
   admissionDate: string;
+  dischargeDate: string | null;
   totalAmount: number;
   paidAmount: number;
   dueAmount: number;
@@ -104,7 +107,7 @@ export type PatientDueReportExportRow = {
   billNumber: string;
   bxtNumber: string;
   patientName: string;
-  admissionDate: string;
+  admissionAndDischarge: string;
   totalAmount: string;
   paidAmount: string;
   dueAmount: string;
@@ -180,4 +183,38 @@ export type DoctorDuePaymentReportExportRow = {
   admissionDate: string;
   dueAmount: string;
   billStatus: string;
+};
+
+export type AdmissionListReportRow = {
+  id: string;
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  patientNicPhone: string;
+  patientAddress: string;
+  admissionDate: string;
+  dischargeDate: string | null;
+  status: string;
+};
+
+export type AdmissionListReportParams = {
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type AdmissionListReportResult = {
+  data: AdmissionListReportRow[];
+  totalRecords: number;
+  hasMore: boolean;
+};
+
+export type AdmissionListReportExportRow = {
+  billNumber: string;
+  bxtNumber: string;
+  patientName: string;
+  patientNicPhone: string;
+  patientAddress: string;
+  admissionAndDischarge: string;
+  status: string;
 };

@@ -31,3 +31,18 @@ export function formatReceiptAmount(amount: number): string {
 export function receiptAmountToCents(amount: number): number {
   return Math.round(Number(amount) * 100);
 }
+
+/**
+ * Signed cents for till/reconciliation.
+ * type 1 = inflow, type 0 = outflow. Refunds store amount already negative, so use abs then apply type.
+ */
+export function signedReceiptAmountToCents(amount: number, type: number): number {
+  const cents = receiptAmountToCents(Math.abs(amount));
+  return type === 1 ? cents : -cents;
+}
+
+/** Display amount with a single minus for outflows/refunds (type 0), even if amount is already stored negative. */
+export function formatSignedReceiptAmount(amount: number, type: number): string {
+  const signed = type === 1 ? Math.abs(Number(amount)) : -Math.abs(Number(amount));
+  return formatReceiptAmount(signed);
+}

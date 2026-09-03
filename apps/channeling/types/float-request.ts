@@ -44,6 +44,8 @@ export type FloatRequest = {
   journalId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  floatNo: number | null;
+  floatNoString: string | null;
   requestedBy?: { id: string; name: string; email?: string } | null;
   bulkCashier?: { id: string; name: string; email?: string } | null;
   fromAccount?: { id: string; name: string; code: string | null } | null;
@@ -56,6 +58,7 @@ export type FloatRequest = {
 /** Print slip data returned after approving a float request (code, QR payload, details). */
 export type FloatRequestPrintData = {
   floatRequestId: string;
+  floatNoString?: string | null;
   receiveCode: string;
   amountLKR: number;
   denominationsApproved: DenominationEntry[];

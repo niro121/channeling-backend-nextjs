@@ -33,7 +33,7 @@ export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsPr
       </Button>
       {canCancel ? (
         <CancelActionButton
-          label="Cancel payment"
+          title="Cancel payment"
           onClick={() => setCancelOpen(true)}
         />
       ) : null}

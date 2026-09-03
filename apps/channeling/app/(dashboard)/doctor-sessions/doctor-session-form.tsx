@@ -10,6 +10,7 @@ import CustomSelectField from '@/components/common/custom-select-field';
 import { Button } from '@/components/ui/button';
 import { Ban, ChevronRight, Download, Loader, Save } from 'lucide-react';
 import {
+  ADVANCE_BOOKING_ENABLED_OPTIONS,
   ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
   DoctorSessionFormValues,
@@ -738,19 +739,45 @@ export default function DoctorSessionForm({
                           styleClasses={compactClasses}
                         />
                         <CustomSelectField
-                          id="advancedBookingDays"
-                          placeholder="Advance Booking Days"
-                          value={String(formik.values.advancedBookingDays)}
-                          onChange={(value) =>
+                          id="advanceBookingEnabled"
+                          placeholder="Advance Booking"
+                          value={
+                            formik.values.advancedBookingDays > 0 ? '1' : '0'
+                          }
+                          onChange={(value) => {
+                            if (value === '0') {
+                              formik.setFieldValue('advancedBookingDays', 0);
+                              return;
+                            }
                             formik.setFieldValue(
                               'advancedBookingDays',
-                              Number(value)
-                            )
-                          }
+                              formik.values.advancedBookingDays > 0
+                                ? formik.values.advancedBookingDays
+                                : 1
+                            );
+                          }}
                           required={false}
-                          options={ADVANCED_BOOKING_OPTIONS}
+                          options={ADVANCE_BOOKING_ENABLED_OPTIONS}
                           styleClasses={compactClasses}
                         />
+                        {formik.values.advancedBookingDays > 0 ? (
+                          <CustomSelectField
+                            id="advancedBookingDays"
+                            placeholder="Advance Booking Days"
+                            value={String(formik.values.advancedBookingDays)}
+                            onChange={(value) =>
+                              formik.setFieldValue(
+                                'advancedBookingDays',
+                                Number(value)
+                              )
+                            }
+                            required={false}
+                            options={ADVANCED_BOOKING_OPTIONS.filter(
+                              (option) => Number(option.id) > 0
+                            )}
+                            styleClasses={compactClasses}
+                          />
+                        ) : null}
                         <CustomSelectField
                           id="status"
                           placeholder="Status"

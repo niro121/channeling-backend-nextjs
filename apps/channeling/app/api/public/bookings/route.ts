@@ -81,13 +81,16 @@ type CreateBookingBody = {
   area?: string
   remarks?: string
   foreigner?: boolean
-  /** yes/true (default) = paid/settled; no/false = pending agent booking */
+  /**
+   * yes/true = Agent settled; no/false = On-Call pending (advance sessions only);
+   * omit = On-Call pending when advance booking enabled, else Agent settled.
+   */
   paid?: boolean | string | number
 }
 
 /**
  * POST /api/public/bookings
- * Create an agent-method booking. Reuses channel-booking saveBookingService.
+ * Paid → Agent booking. Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })

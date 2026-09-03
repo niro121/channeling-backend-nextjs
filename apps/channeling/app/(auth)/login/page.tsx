@@ -3,6 +3,7 @@ import LoginForm from './login-form';
 import { StripCredentialQuery } from './strip-credential-query';
 import { fetchServerSession } from '@/lib/session';
 import { redirect, RedirectType } from 'next/navigation';
+import { getSafeInternalPath } from '@/lib/safe-internal-path';
 
 const CREDENTIAL_QUERY_KEYS = ['email', 'username', 'password'] as const;
 
@@ -28,12 +29,13 @@ const page = async ({ searchParams }: PageProps) => {
   }
 
   if (session) {
-    return redirect('/welcome', RedirectType.replace);
+    const callbackUrl = getSafeInternalPath(params.callbackUrl, '/welcome');
+    return redirect(callbackUrl, RedirectType.replace);
   }
   return (
     <>
       <StripCredentialQuery />
-      <LoginForm />
+      <LoginForm callbackUrl={getSafeInternalPath(params.callbackUrl, '/welcome')} />
     </>
   );
 };

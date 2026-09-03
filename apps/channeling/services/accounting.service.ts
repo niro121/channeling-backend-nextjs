@@ -17,6 +17,7 @@ export {
   updateAccount,
   getAccountById,
   getAllAccounts,
+  getLinkedAccountUserOptions,
   type GetOrCreateAccountParams,
   type GetAllAccountsParams,
   getBranchCashBalance,
