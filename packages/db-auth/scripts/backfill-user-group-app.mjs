@@ -37,12 +37,18 @@ const HRM_PERMISSION_KEYS = new Set([
   'leave-application',
   'overtime-requests',
   'employees',
+  'organizations',
   'departments',
   'positions',
   'leave-requests',
   'attendance',
   'payroll',
   'salary-structures',
+  'holiday-calendar',
+  'designations',
+  'staff-grades',
+  'manage-rosters',
+  'shift-roster',
 ]);
 
 const DPAY_PERMISSION_KEYS = new Set([
