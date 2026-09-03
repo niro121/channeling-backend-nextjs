@@ -1,0 +1,123 @@
+{
+  "info": {
+    "name": "Channeling Public API",
+    "description": "OAuth2 client credentials, sessions, bookings, doctors, and areas. Get token first, then call protected endpoints with Bearer token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "client_id", "value": "" },
+    { "key": "client_secret", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "session_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Create Access Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"grant_type\": \"client_credentials\",\n  \"client_id\": \"{{client_id}}\",\n  \"client_secret\": \"{{client_secret}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/token",
+        "description": "Get OAuth2 access token. Use client_id and client_secret from API client. Saves token to collection variable for use in Get Sessions."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Sessions",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "sessions"],
+          "query": [
+            { "key": "doctorCode", "value": "DR0001", "description": "Required. Doctor code." },
+            { "key": "fromDate", "value": "2025-02-24", "description": "Optional. YYYY-MM-DD; default is today." }
+          ]
+        },
+        "description": "Returns future sessions for a doctor. Each session includes advancedBookingEnabled (true when template advancedBookingDays > 0) and advancedBookingDays. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
+      "name": "Get Bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/bookings?doctorCode=DR0001&sessionId={{session_id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "bookings"],
+          "query": [
+            { "key": "doctorCode", "value": "DR0001", "description": "Required. Doctor code." },
+            { "key": "sessionId", "value": "{{session_id}}", "description": "Session id from Get Sessions (or use date instead)." },
+            { "key": "date", "value": "", "disabled": true, "description": "YYYY-MM-DD — all paid bookings for doctor on this day." },
+            { "key": "includePending", "value": "false", "disabled": true, "description": "Set to true to include pending (status 0) bookings." }
+          ]
+        },
+        "description": "Returns minimal patient booking data for a doctor session or day. Paid only by default. Requires Bearer token."
+      }
+    },
+    {
+      "name": "Get Doctors",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/doctors?keyword=cardio",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "doctors"],
+          "query": [
+            { "key": "keyword", "value": "cardio", "description": "Optional. Filter by name, code, title, or speciality." }
+          ]
+        },
+        "description": "Returns published doctors with speciality for external integrations. Requires Bearer token from Create Access Token."
+      }
+    },
+    {
+      "name": "Get Areas",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/areas?keyword=colombo",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "areas"],
+          "query": [
+            { "key": "keyword", "value": "colombo", "description": "Optional. Filter by area name." }
+          ]
+        },
+        "description": "Returns active area tags (cities) for booking forms. Use area name in POST /api/public/bookings. Requires Bearer token from Create Access Token."
+      }
+    }
+  ]
+}

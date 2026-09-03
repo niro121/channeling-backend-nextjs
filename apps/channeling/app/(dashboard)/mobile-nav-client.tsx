@@ -1,0 +1,175 @@
+'use client';
+
+import Link from 'next/link';
+import { Session } from 'next-auth';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { PanelLeft, Hospital, UserLock } from 'lucide-react';
+import { NavLink } from '@/components/common/nav-link';
+import {
+  Stethoscope,
+  Building2,
+  StarIcon,
+  LocateFixedIcon,
+  UserPlus,
+  Tags,
+  MapPinned,
+  Landmark,
+  BookOpen,
+  Users,
+  FileText,
+  MessageSquareText,
+  Clock10,
+  CalendarCheck,
+  LucideHome,
+  TicketIcon,
+  DollarSign,
+  UserCircle,
+  Activity,
+  MessageCircle,
+  Key,
+  Database,
+  Calculator,
+  Banknote,
+  ArrowRightLeft,
+  Receipt,
+  Wallet,
+  Play,
+  CheckSquare,
+  SlidersHorizontal
+} from 'lucide-react';
+import { UserGroup } from '@/components/icons';
+import { canAccessRoute } from '@/lib/permissions';
+import { userTypes } from '@/lib/roles';
+
+export default function MobileNavClient({
+  session,
+  e2eRunEnabled
+}: {
+  session: Session | null;
+  e2eRunEnabled: boolean;
+}) {
+  const userType = session?.user?.userType;
+  const permissions = session?.user?.permissions;
+
+  const hasAccess = (path: string) => {
+    if (userType === userTypes.admin) return true;
+    if (permissions) return canAccessRoute(permissions, path);
+    return false;
+  };
+
+  return (
+    <Sheet>
+      <div />
+      <SheetTrigger asChild>
+        <Button size="icon" variant="outline" className="sm:hidden">
+          <PanelLeft className="h-5 w-5" />
+          <span className="sr-only">Toggle Menu</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="sm:max-w-xs w-52 p-0 flex flex-col">
+        <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">
+          <Link href="/welcome" className="flex shrink-0 items-center gap-2 text-foreground font-semibold min-w-0">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Hospital className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex flex-col items-start">
+              <span className="truncate w-full text-base leading-tight">Ruhunu Hospital</span>
+              <span className="text-xs font-normal text-muted-foreground leading-tight">Channeling</span>
+            </span>
+          </Link>
+        </div>
+        <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
+          {(hasAccess('/channel-booking') || hasAccess('/sessions') || hasAccess('/handovers')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Channeling</p>
+              <div className="space-y-0.5">
+                {hasAccess('/channel-booking') && <NavLink href="/channel-booking" label="Channel Booking" icon={<CalendarCheck className="h-5 w-5" />} />}
+                {hasAccess('/handovers') && <NavLink href="/handovers" label="Handovers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
+                {hasAccess('/sessions') && <NavLink href="/sessions" label="Sessions" icon={<Clock10 className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {(hasAccess('/doctors') || hasAccess('/doctor-sessions') || hasAccess('/specialities') || hasAccess('/doctor-leaves')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Consultants</p>
+              <div className="space-y-0.5">
+                {hasAccess('/doctors') && <NavLink href="/doctors" label="Doctor" icon={<Stethoscope className="h-5 w-5" />} />}
+                {hasAccess('/doctor-sessions') && <NavLink href="/doctor-sessions" label="Doctor Session" icon={<Clock10 className="h-5 w-5" />} />}
+                {hasAccess('/doctor-sessions') && <NavLink href="/doctor-sessions/bulk-price-change" label="Bulk Price Change" icon={<DollarSign className="h-5 w-5" />} />}
+                {hasAccess('/specialities') && <NavLink href="/specialities" label="Speciality" icon={<StarIcon className="h-5 w-5" />} />}
+                {hasAccess('/doctor-leaves') && <NavLink href="/doctor-leaves" label="Doctor Leave" icon={<UserLock className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {(hasAccess('/departments') || hasAccess('/zones') || hasAccess('/rooms') || hasAccess('/locations')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Organization</p>
+              <div className="space-y-0.5">
+                {hasAccess('/departments') && <NavLink href="/departments" label="Department" icon={<Building2 className="h-5 w-5" />} />}
+                {hasAccess('/zones') && <NavLink href="/zones" label="Zones" icon={<MapPinned className="h-5 w-5" />} />}
+                {hasAccess('/rooms') && <NavLink href="/rooms" label="Rooms" icon={<LucideHome className="h-5 w-5" />} />}
+                {hasAccess('/locations') && <NavLink href="/locations" label="Location" icon={<LocateFixedIcon className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {(hasAccess('/patients') || hasAccess('/staff') || hasAccess('/users') || hasAccess('/user-groups')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">People</p>
+              <div className="space-y-0.5">
+                {hasAccess('/patients') && <NavLink href="/patients" label="Patients" icon={<UserPlus className="h-5 w-5" />} />}
+                {hasAccess('/staff') && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+                {hasAccess('/users') && <NavLink href="/users" label="Users" icon={<UserGroup className="h-5 w-5" />} />}
+                {hasAccess('/user-groups') && <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {(hasAccess('/agency-books') || hasAccess('/agencies') || hasAccess('/agencies/allowed-credit-limits') || hasAccess('/discounts') || hasAccess('/accounting') || hasAccess('/ledger') || hasAccess('/bank-accounts') || hasAccess('/reconciliation') || hasAccess('/approvals') || hasAccess('/my-till') || hasAccess('/bulk-cashier') || hasAccess('/float-transfers')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Agency & billing</p>
+              <div className="space-y-0.5">
+                {hasAccess('/agency-books') && <NavLink href="/agency-books" label="Agency Books" icon={<BookOpen className="h-5 w-5" />} />}
+                {hasAccess('/agencies') && <NavLink href="/agencies" label="Agency" icon={<Landmark className="h-5 w-5" />} />}
+                {hasAccess('/agencies/allowed-credit-limits') && <NavLink href="/agencies/allowed-credit-limits" label="Agency allowed limits" icon={<SlidersHorizontal className="h-5 w-5" />} />}
+                {hasAccess('/discounts') && <NavLink href="/discounts" label="Discount" icon={<TicketIcon className="h-5 w-5" />} />}
+                {hasAccess('/accounting') && <NavLink href="/accounting" label="Accounting" icon={<Calculator className="h-5 w-5" />} />}
+                {hasAccess('/ledger') && <NavLink href="/ledger" label="Ledger" icon={<Receipt className="h-5 w-5" />} />}
+                {hasAccess('/bank-accounts') && <NavLink href="/bank-accounts" label="Bank Accounts" icon={<Building2 className="h-5 w-5" />} />}
+                {hasAccess('/reconciliation') && <NavLink href="/reconciliation" label="Reconciliation" icon={<CheckSquare className="h-5 w-5" />} />}
+                {hasAccess('/approvals') && <NavLink href="/approvals" label="Approval Center" icon={<CheckSquare className="h-5 w-5" />} />}
+                {hasAccess('/my-till') && <NavLink href="/my-till" label="My Till" icon={<Wallet className="h-5 w-5" />} />}
+                {hasAccess('/ledger') && <NavLink href="/admin/receipt-templates" label="Receipt templates" icon={<FileText className="h-5 w-5" />} />}
+                {hasAccess('/bulk-cashier') && <NavLink href="/bulk-cashier" label="Bulk Cashier" icon={<Banknote className="h-5 w-5" />} />}
+                {hasAccess('/float-transfers') && <NavLink href="/float-transfers" label="Float Transfers" icon={<ArrowRightLeft className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {(hasAccess('/tags') || hasAccess('/sms-playground') || hasAccess('/sms-templates') || hasAccess('/reports')) && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Other</p>
+              <div className="space-y-0.5">
+                {hasAccess('/tags') && <NavLink href="/tags" label="Tags" icon={<Tags className="h-5 w-5" />} />}
+                {hasAccess('/sms-playground') && <NavLink href="/sms-playground" label="SMS Playground" icon={<MessageSquareText className="h-5 w-5" />} />}
+                {hasAccess('/sms-templates') && <NavLink href="/sms-templates" label="SMS Templates" icon={<MessageSquareText className="h-5 w-5" />} />}
+                {hasAccess('/reports') && <NavLink href="/reports" label="Reports" icon={<FileText className="h-5 w-5" />} />}
+              </div>
+            </div>
+          )}
+          {userType === userTypes.admin && (
+            <div className="space-y-1">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Admin</p>
+              <div className="space-y-0.5">
+                <NavLink href="/admin/knowledge-hub" label="Knowledge Hub" icon={<BookOpen className="h-5 w-5" />} />
+                <NavLink href="/admin/monitor" label="Server Monitor" icon={<Activity className="h-5 w-5" />} />
+                <NavLink href="/admin/seed" label="Database seeds" icon={<Database className="h-5 w-5" />} />
+                <NavLink href="/admin/api-clients" label="API Clients" icon={<Key className="h-5 w-5" />} />
+                {e2eRunEnabled && <NavLink href="/admin/run-e2e" label="Run end-to-end (E2E) tests" icon={<Play className="h-5 w-5" />} />}
+                <NavLink href="/reports/sms-activity" label="SMS Activity" icon={<MessageCircle className="h-5 w-5" />} />
+              </div>
+            </div>
+          )}
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
+}

@@ -1,0 +1,688 @@
+// HRM domain database — auth lives in @archmage/db-auth (AUTH_DATABASE_URL).
+// User.staffId in the auth DB references Staff.id here (no cross-DB Prisma relation).
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma-client"
+  binaryTargets = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+/* ---------------------------------
+STAFF TABLE
+--------------------------------- */
+type StaffHrDetails {
+  initials               String?
+  firstName              String?
+  lastName               String?
+  homeTelephone          String?
+  email                  String?
+  secondaryEmail         String?
+  zoneCode               String?
+  fingerPrintRfid        String?
+  staffCodeLegacy        String?
+  epfNumber              String?
+  etfNumber              String?
+  registrationNumber     String?
+  dateResigned           DateTime?
+  resignedWithoutNotice  Boolean   @default(false)
+  resignedWithNoticeDate DateTime?
+  dateRetired            DateTime?
+  speciality             String?
+}
+
+type StaffPersonalDetails {
+  nationality     String?
+  bloodGroup      String?
+  religion        String?
+  civilStatus     String?
+  gsDivision      String?
+  pollingDivision String?
+  transportMode   String?
+}
+
+type StaffHrContactDetails {
+  permanentAddress String?
+  postalAddress    String?
+  faxNumber        String?
+}
+
+type StaffDependentCounts {
+  maleAbove18   Int @default(0)
+  femaleAbove18 Int @default(0)
+  maleBelow18   Int @default(0)
+  femaleBelow18 Int @default(0)
+}
+
+type StaffFamilyInfo {
+  spouseName            String?
+  spouseOccupation      String?
+  fatherName            String?
+  fatherOccupation      String?
+  motherName            String?
+  motherOccupation      String?
+  guardianName          String?
+  guardianOccupation    String?
+  guardianRelationship  String?
+  guardianAddress       String?
+  guardianContactNumber String?
+  fatherInLawName       String?
+  fatherInLawOccupation String?
+  motherInLawName       String?
+  motherInLawOccupation String?
+  inLawAddress          String?
+  inLawContactNumber    String?
+}
+
+type StaffEmergencyContact {
+  name          String?
+  relationship  String?
+  address       String?
+  contactNumber String?
+}
+
+type StaffPersonnelDetails {
+  personal   StaffPersonalDetails?
+  contact    StaffHrContactDetails?
+  family     StaffFamilyInfo?
+  dependents StaffDependentCounts?
+  emergency  StaffEmergencyContact?
+}
+
+type StaffWelfareDetails {
+  eligibleValue Float?
+  utilizedThisYear Float?
+}
+
+type StaffEmploymentInfo {
+  institution     String?
+  department      String?
+  employeeStatus  String?
+  staffCategory   String?
+  staffGrade      String?
+  staffDesignation String?
+  roster          String?
+  shift           String?
+}
+
+type StaffPayrollDetails {
+  payingMethod          String?
+  salaryPaymentMethod   String?
+  bank                  String?
+  bankBranch            String?
+  accountNumber         String?
+}
+
+type StaffWorkingHours {
+  perWeekStandard Float?
+  perWeekOt       Float?
+  perWeekNoPay    Float?
+}
+
+type StaffEmploymentPermissions {
+  allowedLateInLeave  Boolean @default(false)
+  allowedEarlyOutLeave Boolean @default(false)
+}
+
+type StaffEmploymentNotes {
+  memo String?
+}
+
+type StaffEmploymentDetails {
+  welfare      StaffWelfareDetails?
+  employment   StaffEmploymentInfo?
+  payroll      StaffPayrollDetails?
+  workingHours StaffWorkingHours?
+  permissions  StaffEmploymentPermissions?
+  notes        StaffEmploymentNotes?
+}
+
+model Staff {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  code            String    @unique()
+  title           String    @default("")
+  name            String
+  nic             String
+  dateOfBirth     DateTime?
+  gender          String    @default("")
+  contactMobile   String
+  address         String    @default("")
+  dateJoined      DateTime?
+  status          Int       @default(1) // 0 = Inactive, 1 = Active
+  migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
+  hrDetails       StaffHrDetails?
+  personnelDetails StaffPersonnelDetails?
+  employmentDetails StaffEmploymentDetails?
+
+  leaveEntitlements LeaveEntitlement[]
+  leaveApplications LeaveApplication[]
+  overtimeRequests OvertimeRequest[]
+  overtimeExtraTimes OvertimeExtraTime[]
+  overtimeDayOffPhs OvertimeDayOffPh[]
+  overtimeExtraShiftNormals OvertimeExtraShiftNormal[]
+  shiftAssignments StaffShiftAssignment[]
+  rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([name])
+}
+
+/* ---------------------------------
+LEAVE
+--------------------------------- */
+
+model LeaveType {
+  id                   String  @id @default(auto()) @map("_id") @db.ObjectId
+  code                 String  @unique
+  name                 String
+  description          String?
+  isPaid               Boolean @default(true)
+  requiresApproval     Boolean @default(true)
+  allowHalfDay         Boolean @default(true)
+  maxDaysPerYear       Float?
+  carryForwardAllowed  Boolean @default(false)
+  maxCarryForwardDays  Float?
+  status               Int     @default(1) // 0 = Inactive, 1 = Active
+
+  entitlements LeaveEntitlement[]
+  applications LeaveApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([status])
+  @@index([name])
+}
+
+model LeaveEntitlement {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  staffId      String   @db.ObjectId
+  leaveTypeId  String   @db.ObjectId
+  fromDate     DateTime
+  toDate       DateTime
+  entitled     Float    @default(0)
+  used         Float    @default(0) // Updated on approve / cancel-after-approve
+  remaining    Float    @default(0) // entitled + carryForward - used
+  carryForward Float    @default(0)
+  status       String   @default("active") // active | expired | pending
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@unique([staffId, leaveTypeId, fromDate, toDate])
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([fromDate, toDate])
+  @@index([status])
+}
+
+/// Shift rows produced by "Process Shift" on a leave application.
+type LeaveApplicationShift {
+  shiftLabel String
+  from       DateTime
+  to         DateTime
+  shiftDate  DateTime?
+}
+
+model LeaveApplication {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber    String    @unique
+  staffId       String    @db.ObjectId
+  leaveTypeId   String    @db.ObjectId
+  fromDate      DateTime
+  toDate        DateTime
+  days          Float     @default(0) // Whole or half days (e.g. 0.5, 1)
+  /// Half-day session when days = 0.5: "AM" | "PM". Null for full-day leave.
+  halfDaySession String?
+  requestedDate DateTime?
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId    String?   @db.ObjectId
+  approverName  String? // Denormalized for list display
+  approvedAt    DateTime?
+  status        String    @default("pending") // pending | approved | rejected | cancelled
+  outWithCancel Boolean   @default(false)
+  comment       String?
+  lieuShiftId   String?
+  lieuShiftLabel String?
+
+  /// Snapshot from Recalculate (optional audit of balance at request time).
+  entitleSnapshot   Float?
+  utilizedSnapshot  Float?
+  balanceSnapshot   Float?
+
+  shifts LeaveApplicationShift[]
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([status])
+  @@index([fromDate, toDate])
+  @@index([approverId])
+  @@index([outWithCancel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+OVERTIME
+--------------------------------- */
+
+model OvertimeRequest {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  department   String    @default("")
+  otDate       DateTime
+  hours        Float
+  reason       String    @default("")
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([otDate])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeExtraTime {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftDate    DateTime
+  shiftId      String    @default("")
+  shiftLabel   String    @default("")
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  timeType     String    @default("outTime") // inTime | outTime
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+  comment      String?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([fromAt])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeDayOffPh {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftType    String // DO | PH
+  shiftDate    DateTime
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  approvedDate DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([shiftType])
+  @@index([fromAt])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model OvertimeExtraShiftNormal {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  formNumber   String    @unique
+  staffId      String    @db.ObjectId
+  staffCode    String
+  staffName    String
+  roster       String    @default("")
+  shiftDate    DateTime
+  shiftStart   String    @default("")
+  shiftEnd     String    @default("")
+  fromAt       DateTime
+  toAt         DateTime
+  hours        Float     @default(0)
+  /// Auth User.id of the approver (no cross-DB Prisma relation).
+  approverId   String?   @db.ObjectId
+  approverName String?
+  approvedAt   DateTime?
+  approvedDate DateTime?
+  status       String    @default("pending") // pending | approved | rejected | cancelled
+  comment      String?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([staffId])
+  @@index([status])
+  @@index([fromAt])
+  @@index([approverId])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+ROSTER & SHIFTS
+Six collections only. Duty / Night / Overnight / Public Holiday are
+views of RosterAllocation — do not add extra tables for those screens.
+--------------------------------- */
+
+model ShiftType {
+  id                         String  @id @default(auto()) @map("_id") @db.ObjectId
+  code                       String  @unique // SHF-n
+  name                       String
+  category                   String  @default("")
+  /// Optional grid chip (e.g. D / E / N). Not the primary key.
+  chipLabel                  String?
+  startTime                  String // HH:mm
+  endTime                    String // HH:mm
+  breakMinutes               Int     @default(0)
+  durationHours              Float   @default(0)
+  graceMinutes               Int     @default(0)
+  lateThresholdMinutes       Int     @default(0)
+  earlyExitThresholdMinutes  Int     @default(0)
+  isNightShift               Boolean @default(false)
+  isOvernight                Boolean @default(false)
+  holidayEligible            Boolean @default(false)
+  status                     String  @default("active") // active | inactive
+
+  assignments          StaffShiftAssignment[]
+  allocations          RosterAllocation[]
+  amendmentOriginals   RosterAmendment[]      @relation("AmendmentOriginalShift")
+  amendmentAmendments  RosterAmendment[]      @relation("AmendmentAmendedShift")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([name])
+  @@index([isNightShift])
+  @@index([isOvernight])
+  @@index([holidayEligible])
+}
+
+/// Standing rule: staff ↔ shift / rotation over a date range. Not a calendar cell.
+model StaffShiftAssignment {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  code               String    @unique // SA-n
+  staffId            String    @db.ObjectId
+  shiftTypeId        String    @db.ObjectId
+  staffCode          String
+  staffName          String
+  department         String    @default("")
+  unit               String    @default("")
+  designation        String    @default("")
+  rotationPattern    String    @default("fixed")
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  weeklyOffDay       String    @default("sunday")
+  autoAssign         Boolean   @default(true)
+  status             String    @default("active") // active | pending | inactive
+
+  staff     Staff     @relation(fields: [staffId], references: [id])
+  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([shiftTypeId])
+  @@index([status])
+  @@index([effectiveFrom, effectiveTo])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Period header (department + unit + roster name + from/to).
+model ShiftRoster {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  code        String    @unique // SR-n
+  name        String    @default("")
+  department  String    @default("")
+  unit        String    @default("")
+  roster      String    @default("")
+  fromDate    DateTime
+  toDate      DateTime
+  status      String    @default("draft") // draft | published
+  publishedAt DateTime?
+  /// Auth User.id (no cross-DB Prisma relation).
+  publishedBy String?   @db.ObjectId
+
+  allocations RosterAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([department, unit])
+  @@index([fromDate, toDate])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// One staff × calendar date. Shift Roster + Duty Roster share this store.
+model RosterAllocation {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  shiftRosterId String   @db.ObjectId
+  staffId       String   @db.ObjectId
+  shiftTypeId   String   @db.ObjectId
+  /// Calendar date; services must persist UTC start-of-day for uniqueness.
+  date          DateTime
+  staffCode     String
+  staffName     String
+  department    String   @default("")
+  unit          String   @default("")
+  roster        String   @default("")
+  status        String   @default("draft") // draft | published | amended
+
+  isLeave   Boolean @default(false)
+  hours     Float   @default(0)
+  otHours   Float   @default(0)
+
+  dutyLocation    String  @default("")
+  /// Snapshot of supervising staff (no Staff relation required).
+  supervisorId    String? @db.ObjectId
+  supervisorName  String  @default("")
+  attendance      String? // present | late | absent
+  comments        String  @default("")
+
+  startAt                  DateTime?
+  endAt                    DateTime?
+  day1Hours                Float?
+  day2Hours                Float?
+  totalHours               Float?
+  attendanceAllocation     String? // shift_start | shift_end
+
+  nightHours      Float?
+  nightOt         Float?
+  nightAllowance  Float?
+  mealAllowance   Float?
+
+  holidayId         String?  @db.ObjectId
+  payRate           String? // 1.50 | 2.00 | 2.50
+  holidayAllowance  Float?
+  grantLieuLeave    Boolean  @default(false)
+  sendToPayroll     Boolean  @default(false)
+
+  shiftRoster ShiftRoster       @relation(fields: [shiftRosterId], references: [id])
+  staff       Staff             @relation(fields: [staffId], references: [id])
+  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
+  holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([staffId, date])
+  @@index([shiftRosterId])
+  @@index([shiftTypeId])
+  @@index([holidayId])
+  @@index([date])
+  @@index([status])
+  @@index([department, unit])
+}
+
+/// Overlay on a published cell. Approve writes RosterAllocation.
+model RosterAmendment {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  code                 String    @unique // RA-n
+  staffId              String    @db.ObjectId
+  dutyDate             DateTime
+  originalShiftTypeId  String    @db.ObjectId
+  amendedShiftTypeId   String?   @db.ObjectId
+  amendmentType        String // shift_change | shift_swap | staff_replacement | duty_cancellation | location_change | extra_duty
+  staffCode            String
+  staffName            String
+  department           String    @default("")
+  originalShiftLabel   String    @default("")
+  amendedShiftLabel    String    @default("")
+  swapStaffId          String?   @db.ObjectId
+  swapStaffName        String    @default("")
+  dutyLocation         String    @default("")
+  reason               String    @default("")
+  remarks              String    @default("")
+  requestedById        String?   @db.ObjectId
+  requestedByName      String    @default("")
+  decidedById          String?   @db.ObjectId
+  decidedAt            DateTime?
+  status               String    @default("pending_approval") // draft | pending_approval | approved | rejected
+
+  staff              Staff      @relation(fields: [staffId], references: [id])
+  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id])
+  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([dutyDate])
+  @@index([status])
+  @@index([amendmentType])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// v1 Holiday Date stub (Roster-owned until HR Administration exists).
+model HolidayCalendar {
+  id     String   @id @default(auto()) @map("_id") @db.ObjectId
+  code   String   @unique // HOL-n
+  name   String
+  typeId String // poya | mercantile | public
+  date   DateTime
+
+  allocations RosterAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([date])
+  @@index([typeId])
+}
+
+/* ---------------------------------
+ACTIVITY LOG TABLE
+--------------------------------- */
+// userId references auth DB User.id (no cross-DB Prisma relation).
+model ActivityLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  action     String // e.g. "staff.staff.created", "staff.visited"
+  entityType String // e.g. "Staff"
+  entityId   String?  @db.ObjectId
+  metadata   Json? // optional extra details
+  ipAddress  String? // client IP from x-forwarded-for or x-real-ip when available
+  importance String? // "low" | "medium" | "high" for retention trimming
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([importance, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+SEQUENCE TABLE
+--------------------------------- */
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
