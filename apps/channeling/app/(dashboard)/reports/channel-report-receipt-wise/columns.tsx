@@ -64,4 +64,5 @@ export const ChannelReportReceiptWiseColumns: ColumnDef<ChannelReportReceiptWise
   { accessorKey: 'agency', header: 'Agency' },
   { accessorKey: 'creditCustomer', header: 'Credit Customer' },
   { accessorKey: 'creator', header: 'Creator' },
+  { accessorKey: 'handoverPerson', header: 'Handover Person' },
 ];

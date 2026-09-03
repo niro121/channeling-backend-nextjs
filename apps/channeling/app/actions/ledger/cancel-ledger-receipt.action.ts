@@ -5,7 +5,6 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import {
   cancelLedgerReceiptService,
-  type CancelLedgerReceiptInput,
   type CancelLedgerReceiptResult,
 } from "@/services/ledger/cancel-ledger-receipt.service"
 
@@ -13,7 +12,15 @@ export async function cancelLedgerReceiptAction(
   receiptId: string,
   cancelReason: string
 ): Promise<CancelLedgerReceiptResult> {
-  await requirePermission("ledger", "add")
+  try {
+    await requirePermission("ledger", "cancel")
+  } catch {
+    return {
+      success: false,
+      errorCode: "FORBIDDEN",
+      message: "You don't have permission to cancel ledger entries.",
+    }
+  }
 
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id ?? null

@@ -83,7 +83,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "float-transfers", name: "Float Transfers" },
   { id: "doctor-payments", name: "Doctor Payments" },
   { id: "accounting", name: "Accounting" },
-  { id: "ledger", name: "Ledger" },
+  {
+    id: "ledger",
+    name: "Ledger",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "add", name: "Add" },
+      { id: "edit", name: "Edit" },
+      { id: "delete", name: "Delete" },
+      { id: "cancel", name: "Cancel entries" },
+    ],
+  },
   { id: "bank-accounts", name: "Bank Accounts" },
   { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
   {
