@@ -28,6 +28,8 @@ import {
   Building2,
   CalendarHeart,
   Award,
+  Network,
+  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -320,6 +322,22 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<ClipboardList className="h-5 w-5" />}
                 />
               )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/departments') && (
+          <SidebarGroup label="Organization">
+            <SidebarCollapsible
+              label="Organization"
+              icon={<Network className="h-5 w-5" />}
+              paths={['/departments']}
+              defaultOpen
+            >
+              <NavLink
+                href="/departments"
+                label="Departments"
+                icon={<Building className="h-5 w-5" />}
+              />
             </SidebarCollapsible>
           </SidebarGroup>
         )}

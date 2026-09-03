@@ -200,7 +200,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 |-------|-------------|--------------------------|
 | `/staff` | `staff` | *(mapped; ensure Auth group has staff if used)* |
 | `/employees` | `employees` | Employees |
-| `/departments` | `departments` | Departments *(planned HR Admin master — see HR_ADMINISTRATION_GUIDE §31)* |
+| `/departments` | `organizations` | Departments under Organization *(UI-first; shared org permission)* |
 | `/positions` | `positions` | Positions *(prefer Designations unless product requires separate screen)* |
 | `/holiday-calendar` | `holiday-calendar` | Holiday Calendar |
 | `/designations` | `designations` | Designations |

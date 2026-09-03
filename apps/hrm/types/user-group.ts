@@ -26,5 +26,6 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: 'designations', name: 'Designations' },
   { id: 'staff-grades', name: 'Area / Staff Grade' },
   { id: 'manage-rosters', name: 'Manage Rosters' },
+  { id: 'organizations', name: 'Organization' },
   { id: 'users', name: 'Users & User Groups' },
 ];
