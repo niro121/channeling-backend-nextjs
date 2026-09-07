@@ -25,6 +25,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/departments': 'organizations',
   '/locations': 'organizations',
   '/zones': 'organizations',
+  '/rooms': 'organizations',
   '/users': 'users',
   '/user-groups': 'users',
 };

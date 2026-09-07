@@ -788,6 +788,38 @@ model Zone {
 }
 
 /* ---------------------------------
+ORGANIZATION — ROOM
+--------------------------------- */
+
+model Room {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  /** Facility room number (synced to Channeling). Unique per location + zone. */
+  number          String
+  /** HRM-only auto code e.g. RM-1 */
+  code            String  @unique
+  description     String  @default("")
+  /** HRM Location.id (maps to Channeling via Location.migrateSourceId) */
+  locationId      String  @db.ObjectId
+  /** HRM Zone.id (maps to Channeling via Zone.migrateSourceId) */
+  zoneId          String  @db.ObjectId
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  migrateSourceId String? // Channeling Room.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([number, locationId, zoneId])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([locationId])
+  @@index([zoneId])
+  @@index([number])
+}
+
+/* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
 // userId references auth DB User.id (no cross-DB Prisma relation).

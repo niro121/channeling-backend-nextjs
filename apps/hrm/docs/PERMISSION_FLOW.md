@@ -203,6 +203,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/departments` | `organizations` | Departments under Organization *(shared org permission)* |
 | `/locations` | `organizations` | Locations under Organization *(shared org permission)* |
 | `/zones` | `organizations` | Zones under Organization *(shared org permission)* |
+| `/rooms` | `organizations` | Rooms under Organization *(shared org permission)* |
 | `/positions` | `positions` | Positions *(prefer Designations unless product requires separate screen)* |
 | `/holiday-calendar` | `holiday-calendar` | Holiday Calendar |
 | `/designations` | `designations` | Designations |
