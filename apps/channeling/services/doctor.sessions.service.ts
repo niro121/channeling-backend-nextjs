@@ -2,10 +2,11 @@
 
 import prisma from '@/lib/prisma';
 import {
-  CreateDoctorSessionPayload,
+    CreateDoctorSessionPayload,
   UpdateDoctorSessionPayload,
   DoctorSession,
-  getDoctorSessionQuery
+  getDoctorSessionQuery,
+  mergeCanonicalSessionFees
 } from '@/types/doctor.session';
 import { Prisma } from '@prisma/client';
 import z from 'zod';
@@ -129,6 +130,7 @@ export const createDoctorSessionService = async (
     }
 
     const data = parsed.data;
+    const fees = mergeCanonicalSessionFees(data.fees);
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 
@@ -143,7 +145,7 @@ export const createDoctorSessionService = async (
         maxPatientNumber: data.maxPatientNumber,
         refundable: data.refundable,
         advancedBookingDays: data.advancedBookingDays,
-        fees: data.fees,
+        fees,
         amountLocal: data.amountLocal,
         amountForeign: data.amountForeign,
         ...(data.applyTo ? { applyTo: data.applyTo } : null),
@@ -241,6 +243,7 @@ export const updateDoctorSessionService = async (
     }
 
     const data = parsed.data;
+    const fees = mergeCanonicalSessionFees(data.fees);
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 
@@ -256,7 +259,7 @@ export const updateDoctorSessionService = async (
         maxPatientNumber: data.maxPatientNumber,
         refundable: data.refundable,
         advancedBookingDays: data.advancedBookingDays,
-        fees: data.fees,
+        fees,
         amountLocal: data.amountLocal,
         amountForeign: data.amountForeign,
         dayType: data.dayType,

@@ -2,15 +2,15 @@ import prisma from "@/lib/prisma"
 import { getSessionsForChannelBookingService } from "@/services/channel-booking/get-sessions.service"
 import { getRefundFeeTypes, toBookingFeeContext } from "@/services/channel-booking/helpers"
 import {
-  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
   SAVE_PAYMENT_TYPE_AGENT,
 } from "@/types/save-booking"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
-/** Same fee set as an Agent booking in channel booking (excludes On-Call). */
+/** Same fee set as a paid public API booking (API Fee, not Agency / On-Call). */
 const PUBLIC_SESSION_FEE_CONTEXT = toBookingFeeContext(
-  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
   SAVE_PAYMENT_TYPE_AGENT
 )
 

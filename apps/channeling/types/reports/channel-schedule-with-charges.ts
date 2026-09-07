@@ -73,6 +73,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   scanFeeLocal: string;
   onCallFeeLocal: string;
   creditCardCommissionLocal: string;
+  apiFeeLocal: string;
   sessionValueLocal: string;
 
   doctorFeeForeign: string;
@@ -81,6 +82,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   scanFeeForeign: string;
   onCallFeeForeign: string;
   creditCardCommissionForeign: string;
+  apiFeeForeign: string;
   sessionValueForeign: string;
 
   startingPatientNo: number | string;

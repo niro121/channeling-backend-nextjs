@@ -3,11 +3,12 @@
  * Session.fees is a catalog of every component; booking totals include a subset.
  *
  * Fee IDs match FEE_TYPES in types/doctor.session.ts:
- * 0 Doctor, 1 Hospital, 2 Agency, 3 Scan, 4 On-Call, 5 Credit Card Commission.
+ * 0 Doctor, 1 Hospital, 2 Agency, 3 Scan, 4 On-Call, 5 Credit Card Commission, 6 API.
  */
 
 import {
   SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
   SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_MIXED,
@@ -20,6 +21,7 @@ export const FEE_ID = {
   SCAN: 3,
   ON_CALL: 4,
   CREDIT_CARD: 5,
+  API: 6,
 } as const
 
 export type BookingFeeContext = {
@@ -72,7 +74,8 @@ export function hasCreditCardPayment(
  * Booking-type fee set, then Credit Card Commission (id 5) is unioned when
  * hasCreditCardLine is true (Card pay, Mixed with a Card line, or settle by Card).
  *
- * Agent, On-Call, Cash / Staff / Slip / Credit Customer / E-wallet always include
+ * Agent includes Agency Fee (not API Fee). API includes API Fee (not Agency Fee).
+ * On-Call, Cash / Staff / Slip / Credit Customer / E-wallet always include
  * Credit Card Commission so a settlement-method discount can offset it.
  * Doctor + Hospital + Scan is the base set for every booking type.
  */
@@ -84,6 +87,8 @@ export function getApplicableFeeIds(
   let ids: number[]
   if (payment_method === SAVE_BOOKING_METHOD_AGENT) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.AGENCY, FEE_ID.CREDIT_CARD]
+  } else if (payment_method === SAVE_BOOKING_METHOD_API) {
+    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.API, FEE_ID.CREDIT_CARD]
   } else if (payment_method === SAVE_BOOKING_METHOD_ON_CALL) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.ON_CALL, FEE_ID.CREDIT_CARD]
   } else if (payment_type === SAVE_PAYMENT_TYPE_CREDIT_CARD) {

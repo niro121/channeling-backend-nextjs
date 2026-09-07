@@ -225,6 +225,23 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       }
     },
     {
+      id: 'apiFeeLocal',
+      header: () => (
+        <div>
+          <div className="whitespace-nowrap">API Fee</div>
+          <div className="whitespace-nowrap">(Local)</div>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const fee = getFeeById(row.original.fees, 6);
+        return (
+          <span className="text-right tabular-nums block">
+            {formatMoney(fee?.localFee)}
+          </span>
+        );
+      }
+    },
+    {
       id: 'sessionValueLocal',
       header: () => (
         <div>
@@ -333,6 +350,23 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       ),
       cell: ({ row }) => {
         const fee = getFeeById(row.original.fees, 5);
+        return (
+          <span className="text-right tabular-nums block">
+            {formatMoney(fee?.foreignFee)}
+          </span>
+        );
+      }
+    },
+    {
+      id: 'apiFeeForeign',
+      header: () => (
+        <div>
+          <div className="whitespace-nowrap">API Fee</div>
+          <div className="whitespace-nowrap">(Foreign)</div>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const fee = getFeeById(row.original.fees, 6);
         return (
           <span className="text-right tabular-nums block">
             {formatMoney(fee?.foreignFee)}
