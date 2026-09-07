@@ -101,6 +101,7 @@ export async function exportChannelScheduleWithChargesReportData(
         const scanFee = getFeeById(fees, 3);
         const onCallFee = getFeeById(fees, 4);
         const creditCardCommissionFee = getFeeById(fees, 5);
+        const apiFee = getFeeById(fees, 6);
 
         return {
           locationName: row.location?.name ?? '-',
@@ -120,6 +121,7 @@ export async function exportChannelScheduleWithChargesReportData(
           creditCardCommissionLocal: formatMoney(
             creditCardCommissionFee?.localFee
           ),
+          apiFeeLocal: formatMoney(apiFee?.localFee),
           sessionValueLocal: formatMoney(row.amountLocal),
 
           doctorFeeForeign: formatMoney(doctorFee?.foreignFee),
@@ -130,6 +132,7 @@ export async function exportChannelScheduleWithChargesReportData(
           creditCardCommissionForeign: formatMoney(
             creditCardCommissionFee?.foreignFee
           ),
+          apiFeeForeign: formatMoney(apiFee?.foreignFee),
           sessionValueForeign: formatMoney(row.amountForeign),
 
           startingPatientNo: row.startingPatientNumber ?? '-',

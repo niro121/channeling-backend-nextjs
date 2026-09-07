@@ -11,7 +11,7 @@ import {
 } from "@/services/channel-booking/helpers"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
-  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
   SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
@@ -19,9 +19,9 @@ import {
 
 export type PublicCreateAgentBookingParams = {
   sessionId: string
-  /** Agency (agent) Mongo id — required for paid Agent bookings */
+  /** Agency (agent) Mongo id — required for paid API bookings */
   agencyId?: string
-  /** Full agency book reference — required for paid Agent bookings */
+  /** Full agency book reference — required for paid API bookings */
   bookReference?: string
   title: string
   name: string
@@ -31,7 +31,7 @@ export type PublicCreateAgentBookingParams = {
   remarks?: string
   foreigner?: boolean
   /**
-   * When true: Agent booking, settled (receipt, status 1). Agency + bookReference required.
+   * When true: API booking, settled (receipt, status 1). Agency + bookReference required.
    * When false / omitted on advance-booking sessions: On-Call pending (status 0),
    * attached to API acting user as createdBy (no receipt). Agency + bookReference optional; saved if passed.
    * When omitted on non-advance sessions: same as true (Agent settled).
@@ -97,7 +97,7 @@ export type CreatePublicAgentBookingResult =
 type PublicBookingMode = "agent" | "on_call"
 
 /**
- * Paid → Agent settled.
+ * Paid → API method, settled against the agency.
  * Unpaid / omitted on advance sessions → On-Call pending (createdBy = API acting user).
  * Unpaid on non-advance sessions is not allowed.
  */
@@ -117,7 +117,7 @@ function resolvePublicBookingMode(
   }
   // omitted
   if (advanceBookingEnabled) return { mode: "on_call" }
-  return { mode: "agent" }
+  return { mode: "agent" } // paid/settled public path (stored as API method)
 }
 
 function mapSaveBookingError(
@@ -193,7 +193,7 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
 
 /**
  * Create a public API booking via the channel-booking save pipeline.
- * Paid → Agent (settled). Unpaid advance → On-Call pending (createdBy = acting user).
+ * Paid → API method (settled against agency). Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function createPublicAgentBooking(
   params: PublicCreateAgentBookingParams
@@ -303,7 +303,7 @@ export async function createPublicAgentBooking(
   const foriegner = params.foreigner === true
   const payment_method = isOnCall
     ? SAVE_BOOKING_METHOD_ON_CALL
-    : SAVE_BOOKING_METHOD_AGENT
+    : SAVE_BOOKING_METHOD_API
   const payment_type = isOnCall ? SAVE_PAYMENT_TYPE_CASH : SAVE_PAYMENT_TYPE_AGENT
 
   const feeContext = toBookingFeeContext(payment_method, payment_type)
@@ -366,7 +366,7 @@ export async function createPublicAgentBooking(
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
     agencyRefUniqueOnly: hasAgencyRef,
-    // On-Call never creates a receipt; Agent paid path settles.
+    // On-Call never creates a receipt; paid API path settles against the agency.
     settleOnCreate: !isOnCall,
   })
 

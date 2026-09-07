@@ -15,7 +15,8 @@ import {
   DoctorSession,
   DoctorSessionFormValues,
   Fee,
-  LastDoctorSessionFees
+  LastDoctorSessionFees,
+  mergeCanonicalSessionFees
 } from '@/types/doctor.session';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
@@ -187,7 +188,10 @@ export default function DoctorSessionForm({
     refundable: doctorSession?.refundable ?? 0,
     advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
     status: doctorSession?.status ?? 1,
-    fees: doctorSession?.fees ?? defaultFeesForCreate,
+    fees: mergeCanonicalSessionFees(
+      doctorSession?.fees ?? defaultFeesForCreate,
+      feeTypeOptions
+    ),
     amountLocal:
       doctorSession?.amountLocal ??
       (isCreate && lastSessionFees ? lastSessionFees.amountLocal : 0),
