@@ -169,8 +169,41 @@ export const FEE_TYPES: Fee[] = [
     feeType: 'Own Institution',
     localFee: 0,
     foreignFee: 0
+  },
+  {
+    id: '6',
+    name: 'API Fee',
+    feeType: 'Own Institution',
+    localFee: 0,
+    foreignFee: 0
   }
 ];
+
+/** Fill missing catalog rows (e.g. API Fee on sessions created before id 6 existed). */
+export function mergeCanonicalSessionFees(
+  stored: unknown,
+  canonical: Fee[] = FEE_TYPES
+): Fee[] {
+  const source = Array.isArray(stored) ? stored : [];
+  return canonical.map((base) => {
+    const match = source.find((raw) => {
+      if (!raw || typeof raw !== 'object') return false;
+      const row = raw as Partial<Fee>;
+      return (
+        (row.id != null && String(row.id) === String(base.id)) ||
+        (typeof row.name === 'string' && row.name === base.name)
+      );
+    }) as Partial<Fee> | undefined;
+    if (!match) return { ...base };
+    return {
+      id: base.id,
+      name: typeof match.name === 'string' ? match.name : base.name,
+      feeType: typeof match.feeType === 'string' ? match.feeType : base.feeType,
+      localFee: Number(match.localFee ?? 0) || 0,
+      foreignFee: Number(match.foreignFee ?? 0) || 0
+    };
+  });
+}
 
 export const DAY_TYPES: Option[] = [
   { id: '1', name: 'Sunday' },

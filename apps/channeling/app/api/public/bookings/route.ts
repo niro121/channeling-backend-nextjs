@@ -12,7 +12,7 @@ function withCors(res: NextResponse) {
 
 /**
  * GET /api/public/bookings?doctorCode=…&sessionId=…|date=…
- * POST /api/public/bookings — agent booking (JSON body, reuses saveBookingService).
+ * POST /api/public/bookings — API booking (JSON body, reuses saveBookingService).
  */
 export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
@@ -82,15 +82,15 @@ type CreateBookingBody = {
   remarks?: string
   foreigner?: boolean
   /**
-   * yes/true = Agent settled; no/false = On-Call pending (advance sessions only);
-   * omit = On-Call pending when advance booking enabled, else Agent settled.
+   * yes/true = API settled (agency receipt); no/false = On-Call pending (advance sessions only);
+   * omit = On-Call pending when advance booking enabled, else API settled.
    */
   paid?: boolean | string | number
 }
 
 /**
  * POST /api/public/bookings
- * Paid → Agent booking. Unpaid advance → On-Call pending (createdBy = acting user).
+ * Paid → API booking (settled against agency). Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
