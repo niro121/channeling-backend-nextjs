@@ -5,7 +5,8 @@ Use this document when building or extending features in `apps/hrm`.
 
 Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).  
 Overtime features: see **`OVERTIME_MANAGER_GUIDE.md`** (UI-first shell, then dynamic phases).  
-Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).
+Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).  
+HR Administration: see **`docs/HR_ADMINISTRATION_GUIDE.md`** (shipped masters + §31 remaining backlog; Staff/Roster integration deferred in §32; **Manage Shifts deferred** in §34 — Shift Types under Roster & Shifts remains the template master).
 
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 
@@ -275,7 +276,10 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 |-------|----------------|
 | `/staff` | `staff` *(implemented)* |
 | `/employees` | `employees` |
-| `/departments` | `departments` |
+| `/departments` | `organizations` |
+| `/locations` | `organizations` |
+| `/zones` | `organizations` |
+| `/rooms` | `organizations` |
 | `/positions` | `positions` |
 | `/leave-requests` | `leave-requests` |
 | `/leave-types` | `leave-types` |
