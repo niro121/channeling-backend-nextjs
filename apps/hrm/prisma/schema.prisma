@@ -728,6 +728,39 @@ model Department {
 }
 
 /* ---------------------------------
+ORGANIZATION — LOCATION
+--------------------------------- */
+
+model Location {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String  @unique
+  addressLine1    String  @default("")
+  addressLine2    String  @default("")
+  city            String  @default("")
+  /** 1 = Main Location, 2 = Branch, 3 = Collection Center */
+  branchType      Int
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  /** Display order in branch dropdowns (lower first). */
+  order           Int     @default(0)
+  /** Hex color for branch UI (e.g. #22c55e). Optional. */
+  color           String?
+  migrateSourceId String? // Channeling Location.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([branchType])
+  @@index([order])
+  @@index([name])
+}
+
+/* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
 // userId references auth DB User.id (no cross-DB Prisma relation).
