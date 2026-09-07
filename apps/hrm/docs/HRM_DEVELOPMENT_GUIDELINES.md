@@ -278,6 +278,7 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 | `/employees` | `employees` |
 | `/departments` | `organizations` |
 | `/locations` | `organizations` |
+| `/zones` | `organizations` |
 | `/positions` | `positions` |
 | `/leave-requests` | `leave-requests` |
 | `/leave-types` | `leave-types` |

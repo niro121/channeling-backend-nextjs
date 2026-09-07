@@ -761,6 +761,33 @@ model Location {
 }
 
 /* ---------------------------------
+ORGANIZATION — ZONE
+--------------------------------- */
+
+model Zone {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String  @unique
+  description     String  @default("")
+  /** HRM Location.id (maps to Channeling via Location.migrateSourceId) */
+  locationId      String  @db.ObjectId
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  migrateSourceId String? // Channeling Zone.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([name, locationId])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([locationId])
+  @@index([name])
+}
+
+/* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
 // userId references auth DB User.id (no cross-DB Prisma relation).

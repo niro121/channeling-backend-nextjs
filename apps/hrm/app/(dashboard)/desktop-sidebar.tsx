@@ -31,6 +31,7 @@ import {
   Network,
   Building,
   MapPin,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -326,12 +327,14 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/departments') || hasAccess('/locations')) && (
+        {(hasAccess('/departments') ||
+          hasAccess('/locations') ||
+          hasAccess('/zones')) && (
           <SidebarGroup label="Organization">
             <SidebarCollapsible
               label="Organization"
               icon={<Network className="h-5 w-5" />}
-              paths={['/departments', '/locations']}
+              paths={['/departments', '/locations', '/zones']}
               defaultOpen
             >
               {hasAccess('/departments') && (
@@ -346,6 +349,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/locations"
                   label="Locations"
                   icon={<MapPin className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/zones') && (
+                <NavLink
+                  href="/zones"
+                  label="Zones"
+                  icon={<Layers className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
