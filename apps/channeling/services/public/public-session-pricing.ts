@@ -21,7 +21,7 @@ import {
   SAVE_BOOKING_METHOD_API,
   SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_PAYMENT_TYPE_AGENT,
-  SAVE_PAYMENT_TYPE_CASH,
+  SAVE_PAYMENT_TYPE_CREDIT_CARD,
 } from "@/types/save-booking"
 
 export const PUBLIC_PAYMENT_MODES = ["api", "agent", "oncall"] as const
@@ -93,7 +93,8 @@ export function publicPaymentModeToMethods(
   if (mode === "oncall") {
     return {
       payment_method: SAVE_BOOKING_METHOD_ON_CALL,
-      payment_type: SAVE_PAYMENT_TYPE_CASH,
+      // Public API On-Call defaults to Card (POS cash is only used at the counter).
+      payment_type: SAVE_PAYMENT_TYPE_CREDIT_CARD,
     }
   }
   return {
