@@ -49,6 +49,19 @@ export function isDiscountApplicableForBookingType(
   return okMethod && okType
 }
 
+/** Same rule as POS new booking: first auto scheme for this method + payment type. */
+export function firstApplicableAutoDiscount<T extends DiscountEligibility>(
+  auto: T[],
+  payment_method: number,
+  payment_type: number
+): T | null {
+  return (
+    auto.find((d) =>
+      isDiscountApplicableForBookingType(d, payment_method, payment_type)
+    ) ?? null
+  )
+}
+
 /** Spec §6.4: payment-aware professional / hospital split. */
 export function getRefundFeeTypesClient(
   fees: unknown,
