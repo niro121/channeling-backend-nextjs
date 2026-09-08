@@ -419,6 +419,60 @@ Paid Agent bookings (`POST /api/public/bookings` with `paid: yes`) still enforce
 
 ---
 
+## 9. Get agency statement
+
+**GET** `/api/public/agencies/:agencyId/statement?dateFrom=&dateTo=`
+
+Agent statement for a published agency. Amounts (opening/closing balance, line amount, running balance, booking fees) come from the same `getAgencyStatementReportService` used by the hospital **Agent Statement** report. Requires a valid Bearer token.
+
+Query params:
+
+- `dateFrom` — required. `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm`
+- `dateTo` — required. same format
+
+Default report limits apply (62-day range, 20_000 journals). Invalid range returns `400`. Unpublished or unknown agencies return `404`. An agency with no linked PAYABLE account still returns `200` with `accountLinked: false` and an explanatory `message`.
+
+The website must only request the signed-in agent’s own `agencyId`.
+
+### cURL
+
+```bash
+curl -X GET "http://localhost:3000/api/public/agencies/AGENCY_ID/statement?dateFrom=2026-09-01T00:00&dateTo=2026-09-08T23:59" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Example success response (200)
+
+```json
+{
+  "agencyId": "...",
+  "agencyName": "Online Booking Agency",
+  "agencyCode": "001",
+  "accountLinked": true,
+  "accountName": "Agent Payable",
+  "openingBalance": 12500.00,
+  "closingBalance": 9800.00,
+  "rows": [
+    {
+      "no": 1,
+      "date": "2026-09-02T04:30:00.000Z",
+      "particulars": "Booking - Mr Patient",
+      "appointmentDateTime": "02/09/2026 10:00",
+      "receiptNo": "RCPT-001",
+      "docFee": 1500.00,
+      "hosFee": 500.00,
+      "discount": 0,
+      "amount": -2000.00,
+      "runningBalance": 10500.00,
+      "comments": "",
+      "createdBy": "System"
+    }
+  ]
+}
+```
+
+---
+
 ## Postman collection
 
 Import the collection to run these in Postman:
