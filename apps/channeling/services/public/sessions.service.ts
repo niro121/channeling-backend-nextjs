@@ -8,7 +8,7 @@ import {
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
-/** Same fee set as a paid public API booking (API Fee, not Agency / On-Call). */
+/** Same fee set as a paid public API booking (Agency + API Fee, not On-Call). */
 const PUBLIC_SESSION_FEE_CONTEXT = toBookingFeeContext(
   SAVE_BOOKING_METHOD_API,
   SAVE_PAYMENT_TYPE_AGENT

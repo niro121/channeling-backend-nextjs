@@ -74,7 +74,9 @@ export function hasCreditCardPayment(
  * Booking-type fee set, then Credit Card Commission (id 5) is unioned when
  * hasCreditCardLine is true (Card pay, Mixed with a Card line, or settle by Card).
  *
- * Agent includes Agency Fee (not API Fee). API includes API Fee (not Agency Fee).
+ * Agent includes Agency Fee (not API Fee).
+ * API includes Agency Fee and API Fee (not On-Call).
+ * Advance unpaid public API is On-Call, so it gets On-Call Fee and not Agency / API Fee.
  * On-Call, Cash / Staff / Slip / Credit Customer / E-wallet always include
  * Credit Card Commission so a settlement-method discount can offset it.
  * Doctor + Hospital + Scan is the base set for every booking type.
@@ -88,7 +90,14 @@ export function getApplicableFeeIds(
   if (payment_method === SAVE_BOOKING_METHOD_AGENT) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.AGENCY, FEE_ID.CREDIT_CARD]
   } else if (payment_method === SAVE_BOOKING_METHOD_API) {
-    ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.API, FEE_ID.CREDIT_CARD]
+    ids = [
+      FEE_ID.DOCTOR,
+      FEE_ID.HOSPITAL,
+      FEE_ID.SCAN,
+      FEE_ID.AGENCY,
+      FEE_ID.API,
+      FEE_ID.CREDIT_CARD,
+    ]
   } else if (payment_method === SAVE_BOOKING_METHOD_ON_CALL) {
     ids = [FEE_ID.DOCTOR, FEE_ID.HOSPITAL, FEE_ID.SCAN, FEE_ID.ON_CALL, FEE_ID.CREDIT_CARD]
   } else if (payment_type === SAVE_PAYMENT_TYPE_CREDIT_CARD) {

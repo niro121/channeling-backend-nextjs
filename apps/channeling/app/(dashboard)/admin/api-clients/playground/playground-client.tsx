@@ -109,6 +109,7 @@ export function PublicApiPlayground() {
   const [createArea, setCreateArea] = useState("")
   const [createForeigner, setCreateForeigner] = useState(false)
   const [createPaid, setCreatePaid] = useState(true)
+  const [createAmount, setCreateAmount] = useState("")
   const [createLoading, setCreateLoading] = useState(false)
   const [createResult, setCreateResult] = useState<{
     status: number
@@ -166,7 +167,8 @@ export function PublicApiPlayground() {
     "phone": "0771234567",
     "area": "Colombo",
     "foreigner": false,
-    "paid": "yes"
+    "paid": "yes",
+    "amount": 2500
   }'`
     : ""
   const curlDoctors = originForCurl
@@ -360,6 +362,9 @@ export function PublicApiPlayground() {
           area: createArea.trim(),
           foreigner: createForeigner,
           paid: createPaid ? "yes" : "no",
+          ...(createAmount.trim() !== ""
+            ? { amount: Number(createAmount.trim()) }
+            : {}),
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -381,7 +386,9 @@ export function PublicApiPlayground() {
     createBookRef.trim() &&
     createName.trim() &&
     createPhone.trim() &&
-    createArea.trim()
+    createArea.trim() &&
+    (!createPaid ||
+      (createAmount.trim() !== "" && Number.isFinite(Number(createAmount.trim()))))
 
   function copyToken() {
     if (accessToken) void navigator.clipboard.writeText(accessToken)
@@ -879,6 +886,18 @@ export function PublicApiPlayground() {
               <Label htmlFor="create_area">Area</Label>
               <Input id="create_area" value={createArea} onChange={(e) => setCreateArea(e.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="create_amount">Amount (LKR)</Label>
+              <Input
+                id="create_amount"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Required when Paid"
+                value={createAmount}
+                onChange={(e) => setCreateAmount(e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-2">
@@ -907,7 +926,9 @@ export function PublicApiPlayground() {
             </div>
           </div>
           <p className="text-muted-foreground text-xs">
-            Uses Session ID from step 3 field above. Amount is calculated server-side from session fees.
+            Uses Session ID from step 3 field above. For paid bookings, amount must match the
+            hospital session total (API fee set). Mismatch returns AMOUNT_ERROR and does not create
+            the booking.
           </p>
           <Button onClick={handleCreateBooking} disabled={createLoading || !canCreateBooking}>
             {createLoading ? (
