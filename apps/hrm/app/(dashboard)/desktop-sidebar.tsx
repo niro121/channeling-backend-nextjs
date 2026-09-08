@@ -28,6 +28,7 @@ import {
   Building2,
   CalendarHeart,
   Award,
+  Stethoscope,
   Network,
   Building,
   MapPin,
@@ -284,6 +285,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         {(hasAccess('/holiday-calendar') ||
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
+          hasAccess('/staff-specialities') ||
           hasAccess('/manage-rosters')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
@@ -293,6 +295,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/holiday-calendar',
                 '/designations',
                 '/staff-grades',
+                '/staff-specialities',
                 '/manage-rosters'
               ]}
               defaultOpen
@@ -316,6 +319,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/staff-grades"
                   label="Area / Staff Grade"
                   icon={<Award className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/staff-specialities') && (
+                <NavLink
+                  href="/staff-specialities"
+                  label="Staff Specialities"
+                  icon={<Stethoscope className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/manage-rosters') && (

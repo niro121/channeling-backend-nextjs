@@ -21,6 +21,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/holiday-calendar': 'holiday-calendar',
   '/designations': 'designations',
   '/staff-grades': 'staff-grades',
+  '/staff-specialities': 'staff-specialities',
   '/manage-rosters': 'manage-rosters',
   '/departments': 'organizations',
   '/locations': 'organizations',

@@ -63,7 +63,7 @@ const staffHrDetailsSchema = z.object({
     .union([z.coerce.date(), z.date(), z.null(), z.undefined()])
     .optional()
     .nullable(),
-  speciality: z.string().optional().nullable()
+  specialityIds: z.array(z.string()).optional().default([])
 });
 
 const staffGeneralPayloadSchema = staffSchema.extend({
@@ -265,7 +265,7 @@ function toHrDetailsInput(
     resignedWithoutNotice: hrDetails.resignedWithoutNotice ?? false,
     resignedWithNoticeDate: toDate(hrDetails.resignedWithNoticeDate),
     dateRetired: toDate(hrDetails.dateRetired),
-    speciality: hrDetails.speciality ?? null
+    specialityIds: hrDetails.specialityIds ?? []
   };
 }
 
@@ -646,7 +646,10 @@ export async function updateStaff(
               data.hrDetails.dateRetired !== undefined
                 ? data.hrDetails.dateRetired
                 : (existing.hrDetails?.dateRetired ?? null),
-            speciality: data.hrDetails.speciality ?? existing.hrDetails?.speciality ?? null
+            specialityIds:
+              data.hrDetails.specialityIds ??
+              existing.hrDetails?.specialityIds ??
+              []
           },
           staffCodeLegacy
         )
@@ -734,7 +737,7 @@ export async function updateStaffPersonnel(
         resignedWithoutNotice: existing.hrDetails?.resignedWithoutNotice ?? false,
         resignedWithNoticeDate: existing.hrDetails?.resignedWithNoticeDate ?? null,
         dateRetired: existing.hrDetails?.dateRetired ?? null,
-        speciality: existing.hrDetails?.speciality ?? null
+        specialityIds: existing.hrDetails?.specialityIds ?? []
       },
       existing.hrDetails?.staffCodeLegacy ?? null
     );

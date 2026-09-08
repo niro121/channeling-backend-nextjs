@@ -32,7 +32,7 @@ type StaffHrDetails {
   resignedWithoutNotice  Boolean   @default(false)
   resignedWithNoticeDate DateTime?
   dateRetired            DateTime?
-  speciality             String?
+  specialityIds          String[]  @default([])
 }
 
 type StaffPersonalDetails {
@@ -686,6 +686,25 @@ model StaffGrade {
   updatedBy String?  @db.ObjectId
 
   @@index([gradeLevelId])
+}
+
+model StaffSpeciality {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  code        String @unique // SSP-n
+  name        String @unique
+  categoryId  String // clinical | nursing | admin
+  description String @default("")
+  status      Int    @default(1) // 0 = Inactive, 1 = Active
+  sortOrder   Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([sortOrder])
 }
 
 model ManageRoster {

@@ -208,6 +208,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/holiday-calendar` | `holiday-calendar` | Holiday Calendar |
 | `/designations` | `designations` | Designations |
 | `/staff-grades` | `staff-grades` | Area / Staff Grade |
+| `/staff-specialities` | `staff-specialities` | Staff Specialities |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
 | `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE §34)* |
 | `/leave-requests` | `leave-requests` | Leave Requests |
