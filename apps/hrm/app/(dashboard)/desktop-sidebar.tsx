@@ -25,6 +25,14 @@ import {
   ChevronDown,
   Clock,
   Users,
+  Building2,
+  CalendarHeart,
+  Award,
+  Network,
+  Building,
+  MapPin,
+  Layers,
+  DoorOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -268,6 +276,95 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/public-holiday-shifts"
                   label="Public Holiday Shifts"
                   icon={<PartyPopper className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/holiday-calendar') ||
+          hasAccess('/designations') ||
+          hasAccess('/staff-grades') ||
+          hasAccess('/manage-rosters')) && (
+          <SidebarGroup label="HR Administration">
+            <SidebarCollapsible
+              label="HR Administration"
+              icon={<Building2 className="h-5 w-5" />}
+              paths={[
+                '/holiday-calendar',
+                '/designations',
+                '/staff-grades',
+                '/manage-rosters'
+              ]}
+              defaultOpen
+            >
+              {hasAccess('/holiday-calendar') && (
+                <NavLink
+                  href="/holiday-calendar"
+                  label="Holiday Calendar"
+                  icon={<CalendarHeart className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/designations') && (
+                <NavLink
+                  href="/designations"
+                  label="Designations"
+                  icon={<Tags className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/staff-grades') && (
+                <NavLink
+                  href="/staff-grades"
+                  label="Area / Staff Grade"
+                  icon={<Award className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/manage-rosters') && (
+                <NavLink
+                  href="/manage-rosters"
+                  label="Manage Rosters"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/departments') ||
+          hasAccess('/locations') ||
+          hasAccess('/zones') ||
+          hasAccess('/rooms')) && (
+          <SidebarGroup label="Organization">
+            <SidebarCollapsible
+              label="Organization"
+              icon={<Network className="h-5 w-5" />}
+              paths={['/departments', '/locations', '/zones', '/rooms']}
+              defaultOpen
+            >
+              {hasAccess('/departments') && (
+                <NavLink
+                  href="/departments"
+                  label="Departments"
+                  icon={<Building className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/locations') && (
+                <NavLink
+                  href="/locations"
+                  label="Locations"
+                  icon={<MapPin className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/zones') && (
+                <NavLink
+                  href="/zones"
+                  label="Zones"
+                  icon={<Layers className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/rooms') && (
+                <NavLink
+                  href="/rooms"
+                  label="Rooms"
+                  icon={<DoorOpen className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

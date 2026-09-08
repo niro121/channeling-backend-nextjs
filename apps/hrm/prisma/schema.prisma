@@ -656,6 +656,170 @@ model HolidayCalendar {
 }
 
 /* ---------------------------------
+HR ADMINISTRATION — DESIGNATION
+--------------------------------- */
+
+model Designation {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  code        String  @unique // DES-n
+  name        String  @unique
+  categoryId  String // clinical | non-clinical
+  description String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([categoryId])
+}
+
+model StaffGrade {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  code         String @unique // SG-n
+  name         String @unique
+  gradeLevelId String // grade_i | grade_ii | grade_iii | executive
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([gradeLevelId])
+}
+
+model ManageRoster {
+  id                    String @id @default(auto()) @map("_id") @db.ObjectId
+  code                  String @unique // HR-entered business key, e.g. CHN (not SR-n)
+  name                  String @unique
+  departmentId          String // placeholder enum until Department master
+  shiftsPerPersonPerDay Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([departmentId])
+}
+
+/* ---------------------------------
+ORGANIZATION — DEPARTMENT
+--------------------------------- */
+
+model Department {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String  @default("")
+  institution     Int // 0=RH, 1=RHD, 2=RHT, 3=RPS
+  status          Int     @default(1) // 0 = unpublish, 1 = publish
+  migrateSourceId String? // Channeling Department.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([name, institution])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([institution])
+  @@index([name])
+}
+
+/* ---------------------------------
+ORGANIZATION — LOCATION
+--------------------------------- */
+
+model Location {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String  @unique
+  addressLine1    String  @default("")
+  addressLine2    String  @default("")
+  city            String  @default("")
+  /** 1 = Main Location, 2 = Branch, 3 = Collection Center */
+  branchType      Int
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  /** Display order in branch dropdowns (lower first). */
+  order           Int     @default(0)
+  /** Hex color for branch UI (e.g. #22c55e). Optional. */
+  color           String?
+  migrateSourceId String? // Channeling Location.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([branchType])
+  @@index([order])
+  @@index([name])
+}
+
+/* ---------------------------------
+ORGANIZATION — ZONE
+--------------------------------- */
+
+model Zone {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  code            String  @unique
+  description     String  @default("")
+  /** HRM Location.id (maps to Channeling via Location.migrateSourceId) */
+  locationId      String  @db.ObjectId
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  migrateSourceId String? // Channeling Zone.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([name, locationId])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([locationId])
+  @@index([name])
+}
+
+/* ---------------------------------
+ORGANIZATION — ROOM
+--------------------------------- */
+
+model Room {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  /** Facility room number (synced to Channeling). Unique per location + zone. */
+  number          String
+  /** HRM-only auto code e.g. RM-1 */
+  code            String  @unique
+  description     String  @default("")
+  /** HRM Location.id (maps to Channeling via Location.migrateSourceId) */
+  locationId      String  @db.ObjectId
+  /** HRM Zone.id (maps to Channeling via Zone.migrateSourceId) */
+  zoneId          String  @db.ObjectId
+  /** 0 = unpublish, 1 = publish */
+  status          Int     @default(1)
+  migrateSourceId String? // Channeling Room.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([number, locationId, zoneId])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([locationId])
+  @@index([zoneId])
+  @@index([number])
+}
+
+/* ---------------------------------
 ACTIVITY LOG TABLE
 --------------------------------- */
 // userId references auth DB User.id (no cross-DB Prisma relation).

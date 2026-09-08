@@ -3,7 +3,10 @@ import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
 import { getPublicBookingsByDoctorCode } from "@/services/public/bookings.service"
 import { createPublicAgentBooking } from "@/services/public/create-booking.service"
-import { parsePublicApiPaidParam } from "@/lib/parse-public-api-paid"
+import {
+  parsePublicApiAmountParam,
+  parsePublicApiPaidParam,
+} from "@/lib/parse-public-api-paid"
 
 function withCors(res: NextResponse) {
   Object.entries(publicApiCorsHeaders()).forEach(([k, v]) => res.headers.set(k, v))
@@ -86,11 +89,14 @@ type CreateBookingBody = {
    * omit = On-Call pending when advance booking enabled, else API settled.
    */
   paid?: boolean | string | number
+  /** Paid amount / session total. Required when the booking is settled (paid Agent/API). */
+  amount?: number | string
 }
 
 /**
  * POST /api/public/bookings
- * Paid → API booking (settled against agency). Unpaid advance → On-Call pending (createdBy = acting user).
+ * Paid → API booking (settled against agency). `amount` is required and must match session total.
+ * Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
@@ -129,6 +135,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const amountParsed = parsePublicApiAmountParam(body.amount)
+  if (!amountParsed.ok) {
+    return withCors(
+      NextResponse.json(
+        { error: "invalid_request", error_description: amountParsed.message },
+        { status: 400 }
+      )
+    )
+  }
+
   const result = await createPublicAgentBooking({
     sessionId: body.sessionId ?? "",
     agencyId: body.agencyId ?? "",
@@ -141,6 +157,7 @@ export async function POST(request: NextRequest) {
     remarks: body.remarks,
     foreigner: body.foreigner,
     paid: paidParsed.paid,
+    amount: amountParsed.amount,
     createdByUserId: client.actingUserId,
     apiClientId: client.id,
   })
