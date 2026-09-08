@@ -262,7 +262,7 @@ Creates a booking via the channel-booking save pipeline. Requires Bearer token a
 
 - **`paymentMode: api`** (or `paid: yes` when `paymentMode` is omitted): **API** method, receipt created, **status 1**. `agencyId` + `bookReference` required. Amount must match the API session total (including auto discount).
 - **`paymentMode: agent`**: **Agent** method, receipt created, **status 1**. `agencyId` + `bookReference` required. Amount must match the Agent session total.
-- **`paymentMode: oncall`** (or `paid: no` / omitted on advance-booking sessions): **On-Call** method, **status 0** (pending, no receipt). Booking is attached to the API acting user as `createdBy`. `agencyId` + `bookReference` are optional; if passed, they are stored on the booking (no agency debit).
+- **`paymentMode: oncall`** (or `paid: no` / omitted on advance-booking sessions): **On-Call** method with **Credit Card** payment type (API default), **status 0** (pending, no receipt). Booking is attached to the API acting user as `createdBy`. `agencyId` + `bookReference` are optional; if passed, they are stored on the booking (no agency debit).
 
 ### JSON body
 
@@ -275,7 +275,7 @@ Creates a booking via the channel-booking save pipeline. Requires Bearer token a
 | `remarks`      | No       | Optional remarks. |
 | `foreigner`    | No       | `true` for foreign fee tier. |
 | `paid`         | No       | `yes` / `true`: settled (**status 1**). `no` / `false`: **On-Call** pending (**status 0**) — only on advance-booking sessions. Ignored when `paymentMode` is sent. **Omitted:** advance → On-Call pending; otherwise API settled. |
-| `paymentMode`  | No       | `api` (card), `agent` (agency credit), or `oncall` (pay at hospital). When set, selects the hospital booking method. |
+| `paymentMode`  | No       | `api` (card), `agent` (agency credit), or `oncall` (pay at hospital). When set, selects the hospital booking method. On-Call via this API stores payment type as **Credit Card**. |
 | `amount`       | Paid     | Total charged (LKR), net of auto discount. Required for paid Agent/API bookings. Must match the hospital session total for that `paymentMode` (same cents). Mismatch → `400` with `booking_error_code: AMOUNT_ERROR`. Not required for On-Call. |
 
 ### cURL (paid Agent)

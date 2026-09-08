@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { firstApplicableAutoDiscount } from "@/lib/channel-booking-discount"
 import {
   createReceiptAndUpdateBooking,
   computeBookingDiscounts,
@@ -12,6 +13,7 @@ import {
   resolveReceiptLocationId,
   hasCreditCardPayment,
 } from "./helpers"
+import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
@@ -262,8 +264,16 @@ export async function settleBookingService(
   )
   const grossAmount = professional_fee + hospital_fee
 
+  const discounts = await getDiscountsForBookingService()
+  const settleAutoDiscountId =
+    firstApplicableAutoDiscount(
+      discounts.auto,
+      booking.method,
+      input.settle_method
+    )?.id ?? null
+
   const discountResult = await computeBookingDiscounts({
-    autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+    autoDiscountId: settleAutoDiscountId,
     manualDiscountId: booking.discountId ?? null,
     payment_method: booking.method,
     payment_type: input.settle_method,
@@ -389,7 +399,7 @@ export async function settleBookingService(
         hospitalFeeDiscount: discountDivision.hospital_fee_discount,
         professionsalFeeDiscount: discountDivision.professionsal_fee_discount,
         discount,
-        autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+        autoDiscountId: settleAutoDiscountId,
         amount,
         professionalFee: professional_fee,
         hospitalFee: hospital_fee,
