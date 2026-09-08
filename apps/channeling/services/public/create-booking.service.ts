@@ -37,6 +37,12 @@ export type PublicCreateAgentBookingParams = {
    * When omitted on non-advance sessions: same as true (Agent settled).
    */
   paid?: boolean
+  /**
+   * Claimed paid/session total from the client.
+   * Required for paid API bookings; compared to the hospital session total before create.
+   * Ignored for On-Call (hospital uses its own On-Call total).
+   */
+  amount?: number
   /** From ApiClient.actingUserId — sets booking createdBy */
   createdByUserId: string
   /** OAuth API client document id (for activity metadata) */
@@ -193,7 +199,9 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
 
 /**
  * Create a public API booking via the channel-booking save pipeline.
- * Paid → API method (settled against agency). Unpaid advance → On-Call pending (createdBy = acting user).
+ * Paid → API method (settled against agency). Client `amount` is required and
+ * must match the hospital session total (save-booking AMOUNT_ERROR otherwise).
+ * Unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function createPublicAgentBooking(
   params: PublicCreateAgentBookingParams
@@ -333,7 +341,21 @@ export async function createPublicAgentBooking(
     feeContext
   )
   const baseAmount = professional_fee + hospital_fee
-  const amount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
+  const expectedAmount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
+
+  // Paid path: client must send the amount they charged. save-booking refuses a mismatch.
+  // On-Call: no card capture — use the hospital On-Call total (listing/API fees can differ).
+  let amount = expectedAmount
+  if (!isOnCall) {
+    if (params.amount == null || !Number.isFinite(params.amount)) {
+      return {
+        success: false,
+        code: "invalid_request",
+        message: "amount is required for paid bookings",
+      }
+    }
+    amount = params.amount
+  }
 
   const hasAgencyRef = Boolean(agencyId && bookReference)
 

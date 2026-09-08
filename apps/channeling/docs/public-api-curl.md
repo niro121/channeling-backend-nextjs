@@ -266,6 +266,7 @@ Creates a booking via the channel-booking save pipeline. Requires Bearer token a
 | `remarks`      | No       | Optional remarks. |
 | `foreigner`    | No       | `true` for foreign fee tier. |
 | `paid`         | No       | `yes` / `true`: **Agent** settled (**status 1**). `no` / `false`: **On-Call** pending (**status 0**) — only on advance-booking sessions. **Omitted:** advance → On-Call pending; otherwise Agent settled. |
+| `amount`       | Paid     | Total charged (LKR). Required for paid Agent/API bookings. Must match the hospital session total (same cents). Mismatch → `400` with `booking_error_code: AMOUNT_ERROR`. Not required for On-Call. |
 
 ### cURL (paid Agent)
 
@@ -282,7 +283,8 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
     "sex": "M",
     "phone": "0771234567",
     "area": "Colombo",
-    "paid": "yes"
+    "paid": "yes",
+    "amount": 2500
   }'
 ```
 
