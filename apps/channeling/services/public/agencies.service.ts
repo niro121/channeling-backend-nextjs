@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { getAgentBalance } from "@/services/channel-booking/helpers/get-agent-balance"
+import { getAgencyStatementReportService } from "@/services/reports/agency-statement.report.service"
 
 const AGENCY_STATUS_PUBLISHED = 1
 const MONGO_OBJECT_ID = /^[a-fA-F0-9]{24}$/
@@ -37,6 +38,41 @@ export type GetPublicAgencyBalanceResult =
       code: "invalid_request" | "not_found" | "no_linked_account" | "server_error"
       message: string
       bookingErrorCode?: "AGENCY_NO_LINKED_ACCOUNT"
+    }
+
+export type PublicAgencyStatementRowDto = {
+  no: number
+  date: string
+  particulars: string
+  appointmentDateTime: string | null
+  receiptNo: string
+  docFee: number
+  hosFee: number
+  discount: number
+  amount: number
+  runningBalance: number
+  comments: string
+  createdBy: string
+}
+
+export type PublicAgencyStatementDto = {
+  agencyId: string
+  agencyName: string
+  agencyCode: string
+  accountLinked: boolean
+  accountName: string | null
+  openingBalance: number
+  closingBalance: number
+  rows: PublicAgencyStatementRowDto[]
+  message?: string
+}
+
+export type GetPublicAgencyStatementResult =
+  | { success: true; data: PublicAgencyStatementDto }
+  | {
+      success: false
+      code: "invalid_request" | "not_found" | "server_error"
+      message: string
     }
 
 const NO_LINKED_ACCOUNT_MESSAGE =
@@ -187,6 +223,124 @@ export async function getPublicAgencyBalance(
       code: "server_error",
       message:
         error instanceof Error ? error.message : "Failed to fetch agency balance",
+    }
+  }
+}
+
+function toIsoDate(value: Date | string): string {
+  if (value instanceof Date) return value.toISOString()
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString()
+}
+
+function classifyStatementFailure(
+  message: string
+): "invalid_request" | "not_found" | "server_error" {
+  const lower = message.toLowerCase()
+  if (lower.includes("not found")) return "not_found"
+  if (
+    lower.includes("required") ||
+    lower.includes("date") ||
+    lower.includes("range") ||
+    lower.includes("too many") ||
+    lower.includes("select at least")
+  ) {
+    return "invalid_request"
+  }
+  return "server_error"
+}
+
+/**
+ * Agent statement for a published agency. Amounts come from the same
+ * getAgencyStatementReportService used by the hospital Agent Statement report.
+ */
+export async function getPublicAgencyStatement(
+  agencyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<GetPublicAgencyStatementResult> {
+  const trimmed = agencyId.trim()
+  if (!trimmed || !MONGO_OBJECT_ID.test(trimmed)) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: "A valid agency id is required",
+    }
+  }
+
+  const from = dateFrom.trim()
+  const to = dateTo.trim()
+  if (!from || !to) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: "From and To date/time are required.",
+    }
+  }
+
+  try {
+    const agency = await prisma.agency.findUnique({
+      where: { id: trimmed },
+      select: { id: true, status: true },
+    })
+
+    if (!agency || agency.status !== AGENCY_STATUS_PUBLISHED) {
+      return {
+        success: false,
+        code: "not_found",
+        message: "Agency not found",
+      }
+    }
+
+    const result = await getAgencyStatementReportService({
+      agencyId: agency.id,
+      dateFrom: from,
+      dateTo: to,
+    })
+
+    if (!result.success || !result.data) {
+      const message = result.message || "Failed to load agency statement"
+      return {
+        success: false,
+        code: classifyStatementFailure(message),
+        message,
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        agencyId: result.data.agencyId,
+        agencyName: result.data.agencyName,
+        agencyCode: result.data.agencyCode,
+        accountLinked: result.data.accountLinked,
+        accountName: result.data.accountName,
+        openingBalance: result.data.openingBalance,
+        closingBalance: result.data.closingBalance,
+        rows: result.data.rows.map((row) => ({
+          no: row.no,
+          date: toIsoDate(row.date),
+          particulars: row.particulars,
+          appointmentDateTime: row.appointmentDateTime,
+          receiptNo: row.receiptNo,
+          docFee: row.docFee,
+          hosFee: row.hosFee,
+          discount: row.discount,
+          amount: row.amount,
+          runningBalance: row.runningBalance,
+          comments: row.comments,
+          createdBy: row.createdBy,
+        })),
+        ...(result.data.message ? { message: result.data.message } : {}),
+      },
+    }
+  } catch (error: unknown) {
+    console.error("getPublicAgencyStatement error", error)
+    return {
+      success: false,
+      code: "server_error",
+      message:
+        error instanceof Error ? error.message : "Failed to fetch agency statement",
     }
   }
 }
