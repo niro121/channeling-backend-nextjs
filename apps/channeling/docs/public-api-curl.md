@@ -45,20 +45,21 @@ Use `access_token` in the next request as `Authorization: Bearer <access_token>`
 
 ## 2. Get Sessions
 
-**GET** `/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24`  
-Returns future sessions for a doctor. Requires a valid Bearer token.
+**GET** `/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24&paymentMode=api`  
+Returns future sessions for a doctor, priced for the given booking method (same fee set and first auto discount as POS). Requires a valid Bearer token.
 
 ### Query parameters
 
-| Parameter   | Required | Description                          |
-|------------|----------|--------------------------------------|
-| `doctorCode` | Yes      | Doctor code (e.g. `DR0001`).         |
-| `fromDate`   | No       | Start date in `YYYY-MM-DD`; default is today. |
+| Parameter     | Required | Description |
+|---------------|----------|-------------|
+| `doctorCode`  | Yes      | Doctor code (e.g. `DR0001`). |
+| `fromDate`    | No       | Start date in `YYYY-MM-DD`; default is today. |
+| `paymentMode` | No       | `api` (card, default), `agent` (agency credit), or `oncall` (pay at hospital). |
 
 ### cURL
 
 ```bash
-curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24" \
+curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDate=2025-02-24&paymentMode=api" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -81,16 +82,21 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
       "isFull": false,
       "advancedBookingEnabled": true,
       "advancedBookingDays": 7,
+      "paymentMode": "api",
       "amountLocal": {
         "professionalFee": 1200,
         "hospitalFee": 300,
+        "discount": 0,
         "amount": 1500
       },
       "amountForeign": {
         "professionalFee": 8,
         "hospitalFee": 2,
+        "discount": 0,
         "amount": 10
       },
+      "apiFeeLocal": 50,
+      "apiFeeForeign": 0,
       "location": { "id": "...", "name": "OPD", "city": "Colombo" },
       "doctor": { "id": "...", "title": "Dr", "name": "...", "code": "DR0001" }
     }
@@ -98,9 +104,11 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 }
 ```
 
+`amount` is net (professional + hospital − auto discount). `apiFeeLocal` / `apiFeeForeign` are the API catalog row only (banking charges); they are already included in `hospitalFee` when `paymentMode` is `api`, and are `0` for `agent` / `oncall`.
+
 `status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
 
-`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create booking**, omitting `paid` (or sending `paid: no`) on such sessions creates an **On-Call** pending booking (`status 0`, `createdBy` = API acting user). Send `paid: yes` for a settled Agent booking.
+`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create booking**, send `paymentMode: oncall` (or `paid: no`) on such sessions for an **On-Call** pending booking. Send `paymentMode: api` for a card/API booking, or `paymentMode: agent` for a settled Agent booking.
 
 ---
 
@@ -252,8 +260,9 @@ curl -X GET "http://localhost:3000/api/public/bookings?doctorCode=DR0001&date=20
 
 Creates a booking via the channel-booking save pipeline. Requires Bearer token and API client acting user.
 
-- **Paid** (`paid: yes`, or omitted on non-advance sessions): **Agent** method, receipt created, **status 1**. `agencyId` + `bookReference` required.
-- **Unpaid advance** (`paid: no`, or omitted when `advancedBookingDays > 0`): **On-Call** method, **status 0** (pending, no receipt). Booking is attached to the API acting user as `createdBy`. `agencyId` + `bookReference` are optional; if passed, they are stored on the booking (no agency debit).
+- **`paymentMode: api`** (or `paid: yes` when `paymentMode` is omitted): **API** method, receipt created, **status 1**. `agencyId` + `bookReference` required. Amount must match the API session total (including auto discount).
+- **`paymentMode: agent`**: **Agent** method, receipt created, **status 1**. `agencyId` + `bookReference` required. Amount must match the Agent session total.
+- **`paymentMode: oncall`** (or `paid: no` / omitted on advance-booking sessions): **On-Call** method, **status 0** (pending, no receipt). Booking is attached to the API acting user as `createdBy`. `agencyId` + `bookReference` are optional; if passed, they are stored on the booking (no agency debit).
 
 ### JSON body
 
@@ -265,8 +274,9 @@ Creates a booking via the channel-booking save pipeline. Requires Bearer token a
 | `title`, `name`, `sex`, `phone`, `area` | Yes | Patient details. |
 | `remarks`      | No       | Optional remarks. |
 | `foreigner`    | No       | `true` for foreign fee tier. |
-| `paid`         | No       | `yes` / `true`: **Agent** settled (**status 1**). `no` / `false`: **On-Call** pending (**status 0**) — only on advance-booking sessions. **Omitted:** advance → On-Call pending; otherwise Agent settled. |
-| `amount`       | Paid     | Total charged (LKR). Required for paid Agent/API bookings. Must match the hospital session total (same cents). Mismatch → `400` with `booking_error_code: AMOUNT_ERROR`. Not required for On-Call. |
+| `paid`         | No       | `yes` / `true`: settled (**status 1**). `no` / `false`: **On-Call** pending (**status 0**) — only on advance-booking sessions. Ignored when `paymentMode` is sent. **Omitted:** advance → On-Call pending; otherwise API settled. |
+| `paymentMode`  | No       | `api` (card), `agent` (agency credit), or `oncall` (pay at hospital). When set, selects the hospital booking method. |
+| `amount`       | Paid     | Total charged (LKR), net of auto discount. Required for paid Agent/API bookings. Must match the hospital session total for that `paymentMode` (same cents). Mismatch → `400` with `booking_error_code: AMOUNT_ERROR`. Not required for On-Call. |
 
 ### cURL (paid Agent)
 
@@ -284,6 +294,7 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
     "phone": "0771234567",
     "area": "Colombo",
     "paid": "yes",
+    "paymentMode": "agent",
     "amount": 2500
   }'
 ```
@@ -303,7 +314,8 @@ curl -X POST "http://localhost:3000/api/public/bookings" \
     "sex": "M",
     "phone": "0771234567",
     "area": "Colombo",
-    "paid": "no"
+    "paid": "no",
+    "paymentMode": "oncall"
   }'
 ```
 

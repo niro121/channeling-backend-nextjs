@@ -1,25 +1,16 @@
 import prisma from "@/lib/prisma"
 import { getSessionsForChannelBookingService } from "@/services/channel-booking/get-sessions.service"
-import { getRefundFeeTypes, toBookingFeeContext } from "@/services/channel-booking/helpers"
 import {
-  SAVE_BOOKING_METHOD_API,
-  SAVE_PAYMENT_TYPE_AGENT,
-} from "@/types/save-booking"
+  loadPublicPricingContext,
+  parsePublicPaymentMode,
+  pricePublicSessionFees,
+  type PublicPaymentMode,
+  type PublicSessionFeeBreakdown,
+} from "@/services/public/public-session-pricing"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
-/** Same fee set as a paid public API booking (Agency + API Fee, not On-Call). */
-const PUBLIC_SESSION_FEE_CONTEXT = toBookingFeeContext(
-  SAVE_BOOKING_METHOD_API,
-  SAVE_PAYMENT_TYPE_AGENT
-)
-
-export type PublicSessionFeeBreakdown = {
-  professionalFee: number
-  hospitalFee: number
-  /** professionalFee + hospitalFee */
-  amount: number
-}
+export type { PublicSessionFeeBreakdown, PublicPaymentMode }
 
 /** Public API session DTO (no audit fields, no room/paid/pending counts). */
 export type PublicSessionDto = {
@@ -48,6 +39,10 @@ export type PublicSessionDto = {
   advancedBookingDays: number
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
+  /** API catalog row (id 6); 0 unless paymentMode is api. Already included in hospitalFee. */
+  apiFeeLocal: number
+  apiFeeForeign: number
+  paymentMode: PublicPaymentMode
   location: { id: string; name: string; city: string } | null
   doctor: { id: string; title: string; name: string; code: string }
 }
@@ -59,28 +54,6 @@ export type GetPublicSessionsResult =
       code: "invalid_request" | "not_found" | "server_error"
       message: string
     }
-
-function mapPublicSessionFees(fees: unknown): {
-  local: PublicSessionFeeBreakdown
-  foreign: PublicSessionFeeBreakdown
-} {
-  const localParts = getRefundFeeTypes(fees, false, PUBLIC_SESSION_FEE_CONTEXT)
-  const foreignParts = getRefundFeeTypes(fees, true, PUBLIC_SESSION_FEE_CONTEXT)
-  const localAmount = localParts.professional_fee + localParts.hospital_fee
-  const foreignAmount = foreignParts.professional_fee + foreignParts.hospital_fee
-  return {
-    local: {
-      professionalFee: localParts.professional_fee,
-      hospitalFee: localParts.hospital_fee,
-      amount: localAmount,
-    },
-    foreign: {
-      professionalFee: foreignParts.professional_fee,
-      hospitalFee: foreignParts.hospital_fee,
-      amount: foreignAmount,
-    },
-  }
-}
 
 function sessionDateKey(date: Date | string): string {
   return moment(date).format("YYYY-MM-DD")
@@ -121,7 +94,8 @@ function isConsecutiveChainFull(
  */
 export async function getPublicSessionsByDoctorCode(
   doctorCode: string,
-  fromDateParam?: string | null
+  fromDateParam?: string | null,
+  paymentModeParam?: string | null
 ): Promise<GetPublicSessionsResult> {
   const fromDate = fromDateParam
     ? moment(fromDateParam, "YYYY-MM-DD", true).startOf("day").toDate()
@@ -132,6 +106,15 @@ export async function getPublicSessionsByDoctorCode(
       success: false,
       code: "invalid_request",
       message: "fromDate must be YYYY-MM-DD",
+    }
+  }
+
+  const modeParsed = parsePublicPaymentMode(paymentModeParam)
+  if (!modeParsed.ok) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: modeParsed.message,
     }
   }
 
@@ -194,6 +177,8 @@ export async function getPublicSessionsByDoctorCode(
     ])
   )
 
+  const pricingContext = await loadPublicPricingContext(modeParsed.mode)
+
   const sessions: PublicSessionDto[] = orderedSessions.map((s: Session) => {
     const consecutiveChainFull = isConsecutiveChainFull(
       s,
@@ -206,7 +191,7 @@ export async function getPublicSessionsByDoctorCode(
     const bookable =
       !onLeave && !endTimePassed && consecutiveChainFull && !sessionFull
     const status = bookable ? 1 : 0
-    const feeBreakdown = mapPublicSessionFees(s.fees)
+    const priced = pricePublicSessionFees(s.fees, pricingContext)
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
@@ -226,8 +211,11 @@ export async function getPublicSessionsByDoctorCode(
       isFull: sessionFull,
       advancedBookingEnabled: advancedBookingDays > 0,
       advancedBookingDays,
-      amountLocal: feeBreakdown.local,
-      amountForeign: feeBreakdown.foreign,
+      amountLocal: priced.local,
+      amountForeign: priced.foreign,
+      apiFeeLocal: priced.apiFeeLocal,
+      apiFeeForeign: priced.apiFeeForeign,
+      paymentMode: priced.paymentMode,
       location: s.location
         ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,

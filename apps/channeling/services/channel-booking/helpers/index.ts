@@ -10,6 +10,7 @@ export {
   hasCreditCardPayment,
   toBookingFeeContext,
   computeBookingBaseAmount,
+  getSessionFeeAmount,
   FEE_ID,
   type BookingFeeContext,
 } from "./get-refund-fee-types"
