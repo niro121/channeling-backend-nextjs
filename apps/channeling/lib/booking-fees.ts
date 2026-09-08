@@ -157,6 +157,21 @@ export function computeBookingBaseAmount(
   return professional_fee + hospital_fee
 }
 
+/** Single catalog row (e.g. API Fee id 6) for public listings. */
+export function getSessionFeeAmount(
+  fees: unknown,
+  feeId: number,
+  foriegner: boolean
+): number {
+  const arr = parseFees(fees)
+  for (let index = 0; index < arr.length; index += 1) {
+    const fee = arr[index]
+    if (resolveFeeId(fee, index) !== feeId) continue
+    return getValue(fee, foriegner)
+  }
+  return 0
+}
+
 export function toBookingFeeContext(
   payment_method: number,
   payment_type: number,
