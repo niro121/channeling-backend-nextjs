@@ -89,6 +89,8 @@ type CreateBookingBody = {
    * omit = On-Call pending when advance booking enabled, else API settled.
    */
   paid?: boolean | string | number
+  /** api | agent | oncall — when set, selects hospital booking method (overrides paid default). */
+  paymentMode?: string
   /** Paid amount / session total. Required when the booking is settled (paid Agent/API). */
   amount?: number | string
 }
@@ -157,6 +159,7 @@ export async function POST(request: NextRequest) {
     remarks: body.remarks,
     foreigner: body.foreigner,
     paid: paidParsed.paid,
+    paymentMode: body.paymentMode,
     amount: amountParsed.amount,
     createdByUserId: client.actingUserId,
     apiClientId: client.id,

@@ -97,11 +97,13 @@ export async function mapDoctorAppSessionsToDto(
     const amountLocal = {
       professionalFee: localParts.professional_fee,
       hospitalFee: localParts.hospital_fee,
+      discount: 0,
       amount: s.amountLocal ?? localAmount,
     }
     const amountForeign = {
       professionalFee: foreignParts.professional_fee,
       hospitalFee: foreignParts.hospital_fee,
+      discount: 0,
       amount: s.amountForeign ?? foreignAmount,
     }
 
@@ -124,6 +126,9 @@ export async function mapDoctorAppSessionsToDto(
       advancedBookingDays,
       amountLocal,
       amountForeign,
+      apiFeeLocal: 0,
+      apiFeeForeign: 0,
+      paymentMode: "api" as const,
       location: s.location
         ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,

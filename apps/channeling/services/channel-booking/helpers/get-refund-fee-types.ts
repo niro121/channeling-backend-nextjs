@@ -9,6 +9,7 @@ export {
   hasCreditCardPayment,
   toBookingFeeContext,
   computeBookingBaseAmount,
+  getSessionFeeAmount,
   FEE_ID,
   type BookingFeeContext,
 } from "@/lib/booking-fees"

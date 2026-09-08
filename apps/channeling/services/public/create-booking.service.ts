@@ -3,19 +3,14 @@ import moment from "moment"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { userTypes } from "@/lib/roles"
 import { saveBookingService } from "@/services/channel-booking/save-booking.service"
-import {
-  computeBookingDiscounts,
-  getRefundFeeTypes,
-  loadSessionForSaveBooking,
-  toBookingFeeContext,
-} from "@/services/channel-booking/helpers"
+import { loadSessionForSaveBooking } from "@/services/channel-booking/helpers"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
-  SAVE_BOOKING_METHOD_API,
-  SAVE_BOOKING_METHOD_ON_CALL,
-  SAVE_PAYMENT_TYPE_AGENT,
-  SAVE_PAYMENT_TYPE_CASH,
-} from "@/types/save-booking"
+  loadPublicPricingContext,
+  parsePublicPaymentMode,
+  pricePublicBookingFees,
+  type PublicPaymentMode,
+} from "@/services/public/public-session-pricing"
 
 export type PublicCreateAgentBookingParams = {
   sessionId: string
@@ -38,8 +33,13 @@ export type PublicCreateAgentBookingParams = {
    */
   paid?: boolean
   /**
+   * Booking method: api (card), agent (agency credit), oncall (pay at hospital).
+   * When omitted, paid / advance-booking defaults apply (paid → api, unpaid advance → oncall).
+   */
+  paymentMode?: string | null
+  /**
    * Claimed paid/session total from the client.
-   * Required for paid API bookings; compared to the hospital session total before create.
+   * Required for paid API/Agent bookings; compared to the hospital session total before create.
    * Ignored for On-Call (hospital uses its own On-Call total).
    */
   amount?: number
@@ -100,18 +100,28 @@ export type CreatePublicAgentBookingResult =
       bookingErrorCode?: SaveBookingErrorCode
     }
 
-type PublicBookingMode = "agent" | "on_call"
-
 /**
- * Paid → API method, settled against the agency.
- * Unpaid / omitted on advance sessions → On-Call pending (createdBy = API acting user).
- * Unpaid on non-advance sessions is not allowed.
+ * Explicit paymentMode wins. Otherwise paid / advance-booking defaults:
+ * paid or non-advance omit → api; unpaid advance → oncall.
  */
 function resolvePublicBookingMode(
   advanceBookingEnabled: boolean,
-  paid?: boolean
-): { mode: PublicBookingMode } | { error: string } {
-  if (paid === true) return { mode: "agent" }
+  paid?: boolean,
+  paymentMode?: string | null
+): { mode: PublicPaymentMode } | { error: string } {
+  if (paymentMode != null && String(paymentMode).trim() !== "") {
+    const parsed = parsePublicPaymentMode(paymentMode)
+    if (!parsed.ok) return { error: parsed.message }
+    if (parsed.mode === "oncall" && !advanceBookingEnabled) {
+      return {
+        error:
+          "Unpaid bookings are only allowed for advance-booking sessions (creates On-Call)",
+      }
+    }
+    return { mode: parsed.mode }
+  }
+
+  if (paid === true) return { mode: "api" }
   if (paid === false) {
     if (!advanceBookingEnabled) {
       return {
@@ -119,11 +129,10 @@ function resolvePublicBookingMode(
           "Unpaid bookings are only allowed for advance-booking sessions (creates On-Call)",
       }
     }
-    return { mode: "on_call" }
+    return { mode: "oncall" }
   }
-  // omitted
-  if (advanceBookingEnabled) return { mode: "on_call" }
-  return { mode: "agent" } // paid/settled public path (stored as API method)
+  if (advanceBookingEnabled) return { mode: "oncall" }
+  return { mode: "api" }
 }
 
 function mapSaveBookingError(
@@ -199,9 +208,9 @@ function mapSuccessData(raw: unknown): PublicCreateBookingDto | null {
 
 /**
  * Create a public API booking via the channel-booking save pipeline.
- * Paid → API method (settled against agency). Client `amount` is required and
- * must match the hospital session total (save-booking AMOUNT_ERROR otherwise).
- * Unpaid advance → On-Call pending (createdBy = acting user).
+ * paymentMode api/agent → paid (settled against agency). Client `amount` must match
+ * the hospital session total for that mode (AMOUNT_ERROR otherwise).
+ * paymentMode oncall / unpaid advance → On-Call pending (createdBy = acting user).
  */
 export async function createPublicAgentBooking(
   params: PublicCreateAgentBookingParams
@@ -267,12 +276,16 @@ export async function createPublicAgentBooking(
   const advanceBookingEnabled =
     (doctorSessionTemplate?.advancedBookingDays ?? 0) > 0
 
-  const modeResult = resolvePublicBookingMode(advanceBookingEnabled, params.paid)
+  const modeResult = resolvePublicBookingMode(
+    advanceBookingEnabled,
+    params.paid,
+    params.paymentMode
+  )
   if ("error" in modeResult) {
     return { success: false, code: "invalid_request", message: modeResult.error }
   }
   const { mode } = modeResult
-  const isOnCall = mode === "on_call"
+  const isOnCall = mode === "oncall"
 
   if (!isOnCall) {
     if (!agencyId) {
@@ -309,43 +322,22 @@ export async function createPublicAgentBooking(
 
   const doctorId = session.doctor?.id ?? session.doctorId!
   const foriegner = params.foreigner === true
-  const payment_method = isOnCall
-    ? SAVE_BOOKING_METHOD_ON_CALL
-    : SAVE_BOOKING_METHOD_API
-  const payment_type = isOnCall ? SAVE_PAYMENT_TYPE_CASH : SAVE_PAYMENT_TYPE_AGENT
-
-  const feeContext = toBookingFeeContext(payment_method, payment_type)
-
-  const discountResult = await computeBookingDiscounts({
-    autoDiscountId: null,
-    manualDiscountId: null,
-    payment_method,
-    payment_type,
-    hasCreditCardLine: feeContext.hasCreditCardLine,
-    session,
-    foriegner,
-    strict: true,
-  })
-  if (!discountResult.success) {
+  const pricingContext = await loadPublicPricingContext(mode)
+  const priced = await pricePublicBookingFees(
+    session.fees,
+    pricingContext,
+    foriegner
+  )
+  if (!priced.success) {
     return {
       success: false,
       code: "booking_error",
-      message: discountResult.message,
+      message: priced.message,
       bookingErrorCode: "DISCOUNT_ERROR",
     }
   }
 
-  const { professional_fee, hospital_fee } = getRefundFeeTypes(
-    session.fees,
-    foriegner,
-    feeContext
-  )
-  const baseAmount = professional_fee + hospital_fee
-  const expectedAmount = Math.round((baseAmount - discountResult.discount_value) * 100) / 100
-
-  // Paid path: client must send the amount they charged. save-booking refuses a mismatch.
-  // On-Call: no card capture — use the hospital On-Call total (listing/API fees can differ).
-  let amount = expectedAmount
+  let amount = priced.amount
   if (!isOnCall) {
     if (params.amount == null || !Number.isFinite(params.amount)) {
       return {
@@ -367,8 +359,8 @@ export async function createPublicAgentBooking(
     area: { id: "", name: area },
     remarks: params.remarks?.trim() ?? "",
     foriegner,
-    payment_method,
-    payment_type,
+    payment_method: pricingContext.payment_method,
+    payment_type: pricingContext.payment_type,
     ...(hasAgencyRef
       ? {
           agency: { id: agencyId },
@@ -382,13 +374,16 @@ export async function createPublicAgentBooking(
       name: session.doctor?.name,
     },
     amount,
-    discount: discountResult.discount_value,
+    ...(priced.autoDiscountId
+      ? { auto_discount_type: priced.autoDiscountId }
+      : {}),
+    discount: priced.discount,
   }
 
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
     agencyRefUniqueOnly: hasAgencyRef,
-    // On-Call never creates a receipt; paid API path settles against the agency.
+    // On-Call never creates a receipt; paid API/Agent path settles against the agency.
     settleOnCreate: !isOnCall,
   })
 
