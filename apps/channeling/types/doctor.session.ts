@@ -26,7 +26,7 @@ export interface DoctorSession {
   startingPatientNumber: number;
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
-  advancedBookingDays: number;
+  advancedBookingEnabled: boolean;
   fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
@@ -60,7 +60,7 @@ export type DoctorSessionFormValues = {
   startingPatientNumber: number;
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
-  advancedBookingDays: number;
+  advancedBookingEnabled: boolean;
   fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
@@ -121,7 +121,7 @@ export const REFUNDABLE_OPTIONS: Option[] = [
   { id: '1', name: 'Yes' }
 ];
 
-/** Yes/No toggle for advance booking (stored as advancedBookingDays: 0 = off, >0 = on). */
+/** Yes/No toggle for advance booking (stored as advancedBookingEnabled). */
 export const ADVANCE_BOOKING_ENABLED_OPTIONS: Option[] = [
   { id: '0', name: 'No' },
   { id: '1', name: 'Yes' }
@@ -215,8 +215,3 @@ export const DAY_TYPES: Option[] = [
   { id: '7', name: 'Saturday' },
   { id: '8', name: 'Specific Date Only' }
 ];
-
-export const ADVANCED_BOOKING_OPTIONS = Array.from({ length: 101 }, (_, i) => ({
-  id: String(i),
-  name: String(i)
-}));

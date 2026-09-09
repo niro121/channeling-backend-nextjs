@@ -67,13 +67,13 @@ export async function mapDoctorAppSessionsToDto(
     doctorSessionIds.length > 0
       ? await prisma.doctorSession.findMany({
           where: { id: { in: doctorSessionIds } },
-          select: { id: true, advancedBookingDays: true },
+          select: { id: true, advancedBookingEnabled: true },
         })
       : []
-  const advancedBookingDaysByTemplate = new Map(
+  const advancedBookingEnabledByTemplate = new Map(
     doctorSessionTemplates.map((template) => [
       template.id,
-      template.advancedBookingDays ?? 0,
+      template.advancedBookingEnabled ?? false,
     ])
   )
 
@@ -107,8 +107,8 @@ export async function mapDoctorAppSessionsToDto(
       amount: s.amountForeign ?? foreignAmount,
     }
 
-    const advancedBookingDays =
-      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
+    const advancedBookingEnabled =
+      advancedBookingEnabledByTemplate.get(s.doctorSessionId) ?? false
 
     return {
       id: s.id,
@@ -122,8 +122,7 @@ export async function mapDoctorAppSessionsToDto(
       maxPatientNumber: s.maxPatientNumber ?? 0,
       appointmentNo: s.appointmentNo ?? 0,
       isFull: sessionFull,
-      advancedBookingEnabled: advancedBookingDays > 0,
-      advancedBookingDays,
+      advancedBookingEnabled,
       amountLocal,
       amountForeign,
       apiFeeLocal: 0,

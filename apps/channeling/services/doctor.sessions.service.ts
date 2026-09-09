@@ -44,7 +44,7 @@ const doctorSessionSchema = z
     maxPatientNumber: z.number().min(1, 'Minimum value is 1'),
 
     refundable: z.number().int().min(0).max(1),
-    advancedBookingDays: z.number().min(0).max(100),
+    advancedBookingEnabled: z.boolean().default(false),
 
     fees: z.array(feeSchema),
     amountLocal: z.coerce.number().min(0.01, 'Local fee must be greater than 0'),
@@ -144,7 +144,7 @@ export const createDoctorSessionService = async (
         startingPatientNumber: data.startingPatientNumber,
         maxPatientNumber: data.maxPatientNumber,
         refundable: data.refundable,
-        advancedBookingDays: data.advancedBookingDays,
+        advancedBookingEnabled: data.advancedBookingEnabled,
         fees,
         amountLocal: data.amountLocal,
         amountForeign: data.amountForeign,
@@ -258,7 +258,7 @@ export const updateDoctorSessionService = async (
         startingPatientNumber: data.startingPatientNumber,
         maxPatientNumber: data.maxPatientNumber,
         refundable: data.refundable,
-        advancedBookingDays: data.advancedBookingDays,
+        advancedBookingEnabled: data.advancedBookingEnabled,
         fees,
         amountLocal: data.amountLocal,
         amountForeign: data.amountForeign,

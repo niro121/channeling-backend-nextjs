@@ -222,7 +222,7 @@ function ChannelScheduleWithChargesReportContentInner(
           'maximumPatientNo',
           'previousSession',
           'refundable',
-          'advanceBookingDays',
+          'advanceBookingEnabled',
           'status'
         ] as (keyof ChannelScheduleWithChargesReportExportRow)[]
       }
