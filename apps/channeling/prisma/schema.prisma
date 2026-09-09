@@ -249,8 +249,8 @@ model DoctorSession {
   migrateSourceId      String?   // Source system id (e.g. legacy doctor_session_id) for migrate import lookup
   startingPatientNumber Int
   maxPatientNumber      Int
-  refundable            Int // == 0: No, 1: Yes == // 
-  advancedBookingDays   Int
+  refundable            Int // == 0: No, 1: Yes == //
+  advancedBookingEnabled Boolean @default(false) // true = On-Call unpaid public bookings allowed
   fees                  Json
   amountLocal           Float?
   amountForeign         Float?

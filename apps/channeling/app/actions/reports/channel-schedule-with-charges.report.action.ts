@@ -140,7 +140,7 @@ export async function exportChannelScheduleWithChargesReportData(
           previousSession: row.previousSession?.name ?? '-',
 
           refundable: row.refundable === 1 ? 'Yes' : 'No',
-          advanceBookingDays: row.advancedBookingDays ?? '-',
+          advanceBookingEnabled: row.advancedBookingEnabled ? 'Yes' : 'No',
           status: row.status === 1 ? 'Publish' : 'Unpublish'
         };
       }

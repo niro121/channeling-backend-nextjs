@@ -81,7 +81,6 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
       "appointmentNo": 12,
       "isFull": false,
       "advancedBookingEnabled": true,
-      "advancedBookingDays": 7,
       "paymentMode": "api",
       "amountLocal": {
         "professionalFee": 1200,
@@ -108,7 +107,7 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 
 `status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
 
-`advancedBookingEnabled` is `true` when the doctor session template has `advancedBookingDays > 0`. On **Create booking**, send `paymentMode: oncall` (or `paid: no`) on such sessions for an **On-Call** pending booking. Send `paymentMode: api` for a card/API booking, or `paymentMode: agent` for a settled Agent booking.
+`advancedBookingEnabled` is `true` when the doctor session template has advance booking turned on. On **Create booking**, send `paymentMode: oncall` (or `paid: no`) on such sessions for an **On-Call** pending booking. Send `paymentMode: api` for a card/API booking, or `paymentMode: agent` for a settled Agent booking.
 
 ---
 

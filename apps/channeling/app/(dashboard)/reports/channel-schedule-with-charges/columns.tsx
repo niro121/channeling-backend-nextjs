@@ -439,13 +439,28 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       }
     },
     {
-      id: 'advanceBookingDays',
-      header: () => <span className="whitespace-nowrap">Advance /Booking Days</span>,
-      cell: ({ row }) => (
-        <span className="text-right tabular-nums block">
-          {row.original.advancedBookingDays ?? '-'}
-        </span>
-      )
+      id: 'advanceBookingEnabled',
+      header: () => <span className="whitespace-nowrap">Advance Booking</span>,
+      cell: ({ row }) => {
+        const isYes = Boolean(row.original.advancedBookingEnabled);
+        return (
+          <Badge
+            variant={isYes ? 'default' : 'secondary'}
+            className={
+              isYes
+                ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+                : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+            }
+          >
+            {isYes ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <XCircle className="h-4 w-4" />
+            )}
+            {isYes ? 'Yes' : 'No'}
+          </Badge>
+        );
+      }
     },
     {
       id: 'status',

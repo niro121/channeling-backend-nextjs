@@ -24,7 +24,7 @@ export type ChannelScheduleWithChargesReportRow = Pick<
   | 'startingPatientNumber'
   | 'maxPatientNumber'
   | 'refundable'
-  | 'advancedBookingDays'
+  | 'advancedBookingEnabled'
   | 'fees'
   | 'amountLocal'
   | 'amountForeign'
@@ -90,7 +90,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   previousSession: string;
 
   refundable: string;
-  advanceBookingDays: number | string;
+  advanceBookingEnabled: string;
   status: string;
 };
 
