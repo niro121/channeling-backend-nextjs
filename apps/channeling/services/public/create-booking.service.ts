@@ -270,11 +270,11 @@ export async function createPublicAgentBooking(
   const doctorSessionTemplate = session.doctorSessionId
     ? await prisma.doctorSession.findUnique({
         where: { id: session.doctorSessionId },
-        select: { advancedBookingDays: true },
+        select: { advancedBookingEnabled: true },
       })
     : null
   const advanceBookingEnabled =
-    (doctorSessionTemplate?.advancedBookingDays ?? 0) > 0
+    doctorSessionTemplate?.advancedBookingEnabled ?? false
 
   const modeResult = resolvePublicBookingMode(
     advanceBookingEnabled,

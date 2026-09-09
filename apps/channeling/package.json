@@ -24,6 +24,7 @@
     "shifts:end-user": "npx tsx scripts/end-user-open-shifts.ts",
     "backfill:document-numbers": "npx tsx scripts/backfill-handover-float-numbers.ts",
     "backfill:receipt-doctor-id": "npx tsx scripts/backfill-receipt-doctor-id.ts",
+    "backfill:advance-booking-enabled": "npx tsx scripts/backfill-advance-booking-enabled.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:appointment-logic": "npx tsx scripts/verify-appointment-number-logic.ts"

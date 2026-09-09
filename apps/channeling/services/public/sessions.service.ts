@@ -33,10 +33,8 @@ export type PublicSessionDto = {
   appointmentNo: number
   /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
   isFull: boolean
-  /** True when the doctor session template allows advance booking (advancedBookingDays > 0) */
+  /** True when the doctor session template allows advance booking */
   advancedBookingEnabled: boolean
-  /** Days in advance booking is open on the template (0 = same day only / disabled) */
-  advancedBookingDays: number
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
   /** API catalog row (id 6); 0 unless paymentMode is api. Already included in hospitalFee. */
@@ -167,13 +165,13 @@ export async function getPublicSessionsByDoctorCode(
     doctorSessionIds.length > 0
       ? await prisma.doctorSession.findMany({
           where: { id: { in: doctorSessionIds } },
-          select: { id: true, advancedBookingDays: true },
+          select: { id: true, advancedBookingEnabled: true },
         })
       : []
-  const advancedBookingDaysByTemplate = new Map(
+  const advancedBookingEnabledByTemplate = new Map(
     doctorSessionTemplates.map((template) => [
       template.id,
-      template.advancedBookingDays ?? 0,
+      template.advancedBookingEnabled ?? false,
     ])
   )
 
@@ -195,8 +193,8 @@ export async function getPublicSessionsByDoctorCode(
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
-    const advancedBookingDays =
-      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
+    const advancedBookingEnabled =
+      advancedBookingEnabledByTemplate.get(s.doctorSessionId) ?? false
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -209,8 +207,7 @@ export async function getPublicSessionsByDoctorCode(
       maxPatientNumber,
       appointmentNo,
       isFull: sessionFull,
-      advancedBookingEnabled: advancedBookingDays > 0,
-      advancedBookingDays,
+      advancedBookingEnabled,
       amountLocal: priced.local,
       amountForeign: priced.foreign,
       apiFeeLocal: priced.apiFeeLocal,

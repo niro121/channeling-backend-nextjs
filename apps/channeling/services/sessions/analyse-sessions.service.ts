@@ -200,7 +200,7 @@ export async function analyseSessionsService(
           schedulesFound: schedule.length,
           emptyReason:
             resolvedData.length === 0
-              ? 'Schedules found but no dates in range matched (check dayType and advancedBookingDays).'
+              ? 'Schedules found but no dates in range matched (check dayType).'
               : undefined
         };
       }
