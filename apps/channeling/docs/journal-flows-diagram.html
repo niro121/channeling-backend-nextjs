@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journal Entry Flows & Balance Checks</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; background: #fafafa; }
+    h1 { font-size: 1.25rem; color: #333; margin-bottom: 1rem; }
+    .mermaid { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  </style>
+</head>
+<body>
+  <h1>Journal entry flows & balance checks</h1>
+  <pre class="mermaid" id="diagram">
+flowchart TB
+    subgraph ChannelBooking["Channel booking"]
+        direction TB
+        Save[Save booking] --> SaveCheck{Agent/Credit?}
+        SaveCheck -->|Yes| SavePre[Pre-check min/max]
+        SavePre --> SaveCreate[Create booking + receipt]
+        SaveCheck -->|No| SaveCreate
+        SaveCreate --> SaveJ[Journal]
+
+        Settle[Settle] --> SettleReceipt[Create receipt]
+        SettleReceipt --> SettleJ[Journal]
+
+        Refund[Refund] --> RefundTill{Till payout?}
+        RefundTill -->|Yes| RefundCheck[Method till balance]
+        RefundCheck --> RefundReceipt[Create receipt]
+        RefundTill -->|No| RefundReceipt
+        RefundReceipt --> RefundJ[Journal]
+    end
+
+    subgraph Doctor["Doctor payment"]
+        direction TB
+        Pay[Process payment] --> PayTill{Till method?}
+        PayTill -->|Yes| PayCheck[Method till balance]
+        PayCheck --> PayReceipt[Create receipt]
+        PayTill -->|No| PayReceipt
+        PayReceipt --> PayJ[Journal]
+
+        Cancel[Cancel payment] --> CancelReceipt[Reversal receipt]
+        CancelReceipt --> CancelJ[Journal]
+    end
+
+    subgraph Ledger["Ledger"]
+        direction TB
+        LedgerCreate[Create receipt] --> LedgerAgency{Agency withdraw?}
+        LedgerAgency -->|Yes| LedgerAgent[Agent balance]
+        LedgerAgent --> LedgerTill{Pays out from till?}
+        LedgerAgency -->|No| LedgerTill
+        LedgerTill -->|Yes| LedgerCheck[Method till balance]
+        LedgerCheck --> LedgerReceipt[Create receipt]
+        LedgerTill -->|No| LedgerReceipt
+        LedgerReceipt --> LedgerJ[Journal]
+
+        LedgerCancel[Cancel receipt] --> LedgerRev[Reversal]
+        LedgerRev --> LedgerJ2[Journal]
+    end
+
+    subgraph Other["Other"]
+        direction TB
+        FloatApprove[Float approve] --> FloatSource[Source account balance]
+        FloatReceive[Float receive] --> FloatJ[Journal]
+        Manual[Manual journal] --> ManualJ[Journal]
+    end
+
+    SaveJ --> Core[Min/max check then write]
+    SettleJ --> Core
+    RefundJ --> Core
+    PayJ --> Core
+    CancelJ --> Core
+    LedgerJ --> Core
+    LedgerJ2 --> Core
+    FloatJ --> Core
+    ManualJ --> Core
+  </pre>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</body>
+</html>

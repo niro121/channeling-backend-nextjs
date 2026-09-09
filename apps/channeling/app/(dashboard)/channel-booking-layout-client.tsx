@@ -1,0 +1,85 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DesktopSidebar } from "./desktop-sidebar";
+import { Session } from "next-auth";
+
+const CHANNEL_BOOKING_PATH = "/channel-booking";
+const REPORTS_PATH = "/reports";
+const CHANNEL_ROOM_DASHBOARD_PATH = "/channel-room-dashboard";
+
+export function ChannelBookingLayoutClient({
+  session,
+  e2eRunEnabled = false,
+  children,
+}: {
+  session: Session | null;
+  e2eRunEnabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const isChannelBooking = pathname?.startsWith(CHANNEL_BOOKING_PATH);
+  const isReports = pathname?.startsWith(REPORTS_PATH);
+  const isChannelRoomDashboard = pathname?.startsWith(CHANNEL_ROOM_DASHBOARD_PATH);
+  const isSidebarAutoCollapsedPage = isChannelBooking || isReports || isChannelRoomDashboard;
+  const [sidebarOpen, setSidebarOpen] = useState(!isSidebarAutoCollapsedPage);
+
+  // When navigating to/from focus pages, sync sidebar state
+  useEffect(() => {
+    if (isSidebarAutoCollapsedPage) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarOpen(true);
+    }
+  }, [isSidebarAutoCollapsedPage]);
+
+  return (
+    <>
+      {/* Sidebar: on focus pages, slide off-screen when closed */}
+      <DesktopSidebar
+        session={session}
+        e2eRunEnabled={e2eRunEnabled}
+        className={cn(
+          "hidden sm:flex transition-transform duration-200 ease-out",
+          isSidebarAutoCollapsedPage && !sidebarOpen && "-translate-x-full"
+        )}
+      />
+
+      {/* Main content: no left padding when sidebar hidden on focus pages */}
+      <div
+        className={cn(
+          "flex flex-1 flex-col min-h-screen transition-[padding] duration-200 print:!pl-0",
+          isSidebarAutoCollapsedPage && !sidebarOpen ? "pl-0" : "sm:pl-52"
+        )}
+      >
+        {children}
+      </div>
+
+      {/* Toggle button: only on focus pages (desktop) */}
+      {isSidebarAutoCollapsedPage && (
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className={cn(
+            "fixed z-[60] top-7 -translate-y-1/2 h-10 w-4 rounded-l-none rounded-r-md shadow-md border-l-0 border-primary/50 hidden sm:flex items-center justify-center",
+            "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
+            sidebarOpen ? "left-52" : "left-0"
+          )}
+          onClick={() => setSidebarOpen((o) => !o)}
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+        >
+          {sidebarOpen ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      )}
+    </>
+  );
+}

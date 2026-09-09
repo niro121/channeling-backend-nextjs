@@ -1,0 +1,199 @@
+'use client';
+
+import { useState } from 'react';
+import { downloadExcelUtil, downloadPdfUtil, formatExportFileName, printPdfUtil } from '@/lib/utils/export-wrapper-utils';
+import { ExportButtons } from '@archmage/ui';
+import { useToast } from '@archmage/ui';
+
+export type ExportWrapperProps<T> = {
+  serverData: () => Promise<{ success: boolean; data?: T[]; message?: string }>;
+  data?: T[];
+  columns: string[];
+  keys: (keyof T)[];
+  title?: string;
+  fileName?: string;
+  /** When true, shows the Print button (optional; wrapper is used in other components) */
+  showPrintButton?: boolean;
+  /** Optional: custom print handler (PDF generation). When not provided, uses default `printPdfUtil`. */
+  customPrintPdf?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+  }) => void | Promise<void>;
+  /** Optional: custom PDF download handler. When not provided, uses default `downloadPdfUtil`. */
+  customDownloadPdf?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+    fileName?: string;
+  }) => void | Promise<void>;
+  /** Optional: custom Excel download handler. When not provided, uses default `downloadExcelUtil`. */
+  customDownloadExcel?: (args: {
+    title: string;
+    data: T[];
+    columns: string[];
+    keys: (keyof T)[];
+    fileName?: string;
+  }) => void | Promise<void>;
+};
+
+export const ExportWrapper = <T,>({
+  serverData,
+  data,
+  columns,
+  keys,
+  title = 'Report',
+  fileName = 'report',
+  showPrintButton = false,
+  customPrintPdf,
+  customDownloadPdf,
+  customDownloadExcel
+}: ExportWrapperProps<T>) => {
+  const { toast } = useToast();
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingExcel, setLoadingExcel] = useState(false);
+  const [loadingPrint, setLoadingPrint] = useState(false);
+
+  // Format the file name with the standard suffix
+  const formattedFileName = formatExportFileName(fileName);
+
+  const handlePrint = async () => {
+    try {
+      setLoadingPrint(true);
+      const response = await serverData();
+
+      if (!response.success || !response.data?.length) {
+        toast({
+          variant: 'destructive',
+          title: 'No data to print',
+          description: response.message || 'No data available for printing'
+        });
+        return;
+      }
+
+      if (customPrintPdf) {
+        await customPrintPdf({
+          title,
+          data: response.data,
+          columns,
+          keys
+        });
+      } else {
+        printPdfUtil({
+          title,
+          data: response.data,
+          columns,
+          keys
+        });
+      }
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to print'
+      });
+    } finally {
+      setLoadingPrint(false);
+    }
+  };
+
+  const handlePdfDownload = async () => {
+    try {
+      setLoadingPdf(true);
+      const response = await serverData();
+
+      if (!response.success || !response.data?.length) {
+        console.error(response.message || 'No data available');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: response.message || 'No data available'
+        });
+        return;
+      }
+
+      if (customDownloadPdf) {
+        await customDownloadPdf({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.pdf`
+        });
+      } else {
+        downloadPdfUtil({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.pdf`
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to export PDF'
+      });
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleExcelDownload = async () => {
+    try {
+      setLoadingExcel(true);
+      const response = await serverData()
+
+      if (!response.success || !response.data?.length) {
+        console.error(response.message || 'No data available');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: response.message || 'No data available'
+        });
+        return;
+      }
+
+      if (customDownloadExcel) {
+        await customDownloadExcel({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.xlsx`
+        });
+      } else {
+        downloadExcelUtil({
+          title,
+          data: response.data,
+          columns,
+          keys,
+          fileName: `${formattedFileName}.xlsx`
+        })
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to export Excel'
+      });
+    } finally {
+      setLoadingExcel(false);
+    }
+  }
+
+  return (
+    <ExportButtons
+      onPdfExport={handlePdfDownload}
+      onExcelExport={handleExcelDownload}
+      onPrintExport={handlePrint}
+      loadingPdf={loadingPdf}
+      loadingExcel={loadingExcel}
+      loadingPrint={loadingPrint}
+      showPrintButton={showPrintButton}
+    />
+  );
+};

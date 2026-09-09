@@ -1,0 +1,55 @@
+export const RECEIPT_METHOD = {
+  REFUND: 0,
+  PAYMENT: 1,
+  DEBIT_NOTE: 2,
+  CREDIT_NOTE: 3,
+  DOCTOR_PAYMENT: 4,
+  DOCTOR_CANCEL: 5,
+  AGENCY_DEPOSIT: 6,
+  AGENCY_WITHDRAW: 7,
+  BRANCH_INCOME: 8,
+  BRANCH_EXPENSE: 9,
+  BANK_DEPOSIT: 10,
+  BANK_WITHDRAW: 11,
+} as const;
+
+export type ReceiptMethod = (typeof RECEIPT_METHOD)[keyof typeof RECEIPT_METHOD];
+
+export const RECEIPT_PAYMENT_METHOD = {
+  CASH: 0,
+  CREDIT_CARD: 1,
+  SLIP: 2,
+  CHECK: 3,
+  AGENT: 4,
+  CREDIT: 5,
+  E_WALLET: 6,
+  MIXED: 7,
+} as const;
+
+export type ReceiptPaymentMethod = (typeof RECEIPT_PAYMENT_METHOD)[keyof typeof RECEIPT_PAYMENT_METHOD];
+
+export const PAYMENT_METHOD_NAMES: Record<number, string> = {
+  [RECEIPT_PAYMENT_METHOD.CASH]: "Cash",
+  [RECEIPT_PAYMENT_METHOD.CREDIT_CARD]: "Credit Card",
+  [RECEIPT_PAYMENT_METHOD.SLIP]: "Slip",
+  [RECEIPT_PAYMENT_METHOD.CHECK]: "Cheque",
+  [RECEIPT_PAYMENT_METHOD.AGENT]: "Agent",
+  [RECEIPT_PAYMENT_METHOD.CREDIT]: "Credit Customer",
+  [RECEIPT_PAYMENT_METHOD.E_WALLET]: "E-Wallet",
+  [RECEIPT_PAYMENT_METHOD.MIXED]: "Mixed",
+};
+
+export const RECEIPT_METHOD_NAMES: Record<number, string> = {
+  [RECEIPT_METHOD.REFUND]: "Refund",
+  [RECEIPT_METHOD.PAYMENT]: "Settlement",
+  [RECEIPT_METHOD.DEBIT_NOTE]: "Debit Note",
+  [RECEIPT_METHOD.CREDIT_NOTE]: "Credit Note",
+  [RECEIPT_METHOD.DOCTOR_PAYMENT]: "Doctor Payment",
+  [RECEIPT_METHOD.DOCTOR_CANCEL]: "Doctor Cancel",
+  [RECEIPT_METHOD.AGENCY_DEPOSIT]: "Agency Deposit",
+  [RECEIPT_METHOD.AGENCY_WITHDRAW]: "Agency Withdraw",
+  [RECEIPT_METHOD.BRANCH_INCOME]: "Branch Income",
+  [RECEIPT_METHOD.BRANCH_EXPENSE]: "Branch Expense",
+  [RECEIPT_METHOD.BANK_DEPOSIT]: "Bank Deposit",
+  [RECEIPT_METHOD.BANK_WITHDRAW]: "Bank Withdraw",
+};
