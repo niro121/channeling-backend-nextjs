@@ -9,6 +9,10 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
+import {
+  HOLIDAY_TYPE_LABELS,
+  holidayTypeLabel
+} from '@/lib/helpers/holiday-type.helper';
 import { formatHolidayMoney } from '@/lib/utils/public-holiday-shift';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
 import {
@@ -123,12 +127,6 @@ function formatShiftLabel(input: {
   return name;
 }
 
-const HOLIDAY_TYPE_LABELS: Record<string, string> = {
-  poya: 'Poya',
-  mercantile: 'Mercantile',
-  public: 'Public'
-};
-
 function mapRecord(
   record: AllocationEntity,
   users?: {
@@ -141,7 +139,7 @@ function mapRecord(
     holidayId: record.holidayId ?? '',
     holidayName: record.holiday?.name ?? '',
     holidayTypeId: record.holiday?.typeId ?? '',
-    holidayType: HOLIDAY_TYPE_LABELS[record.holiday?.typeId ?? ''] ?? record.holiday?.typeId ?? '',
+    holidayType: holidayTypeLabel(record.holiday?.typeId) || record.holiday?.typeId || '',
     dutyDate: toIsoString(record.date),
     staffId: record.staffId,
     staffCode: record.staffCode,
@@ -401,7 +399,7 @@ export async function getPublicHolidayShiftFilterOptions(): Promise<{
         holidays: holidays.map((h) => ({ id: h.id, name: h.name })),
         holidayTypes: HOLIDAY_TYPES.map((t) => ({
           id: t,
-          name: HOLIDAY_TYPE_LABELS[t] ?? t
+          name: HOLIDAY_TYPE_LABELS[t]
         })),
         departments: uniqueStrings(allocations.map((r) => r.department)).map(toOption),
         units: uniqueStrings(allocations.map((r) => r.unit)).map(toOption),
@@ -486,7 +484,7 @@ export async function getPublicHolidayShiftFormOptions(): Promise<{
         })),
         holidayTypes: HOLIDAY_TYPES.map((t) => ({
           id: t,
-          name: HOLIDAY_TYPE_LABELS[t] ?? t
+          name: HOLIDAY_TYPE_LABELS[t]
         })),
         shifts: shiftTypes.map((s) => ({
           id: s.id,

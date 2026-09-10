@@ -111,7 +111,11 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'Receipt Date',
         'Payment Method',
         'Transaction Type',
+        'Cancel Reason',
+        'Reversed Receipt',
         'Amount',
+        'WHT',
+        'Net Amount',
         'App No',
         'Session Date',
         'Session Time',
@@ -121,6 +125,7 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'Agency',
         'Credit Customer',
         'Creator',
+        'Handover Person',
       ]}
       exportKeys={[
         'receiptScope',
@@ -128,7 +133,11 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'receiptDate',
         'receiptMethod',
         'transactionType',
+        'cancelReason',
+        'reversedReceiptNo',
         'receiptAmount',
+        'whdAmount',
+        'netAmount',
         'appointmentNo',
         'sessionDate',
         'sessionTime',
@@ -138,11 +147,12 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
         'agency',
         'creditCustomer',
         'creator',
+        'handoverPerson',
       ]}
       exportTitle="Receipt Report"
       exportFileName="receipt-report"
       getRowId={(row) => row.id}
-      totalColumnIds={['receiptAmount']}
+      totalColumnIds={['receiptAmount', 'whdAmount', 'netAmount']}
       formatTotalValue={(_columnId, sum) => formatLKR(sum)}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
     />

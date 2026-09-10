@@ -29,6 +29,16 @@ function formatRs(amount: number): string {
 function bookingActionLabel(entry: BookingActivityEntry): string {
   if (entry.action === "booking.transferred") return "Transferred"
   if (entry.action === "booking.updated") return "Updated"
+  if (entry.action === "booking.cancel.requested") return "Cancel requested"
+  if (entry.action === "booking.cancel.approved") return "Cancel approved"
+  if (entry.action === "booking.cancel.rejected") return "Cancel rejected"
+  if (entry.action === "booking.cancel.withdrawn") return "Cancel withdrawn"
+  if (entry.action === "booking.cancel.completed") return "Canceled"
+  if (entry.action === "booking.refund.requested") return "Refund requested"
+  if (entry.action === "booking.refund.approved") return "Refund approved"
+  if (entry.action === "booking.refund.rejected") return "Refund rejected"
+  if (entry.action === "booking.refund.withdrawn") return "Refund withdrawn"
+  if (entry.action === "booking.refund.completed") return "Refunded"
   return entry.action.replace(/^booking\./, "").replace(/_/g, " ") || entry.action
 }
 

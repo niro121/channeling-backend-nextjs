@@ -24,6 +24,7 @@ import {
   getDoctorSessionParams,
   getDoctorSessionQuery,
   LastDoctorSessionFees,
+  mergeCanonicalSessionFees,
   UpdateDoctorSessionPayload
 } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
@@ -219,7 +220,7 @@ export const getDoctorSessionById = async (
 
     const normalizedSession = {
       ...session,
-      fees: Array.isArray(session?.fees) ? session.fees : []
+      fees: mergeCanonicalSessionFees(Array.isArray(session?.fees) ? session.fees : [])
     };
 
     return {
@@ -239,32 +240,12 @@ export const getDoctorSessionById = async (
   }
 };
 
-function normalizeFeeRow(raw: unknown, fallback: Fee): Fee {
-  const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  return {
-    id: typeof row.id === 'string' ? row.id : fallback.id,
-    name: typeof row.name === 'string' ? row.name : fallback.name,
-    feeType: typeof row.feeType === 'string' ? row.feeType : fallback.feeType,
-    localFee: Number(row.localFee ?? 0) || 0,
-    foreignFee: Number(row.foreignFee ?? 0) || 0
-  };
-}
-
 /** Merge last-session fee amounts onto the canonical FEE_TYPES rows. */
 function mergeFeesFromLastSession(
   lastFees: unknown,
   feeTypeOptions: Fee[] = FEE_TYPES
 ): Fee[] {
-  const source = Array.isArray(lastFees) ? lastFees : [];
-  return feeTypeOptions.map((base) => {
-    const match = source.find(
-      (f) =>
-        f &&
-        typeof f === 'object' &&
-        ((f as Fee).id === base.id || (f as Fee).name === base.name)
-    );
-    return match ? normalizeFeeRow(match, base) : { ...base };
-  });
+  return mergeCanonicalSessionFees(lastFees, feeTypeOptions);
 }
 
 // ==== GET LAST FEES FOR DOCTOR ==== //

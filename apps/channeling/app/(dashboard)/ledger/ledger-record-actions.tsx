@@ -9,20 +9,26 @@ import { Pencil, XCircle } from "lucide-react"
 import type { LedgerReceiptListItem } from "@/services/ledger/list-ledger-receipts.service"
 import { EditLedgerTransactionDialog } from "./edit-ledger-transaction-dialog"
 import { CancelLedgerEntryDialog } from "./cancel-ledger-entry-dialog"
+import { RECEIPT_METHOD } from "@/types/receipt"
 
 type LedgerRecordActionsProps = {
   row: Row<LedgerReceiptListItem>
-  canAdd: boolean
+  canCancel: boolean
 }
 
-export function LedgerRecordActions({ row, canAdd }: LedgerRecordActionsProps) {
+export function LedgerRecordActions({ row, canCancel }: LedgerRecordActionsProps) {
   const router = useRouter()
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const r = row.original
   const receiptId = r.id ?? null
-  const canCancel =
-    canAdd && receiptId && !r.canceledAt && !r.reverseReceiptId && !r.reversedReceiptId
+  const showCancel =
+    canCancel &&
+    Boolean(receiptId) &&
+    !r.canceledAt &&
+    !r.reverseReceiptId &&
+    !r.reversedReceiptId &&
+    r.method !== RECEIPT_METHOD.BANK_DEPOSIT
 
   const handleCancelSuccess = () => {
     router.refresh()
@@ -40,7 +46,7 @@ export function LedgerRecordActions({ row, canAdd }: LedgerRecordActionsProps) {
           <Pencil className="h-4 w-4" />
           <span className="sr-only">View / Edit</span>
         </Button>
-        {canCancel && (
+        {showCancel && (
           <Button
             variant="ghost"
             size="icon"

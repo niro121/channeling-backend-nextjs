@@ -6,19 +6,9 @@ import type {
   BulkPriceChangePreviewRow,
   BulkPriceChangeResultRow
 } from '@/types/bulk-price-change';
+import { mergeCanonicalSessionFees } from '@/types/doctor.session';
 
 type FeeEntry = { id: string; name?: string; feeType?: string; localFee: number; foreignFee: number };
-
-function parseFees(fees: unknown): FeeEntry[] {
-  if (!Array.isArray(fees)) return [];
-  return fees.map((f: any) => ({
-    id: String(f?.id ?? ''),
-    name: f?.name,
-    feeType: f?.feeType,
-    localFee: Number(f?.localFee) || 0,
-    foreignFee: Number(f?.foreignFee) || 0
-  }));
-}
 
 function matchRule(
   localFee: number,
@@ -76,7 +66,7 @@ export async function getAllDoctorSessionsForBulkService(): Promise<{
     const data = records.map((r) => ({
       id: r.id,
       name: r.name,
-      fees: parseFees(r.fees),
+      fees: mergeCanonicalSessionFees(r.fees),
       doctorName: r.doctor?.name
     }));
     return { success: true, data };
@@ -368,15 +358,14 @@ export async function processBulkPriceChangeService(
             select: { fees: true }
           });
           if (!session) return null;
-          const fees = parseFees(session.fees);
-          const updatedFees = fees.map((f) =>
+          const fees = mergeCanonicalSessionFees(session.fees).map((f) =>
             f.id === bulk.feeTypeId
               ? { ...f, localFee: row.newLocalFee, foreignFee: row.newForeignFee }
               : f
           );
           await prisma.doctorSession.update({
             where: { id: row.doctorSessionId },
-            data: { fees: updatedFees as any }
+            data: { fees: fees as any }
           });
           const resultRow = await prisma.doctorSessionBulkPriceChangeResult.create({
             data: {

@@ -10,7 +10,8 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "heroku-postbuild": "npx turbo build --filter=@archmage/$APP_NAME"
+    "heroku-postbuild": "npx turbo build --filter=@archmage/$APP_NAME",
+    "backfill:receipt-doctor-id": "npm run backfill:receipt-doctor-id -w @archmage/channeling"
   },
   "devDependencies": {
     "turbo": "^2.5.4",

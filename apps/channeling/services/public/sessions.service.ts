@@ -1,15 +1,16 @@
 import prisma from "@/lib/prisma"
 import { getSessionsForChannelBookingService } from "@/services/channel-booking/get-sessions.service"
-import { getRefundFeeTypes } from "@/services/channel-booking/helpers"
+import {
+  loadPublicPricingContext,
+  parsePublicPaymentMode,
+  pricePublicSessionFees,
+  type PublicPaymentMode,
+  type PublicSessionFeeBreakdown,
+} from "@/services/public/public-session-pricing"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
-export type PublicSessionFeeBreakdown = {
-  professionalFee: number
-  hospitalFee: number
-  /** professionalFee + hospitalFee */
-  amount: number
-}
+export type { PublicSessionFeeBreakdown, PublicPaymentMode }
 
 /** Public API session DTO (no audit fields, no room/paid/pending counts). */
 export type PublicSessionDto = {
@@ -32,12 +33,14 @@ export type PublicSessionDto = {
   appointmentNo: number
   /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
   isFull: boolean
-  /** True when the doctor session template allows advance booking (advancedBookingDays > 0) */
+  /** True when the doctor session template allows advance booking */
   advancedBookingEnabled: boolean
-  /** Days in advance booking is open on the template (0 = same day only / disabled) */
-  advancedBookingDays: number
   amountLocal: PublicSessionFeeBreakdown
   amountForeign: PublicSessionFeeBreakdown
+  /** API catalog row (id 6); 0 unless paymentMode is api. Already included in hospitalFee. */
+  apiFeeLocal: number
+  apiFeeForeign: number
+  paymentMode: PublicPaymentMode
   location: { id: string; name: string; city: string } | null
   doctor: { id: string; title: string; name: string; code: string }
 }
@@ -49,40 +52,6 @@ export type GetPublicSessionsResult =
       code: "invalid_request" | "not_found" | "server_error"
       message: string
     }
-
-function mapPublicSessionFees(fees: unknown): {
-  local: PublicSessionFeeBreakdown
-  foreign: PublicSessionFeeBreakdown
-} {
-  const localParts = getRefundFeeTypes(fees, false)
-  const foreignParts = getRefundFeeTypes(fees, true)
-  const localAmount = localParts.professional_fee + localParts.hospital_fee
-  const foreignAmount = foreignParts.professional_fee + foreignParts.hospital_fee
-  return {
-    local: {
-      professionalFee: localParts.professional_fee,
-      hospitalFee: localParts.hospital_fee,
-      amount: localAmount,
-    },
-    foreign: {
-      professionalFee: foreignParts.professional_fee,
-      hospitalFee: foreignParts.hospital_fee,
-      amount: foreignAmount,
-    },
-  }
-}
-
-/** Prefer session.fees breakdown; use stored session totals for `amount` when set. */
-function resolvePublicSessionAmount(
-  sessionTotal: number | null | undefined,
-  parts: PublicSessionFeeBreakdown
-): PublicSessionFeeBreakdown {
-  return {
-    professionalFee: parts.professionalFee,
-    hospitalFee: parts.hospitalFee,
-    amount: sessionTotal ?? parts.amount,
-  }
-}
 
 function sessionDateKey(date: Date | string): string {
   return moment(date).format("YYYY-MM-DD")
@@ -123,7 +92,8 @@ function isConsecutiveChainFull(
  */
 export async function getPublicSessionsByDoctorCode(
   doctorCode: string,
-  fromDateParam?: string | null
+  fromDateParam?: string | null,
+  paymentModeParam?: string | null
 ): Promise<GetPublicSessionsResult> {
   const fromDate = fromDateParam
     ? moment(fromDateParam, "YYYY-MM-DD", true).startOf("day").toDate()
@@ -134,6 +104,15 @@ export async function getPublicSessionsByDoctorCode(
       success: false,
       code: "invalid_request",
       message: "fromDate must be YYYY-MM-DD",
+    }
+  }
+
+  const modeParsed = parsePublicPaymentMode(paymentModeParam)
+  if (!modeParsed.ok) {
+    return {
+      success: false,
+      code: "invalid_request",
+      message: modeParsed.message,
     }
   }
 
@@ -186,15 +165,17 @@ export async function getPublicSessionsByDoctorCode(
     doctorSessionIds.length > 0
       ? await prisma.doctorSession.findMany({
           where: { id: { in: doctorSessionIds } },
-          select: { id: true, advancedBookingDays: true },
+          select: { id: true, advancedBookingEnabled: true },
         })
       : []
-  const advancedBookingDaysByTemplate = new Map(
+  const advancedBookingEnabledByTemplate = new Map(
     doctorSessionTemplates.map((template) => [
       template.id,
-      template.advancedBookingDays ?? 0,
+      template.advancedBookingEnabled ?? false,
     ])
   )
+
+  const pricingContext = await loadPublicPricingContext(modeParsed.mode)
 
   const sessions: PublicSessionDto[] = orderedSessions.map((s: Session) => {
     const consecutiveChainFull = isConsecutiveChainFull(
@@ -208,12 +189,12 @@ export async function getPublicSessionsByDoctorCode(
     const bookable =
       !onLeave && !endTimePassed && consecutiveChainFull && !sessionFull
     const status = bookable ? 1 : 0
-    const feeBreakdown = mapPublicSessionFees(s.fees)
+    const priced = pricePublicSessionFees(s.fees, pricingContext)
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
-    const advancedBookingDays =
-      advancedBookingDaysByTemplate.get(s.doctorSessionId) ?? 0
+    const advancedBookingEnabled =
+      advancedBookingEnabledByTemplate.get(s.doctorSessionId) ?? false
     return {
       id: s.id,
       date: moment(s.date).format("YYYY-MM-DD"),
@@ -226,10 +207,12 @@ export async function getPublicSessionsByDoctorCode(
       maxPatientNumber,
       appointmentNo,
       isFull: sessionFull,
-      advancedBookingEnabled: advancedBookingDays > 0,
-      advancedBookingDays,
-      amountLocal: resolvePublicSessionAmount(s.amountLocal, feeBreakdown.local),
-      amountForeign: resolvePublicSessionAmount(s.amountForeign, feeBreakdown.foreign),
+      advancedBookingEnabled,
+      amountLocal: priced.local,
+      amountForeign: priced.foreign,
+      apiFeeLocal: priced.apiFeeLocal,
+      apiFeeForeign: priced.apiFeeForeign,
+      paymentMode: priced.paymentMode,
       location: s.location
         ? { id: s.location.id!, name: s.location.name, city: s.location.city }
         : null,

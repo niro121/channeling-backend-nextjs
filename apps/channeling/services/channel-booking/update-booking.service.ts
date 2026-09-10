@@ -78,6 +78,10 @@ export async function updateBookingService(
     return { success: false, errorCode: "not_found", message: "Booking not found." }
   }
 
+  const { assertNoOpenApproval } = await import("@/services/approval-request.service")
+  const openBlock = await assertNoOpenApproval(input.booking_id)
+  if (openBlock) return openBlock
+
   // Past-date sessions: booking details cannot be changed (cancel/refund only).
   const today = new Date()
   today.setHours(0, 0, 0, 0)

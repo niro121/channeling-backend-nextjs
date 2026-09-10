@@ -417,7 +417,7 @@ async function migrateOneDoctor(
         startingPatientNumber: safeNumber(s.starting_patient_number),
         maxPatientNumber: safeNumber(s.max_patient_number),
         refundable: safeNumber(s.refundable),
-        advancedBookingDays: safeNumber(s.advanced_booking_days),
+        advancedBookingEnabled: safeNumber(s.advanced_booking_days) > 0,
         fees,
         amountLocal,
         amountForeign,

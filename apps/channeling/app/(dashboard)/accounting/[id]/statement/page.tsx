@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAccountStatement, getAccountById } from '@/app/actions/accounting.actions';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
+import { getColomboYmd } from '@/lib/dashboard-date-range';
 import { redirect, notFound } from 'next/navigation';
 import { BackButton } from '@/components/common/back-button';
 import {
@@ -16,6 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StatementExcelExport } from './statement-excel-export';
+import { StatementPeriodPicker } from './statement-period-picker';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -29,7 +32,19 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
   }
 
   const { id } = await params;
-  const { fromDate, toDate } = await searchParams;
+  const { fromDate: fromDateParam, toDate: toDateParam } = await searchParams;
+  const today = getColomboYmd();
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  let fromDate = fromDateParam && ymd.test(fromDateParam) ? fromDateParam : today;
+  let toDate = toDateParam && ymd.test(toDateParam) ? toDateParam : today;
+  if (fromDate > toDate) {
+    const swapped = fromDate;
+    fromDate = toDate;
+    toDate = swapped;
+  }
+  if (fromDate !== fromDateParam || toDate !== toDateParam) {
+    redirect(`/accounting/${id}/statement?fromDate=${fromDate}&toDate=${toDate}`);
+  }
 
   const [statementRes, accountRes] = await Promise.all([
     getAccountStatement(id, fromDate, toDate),
@@ -51,7 +66,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
       entityType: 'Account',
       entityId: id,
       importance: 'low',
-      metadata: { fromDate: fromDate ?? undefined, toDate: toDate ?? undefined },
+      metadata: { fromDate, toDate },
     });
   }
 
@@ -64,7 +79,38 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Statement of account</h2>
-        <BackButton href="/accounting" />
+        <div className="flex items-center gap-2">
+          <StatementExcelExport
+            accountName={account.name}
+            accountCode={account.code}
+            accountType={account.type}
+            locationName={account.location?.name}
+            doctorLabel={
+              account.doctor ? `${account.doctor.name} (${account.doctor.code})` : null
+            }
+            agencyLabel={
+              account.agency
+                ? `${account.agency.name} (${account.agency.code ?? '-'})`
+                : null
+            }
+            fromDate={fromDate}
+            toDate={toDate}
+            openingBalance={openingBalance}
+            closingBalance={closingBalance}
+            lines={lines.map((line) => ({
+              date: line.date instanceof Date ? line.date.toISOString() : String(line.date),
+              journalNumber: line.journalNumber,
+              description: line.description,
+              referenceType: line.referenceType,
+              referenceId: line.referenceId,
+              debitAmount: line.debitAmount,
+              creditAmount: line.creditAmount,
+              runningBalance: line.runningBalance,
+            }))}
+            disabled={!statement}
+          />
+          <BackButton href="/accounting" />
+        </div>
       </div>
 
       {statementError && (
@@ -72,7 +118,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
           <CardContent className="pt-6">
             <p className="text-sm text-destructive">{statementError}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Use the date range in the URL (e.g. ?fromDate=2025-01-01&toDate=2025-01-31) or go back and open the statement with a date range.
+              Try a shorter date range, then click Apply.
             </p>
           </CardContent>
         </Card>
@@ -93,7 +139,10 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <Suspense fallback={<div className="h-10" />}>
+            <StatementPeriodPicker fromDate={fromDate} toDate={toDate} />
+          </Suspense>
           <div className="flex gap-6 text-sm">
             <span>
               Opening balance: <strong className="tabular-nums">{formatCents(openingBalance)}</strong>
@@ -108,12 +157,6 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Transactions</CardTitle>
-          {(fromDate || toDate) && (
-            <p className="text-sm text-muted-foreground">
-              {fromDate && `From: ${fromDate}`}
-              {toDate && ` To: ${toDate}`}
-            </p>
-          )}
           {truncatedMessage && (
             <p className="text-sm text-amber-600 dark:text-amber-400">{truncatedMessage}</p>
           )}
@@ -121,7 +164,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
         <CardContent>
           {lines.length === 0 ? (
             <p className="text-muted-foreground py-4">
-              {statementError ? 'Select a date range in the URL to load the statement.' : 'No transactions in this period.'}
+              {statementError ? 'Unable to load transactions for this date range.' : 'No transactions in this period.'}
             </p>
           ) : (
             <Table>

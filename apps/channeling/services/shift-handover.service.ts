@@ -18,9 +18,21 @@ import {
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
-import { normalizedIncludedIds } from "@/lib/handover-utils"
+import {
+  expectedHandoverAvailableFromTill,
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
+  normalizedIncludedIds,
+} from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
+import { formatCents } from "@/lib/format-money"
+import {
+  attachShiftBillsToHandover,
+  carryForwardBillAttachmentsToShift,
+  ensureReceivedBillPhotosOnShift,
+  unlinkShiftBillsFromHandover,
+} from "@/services/shift-bill-attachment.service"
 
 const CLOSED_HANDOVER_STATUSES = [
   HANDOVER_STATUS.APPROVED,
@@ -83,8 +95,6 @@ const processHandoverSchema = z
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const shiftModel = (prisma as any).shift
 
-const OVER_TOLERANCE_CENTS = 100 // Ask for reason when over > 100 cents (1 LKR)
-
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
 export async function processShiftHandover(
   shiftId: string,
@@ -93,7 +103,8 @@ export async function processShiftHandover(
   amounts: ShiftHandoverAmounts,
   discrepancyReason?: string,
   enteredBreakdown?: ShiftHandoverEnteredBreakdown,
-  includedHandoverIds?: string[]
+  includedHandoverIds?: string[],
+  attachmentIds?: string[]
 ): Promise<
   | { success: true; handoverId: string }
   | { success: false; error: string }
@@ -124,6 +135,12 @@ export async function processShiftHandover(
 
   if (validFrom === validTo) {
     return { success: false, error: "Handover cannot be to yourself. Please select another recipient." }
+  }
+
+  const { openApprovalsBlockingShiftMessage } = await import("@/services/approval-request.service")
+  const openApprovalsError = await openApprovalsBlockingShiftMessage(validFrom)
+  if (openApprovalsError) {
+    return { success: false, error: openApprovalsError }
   }
 
   const idsFromClient = Array.isArray(includedHandoverIds) ? includedHandoverIds.filter((id) => typeof id === "string" && id.trim() !== "") : []
@@ -221,27 +238,23 @@ export async function processShiftHandover(
 
   // Non-cash still on till but held in open reconciliation must stay with this bulk cashier.
   const held = await getNonCashHeldInReconciliation(validFrom)
-  const expectedCard = Math.max(0, breakdown.cardCents - held.cardCents)
-  const expectedSlip = Math.max(0, breakdown.slipCents - held.slipCents)
-  const expectedCheck = Math.max(0, breakdown.checkCents - held.checkCents)
-  const expectedEWallet = Math.max(0, breakdown.eWalletCents - held.eWalletCents)
+  const available = expectedHandoverAvailableFromTill(breakdown, held)
+  const overs = getHandoverAmountOvers(amt, available)
+  if (overs.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(overs, "submit"),
+    }
+  }
 
   const hasShort =
-    amt.cashCents < breakdown.cashCents ||
-    amt.cardCents < expectedCard ||
-    amt.slipCents < expectedSlip ||
-    amt.checkCents < expectedCheck ||
-    amt.creditCents < breakdown.creditCents ||
-    amt.eWalletCents < expectedEWallet
-  const hasOverOver100 =
-    (amt.cashCents - breakdown.cashCents > OVER_TOLERANCE_CENTS) ||
-    (amt.cardCents - expectedCard > OVER_TOLERANCE_CENTS) ||
-    (amt.slipCents - expectedSlip > OVER_TOLERANCE_CENTS) ||
-    (amt.checkCents - expectedCheck > OVER_TOLERANCE_CENTS) ||
-    (amt.creditCents - breakdown.creditCents > OVER_TOLERANCE_CENTS) ||
-    (amt.eWalletCents - expectedEWallet > OVER_TOLERANCE_CENTS)
-  const needsReason = hasShort || hasOverOver100
-  if (needsReason && !parsed.data.discrepancyReason?.trim()) {
+    amt.cashCents < available.cashCents ||
+    amt.cardCents < available.cardCents ||
+    amt.slipCents < available.slipCents ||
+    amt.checkCents < available.checkCents ||
+    amt.creditCents < available.creditCents ||
+    amt.eWalletCents < available.eWalletCents
+  if (hasShort && !parsed.data.discrepancyReason?.trim()) {
     return {
       success: false,
       error: "Please provide a reason for the discrepancy.",
@@ -251,10 +264,16 @@ export async function processShiftHandover(
   const totalCents =
     amt.cashCents + amt.cardCents + amt.slipCents + amt.checkCents + amt.creditCents + amt.eWalletCents
 
-  const toUser = await prisma.user.findUnique({
-    where: { id: validTo },
-    select: { id: true, name: true },
-  })
+  const [fromUser, toUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: validFrom },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: validTo },
+      select: { id: true, name: true },
+    }),
+  ])
   if (!toUser) {
     return { success: false, error: "Handover recipient not found." }
   }
@@ -299,6 +318,34 @@ export async function processShiftHandover(
   })
   console.log("[processShiftHandover] after create, re-fetched handover includedHandoverIds:", verify?.includedHandoverIds, "type:", typeof verify?.includedHandoverIds)
 
+  await ensureReceivedBillPhotosOnShift(validShiftId)
+  const inheritedPhotos = await prisma.shiftBillAttachment.findMany({
+    where: {
+      shiftId: validShiftId,
+      uploadedAt: { not: null },
+      handoverId: null,
+      sourceAttachmentId: { not: null },
+    },
+    select: { id: true },
+  })
+  const attachIds = [
+    ...new Set([
+      ...(Array.isArray(attachmentIds) ? attachmentIds : []),
+      ...inheritedPhotos.map((photo) => photo.id),
+    ]),
+  ]
+
+  const attachResult = await attachShiftBillsToHandover({
+    shiftId: validShiftId,
+    fromUserId: validFrom,
+    handoverId: handover.id,
+    attachmentIds: attachIds,
+  })
+  if (!attachResult.success) {
+    await prisma.shiftHandover.delete({ where: { id: handover.id } }).catch(() => undefined)
+    return { success: false, error: attachResult.error }
+  }
+
   // 2) Set forwardedToHandoverId on each PREVIOUS (included) handover so we know where it was forwarded
   for (const includedId of validatedIncludeIds) {
     await prisma.shiftHandover.update({
@@ -323,6 +370,17 @@ export async function processShiftHandover(
       toUserId: validTo,
       totalCents,
     },
+  })
+
+  const fromName = fromUser?.name?.trim() || "A cashier"
+  const handoverLabel = handover.handoverNoString ? ` ${handover.handoverNoString}` : ""
+  await createNotification({
+    userId: validTo,
+    type: NOTIFICATION_TYPES.HandoverSubmitted,
+    title: "Handover submitted to you",
+    message: `${fromName} submitted handover${handoverLabel} totaling LKR ${formatCents(totalCents)}. Approve or reject it.`,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handover.id,
   })
 
   const io = getIO()
@@ -486,6 +544,26 @@ export async function approveHandover(
     return { success: false, error: "Sender till account not found." }
   }
 
+  const held = await getNonCashHeldInReconciliation(handover.fromUserId)
+  const available = expectedHandoverAvailableFromTill(breakdown, held)
+  const overs = getHandoverAmountOvers(
+    {
+      cashCents: handover.cashCents,
+      cardCents: handover.cardCents,
+      slipCents: handover.slipCents,
+      checkCents: handover.checkCents,
+      creditCents: handover.creditCents,
+      eWalletCents: handover.eWalletCents,
+    },
+    available
+  )
+  if (overs.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(overs, "approve"),
+    }
+  }
+
   const totalCents =
     handover.cashCents +
     handover.cardCents +
@@ -584,6 +662,11 @@ export async function approveHandover(
     },
   })
 
+  await carryForwardBillAttachmentsToShift({
+    sourceHandoverIds: [handoverId],
+    toShiftId: approverShift.id,
+  })
+
   await shiftModel.update({
     where: { id: handover.shiftId },
     data: { status: SHIFT_STATUS.ENDED, endedAt: now, endedBy: handover.fromUserId, updatedAt: now },
@@ -670,6 +753,7 @@ export async function rejectHandover(
       rejectReason: trimmed,
     },
   })
+  await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
     where: { id: handover.shiftId },
@@ -709,7 +793,7 @@ export async function cancelHandover(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const handover = await prisma.shiftHandover.findUnique({
     where: { id: handoverId },
-    include: { shift: true },
+    include: { shift: true, fromUser: { select: { name: true } } },
   })
   if (!handover) {
     return { success: false, error: "Handover not found." }
@@ -730,6 +814,7 @@ export async function cancelHandover(
       cancelledBy: cancelledByUserId,
     },
   })
+  await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
     where: { id: handover.shiftId },
@@ -742,6 +827,16 @@ export async function cancelHandover(
     entityType: "ShiftHandover",
     entityId: handoverId,
     metadata: { shiftId: handover.shiftId, toUserId: handover.toUserId },
+  })
+
+  const fromName = handover.fromUser?.name?.trim() || "The sender"
+  await createNotification({
+    userId: handover.toUserId,
+    type: NOTIFICATION_TYPES.HandoverCancelled,
+    title: "Handover cancelled",
+    message: `${fromName} cancelled the pending handover.`,
+    referenceType: NOTIF_REF_TYPES.ShiftHandover,
+    referenceId: handoverId,
   })
 
   const io = getIO()
@@ -814,10 +909,10 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
   return filtered
 }
 
-/** Single handover detail for the recipient (toUserId). Any status is allowed for history/view; approve/reject UI only applies to PENDING. */
-export async function getHandoverByIdForRecipient(handoverId: string, toUserId: string) {
+/** Single handover by id. Access (participant vs view-any) is enforced in the action. */
+export async function getHandoverById(handoverId: string) {
   const handover = await prisma.shiftHandover.findFirst({
-    where: { id: handoverId, toUserId },
+    where: { id: handoverId },
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
@@ -890,6 +985,128 @@ export async function getCompletedHandoversToMe(
   return { data, totalRecords }
 }
 
+export type HandoverHistoryDirection = "all" | "given" | "received"
+export type HandoverHistoryStatusFilter = "all" | "pending" | "approved" | "rejected" | "cancelled"
+
+const HISTORY_STATUS_MAP: Record<Exclude<HandoverHistoryStatusFilter, "all">, number> = {
+  pending: HANDOVER_STATUS.PENDING,
+  approved: HANDOVER_STATUS.APPROVED,
+  rejected: HANDOVER_STATUS.REJECTED,
+  cancelled: HANDOVER_STATUS.CANCELLED,
+}
+
+/**
+ * Handovers the current user gave or received (any status), with search, filters, and pagination.
+ */
+export async function getMyHandoverHistory(
+  userId: string,
+  params: {
+    page?: number
+    limit?: number
+    dateFrom?: string | null
+    dateTo?: string | null
+    direction?: string | null
+    status?: string | null
+    otherUserId?: string | null
+    search?: string | null
+  } = {}
+): Promise<{
+  data: Array<Awaited<ReturnType<typeof fetchCompletedHandoverPage>>[number] & { direction: "given" | "received" }>
+  totalRecords: number
+}> {
+  const page = Math.max(1, params.page ?? 1)
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20))
+  const skip = (page - 1) * limit
+
+  const direction: HandoverHistoryDirection =
+    params.direction === "given" || params.direction === "received" ? params.direction : "all"
+  const statusKey = (params.status ?? "all").trim()
+  const status: HandoverHistoryStatusFilter = statusKey in HISTORY_STATUS_MAP ? (statusKey as HandoverHistoryStatusFilter) : "all"
+  const otherUserId =
+    params.otherUserId && params.otherUserId.trim() !== "" && params.otherUserId !== "__all__"
+      ? params.otherUserId.trim()
+      : null
+
+  const and: Prisma.ShiftHandoverWhereInput[] = []
+
+  if (direction === "given") {
+    and.push({ fromUserId: userId })
+    if (otherUserId) and.push({ toUserId: otherUserId })
+  } else if (direction === "received") {
+    and.push({ toUserId: userId })
+    if (otherUserId) and.push({ fromUserId: otherUserId })
+  } else if (otherUserId) {
+    and.push({
+      OR: [
+        { fromUserId: userId, toUserId: otherUserId },
+        { toUserId: userId, fromUserId: otherUserId },
+      ],
+    })
+  } else {
+    and.push({ OR: [{ fromUserId: userId }, { toUserId: userId }] })
+  }
+
+  if (status !== "all") {
+    and.push({ status: HISTORY_STATUS_MAP[status] })
+  }
+
+  if (params.dateFrom || params.dateTo) {
+    const from = params.dateFrom ? parseReportDateTime(params.dateFrom.trim(), false) : null
+    const to = params.dateTo ? parseReportDateTime(params.dateTo.trim(), true) : null
+    const createdAt: Prisma.DateTimeFilter = {}
+    if (from) createdAt.gte = from
+    if (to) createdAt.lte = to
+    if (from || to) and.push({ createdAt })
+  }
+
+  const q = params.search?.trim() ?? ""
+  if (q) {
+    const [nameUsers, staffHits] = await Promise.all([
+      prisma.user.findMany({
+        where: { name: { contains: q, mode: "insensitive" } },
+        select: { id: true },
+        take: 50,
+      }),
+      prisma.staff.findMany({
+        where: { code: { contains: q, mode: "insensitive" } },
+        select: { id: true },
+        take: 50,
+      }),
+    ])
+    const staffUsers =
+      staffHits.length > 0
+        ? await prisma.user.findMany({
+            where: { staffId: { in: staffHits.map((s) => s.id) } },
+            select: { id: true },
+            take: 50,
+          })
+        : []
+    const matchedUserIds = [...new Set([...nameUsers, ...staffUsers].map((u) => u.id))].filter((id) => id !== userId)
+    const searchOr: Prisma.ShiftHandoverWhereInput[] = [
+      { handoverNoString: { contains: q, mode: "insensitive" } },
+    ]
+    if (matchedUserIds.length > 0) {
+      searchOr.push({ fromUserId: { in: matchedUserIds } }, { toUserId: { in: matchedUserIds } })
+    }
+    and.push({ OR: searchOr })
+  }
+
+  const where: Prisma.ShiftHandoverWhereInput = { AND: and }
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.shiftHandover.count({ where }),
+    fetchCompletedHandoverPage(where, skip, limit),
+  ])
+
+  return {
+    data: rows.map((h) => ({
+      ...h,
+      direction: h.fromUserId === userId ? ("given" as const) : ("received" as const),
+    })),
+    totalRecords,
+  }
+}
+
 async function fetchCompletedHandoverPage(
   where: Prisma.ShiftHandoverWhereInput,
   skip: number,
@@ -902,6 +1119,7 @@ async function fetchCompletedHandoverPage(
     take,
     include: {
       fromUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })

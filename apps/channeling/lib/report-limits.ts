@@ -25,7 +25,8 @@ type ReportLimitKey =
   | 'channel_report_receipt_wise'
   | 'room_occupancy'
   | 'no_show_patient'
-  | 'daily_returns_summary';
+  | 'daily_returns_summary'
+  | 'doctor_balance';
 
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);

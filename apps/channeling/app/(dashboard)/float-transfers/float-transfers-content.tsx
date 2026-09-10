@@ -1,17 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  getFloatRequestsForBulkCashierPaginatedAction,
-  approveFloatRequestAction,
-  rejectFloatRequestAction,
-} from '@/app/actions/float-request.actions';
+import { Loader2 } from 'lucide-react';
 import type { FloatRequest, FloatRequestPrintData } from '@/types/float-request';
 import type { ReportUserOption } from '@/components/common/user-select';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { getFloatTransferColumns } from './columns';
 import FloatTransfersFilterSection from './filter-section';
+import { FloatTransfersTabs } from './float-transfers-tabs';
+import type { FloatTransferTab } from './float-transfers-types';
 import {
   ApproveModal,
   RejectModal,
@@ -19,6 +17,17 @@ import {
   FloatPrintSlipDialog,
 } from '../bulk-cashier/bulk-cashier-content';
 import { useToast } from '@/components/hooks/use-toast';
+
+const TAB_COPY: Record<FloatTransferTab, { heading: string; subHeading: string }> = {
+  given: {
+    heading: 'Float Transfers',
+    subHeading: 'Floats you gave. Approve or reject pending requests assigned to you.',
+  },
+  requested: {
+    heading: 'Float Transfers',
+    subHeading: 'Floats you requested.',
+  },
+};
 
 type FloatTransfersContentProps = {
   bulkCashierId: string;
@@ -28,6 +37,8 @@ type FloatTransfersContentProps = {
   limit?: string;
   status?: string;
   requestedById?: string;
+  bulkCashierFilterId?: string;
+  tab: FloatTransferTab;
   userOptions: ReportUserOption[];
 };
 
@@ -39,19 +50,29 @@ export function FloatTransfersContent({
   limit,
   status,
   requestedById,
+  bulkCashierFilterId,
+  tab,
   userOptions,
 }: FloatTransfersContentProps) {
   const [approveModal, setApproveModal] = useState<FloatRequest | null>(null);
   const [rejectModal, setRejectModal] = useState<FloatRequest | null>(null);
   const [summaryRequest, setSummaryRequest] = useState<FloatRequest | null>(null);
   const [printSlipData, setPrintSlipData] = useState<FloatRequestPrintData | null>(null);
+  const [pendingTab, setPendingTab] = useState<FloatTransferTab | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    if (pendingTab === tab) setPendingTab(null);
+  }, [tab, pendingTab, initialData, initialTotalRecords]);
+
+  const isTabLoading = pendingTab != null && pendingTab !== tab;
 
   const columns = getFloatTransferColumns({
     onApprove: setApproveModal,
     onReject: setRejectModal,
     onViewSummary: setSummaryRequest,
+    mode: tab,
   });
 
   const handleCloseApprove = () => {
@@ -75,26 +96,36 @@ export function FloatTransfersContent({
   };
 
   return (
-    <>
-      <CustomDataTable<FloatRequest, unknown>
-        heading="Float Transfers"
-        subHeading="Float requests assigned to you. Approve or reject pending requests."
-        columns={columns}
-        data={initialData}
-        rowCount={initialTotalRecords}
-        haveBulkDelete={false}
-        page={page}
-        limit={limit}
-        toolbarLeft={
-          <div className="flex flex-wrap items-center gap-3">
-            <FloatTransfersFilterSection
-              status={status}
-              requestedById={requestedById}
-              userOptions={userOptions}
-            />
+    <div className="space-y-4">
+      <FloatTransfersTabs onLoadingStart={setPendingTab} />
+      <div className="relative">
+        {isTabLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/80">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        }
-      />
+        )}
+        <CustomDataTable<FloatRequest, unknown>
+          heading={TAB_COPY[tab].heading}
+          subHeading={TAB_COPY[tab].subHeading}
+          columns={columns}
+          data={initialData}
+          rowCount={initialTotalRecords}
+          haveBulkDelete={false}
+          page={page}
+          limit={limit}
+          toolbarLeft={
+            <div className="flex flex-wrap items-center gap-3">
+              <FloatTransfersFilterSection
+                status={status}
+                requestedById={requestedById}
+                bulkCashierId={bulkCashierFilterId}
+                userOptions={userOptions}
+                mode={tab}
+              />
+            </div>
+          }
+        />
+      </div>
 
       {approveModal && (
         <ApproveModal
@@ -130,6 +161,6 @@ export function FloatTransfersContent({
           }}
         />
       )}
-    </>
+    </div>
   );
 }

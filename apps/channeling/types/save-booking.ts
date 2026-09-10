@@ -49,6 +49,8 @@ export type SaveBookingErrorCode =
   | "INVALID_SESSION"
   | "SERVER_ERROR"
   | "PREVIOUS_SESSION_FILL"
+  /** Doctor has departed and has not arrived again; same rule as settlement. */
+  | "DOCTOR_DEPARTED"
   | "DISCOUNT_ERROR"
   | "AMOUNT_ERROR"
   | "LIMIT_EXCEEDED"

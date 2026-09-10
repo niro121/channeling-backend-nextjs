@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { getHandoverDetailAction, approveHandoverAction, rejectHandoverAction } from "@/app/actions/shift.actions"
 import {
   sendHandoverToReconciliationAction,
@@ -36,7 +37,10 @@ import { formatCents, formatLKR } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
 } from "@/lib/handover-utils"
+import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
 import type { CashierSummaryReportSection } from "@/types/report"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -56,13 +60,15 @@ import {
   GitBranch,
   Printer,
   ChevronDown,
+  FileCheck,
+  Camera,
 } from "lucide-react"
 import { BackButton } from "@/components/common/back-button"
 import { HandoverCashInPrint } from "./handover-cash-in-print"
 import { HandoverSummaryPrint } from "./handover-summary-print"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
-import { FileCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { HandoverBillGallery } from "@/components/shift-bills/handover-bill-gallery"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
@@ -232,6 +238,8 @@ type IncludedHandoverRow = {
 export default function HandoverDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { data: session } = useSession()
+  const currentUserId = session?.user?.id
   const id = typeof params.id === "string" ? params.id : ""
   const [data, setData] = useState<HandoverDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -345,8 +353,30 @@ export default function HandoverDetailPage() {
     entries?.forEach((e, i) => allTickIds.push(`${method}-${i}`))
   })
   const allTicked = allTickIds.length > 0 && allTickIds.every((tid) => ticked.has(tid))
+  const amountOvers =
+    handover && tillBreakdown
+      ? getHandoverAmountOvers(
+          {
+            cashCents: handover.cashCents,
+            cardCents: handover.cardCents,
+            slipCents: handover.slipCents,
+            checkCents: handover.checkCents,
+            creditCents: handover.creditCents,
+            eWalletCents: handover.eWalletCents,
+          },
+          {
+            cashCents: tillBreakdown.cashCents ?? 0,
+            cardCents: tillBreakdown.cardCents ?? 0,
+            slipCents: tillBreakdown.slipCents ?? 0,
+            checkCents: tillBreakdown.checkCents ?? 0,
+            creditCents: tillBreakdown.creditCents ?? 0,
+            eWalletCents: tillBreakdown.eWalletCents ?? 0,
+          }
+        )
+      : []
+  const hasAmountOver = amountOvers.length > 0
   /** Approve and Receive is only enabled when there are no entries to verify, or all entries have been ticked. */
-  const canApproveAndReceive = allTickIds.length === 0 || allTicked
+  const canApproveAndReceive = (allTickIds.length === 0 || allTicked) && !hasAmountOver
 
   const toggleAll = () => {
     if (allTicked) setTicked(new Set())
@@ -364,6 +394,14 @@ export default function HandoverDetailPage() {
 
   async function handleApproveAndReceive(comments?: string) {
     if (!id) return
+    if (hasAmountOver) {
+      toast({
+        title: "Cannot approve",
+        description: formatHandoverOverAmountError(amountOvers, "approve"),
+        variant: "destructive",
+      })
+      return
+    }
     setActionLoading("approve")
     try {
       await approveHandoverAction(id, comments?.trim() || undefined)
@@ -484,6 +522,9 @@ export default function HandoverDetailPage() {
   const isPending = handover.status === HANDOVER_STATUS.PENDING
   const isApproved = handover.status === HANDOVER_STATUS.APPROVED
   const isRejected = handover.status === HANDOVER_STATUS.REJECTED
+  const isRecipient = currentUserId != null && handover.toUserId === currentUserId
+  const isSender = currentUserId != null && handover.fromUserId === currentUserId
+  const canActAsRecipient = isRecipient && isPending
   const reconStatus = handover.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
   const isApprovedNotReconciled =
     isApproved &&
@@ -545,7 +586,7 @@ export default function HandoverDetailPage() {
     <div className="handover-screen space-y-3 print:hidden">
       {/* Page header with actions — Reject/Approve when pending; Send to reconciliation when approved but not yet reconciled (bulk cashier) */}
       <div className="sticky top-14 z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between py-2 bg-background border-b border-border print:hidden">
-        <BackButton href="/handovers" />
+        <BackButton href={isSender && !isRecipient ? "/handovers?tab=history" : "/handovers"} />
         <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -564,7 +605,7 @@ export default function HandoverDetailPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {isPending && (
+          {canActAsRecipient && (
             <>
               <Button variant="outline" onClick={() => setRejectOpen(true)} disabled={!!actionLoading}>
                 <XCircle className="h-4 w-4 mr-1" />
@@ -573,31 +614,32 @@ export default function HandoverDetailPage() {
               <Button
                 onClick={() => setApproveOpen(true)}
                 disabled={!!actionLoading || !canApproveAndReceive}
-                title={!canApproveAndReceive ? "Tick all entered entries first to approve and receive." : undefined}
+                title={
+                  hasAmountOver
+                    ? formatHandoverOverAmountError(amountOvers, "approve")
+                    : !canApproveAndReceive
+                      ? "Tick all entered entries first to approve and receive."
+                      : undefined
+                }
               >
                 {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
                 Approve and Receive
               </Button>
             </>
           )}
-          {isApprovedNotReconciled && canSendToReconciliation && (
-            <>
-              <Button
-                onClick={() => {
-                  setReconcilerUserId("")
-                  setSendReconOpen(true)
-                }}
-                disabled={sendToReconLoading}
-              >
-                {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
-                Send to reconciliation
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/reconciliation">Reconciliation page</Link>
-              </Button>
-            </>
+          {isApprovedNotReconciled && canSendToReconciliation && isRecipient && (
+            <Button
+              onClick={() => {
+                setReconcilerUserId("")
+                setSendReconOpen(true)
+              }}
+              disabled={sendToReconLoading}
+            >
+              {sendToReconLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+              Send to reconciliation
+            </Button>
           )}
-          {isInReconciliation && canSendToReconciliation && (
+          {isInReconciliation && canSendToReconciliation && isRecipient && (
             <>
               <Button
                 variant="outline"
@@ -622,7 +664,9 @@ export default function HandoverDetailPage() {
         <CardContent className="p-3 space-y-2.5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Handover from</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                {isSender && !isRecipient ? "Handover you gave" : "Handover from"}
+              </p>
               <p className="text-lg font-semibold tracking-tight leading-tight">{fromUserLabel(handover.fromUser)}</p>
             </div>
             <span
@@ -646,6 +690,7 @@ export default function HandoverDetailPage() {
 
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <Fact label="Location" value={shiftLocationLabel} />
+            <Fact label="To" value={fromUserLabel(handover.toUser)} />
             <Fact label="Bill No" value={handover.handoverNoString ?? "—"} />
             <Fact label="Shift started" value={formatDateTime(handover.shift?.startedAt)} />
             <Fact label="Handed over" value={formatDateTime(handover.createdAt)} />
@@ -709,7 +754,7 @@ export default function HandoverDetailPage() {
           {(() => {
             const cs = data.cashierSummary
             const summaryValueCents = cs
-              ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+              ? cashierSummaryGrandTotalCents(cs.grandTotals)
               : totalCents
             return (
               <div className="border-t pt-2">
@@ -933,7 +978,7 @@ export default function HandoverDetailPage() {
         const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
         const cs = data.cashierSummary
         const summaryVal = cs
-          ? Math.round((cs.grandTotals.cash + cs.grandTotals.creditCard + cs.grandTotals.slip + cs.grandTotals.cheque + cs.grandTotals.agent + cs.grandTotals.agentCredit + cs.grandTotals.eWallet) * 100)
+          ? cashierSummaryGrandTotalCents(cs.grandTotals)
           : totalCents
         const collectionTotal = floatsInTotal + summaryVal + prevTotal - floatsOutTotal
         const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
@@ -963,11 +1008,18 @@ export default function HandoverDetailPage() {
         )
       })()}
 
-      {isPending && (hasIssues || handover.discrepancyReason) && (
+      {isPending && (hasIssues || handover.discrepancyReason || hasAmountOver) && (
         <Alert variant="destructive" className="border-amber-500/70 bg-amber-50 py-2 dark:bg-amber-950/30 dark:border-amber-500/50">
           <CircleAlert className="h-4 w-4" />
-          <AlertTitle className="text-sm">Issues detected</AlertTitle>
+          <AlertTitle className="text-sm">
+            {hasAmountOver ? "Cannot approve — amounts exceed till" : "Issues detected"}
+          </AlertTitle>
           <AlertDescription className="space-y-1 text-xs">
+            {hasAmountOver && (
+              <p className="font-medium text-destructive">
+                {formatHandoverOverAmountError(amountOvers, "approve")}
+              </p>
+            )}
             {tillBreakdown && (() => {
               const diffs = METHOD_KEYS.filter((key) => (tillBreakdown[key] ?? 0) !== (handover[key] ?? 0)).map((key) => ({
                 method: METHOD_LABELS[key],
@@ -982,7 +1034,7 @@ export default function HandoverDetailPage() {
                   {diffs.map((d) => (
                     <span key={d.method} className="mr-2">
                       <strong>{d.method}</strong>{" "}
-                      <span className={d.diff < 0 ? "text-destructive font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}>
+                      <span className={d.diff < 0 ? "text-muted-foreground" : "text-destructive font-medium"}>
                         ({d.diff < 0 ? "Short" : "Over"} {formatCents(Math.abs(d.diff))})
                       </span>
                     </span>
@@ -999,7 +1051,7 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {isApprovedNotReconciled && canSendToReconciliation && (
+      {isApprovedNotReconciled && canSendToReconciliation && isRecipient && (
         <>
           {reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED && (
             <Alert className="border-red-500/50 bg-red-50 py-2 dark:bg-red-950/30 dark:border-red-500/40 print:hidden">
@@ -1034,8 +1086,8 @@ export default function HandoverDetailPage() {
         </Alert>
       )}
 
-      {/* Entries handed over: full breakdown (read-only) for any completed/approved/rejected view */}
-      {!isPending && (() => {
+      {/* Entries handed over: full breakdown (read-only) for completed views, and for the sender while still pending */}
+      {(!isPending || !isRecipient) && (() => {
         const lines = flattenBreakdownLines(breakdown)
         return (
           <Card className="border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20">
@@ -1076,8 +1128,18 @@ export default function HandoverDetailPage() {
         )
       })()}
 
-      {/* Entries to check: tick when verified (only when still pending approval) */}
-      {isPending && (
+      <Card className="print:hidden">
+        <CardContent className="p-3 space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Camera className="h-4 w-4" />
+            Bill photos
+          </h3>
+          <HandoverBillGallery items={data.billAttachments ?? []} />
+        </CardContent>
+      </Card>
+
+      {/* Entries to check: tick when verified (only when still pending approval and you are the recipient) */}
+      {isPending && isRecipient && (
       <Card>
         <CardContent className="p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1226,7 +1288,9 @@ export default function HandoverDetailPage() {
             <CardHeader>
               <CardTitle>Approve and Receive</CardTitle>
               <CardDescription>
-                Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records). Send to reconciliation is a separate step after approval.
+                {hasAmountOver
+                  ? formatHandoverOverAmountError(amountOvers, "approve")
+                  : "Funds will be recorded to your till and a journal entry created. You can add optional comments (e.g. notes for records). Send to reconciliation is a separate step after approval."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1245,7 +1309,7 @@ export default function HandoverDetailPage() {
                 <Button variant="outline" onClick={() => (setApproveOpen(false), setApprovalComments(""))} disabled={!!actionLoading}>
                   Cancel
                 </Button>
-                <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading}>
+                <Button onClick={() => handleApproveAndReceive(approvalComments)} disabled={!!actionLoading || hasAmountOver}>
                   {actionLoading === "approve" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />}
                   Approve and Receive
                 </Button>

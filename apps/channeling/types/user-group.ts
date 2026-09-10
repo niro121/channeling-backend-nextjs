@@ -31,7 +31,14 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     actionLabels: { view: "Book into blocked numbers" },
   },
   { id: "shift", name: "Shift (Channel Booking)" },
-  { id: "handover", name: "Handed over to me", actions: ["view"] },
+  {
+    id: "handover",
+    name: "Handovers",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "view-any", name: "View any handover" },
+    ],
+  },
   { id: "shifts", name: "Shifts" },
   { id: "doctors", name: "Doctors" },
   { id: "sessions", name: "Sessions" },
@@ -76,7 +83,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "float-transfers", name: "Float Transfers" },
   { id: "doctor-payments", name: "Doctor Payments" },
   { id: "accounting", name: "Accounting" },
-  { id: "ledger", name: "Ledger" },
+  {
+    id: "ledger",
+    name: "Ledger",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "add", name: "Add" },
+      { id: "edit", name: "Edit" },
+      { id: "delete", name: "Delete" },
+      { id: "cancel", name: "Cancel entries" },
+    ],
+  },
   { id: "bank-accounts", name: "Bank Accounts" },
   { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
   {
@@ -86,6 +103,16 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "view", name: "View" },
       { id: "submit-for-reconciliation", name: "Submit For Reconciliation" },
       { id: "approve-reconciliation", name: "Approve Reconciliation" },
+    ],
+  },
+  {
+    id: "approvals",
+    name: "Approval Center",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "approve-channel-cancel", name: "Approve Channel Cancellations" },
+      { id: "approve-channel-refund", name: "Approve Channel Refunds" },
+      { id: "approve-bank-deposit", name: "Approve Bank Deposits" },
     ],
   },
 ];

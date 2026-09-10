@@ -24,28 +24,39 @@ const STATUS_OPTIONS = [
 interface FloatTransfersFilterSectionProps {
   status?: string;
   requestedById?: string;
+  bulkCashierId?: string;
   userOptions: ReportUserOption[];
+  mode?: 'given' | 'requested';
 }
 
 export default function FloatTransfersFilterSection({
   status,
   requestedById,
+  bulkCashierId,
   userOptions,
+  mode = 'given',
 }: FloatTransfersFilterSectionProps) {
+  const isGiven = mode === 'given';
   return (
     <FilterWrapper
       initialValues={{
         status: status ?? '__all__',
-        requestedById: requestedById ?? '__all__',
+        ...(isGiven
+          ? { requestedById: requestedById ?? '__all__' }
+          : { bulkCashierId: bulkCashierId ?? '__all__' }),
       }}
     >
       {({ values, setValue }) => (
         <>
           <ReportUserSelect
             userOptions={userOptions}
-            value={values.requestedById ?? '__all__'}
-            onChange={(v) => setValue('requestedById', v)}
-            label="Requested by"
+            value={
+              isGiven
+                ? values.requestedById ?? '__all__'
+                : values.bulkCashierId ?? '__all__'
+            }
+            onChange={(v) => setValue(isGiven ? 'requestedById' : 'bulkCashierId', v)}
+            label={isGiven ? 'Requested by' : 'Assigned to'}
             placeholder="Select user"
             widthClassName="w-[220px]"
           />

@@ -99,6 +99,14 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
     )
   }
 
+  if (details.openApproval) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 min-h-[120px] flex items-center justify-center text-muted-foreground text-sm text-center px-4">
+        This booking has an open cancel or refund request and cannot be changed until it is completed, withdrawn, or rejected.
+      </div>
+    )
+  }
+
   const todayKey = new Date().toISOString().slice(0, 10)
   if (details.sessionDateForSettle && details.sessionDateForSettle < todayKey) {
     return (

@@ -4,6 +4,8 @@ import { z } from "zod"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
+import prisma from "@/lib/prisma"
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import { saveBookingService } from "@/services/channel-booking/save-booking.service"
 import type { SaveBookingInput, SaveBookingResult } from "@/types/save-booking"
 import {
@@ -225,6 +227,19 @@ export async function saveBookingAction(
       success: false,
       errorCode: "INVALID_INPUT",
       message: msg,
+    }
+  }
+
+  const sessionArrival = await prisma.session.findUnique({
+    where: { id: parsed.data.session.id },
+    select: { doctorArrivalTime: true, doctorDepatureTime: true },
+  })
+  if (isSessionDoctorDeparted(sessionArrival)) {
+    return {
+      success: false,
+      errorCode: "DOCTOR_DEPARTED",
+      message:
+        "Doctor has departed. Doctor must arrive again before booking is allowed.",
     }
   }
 

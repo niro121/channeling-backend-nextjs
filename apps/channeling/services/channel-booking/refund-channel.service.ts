@@ -18,6 +18,14 @@ import { formatCents } from "@/lib/format-money"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
+import { logActivityNonBlocking } from "@/lib/activity-log"
+import {
+  APPROVAL_REQUEST_TYPE,
+} from "@/types/approval-request"
+import {
+  markApprovalCompleted,
+  requireApprovedRequestForPaidAction,
+} from "@/services/approval-request.service"
 import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -188,6 +196,18 @@ export async function refundChannelService(
       errorCode: "doctor_already_paid",
       message: "Refund and cancel are not allowed because the doctor has already been paid for this booking.",
     }
+  }
+
+  let approvedRequestId: string | null = null
+  const isPaidCancel = input.refund_type === 0 && booking.status === 1
+  const isPartialRefund = input.refund_type === 1
+  if (isPaidCancel || isPartialRefund) {
+    const type = isPaidCancel
+      ? APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
+      : APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+    const gate = await requireApprovedRequestForPaidAction(booking.id, userId, type)
+    if (!gate.success) return gate
+    approvedRequestId = gate.requestId
   }
 
   const bookingAgencyId = booking.agencyId ?? null
@@ -499,6 +519,16 @@ export async function refundChannelService(
           ...(userId ? { canceledBy: userId } : {}),
         },
       })
+      if (userId) {
+        logActivityNonBlocking({
+          userId,
+          action: "booking.cancel.completed",
+          entityType: "Booking",
+          entityId: input.booking_id,
+          importance: "high",
+          metadata: { remarks: remarksTrimmed, unpaid: true },
+        })
+      }
     } else {
       return { success: false, errorCode: "invalid_state", message: "Booking cannot be canceled." }
     }
@@ -690,5 +720,8 @@ export async function refundChannelService(
   }
 
   const data = await getBookingForSaveBooking(input.booking_id)
+  if (approvedRequestId && userId) {
+    await markApprovalCompleted(approvedRequestId, userId)
+  }
   return { success: true, data }
 }

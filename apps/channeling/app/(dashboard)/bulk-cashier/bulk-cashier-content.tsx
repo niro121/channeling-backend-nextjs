@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import {
   getAllFloatRequestsForDashboardAction,
   getFloatRequestUserOptionsAction,
@@ -48,6 +49,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { Loader2, CheckCircle, XCircle, Copy, Minus, Plus, Clock, MapPin, Banknote, Printer, Eye, Wallet, FileText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatCents, formatLKR } from '@/lib/format-money';
 import { denominationsTotalLKR, lkrToCents, LKR_DENOMINATIONS, LKR_DENOMINATIONS_RUPEES, LKR_DENOMINATIONS_CENTS, formatDenomLabel } from '@/types/float-request';
@@ -81,6 +84,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
   const [floatSummary, setFloatSummary] = useState<{
     floatAccountId: string | null;
     balanceCents: number;
+    cashCents: number;
     tillLocationName: string | null;
   } | null>(null);
   const [hasFloatAccount, setHasFloatAccount] = useState<boolean | null>(null);
@@ -94,11 +98,12 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         setFloatSummary({
           floatAccountId: res.floatAccountId ?? null,
           balanceCents: res.balanceCents ?? 0,
+          cashCents: res.cashCents ?? 0,
           tillLocationName: res.tillLocationName ?? null,
         });
         setHasFloatAccount(!!res.floatAccountId);
       } else {
-        setFloatSummary({ floatAccountId: null, balanceCents: 0, tillLocationName: null });
+        setFloatSummary({ floatAccountId: null, balanceCents: 0, cashCents: 0, tillLocationName: null });
         setHasFloatAccount(false);
       }
     });
@@ -115,7 +120,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
     loadFloatSummary();
   }, [bulkCashierId]);
 
-  const loadRequests = () => {
+  const loadRequests = useCallback(() => {
     setLoading(true);
     getAllFloatRequestsForDashboardAction({
       status: statusFilter,
@@ -125,7 +130,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
         if (res.success && res.data) setRequests(res.data);
       })
       .finally(() => setLoading(false));
-  };
+  }, [statusFilter, requestedByFilter]);
 
   useEffect(() => {
     getFloatRequestUserOptionsAction()
@@ -136,7 +141,33 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
 
   useEffect(() => {
     loadRequests();
-  }, [bulkCashierId, statusFilter, requestedByFilter]);
+  }, [bulkCashierId, loadRequests]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !bulkCashierId) return;
+
+    const socket: Socket = io(window.location.origin, {
+      path: '/socket.io',
+      addTrailingSlash: false,
+    });
+    const subscribe = () => socket.emit('float-request:subscribe', { userId: bulkCashierId });
+    if (socket.connected) subscribe();
+    else socket.once('connect', subscribe);
+
+    const onFloatRequestUpdate = (data?: { status?: number }) => {
+      loadRequests();
+      if (data?.status === FLOAT_REQUEST_STATUS.PENDING) {
+        toast({ title: 'New float request received' });
+      }
+    };
+    socket.on('float-request-update', onFloatRequestUpdate);
+
+    return () => {
+      socket.emit('float-request:unsubscribe', { userId: bulkCashierId });
+      socket.off('float-request-update', onFloatRequestUpdate);
+      socket.disconnect();
+    };
+  }, [bulkCashierId, loadRequests, toast]);
 
   const loadActiveShifts = () => {
     setActiveShiftsLoading(true);
@@ -175,7 +206,7 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
       <section className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Active till balance:</span>
+          <span className="text-sm text-muted-foreground">Active till:</span>
           <span className="text-lg font-semibold tabular-nums">
             {floatSummary === null ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -185,6 +216,14 @@ export function BulkCashierContent({ bulkCashierId }: BulkCashierContentProps) {
               `${formatCents(floatSummary.balanceCents)} LKR`
             )}
           </span>
+          {floatSummary && (
+            <>
+              <span className="text-sm text-muted-foreground">· Cash:</span>
+              <span className="text-lg font-semibold tabular-nums">
+                {formatCents(floatSummary.cashCents)} LKR
+              </span>
+            </>
+          )}
           {floatSummary?.tillLocationName ? (
             <span className="text-sm text-muted-foreground">({floatSummary.tillLocationName})</span>
           ) : null}
@@ -468,6 +507,73 @@ export function buildPrintDataFromRequest(fr: FloatRequest): FloatRequestPrintDa
   };
 }
 
+function floatRequestStatusBadgeClass(status: number) {
+  switch (status) {
+    case FLOAT_REQUEST_STATUS.PENDING:
+      return { variant: 'secondary' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.APPROVED:
+      return { variant: 'default' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.RECEIVED:
+      return {
+        variant: 'outline' as const,
+        className: 'border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+      };
+    case FLOAT_REQUEST_STATUS.REJECTED:
+      return { variant: 'destructive' as const, className: '' };
+    case FLOAT_REQUEST_STATUS.CANCELLED:
+      return { variant: 'outline' as const, className: 'text-muted-foreground' };
+    default:
+      return { variant: 'outline' as const, className: '' };
+  }
+}
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+}
+
+function formatDenoms(entries?: { value: number; count: number }[] | null) {
+  if (!entries?.length) return null;
+  const str = entries
+    .filter((d) => d.count > 0)
+    .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
+    .join(', ');
+  return str || null;
+}
+
+function TimelineStep({
+  label,
+  at,
+}: {
+  label: string;
+  at: Date | string | null | undefined;
+}) {
+  const formatted = formatDateTime(at);
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            'h-2 w-2 shrink-0 rounded-full',
+            formatted ? 'bg-emerald-600' : 'bg-muted-foreground/30'
+          )}
+        />
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      </div>
+      <p
+        className={cn(
+          'mt-1 pl-3.5 text-sm leading-snug',
+          formatted ? 'font-medium' : 'text-muted-foreground'
+        )}
+      >
+        {formatted ?? '—'}
+      </p>
+    </div>
+  );
+}
+
 export function FloatRequestSummaryDialog({
   request,
   onClose,
@@ -514,45 +620,120 @@ export function FloatRequestSummaryDialog({
     };
   }, [request.id, request.status, request.journalId]);
 
+  const statusBadge = floatRequestStatusBadgeClass(request.status);
+  const requestedDenoms = formatDenoms(request.denominationsRequested);
+  const approvedDenoms = formatDenoms(request.denominationsApproved);
+  const thirdStepLabel =
+    request.status === FLOAT_REQUEST_STATUS.REJECTED
+      ? 'Rejected'
+      : request.status === FLOAT_REQUEST_STATUS.CANCELLED
+        ? 'Cancelled'
+        : 'Received';
+  const thirdStepAt =
+    request.status === FLOAT_REQUEST_STATUS.REJECTED
+      ? request.rejectedAt
+      : request.status === FLOAT_REQUEST_STATUS.CANCELLED
+        ? request.cancelledAt
+        : request.receivedAt;
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Request summary</DialogTitle>
-          <DialogDescription>Float request details.</DialogDescription>
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <div className="min-w-0 space-y-1">
+              <DialogTitle>Request summary</DialogTitle>
+              <DialogDescription className="font-mono text-foreground">
+                {request.floatNoString ?? '—'}
+              </DialogDescription>
+            </div>
+            <Badge
+              variant={statusBadge.variant}
+              className={cn('shrink-0 px-3 py-1 text-sm', statusBadge.className)}
+            >
+              {floatRequestStatusLabel(request.status)}
+            </Badge>
+          </div>
         </DialogHeader>
-        <div className="space-y-3 text-sm">
-          <p><strong>Bill No:</strong> {request.floatNoString ?? '—'}</p>
-          <p><strong>Requested by:</strong> {request.requestedBy?.name ?? request.requestedById}</p>
-          <p><strong>Amount:</strong> {formatCents(request.amountRequested)} LKR</p>
-          <p><strong>Status:</strong> {floatRequestStatusLabel(request.status)}</p>
-          <p><strong>Bulk cashier:</strong> {request.bulkCashier?.name ?? '—'}</p>
-          <p><strong>Requested at:</strong> {new Date(request.createdAt).toLocaleString()}</p>
-          {request.denominationsRequested?.length > 0 && (
-            <p><strong>Denominations requested:</strong>{' '}
-              {request.denominationsRequested
-                .filter((d) => d.count > 0)
-                .map((d) => `${formatDenomLabel(d.value)}×${d.count}`)
-                .join(', ') || '—'}
+
+        <div className="space-y-4 text-sm">
+          <div className="flex items-center justify-between rounded-lg bg-muted/60 px-4 py-3">
+            <span className="text-muted-foreground">Amount</span>
+            <span className="text-xl font-semibold tabular-nums">
+              {formatCents(request.amountRequested)} LKR
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Requested by</p>
+              <p className="mt-0.5 font-medium">
+                {request.requestedBy?.name ?? request.requestedById}
+              </p>
+            </div>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Bulk cashier</p>
+              <p className="mt-0.5 font-medium">{request.bulkCashier?.name ?? '—'}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border px-3 py-3">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Timeline
             </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <TimelineStep label="Requested" at={request.createdAt} />
+              <TimelineStep label="Approved" at={request.approvedAt} />
+              <TimelineStep label={thirdStepLabel} at={thirdStepAt} />
+            </div>
+          </div>
+
+          {(requestedDenoms || approvedDenoms) && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {requestedDenoms && (
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Denominations requested</p>
+                  <p className="mt-0.5 font-medium">{requestedDenoms}</p>
+                </div>
+              )}
+              {approvedDenoms && (
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Denominations approved</p>
+                  <p className="mt-0.5 font-medium">{approvedDenoms}</p>
+                </div>
+              )}
+            </div>
           )}
-          {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.approvedAt && (
-            <p><strong>Approved at:</strong> {new Date(request.approvedAt).toLocaleString()}</p>
-          )}
+
           {request.status === FLOAT_REQUEST_STATUS.APPROVED && request.receiveCode && (
-            <p><strong>Receive code:</strong> <span className="font-mono font-semibold">{request.receiveCode}</span></p>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Receive code</p>
+              <p className="mt-0.5 font-mono text-base font-semibold tracking-widest">
+                {request.receiveCode}
+              </p>
+            </div>
+          )}
+          {request.reasonForLessThanRequested && (
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Reason for less than requested</p>
+              <p className="mt-0.5">{request.reasonForLessThanRequested}</p>
+            </div>
           )}
           {request.status === FLOAT_REQUEST_STATUS.REJECTED && request.rejectReason && (
-            <p><strong>Reject reason:</strong> {request.rejectReason}</p>
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Reject reason</p>
+              <p className="mt-0.5">{request.rejectReason}</p>
+            </div>
           )}
           {request.status === FLOAT_REQUEST_STATUS.CANCELLED && request.cancelReason && (
-            <p><strong>Cancel reason:</strong> {request.cancelReason}</p>
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground">Cancel reason</p>
+              <p className="mt-0.5">{request.cancelReason}</p>
+            </div>
           )}
-          {request.status === FLOAT_REQUEST_STATUS.RECEIVED && request.receivedAt && (
-            <p><strong>Received at:</strong> {new Date(request.receivedAt).toLocaleString()}</p>
-          )}
+
           {request.status === FLOAT_REQUEST_STATUS.RECEIVED && (
-            <div className="rounded-md border border-border pt-3 mt-1">
+            <div className="rounded-md border pt-3">
               <p className="px-3 font-medium mb-2">Double entry</p>
               {journalLoading ? (
                 <p className="px-3 pb-3 text-muted-foreground text-xs">Loading journal…</p>
@@ -769,20 +950,20 @@ export function ApproveModal({
           <DialogTitle>Approve float request</DialogTitle>
           <DialogDescription>
             {request.floatNoString ? `${request.floatNoString}. ` : ""}
-            Float will be taken from your active till. You can give up to the requested amount (or less). Cannot give more than requested.
+            Float is cash and will be taken from your active till cash. You can give up to the requested amount (or less). Cannot give more than requested, and cash cannot go below zero.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {hasTill && balanceCents !== null && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Your current till balance: </span>
+              <span className="text-muted-foreground">Your current cash: </span>
               <span className="font-medium tabular-nums">{formatCents(balanceCents)} LKR</span>
               {tillLocationName ? (
                 <span className="text-muted-foreground"> ({tillLocationName})</span>
               ) : null}
               {insufficientBalance && (
                 <p className="mt-1.5 text-destructive font-medium">
-                  Insufficient balance. You have {formatCents(balanceCents)} LKR, required {formatCents(totalCents)} LKR.
+                  Insufficient cash. You have {formatCents(balanceCents)} LKR cash, required {formatCents(totalCents)} LKR.
                 </p>
               )}
             </div>

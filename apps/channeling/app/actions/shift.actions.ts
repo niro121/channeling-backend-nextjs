@@ -9,7 +9,8 @@ import {
   getHandoversToMe,
   getHandoversApprovedByMeNotReconciled,
   getCompletedHandoversToMe,
-  getHandoverByIdForRecipient,
+  getMyHandoverHistory,
+  getHandoverById,
   getHandoversReceivedByShift,
   getLinkedHandoversForShift,
   getIncludableHandoversForSender,
@@ -24,11 +25,12 @@ import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
-import { requirePermission } from "@/lib/server-permissions"
+import { requirePermission, checkPermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
-import { deriveHandoverCashierSummaryFilters } from "@/lib/handover-utils"
+import { deriveHandoverCashierSummaryFilters, expectedHandoverAvailableFromTill } from "@/lib/handover-utils"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
 import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
+import { listShiftBillAttachmentsForHandover } from "@/services/shift-bill-attachment.service"
 
 // Shift creation: single "shift" resource; view permission allows all shift actions (start, pause, resume, end).
 // Use under Channel Booking: grant "Shift (Channel Booking)" view to allow shift features.
@@ -148,11 +150,12 @@ export type SubmitShiftHandoverPayload = {
     eWalletEntries?: { reference: string; amountCents: number }[]
   }
   includedHandoverIds?: string[]
+  attachmentIds?: string[]
 }
 
 /** Submit shift handover: create PENDING handover, set shift to handover pending. Journal created only when recipient approves. */
 export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayload) {
-  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds } = payload
+  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds } = payload
   console.log("[submitShiftHandoverAction] payload.includedHandoverIds:", includedHandoverIds, "length:", includedHandoverIds?.length)
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
@@ -164,7 +167,8 @@ export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayl
     amounts,
     discrepancyReason,
     enteredBreakdown,
-    includedHandoverIds
+    includedHandoverIds,
+    attachmentIds
   )
   if (!result.success) throw new Error(result.error)
   revalidatePath("/channel-booking")
@@ -249,6 +253,24 @@ export async function getOpenFloatsBlockingShiftEndAction(): Promise<{
   return { success: true, blocking, count: await openFloatsBlockingTotal(blocking) }
 }
 
+export async function getOpenApprovalRequestsBlockingShiftEndAction(): Promise<{
+  success: true
+  count: number
+  message: string | null
+}> {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return { success: true, count: 0, message: null }
+  }
+  const { countOpenApprovalsForUser, openApprovalsBlockingShiftMessage } = await import(
+    "@/services/approval-request.service"
+  )
+  const count = await countOpenApprovalsForUser(session.user.id)
+  const message = await openApprovalsBlockingShiftMessage(session.user.id)
+  return { success: true, count, message }
+}
+
 /** Handovers pending for current user (handed over to me). */
 export async function getHandoversToMeAction(): Promise<
   { success: true; data: Awaited<ReturnType<typeof getHandoversToMe>> } | { success: false; data: []; message: string }
@@ -296,6 +318,27 @@ export async function getCompletedHandoversToMeAction(params?: {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { success: false, data: [], totalRecords: 0, message: "Unauthorized" }
   const result = await getCompletedHandoversToMe(session.user.id, params ?? {})
+  return { success: true, data: result.data, totalRecords: result.totalRecords }
+}
+
+/** Handovers I gave or received, searchable and paginated. */
+export async function getMyHandoverHistoryAction(params?: {
+  page?: number
+  limit?: number
+  dateFrom?: string | null
+  dateTo?: string | null
+  direction?: string | null
+  status?: string | null
+  otherUserId?: string | null
+  search?: string | null
+}): Promise<
+  | { success: true; data: Awaited<ReturnType<typeof getMyHandoverHistory>>["data"]; totalRecords: number }
+  | { success: false; data: []; totalRecords: 0; message: string }
+> {
+  await requirePermission("handover", "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return { success: false, data: [], totalRecords: 0, message: "Unauthorized" }
+  const result = await getMyHandoverHistory(session.user.id, params ?? {})
   return { success: true, data: result.data, totalRecords: result.totalRecords }
 }
 
@@ -384,13 +427,25 @@ export async function getLinkedHandoversForShiftAction(shiftId: string) {
   return { success: true as const, data }
 }
 
-/** Handover detail for recipient: handover + till breakdown + included handovers chain for verification. */
+/** Handover detail: sender/recipient may view; others need handover "view-any". */
 export async function getHandoverDetailAction(handoverId: string) {
   await requirePermission("handover", "view")
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { success: false, data: null, error: "Unauthorized" }
-  const handover = await getHandoverByIdForRecipient(handoverId, session.user.id)
-  if (!handover) return { success: false, data: null, error: "Handover not found or you are not the recipient." }
+  const handover = await getHandoverById(handoverId)
+  if (!handover) return { success: false, data: null, error: "Handover not found." }
+  const isParty =
+    handover.fromUserId === session.user.id || handover.toUserId === session.user.id
+  if (!isParty) {
+    const canViewAny = await checkPermission("handover", "view-any")
+    if (!canViewAny) {
+      return {
+        success: false,
+        data: null,
+        error: "You don't have permission to view this handover.",
+      }
+    }
+  }
 
   const actorIds = [
     handover.approvedBy,
@@ -408,9 +463,15 @@ export async function getHandoverDetailAction(handoverId: string) {
     shift: handover.shift,
   })
 
-  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary] = await Promise.all([
+  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary, billAttachments] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
-      ? getTillBalanceBreakdown(handover.fromUserId)
+      ? Promise.all([
+          getTillBalanceBreakdown(handover.fromUserId),
+          getNonCashHeldInReconciliation(handover.fromUserId),
+        ]).then(([till, held]) => ({
+          ...till,
+          ...expectedHandoverAvailableFromTill(till, held),
+        }))
       : Promise.resolve(null),
     getPreviousHandoversForHandoverDetail({
       handoverId: handover.id,
@@ -443,6 +504,7 @@ export async function getHandoverDetailAction(handoverId: string) {
           )
           .catch(() => null)
       : Promise.resolve(null),
+    listShiftBillAttachmentsForHandover(handover.id),
   ])
 
   const actorById = new Map(actors.map((u) => [u.id, u]))
@@ -468,6 +530,7 @@ export async function getHandoverDetailAction(handoverId: string) {
       includedHandovers: includedWithNumbers,
       receivedFloats,
       cashierSummary,
+      billAttachments,
       approvedByUser,
       rejectedByUser,
       cancelledByUser,

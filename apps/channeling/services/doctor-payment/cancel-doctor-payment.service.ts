@@ -132,6 +132,7 @@ export async function cancelDoctorPaymentService(
     shiftId,
     whd: original.whd ?? 0,
     whdPercentage: original.whdPercentage ?? 0,
+    doctorId: original.doctorId ?? doctorId,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });

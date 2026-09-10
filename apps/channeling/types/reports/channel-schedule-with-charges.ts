@@ -24,7 +24,7 @@ export type ChannelScheduleWithChargesReportRow = Pick<
   | 'startingPatientNumber'
   | 'maxPatientNumber'
   | 'refundable'
-  | 'advancedBookingDays'
+  | 'advancedBookingEnabled'
   | 'fees'
   | 'amountLocal'
   | 'amountForeign'
@@ -73,6 +73,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   scanFeeLocal: string;
   onCallFeeLocal: string;
   creditCardCommissionLocal: string;
+  apiFeeLocal: string;
   sessionValueLocal: string;
 
   doctorFeeForeign: string;
@@ -81,6 +82,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   scanFeeForeign: string;
   onCallFeeForeign: string;
   creditCardCommissionForeign: string;
+  apiFeeForeign: string;
   sessionValueForeign: string;
 
   startingPatientNo: number | string;
@@ -88,7 +90,7 @@ export type ChannelScheduleWithChargesReportExportRow = {
   previousSession: string;
 
   refundable: string;
-  advanceBookingDays: number | string;
+  advanceBookingEnabled: string;
   status: string;
 };
 

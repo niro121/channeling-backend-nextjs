@@ -4,19 +4,11 @@ import { BOOKING_METHODS } from "@/types/channel-booking"
 import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
-
-function parseArrivalDepartureForSettle(json: unknown): { time: string; createdBy: string }[] {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (item): item is { time: string; createdBy: string } =>
-      item != null &&
-      typeof item === "object" &&
-      "time" in item &&
-      "createdBy" in item &&
-      typeof (item as { time: string }).time === "string" &&
-      typeof (item as { createdBy: string }).createdBy === "string"
-  )
-}
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
+import { getBookingApprovalSummaries } from "@/services/approval-request.service"
+import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
+import { userTypes } from "@/lib/roles"
+import type { BookingApprovalSummary } from "@/types/approval-request"
 
 /** One row for the receipts table on the Booking tab. */
 export type ReceiptRowView = {
@@ -83,7 +75,11 @@ export type SettlePreviewView = {
   autoDiscountId: string | null
   manualDiscountId: string | null
   autoScheme: SettleDiscountSchemeView | null
+  /** All active auto schemes; Settle tab picks the first applicable for the settle method. */
+  autoSchemes: SettleDiscountSchemeView[]
   manualScheme: SettleDiscountSchemeView | null
+  /** Public API On-Call bookings default settle method to Credit Card. */
+  createdViaPublicApi: boolean
 }
 
 /** Discount-related info for the Booking tab. */
@@ -201,6 +197,8 @@ export type BookingDetailsView = {
   sessionCanSettleArrival?: boolean
   /** Pending bookings: fee + discount scheme data for settle preview (recomputed by payment method). */
   settlePreview?: SettlePreviewView
+  openApproval?: BookingApprovalSummary | null
+  latestClosedApproval?: BookingApprovalSummary | null
   /** When movedFromSessionId is set: session the booking was moved from. */
   movedFromSession: {
     id: string
@@ -266,7 +264,20 @@ export async function getBookingDetailsService(
     if (!b.session) {
       return { success: false, message: "Booking has no session" }
     }
-    const createdByName = await resolveUser(b.createdBy)
+    const [creatorUser, autoCatalog] = await Promise.all([
+      b.createdBy
+        ? prisma.user.findUnique({
+            where: { id: b.createdBy },
+            select: { name: true, userType: true },
+          })
+        : Promise.resolve(null),
+      b.status === 0
+        ? getDiscountsForBookingService()
+        : Promise.resolve({ auto: [], manual: [] }),
+    ])
+    const createdByName = !b.createdBy
+      ? "NO USER NAME"
+      : creatorUser?.name ?? "NO USER FOUND!"
     const methodName = BOOKING_METHODS.find((m) => m.id === b.method)?.name ?? ""
     const sessionDate = b.session.date instanceof Date ? b.session.date : new Date(b.session.date)
     const startTime = normalizeSessionTime(b.session.startTime as Date | number, sessionDate)
@@ -374,6 +385,7 @@ export async function getBookingDetailsService(
       b.referredStaff != null ? [b.referredStaff.name, b.referredStaff.code].filter(Boolean).join(" ").trim() || null : null
     const referredParts = [referredDoctorName, referredAgencyName, referredStaffName].filter(Boolean)
     const referredBy = referredParts.length > 0 ? referredParts.join(" · ") : ""
+    const approvalSummaries = await getBookingApprovalSummaries(b.id)
 
     const movedByUserId = (b as { movedBy?: string | null }).movedBy ?? null
     const movedAt = (b as { movedAt?: Date | null }).movedAt ?? null
@@ -430,9 +442,16 @@ export async function getBookingDetailsService(
           }
         : null
 
-    const mapSettleScheme = (
-      r: (typeof discountRecords)[number] | undefined
-    ): SettleDiscountSchemeView | null => {
+    const mapSettleScheme = (r: {
+      id: string
+      name: string
+      discountType: number
+      applyTo: number
+      discountValue: number
+      discountValueForeign: number
+      discountMethod: unknown
+      paymentType: unknown
+    } | null | undefined): SettleDiscountSchemeView | null => {
       if (!r) return null
       return {
         id: r.id,
@@ -460,11 +479,15 @@ export async function getBookingDetailsService(
                 ? discountRecords.find((d) => d.id === autoDiscount.id)
                 : undefined
             ),
+            autoSchemes: autoCatalog.auto
+              .map((d) => mapSettleScheme(d))
+              .filter((d): d is SettleDiscountSchemeView => d != null),
             manualScheme: mapSettleScheme(
               manualDiscount
                 ? discountRecords.find((d) => d.id === manualDiscount.id)
                 : undefined
             ),
+            createdViaPublicApi: creatorUser?.userType === userTypes.apiUser,
           }
         : undefined
 
@@ -539,14 +562,10 @@ export async function getBookingDetailsService(
       sessionDateForSettle: b.session?.date
         ? new Date(b.session.date).toISOString().slice(0, 10)
         : undefined,
-      sessionCanSettleArrival: (() => {
-        const arrivals = parseArrivalDepartureForSettle(b.session?.doctorArrivalTime)
-        const departures = parseArrivalDepartureForSettle(b.session?.doctorDepatureTime)
-        if (departures.length === 0) return true
-        const lastDep = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
-        return arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDep)
-      })(),
+      sessionCanSettleArrival: !isSessionDoctorDeparted(b.session),
       settlePreview,
+      openApproval: approvalSummaries.openApproval,
+      latestClosedApproval: approvalSummaries.latestClosedApproval,
     }
     return { success: true, data }
   } catch (error) {

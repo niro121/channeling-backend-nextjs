@@ -175,6 +175,7 @@ function ChannelScheduleWithChargesReportContentInner(
         'Scan Fee (Local)',
         'On-Call Fee (Local)',
         'Credit Card Commission (Local)',
+        'API Fee (Local)',
         'Session Value (Local)',
         'Doctor Fee (Foreign)',
         'Hospital Fee (Foreign)',
@@ -182,6 +183,7 @@ function ChannelScheduleWithChargesReportContentInner(
         'Scan Fee (Foreign)',
         'On-Call Fee (Foreign)',
         'Credit Card Commission Fee (Foreign)',
+        'API Fee (Foreign)',
         'Session Value (Foreign)',
         'Starting Patient No',
         'Maximum Patient No',
@@ -206,6 +208,7 @@ function ChannelScheduleWithChargesReportContentInner(
           'scanFeeLocal',
           'onCallFeeLocal',
           'creditCardCommissionLocal',
+          'apiFeeLocal',
           'sessionValueLocal',
           'doctorFeeForeign',
           'hospitalFeeForeign',
@@ -213,12 +216,13 @@ function ChannelScheduleWithChargesReportContentInner(
           'scanFeeForeign',
           'onCallFeeForeign',
           'creditCardCommissionForeign',
+          'apiFeeForeign',
           'sessionValueForeign',
           'startingPatientNo',
           'maximumPatientNo',
           'previousSession',
           'refundable',
-          'advanceBookingDays',
+          'advanceBookingEnabled',
           'status'
         ] as (keyof ChannelScheduleWithChargesReportExportRow)[]
       }

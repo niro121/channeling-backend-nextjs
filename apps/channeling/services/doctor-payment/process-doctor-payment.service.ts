@@ -197,6 +197,18 @@ export async function processDoctorPaymentService(
     return { success: false, errorCode: "INVALID_STATUS", message: "All selected bookings must be paid (status 1)." };
   }
 
+  const { findOpenApprovalForBooking } = await import("@/services/approval-request.service");
+  for (const b of existing) {
+    const open = await findOpenApprovalForBooking(b.id);
+    if (open) {
+      return {
+        success: false,
+        errorCode: "approval_pending",
+        message: "A selected booking has an open cancel or refund request and cannot be paid to the doctor.",
+      };
+    }
+  }
+
   const accountsResult = await resolveDoctorPaymentAccounts({
     doctorId,
     locationId,
@@ -258,6 +270,7 @@ export async function processDoctorPaymentService(
     shiftId,
     whd: Math.round(whtAmount),
     whdPercentage: whtPercentage,
+    doctorId,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });

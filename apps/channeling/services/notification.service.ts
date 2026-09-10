@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getIO, notificationRoom } from '@/lib/socket-server';
 import type { NotificationCreateInput } from '@/types/notification';
 
 /** Create a notification for a user (non-blocking; used after float/handover actions). */
@@ -17,6 +18,10 @@ export async function createNotification(input: NotificationCreateInput): Promis
         readAt: null, // explicit so MongoDB has the field; unread until marked read
       },
     });
+    const io = getIO();
+    if (io) {
+      io.to(notificationRoom(input.userId)).emit('notification-update', {});
+    }
   } catch (e) {
     console.error('createNotification error:', e);
   }

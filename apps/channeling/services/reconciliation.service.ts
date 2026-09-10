@@ -14,7 +14,7 @@ import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { createJournalEntry } from "@/services/accounting.service"
 import { createAccount } from "@/services/accounting/account.service"
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
-import { receiptAmountToCents } from "@/lib/format-money"
+import { signedReceiptAmountToCents } from "@/lib/format-money"
 import { formatSlipDate } from "@/lib/slip-date"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { hasPermission } from "@/lib/permissions"
@@ -43,6 +43,7 @@ export type ReceiptForReconciliation = {
   amount: number
   type: number
   createdAt: Date
+  bank: string
   cardReference: string
   slipReference: string
   /** YYYY-MM-DD when set */
@@ -73,14 +74,16 @@ export type ReconciliationJournal = {
  * Get receipts eligible for reconciliation for a handover.
  * Uses shiftId when set on receipts; otherwise falls back to createdBy + time window (legacy).
  * Filters in memory for canceledAt/reconciledAt so MongoDB null/missing optional fields match reliably.
- * Includes receipts already reconciled for this handover (reconciledHandoverId = handoverId) so UI can show them pre-ticked.
+ * Includes receipts already reconciled for this document (reconciledHandoverId is this handover
+ * or the top-level document it was posted under) so UI can show them pre-ticked.
  */
 export async function getReceiptsForHandoverReconciliation(
   shiftId: string,
   fromUserId: string,
   shiftStartedAt: Date,
   handoverCreatedAt: Date,
-  handoverId: string
+  handoverId: string,
+  documentHandoverId: string = handoverId
 ): Promise<ReceiptForReconciliation[]> {
   const raw = await prisma.receipt.findMany({
     where: {
@@ -101,6 +104,8 @@ export async function getReceiptsForHandoverReconciliation(
       amount: true,
       type: true,
       createdAt: true,
+      bank: true,
+      bankId: true,
       cardReference: true,
       slipReference: true,
       slipDate: true,
@@ -116,6 +121,8 @@ export async function getReceiptsForHandoverReconciliation(
           id: true,
           paymentMethod: true,
           amount: true,
+          bank: true,
+          bankId: true,
           cardReference: true,
           slipReference: true,
           slipDate: true,
@@ -129,13 +136,15 @@ export async function getReceiptsForHandoverReconciliation(
     },
     orderBy: { createdAt: "asc" },
   })
+  const allowedHandoverIds = new Set([handoverId, documentHandoverId].filter(Boolean))
   const eligible = raw.filter((r) => {
     if (r.canceledAt) return false
-    if (r.reconciledHandoverId && r.reconciledHandoverId !== handoverId) return false
+    if (r.reconciledHandoverId && !allowedHandoverIds.has(r.reconciledHandoverId)) return false
     if (!r.reconciledHandoverId && (r.reconciledAt || r.cannotReconcileAt)) return false
     return true
   })
   const result: ReceiptForReconciliation[] = []
+  const unresolvedBankIds: (string | null)[] = []
   for (const r of eligible) {
     const parentReconciled = r.reconciledAt ?? undefined
     const parentCannotAt = r.cannotReconcileAt ?? undefined
@@ -146,6 +155,7 @@ export async function getReceiptsForHandoverReconciliation(
         const lineCannotAt = line.cannotReconcileAt ?? (line.reconciledAt ? undefined : parentCannotAt)
         const lineCannotReason = line.cannotReconcileReason ?? (lineCannotAt ? parentCannotReason : undefined)
         const lineReconciled = lineCannotAt ? undefined : (line.reconciledAt ?? parentReconciled)
+        const bank = (line.bank ?? "").trim() || (r.bank ?? "").trim()
         result.push({
           id: line.id,
           receiptId: r.id,
@@ -154,6 +164,7 @@ export async function getReceiptsForHandoverReconciliation(
           amount: line.amount,
           type: r.type,
           createdAt: r.createdAt,
+          bank,
           cardReference: line.cardReference ?? "",
           slipReference: line.slipReference ?? "",
           slipDate: formatSlipDate(line.slipDate) ?? null,
@@ -162,8 +173,10 @@ export async function getReceiptsForHandoverReconciliation(
           cannotReconcileAt: lineCannotAt,
           cannotReconcileReason: lineCannotReason,
         })
+        unresolvedBankIds.push(bank ? null : (line.bankId ?? r.bankId ?? null))
       }
     } else {
+      const bank = (r.bank ?? "").trim()
       result.push({
         id: r.id,
         receiptId: r.id,
@@ -172,6 +185,7 @@ export async function getReceiptsForHandoverReconciliation(
         amount: r.amount,
         type: r.type,
         createdAt: r.createdAt,
+        bank,
         cardReference: r.cardReference,
         slipReference: r.slipReference,
         slipDate: formatSlipDate(r.slipDate) ?? null,
@@ -180,7 +194,21 @@ export async function getReceiptsForHandoverReconciliation(
         cannotReconcileAt: parentCannotAt,
         cannotReconcileReason: parentCannotReason,
       })
+      unresolvedBankIds.push(bank ? null : (r.bankId ?? null))
     }
+  }
+  const missingBankIds = [...new Set(unresolvedBankIds.filter((id): id is string => !!id))]
+  if (missingBankIds.length > 0) {
+    const tags = await prisma.tag.findMany({
+      where: { id: { in: missingBankIds } },
+      select: { id: true, name: true },
+    })
+    const nameById = new Map(tags.map((t) => [t.id, (t.name ?? "").trim()]))
+    result.forEach((row, i) => {
+      if (row.bank) return
+      const name = unresolvedBankIds[i] ? nameById.get(unresolvedBankIds[i] as string) : ""
+      if (name) row.bank = name
+    })
   }
   return result
 }
@@ -192,7 +220,7 @@ function netAmountByMethod(
 ): number {
   return receipts
     .filter((r) => r.paymentMethod === method)
-    .reduce((sum, r) => sum + (r.type === 1 ? receiptAmountToCents(r.amount) : -receiptAmountToCents(r.amount)), 0)
+    .reduce((sum, r) => sum + signedReceiptAmountToCents(r.amount, r.type), 0)
 }
 
 /** Handover row for reconciliation list (top-level only) */
@@ -573,7 +601,14 @@ export async function getReconciliationDocument(
   const receiptsByIndex = await Promise.all(
     allHandovers.map((h) => {
       const shiftStartedAt = h.shift?.startedAt ?? h.createdAt
-      return getReceiptsForHandoverReconciliation(h.shift.id, h.fromUserId, shiftStartedAt, h.createdAt, h.id)
+      return getReceiptsForHandoverReconciliation(
+        h.shift.id,
+        h.fromUserId,
+        shiftStartedAt,
+        h.createdAt,
+        h.id,
+        topLevelHandoverId
+      )
     })
   )
   const chain: HandoverTabForReconciliation[] = allHandovers.map((h, i) => ({

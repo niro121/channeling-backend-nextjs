@@ -18,12 +18,13 @@ import {
   lkrToCents,
 } from '@/types/float-request';
 import {
-  getAccountBalance,
+  getTillBalanceBreakdownForAccount,
   createJournalEntry,
   resolveTillForUserAndLocation,
   type ResolvedTill,
 } from '@/services/accounting.service';
 import { SHIFT_STATUS } from '@/types/shift';
+import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { formatCents } from '@/lib/format-money';
 import type { Permissions } from '@/types/user-group';
 import { getIO, floatRequestRoom, floatBalanceRoom } from '@/lib/socket-server';
@@ -62,11 +63,12 @@ export async function resolveBulkCashierSourceTill(userId: string): Promise<Reso
 export async function getBulkCashierSourceTillSummary(userId: string): Promise<{
   till: ResolvedTill | null;
   balanceCents: number;
+  cashCents: number;
 }> {
   const till = await resolveBulkCashierSourceTill(userId);
-  if (!till) return { till: null, balanceCents: 0 };
-  const balanceCents = await getAccountBalance(till.accountId);
-  return { till, balanceCents };
+  if (!till) return { till: null, balanceCents: 0, cashCents: 0 };
+  const breakdown = await getTillBalanceBreakdownForAccount(till.accountId);
+  return { till, balanceCents: breakdown.totalCents, cashCents: breakdown.cashCents };
 }
 
 // --- getBulkCashierUsers: users who have Float Approve permission (any user, not just staff) ---
@@ -197,6 +199,25 @@ export async function createFloatRequest(
     } as never,
     include: includeFloatRequest(),
   });
+
+  const requesterName = row.requestedBy?.name?.trim() || 'A cashier';
+  const floatLabel = row.floatNoString ? ` ${row.floatNoString}` : '';
+  await createNotification({
+    userId: input.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatRequested,
+    title: 'Float request submitted to you',
+    message: `${requesterName} requested LKR ${formatCents(input.amountRequested)}${floatLabel}. Approve or reject it.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: row.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(input.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: row.id,
+      status: FLOAT_REQUEST_STATUS.PENDING,
+    });
+  }
 
   return { success: true, floatRequest: mapFloatRequest(row) };
 }
@@ -355,6 +376,40 @@ export async function getFloatRequestsForBulkCashierPaginated(
   return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
 }
 
+export type GetFloatRequestsRequestedByUserPaginatedParams = {
+  page?: number;
+  limit?: number;
+  status?: number | null;
+  bulkCashierId?: string | null;
+};
+
+/** Paginated list of float requests submitted by this user (Float Transfers "Requested" tab). */
+export async function getFloatRequestsRequestedByUserPaginated(
+  requestedById: string,
+  params: GetFloatRequestsRequestedByUserPaginatedParams = {}
+) {
+  const page = Math.max(0, params.page ?? 0);
+  const limit = Math.min(Math.max(params.limit ?? 10, 1), 100);
+  const where: { requestedById: string; status?: number; bulkCashierId?: string } = {
+    requestedById,
+  };
+  if (params.status !== undefined && params.status !== null) where.status = params.status;
+  if (params.bulkCashierId) where.bulkCashierId = params.bulkCashierId;
+
+  const [totalRecords, rows] = await Promise.all([
+    prisma.floatRequest.count({ where: where as never }),
+    prisma.floatRequest.findMany({
+      where: where as never,
+      include: includeFloatRequest(),
+      orderBy: { createdAt: 'desc' },
+      skip: page * limit,
+      take: limit,
+    }),
+  ]);
+
+  return { data: await Promise.all(rows.map(withFloatDocumentNumber)), totalRecords };
+}
+
 // --- getPendingFloatRequestByUserId ---
 export async function getPendingFloatRequestByUserId(
   userId: string
@@ -443,11 +498,11 @@ export async function approveFloatRequest(
     };
   }
 
-  const fromBalanceCents = await getAccountBalance(fromTill.accountId);
-  if (fromBalanceCents < approvedTotalCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fromTill.accountId)).cashCents;
+  if (fromCashCents < approvedTotalCents) {
     return {
       success: false,
-      error: `Insufficient balance in your active till. Available: ${formatCents(fromBalanceCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
+      error: `Insufficient cash in your active till. Available cash: ${formatCents(fromCashCents)} LKR, required: ${formatCents(approvedTotalCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -582,11 +637,11 @@ export async function receiveFloatRequest(
   if (amountCents <= 0) {
     return { success: false, error: 'Approved amount is missing or zero.' };
   }
-  const fromBalanceCents = await getAccountBalance(fr.fromAccountId);
-  if (fromBalanceCents < amountCents) {
+  const fromCashCents = (await getTillBalanceBreakdownForAccount(fr.fromAccountId)).cashCents;
+  if (fromCashCents < amountCents) {
     return {
       success: false,
-      error: `Insufficient balance in source account. Available: ${formatCents(fromBalanceCents)} LKR.`,
+      error: `Insufficient cash in source till. Available cash: ${formatCents(fromCashCents)} LKR.`,
       errorCode: 'INSUFFICIENT_BALANCE',
     };
   }
@@ -598,8 +653,18 @@ export async function receiveFloatRequest(
     referenceId: fr.id,
     createdBy: input.receivedById,
     lines: [
-      { accountId: toAccountId, debitAmount: amountCents, creditAmount: 0 },
-      { accountId: fr.fromAccountId, debitAmount: 0, creditAmount: amountCents },
+      {
+        accountId: toAccountId,
+        debitAmount: amountCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
+      {
+        accountId: fr.fromAccountId,
+        debitAmount: 0,
+        creditAmount: amountCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+      },
     ],
   });
 
@@ -762,6 +827,24 @@ export async function cancelFloatRequest(
     },
     include: includeFloatRequest(),
   });
+
+  const requesterName = updated.requestedBy?.name?.trim() || 'The requester';
+  await createNotification({
+    userId: fr.bulkCashierId,
+    type: NOTIFICATION_TYPES.FloatCancelled,
+    title: 'Float request cancelled',
+    message: `${requesterName} cancelled their pending float request.`,
+    referenceType: NOTIF_REF_TYPES.FloatRequest,
+    referenceId: updated.id,
+  });
+
+  const io = getIO();
+  if (io) {
+    io.to(floatRequestRoom(fr.bulkCashierId)).emit('float-request-update', {
+      floatRequestId: updated.id,
+      status: FLOAT_REQUEST_STATUS.CANCELLED,
+    });
+  }
 
   return { success: true, floatRequest: mapFloatRequest(updated) };
 }

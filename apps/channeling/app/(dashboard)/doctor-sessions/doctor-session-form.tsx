@@ -11,11 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Ban, ChevronRight, Download, Loader, Save } from 'lucide-react';
 import {
   ADVANCE_BOOKING_ENABLED_OPTIONS,
-  ADVANCED_BOOKING_OPTIONS,
   DoctorSession,
   DoctorSessionFormValues,
   Fee,
-  LastDoctorSessionFees
+  LastDoctorSessionFees,
+  mergeCanonicalSessionFees
 } from '@/types/doctor.session';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
@@ -85,7 +85,7 @@ const DETAILS_FIELD_KEYS = [
   'applyTo',
   'startingPatientNumber',
   'maxPatientNumber',
-  'advancedBookingDays'
+  'advancedBookingEnabled'
 ] as const;
 
 export default function DoctorSessionForm({
@@ -185,9 +185,12 @@ export default function DoctorSessionForm({
         ? doctorSession.previousSessionId
         : '',
     refundable: doctorSession?.refundable ?? 0,
-    advancedBookingDays: doctorSession?.advancedBookingDays ?? 0,
+    advancedBookingEnabled: doctorSession?.advancedBookingEnabled ?? false,
     status: doctorSession?.status ?? 1,
-    fees: doctorSession?.fees ?? defaultFeesForCreate,
+    fees: mergeCanonicalSessionFees(
+      doctorSession?.fees ?? defaultFeesForCreate,
+      feeTypeOptions
+    ),
     amountLocal:
       doctorSession?.amountLocal ??
       (isCreate && lastSessionFees ? lastSessionFees.amountLocal : 0),
@@ -262,10 +265,7 @@ export default function DoctorSessionForm({
       .min(1, 'Minimum value is 1')
       .required('This field is mandatory'),
 
-    advancedBookingDays: Yup.number()
-      .min(0)
-      .max(100)
-      .required('This field is mandatory'),
+    advancedBookingEnabled: Yup.boolean().required('This field is mandatory'),
 
     amountLocal: Yup.number()
       .transform((value) => (value === '' || value == null ? undefined : Number(value)))
@@ -741,43 +741,17 @@ export default function DoctorSessionForm({
                         <CustomSelectField
                           id="advanceBookingEnabled"
                           placeholder="Advance Booking"
-                          value={
-                            formik.values.advancedBookingDays > 0 ? '1' : '0'
-                          }
-                          onChange={(value) => {
-                            if (value === '0') {
-                              formik.setFieldValue('advancedBookingDays', 0);
-                              return;
-                            }
+                          value={formik.values.advancedBookingEnabled ? '1' : '0'}
+                          onChange={(value) =>
                             formik.setFieldValue(
-                              'advancedBookingDays',
-                              formik.values.advancedBookingDays > 0
-                                ? formik.values.advancedBookingDays
-                                : 1
-                            );
-                          }}
+                              'advancedBookingEnabled',
+                              value === '1'
+                            )
+                          }
                           required={false}
                           options={ADVANCE_BOOKING_ENABLED_OPTIONS}
                           styleClasses={compactClasses}
                         />
-                        {formik.values.advancedBookingDays > 0 ? (
-                          <CustomSelectField
-                            id="advancedBookingDays"
-                            placeholder="Advance Booking Days"
-                            value={String(formik.values.advancedBookingDays)}
-                            onChange={(value) =>
-                              formik.setFieldValue(
-                                'advancedBookingDays',
-                                Number(value)
-                              )
-                            }
-                            required={false}
-                            options={ADVANCED_BOOKING_OPTIONS.filter(
-                              (option) => Number(option.id) > 0
-                            )}
-                            styleClasses={compactClasses}
-                          />
-                        ) : null}
                         <CustomSelectField
                           id="status"
                           placeholder="Status"

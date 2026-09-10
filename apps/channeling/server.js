@@ -25,6 +25,7 @@ app.prepare().then(() => {
   const FLOAT_REQUEST_PREFIX = 'float-request:'
   const FLOAT_BALANCE_PREFIX = 'float-balance:'
   const SHIFT_PREFIX = 'shift:'
+  const NOTIFICATION_PREFIX = 'notification:'
 
   io.on('connection', (socket) => {
     // Leave any previous channel-booking room so each socket is in at most one (no accumulation)
@@ -151,6 +152,25 @@ app.prepare().then(() => {
       const { userId } = payload || {}
       if (userId) {
         const room = `${SHIFT_PREFIX}${userId}`
+        socket.leave(room)
+      }
+    })
+
+    socket.on('notification:subscribe', (payload) => {
+      const { userId } = payload || {}
+      if (userId) {
+        const room = `${NOTIFICATION_PREFIX}${userId}`
+        socket.join(room)
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[socket] notification:subscribe', { room, socketId: socket.id })
+        }
+      }
+    })
+
+    socket.on('notification:unsubscribe', (payload) => {
+      const { userId } = payload || {}
+      if (userId) {
+        const room = `${NOTIFICATION_PREFIX}${userId}`
         socket.leave(room)
       }
     })

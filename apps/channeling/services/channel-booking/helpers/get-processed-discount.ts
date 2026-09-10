@@ -1,6 +1,6 @@
 import prisma from "@/lib/prisma"
 import { DiscountMethod, PaymentType } from "@prisma/client"
-import { getRefundFeeTypes } from "./get-refund-fee-types"
+import { getRefundFeeTypes, type BookingFeeContext } from "./get-refund-fee-types"
 
 /** Only session.fees is used (for professional/hospital fee split). */
 export type SessionForDiscount = { fees: unknown }
@@ -43,7 +43,8 @@ export async function getProcessedDiscount(
   payment_method: number,
   payment_type: number,
   session: SessionForDiscount,
-  foriegner: boolean
+  foriegner: boolean,
+  feeContext?: BookingFeeContext
 ): Promise<ProcessedDiscountResult> {
   const zeroAmounts = {
     discount_value: 0,
@@ -87,7 +88,8 @@ export async function getProcessedDiscount(
 
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     session.fees,
-    foriegner
+    foriegner,
+    feeContext ?? { payment_method, payment_type }
   )
   const value = foriegner ? discount.discountValueForeign : discount.discountValue
 

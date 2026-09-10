@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma"
+import { firstApplicableAutoDiscount } from "@/lib/channel-booking-discount"
 import {
   createReceiptAndUpdateBooking,
   computeBookingDiscounts,
@@ -10,7 +11,9 @@ import {
   resolveReceiptJournalAccounts,
   requireReceiptJournalAccounts,
   resolveReceiptLocationId,
+  hasCreditCardPayment,
 } from "./helpers"
+import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
 import { createJournalEntryInTransaction } from "@/services/accounting.service"
 import { getIO, floatBalanceRoom } from "@/lib/socket-server"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
@@ -23,24 +26,10 @@ import {
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 import { parseSlipDateInput } from "@/lib/slip-date"
-
-type ArrivalDepartureEntry = { time: string; createdBy: string }
+import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 
 function toCents(value: number): number {
   return Math.round(Number(value || 0) * 100)
-}
-
-function parseArrivalDepartureJson(json: unknown): ArrivalDepartureEntry[] {
-  if (!Array.isArray(json)) return []
-  return json.filter(
-    (item): item is ArrivalDepartureEntry =>
-      item != null &&
-      typeof item === "object" &&
-      "time" in item &&
-      "createdBy" in item &&
-      typeof (item as ArrivalDepartureEntry).time === "string" &&
-      typeof (item as ArrivalDepartureEntry).createdBy === "string"
-  )
 }
 
 function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: number) {
@@ -161,6 +150,10 @@ export async function settleBookingService(
     }
   }
 
+  const { assertNoOpenApproval } = await import("@/services/approval-request.service")
+  const openBlock = await assertNoOpenApproval(input.booking_id)
+  if (openBlock) return openBlock
+
   if (booking.session?.status === 0) {
     return {
       success: false,
@@ -237,18 +230,12 @@ export async function settleBookingService(
     }
   }
 
-  const arrivals = parseArrivalDepartureJson(sessionWithMeta?.doctorArrivalTime)
-  const departures = parseArrivalDepartureJson(sessionWithMeta?.doctorDepatureTime)
-  if (departures.length > 0) {
-    const lastDepTime = Math.max(...departures.map((e) => parseInt(e.time, 10) || 0))
-    const hasArrivalAfterLastDep = arrivals.some((e) => (parseInt(e.time, 10) || 0) > lastDepTime)
-    if (!hasArrivalAfterLastDep) {
-      return {
-        success: false,
-        errorCode: "doctor_departed",
-        message:
-          "Doctor has departed. Doctor must arrive again before settlement is allowed.",
-      }
+  if (isSessionDoctorDeparted(sessionWithMeta)) {
+    return {
+      success: false,
+      errorCode: "doctor_departed",
+      message:
+        "Doctor has departed. Doctor must arrive again before settlement is allowed.",
     }
   }
 
@@ -261,17 +248,37 @@ export async function settleBookingService(
   }
 
   const sessionForDiscount = { fees: booking.session.fees }
+  const hasCreditCardLine = hasCreditCardPayment(
+    input.settle_method,
+    input.payment_lines
+  )
+  const feeContext = {
+    payment_method: booking.method,
+    payment_type: 0,
+    hasCreditCardLine,
+  }
   const { professional_fee, hospital_fee } = getRefundFeeTypes(
     sessionForDiscount.fees,
-    booking.foriegner
+    booking.foriegner,
+    feeContext
   )
   const grossAmount = professional_fee + hospital_fee
 
+  const discounts = await getDiscountsForBookingService()
+  const settleAutoDiscountId =
+    firstApplicableAutoDiscount(
+      discounts.auto,
+      booking.method,
+      input.settle_method
+    )?.id ?? null
+
   const discountResult = await computeBookingDiscounts({
-    autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+    autoDiscountId: settleAutoDiscountId,
     manualDiscountId: booking.discountId ?? null,
     payment_method: booking.method,
     payment_type: input.settle_method,
+    hasCreditCardLine,
+    feeContext,
     session: sessionForDiscount,
     foriegner: booking.foriegner,
     strict: false,
@@ -392,8 +399,10 @@ export async function settleBookingService(
         hospitalFeeDiscount: discountDivision.hospital_fee_discount,
         professionsalFeeDiscount: discountDivision.professionsal_fee_discount,
         discount,
-        autoDiscountId: booking.autoDiscountId ?? input.auto_discount_type ?? null,
+        autoDiscountId: settleAutoDiscountId,
         amount,
+        professionalFee: professional_fee,
+        hospitalFee: hospital_fee,
         receiptNo: receipt.receiptNo,
         receiptNoString: receipt.receiptNoString,
         receiptPaymentMethod: input.settle_method === SAVE_PAYMENT_TYPE_MIXED ? SAVE_PAYMENT_TYPE_MIXED : input.settle_method,

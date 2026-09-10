@@ -90,6 +90,8 @@ export type CreateReceiptWithoutBookingParams = {
   whd?: number
   /** For method 4 (doctor payment): WHT percentage. */
   whdPercentage?: number
+  /** For method 4/5 (doctor payment / cancel): doctor this receipt is for. */
+  doctorId?: string | null
   /** Channel booking shift id when receipt is created during a shift (for reconciliation). */
   shiftId?: string | null
   paymentLines?: ReceiptPaymentLineDraft[]
@@ -188,6 +190,7 @@ export async function createReceiptWithoutBooking(
       whdPercentage: params.whdPercentage ?? 0,
       bookingId: null,
       agencyId: params.agencyId ?? null,
+      doctorId: params.doctorId ?? null,
       createdBy: params.createdBy ?? null,
       shiftId: params.shiftId ?? null,
       locationId: params.locationId ?? null,

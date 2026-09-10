@@ -461,6 +461,15 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
     }
   }
 
+  const { openApprovalsBlockingShiftMessage } = await import("@/services/approval-request.service")
+  const openApprovalsError = await openApprovalsBlockingShiftMessage(userId)
+  if (openApprovalsError) {
+    return {
+      allowed: false,
+      reason: openApprovalsError,
+    }
+  }
+
   const received = await prisma.shiftHandover.findMany({
     where: { toUserId: userId, status: HANDOVER_STATUS.APPROVED },
     select: { id: true, forwardedToHandoverId: true, reconciliationStatus: true },

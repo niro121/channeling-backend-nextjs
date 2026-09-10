@@ -23,6 +23,7 @@ import {
   getHandoversToMeAction,
   getPendingIncomingHandoverCountAction,
   getOpenFloatsBlockingShiftEndAction,
+  getOpenApprovalRequestsBlockingShiftEndAction,
   getIncludableHandoversForSenderAction,
   getLinkedHandoversForShiftAction,
   getNonCashHeldInReconciliationAction,
@@ -46,9 +47,19 @@ import {
   Smartphone,
   CircleAlert,
   CheckCircle2,
+  Camera,
+  ZoomIn,
 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
+import type { ShiftBillAttachmentDto } from "@/types/shift-bill-attachment"
+import { SHIFT_BILL_KIND_LABELS, shiftBillUploaderTag } from "@/types/shift-bill-attachment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
+import {
+  formatHandoverOverAmountError,
+  getHandoverAmountOvers,
+} from "@/lib/handover-utils"
 import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
@@ -96,6 +107,39 @@ function centsFromLkrString(value: string): number {
 
 function matchDenom(a: number, b: number) {
   return a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6
+}
+
+function handoverDiffLabel(enteredCents: number, availableCents: number): string {
+  const diff = availableCents - enteredCents
+  if (diff === 0) return "difference: 0.00"
+  if (diff > 0) return `difference: Short ${formatCents(diff)}`
+  return `difference: Over ${formatCents(Math.abs(diff))}`
+}
+
+function HandoverTabAmountSummary({
+  label,
+  enteredCents,
+  availableCents,
+  availableSuffix,
+}: {
+  label: string
+  enteredCents: number
+  availableCents: number
+  availableSuffix?: string
+}) {
+  const mismatch = enteredCents !== availableCents
+  const availableText = availableSuffix
+    ? `available to hand over ${availableSuffix}`
+    : "available to hand over"
+  return (
+    <p className="text-sm font-medium tabular-nums">
+      {label} entered: {formatCents(enteredCents)}
+      <span className={mismatch ? "text-destructive font-medium" : "text-muted-foreground"}>
+        {" "}
+        ({availableText}: {formatCents(availableCents)} · {handoverDiffLabel(enteredCents, availableCents)})
+      </span>
+    </p>
+  )
 }
 
 type OpenFloatsBlocking = {
@@ -155,6 +199,8 @@ export function EndShiftHandoverDialog({
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [openFloatsBlocking, setOpenFloatsBlocking] = useState<OpenFloatsBlocking>(EMPTY_OPEN_FLOATS)
+  const [openApprovalRequestsCount, setOpenApprovalRequestsCount] = useState(0)
+  const [openApprovalRequestsMessage, setOpenApprovalRequestsMessage] = useState<string | null>(null)
   const [pendingHandoversToMe, setPendingHandoversToMe] = useState<{ id: string }[]>([])
   const [includableHandovers, setIncludableHandovers] = useState<{ id: string; createdAt: string; totalCents: number; fromUser: { name: string | null; staff: { code: string } | null } }[]>([])
   const [selectedIncludedHandoverIds, setSelectedIncludedHandoverIds] = useState<string[]>([])
@@ -165,8 +211,12 @@ export function EndShiftHandoverDialog({
   const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const [canEndWithoutHandover, setCanEndWithoutHandover] = useState(false)
   const [endWithoutLoading, setEndWithoutLoading] = useState(false)
+  const [billAttachments, setBillAttachments] = useState<ShiftBillAttachmentDto[]>([])
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([])
+  const [billAttachmentsLoading, setBillAttachmentsLoading] = useState(false)
   const { toast } = useToast()
   const hasOpenFloats = openFloatsCount(openFloatsBlocking) > 0
+  const hasOpenApprovalRequests = openApprovalRequestsCount > 0
 
   // Cash: denominations (notes 10+ ; coins 5, 2, 1 + cents)
   const [cashDenoms, setCashDenoms] = useState<DenominationEntry[]>(() =>
@@ -223,7 +273,22 @@ export function EndShiftHandoverDialog({
       setHandoverPermissionDenied(null)
       setCanEndWithoutHandover(false)
       setOpenFloatsBlocking(EMPTY_OPEN_FLOATS)
+      setOpenApprovalRequestsCount(0)
+      setOpenApprovalRequestsMessage(null)
       setBalanceLoading(true)
+      setBillAttachmentsLoading(true)
+      listMyShiftBillAttachmentsAction()
+        .then((res) => {
+          if (res.success) {
+            const unattached = res.data.filter((item) => !item.handoverId)
+            setBillAttachments(unattached)
+            setSelectedAttachmentIds(unattached.map((item) => item.id))
+          } else {
+            setBillAttachments([])
+            setSelectedAttachmentIds([])
+          }
+        })
+        .finally(() => setBillAttachmentsLoading(false))
       Promise.all([
         getMyTillBalance(),
         getHandoversToMeAction(),
@@ -234,9 +299,10 @@ export function EndShiftHandoverDialog({
         getNonCashHeldInReconciliationAction(),
         getPendingIncomingHandoverCountAction(),
         getOpenFloatsBlockingShiftEndAction(),
+        getOpenApprovalRequestsBlockingShiftEndAction(),
         canEndShiftWithoutHandoverAction(),
       ])
-        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, endWithoutRes]) => {
+        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -250,6 +316,8 @@ export function EndShiftHandoverDialog({
           }
           setHeldInReconciliation(heldRes.success && heldRes.data ? heldRes.data : null)
           setOpenFloatsBlocking(openFloatsRes.success ? openFloatsRes.blocking : EMPTY_OPEN_FLOATS)
+          setOpenApprovalRequestsCount(openApprovalsRes.success ? openApprovalsRes.count : 0)
+          setOpenApprovalRequestsMessage(openApprovalsRes.success ? openApprovalsRes.message : null)
           const pendingFromList =
             handoversToMeRes.success && handoversToMeRes.data?.length
               ? handoversToMeRes.data.map((h) => ({ id: h.id }))
@@ -387,6 +455,16 @@ export function EndShiftHandoverDialog({
       })
       return
     }
+    if (hasOpenApprovalRequests) {
+      toast({
+        variant: "destructive",
+        title: "Cancel/refund requests are still open",
+        description:
+          openApprovalRequestsMessage ??
+          "Complete, withdraw, or wait for rejection before handing over.",
+      })
+      return
+    }
     if (hasOpenFloats) {
       toast({
         variant: "destructive",
@@ -406,6 +484,16 @@ export function EndShiftHandoverDialog({
         variant: "destructive",
         title: "Handovers need your action",
         description: `You have ${pendingHandoversToMe.length} handover(s) pending your acceptance. Accept or reject them on the Handovers page before ending your shift.`,
+      })
+      return
+    }
+    if (hasOpenApprovalRequests) {
+      toast({
+        variant: "destructive",
+        title: "Cancel/refund requests are still open",
+        description:
+          openApprovalRequestsMessage ??
+          "Complete, withdraw, or wait for rejection before ending your shift.",
       })
       return
     }
@@ -557,7 +645,16 @@ export function EndShiftHandoverDialog({
     eWalletCents: eWalletEntries,
   } as const
 
-  const OVER_TOLERANCE_CENTS = 100 // Same as backend: reason required when over > 100 cents
+  const enteredAmounts = {
+    cashCents: cashTotalCents,
+    cardCents,
+    slipCents,
+    checkCents,
+    creditCents,
+    eWalletCents,
+  }
+  const amountOvers = expectedBalance ? getHandoverAmountOvers(enteredAmounts, expectedBalance) : []
+  const hasOver = amountOvers.length > 0
   const hasShort =
     expectedBalance &&
     (cashTotalCents < expectedBalance.cashCents ||
@@ -566,20 +663,15 @@ export function EndShiftHandoverDialog({
       checkCents < expectedBalance.checkCents ||
       creditCents < expectedBalance.creditCents ||
       eWalletCents < expectedBalance.eWalletCents)
-  const hasOverOver100 =
-    expectedBalance &&
-    (cashTotalCents - expectedBalance.cashCents > OVER_TOLERANCE_CENTS ||
-      cardCents - expectedBalance.cardCents > OVER_TOLERANCE_CENTS ||
-      slipCents - expectedBalance.slipCents > OVER_TOLERANCE_CENTS ||
-      checkCents - expectedBalance.checkCents > OVER_TOLERANCE_CENTS ||
-      creditCents - expectedBalance.creditCents > OVER_TOLERANCE_CENTS ||
-      eWalletCents - expectedBalance.eWalletCents > OVER_TOLERANCE_CENTS)
-  const needsDiscrepancyReason = !!hasShort || !!hasOverOver100
+  const needsDiscrepancyReason = !!hasShort && !hasOver
 
   const validateAndSubmit = async () => {
     if (!expectedBalance || !toUserId) return
     const errors: string[] = []
     errors.push(...validateMethodEntries())
+    if (hasOver) {
+      errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
+    }
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
       errors.push("Please provide a reason for the discrepancy.")
     }
@@ -597,6 +689,18 @@ export function EndShiftHandoverDialog({
           variant: "destructive",
           title: "Handovers need your action",
           description: `You have ${pendingCheck.count} handover(s) pending your acceptance. Accept or reject them on the Handovers page before submitting a handover.`,
+        })
+        return
+      }
+      const pendingApprovalCheck = await getOpenApprovalRequestsBlockingShiftEndAction()
+      if (pendingApprovalCheck.success && pendingApprovalCheck.count > 0) {
+        setSubmitLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Cancel/refund requests are still open",
+          description:
+            pendingApprovalCheck.message ??
+            "Complete, withdraw, or wait for rejection before submitting a handover.",
         })
         return
       }
@@ -647,6 +751,7 @@ export function EndShiftHandoverDialog({
         discrepancyReason: discrepancyReason.trim() || undefined,
         enteredBreakdown,
         includedHandoverIds: idsToInclude,
+        attachmentIds: selectedAttachmentIds.length > 0 ? selectedAttachmentIds : undefined,
       })
       const recipientName = handoverUsers.find((u) => u.id === toUserId)?.name ?? "recipient"
       toast({ title: `Handover submitted. Waiting for ${recipientName} to approve.` })
@@ -679,7 +784,7 @@ export function EndShiftHandoverDialog({
                 ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
                 : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
-              "Entries from handovers not sent to reconciliation are pre-filled. Handovers already in (or finished) reconciliation stay with you and are not included. We warn if amounts do not match what is available to hand over."}
+              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available (with a reason). You cannot hand over more than the till holds."}
             {step === 3 &&
               "Review the summary below, check any warnings, select the person receiving the handover, then confirm."}
           </DialogDescription>
@@ -740,6 +845,19 @@ export function EndShiftHandoverDialog({
                     Handovers page
                   </Link>{" "}
                   before you can end your shift and hand over.
+                </AlertDescription>
+              </Alert>
+            )}
+            {hasOpenApprovalRequests && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Cancel/refund requests are still open</AlertTitle>
+                <AlertDescription>
+                  {openApprovalRequestsMessage ??
+                    "Complete, withdraw, or wait for rejection before ending your shift."}{" "}
+                  <Link href="/approvals" className="underline font-medium hover:no-underline" onClick={() => onOpenChange(false)}>
+                    Open Approval Center
+                  </Link>
                 </AlertDescription>
               </Alert>
             )}
@@ -824,7 +942,7 @@ export function EndShiftHandoverDialog({
               {canEndWithoutHandover ? (
                 <Button
                   onClick={handleEndWithoutHandover}
-                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0 || hasOpenFloats}
+                  disabled={!step1DataReady || endWithoutLoading || pendingHandoversToMe.length > 0 || hasOpenFloats || hasOpenApprovalRequests}
                 >
                   {endWithoutLoading || !step1DataReady ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -834,7 +952,7 @@ export function EndShiftHandoverDialog({
               ) : (
                 <Button
                   onClick={handleProceed}
-                  disabled={!step1DataReady || balanceLoading || !balance || pendingHandoversToMe.length > 0 || hasOpenFloats || !!handoverPermissionDenied}
+                  disabled={!step1DataReady || balanceLoading || !balance || pendingHandoversToMe.length > 0 || hasOpenFloats || hasOpenApprovalRequests || !!handoverPermissionDenied}
                 >
                   {!step1DataReady ? (
                     <>
@@ -908,17 +1026,11 @@ export function EndShiftHandoverDialog({
 
               <TabsContent value="cash" className="mt-3 overflow-y-auto max-h-[50vh] pr-1">
                 <div className="space-y-3">
-                  <p className="text-sm font-medium tabular-nums">
-                    Cash entered: {formatCents(cashTotalCents)}
-                    <span
-                      className={
-                        cashTotalCents !== expectedBalance.cashCents ? "text-destructive font-medium" : "text-muted-foreground"
-                      }
-                    >
-                      {" "}
-                      (available to hand over: {formatCents(expectedBalance.cashCents)})
-                    </span>
-                  </p>
+                  <HandoverTabAmountSummary
+                    label="Cash"
+                    enteredCents={cashTotalCents}
+                    availableCents={expectedBalance.cashCents}
+                  />
                   <div className="flex gap-4">
                     <div className="flex-1 min-w-0 rounded-md border overflow-hidden">
                       <div className="bg-muted/60 px-2 py-1.5 text-xs font-medium">Notes & Coins (10 LKR+)</div>
@@ -979,17 +1091,12 @@ export function EndShiftHandoverDialog({
                   return (
                     <TabsContent key={key} value={tabValue} className="mt-3 overflow-y-auto max-h-[50vh] pr-1">
                       <div className="space-y-2">
-                        <p className="text-sm font-medium tabular-nums">
-                          {tabLabel} entered: {formatCents(total)}
-                          <span
-                            className={
-                              total !== expected ? "text-destructive font-medium" : "text-muted-foreground"
-                            }
-                          >
-                            {" "}
-                            (available to hand over {tillBalanceLabel}: {formatCents(expected)})
-                          </span>
-                        </p>
+                        <HandoverTabAmountSummary
+                          label={tabLabel}
+                          enteredCents={total}
+                          availableCents={expected}
+                          availableSuffix={tillBalanceLabel}
+                        />
                         <div className="flex justify-end">
                           <Button
                             type="button"
@@ -1171,11 +1278,17 @@ export function EndShiftHandoverDialog({
               return mismatches.length > 0 ? (
                 <Alert variant="destructive" className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Entered amounts do not match available to hand over</AlertTitle>
+                  <AlertTitle>
+                    {hasOver
+                      ? "Cannot hand over more than the till holds"
+                      : "Entered amounts are less than available"}
+                  </AlertTitle>
                   <AlertDescription>
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        The following methods have a discrepancy (till minus amounts held in reconciliation). The transfer will use the amounts you entered. Any shortfall remains in your till until reconciled.
+                        {hasOver
+                          ? formatHandoverOverAmountError(amountOvers, "submit")
+                          : "You may hand over less than available. A reason is required. The transfer will use the amounts you entered; any shortfall remains in your till."}
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
@@ -1235,6 +1348,87 @@ export function EndShiftHandoverDialog({
                 )}
               </div>
 
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Camera className="h-3.5 w-3.5" />
+                  Bill photos
+                </Label>
+                {billAttachmentsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading photos…</p>
+                ) : billAttachments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No photos on this shift. You can still submit. Add photos from the camera button on the shift bar.
+                  </p>
+                ) : (
+                  <div className="space-y-2 rounded-md border p-2">
+                    <p className="text-xs text-muted-foreground">
+                      Selected photos will be attached to this handover. Photos received from a previous handover are included automatically.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {billAttachments.map((item) => {
+                      const checked = selectedAttachmentIds.includes(item.id)
+                      const label = item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "relative overflow-hidden rounded-md border bg-muted",
+                            checked && "ring-2 ring-primary ring-offset-1"
+                          )}
+                        >
+                          <label className="block cursor-pointer">
+                            <span className="absolute left-1.5 top-1.5 z-10 rounded-sm bg-background/90">
+                              <Checkbox
+                                checked={checked || item.inherited}
+                                disabled={item.inherited}
+                                onCheckedChange={(value) => {
+                                  if (item.inherited) return
+                                  setSelectedAttachmentIds((prev) =>
+                                    value === true
+                                      ? prev.includes(item.id)
+                                        ? prev
+                                        : [...prev, item.id]
+                                      : prev.filter((id) => id !== item.id)
+                                  )
+                                }}
+                              />
+                            </span>
+                            <span className="block aspect-square">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.thumbUrl}
+                                alt={label}
+                                className="h-full w-full object-cover"
+                              />
+                            </span>
+                            <span className="block px-2 py-1.5">
+                              <span className="block truncate text-xs font-medium">
+                                {label}
+                                {item.note ? ` · ${item.note}` : ""}
+                              </span>
+                              <span className="mt-0.5 inline-flex max-w-full truncate rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {shiftBillUploaderTag(item)}
+                              </span>
+                            </span>
+                          </label>
+                          <a
+                            href={item.viewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open large view in a new tab"
+                            className="absolute right-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-1 text-[11px] font-medium text-foreground shadow-sm hover:bg-background"
+                          >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                            View
+                          </a>
+                        </div>
+                      )
+                    })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {includableHandovers.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   The following handover(s) will be included (no action needed):{" "}
@@ -1283,9 +1477,11 @@ export function EndShiftHandoverDialog({
                   !toUserId ||
                   handoverUsersLoading ||
                   handoverUsers.length === 0 ||
+                  hasOver ||
                   (needsDiscrepancyReason && !discrepancyReason.trim()) ||
                   pendingHandoversToMe.length > 0 ||
-                  hasOpenFloats
+                  hasOpenFloats ||
+                  hasOpenApprovalRequests
                 }
               >
                 {submitLoading ? (
