@@ -76,8 +76,17 @@ export type HandoverExpectedCollectionParts = {
   previousHandoversCents: number
 }
 
+export type ExpectedHandoverCollectionSourceRow = {
+  id: string
+  label: string
+  cents: number
+}
+
 export type ExpectedHandoverCollection = HandoverExpectedCollectionParts & {
   expectedCents: number
+  previousHandovers: ExpectedHandoverCollectionSourceRow[]
+  floatsIn: ExpectedHandoverCollectionSourceRow[]
+  floatsOut: ExpectedHandoverCollectionSourceRow[]
 }
 
 /** Total Collection on the handover page: floats in + Summary + previous handovers − floats out. */

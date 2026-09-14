@@ -1,12 +1,17 @@
+import { format } from "date-fns"
 import prisma from "@/lib/prisma"
 import { formatLKR } from "@/lib/format-money"
 import {
   buildPlaceholdersForBookingReceipt,
   type BookingReceiptPrintInput,
 } from "@/lib/receipt-template/build-placeholders"
+import {
+  formatLocationAddress,
+  PROFESSIONAL_BILL_EXCLUDED_DOCTOR_CODES,
+  RUHUNU_HOSPITAL,
+} from "@/lib/receipt-template/ruhunu-hospital"
 import { getActiveReceiptTemplate } from "@/services/receipt-template/receipt-template.service"
 import { getBookingDetailsService } from "./get-booking-details.service"
-import { resolveUser } from "./helpers/resolve-user"
 import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { ReceiptTemplateRecord } from "@/types/receipt-template-db"
 
@@ -19,6 +24,30 @@ function formatAppointmentNo(value: string | number): string {
 
 function money(amount: number): string {
   return `Rs. ${formatLKR(amount)}`
+}
+
+function invoiceStatus(status: number): string {
+  if (status === 0) return "Credit"
+  if (status === 1) return "Paid"
+  if (status === 2) return "Canceled"
+  return "Unknown"
+}
+
+function statusBanner(opts: { status: number; refund: number; isDuplicate: boolean }): string {
+  if (opts.refund !== 0 && opts.status === 1) return "**Refunded**"
+  if (opts.status === 2) return "**Canceled**"
+  if (opts.isDuplicate && opts.refund === 0 && opts.status === 1) return "**Duplicate**"
+  return ""
+}
+
+async function resolveUserPrintLabel(userId: string | null | undefined): Promise<string> {
+  if (!userId) return "NO USER NAME"
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, staff: { select: { code: true } } },
+  })
+  if (!user) return "NO USER FOUND!"
+  return user.staff?.code ? `${user.name} (${user.staff.code})` : user.name
 }
 
 export type PrintBookingReceiptData = {
@@ -42,11 +71,6 @@ export async function printBookingReceiptService(
         printCount: true,
         printedAt: true,
         locationId: true,
-        booking: {
-          select: {
-            location: { select: { name: true } },
-          },
-        },
       },
     })
     if (!receipt) {
@@ -72,6 +96,63 @@ export async function printBookingReceiptService(
       },
     })
 
+    const extra = await prisma.booking.findUnique({
+      where: { id: receipt.bookingId },
+      select: {
+        createdBy: true,
+        hospitalFee: true,
+        professionalFee: true,
+        hospitalFeeDiscount: true,
+        professionsalFeeDiscount: true,
+        doctor: { select: { code: true } },
+        staff: { select: { name: true, code: true } },
+        agency: { select: { name: true, code: true } },
+        location: {
+          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+        },
+      },
+    })
+
+    const locationFromReceipt = receipt.locationId
+      ? await prisma.location.findUnique({
+          where: { id: receipt.locationId },
+          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+        })
+      : null
+    const location = locationFromReceipt ?? extra?.location ?? null
+
+    const locationName = location?.name?.trim() || RUHUNU_HOSPITAL.name
+    const locationAddress = location ? formatLocationAddress(location) : ""
+    const addressLine = locationAddress || RUHUNU_HOSPITAL.address
+
+    const hospitalFee = extra?.hospitalFee ?? details.refundableBreakdown?.hospitalFee ?? 0
+    const hospitalFeeDiscount =
+      extra?.hospitalFeeDiscount ?? details.discountInfo.hospitalFeeDiscount ?? 0
+    const professionalFee =
+      extra?.professionalFee ?? details.refundableBreakdown?.professionalFee ?? 0
+    const professionalFeeDiscount =
+      extra?.professionsalFeeDiscount ?? details.discountInfo.professionalFeeDiscount ?? 0
+
+    const doctorCode = extra?.doctor?.code ?? ""
+    const showProfessionalBill =
+      professionalFee > 0 &&
+      !(PROFESSIONAL_BILL_EXCLUDED_DOCTOR_CODES as readonly string[]).includes(doctorCode)
+
+    const staffDebiter = extra?.staff
+      ? `${extra.staff.name}${extra.staff.code ? ` (${extra.staff.code})` : ""}`
+      : ""
+    const agencyDebiter = extra?.agency
+      ? `${extra.agency.name}${extra.agency.code ? ` (${extra.agency.code})` : ""}`
+      : ""
+    const creditDebiter = details.creditCustomerInfo
+      ? `${details.creditCustomerInfo.creditCustomerName}${
+          details.creditCustomerInfo.creditCustomerCode
+            ? ` (${details.creditCustomerInfo.creditCustomerCode})`
+            : ""
+        }`
+      : ""
+    const debiter = [staffDebiter, agencyDebiter, creditDebiter].filter(Boolean).join(" ")
+
     const refund = details.cancelOrRefundDetails
     const refundAmount = refund && refund.refundAmount !== 0 ? money(Math.abs(refund.refundAmount)) : ""
     const refundReceiptNo = refund?.refundReceipts[0]?.receiptNoString?.trim() ?? ""
@@ -81,24 +162,21 @@ export async function printBookingReceiptService(
     if (refundReceiptNo) refundParts.push(`Refund Receipt: ${refundReceiptNo}`)
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
 
-    const locationId = receipt.locationId
-    const location = locationId
-      ? await prisma.location.findUnique({
-          where: { id: locationId },
-          select: { name: true },
-        })
-      : null
-    const locationName = location?.name ?? receipt.booking?.location?.name
+    const [cashierCode, printedBy] = await Promise.all([
+      resolveUserPrintLabel(extra?.createdBy),
+      resolveUserPrintLabel(printedByUserId),
+    ])
 
-    const generatedByName = printedByUserId ? await resolveUser(printedByUserId) : ""
-    const generatedBy =
-      printedByUserId && generatedByName && generatedByName !== "—"
-        ? `${generatedByName} (${printedByUserId})`
-        : generatedByName || ""
+    const billedAt = format(new Date(details.createdAt), "yyyy-MM-dd, h:mm:ss a")
+    const banner = statusBanner({
+      status: details.status,
+      refund: details.refund ?? 0,
+      isDuplicate,
+    })
 
     const input: BookingReceiptPrintInput = {
-      patientName: details.name,
-      consultant: details.consultant,
+      patientName: details.name.toUpperCase(),
+      consultant: details.consultant.toUpperCase(),
       appointmentNo: formatAppointmentNo(details.appointmentNo),
       appointmentDate: details.appointmentDate,
       appointmentTime: details.appointmentTime,
@@ -108,6 +186,18 @@ export async function printBookingReceiptService(
       billSubTotal: money(details.billSubTotal),
       discount: money(details.discount),
       billTotal: money(details.billTotal),
+      hospitalFee: money(hospitalFee),
+      hospitalFeeDiscount: hospitalFeeDiscount > 0 ? money(hospitalFeeDiscount) : "",
+      totalHospitalFee: money(Math.max(0, hospitalFee - hospitalFeeDiscount)),
+      professionalFee: money(professionalFee),
+      professionalFeeDiscount: professionalFeeDiscount > 0 ? money(professionalFeeDiscount) : "",
+      totalProfessionalFee: money(Math.max(0, professionalFee - professionalFeeDiscount)),
+      billedAt,
+      cashierCode,
+      invoiceStatus: invoiceStatus(details.status),
+      printedBy,
+      debiter,
+      showProfessionalBill,
       billedBy: details.billedBy,
       remarks: details.remark?.trim() || "—",
       area: details.area,
@@ -115,10 +205,12 @@ export async function printBookingReceiptService(
       refundAmount,
       refundReceiptNo,
       refundReason,
-      generatedBy,
+      generatedBy: printedBy,
       companyName: locationName,
       locationName,
+      locationAddress: addressLine,
       duplicateLabel: isDuplicate ? "DUPLICATE" : "",
+      statusBanner: banner,
     }
 
     const placeholders = buildPlaceholdersForBookingReceipt(input)

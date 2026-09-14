@@ -73,6 +73,7 @@ import { HandoverSummaryPrint } from "./handover-summary-print"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { cn } from "@/lib/utils"
 import { HandoverBillGallery } from "@/components/shift-bills/handover-bill-gallery"
+import { HandoverCollectionCalcInfo } from "@/components/handover-collection-calc-info"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
@@ -1011,6 +1012,25 @@ export default function HandoverDetailPage() {
         parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
         if (prevTotal > 0) parts.push({ label: "Previous Handovers", cents: prevTotal, sign: "+" })
         if (floatsOutTotal > 0) parts.push({ label: "Floats Out", cents: floatsOutTotal, sign: "−" })
+        const previousHandoverRows = includedHandovers.map((h) => ({
+          id: h.id,
+          label: [h.handoverNoString, fromUserLabel(h.fromUser)].filter(Boolean).join(" · ") || "Previous handover",
+          cents: h.totalCents,
+        }))
+        const floatsInRows = receivedFloats
+          .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .map((f) => ({
+            id: f.id,
+            label: f.floatNoString?.trim() || "Float in",
+            cents: f.amountReceivedCents ?? 0,
+          }))
+        const floatsOutRows = receivedFloats
+          .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
+          .map((f) => ({
+            id: f.id,
+            label: f.floatNoString?.trim() || "Float out",
+            cents: f.amountReceivedCents ?? 0,
+          }))
         return (
           <Card className="border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/20">
             <CardContent className="p-3">
@@ -1024,7 +1044,17 @@ export default function HandoverDetailPage() {
                   </div>
                 ))}
                 <div className="flex justify-between gap-4 border-t border-blue-500/30 pt-1 font-bold">
-                  <span>Total Collection</span>
+                  <span className="inline-flex items-center gap-1">
+                    Total Collection
+                    <HandoverCollectionCalcInfo
+                      summaryCents={summaryVal}
+                      previousHandovers={previousHandoverRows}
+                      floatsIn={floatsInRows}
+                      floatsOut={floatsOutRows}
+                      expectedCents={collectionTotal}
+                      enteredCents={totalCents}
+                    />
+                  </span>
                   <span className="tabular-nums">LKR {formatCents(collectionTotal)}</span>
                 </div>
                 {hasSummary ? (
