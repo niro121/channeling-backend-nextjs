@@ -96,7 +96,52 @@ function ChannelScheduleWithChargesReportContentInner(
               </div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const branchOpts = withAllBranchesOptions(props.locationOptions);
+          const rtId = values.reportType ?? '__all__';
+          return [
+            {
+              label: 'Institution',
+              value: filterOptionLabel(
+                values.institutionId,
+                'All Institutions',
+                props.institutionOptions
+              ),
+            },
+            {
+              label: 'Branch',
+              value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
+            },
+            {
+              label: 'Department',
+              value: filterOptionLabel(
+                values.departmentId,
+                'All Departments',
+                props.departmentOptions
+              ),
+            },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                props.specialityOptions
+              ),
+            },
+            {
+              label: 'Type',
+              value:
+                rtId === '__all__' || rtId === ''
+                  ? 'All report types'
+                  : reportTypeOptions.find((o) => o.id === rtId)?.name ?? rtId,
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <>

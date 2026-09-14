@@ -183,7 +183,7 @@ export const printPdfUtil = <T>({
 };
 
 // ==== PDF PRINT WITH HEADER HANDLE UTIL (title + custom header lines + table only) ==== //
-type PrintPdfWithHeaderOptions<T> = {
+type PdfWithHeaderOptions<T> = {
   title?: string;
   headerLines?: string[];
   data: T[];
@@ -191,35 +191,27 @@ type PrintPdfWithHeaderOptions<T> = {
   keys: (keyof T)[];
 };
 
-/**
- * Generates a PDF with:
- * - Report title
- * - Custom header lines (e.g. session details with labels)
- * - Table only (autoTable) from provided data
- */
-export const printPdfUtilWithHeader = <T>({
+function buildPdfWithHeaderDoc<T>({
   title = 'Report',
   headerLines = [],
   data,
   columns,
   keys
-}: PrintPdfWithHeaderOptions<T>) => {
+}: PdfWithHeaderOptions<T>) {
   const doc = new jsPDF({ orientation: 'l' });
   const margin = 14;
 
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
-      : (doc.internal.pageSize as any).width) ?? 297;
+      : (doc.internal.pageSize as { width?: number }).width) ?? 297;
   const tableWidth = pageWidth - margin * 2;
 
-  // Title
   let y = 20;
   doc.setFontSize(16);
   doc.text(title, margin, y);
   y += 10;
 
-  // Header lines (session details)
   if (headerLines?.length) {
     doc.setFontSize(11);
     for (const raw of headerLines) {
@@ -227,7 +219,7 @@ export const printPdfUtilWithHeader = <T>({
       if (!line) continue;
 
       const split = doc.splitTextToSize(line, tableWidth);
-      doc.text(split as any, margin, y);
+      doc.text(split, margin, y);
       y += split.length * 6;
     }
     y += 4;
@@ -235,7 +227,7 @@ export const printPdfUtilWithHeader = <T>({
 
   const rows = data.map((item) =>
     keys.map((key) => {
-      const value = (item as any)?.[key];
+      const value = (item as Record<string, unknown>)?.[key as string];
       return value !== undefined && value !== null ? String(value) : '-';
     })
   );
@@ -250,12 +242,43 @@ export const printPdfUtilWithHeader = <T>({
     headStyles: { overflow: 'ellipsize', fontSize: 8, fillColor: '#317D5A' }
   });
 
+  return doc;
+}
+
+/**
+ * Generates a PDF with:
+ * - Report title
+ * - Custom header lines (e.g. session details with labels)
+ * - Table only (autoTable) from provided data
+ */
+export const printPdfUtilWithHeader = <T>({
+  title = 'Report',
+  headerLines = [],
+  data,
+  columns,
+  keys
+}: PdfWithHeaderOptions<T>) => {
+  const doc = buildPdfWithHeaderDoc({ title, headerLines, data, columns, keys });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jsDoc = doc as any;
   if (typeof jsDoc.autoPrint === 'function') {
     jsDoc.autoPrint({ variant: 'non-conform' });
   }
   window.open(doc.output('bloburl'), '_blank');
+};
+
+/** Same content as `printPdfUtilWithHeader`, but downloads the PDF file. */
+export const downloadPdfUtilWithHeader = <T>({
+  title = 'Report',
+  headerLines = [],
+  data,
+  columns,
+  keys,
+  fileName = 'report.pdf'
+}: PdfWithHeaderOptions<T> & { fileName?: string }) => {
+  const doc = buildPdfWithHeaderDoc({ title, headerLines, data, columns, keys });
+  doc.save(fileName);
 };
 
 // ==== EXCEL DOWNLOAD HANDLE UTIL ==== //

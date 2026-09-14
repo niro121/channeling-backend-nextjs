@@ -173,7 +173,100 @@ function ChannelBookingsReportContentInner(
               </div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          const dateTypeId = values.dateType ?? 'session_date';
+          const dateTypeLabel =
+            props.dateTypeOptions.find((o) => o.id === dateTypeId)?.name ?? dateTypeId;
+          const phone = values.patientPhone?.trim();
+          return [
+            {
+              label: 'Period',
+              value: `${from || '—'} to ${to || '—'}`,
+              fullWidth: true,
+            },
+            { label: 'Date Type', value: dateTypeLabel },
+            {
+              label: 'Institution',
+              value: filterOptionLabel(
+                values.institutionId,
+                'All Institutions',
+                props.institutionOptions
+              ),
+            },
+            {
+              label: 'Branch Type',
+              value: filterOptionLabel(
+                values.branchTypeId,
+                'All Branch Types',
+                props.branchTypeOptions
+              ),
+            },
+            {
+              label: 'Branch',
+              value: filterOptionLabel(values.locationId, 'All Branches', props.locationOptions),
+            },
+            {
+              label: 'Department',
+              value: filterOptionLabel(
+                values.departmentId,
+                'All Departments',
+                props.departmentOptions
+              ),
+            },
+            {
+              label: 'Area',
+              value: filterOptionLabel(values.areaId, 'All Areas', props.areaOptions),
+            },
+            {
+              label: 'Agency',
+              value: filterOptionLabel(values.agencyId, 'All Agents', props.agencyOptions),
+            },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                props.specialityOptions
+              ),
+            },
+            { label: 'Patient Phone', value: phone || '—' },
+            {
+              label: 'Gender',
+              value: filterOptionLabel(values.gender, 'All', props.genderOptions),
+            },
+            {
+              label: 'Status',
+              value: filterOptionLabel(values.status, 'All Statuses', props.statusOptions),
+            },
+            {
+              label: 'Refund',
+              value: filterOptionLabel(
+                values.refundStatus,
+                'All Refund Statuses',
+                props.refundStatusOptions
+              ),
+            },
+            {
+              label: 'Payment',
+              value: filterOptionLabel(
+                values.paymentTypeId,
+                'All Payment Types',
+                props.paymentTypeOptions
+              ),
+            },
+            {
+              label: 'Method',
+              value: filterOptionLabel(values.methodId, 'All Methods', props.methodOptions),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => {
         const hasDateRange = Boolean(

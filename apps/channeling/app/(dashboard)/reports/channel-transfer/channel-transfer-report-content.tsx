@@ -178,6 +178,89 @@ function ContentInner({ currentUserName, doctorOptions, userOptions, locationOpt
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const df = values.dateFrom ?? '';
+          const dt = values.dateTo ?? '';
+          const branchId = values.branchId ?? '__all__';
+          const fromSpecialityId = values.fromSpecialityId ?? '__all__';
+          const toSpecialityId = values.toSpecialityId ?? '__all__';
+          const fromDoctorId = values.fromDoctorId ?? '__all__';
+          const toDoctorId = values.toDoctorId ?? '__all__';
+          const transferredByUserId = values.transferredByUserId ?? '__all__';
+          const fromId = values.fromSessionId ?? '__all__';
+          const toId = values.toSessionId ?? '__all__';
+          const bookingId = (values.bookingId ?? '').trim();
+          const items = [
+            {
+              label: 'Period',
+              value: `${df || '—'} to ${dt || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Branch',
+              value:
+                branchId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === branchId)?.name ?? branchId),
+            },
+            {
+              label: 'Transferred By',
+              value:
+                transferredByUserId === '__all__'
+                  ? 'All Users'
+                  : (userOptions.find((u) => u.id === transferredByUserId)?.name ??
+                    transferredByUserId),
+            },
+            {
+              label: 'From Speciality',
+              value:
+                fromSpecialityId === '__all__'
+                  ? 'All Specialities'
+                  : (specialityOptions.find((s) => s.id === fromSpecialityId)?.name ??
+                    fromSpecialityId),
+            },
+            {
+              label: 'From Doctor',
+              value:
+                fromDoctorId === '__all__'
+                  ? 'All Doctors'
+                  : (doctorOptions.find((d) => d.id === fromDoctorId)?.name ?? fromDoctorId),
+            },
+            {
+              label: 'From Session',
+              value:
+                fromId === '__all__'
+                  ? 'All Sessions'
+                  : (allFromSessionsOptions.find((o) => o.id === fromId)?.name ?? fromId),
+            },
+            {
+              label: 'To Speciality',
+              value:
+                toSpecialityId === '__all__'
+                  ? 'All Specialities'
+                  : (specialityOptions.find((s) => s.id === toSpecialityId)?.name ??
+                    toSpecialityId),
+            },
+            {
+              label: 'To Doctor',
+              value:
+                toDoctorId === '__all__'
+                  ? 'All Doctors'
+                  : (doctorOptions.find((d) => d.id === toDoctorId)?.name ?? toDoctorId),
+            },
+            {
+              label: 'To Session',
+              value:
+                toId === '__all__'
+                  ? 'All Sessions'
+                  : (allToSessionsOptions.find((o) => o.id === toId)?.name ?? toId),
+            },
+          ];
+          if (bookingId) {
+            items.push({ label: 'Booking ID', value: bookingId });
+          }
+          return items;
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
