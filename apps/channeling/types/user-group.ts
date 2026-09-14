@@ -92,6 +92,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "edit", name: "Edit" },
       { id: "delete", name: "Delete" },
       { id: "cancel", name: "Cancel entries" },
+      { id: "cancel-bank-deposit", name: "Cancel Bank Deposits" },
     ],
   },
   { id: "bank-accounts", name: "Bank Accounts" },

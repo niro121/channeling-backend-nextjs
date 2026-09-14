@@ -39,7 +39,7 @@ import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw, Info, Camera } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, SRI_LANKA_TZ } from "@/lib/utils"
 import Link from "next/link"
 import { RequestFloatDialog } from "./request-float-dialog"
 import { EndShiftHandoverDialog } from "./end-shift-handover-dialog"
@@ -59,12 +59,14 @@ type ShiftRecord = {
   id: string
   userId: string
   startedAt: Date | string
+  createdAt?: Date | string
   endsAt: Date | string
   status: number
   pausedAt?: Date | string | null
   location?: { id: string; name: string; code?: string | null } | null
   handovers?: {
     id: string
+    createdAt?: Date | string
     cashCents: number
     cardCents: number
     slipCents: number
@@ -77,15 +79,40 @@ type ShiftRecord = {
   }[]
 }
 
+function toShiftDate(value: Date | string | number | null | undefined): Date | null {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date
+}
+
+/** Prefer the original shift create time if startedAt was later overwritten. */
+function shiftStartedAt(shift: Pick<ShiftRecord, "startedAt" | "createdAt">): Date | string {
+  const started = toShiftDate(shift.startedAt)
+  const created = toShiftDate(shift.createdAt)
+  if (started && created && created.getTime() < started.getTime()) return created
+  return started ?? created ?? shift.startedAt
+}
+
 function formatShiftDateTime(value: Date | string): string {
-  const date = typeof value === "string" ? new Date(value) : value
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleString()
+  const date = toShiftDate(value)
+  if (!date) return "—"
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: SRI_LANKA_TZ,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date)
 }
 
 /** Format elapsed as stopwatch-style HH:MM:SS (e.g. 00:05:05). */
 function formatElapsed(startedAt: Date | string, asOf: Date): string {
-  const start = typeof startedAt === "string" ? new Date(startedAt) : startedAt
+  const start = toShiftDate(startedAt)
+  if (!start) return "00:00:00"
   const ms = Math.max(0, asOf.getTime() - start.getTime())
   const totalSeconds = Math.floor(ms / 1000)
   const h = Math.floor(totalSeconds / 3600)
@@ -487,12 +514,16 @@ export function ChannelBookingShiftBar() {
   const endsAtDate = typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt
   const isExpired = endsAtDate.getTime() <= now.getTime()
   const pendingHandover = shift.handovers?.[0]
-  const asOf = isPaused && shift.pausedAt
-    ? typeof shift.pausedAt === "string"
-      ? new Date(shift.pausedAt)
-      : shift.pausedAt
-    : now
-  const elapsed = formatElapsed(shift.startedAt, asOf)
+  const shiftStart = shiftStartedAt(shift)
+  const handoverSubmittedAt = toShiftDate(pendingHandover?.createdAt)
+  const pausedAtDate = toShiftDate(shift.pausedAt)
+  const asOf =
+    isPaused && pausedAtDate
+      ? pausedAtDate
+      : isHandoverPending && handoverSubmittedAt
+        ? handoverSubmittedAt
+        : now
+  const elapsed = formatElapsed(shiftStart, asOf)
 
   async function openEndShiftHandover() {
     if (!shift) return
@@ -608,11 +639,18 @@ export function ChannelBookingShiftBar() {
                 )}
                 <div className="px-2 py-1.5 text-sm space-y-1 border-b border-border">
                   {shift && (
-                    <p className="text-muted-foreground text-xs">
-                      Started: {(typeof shift.startedAt === "string" ? new Date(shift.startedAt) : shift.startedAt).toLocaleString()}
-                      {" · "}
-                      Ends: {(typeof shift.endsAt === "string" ? new Date(shift.endsAt) : shift.endsAt).toLocaleString()}
-                    </p>
+                    <>
+                      <p className="text-muted-foreground text-xs">
+                        Shift started: {formatShiftDateTime(shiftStart)}
+                        {" · "}
+                        Ends: {formatShiftDateTime(shift.endsAt)}
+                      </p>
+                      {handoverSubmittedAt ? (
+                        <p className="text-muted-foreground text-xs">
+                          Handover submitted: {formatShiftDateTime(handoverSubmittedAt)}
+                        </p>
+                      ) : null}
+                    </>
                   )}
                   <p className="font-medium tabular-nums">Total: LKR {formatCents(pendingHandover.totalCents ?? 0)}</p>
                   {(["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const).map(
@@ -879,14 +917,20 @@ export function ChannelBookingShiftBar() {
                   : shift.location.name
                 : "—"}
             </dd>
-            <dt className="text-muted-foreground">Started</dt>
-            <dd>{formatShiftDateTime(shift.startedAt)}</dd>
+            <dt className="text-muted-foreground">Shift started</dt>
+            <dd>{formatShiftDateTime(shiftStart)}</dd>
             <dt className="text-muted-foreground">Time limit ends</dt>
             <dd>{formatShiftDateTime(shift.endsAt)}</dd>
             {shift.pausedAt ? (
               <>
                 <dt className="text-muted-foreground">Paused at</dt>
                 <dd>{formatShiftDateTime(shift.pausedAt)}</dd>
+              </>
+            ) : null}
+            {isHandoverPending && handoverSubmittedAt ? (
+              <>
+                <dt className="text-muted-foreground">Handover submitted</dt>
+                <dd>{formatShiftDateTime(handoverSubmittedAt)}</dd>
               </>
             ) : null}
             <dt className="text-muted-foreground">{isExpired ? "Elapsed" : "Running"}</dt>

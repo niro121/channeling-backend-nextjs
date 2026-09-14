@@ -90,6 +90,7 @@ export type BookingApprovalSummary = {
 export type ApprovalRequestListItem = BookingApprovalSummary & {
   bookingId: string | null
   patientName: string
+  doctorName: string
   appointmentNo: number | null
   billNo: string
   sessionLabel: string

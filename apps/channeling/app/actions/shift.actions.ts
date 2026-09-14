@@ -17,6 +17,7 @@ import {
   getPreviousHandoversForHandoverDetail,
   getNonCashHeldInReconciliation,
   countPendingIncomingHandovers,
+  getExpectedHandoverCollection,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
@@ -151,6 +152,34 @@ export type SubmitShiftHandoverPayload = {
   }
   includedHandoverIds?: string[]
   attachmentIds?: string[]
+}
+
+/** Expected Total Collection (floats + Summary + previous − floats out) for the current user's shift. */
+export async function getExpectedHandoverCollectionAction(shiftId: string) {
+  await requirePermission(SHIFT_RESOURCE, "view")
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return { success: false as const, error: "Unauthorized" }
+  }
+  const trimmedShiftId = shiftId?.trim()
+  if (!trimmedShiftId) {
+    return { success: false as const, error: "Shift is required." }
+  }
+  const shift = await prisma.shift.findFirst({
+    where: { id: trimmedShiftId, userId: session.user.id },
+    select: { id: true, startedAt: true },
+  })
+  if (!shift) {
+    return { success: false as const, error: "Shift not found or you are not the shift owner." }
+  }
+  const includable = await getIncludableHandoversForSender(session.user.id)
+  const previousHandoversCents = includable.reduce((sum, h) => sum + (h.totalCents ?? 0), 0)
+  return getExpectedHandoverCollection({
+    cashierUserId: session.user.id,
+    shiftId: trimmedShiftId,
+    shiftStartedAt: shift.startedAt,
+    previousHandoversCents,
+  })
 }
 
 /** Submit shift handover: create PENDING handover, set shift to handover pending. Journal created only when recipient approves. */

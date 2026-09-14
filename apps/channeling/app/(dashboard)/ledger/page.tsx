@@ -33,6 +33,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
 
   const canAdd = await checkPermission("ledger", "add")
   const canCancel = await checkPermission("ledger", "cancel")
+  const canCancelBankDeposit = await checkPermission("ledger", "cancel-bank-deposit")
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id ?? null
   let userLocationId: string | null = null
@@ -86,6 +87,7 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
           totalRecords={totalRecords}
           canAdd={canAdd}
           canCancel={canCancel}
+          canCancelBankDeposit={canCancelBankDeposit}
           page={params?.page}
           limit={params?.limit}
           branchId={params?.branchId}

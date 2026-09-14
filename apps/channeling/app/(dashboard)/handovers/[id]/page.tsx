@@ -37,8 +37,12 @@ import { formatCents, formatLKR } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
+  expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverCollectionDiffCents,
+  isHandoverCollectionExcess,
+  sumReceivedHandoverFloats,
 } from "@/lib/handover-utils"
 import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
@@ -142,6 +146,27 @@ function parseEnteredBreakdown(raw: unknown): EnteredBreakdown | null {
     }
   }
   return raw as EnteredBreakdown
+}
+
+function printHandoverDocument(mode: "report" | "summary") {
+  const styleId = "handover-print-page-size"
+  let el = document.getElementById(styleId) as HTMLStyleElement | null
+  if (!el) {
+    el = document.createElement("style")
+    el.id = styleId
+    document.body.appendChild(el)
+  }
+  el.textContent =
+    mode === "summary"
+      ? "@media print { @page { size: A5 portrait; margin: 4mm 12mm; } }"
+      : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
+  document.body.classList.toggle("print-handover-summary", mode === "summary")
+  const cleanup = () => {
+    document.body.classList.remove("print-handover-summary")
+    el.remove()
+  }
+  window.addEventListener("afterprint", cleanup, { once: true })
+  window.print()
 }
 
 function handoverBreakdownSummary(raw: unknown): string {
@@ -259,28 +284,40 @@ export default function HandoverDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
+  const [autoPrintToken, setAutoPrintToken] = useState(0)
   const { toast } = useToast()
 
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return
-    setLoading(true)
+    if (!opts?.silent) setLoading(true)
     try {
       const res = await getHandoverDetailAction(id)
       if (res.success && res.data) {
         setData(res.data)
-        setTicked(new Set())
+        if (!opts?.silent) setTicked(new Set())
       } else {
         toast({ title: res.error ?? "Not found", variant: "destructive" })
         router.replace("/handovers")
       }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [id, router, toast])
 
   useEffect(() => {
     fetchDetail()
   }, [fetchDetail])
+
+  useEffect(() => {
+    if (!autoPrintToken) return
+    if (data?.handover?.status !== HANDOVER_STATUS.APPROVED) return
+    const token = autoPrintToken
+    const timer = window.setTimeout(() => {
+      printHandoverDocument("summary")
+      setAutoPrintToken((current) => (current === token ? 0 : current))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [autoPrintToken, data])
 
   useEffect(() => {
     if (!(sendReconOpen || changeAssigneeOpen) || !canSendToReconciliation) return
@@ -410,7 +447,9 @@ export default function HandoverDetailPage() {
       })
       setApproveOpen(false)
       setApprovalComments("")
-      router.push("/handovers")
+      setAutoPrintToken((n) => n + 1)
+      await fetchDetail({ silent: true })
+      router.refresh()
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to approve", variant: "destructive" })
     } finally {
@@ -560,27 +599,6 @@ export default function HandoverDetailPage() {
             ? "Cancelled"
             : "Completed"
 
-  const printHandover = (mode: "report" | "summary") => {
-    const styleId = "handover-print-page-size"
-    let el = document.getElementById(styleId) as HTMLStyleElement | null
-    if (!el) {
-      el = document.createElement("style")
-      el.id = styleId
-      document.body.appendChild(el)
-    }
-    el.textContent =
-      mode === "summary"
-        ? "@media print { @page { size: A6 portrait; margin: 4mm 12mm; } }"
-        : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
-    document.body.classList.toggle("print-handover-summary", mode === "summary")
-    const cleanup = () => {
-      document.body.classList.remove("print-handover-summary")
-      el.remove()
-    }
-    window.addEventListener("afterprint", cleanup, { once: true })
-    window.print()
-  }
-
   return (
     <>
     <div className="handover-screen space-y-3 print:hidden">
@@ -597,10 +615,10 @@ export default function HandoverDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => printHandover("summary")}>
-                A6 (Default)
+              <DropdownMenuItem onClick={() => printHandoverDocument("summary")}>
+                A5 (Default)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => printHandover("report")}>
+              <DropdownMenuItem onClick={() => printHandoverDocument("report")}>
                 A4
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -969,18 +987,25 @@ export default function HandoverDetailPage() {
       {/* Collection breakdown: IN + Summary + Previous - OUT */}
       {(() => {
         const receivedFloats = data.receivedFloats ?? []
-        const floatsInTotal = receivedFloats
-          .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
-          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
-        const floatsOutTotal = receivedFloats
-          .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
-          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
+        const { floatsInCents: floatsInTotal, floatsOutCents: floatsOutTotal } =
+          sumReceivedHandoverFloats(receivedFloats)
         const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
         const cs = data.cashierSummary
-        const summaryVal = cs
+        const hasSummary = cs != null
+        const summaryVal = hasSummary
           ? cashierSummaryGrandTotalCents(cs.grandTotals)
           : totalCents
-        const collectionTotal = floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+        const collectionTotal = hasSummary
+          ? expectedHandoverCollectionCents({
+              floatsInCents: floatsInTotal,
+              floatsOutCents: floatsOutTotal,
+              summaryCents: summaryVal,
+              previousHandoversCents: prevTotal,
+            })
+          : floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+        const collectionDiff = hasSummary
+          ? handoverCollectionDiffCents(totalCents, collectionTotal)
+          : 0
         const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
         if (floatsInTotal > 0) parts.push({ label: "Floats In", cents: floatsInTotal, sign: "+" })
         parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
@@ -1002,6 +1027,32 @@ export default function HandoverDetailPage() {
                   <span>Total Collection</span>
                   <span className="tabular-nums">LKR {formatCents(collectionTotal)}</span>
                 </div>
+                {hasSummary ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Entered</span>
+                      <span className="tabular-nums">{formatCents(totalCents)}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Short/Excess</span>
+                      <span
+                        className={`tabular-nums ${
+                          collectionDiff === 0
+                            ? ""
+                            : isHandoverCollectionExcess(collectionDiff)
+                              ? "text-amber-700 dark:text-amber-400 font-medium"
+                              : collectionDiff < 0
+                                ? "text-destructive font-medium"
+                                : ""
+                        }`}
+                      >
+                        {collectionDiff === 0
+                          ? "0.00"
+                          : `${collectionDiff > 0 ? "+" : ""}${formatCents(collectionDiff)}`}
+                      </span>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </CardContent>
           </Card>

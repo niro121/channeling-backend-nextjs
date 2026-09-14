@@ -19,8 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ChevronDown, ChevronRight, ExternalLink, History, Loader2, Printer } from "lucide-react"
+import { ChevronDown, ChevronRight, ExternalLink, History, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PrintReceiptButton } from "../print-receipt-button"
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -47,6 +48,13 @@ function formatAppointmentNo(value: string | number): string {
   const n = parseInt(s, 10)
   if (Number.isNaN(n) || s === "") return s
   return String(n).padStart(2, "0")
+}
+
+function paymentReceiptIdFromDetails(details: BookingDetailsView): string | null {
+  if (details.settlement?.receiptId) return details.settlement.receiptId
+  const settlement = details.receipts.find((r) => r.type === "Settlement")
+  if (settlement?.id) return settlement.id
+  return details.receipts[0]?.id ?? null
 }
 
 function doctorPaymentReceiptRow(details: BookingDetailsView): ReceiptRowView | null {
@@ -258,12 +266,21 @@ export function BookingTab() {
   }
 
   const pendingPayment = details.status === 0
+  const paymentReceiptId = paymentReceiptIdFromDetails(details)
 
   return (
     <div className="space-y-3">
       {pendingPayment && (
         <div className="rounded-md border border-amber-200/70 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800/50 text-amber-800 dark:text-amber-200 px-2 py-1 text-xs font-medium">
           Pending payment
+        </div>
+      )}
+      {!pendingPayment && paymentReceiptId && (
+        <div className="rounded-md border border-emerald-200/80 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800/50 px-2 py-1.5 flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
+            Payment Success.
+          </span>
+          <PrintReceiptButton receiptId={paymentReceiptId} className="h-7 bg-emerald-700 hover:bg-emerald-800 text-white" />
         </div>
       )}
       {/* Primary: Patient, Appointment — compact, equal-height panels */}
@@ -802,13 +819,15 @@ export function BookingTab() {
               <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
                 {details.remark?.trim()
                   ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}`
-                  : details.referredBy
-                    ? "Referred"
-                    : details.foreigner
-                      ? "Foreigner"
-                      : details.agentRef !== "-"
-                        ? "Agent"
-                        : "—"}
+                  : details.refundReason?.trim()
+                    ? `${details.refundReason.slice(0, 20)}${details.refundReason.length > 20 ? "…" : ""}`
+                    : details.referredBy
+                      ? "Referred"
+                      : details.foreigner
+                        ? "Foreigner"
+                        : details.agentRef !== "-"
+                          ? "Agent"
+                          : "—"}
               </span>
             )}
           </button>
@@ -816,6 +835,9 @@ export function BookingTab() {
             <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-1.5 space-y-0 bg-slate-50/80 dark:bg-slate-900/20">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0">
                 <Row label="Remark" value={details.remark || "—"} />
+                {(details.status === 2 || details.refund > 0) && (
+                  <Row label="Cancel / refund remark" value={details.refundReason || "—"} />
+                )}
                 {!details.referredDoctor && !details.referredAgency && !details.referredStaff && (
                   <Row label="Referred By" value="—" />
                 )}
@@ -1180,14 +1202,7 @@ function ReceiptCard({
             <ExternalLink className="size-3" />
             Details
           </button>
-          <button
-            type="button"
-            className="text-slate-500 hover:text-foreground p-0.5 -m-0.5"
-            title="Print receipt"
-            aria-label="Print receipt"
-          >
-            <Printer className="size-3" />
-          </button>
+          <PrintReceiptButton receiptId={row.id} iconOnly />
         </div>
       </div>
       <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.receiptNoString}>

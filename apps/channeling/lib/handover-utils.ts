@@ -1,4 +1,5 @@
 import { formatCents } from "@/lib/format-money"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 
 export const HANDOVER_AMOUNT_METHOD_KEYS = [
   "cashCents",
@@ -63,6 +64,77 @@ export function getHandoverAmountOvers(
     }
   }
   return overs
+}
+
+/** 1 LKR: ignore tiny rounding when deciding if collection excess needs a reason. */
+export const HANDOVER_EXCESS_THRESHOLD_CENTS = 100
+
+export type HandoverExpectedCollectionParts = {
+  floatsInCents: number
+  floatsOutCents: number
+  summaryCents: number
+  previousHandoversCents: number
+}
+
+export type ExpectedHandoverCollection = HandoverExpectedCollectionParts & {
+  expectedCents: number
+}
+
+/** Total Collection on the handover page: floats in + Summary + previous handovers − floats out. */
+export function expectedHandoverCollectionCents(parts: HandoverExpectedCollectionParts): number {
+  return parts.floatsInCents + parts.summaryCents + parts.previousHandoversCents - parts.floatsOutCents
+}
+
+export function handoverAmountsTotalCents(amounts: HandoverMethodAmounts): number {
+  return HANDOVER_AMOUNT_METHOD_KEYS.reduce((sum, key) => sum + (amounts[key] ?? 0), 0)
+}
+
+/** Entered handover total minus expected Total Collection. Positive = excess, negative = short. */
+export function handoverCollectionDiffCents(enteredTotalCents: number, expectedCents: number): number {
+  return enteredTotalCents - expectedCents
+}
+
+export function isHandoverCollectionExcess(diffCents: number): boolean {
+  return diffCents > HANDOVER_EXCESS_THRESHOLD_CENTS
+}
+
+export function sumReceivedHandoverFloats(
+  floats: Array<{ direction?: string | null; status: number; amountReceivedCents?: number | null }>
+): { floatsInCents: number; floatsOutCents: number } {
+  let floatsInCents = 0
+  let floatsOutCents = 0
+  for (const f of floats) {
+    if (f.status !== FLOAT_REQUEST_STATUS.RECEIVED) continue
+    const amount = f.amountReceivedCents ?? 0
+    if (f.direction === "out") floatsOutCents += amount
+    else floatsInCents += amount
+  }
+  return { floatsInCents, floatsOutCents }
+}
+
+export function handoverDiscrepancyReasonLabel(opts: { hasShort: boolean; hasExcess: boolean }): string {
+  if (opts.hasShort && opts.hasExcess) return "Reason for discrepancy"
+  if (opts.hasExcess) return "Reason for excess"
+  return "Reason for short"
+}
+
+export function handoverDiscrepancyReasonPlaceholder(opts: { hasShort: boolean; hasExcess: boolean }): string {
+  if (opts.hasExcess && !opts.hasShort) {
+    return "e.g. Extra cash not in summary or previous handovers…"
+  }
+  if (opts.hasShort && !opts.hasExcess) {
+    return "e.g. Counting difference, missing slip…"
+  }
+  return "e.g. Counting difference, extra cash, missing slip…"
+}
+
+export function handoverDiscrepancyReasonRequiredMessage(opts: {
+  hasShort: boolean
+  hasExcess: boolean
+}): string {
+  if (opts.hasShort && opts.hasExcess) return "Please provide a reason for the discrepancy."
+  if (opts.hasExcess) return "Please provide a reason for the excess."
+  return "Please provide a reason for the short."
 }
 
 export function formatHandoverOverAmountError(

@@ -20,6 +20,7 @@ type SearchParams = {
     doctorPaymentNo?: string;
     locationId?: string;
     paymentMethod?: string;
+    specialityId?: string;
     doctorId?: string;
     dateFrom?: string;
     dateTo?: string;
@@ -44,14 +45,16 @@ export default async function DoctorPaymentsPage({ searchParams }: SearchParams)
     doctorPaymentNo: params?.doctorPaymentNo ?? undefined,
     locationId: params?.locationId ?? undefined,
     paymentMethod: params?.paymentMethod ? Number(params.paymentMethod) : undefined,
+    specialityId: params?.specialityId ?? undefined,
     doctorId: params?.doctorId ?? undefined,
     dateFrom: params?.dateFrom ?? undefined,
     dateTo: params?.dateTo ?? undefined,
   });
 
-  const refRes = await getReferenceData({ locations: true, doctors: true });
+  const refRes = await getReferenceData({ locations: true, doctors: true, specialities: true });
   const locations = refRes.success && refRes.locations ? refRes.locations : [];
   const doctors = refRes.success && refRes.doctors ? refRes.doctors : [];
+  const specialities = refRes.success && refRes.specialities ? refRes.specialities : [];
 
   const data = listResult.data ?? [];
   const totalRecords = listResult.totalRecords ?? 0;
@@ -80,10 +83,12 @@ export default async function DoctorPaymentsPage({ searchParams }: SearchParams)
               <DoctorPaymentFilterSection
                 locationId={params?.locationId}
                 paymentMethod={params?.paymentMethod}
+                specialityId={params?.specialityId}
                 doctorId={params?.doctorId}
                 dateFrom={params?.dateFrom}
                 dateTo={params?.dateTo}
                 locations={locations}
+                specialities={specialities}
                 doctors={doctors}
               />
             </div>
