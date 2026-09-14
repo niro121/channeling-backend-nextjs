@@ -66,6 +66,8 @@ export type CancelLedgerReceiptInput = {
   receiptId: string
   canceledBy: string
   cancelReason: string
+  allowLedgerCancel?: boolean
+  allowBankDepositCancel?: boolean
 }
 
 export type CancelLedgerReceiptResult =
@@ -103,11 +105,27 @@ export async function cancelLedgerReceiptService(
   if (!LEDGER_METHODS.includes(original.method as (typeof LEDGER_METHODS)[number])) {
     return { success: false, errorCode: "INVALID", message: "This receipt type cannot be canceled." }
   }
-  if (original.method === RECEIPT_METHOD.BANK_DEPOSIT) {
+  const isBankDeposit = original.method === RECEIPT_METHOD.BANK_DEPOSIT
+  if (isBankDeposit) {
+    if (!input.allowBankDepositCancel) {
+      return {
+        success: false,
+        errorCode: "FORBIDDEN",
+        message: "You don't have permission to cancel bank deposits.",
+      }
+    }
+    if (!original.bankId) {
+      return {
+        success: false,
+        errorCode: "INVALID",
+        message: "This bank deposit has no bank account. Cannot cancel.",
+      }
+    }
+  } else if (!input.allowLedgerCancel) {
     return {
       success: false,
-      errorCode: "NOT_ALLOWED",
-      message: "Bank deposits cannot be canceled.",
+      errorCode: "FORBIDDEN",
+      message: "You don't have permission to cancel ledger entries.",
     }
   }
   if (original.canceledAt != null || original.reverseReceiptId != null) {
@@ -129,26 +147,32 @@ export async function cancelLedgerReceiptService(
     return { success: false, errorCode: "INVALID", message: "Receipt has no branch." }
   }
 
+  const isBankReverse =
+    reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
   const needCashierAccount =
     reverseMethod === RECEIPT_METHOD.BRANCH_INCOME ||
     reverseMethod === RECEIPT_METHOD.BRANCH_EXPENSE ||
     reverseMethod === RECEIPT_METHOD.AGENCY_DEPOSIT ||
-    reverseMethod === RECEIPT_METHOD.AGENCY_WITHDRAW
+    reverseMethod === RECEIPT_METHOD.AGENCY_WITHDRAW ||
+    isBankReverse
   const isAgency =
     reverseMethod === RECEIPT_METHOD.DEBIT_NOTE ||
     reverseMethod === RECEIPT_METHOD.CREDIT_NOTE ||
     reverseMethod === RECEIPT_METHOD.AGENCY_DEPOSIT ||
     reverseMethod === RECEIPT_METHOD.AGENCY_WITHDRAW
 
+  const tillUserId = isBankDeposit ? (original.createdBy ?? input.canceledBy) : input.canceledBy
+  const tillLocationId = isBankDeposit
+    ? (original.userLocationId ?? original.locationId ?? branchId)
+    : undefined
+
   let accounts = await resolveReceiptJournalAccounts({
     locationId: branchId,
-    createdBy: input.canceledBy,
+    createdBy: tillUserId,
+    userLocationId: tillLocationId,
     agencyId: original.agencyId ?? null,
     needTill: needCashierAccount,
-    bankAccountId:
-      reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
-        ? (original.bankId ?? null)
-        : null,
+    bankAccountId: isBankReverse ? (original.bankId ?? null) : null,
   })
   if (!accounts) {
     return {
@@ -160,13 +184,11 @@ export async function cancelLedgerReceiptService(
   const reqResult = await requireReceiptJournalAccounts(
     {
       locationId: branchId,
-      createdBy: input.canceledBy,
+      createdBy: tillUserId,
+      userLocationId: tillLocationId,
       agencyId: original.agencyId ?? null,
       needTill: needCashierAccount,
-      bankAccountId:
-        reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
-          ? (original.bankId ?? null)
-          : null,
+      bankAccountId: isBankReverse ? (original.bankId ?? null) : null,
     },
     { needTill: needCashierAccount, isAgent: isAgency }
   )
@@ -216,7 +238,7 @@ export async function cancelLedgerReceiptService(
     agencyId: original.agencyId ?? null,
     createdBy: input.canceledBy,
     locationId: branchId,
-    userLocationId: isAgency ? branchId : undefined,
+    userLocationId: isAgency || isBankReverse ? branchId : undefined,
     shiftId: shiftId ?? undefined,
   }
 
@@ -231,6 +253,12 @@ export async function cancelLedgerReceiptService(
       })
 
       const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts!)
+      if (isBankDeposit && !journalInput) {
+        throw new Error("Could not build reversal journal for this bank deposit.")
+      }
+      if (isBankDeposit && journalNumber <= 0) {
+        throw new Error("Could not allocate a journal number for this reversal.")
+      }
       if (journalInput && journalNumber > 0) {
         const jResult = await createJournalEntryInTransaction(tx as unknown as AccountingTx, journalInput, journalNumber)
         if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed")

@@ -18,6 +18,7 @@
  * so sessions that reference inactive legacy templates can resolve (restart Sails after API change).
  *
  * Doctors are processed in parallel (default 10 at a time). Override: --concurrency=5
+ * Default logs: one line per batch + a final summary. Use --verbose for per-doctor detail.
  *
  * Notes:
  * - This script is best-effort: it resolves `doctor` by DB `migrateSourceId`, and resolves `department` by name,
@@ -298,7 +299,9 @@ async function migrateOneDoctor(
   const { maps, importUserId, todayYmd, includePast, includeUnpublished, verbose } = ctx;
   const { departmentsByName, locationsByCode, locationsByName, roomsByKey } = maps;
 
-  console.log(`[Doctor] code=${doctor.code} migrateSourceId=${doctorSourceId}`);
+  if (verbose) {
+    console.log(`[Doctor] code=${doctor.code} migrateSourceId=${doctorSourceId}`);
+  }
 
   let sessionsToUse = await migrateFetch<SourceDoctorSession>(
     'all-doctor-sessions',
@@ -495,10 +498,12 @@ async function migrateOneDoctor(
     );
   }
 
-  console.log(
-    `  [${doctor.code}] done: +${stats.created} ~${stats.updated} skip=${stats.skipped}` +
-      (stats.skippedPastSpecificDate > 0 ? ` pastSpecific=${stats.skippedPastSpecificDate}` : '')
-  );
+  if (verbose) {
+    console.log(
+      `  [${doctor.code}] done: +${stats.created} ~${stats.updated} skip=${stats.skipped}` +
+        (stats.skippedPastSpecificDate > 0 ? ` pastSpecific=${stats.skippedPastSpecificDate}` : '')
+    );
+  }
 
   return stats;
 }
@@ -539,7 +544,7 @@ async function main(): Promise<void> {
   }
 
   const doctors = await prisma.doctor.findMany({
-    where: { status: 1, migrateSourceId: { not: null } },
+    where: { migrateSourceId: { not: null } },
     select: { id: true, code: true, migrateSourceId: true },
     orderBy: { name: 'asc' },
   });
@@ -606,25 +611,32 @@ async function main(): Promise<void> {
 
   for (let b = 0; b < batches.length; b++) {
     const batch = batches[b];
-    console.log(`\n[Batch ${b + 1}/${batches.length}] ${batch.length} doctors in parallel...`);
     const results = await Promise.all(batch.map((doctor) => migrateOneDoctor(doctor, ctx)));
+    let batchCreated = 0;
+    let batchUpdated = 0;
+    let batchSkipped = 0;
     for (const r of results) {
+      batchCreated += r.created;
+      batchUpdated += r.updated;
+      batchSkipped += r.skipped;
       created += r.created;
       updated += r.updated;
       skipped += r.skipped;
       skippedPastSpecificDate += r.skippedPastSpecificDate;
     }
+    console.log(
+      `[${b + 1}/${batches.length}] +${batchCreated} ~${batchUpdated} skip=${batchSkipped}  total +${created} ~${updated} skip=${skipped}`
+    );
   }
 
-  console.log('\nMigration summary');
-  console.log({
-    created,
-    updated,
-    skipped,
-    ...(skippedPastSpecificDate > 0
-      ? { skippedPastSpecificDate: `${skippedPastSpecificDate} (applyTo < ${todayYmd})` }
-      : {}),
-  });
+  console.log('\nDoctor sessions');
+  console.log(`  doctors: ${doctorsFiltered.length}`);
+  console.log(`  created: ${created}`);
+  console.log(`  updated: ${updated}`);
+  console.log(`  skipped: ${skipped}` +
+    (skippedPastSpecificDate > 0
+      ? ` (${skippedPastSpecificDate} past specific-date, applyTo < ${todayYmd})`
+      : ''));
 
   const detectedNote = includeUnpublished
     ? 'all legacy templates (include_unpublished)'
@@ -642,6 +654,46 @@ async function main(): Promise<void> {
       .filter(Boolean)
       .join('; '),
   });
+
+  const templateRows = await prisma.doctorSession.findMany({
+    select: {
+      migrateSourceId: true,
+      name: true,
+      startTime: true,
+      endTime: true,
+      dayType: true,
+      status: true,
+      doctor: { select: { code: true, name: true } },
+      location: { select: { code: true } },
+    },
+    orderBy: [{ doctor: { code: 'asc' } }, { name: 'asc' }],
+  });
+  reporter?.records(
+    'Doctor sessions',
+    [
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Doctor', key: 'doctor', width: 14 },
+      { header: 'Doctor name', key: 'doctorName', width: 28 },
+      { header: 'Name', key: 'name', width: 32 },
+      { header: 'Location', key: 'location', width: 12 },
+      { header: 'Start', key: 'startTime', width: 22 },
+      { header: 'End', key: 'endTime', width: 22 },
+      { header: 'Day type', key: 'dayType', width: 12 },
+      { header: 'Status', key: 'status', width: 10 },
+    ],
+    templateRows.map((t) => ({
+      legacyId: t.migrateSourceId ?? '',
+      doctor: t.doctor?.code ?? '',
+      doctorName: t.doctor?.name ?? '',
+      name: t.name,
+      location: t.location?.code ?? '',
+      startTime: t.startTime.toISOString(),
+      endTime: t.endTime.toISOString(),
+      dayType: t.dayType,
+      status: t.status,
+    }))
+  );
+
   await finishMigrateReporter(reporter);
 }
 

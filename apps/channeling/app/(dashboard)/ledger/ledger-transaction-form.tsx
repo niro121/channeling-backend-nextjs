@@ -17,7 +17,7 @@ import {
 import { ReferenceSelect } from "@/components/common/reference-select"
 import type { ReferenceSelectOption } from "@/types/reference"
 import { addLedgerTransaction } from "@/app/actions/ledger/add-ledger-transaction.action"
-import { requestBankDepositSlipUploadAction } from "@/app/actions/ledger/bank-deposit-slip.actions"
+import { requestBankDepositSlipUploadAction, listShiftBillsForBankDepositAction } from "@/app/actions/ledger/bank-deposit-slip.actions"
 import {
   LEDGER_TRANSACTION_TYPES,
   type LedgerTransactionType,
@@ -27,7 +27,13 @@ import {
   BANK_DEPOSIT_SLIP_MAX_BYTES,
 } from "@/types/approval-request"
 import { compressBillImage } from "@/lib/compress-bill-image"
-import { Camera, ImagePlus, X } from "lucide-react"
+import { cn } from "@/lib/utils"
+import {
+  SHIFT_BILL_KIND_LABELS,
+  shiftBillUploaderTag,
+  type ShiftBillAttachmentDto,
+} from "@/types/shift-bill-attachment"
+import { Camera, ImagePlus, Images, Loader2, X } from "lucide-react"
 import Link from "next/link"
 
 const AGENCY_TYPES_FOR_VALIDATION: string[] = [
@@ -242,17 +248,32 @@ export function LedgerTransactionForm({
   const slipCameraInputRef = useRef<HTMLInputElement>(null)
   const [slipFile, setSlipFile] = useState<File | null>(null)
   const [slipPreviewUrl, setSlipPreviewUrl] = useState<string | null>(null)
+  const [slipPreviewObjectUrl, setSlipPreviewObjectUrl] = useState<string | null>(null)
+  const [selectedShiftBill, setSelectedShiftBill] = useState<ShiftBillAttachmentDto | null>(null)
+  const [shiftPickerOpen, setShiftPickerOpen] = useState(false)
+  const [shiftBills, setShiftBills] = useState<ShiftBillAttachmentDto[]>([])
+  const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
+  const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
 
   useEffect(() => {
     return () => {
-      if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+      if (slipPreviewObjectUrl) URL.revokeObjectURL(slipPreviewObjectUrl)
     }
-  }, [slipPreviewUrl])
+  }, [slipPreviewObjectUrl])
+
+  function revokeSlipObjectUrl() {
+    if (slipPreviewObjectUrl) {
+      URL.revokeObjectURL(slipPreviewObjectUrl)
+      setSlipPreviewObjectUrl(null)
+    }
+  }
 
   function clearSlipImage() {
-    if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    revokeSlipObjectUrl()
     setSlipFile(null)
     setSlipPreviewUrl(null)
+    setSelectedShiftBill(null)
+    setShiftPickerOpen(false)
     if (slipInputRef.current) slipInputRef.current.value = ""
     if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
   }
@@ -263,9 +284,42 @@ export function LedgerTransactionForm({
       toast({ title: "Please choose an image.", variant: "destructive" })
       return
     }
-    if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    revokeSlipObjectUrl()
+    const url = URL.createObjectURL(file)
+    setSlipPreviewObjectUrl(url)
     setSlipFile(file)
-    setSlipPreviewUrl(URL.createObjectURL(file))
+    setSlipPreviewUrl(url)
+    setSelectedShiftBill(null)
+    setShiftPickerOpen(false)
+  }
+
+  function handleSelectShiftBill(item: ShiftBillAttachmentDto) {
+    revokeSlipObjectUrl()
+    setSlipFile(null)
+    setSelectedShiftBill(item)
+    setSlipPreviewUrl(item.thumbUrl)
+    setShiftPickerOpen(false)
+    if (slipInputRef.current) slipInputRef.current.value = ""
+    if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
+  }
+
+  async function loadShiftBills() {
+    setShiftBillsLoading(true)
+    setShiftBillsError(null)
+    const result = await listShiftBillsForBankDepositAction()
+    if (!result.success) {
+      setShiftBillsError(result.error)
+      setShiftBills([])
+    } else {
+      setShiftBills(result.data)
+    }
+    setShiftBillsLoading(false)
+  }
+
+  async function handleFromThisShift() {
+    const next = !shiftPickerOpen
+    setShiftPickerOpen(next)
+    if (next) await loadShiftBills()
   }
 
   const initialValues: LedgerFormValues = {
@@ -392,6 +446,8 @@ export function LedgerTransactionForm({
         slipImageKey,
         slipImageContentType: slipImageKey ? "image/jpeg" : undefined,
         slipImageName: slipImageKey ? slipFile?.name : undefined,
+        shiftBillAttachmentId:
+          isBankDeposit && !slipImageKey && selectedShiftBill ? selectedShiftBill.id : undefined,
       })
 
       if (result.success) {
@@ -815,23 +871,45 @@ export function LedgerTransactionForm({
                   onChange={(e) => handleSlipSelect(e.target.files?.[0])}
                 />
                 {slipPreviewUrl ? (
-                  <div className="relative w-fit">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={slipPreviewUrl}
-                      alt="Deposit slip preview"
-                      className="h-36 w-auto max-w-full rounded-md border object-contain bg-muted"
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      className="absolute top-1 right-1 h-7 w-7"
-                      onClick={clearSlipImage}
-                      aria-label="Remove deposit slip"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                  <div className="space-y-1">
+                    <div className="relative w-fit">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={slipPreviewUrl}
+                        alt="Deposit slip preview"
+                        className="h-36 w-auto max-w-full rounded-md border object-contain bg-muted"
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        className="absolute top-1 right-1 h-7 w-7"
+                        onClick={clearSlipImage}
+                        aria-label="Remove deposit slip"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {selectedShiftBill && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          From this shift
+                          {selectedShiftBill.kind
+                            ? ` · ${SHIFT_BILL_KIND_LABELS[selectedShiftBill.kind]}`
+                            : ""}
+                          {selectedShiftBill.note ? ` · ${selectedShiftBill.note}` : ""}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => void handleFromThisShift()}
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
@@ -855,10 +933,67 @@ export function LedgerTransactionForm({
                       <ImagePlus className="h-4 w-4" />
                       Choose file
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={shiftPickerOpen ? "secondary" : "outline"}
+                      onClick={() => void handleFromThisShift()}
+                      className="gap-2"
+                    >
+                      <Images className="h-4 w-4" />
+                      From this shift
+                    </Button>
+                  </div>
+                )}
+                {shiftPickerOpen && (
+                  <div className="rounded-md border p-2 space-y-2">
+                    {shiftBillsLoading ? (
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Loading shift photos…
+                      </p>
+                    ) : shiftBillsError ? (
+                      <p className="text-xs text-destructive">{shiftBillsError}</p>
+                    ) : shiftBills.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No photos on this shift. Capture them from the camera on the shift bar, or take a photo here.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {shiftBills.map((item) => {
+                          const label = item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"
+                          const selected = selectedShiftBill?.id === item.id
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleSelectShiftBill(item)}
+                              className={cn(
+                                "relative overflow-hidden rounded-md border bg-muted text-left",
+                                selected && "ring-2 ring-primary ring-offset-1"
+                              )}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.thumbUrl}
+                                alt={label}
+                                className="aspect-square h-full w-full object-cover"
+                              />
+                              <span className="block px-1.5 py-1">
+                                <span className="block truncate text-[11px] font-medium">{label}</span>
+                                <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                                  {shiftBillUploaderTag(item)}
+                                </span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Upload a photo of the bank slip so the approver can verify it. JPEG, PNG, or WebP, up to 2 MB.
+                  Upload a photo of the bank slip, or attach one already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
                 </p>
               </div>
             )}
@@ -879,8 +1014,8 @@ export function LedgerTransactionForm({
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={formik.isSubmitting}>
                 {formik.isSubmitting
-                  ? isBankDeposit && slipFile
-                    ? "Uploading…"
+                  ? isBankDeposit && (slipFile || selectedShiftBill)
+                    ? "Attaching slip…"
                     : "Saving…"
                   : isBankDeposit
                     ? "Request deposit"

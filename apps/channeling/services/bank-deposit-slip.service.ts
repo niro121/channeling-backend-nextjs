@@ -10,6 +10,11 @@ import {
   type BankDepositSnapshot,
 } from "@/types/approval-request"
 import {
+  SHIFT_BILL_KIND_LABELS,
+  isShiftBillKind,
+} from "@/types/shift-bill-attachment"
+import { getCurrentShift } from "@/services/shift.service"
+import {
   bankDepositSlipKeyPrefixForUser,
   getBankDepositSlipObjectKey,
   getBillAttachmentBytes,
@@ -67,16 +72,108 @@ export async function requestBankDepositSlipUpload(params: {
   }
 }
 
+async function copyShiftBillToBankDepositSlip(params: {
+  userId: string
+  attachmentId: string
+}): Promise<
+  | { success: true; slipImageKey: string; slipImageContentType: string; slipImageName: string }
+  | { success: false; errorCode: string; message: string }
+> {
+  const shift = await getCurrentShift(params.userId)
+  if (!shift) {
+    return {
+      success: false,
+      errorCode: "shift_required",
+      message: "An active shift is required to attach a photo from this shift.",
+    }
+  }
+
+  const row = await prisma.shiftBillAttachment.findFirst({
+    where: {
+      id: params.attachmentId,
+      shiftId: shift.id,
+      uploadedAt: { not: null },
+    },
+  })
+  if (!row) {
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "That photo was not found on your current shift.",
+    }
+  }
+
+  const exists = await headBillAttachmentObject(row.s3Key)
+  if (!exists) {
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "That shift photo could not be loaded. Try another photo or upload a new slip.",
+    }
+  }
+
+  const contentType = row.contentType.trim().toLowerCase() || "image/jpeg"
+  const ext = EXT_BY_CONTENT_TYPE[contentType] ?? "jpg"
+  const destKey = getBankDepositSlipObjectKey(params.userId, crypto.randomUUID(), ext)
+
+  try {
+    const original = await getBillAttachmentBytes(row.s3Key)
+    await putBillAttachmentObject(destKey, original.body, contentType)
+  } catch {
+    return {
+      success: false,
+      errorCode: "SERVER_ERROR",
+      message: "Could not attach the shift photo. Try again.",
+    }
+  }
+
+  const kindLabel = isShiftBillKind(row.kind) ? SHIFT_BILL_KIND_LABELS[row.kind] : "Bill"
+  const note = row.note?.trim()
+  const fileName = `${(note || kindLabel).slice(0, 80)}.${ext}`
+
+  return {
+    success: true,
+    slipImageKey: destKey,
+    slipImageContentType: contentType,
+    slipImageName: fileName,
+  }
+}
+
 export async function resolveBankDepositSlipSnapshot(params: {
   userId: string
   slipImageKey?: string | null
   slipImageContentType?: string | null
   slipImageName?: string | null
+  shiftBillAttachmentId?: string | null
 }): Promise<
   | { success: true; snapshot: Pick<BankDepositSnapshot, "slip_image_key" | "slip_image_thumb_key" | "slip_image_content_type" | "slip_image_name"> }
   | { success: false; errorCode: string; message: string }
 > {
-  const key = params.slipImageKey?.trim()
+  const uploadedKey = params.slipImageKey?.trim()
+  const shiftBillAttachmentId = params.shiftBillAttachmentId?.trim()
+  if (uploadedKey && shiftBillAttachmentId) {
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "Choose either a new deposit slip or a photo from this shift.",
+    }
+  }
+
+  let key = uploadedKey
+  let contentTypeArg = params.slipImageContentType
+  let fileNameArg = params.slipImageName
+
+  if (shiftBillAttachmentId) {
+    const copied = await copyShiftBillToBankDepositSlip({
+      userId: params.userId,
+      attachmentId: shiftBillAttachmentId,
+    })
+    if (!copied.success) return copied
+    key = copied.slipImageKey
+    contentTypeArg = copied.slipImageContentType
+    fileNameArg = copied.slipImageName
+  }
+
   if (!key) {
     return { success: true, snapshot: {} }
   }
@@ -93,8 +190,8 @@ export async function resolveBankDepositSlipSnapshot(params: {
     }
   }
 
-  const contentType = params.slipImageContentType?.trim().toLowerCase() || "image/jpeg"
-  const fileName = params.slipImageName?.trim().slice(0, 120) || "deposit-slip.jpg"
+  const contentType = contentTypeArg?.trim().toLowerCase() || "image/jpeg"
+  const fileName = fileNameArg?.trim().slice(0, 120) || "deposit-slip.jpg"
 
   let thumbKey: string | undefined
   try {

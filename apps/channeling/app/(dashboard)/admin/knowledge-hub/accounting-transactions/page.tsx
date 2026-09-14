@@ -73,6 +73,17 @@ const SCENARIOS: Scenario[] = [
     credit: ["Agent PAYABLE"],
   },
   {
+    title: "Agency Opening Balance",
+    when: "Migration journal referenceType = AgencyOpeningBalance",
+    example: "Sails agency prepaid balance LKR 5,000 brought forward.",
+    debit: ["Agent Opening Balances (control RECEIVABLE)"],
+    credit: ["Agent PAYABLE"],
+    notes: [
+      "Negative Sails balance reverses the lines (same as a debit note, contra is the control account not cash).",
+      "Re-running the migrate script empties the control account then posts again.",
+    ],
+  },
+  {
     title: "Agency Deposit",
     when: "Ledger receipt method = AGENCY_DEPOSIT",
     example: "Agency deposits LKR 5,000 as prepaid balance.",
@@ -112,6 +123,7 @@ const ACCOUNT_NAME_PATTERNS = [
   "Doctor PAYABLE",
   "Branch EXPENSE",
   "Branch CASH book",
+  "Agent Opening Balances (control RECEIVABLE)",
 ] as const;
 
 function renderAccountLine(line: string): ReactNode {

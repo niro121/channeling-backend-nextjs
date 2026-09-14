@@ -12,7 +12,7 @@
  * Steps 2–3 append to the same temp/migrate-report.xlsx (set MIGRATE_REPORT=0 to disable).
  *   npm run migrate:import -- --flush --only=specialities  # Flush, then import only specialities
  *
- * Steps for --only (comma-separated): specialities, doctors, departments, locations, zones, rooms, tags, discounts, agencies, staff.
+ * Steps for --only (comma-separated): specialities, doctors, departments, locations, zones, rooms, tags, discounts, agencies, agency-books, staff.
  * Zones: imported from API (all-zones, zonelist) per MIGRATE_API_IMPORT_GUIDE; fallback to one Default zone per location if API returns none.
  *
  * All created/updated-by fields are set to the user with email developer@archmage.lk (must exist).
@@ -36,6 +36,8 @@ import {
   resetMigrateReportState,
   type MigrateReporter,
   type MigrateTaskStats,
+  type MigrateSheetColumn,
+  type MigrateSheetRow,
 } from './lib/migrate-report';
 
 const prisma = new PrismaClient();
@@ -69,9 +71,114 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Sails often sends unpublished status as the string "0" (0 is falsy in their ternary). Prisma Int fields reject that. */
+function legacyStatusToInt(value: unknown, fallback = 0): number {
+  if (value === true || value === 'true') return 1;
+  if (value === false || value === 'false' || value == null || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function uniqueCode(raw: string, id: string, used: Set<string>): string {
+  const base = (raw || `X${id}`).trim() || `X${id}`;
+  if (!used.has(base)) {
+    used.add(base);
+    return base;
+  }
+  const suffix = String(id).replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'DUP';
+  let code = `${base}-${suffix}`;
+  let n = 2;
+  while (used.has(code)) {
+    code = `${base}-${suffix}-${n}`;
+    n += 1;
+  }
+  used.add(code);
+  return code;
+}
+
+function isLegacyActiveStatus(value: unknown): boolean {
+  return value === 1 || value === '1';
+}
+
 const BASE_URL = process.env.MIGRATE_BASE_URL || 'http://localhost:1337';
 const USER_KEY = process.env.MIGRATE_USER_KEY || '';
 const IMPORT_USER_EMAIL = 'developer@archmage.lk';
+
+const ANSI = {
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+};
+
+function fmtN(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+function formatCounts(stats: MigrateTaskStats): string {
+  const created = stats.created ?? 0;
+  const updated = stats.updated ?? 0;
+  const skipped = stats.skipped ?? 0;
+  const failed = stats.failed ?? 0;
+  const bits = [`${fmtN(stats.detected)} from API`, `${fmtN(created)} created`];
+  if (updated) bits.push(`${fmtN(updated)} updated`);
+  if (skipped) bits.push(`${ANSI.yellow}${fmtN(skipped)} skipped${ANSI.reset}`);
+  if (failed) bits.push(`${ANSI.red}${fmtN(failed)} failed${ANSI.reset}`);
+  return bits.join('  ·  ');
+}
+
+function printFlushSummary(rows: Array<{ label: string; count: number }>): void {
+  const nonempty = rows.filter((r) => r.count > 0);
+  const empty = rows.length - nonempty.length;
+  if (nonempty.length === 0) {
+    console.log(`  ${ANSI.dim}Nothing to delete — tables were already empty.${ANSI.reset}\n`);
+    return;
+  }
+  const width = Math.max(...nonempty.map((r) => r.label.length));
+  for (const r of nonempty) {
+    console.log(`  ${r.label.padEnd(width)}  ${fmtN(r.count)}`);
+  }
+  const total = nonempty.reduce((sum, r) => sum + r.count, 0);
+  console.log(`  ${'─'.repeat(width + 2)}  ${'─'.repeat(8)}`);
+  console.log(`  ${'total'.padEnd(width)}  ${ANSI.bold}${fmtN(total)}${ANSI.reset}`);
+  if (empty > 0) {
+    console.log(`  ${ANSI.dim}${empty} other tables were already empty${ANSI.reset}`);
+  }
+  console.log('');
+}
+
+function emitSheet(
+  reporter: MigrateReporter | null,
+  name: string,
+  columns: MigrateSheetColumn[],
+  rows: MigrateSheetRow[]
+): void {
+  reporter?.records(name, columns, rows);
+}
+
+async function runNamedStep(
+  index: number,
+  total: number,
+  name: string,
+  fn: () => Promise<MigrateTaskStats>,
+  summary: Array<{ name: string; stats: MigrateTaskStats }>
+): Promise<MigrateTaskStats> {
+  console.log(`  ${ANSI.bold}[>] ${index}/${total} ${name}${ANSI.reset}  ${ANSI.dim}importing…${ANSI.reset}`);
+  const stats = await fn();
+  console.log(`  ${ANSI.green}[x]${ANSI.reset} ${index}/${total} ${ANSI.bold}${name}${ANSI.reset}  ${formatCounts(stats)}`);
+  if (stats.notes) {
+    console.log(`         ${ANSI.dim}${stats.notes}${ANSI.reset}`);
+  }
+  if ((stats.skipped ?? 0) > 0) {
+    console.log(
+      `         ${ANSI.dim}Details: temp/migrate-report.xlsx (Issues sheet)${ANSI.reset}`
+    );
+  }
+  summary.push({ name, stats });
+  return stats;
+}
 
 // --- API types (from MIGRATE_API_IMPORT_GUIDE.md) ---
 type MigrateResponse<T> = {
@@ -117,9 +224,24 @@ const ALL_STEPS = [
   'tags',
   'discounts',
   'agencies',
+  'agency-books',
   'staff',
 ] as const;
 type StepName = (typeof ALL_STEPS)[number];
+
+const STEP_TITLE: Record<StepName, string> = {
+  specialities: 'Specialities',
+  doctors: 'Doctors',
+  departments: 'Departments',
+  locations: 'Locations',
+  zones: 'Zones',
+  rooms: 'Rooms',
+  tags: 'Tags',
+  discounts: 'Discounts',
+  agencies: 'Agencies',
+  'agency-books': 'Agency books',
+  staff: 'Staff',
+};
 
 function parseArgs(): {
   flush: boolean | null;
@@ -153,74 +275,69 @@ function ask(question: string): Promise<string> {
 }
 
 async function deleteMigrateTables(): Promise<void> {
-  console.log('Deleting existing data in migrate-related tables...');
-  const r0a = await prisma.receipt.deleteMany({});
-  console.log('  receipt:', r0a.count);
-  const r0b = await prisma.booking.deleteMany({});
-  console.log('  booking:', r0b.count);
-  const rUserStaff = await prisma.user.updateMany({
-    where: { staffId: { not: null } },
-    data: { staffId: null },
-  });
-  console.log('  user.staffId cleared:', rUserStaff.count);
-  const rStaff = await prisma.staff.deleteMany({});
-  console.log('  staff:', rStaff.count);
-  const r1 = await prisma.session.deleteMany({});
-  console.log('  session:', r1.count);
+  console.log(`\n${ANSI.bold}Flush${ANSI.reset}  clearing existing migrate data so import can start clean\n`);
+  const rows: Array<{ label: string; count: number }> = [];
+  const add = (label: string, count: number) => {
+    rows.push({ label, count });
+  };
+
+  add('receipts', (await prisma.receipt.deleteMany({})).count);
+  add('bookings', (await prisma.booking.deleteMany({})).count);
+  add(
+    'user.staffId unlinked',
+    (
+      await prisma.user.updateMany({
+        where: { staffId: { not: null } },
+        data: { staffId: null },
+      })
+    ).count
+  );
+  add('staff', (await prisma.staff.deleteMany({})).count);
+  add('sessions', (await prisma.session.deleteMany({})).count);
   await prisma.doctorSession.updateMany({ where: {}, data: { previousSessionId: null } });
-  const r2 = await prisma.doctorSession.deleteMany({});
-  console.log('  doctorSession:', r2.count);
-  const r3 = await prisma.agencyBook.deleteMany({});
-  console.log('  agencyBook:', r3.count);
-  const r4 = await prisma.log.deleteMany({});
-  console.log('  log:', r4.count);
-  const r5 = await prisma.agency.deleteMany({});
-  console.log('  agency:', r5.count);
-  const r6 = await prisma.voucherCode.deleteMany({});
-  console.log('  voucherCode:', r6.count);
-  const r7 = await prisma.discount.deleteMany({});
-  console.log('  discount:', r7.count);
-  const r8 = await prisma.room.deleteMany({});
-  console.log('  room:', r8.count);
-  const r9 = await prisma.zone.deleteMany({});
-  console.log('  zone:', r9.count);
+  add('doctor sessions', (await prisma.doctorSession.deleteMany({})).count);
+  add('agency books', (await prisma.agencyBook.deleteMany({})).count);
+  add('logs', (await prisma.log.deleteMany({})).count);
+  add('agencies', (await prisma.agency.deleteMany({})).count);
+  add('voucher codes', (await prisma.voucherCode.deleteMany({})).count);
+  add('discounts', (await prisma.discount.deleteMany({})).count);
+  add('rooms', (await prisma.room.deleteMany({})).count);
+  add('zones', (await prisma.zone.deleteMany({})).count);
   // Location is referenced by live User/Till rows (onDelete: NoAction on User.userLocationId).
   await prisma.shiftHandover.updateMany({
     where: { forwardedToHandoverId: { not: null } },
     data: { forwardedToHandoverId: null },
   });
-  const rSh = await prisma.shiftHandover.deleteMany({});
-  console.log('  shiftHandover:', rSh.count);
-  const rShift = await prisma.shift.deleteMany({});
-  console.log('  shift:', rShift.count);
-  const rTill = await prisma.till.deleteMany({});
-  console.log('  till:', rTill.count);
-  const rUbl = await prisma.userBookingLocation.deleteMany({});
-  console.log('  userBookingLocation:', rUbl.count);
-  const rUserLoc = await prisma.user.updateMany({
-    where: { userLocationId: { not: null } },
-    data: { userLocationId: null },
-  });
-  console.log('  user.userLocationId cleared:', rUserLoc.count);
-  const r10 = await prisma.location.deleteMany({});
-  console.log('  location:', r10.count);
-  const r11 = await prisma.doctor.deleteMany({});
-  console.log('  doctor:', r11.count);
-  const r12 = await prisma.department.deleteMany({});
-  console.log('  department:', r12.count);
-  const r13 = await prisma.speciality.deleteMany({});
-  console.log('  speciality:', r13.count);
+  add('shift handovers', (await prisma.shiftHandover.deleteMany({})).count);
+  add('shifts', (await prisma.shift.deleteMany({})).count);
+  add('tills', (await prisma.till.deleteMany({})).count);
+  add('user booking locations', (await prisma.userBookingLocation.deleteMany({})).count);
+  add(
+    'user.userLocationId unlinked',
+    (
+      await prisma.user.updateMany({
+        where: { userLocationId: { not: null } },
+        data: { userLocationId: null },
+      })
+    ).count
+  );
+  add('locations', (await prisma.location.deleteMany({})).count);
+  add('doctors', (await prisma.doctor.deleteMany({})).count);
+  add('departments', (await prisma.department.deleteMany({})).count);
+  add('specialities', (await prisma.speciality.deleteMany({})).count);
   // Tags are referenced by BankAccount (onDelete: Restrict) and Patient.area.
-  const rBank = await prisma.bankAccount.deleteMany({});
-  console.log('  bankAccount:', rBank.count);
-  const rPatientArea = await prisma.patient.updateMany({
-    where: { areaId: { not: null } },
-    data: { areaId: null },
-  });
-  console.log('  patient.areaId cleared:', rPatientArea.count);
-  const r14 = await prisma.tag.deleteMany({});
-  console.log('  tag:', r14.count);
-  console.log('Done.\n');
+  add('bank accounts', (await prisma.bankAccount.deleteMany({})).count);
+  add(
+    'patient.areaId unlinked',
+    (
+      await prisma.patient.updateMany({
+        where: { areaId: { not: null } },
+        data: { areaId: null },
+      })
+    ).count
+  );
+  add('tags', (await prisma.tag.deleteMany({})).count);
+  printFlushSummary(rows);
 }
 
 // --- Import steps ---
@@ -296,34 +413,81 @@ async function getSpecialityIdMapFromDb(): Promise<Map<string, string>> {
   return map;
 }
 
-async function importSpecialities(importUserId: string): Promise<{
+async function importSpecialities(
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<{
   map: Map<string, string>;
   stats: MigrateTaskStats;
 }> {
   const list = await migrateFetch<SourceSpeciality>('all-specialties', 'specialitylist');
   const map = new Map<string, string>();
+  const rows: MigrateSheetRow[] = [];
+  const usedCodes = new Set<string>();
   let created = 0;
+  let skipped = 0;
   for (const s of list) {
-    const row = await retryOnConflict(() =>
-      prisma.speciality.create({
-        data: {
+    const status = legacyStatusToInt(s.status);
+    const rawCode = s.code || `S${s.id}`;
+    const code = uniqueCode(rawCode, s.id, usedCodes);
+    try {
+      const row = await retryOnConflict(() =>
+        prisma.speciality.create({
+          data: {
+            name: s.name || '',
+            code,
+            description: s.description ?? '',
+            status,
+            migrateSourceId: s.id,
+            createdBy: importUserId,
+            updatedBy: importUserId
+          }
+        })
+      );
+      map.set(s.id, row.id);
+      created++;
+      rows.push({
+        result: 'created',
+        legacyId: s.id,
+        code,
+        name: s.name || '',
+        status,
+        note: code !== rawCode ? `code was ${s.code}` : '',
+      });
+    } catch (e: unknown) {
+      const codeErr = (e as { code?: string })?.code;
+      if (codeErr === 'P2002') {
+        reporter?.issue('specialities', 'duplicate_code', s.code ?? s.id, s.name ?? '');
+        skipped++;
+        rows.push({
+          result: 'skipped',
+          legacyId: s.id,
+          code: s.code ?? '',
           name: s.name || '',
-          code: s.code || `S${s.id}`,
-          description: s.description ?? '',
-          status: s.status ?? 0,
-          migrateSourceId: s.id,
-          createdBy: importUserId,
-          updatedBy: importUserId
-        }
-      })
-    );
-    map.set(s.id, row.id);
-    created++;
+          status,
+          note: 'duplicate code',
+        });
+        continue;
+      }
+      throw e;
+    }
   }
-  console.log(`  Specialities: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Specialities',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Code', key: 'code', width: 14 },
+      { header: 'Name', key: 'name', width: 36 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 28 },
+    ],
+    rows
+  );
   return {
     map,
-    stats: { detected: list.length, created, updated: 0, skipped: 0 },
+    stats: { detected: list.length, created, updated: 0, skipped },
   };
 }
 
@@ -344,7 +508,7 @@ async function ensureSpecialityInMap(
         name: s.name || '',
         code: s.code || `S${s.id}`,
         description: s.description ?? '',
-        status: s.status ?? 0,
+            status: legacyStatusToInt(s.status),
         migrateSourceId: s.id,
         createdBy: importUserId,
         updatedBy: importUserId
@@ -363,6 +527,8 @@ async function importDoctors(
   const list = await migrateFetch<SourceDoctor>('all-doctors', 'doctorlist');
   let created = 0;
   let skipped = 0;
+  const rows: MigrateSheetRow[] = [];
+  const usedCodes = new Set<string>();
   for (const d of list) {
     let specialityId = specialityIdMap.get(d.speciality_id);
     if (!specialityId) {
@@ -370,19 +536,30 @@ async function importDoctors(
     }
     if (!specialityId) {
       const msg = `specialty ${d.speciality_id} not found`;
-      console.warn(`  Skip doctor ${d.id} (${d.name}): ${msg}`);
       reporter?.issue('doctors', 'missing_speciality', d.code ?? d.id, `${d.name}: ${msg}`);
       skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: d.id,
+        code: d.code ?? '',
+        name: d.name ?? '',
+        title: '',
+        speciality: d.speciality_id,
+        phone: d.phone ?? '',
+        status: d.status ?? 0,
+        note: msg,
+      });
       continue;
     }
     try {
       const titleName = getTitleNameById(d.title) ?? (typeof d.title === 'string' ? d.title : '');
+      const code = uniqueCode(d.code ?? `D${d.id}`, d.id, usedCodes);
       await retryOnConflict(() =>
         prisma.doctor.create({
           data: {
             title: titleName || 'OTHER',
             name: d.name ?? '',
-            code: d.code ?? `D${d.id}`,
+            code,
             order: d.order ?? 0,
             phone: d.phone ?? null,
             fax: d.fax ?? null,
@@ -394,7 +571,7 @@ async function importDoctors(
             qualification: d.qualification ?? '',
             referralCharge: Number(d.referral_charge) ?? 0,
             sessionNoPrefix: d.session_no_prefix ?? null,
-            status: d.status ?? 0,
+            status: legacyStatusToInt(d.status),
             specialityId,
             migrateSourceId: d.id,
             createdBy: importUserId,
@@ -403,25 +580,62 @@ async function importDoctors(
         })
       );
       created++;
+      rows.push({
+        result: 'created',
+        legacyId: d.id,
+        code,
+        name: d.name ?? '',
+        title: titleName || 'OTHER',
+        speciality: d.speciality_id,
+        phone: d.phone ?? '',
+        status: legacyStatusToInt(d.status),
+        note: code !== (d.code ?? `D${d.id}`) ? `code was ${d.code}` : '',
+      });
     } catch (e: any) {
       if (e?.code === 'P2002') {
         const target = e?.meta?.target ?? 'unique constraint';
         const msg = `duplicate ${target}`;
-        console.warn(`  Skip doctor ${d.id} (${d.name}): ${msg}`);
         reporter?.issue('doctors', 'duplicate_code', d.code ?? d.id, `${d.name}: ${msg}`);
         skipped++;
+        rows.push({
+          result: 'skipped',
+          legacyId: d.id,
+          code: d.code ?? '',
+          name: d.name ?? '',
+          title: '',
+          speciality: d.speciality_id,
+          phone: d.phone ?? '',
+          status: d.status ?? 0,
+          note: msg,
+        });
       } else {
         throw e;
       }
     }
   }
-  console.log(`  Doctors: ${list.length} imported${skipped > 0 ? `, ${skipped} skipped` : ''}`);
+  emitSheet(
+    reporter,
+    'Doctors',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Code', key: 'code', width: 12 },
+      { header: 'Name', key: 'name', width: 36 },
+      { header: 'Title', key: 'title', width: 12 },
+      { header: 'Speciality (legacy)', key: 'speciality', width: 28 },
+      { header: 'Phone', key: 'phone', width: 16 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 36 },
+    ],
+    rows
+  );
   return { detected: list.length, created, updated: 0, skipped };
 }
 
-async function importDepartments(): Promise<MigrateTaskStats> {
+async function importDepartments(reporter: MigrateReporter | null): Promise<MigrateTaskStats> {
   const list = await migrateFetch<SourceDepartment>('all-departments', 'departmentlist');
   let created = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const d of list) {
     await retryOnConflict(() =>
       prisma.department.create({
@@ -434,18 +648,38 @@ async function importDepartments(): Promise<MigrateTaskStats> {
       })
     );
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: d.id,
+      name: d.name ?? '',
+      status: d.status === '1' ? 1 : 0,
+    });
   }
-  console.log(`  Departments: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Departments',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Name', key: 'name', width: 36 },
+      { header: 'Status', key: 'status', width: 10 },
+    ],
+    rows
+  );
   return { detected: list.length, created, updated: 0, skipped: 0 };
 }
 
-async function importLocations(importUserId: string): Promise<{
+async function importLocations(
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<{
   map: Map<string, string>;
   stats: MigrateTaskStats;
 }> {
   const list = await migrateFetch<SourceLocation>('all-locations', 'locationlist');
   const map = new Map<string, string>();
   let created = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const l of list) {
     const row = await retryOnConflict(() =>
       prisma.location.create({
@@ -456,7 +690,7 @@ async function importLocations(importUserId: string): Promise<{
           addressLine2: l.address_line_02 ?? '',
           city: l.city ?? '',
           branchType: l.branch_type ?? 0,
-          status: l.status ?? 0,
+          status: legacyStatusToInt(l.status),
           migrateSourceId: l.id,
           createdBy: importUserId,
           updatedBy: importUserId
@@ -465,8 +699,28 @@ async function importLocations(importUserId: string): Promise<{
     );
     map.set(l.id, row.id);
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: l.id,
+      code: l.code ?? `L${l.id}`,
+      name: l.name ?? '',
+      city: l.city ?? '',
+      status: l.status ?? 0,
+    });
   }
-  console.log(`  Locations: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Locations',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Code', key: 'code', width: 12 },
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'City', key: 'city', width: 18 },
+      { header: 'Status', key: 'status', width: 10 },
+    ],
+    rows
+  );
   return { map, stats: { detected: list.length, created, updated: 0, skipped: 0 } };
 }
 
@@ -483,7 +737,7 @@ async function importZonesFromApi(
     const message = e instanceof Error ? e.message : String(e);
     if (message.includes('HTTP 404') || message.includes('HTTP 401')) {
       console.warn(
-        `  [zones] GET all-zones failed (${message.includes('HTTP 401') ? '401 — add migrate/all-zones to Sails policies.js' : '404 — endpoint missing'}). Will create Default zone per location.`
+        `  ${ANSI.yellow}Zones API unavailable (${message.includes('HTTP 401') ? '401 — add migrate/all-zones to Sails policies.js' : '404 — endpoint missing'}). Will create a Default zone per location.${ANSI.reset}`
       );
       return {
         map: new Map(),
@@ -501,13 +755,21 @@ async function importZonesFromApi(
   const zoneIdMap = new Map<string, string>();
   let created = 0;
   let skipped = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const z of list) {
     const locationId = locationIdMap.get(z.location);
     if (!locationId) {
       const msg = `location ${z.location} not found`;
-      console.warn(`  Skip zone ${z.id} (${z.name}): ${msg}`);
       reporter?.issue('zones', 'missing_location', z.id, `${z.name}: ${msg}`);
       skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: z.id,
+        name: z.name ?? '',
+        location: z.location,
+        status: z.status === 1 ? 1 : 0,
+        note: msg,
+      });
       continue;
     }
     const zone = await retryOnConflict(() =>
@@ -525,8 +787,28 @@ async function importZonesFromApi(
     );
     zoneIdMap.set(z.id, zone.id);
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: z.id,
+      name: z.name ?? 'Default',
+      location: z.location,
+      status: z.status === 1 ? 1 : 0,
+      note: '',
+    });
   }
-  console.log(`  Zones: ${list.length} from API${skipped > 0 ? `, ${skipped} skipped` : ''}`);
+  emitSheet(
+    reporter,
+    'Zones',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Name', key: 'name', width: 24 },
+      { header: 'Location (legacy)', key: 'location', width: 28 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 36 },
+    ],
+    rows
+  );
   return {
     map: zoneIdMap,
     stats: { detected: list.length, created, updated: 0, skipped },
@@ -557,7 +839,6 @@ async function createDefaultZones(
     );
     zoneByLocation.set(locationId, zone.id);
   }
-  console.log(`  Zones (default per location): ${zoneByLocation.size} total, ${locationIdsNeedingZone.length} created this run`);
   return {
     map: zoneByLocation,
     stats: {
@@ -622,12 +903,21 @@ async function importRooms(
   let created = 0;
   let skipped = 0;
   let usedFallbackZone = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const r of list) {
     const locationId = locationIdMap.get(r.location);
     if (!locationId) {
-      console.warn(`  Skip room ${r.id}: location ${r.location} not found`);
       reporter?.issue('rooms', 'missing_location', r.number ?? r.id, `legacy location ${r.location}`);
       skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: r.id,
+        number: r.number ?? '',
+        location: r.location,
+        zone: '',
+        status: r.status ?? 0,
+        note: `location ${r.location} not found`,
+      });
       continue;
     }
     const sourceZoneId = getSourceZoneId(r);
@@ -635,9 +925,17 @@ async function importRooms(
     const zoneId = zoneIdFromMap ?? zoneByLocationMap.get(locationId);
     if (zoneIdFromMap === undefined && sourceZoneId && zoneByLocationMap.has(locationId)) usedFallbackZone++;
     if (!zoneId) {
-      console.warn(`  Skip room ${r.id}: no zone for location ${r.location}`);
       reporter?.issue('rooms', 'missing_zone', r.number ?? r.id, `location ${r.location}`);
       skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: r.id,
+        number: r.number ?? '',
+        location: r.location,
+        zone: sourceZoneId ?? '',
+        status: r.status ?? 0,
+        note: `no zone for location ${r.location}`,
+      });
       continue;
     }
     await retryOnConflict(() =>
@@ -645,7 +943,7 @@ async function importRooms(
         data: {
           number: r.number ?? '',
           description: r.description ?? '',
-          status: r.status ?? 0,
+          status: legacyStatusToInt(r.status),
           locationId,
           zoneId,
           migrateSourceId: r.id,
@@ -655,24 +953,39 @@ async function importRooms(
       })
     );
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: r.id,
+      number: r.number ?? '',
+      location: r.location,
+      zone: sourceZoneId ?? '',
+      status: r.status ?? 0,
+      note: zoneIdFromMap ? '' : 'used location default zone',
+    });
   }
-  const fallbackNote =
-    usedFallbackZone > 0
-      ? `${usedFallbackZone} used location default zone`
-      : undefined;
-  if (usedFallbackZone > 0) {
-    console.warn(
-      `  Rooms: ${list.length} imported, ${usedFallbackZone} linked to location default zone (source zone id not in zoneIdMap – import zones from API with migrateSourceId first)`
-    );
-  } else {
-    console.log(`  Rooms: ${list.length}`);
-  }
+  emitSheet(
+    reporter,
+    'Rooms',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Number', key: 'number', width: 12 },
+      { header: 'Location (legacy)', key: 'location', width: 28 },
+      { header: 'Zone (legacy)', key: 'zone', width: 28 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 36 },
+    ],
+    rows
+  );
   return {
     detected: list.length,
     created,
     updated: 0,
     skipped,
-    notes: fallbackNote,
+    notes:
+      usedFallbackZone > 0
+        ? `${usedFallbackZone} rooms used the location default zone (source zone id was not imported)`
+        : undefined,
   };
 }
 
@@ -691,9 +1004,13 @@ function resolveTagType(t: SourceTag): number | null {
   return null;
 }
 
-async function importTags(importUserId: string): Promise<MigrateTaskStats> {
+async function importTags(
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<MigrateTaskStats> {
   const list = await migrateFetch<SourceTag>('all-tags', 'taglist');
   let created = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const t of list) {
     const typeNum = resolveTagType(t);
     await retryOnConflict(() =>
@@ -709,14 +1026,36 @@ async function importTags(importUserId: string): Promise<MigrateTaskStats> {
       })
     );
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: String(t.id),
+      name: t.name ?? '',
+      type: typeNum ?? '',
+      status: t.status != null ? Number(t.status) : '',
+    });
   }
-  console.log(`  Tags: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Tags',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Name', key: 'name', width: 36 },
+      { header: 'Type', key: 'type', width: 10 },
+      { header: 'Status', key: 'status', width: 10 },
+    ],
+    rows
+  );
   return { detected: list.length, created, updated: 0, skipped: 0 };
 }
 
-async function importDiscounts(importUserId: string): Promise<MigrateTaskStats> {
+async function importDiscounts(
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<MigrateTaskStats> {
   const list = await migrateFetch<SourceDiscount>('all-discounts', 'discountlist');
   let created = 0;
+  const rows: MigrateSheetRow[] = [];
   for (const d of list) {
     const method = DISCOUNT_METHOD_MAP[d.discount_method] ?? 'POS';
     const payment = d.payment_type != null && PAYMENT_TYPE_MAP[d.payment_type] != null
@@ -735,7 +1074,7 @@ async function importDiscounts(importUserId: string): Promise<MigrateTaskStats> 
           toDate: new Date(d.to_date ?? 0),
           isVoucher: d.is_voucher ?? 0,
           autoApply: d.auto_apply ?? false,
-          status: d.status ?? 0,
+          status: legacyStatusToInt(d.status),
           applyTo: d.apply_to ?? 0,
           migrateSourceId: d.id,
           createdBy: importUserId,
@@ -744,8 +1083,30 @@ async function importDiscounts(importUserId: string): Promise<MigrateTaskStats> 
       })
     );
     created++;
+    rows.push({
+      result: 'created',
+      legacyId: d.id,
+      name: d.name ?? '',
+      method,
+      payment,
+      value: d.discount_value ?? 0,
+      status: d.status ?? 0,
+    });
   }
-  console.log(`  Discounts: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Discounts',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'Method', key: 'method', width: 12 },
+      { header: 'Payment', key: 'payment', width: 14 },
+      { header: 'Value', key: 'value', width: 12 },
+      { header: 'Status', key: 'status', width: 10 },
+    ],
+    rows
+  );
   return { detected: list.length, created, updated: 0, skipped: 0 };
 }
 
@@ -938,7 +1299,6 @@ async function importStaff(
 
   const legacyDupCodes = findLegacyStaffCodeDuplicates(list);
   if (legacyDupCodes.size > 0) {
-    console.warn(`  Staff: ${legacyDupCodes.size} duplicate code(s) in legacy API (see report Issues sheet)`);
     for (const [code, rows] of legacyDupCodes) {
       for (const row of rows) {
         reporter?.issue(
@@ -957,13 +1317,21 @@ async function importStaff(
     else statusCounts.inactive++;
   }
 
+  const sheetRows: MigrateSheetRow[] = [];
   for (const row of list) {
     const legacyId = resolveStaffLegacyId(row);
     const code = resolveStaffCode(row, legacyId);
     if (!code) {
-      console.warn('  Skip staff: missing code and legacy id');
       reporter?.issue('staff', 'missing_code', legacyId ?? '?', resolveStaffName(row));
       skipped++;
+      sheetRows.push({
+        result: 'skipped',
+        legacyId: legacyId ?? '',
+        code: '',
+        name: resolveStaffName(row),
+        status: resolveStaffStatus(row),
+        note: 'missing code',
+      });
       continue;
     }
 
@@ -999,14 +1367,29 @@ async function importStaff(
           })
         );
         updated++;
+        sheetRows.push({
+          result: 'updated',
+          legacyId: legacyId ?? '',
+          code,
+          name: data.name,
+          status: data.status,
+          note: '',
+        });
       } else {
         await retryOnConflict(() => prisma.staff.create({ data }));
         created++;
+        sheetRows.push({
+          result: 'created',
+          legacyId: legacyId ?? '',
+          code,
+          name: data.name,
+          status: data.status,
+          note: '',
+        });
       }
     } catch (e: unknown) {
       const codeErr = (e as { code?: string })?.code;
       if (codeErr === 'P2002') {
-        console.warn(`  Skip staff ${code} (${data.name}): duplicate code`);
         reporter?.issue(
           'staff',
           'duplicate_code_skip',
@@ -1014,64 +1397,120 @@ async function importStaff(
           `${data.name} | legacy=${legacyId ?? 'none'}`
         );
         skipped++;
+        sheetRows.push({
+          result: 'skipped',
+          legacyId: legacyId ?? '',
+          code,
+          name: data.name,
+          status: data.status,
+          note: 'duplicate code',
+        });
       } else {
         throw e;
       }
     }
   }
 
-  console.log(
-    `  Staff: ${list.length} from API → created=${created} updated=${updated}${skipped > 0 ? ` skipped=${skipped}` : ''}`
+  emitSheet(
+    reporter,
+    'Staff',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Code', key: 'code', width: 14 },
+      { header: 'Name', key: 'name', width: 40 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 28 },
+    ],
+    sheetRows
   );
   return {
     detected: list.length,
     created,
     updated,
     skipped,
-    notes: `legacy status active=${statusCounts.active} inactive=${statusCounts.inactive}; API duplicate codes=${legacyDupCodes.size}; all legacy statuses imported (no published filter)`,
+    notes:
+      skipped > 0
+        ? `${skipped} skipped (duplicate staff codes in legacy data)`
+        : `active=${statusCounts.active} inactive=${statusCounts.inactive}`,
   };
 }
 
-async function importAgencies(importUserId: string): Promise<{
+async function importAgencies(
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<{
   idMap: Map<string, string>;
   stats: MigrateTaskStats;
 }> {
   const list = await migrateFetch<SourceAgency>('all-agencies', 'agencylist');
   const idMap = new Map<string, string>();
   let created = 0;
+  let skipped = 0;
+  const rows: MigrateSheetRow[] = [];
+  const usedCodes = new Set<string>();
   // First pass: create all without parent
   for (const a of list) {
-    const row = await retryOnConflict(() =>
-      prisma.agency.create({
-        data: {
+    const code = a.code ? uniqueCode(a.code, a.id, usedCodes) : null;
+    try {
+      const row = await retryOnConflict(() =>
+        prisma.agency.create({
+          data: {
+            name: a.name ?? '',
+            code,
+            chequePrintingName: a.cheque_printing_name ?? a.name ?? '',
+            allowedCreditLimit: safeNumber(a.allowed_credit_limit),
+            creditLimit: safeNumber(a.credit_limit),
+            phone: a.phone ?? null,
+            mobile: a.mobile ?? null,
+            fax: a.fax ?? null,
+            email: a.email ?? null,
+            website: a.website ?? null,
+            memo: a.memo ?? null,
+            addressLine1: a.address_line_01 ?? null,
+            addressLine2: a.address_line_02 ?? null,
+            city: a.city ?? null,
+            contactPersonName: a.contact_person_name ?? '',
+            contactPersonPhone: a.contact_person_phone ?? null,
+            contactPersonMobile: a.contact_person_mobile ?? null,
+            contactPersonEmail: a.contact_person_email ?? null,
+            sendSms: legacyStatusToInt(a.send_sms, 0),
+            status: legacyStatusToInt(a.status, 1),
+            migrateSourceId: a.id,
+            createdBy: importUserId,
+            updatedBy: importUserId
+          }
+        })
+      );
+      idMap.set(a.id, row.id);
+      created++;
+      rows.push({
+        result: 'created',
+        legacyId: a.id,
+        code: code ?? '',
+        name: a.name ?? '',
+        phone: a.phone ?? '',
+        status: legacyStatusToInt(a.status, 1),
+        note: code && a.code && code !== a.code ? `code was ${a.code}` : '',
+      });
+    } catch (e: unknown) {
+      const codeErr = (e as { code?: string })?.code;
+      if (codeErr === 'P2002') {
+        reporter?.issue('agencies', 'duplicate_code', a.code ?? a.id, a.name ?? '');
+        skipped++;
+        rows.push({
+          result: 'skipped',
+          legacyId: a.id,
+          code: a.code ?? '',
           name: a.name ?? '',
-          code: a.code ?? null,
-          chequePrintingName: a.cheque_printing_name ?? a.name ?? '',
-          allowedCreditLimit: safeNumber(a.allowed_credit_limit),
-          creditLimit: safeNumber(a.credit_limit),
-          phone: a.phone ?? null,
-          mobile: a.mobile ?? null,
-          fax: a.fax ?? null,
-          email: a.email ?? null,
-          website: a.website ?? null,
-          memo: a.memo ?? null,
-        addressLine1: a.address_line_01 ?? null,
-        addressLine2: a.address_line_02 ?? null,
-        city: a.city ?? null,
-        contactPersonName: a.contact_person_name ?? '',
-        contactPersonPhone: a.contact_person_phone ?? null,
-        contactPersonMobile: a.contact_person_mobile ?? null,
-        contactPersonEmail: a.contact_person_email ?? null,
-        sendSms: a.send_sms ?? 0,
-        status: a.status ?? 1,
-        migrateSourceId: a.id,
-        createdBy: importUserId,
-        updatedBy: importUserId
+          phone: a.phone ?? '',
+          status: legacyStatusToInt(a.status, 1),
+          note: 'duplicate code',
+        });
+        continue;
       }
-    })
-    );
-    idMap.set(a.id, row.id);
-    created++;
+      throw e;
+    }
   }
   // Second pass: set parentAgencyId where applicable
   for (const a of list) {
@@ -1085,10 +1524,218 @@ async function importAgencies(importUserId: string): Promise<{
       });
     }
   }
-  console.log(`  Agencies: ${list.length}`);
+  emitSheet(
+    reporter,
+    'Agencies',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Code', key: 'code', width: 12 },
+      { header: 'Name', key: 'name', width: 36 },
+      { header: 'Phone', key: 'phone', width: 16 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 28 },
+    ],
+    rows
+  );
   return {
     idMap,
-    stats: { detected: list.length, created, updated: 0, skipped: 0 },
+    stats: { detected: list.length, created, updated: 0, skipped },
+  };
+}
+
+async function getAgencyIdMapFromDb(): Promise<Map<string, string>> {
+  const dbList = await prisma.agency.findMany({
+    select: { id: true, code: true, migrateSourceId: true },
+  });
+  const map = new Map<string, string>();
+  for (const r of dbList) {
+    if (r.migrateSourceId) map.set(r.migrateSourceId, r.id);
+  }
+  if (map.size > 0) return map;
+  const list = await migrateFetch<SourceAgency>('all-agencies', 'agencylist');
+  const codeToId = new Map(dbList.filter((r) => r.code).map((r) => [r.code as string, r.id]));
+  for (const a of list) {
+    const targetId = codeToId.get(a.code ?? '');
+    if (targetId) map.set(a.id, targetId);
+  }
+  return map;
+}
+
+type SourceAgencyBook = {
+  id: string;
+  book_number: string;
+  start_number: string;
+  end_number: string;
+  status?: number | string;
+  agency?: string;
+};
+
+async function importAgencyBooks(
+  agencyIdMap: Map<string, string>,
+  importUserId: string,
+  reporter: MigrateReporter | null
+): Promise<MigrateTaskStats> {
+  const list = await migrateFetch<SourceAgencyBook>('all-agency-books', 'agencybooklist');
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const rows: MigrateSheetRow[] = [];
+
+  for (const row of list) {
+    const bookNumber = (row.book_number ?? '').toString().trim();
+    if (!bookNumber) {
+      reporter?.issue('agency-books', 'missing_book_number', row.id ?? '?', 'empty book_number');
+      skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: row.id ?? '',
+        bookNumber: '',
+        startNumber: row.start_number ?? '',
+        endNumber: row.end_number ?? '',
+        agency: row.agency ?? '',
+        status: row.status ?? '',
+        note: 'empty book_number',
+      });
+      continue;
+    }
+
+    if (!isLegacyActiveStatus(row.status)) {
+      skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: row.id ?? '',
+        bookNumber,
+        startNumber: row.start_number ?? '',
+        endNumber: row.end_number ?? '',
+        agency: row.agency ?? '',
+        status: row.status ?? '',
+        note: 'inactive',
+      });
+      continue;
+    }
+
+    const agencyId = row.agency ? agencyIdMap.get(row.agency) : undefined;
+    if (!agencyId) {
+      reporter?.issue(
+        'agency-books',
+        'missing_agency',
+        bookNumber,
+        `legacy agency ${row.agency || '(none)'} not found`
+      );
+      skipped++;
+      rows.push({
+        result: 'skipped',
+        legacyId: row.id ?? '',
+        bookNumber,
+        startNumber: row.start_number ?? '',
+        endNumber: row.end_number ?? '',
+        agency: row.agency ?? '',
+        status: row.status ?? '',
+        note: `agency ${row.agency || '(none)'} not found`,
+      });
+      continue;
+    }
+
+    const statusRaw = row.status;
+    const status =
+      statusRaw === 0 || statusRaw === '0' ? 0 : statusRaw === 1 || statusRaw === '1' ? 1 : Number(statusRaw);
+    const data = {
+      bookNumber,
+      startNumber: (row.start_number ?? '').toString(),
+      endNumber: (row.end_number ?? '').toString(),
+      status: Number.isFinite(status) ? status : 1,
+      agencyId,
+      ...(row.id ? { migrateSourceId: String(row.id) } : {}),
+      createdBy: importUserId,
+      updatedBy: importUserId,
+    };
+
+    try {
+      const existing = row.id
+        ? await prisma.agencyBook.findFirst({
+            where: { migrateSourceId: String(row.id) },
+            select: { id: true },
+          })
+        : await prisma.agencyBook.findUnique({
+            where: { bookNumber },
+            select: { id: true },
+          });
+
+      if (existing) {
+        await retryOnConflict(() =>
+          prisma.agencyBook.update({
+            where: { id: existing.id },
+            data: { ...data, updatedBy: importUserId },
+          })
+        );
+        updated++;
+        rows.push({
+          result: 'updated',
+          legacyId: row.id ?? '',
+          bookNumber,
+          startNumber: data.startNumber,
+          endNumber: data.endNumber,
+          agency: row.agency ?? '',
+          status: data.status,
+          note: '',
+        });
+      } else {
+        await retryOnConflict(() => prisma.agencyBook.create({ data }));
+        created++;
+        rows.push({
+          result: 'created',
+          legacyId: row.id ?? '',
+          bookNumber,
+          startNumber: data.startNumber,
+          endNumber: data.endNumber,
+          agency: row.agency ?? '',
+          status: data.status,
+          note: '',
+        });
+      }
+    } catch (e: unknown) {
+      const codeErr = (e as { code?: string })?.code;
+      if (codeErr === 'P2002') {
+        reporter?.issue('agency-books', 'duplicate_book_number', bookNumber, `legacy=${row.id ?? 'none'}`);
+        skipped++;
+        rows.push({
+          result: 'skipped',
+          legacyId: row.id ?? '',
+          bookNumber,
+          startNumber: data.startNumber,
+          endNumber: data.endNumber,
+          agency: row.agency ?? '',
+          status: data.status,
+          note: 'duplicate book number',
+        });
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  emitSheet(
+    reporter,
+    'Agency books',
+    [
+      { header: 'Result', key: 'result', width: 12 },
+      { header: 'Legacy id', key: 'legacyId', width: 28 },
+      { header: 'Book number', key: 'bookNumber', width: 16 },
+      { header: 'Start number', key: 'startNumber', width: 14 },
+      { header: 'End number', key: 'endNumber', width: 14 },
+      { header: 'Agency (legacy)', key: 'agency', width: 28 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Note', key: 'note', width: 40 },
+    ],
+    rows
+  );
+  return {
+    detected: list.length,
+    created,
+    updated,
+    skipped,
+    notes: skipped > 0 ? `${skipped} skipped (inactive, missing agency, or duplicate book number)` : undefined,
   };
 }
 
@@ -1100,9 +1747,11 @@ async function main(): Promise<void> {
 
   const { flush, only } = parseArgs();
   const stepsToRun = only ?? [...ALL_STEPS];
+  const total = stepsToRun.length;
+  const summary: Array<{ name: string; stats: MigrateTaskStats }> = [];
+  let stepIndex = 0;
 
   resetMigrateReportState();
-  console.log('Cleared temp/ migration report (fresh run).\n');
 
   const reporter = createMigrateReporter('migrate-import', {
     baseUrl: BASE_URL,
@@ -1110,17 +1759,11 @@ async function main(): Promise<void> {
     flush: String(flush ?? 'prompt'),
   });
 
-  console.log('Migrate API import\n');
-  console.log(`Base URL: ${BASE_URL}`);
-  if (only?.length) console.log(`Only steps: ${stepsToRun.join(', ')}`);
-
   let doFlush: boolean;
   if (flush === true) {
     doFlush = true;
-    console.log('--flush: will delete migrate tables then import.\n');
   } else if (flush === false) {
     doFlush = false;
-    console.log('--no-flush: import only (no delete).\n');
   } else {
     const answer = await ask('Delete existing data in migrate-related tables and import as new? (yes/no): ');
     doFlush = answer === 'yes' || answer === 'y';
@@ -1129,6 +1772,19 @@ async function main(): Promise<void> {
       process.exit(0);
     }
   }
+
+  console.log(`\n${ANSI.bold}Reference import${ANSI.reset}`);
+  console.log(`  Source  ${BASE_URL}`);
+  console.log(`  User    ${IMPORT_USER_EMAIL}`);
+  console.log(`  Mode    ${doFlush ? 'flush existing tables, then import' : 'import without deleting'}`);
+  if (only?.length) console.log(`  Only    ${stepsToRun.join(', ')}`);
+  console.log(`  Report  temp/migrate-report.xlsx (reset for this run)`);
+
+  console.log(`\n${ANSI.bold}Import plan${ANSI.reset}`);
+  stepsToRun.forEach((s, i) => {
+    console.log(`  [ ] ${i + 1}/${total} ${STEP_TITLE[s]}`);
+  });
+  console.log('');
 
   if (doFlush) await deleteMigrateTables();
 
@@ -1141,98 +1797,142 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const importUserId = importUser.id;
-  console.log(`Using import user: ${IMPORT_USER_EMAIL} (${importUserId})\n`);
 
-  console.log('Importing (one by one, in dependency order)...\n');
+  console.log(`${ANSI.bold}Importing${ANSI.reset}  from Sails migrate API\n`);
   try {
     let specialityIdMap = new Map<string, string>();
     let locationIdMap = new Map<string, string>();
     let zoneIdMap = new Map<string, string>();
     let zoneByLocationMap = new Map<string, string>();
+    let agencyIdMap = new Map<string, string>();
 
     if (stepsToRun.includes('specialities')) {
-      console.log('[Step] Specialities');
-      const r = await importSpecialities(importUserId);
-      specialityIdMap = r.map;
-      reporter?.task('specialities', r.stats);
+      let imported!: Awaited<ReturnType<typeof importSpecialities>>;
+      await runNamedStep(++stepIndex, total, STEP_TITLE.specialities, async () => {
+        imported = await importSpecialities(importUserId, reporter);
+        return imported.stats;
+      }, summary);
+      specialityIdMap = imported.map;
+      reporter?.task('specialities', imported.stats);
     } else if (stepsToRun.includes('doctors')) {
       specialityIdMap = await getSpecialityIdMapFromDb();
     }
 
     if (stepsToRun.includes('doctors')) {
-      console.log('[Step] Doctors');
-      reporter?.task('doctors', await importDoctors(specialityIdMap, importUserId, reporter));
+      await runNamedStep(++stepIndex, total, STEP_TITLE.doctors, async () => {
+        const stats = await importDoctors(specialityIdMap, importUserId, reporter);
+        reporter?.task('doctors', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('departments')) {
-      console.log('[Step] Departments');
-      reporter?.task('departments', await importDepartments());
+      await runNamedStep(++stepIndex, total, STEP_TITLE.departments, async () => {
+        const stats = await importDepartments(reporter);
+        reporter?.task('departments', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('locations')) {
-      console.log('[Step] Locations');
-      const r = await importLocations(importUserId);
-      locationIdMap = r.map;
-      reporter?.task('locations', r.stats);
+      let imported!: Awaited<ReturnType<typeof importLocations>>;
+      await runNamedStep(++stepIndex, total, STEP_TITLE.locations, async () => {
+        imported = await importLocations(importUserId, reporter);
+        return imported.stats;
+      }, summary);
+      locationIdMap = imported.map;
+      reporter?.task('locations', imported.stats);
     }
 
     if (stepsToRun.includes('zones')) {
-      console.log('[Step] Zones');
-      if (locationIdMap.size === 0) {
-        const maps = await getLocationAndZoneMapsFromDb();
-        locationIdMap = maps.locationIdMap;
-      }
-      const z = await importZonesFromApi(locationIdMap, importUserId, reporter);
-      zoneIdMap = z.map;
-      reporter?.task('zones', z.stats);
-      if (zoneIdMap.size === 0) {
-        console.log('  [zones] No zones from API — creating Default zone per location');
-        const d = await createDefaultZones(locationIdMap, importUserId);
-        zoneByLocationMap = d.map;
-        reporter?.task('zones-default', d.stats);
-      } else {
+      await runNamedStep(++stepIndex, total, STEP_TITLE.zones, async () => {
+        if (locationIdMap.size === 0) {
+          const maps = await getLocationAndZoneMapsFromDb();
+          locationIdMap = maps.locationIdMap;
+        }
+        const z = await importZonesFromApi(locationIdMap, importUserId, reporter);
+        zoneIdMap = z.map;
+        reporter?.task('zones', z.stats);
+        if (zoneIdMap.size === 0) {
+          const d = await createDefaultZones(locationIdMap, importUserId);
+          zoneByLocationMap = d.map;
+          reporter?.task('zones-default', d.stats);
+          return {
+            ...d.stats,
+            notes: 'API returned no zones — created a Default zone per location',
+          };
+        }
         const zones = await prisma.zone.findMany({ select: { id: true, locationId: true } });
-        for (const z of zones) { if (z.locationId != null) zoneByLocationMap.set(z.locationId, z.id); }
-      }
+        for (const row of zones) {
+          if (row.locationId != null) zoneByLocationMap.set(row.locationId, row.id);
+        }
+        return z.stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('rooms')) {
-      console.log('[Step] Rooms');
-      const dbMaps = await getLocationAndZoneMapsFromDb();
-      if (dbMaps.locationIdMap.size > 0) {
-        locationIdMap = dbMaps.locationIdMap;
-        zoneIdMap = dbMaps.zoneIdMap;
-        zoneByLocationMap = dbMaps.zoneByLocationMap;
-      } else if (locationIdMap.size === 0 || (zoneIdMap.size === 0 && zoneByLocationMap.size === 0)) {
-        locationIdMap = dbMaps.locationIdMap;
-        zoneIdMap = dbMaps.zoneIdMap;
-        zoneByLocationMap = dbMaps.zoneByLocationMap;
-      }
-      reporter?.task('rooms', await importRooms(locationIdMap, zoneIdMap, zoneByLocationMap, importUserId, reporter));
+      await runNamedStep(++stepIndex, total, STEP_TITLE.rooms, async () => {
+        const dbMaps = await getLocationAndZoneMapsFromDb();
+        if (dbMaps.locationIdMap.size > 0) {
+          locationIdMap = dbMaps.locationIdMap;
+          zoneIdMap = dbMaps.zoneIdMap;
+          zoneByLocationMap = dbMaps.zoneByLocationMap;
+        } else if (locationIdMap.size === 0 || (zoneIdMap.size === 0 && zoneByLocationMap.size === 0)) {
+          locationIdMap = dbMaps.locationIdMap;
+          zoneIdMap = dbMaps.zoneIdMap;
+          zoneByLocationMap = dbMaps.zoneByLocationMap;
+        }
+        const stats = await importRooms(locationIdMap, zoneIdMap, zoneByLocationMap, importUserId, reporter);
+        reporter?.task('rooms', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('tags')) {
-      console.log('[Step] Tags');
-      reporter?.task('tags', await importTags(importUserId));
+      await runNamedStep(++stepIndex, total, STEP_TITLE.tags, async () => {
+        const stats = await importTags(importUserId, reporter);
+        reporter?.task('tags', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('discounts')) {
-      console.log('[Step] Discounts');
-      reporter?.task('discounts', await importDiscounts(importUserId));
+      await runNamedStep(++stepIndex, total, STEP_TITLE.discounts, async () => {
+        const stats = await importDiscounts(importUserId, reporter);
+        reporter?.task('discounts', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('agencies')) {
-      console.log('[Step] Agencies');
-      const r = await importAgencies(importUserId);
-      reporter?.task('agencies', r.stats);
+      let imported!: Awaited<ReturnType<typeof importAgencies>>;
+      await runNamedStep(++stepIndex, total, STEP_TITLE.agencies, async () => {
+        imported = await importAgencies(importUserId, reporter);
+        reporter?.task('agencies', imported.stats);
+        return imported.stats;
+      }, summary);
+      agencyIdMap = imported.idMap;
+    } else if (stepsToRun.includes('agency-books')) {
+      agencyIdMap = await getAgencyIdMapFromDb();
+    }
+
+    if (stepsToRun.includes('agency-books')) {
+      await runNamedStep(++stepIndex, total, STEP_TITLE['agency-books'], async () => {
+        const stats = await importAgencyBooks(agencyIdMap, importUserId, reporter);
+        reporter?.task('agency-books', stats);
+        return stats;
+      }, summary);
     }
 
     if (stepsToRun.includes('staff')) {
-      console.log('[Step] Staff');
-      reporter?.task('staff', await importStaff(importUserId, reporter));
+      await runNamedStep(++stepIndex, total, STEP_TITLE.staff, async () => {
+        const stats = await importStaff(importUserId, reporter);
+        reporter?.task('staff', stats);
+        return stats;
+      }, summary);
     }
   } catch (e) {
-    console.error('Import failed:', e);
+    console.error(`${ANSI.red}${ANSI.bold}Import failed:${ANSI.reset}`, e);
     reporter?.task('import', {
       detected: 0,
       created: 0,
@@ -1248,7 +1948,19 @@ async function main(): Promise<void> {
   }
 
   await finishMigrateReporter(reporter);
-  console.log('\nImport completed.');
+
+  console.log(`\n${ANSI.bold}Reference import complete${ANSI.reset}`);
+  const nameWidth = Math.max(...summary.map((s) => s.name.length), 8);
+  for (const row of summary) {
+    const created = row.stats.created ?? 0;
+    const skipped = row.stats.skipped ?? 0;
+    const skip = skipped > 0 ? `  ${ANSI.yellow}${fmtN(skipped)} skipped${ANSI.reset}` : '';
+    console.log(`  ${row.name.padEnd(nameWidth)}  ${fmtN(created)} created${skip}`);
+  }
+  console.log('');
 }
 
-main();
+main().catch((e) => {
+  console.error('Reference import crashed:', e);
+  process.exit(1);
+});

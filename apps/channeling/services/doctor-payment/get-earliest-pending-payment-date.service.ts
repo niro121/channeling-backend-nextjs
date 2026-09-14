@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 
 /**
  * Earliest session date with unpaid doctor payment for this doctor.
+ * Optional locationId limits the search to that session branch.
  * Used to default Make Doctor Payment "From date".
  */
 export type GetEarliestPendingPaymentDateResult =
@@ -17,18 +18,30 @@ function toISODateLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+
+function normalizeLocationId(locationId?: string | null): string | undefined {
+  const id = locationId?.trim();
+  if (!id || id === '__all__') return undefined;
+  return OBJECT_ID_RE.test(id) ? id : undefined;
+}
+
 export async function getEarliestPendingPaymentDateService(params: {
   doctorId: string;
+  /** Session branch. Omit / null / `__all__` = all branches. */
+  locationId?: string | null;
 }): Promise<GetEarliestPendingPaymentDateResult> {
   const doctorId = params.doctorId?.trim();
   if (!doctorId) {
     return { success: false, errorCode: 'VALIDATION', message: 'Doctor is required.' };
   }
+  const sessionLocationId = normalizeLocationId(params.locationId);
 
   try {
     const session = await prisma.session.findFirst({
       where: {
         doctorId,
+        ...(sessionLocationId ? { locationId: sessionLocationId } : {}),
         bookings: {
           some: {
             status: 1,

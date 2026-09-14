@@ -37,6 +37,7 @@ export type GetDoctorPaymentListParams = {
   locationId?: string | null;
   paymentMethod?: number | null;
   doctorId?: string | null;
+  specialityId?: string | null;
   dateFrom?: string | null; // YYYY-MM-DD
   dateTo?: string | null;
 };
@@ -81,7 +82,25 @@ export async function getDoctorPaymentListService(
     (where.createdAt as Record<string, Date>).lte = to;
   }
 
+  const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+  const specialityId =
+    params.specialityId && OBJECT_ID_RE.test(params.specialityId) ? params.specialityId : undefined;
+  const doctorId = params.doctorId && OBJECT_ID_RE.test(params.doctorId) ? params.doctorId : undefined;
+
   let receiptIdsFilter: string[] | null = null;
+
+  const applyReceiptIdFilter = (ids: string[]): boolean => {
+    if (ids.length === 0) return false;
+    if (receiptIdsFilter) {
+      const intersection = ids.filter((id) => receiptIdsFilter!.includes(id));
+      if (intersection.length === 0) return false;
+      receiptIdsFilter = intersection;
+    } else {
+      receiptIdsFilter = ids;
+    }
+    where.id = { in: receiptIdsFilter };
+    return true;
+  };
 
   if (params.keyword?.trim()) {
     const kw = params.keyword.trim();
@@ -98,29 +117,33 @@ export async function getDoctorPaymentListService(
       select: { doctorPaymentReceiptId: true },
     });
     const ids = [...new Set(matchingBookings.map((b) => b.doctorPaymentReceiptId).filter(Boolean))] as string[];
-    if (ids.length === 0) {
+    if (!applyReceiptIdFilter(ids)) {
       return { data: [], totalRecords: 0 };
     }
-    receiptIdsFilter = ids;
-    where.id = { in: ids };
   }
 
-  if (params.doctorId) {
+  let doctorIdsForFilter: string[] | undefined;
+  if (doctorId) {
+    doctorIdsForFilter = [doctorId];
+  } else if (specialityId) {
+    const specialtyDoctors = await prisma.doctor.findMany({
+      where: { specialityId },
+      select: { id: true },
+    });
+    doctorIdsForFilter = specialtyDoctors.map((d) => d.id);
+    if (doctorIdsForFilter.length === 0) {
+      return { data: [], totalRecords: 0 };
+    }
+  }
+
+  if (doctorIdsForFilter) {
     const bookingReceiptIds = await prisma.booking.findMany({
-      where: { doctorId: params.doctorId, doctorPaymentReceiptId: { not: null } },
+      where: { doctorId: { in: doctorIdsForFilter }, doctorPaymentReceiptId: { not: null } },
       select: { doctorPaymentReceiptId: true },
     });
     const ids = [...new Set(bookingReceiptIds.map((b) => b.doctorPaymentReceiptId).filter(Boolean))] as string[];
-    if (ids.length === 0) {
+    if (!applyReceiptIdFilter(ids)) {
       return { data: [], totalRecords: 0 };
-    }
-    const doctorReceiptIds = ids;
-    if (receiptIdsFilter) {
-      const intersection = doctorReceiptIds.filter((id) => receiptIdsFilter!.includes(id));
-      if (intersection.length === 0) return { data: [], totalRecords: 0 };
-      where.id = { in: intersection };
-    } else {
-      where.id = { in: doctorReceiptIds };
     }
   }
 

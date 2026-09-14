@@ -39,7 +39,7 @@ export async function getDoctorsForSelectService(): Promise<ReferenceSelectOptio
   const records = await prisma.doctor.findMany({
     where: { status: 1 },
     orderBy: { name: "asc" },
-    select: { id: true, title: true, name: true, code: true },
+    select: { id: true, title: true, name: true, code: true, specialityId: true },
   })
   return records
     .filter((r) => r.id)
@@ -49,6 +49,7 @@ export async function getDoctorsForSelectService(): Promise<ReferenceSelectOptio
         id: r.id,
         name: formatReferenceLabel(fullName, r.code),
         code: r.code ?? null,
+        specialityId: r.specialityId ?? null,
       }
     })
 }

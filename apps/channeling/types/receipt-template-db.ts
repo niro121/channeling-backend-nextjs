@@ -41,6 +41,7 @@ export const RECEIPT_TEMPLATE_TYPES = [
   { id: "agent_receipt", name: "Agent Receipt" },
   { id: "expenses_note", name: "Expenses Note" },
   { id: "debit_note", name: "Debit Note" },
+  { id: "booking_receipt", name: "Booking Receipt" },
 ] as const
 
 export const RECEIPT_TEMPLATE_VARIANTS = [
@@ -76,6 +77,33 @@ export const RECEIPT_BODY_PLACEHOLDERS = [
   "card_reference",
   "slip_reference",
   "slip_date",
+] as const
+
+/** Placeholders for booking (Sails-style) patient bill print */
+export const BOOKING_RECEIPT_PLACEHOLDERS = [
+  "duplicate_label",
+  "patient_name",
+  "consultant",
+  "appointment_no",
+  "appointment_date",
+  "appointment_time",
+  "tel",
+  "booking_method",
+  "bill_no",
+  "bill_sub_total",
+  "discount",
+  "bill_total",
+  "billed_by",
+  "remarks",
+  "area",
+  "refund_line",
+  "refund_amount",
+  "refund_receipt_no",
+  "refund_reason",
+  "generated_by",
+  "generated_at",
+  "company_name",
+  "location_name",
 ] as const
 
 export type ReceiptPlaceholderMap = Record<string, string>
