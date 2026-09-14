@@ -53,7 +53,7 @@ export function ReferenceSelect({
     ? options.map((o) => ({ id: o.id, name: o.name }))
     : options
   const optionsWithAll =
-    useSearchable && allOptionValue != null
+    useSearchable && allOptionValue != null && allOptionValue !== ""
       ? [
           { id: allOptionValue, name: allOptionLabel ?? `All ${label}` },
           ...selectOptions,
@@ -63,11 +63,11 @@ export function ReferenceSelect({
   if (useSearchable) {
     return (
       <SearchableSelector
-        label={allOptionLabel ?? (allOptionValue != null ? `All ${label}` : label)}
+        label={allOptionLabel ?? (allOptionValue != null && allOptionValue !== "" ? `All ${label}` : label)}
         options={optionsWithAll}
         value={value}
         onChange={onChange}
-        defaultValue={allOptionValue}
+        defaultValue={allOptionValue && allOptionValue !== "" ? allOptionValue : undefined}
         className={className}
         disabled={disabled}
         placeholder={placeholder}
@@ -77,7 +77,7 @@ export function ReferenceSelect({
 
   return (
     <Select
-      value={value || (allOptionValue ? allOptionValue : undefined)}
+      value={value || (allOptionValue && allOptionValue !== "" ? allOptionValue : undefined)}
       onValueChange={onChange}
       required={required}
       disabled={disabled}
@@ -86,7 +86,7 @@ export function ReferenceSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {allOptionValue != null && (
+        {allOptionValue != null && allOptionValue !== "" && (
           <SelectItem value={allOptionValue}>
             {allOptionLabel ?? `All ${label}`}
           </SelectItem>
