@@ -244,4 +244,10 @@ input[type='search']::-ms-clear {
   --rdp-accent-background-color: hsl(var(--primary) / 0.15);
 }
 
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
 

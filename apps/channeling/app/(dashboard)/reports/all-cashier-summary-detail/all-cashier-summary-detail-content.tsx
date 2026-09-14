@@ -198,7 +198,66 @@ export default function AllCashierSummaryDetailContent({
 
   return (
     <div className="w-full py-2 space-y-3">
-      <Card>
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 8mm; }
+          body {
+            background: #fff !important;
+            color: #000 !important;
+          }
+          .all-cashier-print-report,
+          .all-cashier-print-report * {
+            color: #000 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          .all-cashier-print-report {
+            border: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .all-cashier-print-report .rounded-md,
+          .all-cashier-print-report [class*="border"] {
+            border-color: #000 !important;
+          }
+          .all-cashier-print-report table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: auto !important;
+          }
+          .all-cashier-print-report th,
+          .all-cashier-print-report td {
+            border: 1px solid #000 !important;
+            background: #fff !important;
+            color: #000 !important;
+            padding: 4px 6px !important;
+            font-size: 10px !important;
+            line-height: 1.25 !important;
+          }
+          .all-cashier-print-report th {
+            font-weight: 700 !important;
+            border-bottom: 2px solid #000 !important;
+          }
+          .all-cashier-print-report tr[class*="bg-muted"],
+          .all-cashier-print-report tr.font-medium {
+            font-weight: 700 !important;
+          }
+          .all-cashier-print-report tr[class*="bg-muted"] td,
+          .all-cashier-print-report tr.font-medium td {
+            border-top: 2px solid #000 !important;
+          }
+          .all-cashier-print-report .overflow-x-auto,
+          .all-cashier-print-report .overflow-auto {
+            overflow: visible !important;
+          }
+          .all-cashier-print-report [class*="border-dotted"] {
+            border-bottom: 1px dotted #000 !important;
+            min-height: 18px !important;
+          }
+        }
+      `}</style>
+      <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
@@ -207,14 +266,14 @@ export default function AllCashierSummaryDetailContent({
                 Summary aggregates receipts by cashier. Detail shows section-wise totals per cashier.
               </CardDescription>
             </div>
-            <div className="flex gap-2 no-print">
+            <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer />Print</Button>
               <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2"><Download />Download CSV</Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-4 no-print">
+          <div className="flex flex-wrap items-end gap-4">
             <DateTimeRangePicker
               label="Date & time range"
               from={fromDateTime}
@@ -274,7 +333,7 @@ export default function AllCashierSummaryDetailContent({
       </Card>
 
       {!reportMeta && (
-        <Card className="border-dashed">
+        <Card className="border-dashed print:hidden">
           <CardContent className="py-8">
             <p className="text-sm font-medium text-muted-foreground">Search to view report details.</p>
           </CardContent>
@@ -282,7 +341,7 @@ export default function AllCashierSummaryDetailContent({
       )}
 
       {reportMeta && (
-        <Card className="bg-muted/20">
+        <Card className="all-cashier-print-report bg-muted/20 print:shadow-none print:border-0 print:bg-white">
           <CardHeader className="py-2">
             <CardTitle className="text-base">All Cashier Summary and Detail Report</CardTitle>
             <CardDescription className="text-xs mt-0.5">
