@@ -147,3 +147,123 @@ ${bodyContent}
 </body>
 </html>`
 }
+
+const BOOKING_RECEIPT_PAGE_STYLES = `
+  @page { size: A5 portrait; margin: 4mm 12mm; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #000;
+    padding: 0 3mm;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .duplicate-banner {
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    font-size: 14px;
+    margin: 0 0 8px;
+  }
+  .watermark {
+    position: fixed;
+    top: 38%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-28deg);
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #000;
+    opacity: 0.08;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 0;
+  }
+  .receipt-header { text-align: center; margin-bottom: 0.6rem; font-weight: 600; white-space: pre-wrap; position: relative; z-index: 1; }
+  .receipt-body { white-space: pre-wrap; margin-bottom: 0.6rem; position: relative; z-index: 1; }
+  .receipt-footer { font-size: 10px; color: #333; border-top: 1px solid #000; padding-top: 0.5rem; margin-top: 0.6rem; white-space: pre-wrap; position: relative; z-index: 1; }
+  .sails-table { width: 100%; border-collapse: collapse; position: relative; z-index: 1; }
+  .sails-table td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
+  .sails-table .label { font-weight: 600; width: 22%; }
+  .sails-table .value { width: 28%; }
+  .sails-table .highlight { font-weight: 700; color: #b91c1c; }
+  .refund-row td { font-weight: 600; }
+`
+
+function bookingReceiptCell(label: string, value: string, highlight = false): string {
+  const valueClass = highlight ? "value highlight" : "value"
+  return `<td class="label">${escapeHtml(label)}</td><td class="${valueClass}">${escapeHtml(value)}</td>`
+}
+
+function buildFallbackBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): string {
+  const refundAmount = (placeholders.refund_amount ?? "").trim()
+  const refundReceiptNo = (placeholders.refund_receipt_no ?? "").trim()
+  const refundReason = (placeholders.refund_reason ?? "").trim()
+  const refundRows =
+    refundAmount || refundReceiptNo || refundReason
+      ? `
+    <tr class="refund-row">${bookingReceiptCell("Refund Amount", refundAmount || "—")}${bookingReceiptCell("Refund Receipt", refundReceiptNo || "—")}</tr>
+    ${refundReason ? `<tr class="refund-row">${bookingReceiptCell("Cancel / refund remark", refundReason)}<td class="label"></td><td class="value"></td></tr>` : ""}
+      `
+      : ""
+
+  return `
+  <table class="sails-table">
+    <tr>${bookingReceiptCell("Name", placeholders.patient_name ?? "")}${bookingReceiptCell("Bill No", placeholders.bill_no ?? "")}</tr>
+    <tr>${bookingReceiptCell("Consultant", placeholders.consultant ?? "")}${bookingReceiptCell("Bill Sub Total", placeholders.bill_sub_total ?? "")}</tr>
+    <tr>${bookingReceiptCell("Appo. No", placeholders.appointment_no ?? "", true)}${bookingReceiptCell("Discount", placeholders.discount ?? "")}</tr>
+    <tr>${bookingReceiptCell("Appointment Date", placeholders.appointment_date ?? "")}${bookingReceiptCell("Bill Total", placeholders.bill_total ?? "", true)}</tr>
+    <tr>${bookingReceiptCell("Appointment Time", placeholders.appointment_time ?? "")}${bookingReceiptCell("Billed By", placeholders.billed_by ?? "")}</tr>
+    <tr>${bookingReceiptCell("Tel", placeholders.phone ?? placeholders.tel ?? "")}${bookingReceiptCell("Remark", placeholders.remarks ?? "")}</tr>
+    <tr>${bookingReceiptCell("Booking Method", placeholders.booking_method ?? "")}${bookingReceiptCell("Area", placeholders.area ?? "")}</tr>
+    ${refundRows}
+  </table>
+  `
+}
+
+/**
+ * Build full HTML for booking (Sails-style) receipt print. A5 portrait.
+ */
+export function buildBookingReceiptPrintHtml(
+  placeholders: ReceiptPlaceholderMap,
+  template: ReceiptTemplateRecord | null,
+  receiptNoString: string
+): string {
+  const duplicateLabel = (placeholders.duplicate_label ?? "").trim()
+  const isDuplicate = duplicateLabel.length > 0
+  let bodyContent: string
+
+  if (template) {
+    const headerHtml = template.headerTemplate
+      ? replacePlaceholders(template.headerTemplate.content, placeholders)
+      : ""
+    const bodyHtml = replacePlaceholders(template.bodyContent, placeholders)
+    const footerHtml = template.footerTemplate
+      ? replacePlaceholders(template.footerTemplate.content, placeholders)
+      : ""
+    bodyContent = `
+    ${headerHtml ? `<div class="receipt-header">${escapeHtml(headerHtml)}</div>` : ""}
+    <div class="receipt-body">${escapeHtml(bodyHtml)}</div>
+    ${footerHtml ? `<div class="receipt-footer">${escapeHtml(footerHtml)}</div>` : ""}
+    `
+  } else {
+    bodyContent = buildFallbackBookingReceiptHtml(placeholders)
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Receipt ${escapeHtml(receiptNoString)}</title>
+  <style>${BOOKING_RECEIPT_PAGE_STYLES}</style>
+</head>
+<body>
+${isDuplicate ? `<div class="watermark">${escapeHtml(duplicateLabel)}</div>` : ""}
+${isDuplicate && !template ? `<p class="duplicate-banner">${escapeHtml(duplicateLabel)}</p>` : ""}
+${bodyContent}
+</body>
+</html>`
+}

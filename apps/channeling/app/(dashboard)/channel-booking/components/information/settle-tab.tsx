@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CheckCircle2, Receipt } from "lucide-react"
+import { PrintReceiptButton } from "../print-receipt-button"
 import {
   SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_BOOKING_METHOD_STAFF,
@@ -199,6 +200,11 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
         <span className="text-xs font-medium text-foreground uppercase tracking-wider text-muted-foreground">
           Settlement details
         </span>
+        {settlement.receiptId ? (
+          <div className="ml-auto">
+            <PrintReceiptButton receiptId={settlement.receiptId} />
+          </div>
+        ) : null}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         <Row label="Receipt No" value={settlement.receiptNoString} />

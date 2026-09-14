@@ -25,11 +25,14 @@ export type ReceiptRowView = {
 /** When booking is canceled (status === 2): refund amount and refund receipts for display. */
 export type CancelOrRefundDetailsView = {
   refundAmount: number
+  /** Cancel / refund remark from booking.refundReason (Sails refund_reason). */
+  refundReason: string | null
   refundReceipts: ReceiptRowView[]
 }
 
 /** Settlement/receipt info when booking is paid (status !== 0). */
 export type SettlementDetailsView = {
+  receiptId: string
   receiptNo: number
   receiptNoString: string
   paymentMethod: number
@@ -144,6 +147,8 @@ export type BookingDetailsView = {
   billTotal: number
   billedBy: string
   remark: string
+  /** Cancel / refund remark (Sails refund_reason). */
+  refundReason: string | null
   area: string
   foreigner: boolean
   status: number
@@ -310,8 +315,9 @@ export async function getBookingDetailsService(
       })
     )
     const settlement: SettlementDetailsView | undefined =
-      b.status !== 0 && b.receiptNo != null && b.receiptNoString
+      b.status !== 0 && b.receiptNo != null && b.receiptNoString && (b.receiptNoId || receipt?.id)
         ? {
+            receiptId: b.receiptNoId ?? receipt!.id,
             receiptNo: b.receiptNo,
             receiptNoString: b.receiptNoString,
             paymentMethod: b.receiptPaymentMethod ?? 0,
@@ -518,6 +524,7 @@ export async function getBookingDetailsService(
       billTotal: b.amount,
       billedBy: billedByStr,
       remark: b.remarks ?? "",
+      refundReason: b.refundReason?.trim() ? b.refundReason : null,
       area: b.area ?? "",
       foreigner: b.foriegner,
       status: b.status,
@@ -545,6 +552,7 @@ export async function getBookingDetailsService(
         b.status === 2 || (b.refund != null && b.refund !== 0)
           ? {
               refundAmount: b.refundAmount ?? 0,
+              refundReason: b.refundReason?.trim() ? b.refundReason : null,
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),
             }
           : undefined,

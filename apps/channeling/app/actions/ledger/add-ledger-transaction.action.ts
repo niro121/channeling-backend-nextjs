@@ -37,6 +37,7 @@ const addLedgerTransactionSchema = z.object({
   slipImageKey: z.string().optional().nullable(),
   slipImageContentType: z.string().optional().nullable(),
   slipImageName: z.string().optional().nullable(),
+  shiftBillAttachmentId: z.string().optional().nullable(),
 })
 
 export type AddLedgerTransactionResult =
@@ -193,6 +194,7 @@ export async function addLedgerTransaction(
           slipImageKey: parsed.data.slipImageKey,
           slipImageContentType: parsed.data.slipImageContentType,
           slipImageName: parsed.data.slipImageName,
+          shiftBillAttachmentId: parsed.data.shiftBillAttachmentId,
         },
         userId
       )

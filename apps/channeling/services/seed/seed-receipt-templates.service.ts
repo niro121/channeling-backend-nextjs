@@ -51,6 +51,26 @@ Card (last 4): {{card_reference}}
 Slip reference: {{slip_reference}}
 Slip date: {{slip_date}}`
 
+const BOOKING_RECEIPT_BODY = `{{duplicate_label}}
+
+Name: {{patient_name}}
+Consultant: {{consultant}}
+Appo. No: {{appointment_no}}
+Appointment Date: {{appointment_date}}
+Appointment Time: {{appointment_time}}
+Tel: {{tel}}
+Booking Method: {{booking_method}}
+
+Bill No: {{bill_no}}
+Bill Sub Total: {{bill_sub_total}}
+Discount: {{discount}}
+Bill Total: {{bill_total}}
+Billed By: {{billed_by}}
+Remark: {{remarks}}
+Area: {{area}}
+
+{{refund_line}}`
+
 const DOCTOR_PAYMENT_BODY = `Consultant Payment {{duplicate_label}}
 
 {{company_name}}
@@ -109,6 +129,7 @@ export async function runSeedReceiptTemplates(): Promise<SeedReceiptTemplatesRes
       { type: "expenses_note", label: "Expenses Note", body: LEDGER_BODY },
       { type: "debit_note", label: "Debit Note", body: LEDGER_BODY },
       { type: "doctor_payment", label: "Consultant Payment", body: DOCTOR_PAYMENT_BODY },
+      { type: "booking_receipt", label: "Booking Receipt", body: BOOKING_RECEIPT_BODY },
     ]
 
     let created = 0
@@ -116,16 +137,17 @@ export async function runSeedReceiptTemplates(): Promise<SeedReceiptTemplatesRes
       for (const variant of ["slip_printer", "custom_size"] as const) {
         const name =
           variant === "slip_printer" ? `${label} – Slip printer` : `${label} – Custom size`
+        const isBookingA5 = type === "booking_receipt" && variant === "custom_size"
         await prisma.receiptTemplate.create({
           data: {
-            name,
+            name: isBookingA5 ? `${label} – A5` : name,
             type,
             variant,
             headerTemplateId: defaultHeader.id,
             footerTemplateId: defaultFooter.id,
             bodyContent: body,
-            paperWidthMm: variant === "slip_printer" ? 80 : 210,
-            paperHeightMm: variant === "slip_printer" ? null : 297,
+            paperWidthMm: variant === "slip_printer" ? 80 : isBookingA5 ? 148 : 210,
+            paperHeightMm: variant === "slip_printer" ? null : isBookingA5 ? 210 : 297,
             status: 1,
           },
         })

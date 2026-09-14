@@ -18,6 +18,8 @@
     "migrate:missing-doctor-templates": "npx tsx scripts/migrate-missing-doctor-templates.ts",
     "generate:totp": "npx tsx scripts/test-totp.ts",
     "migrate:session-datetime": "npx tsx scripts/migrate-session-start-end-to-datetime.ts",
+    "migrate:accounting-accounts": "npx tsx scripts/migrate-accounting-accounts.ts",
+    "migrate:agency-opening-balances": "npx tsx scripts/migrate-agency-opening-balances.ts",
     "sequence:sync": "npx tsx scripts/sequence-sync-from-db.ts",
     "seed:receipt-templates": "npx tsx scripts/seed-receipt-templates.ts",
     "fix:booking-null-session-appointmentno": "npx tsx scripts/fix-booking-null-session-appointmentno-duplicates.ts",

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/components/hooks/use-toast"
 import type { ReceiptTemplateRecord, ReceiptHeaderTemplateRecord, ReceiptFooterTemplateRecord } from "@/types/receipt-template-db"
-import { RECEIPT_TEMPLATE_TYPES, RECEIPT_TEMPLATE_VARIANTS, RECEIPT_BODY_PLACEHOLDERS } from "@/types/receipt-template-db"
+import { RECEIPT_TEMPLATE_TYPES, RECEIPT_TEMPLATE_VARIANTS, RECEIPT_BODY_PLACEHOLDERS, BOOKING_RECEIPT_PLACEHOLDERS } from "@/types/receipt-template-db"
 import { createReceiptTemplateAction, updateReceiptTemplateAction } from "@/app/actions/receipt-template.actions"
 
 type ReceiptTemplateFormProps = {
@@ -164,7 +164,17 @@ export function ReceiptTemplateForm({ template, headers, footers }: ReceiptTempl
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="bodyContent">Body content (placeholders: {RECEIPT_BODY_PLACEHOLDERS.slice(0, 5).map((p) => `{{${p}}}`).join(", ")}…)</Label>
+        <Label htmlFor="bodyContent">
+          Body content (placeholders:{" "}
+          {(formik.values.type === "booking_receipt"
+            ? BOOKING_RECEIPT_PLACEHOLDERS
+            : RECEIPT_BODY_PLACEHOLDERS
+          )
+            .slice(0, 6)
+            .map((p) => `{{${p}}}`)
+            .join(", ")}
+          …)
+        </Label>
         <Textarea
           id="bodyContent"
           value={formik.values.bodyContent}

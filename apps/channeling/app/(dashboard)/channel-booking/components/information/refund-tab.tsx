@@ -125,7 +125,10 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
           <h3 className="text-sm font-medium text-foreground">Booking already canceled or refunded</h3>
         </div>
         {cancelDetails ? (
-          <CancelRefundDetailsCard details={cancelDetails} />
+          <CancelRefundDetailsCard
+            details={cancelDetails}
+            paymentReceiptId={details.settlement?.receiptId ?? details.receipts.find((r) => r.type === "Settlement")?.id}
+          />
         ) : (
           <div className="flex-1 min-h-[120px] rounded-lg border border-dashed border-border bg-muted/20 flex items-center justify-center text-muted-foreground text-sm">
             No cancel details available.
