@@ -16,6 +16,10 @@ Use this when testing **Shift Handover** (End shift, Handed over to me) and **Re
 | 1.6 | **Include previous handovers – step 1 note** | As user who received approved handover(s) open End shift. On step 1 wait for load. | Blue note: handovers from X (code) will be included. Button stays disabled until data loaded. |
 | 1.7 | **Include previous handovers – confirm step** | Complete steps to Confirm. If you have includable handovers see "Include previous handovers". | Read-only list of handovers that will be included (no checkboxes). Same handovers as step 1 note. |
 | 1.8 | **Submit with chain** | Submit handover when you have includable handovers. | Handover created. Chain stored (includedHandoverIds / forwardedToHandoverId). Reconciliation doc shows full chain. |
+| 1.9 | **Excess vs Total Collection requires reason** | Till has more than Total Collection (floats in + Summary + previous handovers − floats out). Enter amounts above expected collection but not above till. Leave reason empty and confirm. | Confirm disabled / validation: reason for excess required. After entering a reason, handover submits. Detail Total Collection shows Entered and Short/Excess as a positive excess. |
+| 1.10 | **No excess when entered equals Total Collection** | Enter amounts that match Total Collection (including any float in and previous handovers). | Excess line is not shown. Reason is not required unless there is a till short. |
+| 1.11 | **Float in is not treated as excess** | Receive a float, then hand over till including that float plus Summary. | Expected collection includes Floats In. Confirm does not require an excess reason for the float amount. |
+| 1.12 | **Till over still blocked** | Enter more than available on any method. | Cannot submit. Error: cannot hand over more than the till holds. Excess reason is not offered as a way around this. |
 
 ---
 

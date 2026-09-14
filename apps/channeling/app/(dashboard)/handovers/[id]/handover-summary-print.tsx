@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 import { useSession } from "next-auth/react"
 import { formatCents } from "@/lib/format-money"
 import { cashierSummaryGrandTotalRupees } from "@/lib/cashier-summary-amounts"
+import { handoverCollectionDiffCents } from "@/lib/handover-utils"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts, CashierSummaryIncludedShift } from "@/types/report"
@@ -301,7 +302,7 @@ export function HandoverSummaryPrint({
     const expected = METHOD_KEYS.reduce((s, key) => s + (tillBreakdown[key] ?? 0), 0)
     shortExcessCents = totalCents - expected
   } else {
-    shortExcessCents = totalCents - cashInPlusSummary
+    shortExcessCents = handoverCollectionDiffCents(totalCents, cashInPlusSummary)
   }
 
   const methodLines = METHOD_KEYS.filter((key) => (handover[key] ?? 0) > 0).map((key) => ({

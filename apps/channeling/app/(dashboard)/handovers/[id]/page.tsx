@@ -37,8 +37,12 @@ import { formatCents, formatLKR } from "@/lib/format-money"
 import {
   buildCashierSummaryReportUrl,
   deriveHandoverCashierSummaryFilters,
+  expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverCollectionDiffCents,
+  isHandoverCollectionExcess,
+  sumReceivedHandoverFloats,
 } from "@/lib/handover-utils"
 import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
@@ -983,18 +987,25 @@ export default function HandoverDetailPage() {
       {/* Collection breakdown: IN + Summary + Previous - OUT */}
       {(() => {
         const receivedFloats = data.receivedFloats ?? []
-        const floatsInTotal = receivedFloats
-          .filter((f) => f.direction !== "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
-          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
-        const floatsOutTotal = receivedFloats
-          .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
-          .reduce((s, f) => s + (f.amountReceivedCents ?? 0), 0)
+        const { floatsInCents: floatsInTotal, floatsOutCents: floatsOutTotal } =
+          sumReceivedHandoverFloats(receivedFloats)
         const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
         const cs = data.cashierSummary
-        const summaryVal = cs
+        const hasSummary = cs != null
+        const summaryVal = hasSummary
           ? cashierSummaryGrandTotalCents(cs.grandTotals)
           : totalCents
-        const collectionTotal = floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+        const collectionTotal = hasSummary
+          ? expectedHandoverCollectionCents({
+              floatsInCents: floatsInTotal,
+              floatsOutCents: floatsOutTotal,
+              summaryCents: summaryVal,
+              previousHandoversCents: prevTotal,
+            })
+          : floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+        const collectionDiff = hasSummary
+          ? handoverCollectionDiffCents(totalCents, collectionTotal)
+          : 0
         const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
         if (floatsInTotal > 0) parts.push({ label: "Floats In", cents: floatsInTotal, sign: "+" })
         parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
@@ -1016,6 +1027,32 @@ export default function HandoverDetailPage() {
                   <span>Total Collection</span>
                   <span className="tabular-nums">LKR {formatCents(collectionTotal)}</span>
                 </div>
+                {hasSummary ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Entered</span>
+                      <span className="tabular-nums">{formatCents(totalCents)}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Short/Excess</span>
+                      <span
+                        className={`tabular-nums ${
+                          collectionDiff === 0
+                            ? ""
+                            : isHandoverCollectionExcess(collectionDiff)
+                              ? "text-amber-700 dark:text-amber-400 font-medium"
+                              : collectionDiff < 0
+                                ? "text-destructive font-medium"
+                                : ""
+                        }`}
+                      >
+                        {collectionDiff === 0
+                          ? "0.00"
+                          : `${collectionDiff > 0 ? "+" : ""}${formatCents(collectionDiff)}`}
+                      </span>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </CardContent>
           </Card>
