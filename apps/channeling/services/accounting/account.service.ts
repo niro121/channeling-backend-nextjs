@@ -25,3 +25,10 @@ export {
 
 export { getOrCreateWhtPayableAccount } from './account/wht-payable-account.service';
 export { WHT_PAYABLE_ACCOUNT_CODE, WHT_PAYABLE_NAME } from './account/wht-payable-account.constants';
+
+export { getOrCreateAgentOpeningBalancesAccount } from './account/agent-opening-balances-account.service';
+export {
+  AGENT_OPENING_BALANCES_ACCOUNT_CODE,
+  AGENT_OPENING_BALANCES_ACCOUNT_NAME,
+  AGENT_OPENING_BALANCES_ACCOUNT_TYPE,
+} from './account/agent-opening-balances-account.constants';

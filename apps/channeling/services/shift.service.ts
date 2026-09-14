@@ -124,6 +124,7 @@ export async function getCurrentShift(userId: string) {
         take: 1,
         select: {
           id: true,
+          createdAt: true,
           cashCents: true,
           cardCents: true,
           slipCents: true,

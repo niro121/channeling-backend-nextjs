@@ -12,6 +12,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'ledger.deposit.rejected', importance: 'High', when: 'Manager rejects a bank deposit request' },
   { action: 'ledger.deposit.withdrawn', importance: 'High', when: 'Requester withdraws a bank deposit request' },
   { action: 'ledger.deposit.completed', importance: 'High', when: 'Bank deposit receipt is posted after approval' },
+  { action: 'ledger.deposit.canceled', importance: 'High', when: 'User cancels an approved bank deposit ledger receipt' },
   { action: 'accounting.visited', importance: 'Low', when: 'User opens Accounting (chart of accounts) page' },
   { action: 'accounting.statement.viewed', importance: 'Low', when: 'User views an account statement' },
   { action: 'accounting.account.created', importance: 'High', when: 'User creates an account' },

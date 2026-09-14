@@ -444,6 +444,7 @@ export function ApprovalCenterContent({
               <tr className="border-b bg-muted/40 text-left">
                 <th className="p-2 font-medium">Requested</th>
                 <th className="p-2 font-medium">Type</th>
+                <th className="p-2 font-medium">Doctor</th>
                 <th className="p-2 font-medium">Details</th>
                 <th className="p-2 font-medium">Amount</th>
                 <th className="p-2 font-medium">Status</th>
@@ -479,6 +480,13 @@ export function ApprovalCenterContent({
                       </div>
                     </td>
                     <td className="p-2">{typeLabel(row.type)}</td>
+                    <td className="p-2">
+                      {isDeposit ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <span title={row.doctorName}>{row.doctorName || "—"}</span>
+                      )}
+                    </td>
                     <td className="p-2">
                       <div>{row.detailTitle}</div>
                       <div className="text-xs text-muted-foreground">{row.detailSub}</div>

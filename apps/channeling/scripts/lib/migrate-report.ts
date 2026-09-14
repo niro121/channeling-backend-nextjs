@@ -29,12 +29,27 @@ export type MigrateTaskRecord = MigrateTaskStats & {
   completedAt: string;
 };
 
+export type MigrateSheetColumn = {
+  header: string;
+  key: string;
+  width?: number;
+};
+
+export type MigrateSheetRow = Record<string, string | number | boolean | null | undefined>;
+
+export type MigrateReportSheet = {
+  name: string;
+  columns: MigrateSheetColumn[];
+  rows: MigrateSheetRow[];
+};
+
 type MigrateReportState = {
   runId: string;
   startedAt: string;
   meta: Record<string, string>;
   tasks: MigrateTaskRecord[];
   issues: Array<MigrateReportIssue & { script: string }>;
+  sheets: MigrateReportSheet[];
 };
 
 const TEMP_DIR = path.join(process.cwd(), 'temp');
@@ -56,7 +71,11 @@ function readState(): MigrateReportState {
   ensureTempDir();
   if (fs.existsSync(STATE_PATH)) {
     try {
-      return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) as MigrateReportState;
+      const parsed = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) as MigrateReportState;
+      if (!Array.isArray(parsed.sheets)) parsed.sheets = [];
+      if (!Array.isArray(parsed.tasks)) parsed.tasks = [];
+      if (!Array.isArray(parsed.issues)) parsed.issues = [];
+      return parsed;
     } catch {
       /* fall through */
     }
@@ -75,6 +94,7 @@ function readState(): MigrateReportState {
     meta: {},
     tasks: [],
     issues: [],
+    sheets: [],
   };
 }
 
@@ -139,6 +159,19 @@ export class MigrateReporter {
     writeState(this.state);
   }
 
+  /**
+   * Add a detail worksheet of migrated rows (replaced if the same sheet name already exists).
+   * Excel sheet names are capped at 31 characters.
+   */
+  records(sheetName: string, columns: MigrateSheetColumn[], rows: MigrateSheetRow[]): void {
+    const name = sheetName.replace(/[:\\/?*\[\]]/g, ' ').trim().slice(0, 31) || 'Details';
+    const existing = this.state.sheets.findIndex((s) => s.name === name);
+    const sheet: MigrateReportSheet = { name, columns, rows };
+    if (existing >= 0) this.state.sheets[existing] = sheet;
+    else this.state.sheets.push(sheet);
+    writeState(this.state);
+  }
+
   async finish(): Promise<string | null> {
     if (!reportsEnabled()) return null;
     this.state.meta[`script:${this.script}:finished`] = new Date().toISOString();
@@ -154,9 +187,13 @@ export function createMigrateReporter(script: string, meta?: Record<string, stri
 
 export async function finishMigrateReporter(reporter: MigrateReporter | null): Promise<void> {
   if (!reporter) return;
-  const filePath = await reporter.finish();
-  if (filePath) {
-    console.log(`\nMigration report: ${filePath}`);
+  try {
+    const filePath = await reporter.finish();
+    if (filePath) {
+      console.log(`\nMigration report: ${filePath}`);
+    }
+  } catch (e) {
+    console.error('Failed to write migration report:', e instanceof Error ? e.message : e);
   }
 }
 
@@ -217,6 +254,24 @@ export async function writeMigrateReportExcel(state: MigrateReportState): Promis
     issuesSheet.addRow(row);
   }
   issuesSheet.getRow(1).font = { bold: true };
+
+  for (const sheet of state.sheets) {
+    const ws = workbook.addWorksheet(sheet.name);
+    ws.columns = sheet.columns.map((c) => ({
+      header: c.header,
+      key: c.key,
+      width: c.width ?? 18,
+    }));
+    for (const row of sheet.rows) {
+      ws.addRow(row);
+    }
+    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: Math.max(sheet.columns.length, 1) },
+    };
+  }
 
   await workbook.xlsx.writeFile(EXCEL_PATH);
 

@@ -13,6 +13,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'ledger.deposit.rejected',
   'ledger.deposit.withdrawn',
   'ledger.deposit.completed',
+  'ledger.deposit.canceled',
   'accounting.visited',
   'accounting.statement.viewed',
   'accounting.account.created',
