@@ -91,7 +91,34 @@ function ContentInner({
               {filterOptionLabel(values.roomId, 'All Rooms', roomOptions)}
             </div>
           </>
-        )
+        ),
+        formatPrintSummaryItems: (values) => [
+          {
+            label: 'Period',
+            value: `${values.fromDateTime || '—'} to ${values.toDateTime || '—'}`,
+            fullWidth: true,
+          },
+          {
+            label: 'Institution',
+            value: filterOptionLabel(values.institutionId, 'All Institutions', institutionOptions),
+          },
+          {
+            label: 'Branch',
+            value: filterOptionLabel(
+              values.locationId,
+              'All Branches',
+              withAllBranchesOptions(locationOptions)
+            ),
+          },
+          {
+            label: 'Department',
+            value: filterOptionLabel(values.departmentId, 'All Departments', departmentOptions),
+          },
+          {
+            label: 'Room',
+            value: filterOptionLabel(values.roomId, 'All Rooms', roomOptions),
+          },
+        ],
       }}
       filterContent={({ values, setValue }) => (
         <>

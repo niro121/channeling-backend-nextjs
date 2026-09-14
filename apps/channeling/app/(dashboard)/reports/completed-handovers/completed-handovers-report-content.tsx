@@ -9,6 +9,7 @@ import { Selector } from '@/components/common/selector';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { formatCents } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import type {
   CompletedHandoversReportExportRow,
   CompletedHandoversReportQuery,
@@ -109,6 +110,50 @@ function ContentInner({ currentUserName, userOptions }: Props) {
               <div>Reconciliation: {reconLabel}</div>
             </>
           );
+        },
+        formatPrintSummaryItems: (values) => {
+          const df = values.dateFrom ?? '';
+          const dt = values.dateTo ?? '';
+          const fromUserId = values.fromUserId ?? '__all__';
+          const toUserId = values.toUserId ?? '__all__';
+          const status = values.status ?? '__all__';
+          const reconciliationStatus = values.reconciliationStatus ?? '__all__';
+          return [
+            {
+              label: 'Period',
+              value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'From',
+              value:
+                fromUserId === '__all__'
+                  ? 'All Users'
+                  : userOptions.find((u) => u.id === fromUserId)?.name ?? fromUserId,
+            },
+            {
+              label: 'To',
+              value:
+                toUserId === '__all__'
+                  ? 'All Users'
+                  : userOptions.find((u) => u.id === toUserId)?.name ?? toUserId,
+            },
+            {
+              label: 'Status',
+              value:
+                status === '__all__'
+                  ? 'All Statuses'
+                  : STATUS_OPTIONS.find((s) => s.id === status)?.name ?? status,
+            },
+            {
+              label: 'Reconciliation',
+              value:
+                reconciliationStatus === '__all__'
+                  ? 'All Reconciliation Statuses'
+                  : RECONCILIATION_STATUS_OPTIONS.find((s) => s.id === reconciliationStatus)
+                      ?.name ?? reconciliationStatus,
+            },
+          ];
         },
       }}
       filterContent={({ values, setValue }) => (

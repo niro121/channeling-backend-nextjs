@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import Loading from '@/app/(dashboard)/loading';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { formatLKR } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { ChannelReportReceiptWiseColumns } from './columns';
 import {
   getChannelReportReceiptWiseData,
@@ -65,6 +66,26 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
             <div>Receipt no: {values.receiptNo?.trim() || 'All'}</div>
           </>
         ),
+        formatPrintSummaryItems: (values) => {
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          return [
+            {
+              label: 'Period',
+              value:
+                from && to ? formatReportRangeLabel(from, to) : `${from || '—'} to ${to || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Category',
+              value:
+                RECEIPT_CATEGORY_OPTIONS.find(
+                  (x) => x.id === (values.receiptCategory ?? '__all__')
+                )?.name ?? 'All Categories',
+            },
+            { label: 'Receipt No', value: values.receiptNo?.trim() || 'All' },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap gap-4 items-end">

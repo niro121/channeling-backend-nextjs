@@ -76,6 +76,22 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const from = values.dateFrom ?? '';
+          const to = values.dateTo ?? '';
+          const accountId = values.cashBookAccountId ?? '';
+          return [
+            {
+              label: 'Period',
+              value: `${from || '—'} to ${to || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Cash Book',
+              value: allCashBooks.find((x) => x.id === accountId)?.name ?? '-',
+            },
+          ];
+        },
       }}
       initialFilterValues={{
         dateFrom: defaultFrom,

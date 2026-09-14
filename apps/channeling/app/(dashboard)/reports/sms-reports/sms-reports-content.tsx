@@ -17,6 +17,7 @@ import {
   SmsReportRow,
   SmsReportsContentProps,
 } from '@/types/reports/sms.report';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 
 function getDefaultDateTimeRange(): { from: string; to: string } {
   const now = new Date();
@@ -72,6 +73,36 @@ function SmsReportsContentInner({ currentUserName, locationOptions }: SmsReports
               </div>
             </>
           );
+        },
+        formatPrintSummaryItems: (values) => {
+          const locId = values.locationId ?? '__all__';
+          const items = [
+            {
+              label: 'Period',
+              value: `${values.fromDateTime ?? defaultRange.from} to ${values.toDateTime ?? defaultRange.to}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Branch',
+              value:
+                locId === '__all__' || !locId
+                  ? 'All Branches'
+                  : (branchOptions.find((o) => o.id === locId)?.name ?? locId),
+            },
+            {
+              label: 'Status',
+              value:
+                values.status === 'sent'
+                  ? 'Sent'
+                  : values.status === 'failed'
+                    ? 'Failed'
+                    : 'All Status',
+            },
+          ];
+          if (values.phoneNo?.trim()) {
+            items.push({ label: 'Phone', value: values.phoneNo.trim() });
+          }
+          return items;
         },
       }}
       initialFilterValues={{

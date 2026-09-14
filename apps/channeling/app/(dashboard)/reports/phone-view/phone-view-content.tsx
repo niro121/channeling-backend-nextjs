@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { getPhoneViewReportData, exportPhoneViewReportData } from '@/app/actions/reports/phone-view.action';
 import { PhoneViewSessionData } from '@/types/report';
 import {
@@ -11,10 +10,10 @@ import {
   CardContent
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { ExportWrapper } from '../../export-wrapper';
-import { printPdfUtilWithHeader } from '@/lib/utils';
+import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 
 type PhoneViewReportContentProps = {
@@ -73,72 +72,7 @@ export default function PhoneViewReportContent({
   };
 
   const handlePrint = () => {
-    if (!sessionData) return;
-
-    type PhoneViewPrintRow = {
-      appNo: string;
-      bookingId: string;
-      patientName: string;
-      phoneNo: string;
-      time: string;
-      presentAbsent: string;
-    };
-
-    const headerLines = [
-      `Branch: ${sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}`,
-      sessionData.location?.address
-        ? `Address: ${sessionData.location.address}`
-        : '',
-      `Consultant: ${
-        sessionData.doctor
-          ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-          : '-'
-      }`,
-      `Date: ${formatDate(sessionData.date)}`,
-      `Session Name: ${formatSessionName(
-        sessionData.date,
-        sessionData.startTime
-      )}`
-    ].filter(Boolean);
-
-    const timeStr = formatTime(sessionData.startTime);
-
-    const data: PhoneViewPrintRow[] = (sessionData.bookings ?? []).map(
-      (booking) => ({
-        appNo: String(booking.appointmentNo ?? '-'),
-        bookingId: booking.bookingId || '-',
-        patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
-        phoneNo: booking.phone || '-',
-        time: timeStr,
-        presentAbsent: getPresentAbsentStatus(booking)
-      })
-    );
-
-    const columns = [
-      'App No.',
-      'Booking Id',
-      'Patient Name',
-      'Phone No',
-      'Time',
-      'P/A'
-    ];
-
-    const keys = [
-      'appNo',
-      'bookingId',
-      'patientName',
-      'phoneNo',
-      'time',
-      'presentAbsent'
-    ] as (keyof PhoneViewPrintRow)[];
-
-    printPdfUtilWithHeader<PhoneViewPrintRow>({
-      title: 'Phone View Report',
-      headerLines,
-      data,
-      columns,
-      keys
-    });
+    window.print();
   };
 
   const formatTime = (date: Date) => {
@@ -205,22 +139,11 @@ export default function PhoneViewReportContent({
             <div>
               <CardTitle className="text-2xl font-bold">Phone View</CardTitle>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-                className="gap-2"
-              >
-                <Printer />
-                Print
-              </Button>
-            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Header Information */}
-          <div className="mb-6 space-y-2 text-center print:text-left">
+          {/* Header Information (screen only — print uses ReportPrintLayout summary) */}
+          <div className="mb-6 space-y-2 text-center print:hidden">
             <div className="font-bold text-lg">
               {sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}
             </div>
@@ -270,11 +193,50 @@ export default function PhoneViewReportContent({
               ]}
               title="Phone View Report"
               fileName={`phone-view-report-${formatDate(sessionData.date)}`}
+              onBrowserPrint={handlePrint}
+              showPrintButton
+              pdfSummaryItems={toBrandedPdfSummaryItems([
+                { label: 'Branch', value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd' },
+                {
+                  label: 'Consultant',
+                  value: sessionData.doctor
+                    ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                    : '-',
+                },
+                { label: 'Date', value: formatDate(sessionData.date) },
+                {
+                  label: 'Session',
+                  value: formatSessionName(sessionData.date, sessionData.startTime),
+                  fullWidth: true,
+                },
+              ])}
             />
           </div>
 
           {/* Patient List Table */}
-          <div className="mt-6">
+          <ReportPrintLayout
+            reportName="Phone View Report"
+            pageSize="A4 landscape"
+            generatedAt={new Date().toLocaleString()}
+            summaryItems={
+              [
+                { label: 'Branch', value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd' },
+                {
+                  label: 'Consultant',
+                  value: sessionData.doctor
+                    ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                    : '-',
+                },
+                { label: 'Date', value: formatDate(sessionData.date) },
+                {
+                  label: 'Session',
+                  value: formatSessionName(sessionData.date, sessionData.startTime),
+                  fullWidth: true,
+                },
+              ] satisfies ReportPrintSummaryItem[]
+            }
+          >
+          <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -318,6 +280,7 @@ export default function PhoneViewReportContent({
               </table>
             </div>
           </div>
+          </ReportPrintLayout>
         </CardContent>
       </Card>
     </div>

@@ -83,6 +83,41 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const df = values.dateFrom ?? '';
+          const dt = values.dateTo ?? '';
+          const bankAccountId = values.bankAccountId ?? '__all__';
+          const userId = values.userId ?? '__all__';
+          const locationId = values.locationId ?? '__all__';
+          return [
+            {
+              label: 'Period',
+              value: `${df || '—'} to ${dt || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Branch',
+              value:
+                locationId === '__all__'
+                  ? 'All Branches'
+                  : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+            },
+            {
+              label: 'Bank Account',
+              value:
+                bankAccountId === '__all__'
+                  ? 'All Bank Accounts'
+                  : bankAccountOptions.find((b) => b.id === bankAccountId)?.name ?? bankAccountId,
+            },
+            {
+              label: 'User',
+              value:
+                userId === '__all__'
+                  ? 'All Users'
+                  : userOptions.find((u) => u.id === userId)?.name ?? userId,
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
