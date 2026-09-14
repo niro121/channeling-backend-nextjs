@@ -11,7 +11,11 @@ import { cn } from "@/lib/utils"
 function printHtmlInIframe(html: string) {
   const iframe = document.createElement("iframe")
   iframe.setAttribute("title", "Print receipt")
-  iframe.setAttribute("style", "position:fixed;width:0;height:0;border:0;visibility:hidden")
+  // Real page size off-screen. A 0×0 iframe makes Chrome shrink the job on dot-matrix printers.
+  iframe.setAttribute(
+    "style",
+    "position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0"
+  )
   document.body.appendChild(iframe)
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document
   const win = iframe.contentWindow
@@ -29,13 +33,13 @@ function printHtmlInIframe(html: string) {
     } finally {
       window.setTimeout(() => {
         if (iframe.parentNode) document.body.removeChild(iframe)
-      }, 500)
+      }, 1500)
     }
   }
   if (doc.readyState === "complete") {
-    window.setTimeout(runPrint, 100)
+    window.setTimeout(runPrint, 250)
   } else {
-    iframe.onload = () => window.setTimeout(runPrint, 100)
+    iframe.onload = () => window.setTimeout(runPrint, 250)
   }
 }
 

@@ -172,13 +172,10 @@ export async function getExpectedHandoverCollectionAction(shiftId: string) {
   if (!shift) {
     return { success: false as const, error: "Shift not found or you are not the shift owner." }
   }
-  const includable = await getIncludableHandoversForSender(session.user.id)
-  const previousHandoversCents = includable.reduce((sum, h) => sum + (h.totalCents ?? 0), 0)
   return getExpectedHandoverCollection({
     cashierUserId: session.user.id,
     shiftId: trimmedShiftId,
     shiftStartedAt: shift.startedAt,
-    previousHandoversCents,
   })
 }
 

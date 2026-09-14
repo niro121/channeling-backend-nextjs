@@ -53,6 +53,7 @@ export const RECEIPT_TEMPLATE_VARIANTS = [
 export const RECEIPT_HEADER_PLACEHOLDERS = [
   "company_name",
   "location_name",
+  "location_address",
   "tel",
   "email",
   "web",
@@ -79,20 +80,34 @@ export const RECEIPT_BODY_PLACEHOLDERS = [
   "slip_date",
 ] as const
 
-/** Placeholders for booking (Sails-style) patient bill print */
+/** Placeholders for booking (Sails-style) hospital + professional bill print */
 export const BOOKING_RECEIPT_PLACEHOLDERS = [
   "duplicate_label",
+  "status_banner",
   "patient_name",
   "consultant",
   "appointment_no",
   "appointment_date",
   "appointment_time",
   "tel",
+  "phone",
   "booking_method",
   "bill_no",
   "bill_sub_total",
   "discount",
   "bill_total",
+  "hospital_fee",
+  "hospital_fee_discount",
+  "total_hospital_fee",
+  "professional_fee",
+  "professional_fee_discount",
+  "total_professional_fee",
+  "billed_at",
+  "cashier_code",
+  "invoice_status",
+  "printed_by",
+  "debiter",
+  "show_professional_bill",
   "billed_by",
   "remarks",
   "area",
@@ -104,6 +119,7 @@ export const BOOKING_RECEIPT_PLACEHOLDERS = [
   "generated_at",
   "company_name",
   "location_name",
+  "location_address",
 ] as const
 
 export type ReceiptPlaceholderMap = Record<string, string>
