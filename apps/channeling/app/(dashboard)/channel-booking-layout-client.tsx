@@ -44,7 +44,7 @@ export function ChannelBookingLayoutClient({
         session={session}
         e2eRunEnabled={e2eRunEnabled}
         className={cn(
-          "hidden sm:flex transition-transform duration-200 ease-out",
+          "hidden sm:flex transition-transform duration-200 ease-out print:!hidden",
           isSidebarAutoCollapsedPage && !sidebarOpen && "-translate-x-full"
         )}
       />
@@ -66,7 +66,7 @@ export function ChannelBookingLayoutClient({
           size="icon"
           variant="outline"
           className={cn(
-            "fixed z-[60] top-7 -translate-y-1/2 h-10 w-4 rounded-l-none rounded-r-md shadow-md border-l-0 border-primary/50 hidden sm:flex items-center justify-center",
+            "fixed z-[60] top-7 -translate-y-1/2 h-10 w-4 rounded-l-none rounded-r-md shadow-md border-l-0 border-primary/50 hidden sm:flex items-center justify-center print:!hidden",
             "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
             sidebarOpen ? "left-52" : "left-0"
           )}
