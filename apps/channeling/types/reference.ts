@@ -6,6 +6,8 @@ export type ReferenceSelectOption = {
   id: string
   name: string
   code?: string | null
+  /** Present on doctor options so UIs can filter consultants by speciality. */
+  specialityId?: string | null
 }
 
 /** Build display label: "Name (CODE)" when code exists, else name. */

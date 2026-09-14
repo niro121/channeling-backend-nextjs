@@ -14,21 +14,26 @@ import { RECEIPT_METHOD } from "@/types/receipt"
 type LedgerRecordActionsProps = {
   row: Row<LedgerReceiptListItem>
   canCancel: boolean
+  canCancelBankDeposit: boolean
 }
 
-export function LedgerRecordActions({ row, canCancel }: LedgerRecordActionsProps) {
+export function LedgerRecordActions({
+  row,
+  canCancel,
+  canCancelBankDeposit,
+}: LedgerRecordActionsProps) {
   const router = useRouter()
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const r = row.original
   const receiptId = r.id ?? null
+  const isBankDeposit = r.method === RECEIPT_METHOD.BANK_DEPOSIT
   const showCancel =
-    canCancel &&
     Boolean(receiptId) &&
     !r.canceledAt &&
     !r.reverseReceiptId &&
     !r.reversedReceiptId &&
-    r.method !== RECEIPT_METHOD.BANK_DEPOSIT
+    (isBankDeposit ? canCancelBankDeposit : canCancel)
 
   const handleCancelSuccess = () => {
     router.refresh()

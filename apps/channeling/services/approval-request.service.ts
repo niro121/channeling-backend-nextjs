@@ -76,6 +76,11 @@ function formatRs(amount: number): string {
   return `Rs. ${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function formatDoctorName(doctor?: { title?: string | null; name?: string | null } | null): string {
+  if (!doctor) return ""
+  return [doctor.title, doctor.name].filter(Boolean).join(" ").trim()
+}
+
 function mapSummary(row: {
   id: string
   type: string
@@ -395,6 +400,7 @@ export async function requestBankDepositApproval(
     slipImageKey?: string | null
     slipImageContentType?: string | null
     slipImageName?: string | null
+    shiftBillAttachmentId?: string | null
   },
   userId: string
 ): Promise<ApprovalActionResult> {
@@ -434,6 +440,7 @@ export async function requestBankDepositApproval(
     slipImageKey: input.slipImageKey,
     slipImageContentType: input.slipImageContentType,
     slipImageName: input.slipImageName,
+    shiftBillAttachmentId: input.shiftBillAttachmentId,
   })
   if (!slip.success) {
     return { success: false, errorCode: slip.errorCode, message: slip.message }
@@ -899,6 +906,7 @@ export async function listApprovalRequests(
           appointmentNo: true,
           receiptNoString: true,
           bookingid_string: true,
+          doctor: { select: { title: true, name: true } },
           session: {
             select: {
               date: true,
@@ -925,9 +933,9 @@ export async function listApprovalRequests(
           year: "numeric",
         })
       : "—"
-    const doctor = sess?.doctor
-      ? `${sess.doctor.title ?? ""} ${sess.doctor.name ?? ""}`.trim()
-      : "—"
+    const doctorName =
+      formatDoctorName(row.booking?.doctor) || formatDoctorName(sess?.doctor)
+    const doctor = doctorName || "—"
     const patientName = `${row.booking?.title ?? ""} ${row.booking?.name ?? ""}`.trim() || "—"
     const bankLabel =
       row.bankAccount?.name ||
@@ -944,6 +952,7 @@ export async function listApprovalRequests(
       ...mapSummary(row),
       bookingId: row.bookingId,
       patientName,
+      doctorName: isDeposit ? "" : doctor,
       appointmentNo: row.booking?.appointmentNo ?? null,
       billNo: row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.receipt?.receiptNoString ?? row.id,
       sessionLabel: isDeposit ? bankSub : `${doctor} · ${sessionDate}`,

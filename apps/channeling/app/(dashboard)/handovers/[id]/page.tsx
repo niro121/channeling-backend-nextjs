@@ -144,6 +144,27 @@ function parseEnteredBreakdown(raw: unknown): EnteredBreakdown | null {
   return raw as EnteredBreakdown
 }
 
+function printHandoverDocument(mode: "report" | "summary") {
+  const styleId = "handover-print-page-size"
+  let el = document.getElementById(styleId) as HTMLStyleElement | null
+  if (!el) {
+    el = document.createElement("style")
+    el.id = styleId
+    document.body.appendChild(el)
+  }
+  el.textContent =
+    mode === "summary"
+      ? "@media print { @page { size: A5 portrait; margin: 4mm 12mm; } }"
+      : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
+  document.body.classList.toggle("print-handover-summary", mode === "summary")
+  const cleanup = () => {
+    document.body.classList.remove("print-handover-summary")
+    el.remove()
+  }
+  window.addEventListener("afterprint", cleanup, { once: true })
+  window.print()
+}
+
 function handoverBreakdownSummary(raw: unknown): string {
   const b = parseEnteredBreakdown(raw)
   if (!b) return "—"
@@ -259,28 +280,40 @@ export default function HandoverDetailPage() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
+  const [autoPrintToken, setAutoPrintToken] = useState(0)
   const { toast } = useToast()
 
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) return
-    setLoading(true)
+    if (!opts?.silent) setLoading(true)
     try {
       const res = await getHandoverDetailAction(id)
       if (res.success && res.data) {
         setData(res.data)
-        setTicked(new Set())
+        if (!opts?.silent) setTicked(new Set())
       } else {
         toast({ title: res.error ?? "Not found", variant: "destructive" })
         router.replace("/handovers")
       }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [id, router, toast])
 
   useEffect(() => {
     fetchDetail()
   }, [fetchDetail])
+
+  useEffect(() => {
+    if (!autoPrintToken) return
+    if (data?.handover?.status !== HANDOVER_STATUS.APPROVED) return
+    const token = autoPrintToken
+    const timer = window.setTimeout(() => {
+      printHandoverDocument("summary")
+      setAutoPrintToken((current) => (current === token ? 0 : current))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [autoPrintToken, data])
 
   useEffect(() => {
     if (!(sendReconOpen || changeAssigneeOpen) || !canSendToReconciliation) return
@@ -410,7 +443,9 @@ export default function HandoverDetailPage() {
       })
       setApproveOpen(false)
       setApprovalComments("")
-      router.push("/handovers")
+      setAutoPrintToken((n) => n + 1)
+      await fetchDetail({ silent: true })
+      router.refresh()
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to approve", variant: "destructive" })
     } finally {
@@ -560,27 +595,6 @@ export default function HandoverDetailPage() {
             ? "Cancelled"
             : "Completed"
 
-  const printHandover = (mode: "report" | "summary") => {
-    const styleId = "handover-print-page-size"
-    let el = document.getElementById(styleId) as HTMLStyleElement | null
-    if (!el) {
-      el = document.createElement("style")
-      el.id = styleId
-      document.body.appendChild(el)
-    }
-    el.textContent =
-      mode === "summary"
-        ? "@media print { @page { size: A6 portrait; margin: 4mm 12mm; } }"
-        : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
-    document.body.classList.toggle("print-handover-summary", mode === "summary")
-    const cleanup = () => {
-      document.body.classList.remove("print-handover-summary")
-      el.remove()
-    }
-    window.addEventListener("afterprint", cleanup, { once: true })
-    window.print()
-  }
-
   return (
     <>
     <div className="handover-screen space-y-3 print:hidden">
@@ -597,10 +611,10 @@ export default function HandoverDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => printHandover("summary")}>
-                A6 (Default)
+              <DropdownMenuItem onClick={() => printHandoverDocument("summary")}>
+                A5 (Default)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => printHandover("report")}>
+              <DropdownMenuItem onClick={() => printHandoverDocument("report")}>
                 A4
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -119,3 +119,70 @@ export function buildPlaceholdersForDoctorPayment(
     slip_date: detail.slipDate ?? "",
   }
 }
+
+export type BookingReceiptPrintInput = {
+  patientName: string
+  consultant: string
+  appointmentNo: string
+  appointmentDate: string
+  appointmentTime: string
+  tel: string
+  bookingMethod: string
+  billNo: string
+  billSubTotal: string
+  discount: string
+  billTotal: string
+  billedBy: string
+  remarks: string
+  area: string
+  refundLine: string
+  refundAmount: string
+  refundReceiptNo: string
+  refundReason: string
+  generatedBy: string
+  companyName?: string
+  locationName?: string
+  email?: string
+  web?: string
+  duplicateLabel?: string
+}
+
+/**
+ * Placeholders for the Sails-style booking patient bill.
+ * Empty refund_* values stay blank on a normal paid print.
+ */
+export function buildPlaceholdersForBookingReceipt(
+  input: BookingReceiptPrintInput
+): ReceiptPlaceholderMap {
+  const generatedAt = format(new Date(), "dd/MM/yyyy HH.mm")
+  const locationName = input.locationName ?? ""
+  const companyName = input.companyName ?? locationName
+  return {
+    company_name: companyName,
+    location_name: locationName,
+    tel: input.tel,
+    email: input.email ?? "",
+    web: input.web ?? "",
+    duplicate_label: input.duplicateLabel ?? "",
+    patient_name: input.patientName,
+    consultant: input.consultant,
+    appointment_no: input.appointmentNo,
+    appointment_date: input.appointmentDate,
+    appointment_time: input.appointmentTime,
+    booking_method: input.bookingMethod,
+    bill_no: input.billNo,
+    bill_sub_total: input.billSubTotal,
+    discount: input.discount,
+    bill_total: input.billTotal,
+    billed_by: input.billedBy,
+    remarks: input.remarks,
+    area: input.area,
+    refund_line: input.refundLine,
+    refund_amount: input.refundAmount,
+    refund_receipt_no: input.refundReceiptNo,
+    refund_reason: input.refundReason,
+    generated_by: input.generatedBy,
+    generated_at: generatedAt,
+    phone: input.tel,
+  }
+}

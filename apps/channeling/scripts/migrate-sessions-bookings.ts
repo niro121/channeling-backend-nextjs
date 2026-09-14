@@ -22,6 +22,9 @@
  * parallel sessions each doing many DB round-trips often saturates MongoDB and feels "stuck".
  * Override: --concurrency=50 --booking-concurrency=10
  *
+ * Consecutive sessions: Session.previousDoctorSession is remapped from the legacy
+ * previous_doctor_session (Sails Doctor_sessions id) to DoctorSession.id via migrateSourceId.
+ *
  * Before import: prints legacy counts (eligible vs in-range). After import: transferred
  * totals and highlights any difference. Use --skip-plan to skip the pre-count phase.
  *
@@ -720,9 +723,6 @@ async function explainMissingTemplateImport(
   if (!doctor.migrateSourceId) {
     return `Doctor ${doctorCode} has no migrateSourceId — run migrate:import for doctors`;
   }
-  if (doctor.status !== 1) {
-    return `Doctor ${doctorCode} status≠1 — excluded from doctor-session import doctor list`;
-  }
 
   if (dept && !diag.departmentsAll.has(dept)) {
     return `Department "${dept}" missing in Next — run migrate:import`;
@@ -907,6 +907,25 @@ function mapApiFees(
 
 function sessionDateUtc(ymd: string): Date {
   return moment.utc(ymd, 'YYYY-MM-DD').startOf('day').toDate();
+}
+
+/**
+ * Session.previousDoctorSession must be the Next.js DoctorSession.id (same as analyse-sessions).
+ * Legacy previous_doctor_session is the Sails Doctor_sessions Mongo id.
+ */
+function resolvePreviousDoctorSessionId(
+  legacyPreviousId: unknown,
+  maps: RefMaps
+): string | null {
+  const legacy = toLegacyString(legacyPreviousId);
+  if (!legacy) return null;
+  const mapped = maps.doctorSessionsBySourceId.get(legacy)?.id ?? null;
+  if (!mapped) {
+    console.warn(
+      `[sessions] previous_doctor_session=${legacy} has no DoctorSession.migrateSourceId; consecutive link omitted`
+    );
+  }
+  return mapped;
 }
 
 function unixMsToDate(value: unknown): Date | null {
@@ -1100,7 +1119,7 @@ async function upsertOneSession(
     institution: safeNumber(row.institution),
     date: sessionDateUtc(row.date),
     doctorSessionId: doctorSession.id,
-    previousDoctorSession: toLegacyString(row.previous_doctor_session),
+    previousDoctorSession: resolvePreviousDoctorSessionId(row.previous_doctor_session, maps),
     startTime,
     endTime,
     durationMinutes: row.duration_minutes != null ? safeNumber(row.duration_minutes) : null,
@@ -1966,6 +1985,97 @@ async function main(): Promise<void> {
       skipped: bookingImport.skipped,
       notes: `sessionsProcessed=${bookingImport.sessionsProcessed}${dryRun ? '; dry-run' : ''}`,
     });
+  }
+
+  if (!dryRun && sessionImport) {
+    const sessionRows = await prisma.session.findMany({
+      select: {
+        migrateSourceId: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        appointmentNo: true,
+        doctor: { select: { code: true, name: true } },
+        location: { select: { code: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+    reporter?.records(
+      'Sessions',
+      [
+        { header: 'Legacy id', key: 'legacyId', width: 28 },
+        { header: 'Date', key: 'date', width: 14 },
+        { header: 'Doctor', key: 'doctor', width: 12 },
+        { header: 'Doctor name', key: 'doctorName', width: 28 },
+        { header: 'Location', key: 'location', width: 12 },
+        { header: 'Start', key: 'startTime', width: 22 },
+        { header: 'End', key: 'endTime', width: 22 },
+        { header: 'Appt no', key: 'appointmentNo', width: 12 },
+        { header: 'Status', key: 'status', width: 10 },
+      ],
+      sessionRows.map((s) => ({
+        legacyId: s.migrateSourceId ?? '',
+        date: s.date.toISOString().slice(0, 10),
+        doctor: s.doctor?.code ?? '',
+        doctorName: s.doctor?.name ?? '',
+        location: s.location?.code ?? '',
+        startTime: s.startTime.toISOString(),
+        endTime: s.endTime.toISOString(),
+        appointmentNo: s.appointmentNo,
+        status: s.status,
+      }))
+    );
+  }
+
+  if (!dryRun && bookingImport) {
+    const bookingRows = await prisma.booking.findMany({
+      select: {
+        migrateSourceId: true,
+        bookingid: true,
+        bookingid_string: true,
+        name: true,
+        phone: true,
+        appointmentNo: true,
+        amount: true,
+        status: true,
+        agencyRef: true,
+        session: {
+          select: {
+            date: true,
+            doctor: { select: { code: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    reporter?.records(
+      'Bookings',
+      [
+        { header: 'Legacy id', key: 'legacyId', width: 28 },
+        { header: 'Booking no', key: 'bookingNo', width: 16 },
+        { header: 'Patient', key: 'name', width: 28 },
+        { header: 'Phone', key: 'phone', width: 16 },
+        { header: 'Appt no', key: 'appointmentNo', width: 12 },
+        { header: 'Session date', key: 'sessionDate', width: 14 },
+        { header: 'Doctor', key: 'doctor', width: 12 },
+        { header: 'Amount', key: 'amount', width: 12 },
+        { header: 'Agency ref', key: 'agencyRef', width: 16 },
+        { header: 'Status', key: 'status', width: 10 },
+      ],
+      bookingRows.map((b) => ({
+        legacyId: b.migrateSourceId ?? '',
+        bookingNo: b.bookingid_string || String(b.bookingid ?? ''),
+        name: b.name ?? '',
+        phone: b.phone ?? '',
+        appointmentNo: b.appointmentNo,
+        sessionDate: b.session?.date ? b.session.date.toISOString().slice(0, 10) : '',
+        doctor: b.session?.doctor?.code ?? '',
+        amount: b.amount ?? 0,
+        agencyRef: b.agencyRef ?? '',
+        status: b.status,
+      }))
+    );
   }
 
   await finishMigrateReporter(reporter);

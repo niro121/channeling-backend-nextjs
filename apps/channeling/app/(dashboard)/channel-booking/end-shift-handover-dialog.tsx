@@ -27,6 +27,7 @@ import {
   getIncludableHandoversForSenderAction,
   getLinkedHandoversForShiftAction,
   getNonCashHeldInReconciliationAction,
+  getExpectedHandoverCollectionAction,
   canEndShiftWithoutHandoverAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
@@ -59,6 +60,12 @@ import { formatCents } from "@/lib/format-money"
 import {
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverAmountsTotalCents,
+  handoverDiscrepancyReasonLabel,
+  handoverDiscrepancyReasonPlaceholder,
+  handoverDiscrepancyReasonRequiredMessage,
+  isHandoverCollectionExcess,
+  type ExpectedHandoverCollection,
 } from "@/lib/handover-utils"
 import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
@@ -214,6 +221,8 @@ export function EndShiftHandoverDialog({
   const [billAttachments, setBillAttachments] = useState<ShiftBillAttachmentDto[]>([])
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([])
   const [billAttachmentsLoading, setBillAttachmentsLoading] = useState(false)
+  const [expectedCollection, setExpectedCollection] = useState<ExpectedHandoverCollection | null>(null)
+  const [expectedCollectionError, setExpectedCollectionError] = useState<string | null>(null)
   const { toast } = useToast()
   const hasOpenFloats = openFloatsCount(openFloatsBlocking) > 0
   const hasOpenApprovalRequests = openApprovalRequestsCount > 0
@@ -275,6 +284,8 @@ export function EndShiftHandoverDialog({
       setOpenFloatsBlocking(EMPTY_OPEN_FLOATS)
       setOpenApprovalRequestsCount(0)
       setOpenApprovalRequestsMessage(null)
+      setExpectedCollection(null)
+      setExpectedCollectionError(null)
       setBalanceLoading(true)
       setBillAttachmentsLoading(true)
       listMyShiftBillAttachmentsAction()
@@ -301,8 +312,11 @@ export function EndShiftHandoverDialog({
         getOpenFloatsBlockingShiftEndAction(),
         getOpenApprovalRequestsBlockingShiftEndAction(),
         canEndShiftWithoutHandoverAction(),
+        shiftId
+          ? getExpectedHandoverCollectionAction(shiftId)
+          : Promise.resolve({ success: false as const, error: "Shift is required." }),
       ])
-        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes]) => {
+        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes, expectedCollectionRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -355,6 +369,17 @@ export function EndShiftHandoverDialog({
           }
           if (endWithoutRes.success) {
             setCanEndWithoutHandover(!!endWithoutRes.allowed)
+          }
+          if (expectedCollectionRes.success) {
+            setExpectedCollection(expectedCollectionRes.data)
+            setExpectedCollectionError(null)
+          } else {
+            setExpectedCollection(null)
+            setExpectedCollectionError(
+              "error" in expectedCollectionRes
+                ? expectedCollectionRes.error
+                : "Could not load the collection summary to check for excess."
+            )
           }
         })
         .catch((err) => {
