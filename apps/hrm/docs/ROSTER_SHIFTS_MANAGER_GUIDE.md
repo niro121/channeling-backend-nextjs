@@ -55,7 +55,7 @@ Pages must not call Prisma. No business rules in components. Next: **D11 Public 
 - Night / Overnight / Holiday are **registers of allocations** (shift-type flags or holiday date). **Add** only if that staff + date has no cell. Phase 0 status dropdowns stay until wiring; they **map to the cell/period**, they are not a second approval engine.
 - Holiday dates: owned by **HR Administration** (`HolidayCalendar` CRUD on `/holiday-calendar`). Public Holiday Shifts **reads** that master. Further Staff/Roster master wiring (department, unit, designation, roster group, grade) is tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 — finish remaining HR Admin masters before a broad integration wave.
 - Grant Lieu Leave / Send to Payroll: **flags only** in v1 (no Leave Entitlement write, no payroll engine).
-- Duty attendance: store Present / Late / Absent. No RFID engine in v1.
+- Duty attendance: store Present / Late / Absent. No RFID engine in roster v1 — RFID / finger-scan architecture lives in `STAFF_ATTENDANCE_ARCHITECTURE.md` (separate until HR confirms sync).
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness:** one shift per staff per calendar date (hospital-wide).
 - Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.
@@ -1557,7 +1557,7 @@ Auto Assign that **creates week cells** waits for D5.
 | Create Fixed Roster templates | Separate collection when specified |
 | Overtime Process Staff Shift | Replace OT sample fill with roster **read** (after D4+) |
 | Leave overlap | Tick Leave vs real `LeaveApplication` — keep independent in v1 |
-| RFID / attendance engine | Later; enum on the cell is enough for D7 |
+| RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
 | Department / Unit / Designation / Roster / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 (finish remaining masters, then integration wave) |
 | Roster master FK on Staff | Keep employment `roster` string until Manage Rosters integration (R6) |
