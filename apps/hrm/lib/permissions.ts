@@ -29,6 +29,11 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/rooms': 'organizations',
   '/users': 'users',
   '/user-groups': 'users',
+  '/attendance': 'attendance',
+  '/rfid-attendance': 'attendance',
+  '/attendance-daily': 'attendance',
+  '/attendance-devices': 'attendance',
+  '/attendance-corrections': 'attendance',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

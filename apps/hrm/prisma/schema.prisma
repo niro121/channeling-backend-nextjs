@@ -154,6 +154,8 @@ model Staff {
   dateJoined      DateTime?
   status          Int       @default(1) // 0 = Inactive, 1 = Active
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
+  /// Denormalized from hrDetails.fingerPrintRfid for punch lookup / uniqueness among active staff.
+  fingerPrintRfid String?
   hrDetails       StaffHrDetails?
   personnelDetails StaffPersonnelDetails?
   employmentDetails StaffEmploymentDetails?
@@ -167,6 +169,8 @@ model Staff {
   shiftAssignments StaffShiftAssignment[]
   rosterAllocations RosterAllocation[]
   rosterAmendments RosterAmendment[]
+  attendancePunches AttendancePunch[]
+  attendanceDays    AttendanceDay[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -176,6 +180,7 @@ model Staff {
   @@index([migrateSourceId])
   @@index([status])
   @@index([name])
+  @@index([fingerPrintRfid])
 }
 
 /* ---------------------------------
@@ -836,6 +841,95 @@ model Room {
   @@index([locationId])
   @@index([zoneId])
   @@index([number])
+}
+
+/* ---------------------------------
+STAFF ATTENDANCE (RFID / finger-scan)
+See apps/hrm/docs/STAFF_ATTENDANCE_ARCHITECTURE.md
+--------------------------------- */
+
+model AttendanceDevice {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  code       String    @unique // ATD-n or stable gateway code e.g. GATE-01
+  name       String
+  location   String    @default("")
+  status     String    @default("active") // active | inactive
+  lastSeenAt DateTime?
+  /// Optional hashed per-device secret; global ATTENDANCE_DEVICE_API_KEY is also accepted.
+  apiKeyHash String?
+
+  punches AttendancePunch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([location])
+  @@index([lastSeenAt])
+}
+
+model AttendancePunch {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  deviceId        String   @db.ObjectId
+  deviceCode      String   @default("")
+  externalPunchId String
+  rfid            String
+  staffId         String?  @db.ObjectId
+  punchedAt       DateTime
+  direction       String   @default("unknown") // in | out | unknown
+  source          String   @default("device") // device | manual | import
+  matchStatus     String   @default("unmatched") // matched | unmatched | inactive_staff
+  rawPayload      Json?
+
+  device AttendanceDevice @relation(fields: [deviceId], references: [id])
+  staff  Staff?           @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([deviceId, externalPunchId])
+  @@index([punchedAt])
+  @@index([staffId, punchedAt])
+  @@index([rfid, punchedAt])
+  @@index([matchStatus, punchedAt])
+  @@index([deviceCode, punchedAt])
+}
+
+model AttendanceDay {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  staffId             String    @db.ObjectId
+  /// Calendar date as UTC midnight for the Asia/Colombo civil day (same convention as RosterAllocation.date).
+  date                DateTime
+  staffCode           String    @default("")
+  staffName           String    @default("")
+  department          String    @default("")
+  location            String    @default("")
+  firstInAt           DateTime?
+  lastOutAt           DateTime?
+  status              String    @default("absent") // present | late | absent | missing_punch | on_leave | not_rostered
+  flags               String[]  @default([])
+  shiftTypeId         String?   @db.ObjectId
+  rosterAllocationId  String?   @db.ObjectId
+  confirmedToRosterAt DateTime?
+  correctionReason    String    @default("")
+  correctedBy         String?   @db.ObjectId
+  correctedAt         DateTime?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([staffId, date])
+  @@index([date])
+  @@index([status, date])
+  @@index([department, date])
+  @@index([location, date])
+  @@index([shiftTypeId])
+  @@index([rosterAllocationId])
 }
 
 /* ---------------------------------

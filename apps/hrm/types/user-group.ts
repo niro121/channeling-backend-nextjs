@@ -22,6 +22,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: 'leave-application', name: 'Leave Application' },
   { id: 'overtime-requests', name: 'OT Requests' },
   { id: 'shift-roster', name: 'Roster & Shifts' },
+  { id: 'attendance', name: 'Staff Attendance' },
   { id: 'holiday-calendar', name: 'Holiday Calendar' },
   { id: 'designations', name: 'Designations' },
   { id: 'staff-grades', name: 'Area / Staff Grade' },

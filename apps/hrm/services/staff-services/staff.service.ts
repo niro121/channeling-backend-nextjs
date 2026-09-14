@@ -8,6 +8,7 @@ import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { channelingStaffPayloadSchema } from '@/lib/helpers/staff-channeling-fields.helper';
+import { normalizeFingerPrintRfid } from '@/lib/helpers/attendance-timezone.helper';
 import type {
   GetStaffParams,
   StaffEmploymentDetails,
@@ -256,7 +257,7 @@ function toHrDetailsInput(
     email: hrDetails.email ?? null,
     secondaryEmail: hrDetails.secondaryEmail ?? null,
     zoneCode: hrDetails.zoneCode ?? null,
-    fingerPrintRfid: hrDetails.fingerPrintRfid ?? null,
+    fingerPrintRfid: normalizeFingerPrintRfid(hrDetails.fingerPrintRfid ?? null),
     staffCodeLegacy: staffCodeLegacy ?? hrDetails.staffCodeLegacy ?? null,
     epfNumber: hrDetails.epfNumber ?? null,
     etfNumber: hrDetails.etfNumber ?? null,
@@ -267,6 +268,32 @@ function toHrDetailsInput(
     dateRetired: toDate(hrDetails.dateRetired),
     specialityIds: hrDetails.specialityIds ?? []
   };
+}
+
+/** Active staff must not share the same fingerPrintRfid (excluding `excludeStaffId`). */
+async function assertFingerPrintRfidAvailable(
+  rfid: string | null | undefined,
+  excludeStaffId?: string
+): Promise<{ ok: true; value: string | null } | { ok: false; message: string }> {
+  const value = normalizeFingerPrintRfid(rfid ?? null);
+  if (!value) return { ok: true, value: null };
+
+  const conflict = await prisma.staff.findFirst({
+    where: {
+      fingerPrintRfid: value,
+      status: 1,
+      ...(excludeStaffId ? { id: { not: excludeStaffId } } : {})
+    },
+    select: { id: true, code: true, name: true }
+  });
+
+  if (conflict) {
+    return {
+      ok: false,
+      message: `Finger Print / RFID already assigned to active staff ${conflict.code} (${conflict.name})`
+    };
+  }
+  return { ok: true, value };
 }
 
 function toPersonnelDetailsInput(
@@ -517,6 +544,19 @@ export async function createStaff(
       };
     }
 
+    const rfidCheck = await assertFingerPrintRfidAvailable(
+      data.hrDetails?.fingerPrintRfid
+    );
+    if (!rfidCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: rfidCheck.message,
+          issues: { fingerPrintRfid: [rfidCheck.message] }
+        }
+      };
+    }
+
     const staff = await prisma.staff.create({
       data: {
         code,
@@ -529,6 +569,7 @@ export async function createStaff(
         address: data.address,
         dateJoined: toDate(data.dateJoined) ?? new Date(),
         status: data.status,
+        fingerPrintRfid: rfidCheck.value,
         hrDetails: toHrDetailsInput(data.hrDetails ?? {}, legacyGenerated.code),
         ...(auditUser?.id && { createdBy: auditUser.id, updatedBy: auditUser.id })
       }
@@ -580,7 +621,7 @@ export async function updateStaff(
     const auditUser = toAuditUser(user);
     const existing = await prisma.staff.findUnique({
       where: { id },
-      select: { hrDetails: true }
+      select: { hrDetails: true, fingerPrintRfid: true }
     });
 
     if (!existing) {
@@ -599,6 +640,33 @@ export async function updateStaff(
       staffCodeLegacy = legacyGenerated.code;
     }
 
+    const nextRfidRaw =
+      data.hrDetails?.fingerPrintRfid !== undefined
+        ? data.hrDetails.fingerPrintRfid
+        : (existing.fingerPrintRfid ?? existing.hrDetails?.fingerPrintRfid ?? null);
+    const nextStatus = data.status !== undefined ? data.status : undefined;
+    // Uniqueness among active staff: if this update keeps/activates status=1, check RFID.
+    const willBeActive =
+      nextStatus === undefined
+        ? true // unknown — still enforce when RFID is set; inactive conflicts are less critical
+        : nextStatus === 1;
+    let nextRfid = normalizeFingerPrintRfid(nextRfidRaw ?? null);
+    if (data.hrDetails || nextStatus === 1) {
+      if (willBeActive || data.hrDetails?.fingerPrintRfid !== undefined) {
+        const rfidCheck = await assertFingerPrintRfidAvailable(nextRfid, id);
+        if (!rfidCheck.ok) {
+          return {
+            success: false,
+            error: {
+              message: rfidCheck.message,
+              issues: { fingerPrintRfid: [rfidCheck.message] }
+            }
+          };
+        }
+        nextRfid = rfidCheck.value;
+      }
+    }
+
     const updateData: Prisma.StaffUpdateInput = {
       ...(data.code !== undefined && { code: data.code }),
       ...(data.title !== undefined && { title: data.title ?? '' }),
@@ -611,6 +679,7 @@ export async function updateStaff(
       ...(data.dateJoined !== undefined && { dateJoined: toDate(data.dateJoined) }),
       ...(data.status !== undefined && { status: data.status }),
       ...(data.hrDetails && {
+        fingerPrintRfid: nextRfid,
         hrDetails: toHrDetailsInput(
           {
             initials: data.hrDetails.initials ?? existing.hrDetails?.initials ?? null,
@@ -622,8 +691,7 @@ export async function updateStaff(
             secondaryEmail:
               data.hrDetails.secondaryEmail ?? existing.hrDetails?.secondaryEmail ?? null,
             zoneCode: data.hrDetails.zoneCode ?? existing.hrDetails?.zoneCode ?? null,
-            fingerPrintRfid:
-              data.hrDetails.fingerPrintRfid ?? existing.hrDetails?.fingerPrintRfid ?? null,
+            fingerPrintRfid: nextRfid,
             epfNumber: data.hrDetails.epfNumber ?? existing.hrDetails?.epfNumber ?? null,
             etfNumber: data.hrDetails.etfNumber ?? existing.hrDetails?.etfNumber ?? null,
             registrationNumber:
@@ -748,6 +816,9 @@ export async function updateStaffPersonnel(
       ...(data.nic !== undefined && { nic: data.nic ?? '' }),
       ...(data.dateOfBirth !== undefined && { dateOfBirth: toDate(data.dateOfBirth) }),
       ...(data.contactMobile !== undefined && { contactMobile: data.contactMobile ?? '' }),
+      fingerPrintRfid: normalizeFingerPrintRfid(
+        existing.hrDetails?.fingerPrintRfid ?? null
+      ),
       hrDetails: mergedHrDetails,
       ...(data.personnelDetails && {
         personnelDetails: toPersonnelDetailsInput(data.personnelDetails)

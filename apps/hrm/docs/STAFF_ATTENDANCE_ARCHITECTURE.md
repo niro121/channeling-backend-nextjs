@@ -4,9 +4,11 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** Architecture locked (14 Sep 2026). Implementation not started.  
+**Status:** P0–P2 foundations in progress (14 Sep 2026). RFID Attendance UI deferred until product mocks are attached.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
+
+**UI gate:** Do **not** start Phase P3 (RFID Attendance screens) until the user attaches additional UI designs for that module. Ask for those mocks when backend P0–P2 are ready and UI work is the next step.
 
 ---
 
@@ -21,10 +23,11 @@ Pages must not call Prisma. No business rules in components. Device traffic uses
 | 5 | **Mapping table:** Start **without** `AttendanceIdentityMap`. Add later only if enrollment ID ≠ device ID (legacy Emp No, reissued cards). |
 | 6 | **Permission:** One resource `attendance` for the whole Staff Attendance group (same pattern as OT → `overtime-requests`). |
 | 7 | **Punch log is immutable:** Corrections adjust `AttendanceDay` (and optional correction audit), never delete or rewrite device punches. |
+| 8 | **Staff RFID enrollment:** Text input remains the stored value today. **Scan-from-reader** capture on the staff general form is planned **after device / gateway setup** (see §4.3). |
 
 **Existing hooks already in the codebase:**
 
-- Staff enrollment field: `fingerPrintRfid` on `StaffHrDetails` (UI: staff general form).
+- Staff enrollment field: `fingerPrintRfid` on `StaffHrDetails` + denormalized `Staff.fingerPrintRfid` (UI: staff general form text field today; scan-to-capture later — §4.3).
 - Planned shift + Late thresholds: `ShiftType.graceMinutes` / `lateThresholdMinutes` / `earlyExitThresholdMinutes`.
 - Planned duty cell: `RosterAllocation` (`attendance` enum, overnight `attendanceAllocation`).
 - Permission route reserved: `/attendance` → `attendance` (`PERMISSION_FLOW.md`, `HRM_DEVELOPMENT_GUIDELINES.md` §9).
@@ -195,6 +198,48 @@ Example body:
 
 If the device cannot send IN/OUT, use `direction: "unknown"` and pair by order (first punch ≈ in, last ≈ out; odd incomplete pairs → missing punch flags).
 
+### 4.3 Staff form RFID enrollment (scan-to-capture) — deferred until device setup
+
+**Status:** Documented only. Implement once at least one physical (or gateway-simulated) reader is available. Do **not** block punch ingest / day rules / RFID Attendance UI on this.
+
+**Problem:** Today `fingerPrintRfid` on the staff general form (`form-general.tsx`) is a plain text input. Admins can mistype the ID the machine will send. Enrollment should support **capture from a reader**.
+
+**Constraint:** The browser cannot talk to most finger-scan / RFID panels directly (proprietary LAN SDK / Windows service). Capture must go through the same **device gateway → HRM API** path as punches.
+
+**Target UX (staff general form):**
+
+1. Admin opens Staff → General and focuses **Finger Print / RFID**.
+2. Clicks **Scan from reader** → enrollment listen mode (timeout ~30–60s).
+3. Staff taps/scans at a designated enrollment reader (or any active device configured for enrollment).
+4. Gateway posts the scan (reuse punch ingest, or a lighter enroll-read endpoint).
+5. Form receives the RFID (short poll or SSE) and fills `fingerPrintRfid`.
+6. Admin saves staff as today (trim + unique among active staff already enforced).
+
+Keep the text input as **fallback** (paste / manual edit / no reader at desk).
+
+**Suggested API / flow (when implementing):**
+
+| Piece | Role |
+|-------|------|
+| Session-auth action or route | Start / cancel enrollment listen (`staffId` optional for add vs edit; timeout; optional `deviceCode`) |
+| Device ingest | Next scan from allowed device(s) is tagged as enrollment candidate (do **not** require a full attendance day recompute for unmatched enrollment taps — or mark `source: enroll` and skip day write) |
+| Form client | Poll `GET` enroll session or subscribe until RFID arrives / timeout |
+| Save path | Existing staff create/update — still the source of truth |
+
+**Do not:**
+
+- Wire the Next.js page directly to the device SDK.
+- Rely on WebUSB/WebHID unless a specific reader is proven to support it (unlikely for hospital panels).
+- Auto-save staff on scan — only populate the field; admin confirms Save.
+
+**Checklist (implement after device setup):**
+
+- [ ] Enrollment listen start/cancel API (session + timeout)
+- [ ] Ingest path recognizes enrollment mode (or dedicated enroll-read) without corrupting attendance days
+- [ ] Staff general form: **Scan from reader** control + waiting / success / timeout states
+- [ ] Optional: restrict enrollment to a designated `AttendanceDevice` (e.g. HR desk reader)
+- [ ] Smoke: gateway/simulated scan fills form field; uniqueness still blocks duplicate active RFID
+
 ---
 
 ## 5. Business rules engine
@@ -239,6 +284,7 @@ apps/hrm/
   app/api/attendance/
     punches/route.ts                      # Device ingest
     stream/route.ts                       # Optional SSE for live UI
+    enroll/…                              # Optional: enrollment listen (after device setup — §4.3)
 
   app/actions/attendance-actions/
     device.actions.ts
@@ -263,7 +309,7 @@ apps/hrm/
 
   types/attendance.ts
   lib/mappers/attendance-*.ts             # If forms need mappers
-  lib/helpers/attendance-timezone.helper.ts   # Asia/Colombo day bounds
+  lib/helpers/attendance-timezone.helper.ts   # Asia/Colombo via @date-fns/tz (TZDate)
 ```
 
 Wire routes into:
@@ -318,39 +364,41 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 
 ### Phase P0 — Foundations (schema + identity)
 
-- [ ] Add Prisma models: `AttendanceDevice`, `AttendancePunch`, `AttendanceDay` (+ indexes / unique keys)
-- [ ] Add `types/attendance.ts` (status enums, punch DTO, day DTO)
-- [ ] Enforce trim + unique `fingerPrintRfid` among active staff on create/update (staff service)
-- [ ] Document / implement RFID lookup strategy (embedded field query vs denormalized root field)
-- [ ] Helper: Asia/Colombo day start/end (`attendance-timezone.helper.ts`)
-- [ ] `prisma generate` / `db push` (or migration workflow used by HRM)
-- [ ] Seed or create at least one `AttendanceDevice` for local testing
-- [ ] Map routes in `lib/permissions.ts` → resource `attendance`
-- [ ] Ensure Auth User Group resource `attendance` exists in shared RESOURCES / matrix UI
+- [x] Add Prisma models: `AttendanceDevice`, `AttendancePunch`, `AttendanceDay` (+ indexes / unique keys)
+- [x] Add `types/attendance.ts` (status enums, punch DTO, day DTO)
+- [x] Enforce trim + unique `fingerPrintRfid` among active staff on create/update (staff service)
+- [x] Document / implement RFID lookup strategy (embedded field query vs denormalized root field)
+- [x] Helper: Asia/Colombo day start/end (`attendance-timezone.helper.ts`)
+- [x] `prisma generate` completed; **`db push` pending** — run `npx prisma db push` in `apps/hrm` against your local/staging HRM DB when ready
+- [x] Seed or create at least one `AttendanceDevice` for local testing (`ensureDefaultAttendanceDevice` / auto on `DEV-LOCAL` ingest)
+- [x] Map routes in `lib/permissions.ts` → resource `attendance`
+- [x] Ensure Auth User Group resource `attendance` exists in shared RESOURCES / matrix UI
 
 ### Phase P1 — Punch ingest API
 
-- [ ] `POST /api/attendance/punches` with API-key (or HMAC) auth
-- [ ] Zod validate ingest payload
-- [ ] Idempotency on `(deviceId, externalPunchId)`
-- [ ] Resolve staff by `fingerPrintRfid`; mark unmatched punches
-- [ ] Persist `AttendancePunch` (immutable)
-- [ ] Update `AttendanceDevice.lastSeenAt`
-- [ ] Unit/integration smoke: duplicate punch, unmatched RFID, matched RFID
-- [ ] Env docs: device key(s) in `apps/hrm/.env.example` (no real secrets)
+- [x] `POST /api/attendance/punches` with API-key (or HMAC) auth
+- [x] Zod validate ingest payload
+- [x] Idempotency on `(deviceId, externalPunchId)`
+- [x] Resolve staff by `fingerPrintRfid`; mark unmatched punches
+- [x] Persist `AttendancePunch` (immutable)
+- [x] Update `AttendanceDevice.lastSeenAt`
+- [ ] Unit/integration smoke: duplicate punch, unmatched RFID, matched RFID — run `npm run smoke:attendance` in `apps/hrm` (see §13)
+- [x] Env docs: device key(s) in `apps/hrm/.env.example` (no real secrets)
 
 ### Phase P2 — Day recompute + rules
 
-- [ ] `attendance-rules.service.ts`: pair IN/OUT / unknown direction
-- [ ] Load planned `RosterAllocation` + `ShiftType` for Late/Present
-- [ ] Apply grace / late thresholds
-- [ ] Flag missing punches, early exit, exceptions
-- [ ] Write/update `AttendanceDay`
-- [ ] Overnight window respects `attendanceAllocation`
+- [x] `attendance-rules.service.ts`: pair IN/OUT / unknown direction
+- [x] Load planned `RosterAllocation` + `ShiftType` for Late/Present
+- [x] Apply grace / late thresholds
+- [x] Flag missing punches, early exit, exceptions
+- [x] Write/update `AttendanceDay`
+- [ ] Overnight window respects `attendanceAllocation` (basic overnight late skip; full allocation-date wiring later)
 - [ ] Nightly (or on-demand) job for Absent when rostered with zero punches
-- [ ] Leave-aware status when leave data is available (`on_leave`)
+- [ ] Leave-aware status when leave data is available (`on_leave`) — uses `RosterAllocation.isLeave` when present
 
 ### Phase P3 — RFID Attendance UI (primary mock)
+
+> **Blocked on designs:** Ask the user to attach additional RFID Attendance UI mocks before starting this phase.
 
 - [ ] Sidebar group **Staff Attendance** + `/rfid-attendance` page shell
 - [ ] `CommonManagerHeader`: title, subtitle (reader count · today date), Refresh / Export / Add Correction
@@ -388,6 +436,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [ ] SSE live stream instead of polling
 - [ ] Auto-suggest Confirm for yesterday’s closed days (still requires HR click)
 - [ ] Payroll / OT consumption of `AttendanceDay` hours
+- [ ] **Staff form scan-to-capture enrollment (§4.3)** — after device / gateway setup
 
 ---
 
@@ -407,9 +456,55 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 | Topic | Default until decided |
 |-------|------------------------|
 | Exact device vendor / SDK | Push gateway posts neutral DTO |
-| Denormalize RFID onto `Staff` root for indexing | Prefer if embedded unique index is awkward on Mongo |
+| Denormalize RFID onto `Staff` root for indexing | **Done:** `Staff.fingerPrintRfid` (+ index); kept in sync with `hrDetails.fingerPrintRfid`; punch lookup backfills root from embedded |
 | Confirm mapping for `missing_punch` → Duty enum | Leave duty unchanged or set `absent` only when HR chooses — default: skip cell |
-| Reader count in subtitle | `count(AttendanceDevice where active)` |
+| Staff form RFID capture | Text input now; **Scan from reader** after device setup (§4.3) |
+
+---
+
+## 13. Local smoke (ingest)
+
+Prerequisites:
+
+1. Schema applied (`npx prisma db push` in `apps/hrm`)
+2. Set `ATTENDANCE_DEVICE_API_KEY` in `.env`
+3. HRM running (`npm run dev` → port **3001**)
+4. Optional: set `ATTENDANCE_SMOKE_RFID` to a real staff `fingerPrintRfid` for a **matched** punch + `AttendanceDay`
+
+### Script (preferred)
+
+```bash
+cd apps/hrm
+npm run smoke:attendance
+```
+
+The script (`scripts/smoke-attendance-ingest.mjs`) loads `.env`, auto-seeds `DEV-LOCAL` via the API, and checks:
+
+1. First punch succeeds  
+2. Same `externalPunchId` → `duplicate: true`  
+3. Unknown RFID → `matchStatus: unmatched`
+
+### Curl (manual)
+
+```bash
+# Matched punch (uses DEV-LOCAL auto-seed)
+curl -s -X POST http://localhost:3001/api/attendance/punches \
+  -H "Content-Type: application/json" \
+  -H "X-Attendance-Api-Key: YOUR_KEY" \
+  -d "{\"deviceCode\":\"DEV-LOCAL\",\"externalPunchId\":\"smoke-1\",\"rfid\":\"STAFF_RFID\",\"punchedAt\":\"2025-08-15T08:12:03+05:30\",\"direction\":\"unknown\"}"
+
+# Duplicate (same externalPunchId) — should return duplicate: true
+curl -s -X POST http://localhost:3001/api/attendance/punches \
+  -H "Content-Type: application/json" \
+  -H "X-Attendance-Api-Key: YOUR_KEY" \
+  -d "{\"deviceCode\":\"DEV-LOCAL\",\"externalPunchId\":\"smoke-1\",\"rfid\":\"STAFF_RFID\",\"punchedAt\":\"2025-08-15T08:12:03+05:30\"}"
+
+# Unmatched RFID
+curl -s -X POST http://localhost:3001/api/attendance/punches \
+  -H "Content-Type: application/json" \
+  -H "X-Attendance-Api-Key: YOUR_KEY" \
+  -d "{\"deviceCode\":\"DEV-LOCAL\",\"externalPunchId\":\"smoke-unmatched\",\"rfid\":\"UNKNOWN-RFID\",\"punchedAt\":\"2025-08-15T09:00:00+05:30\"}"
+```
 
 ---
 
@@ -418,4 +513,4 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - `HRM_DEVELOPMENT_GUIDELINES.md` — layered architecture, planned `/attendance` resource  
 - `PERMISSION_FLOW.md` — `/attendance` → `attendance`  
 - `ROSTER_SHIFTS_MANAGER_GUIDE.md` — duty attendance enum; RFID deferred in roster v1  
-- Staff enrollment UI: `app/(dashboard)/staff/form-general.tsx` (`fingerPrintRfid`)
+- Staff enrollment UI: `app/(dashboard)/staff/form-general.tsx` (`fingerPrintRfid` text field; scan-to-capture deferred — §4.3)

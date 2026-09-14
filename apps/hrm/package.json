@@ -6,13 +6,15 @@
     "build": "next build",
     "db:generate": "prisma generate",
     "start": "next start",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "smoke:attendance": "node scripts/smoke-attendance-ingest.mjs"
   },
   "dependencies": {
     "@archmage/db-auth": "*",
     "@archmage/shared": "*",
     "@archmage/ui": "*",
     "@base-ui/react": "^1.6.0",
+    "@date-fns/tz": "^1.5.0",
     "@prisma/client": "^6.19.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
