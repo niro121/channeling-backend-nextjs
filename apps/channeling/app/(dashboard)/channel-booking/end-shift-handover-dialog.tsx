@@ -57,6 +57,8 @@ import type { ShiftBillAttachmentDto } from "@/types/shift-bill-attachment"
 import { SHIFT_BILL_KIND_LABELS, shiftBillUploaderTag } from "@/types/shift-bill-attachment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
+import { cn } from "@/lib/utils"
+import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
@@ -67,8 +69,7 @@ import {
   isHandoverCollectionExcess,
   type ExpectedHandoverCollection,
 } from "@/lib/handover-utils"
-import { cn } from "@/lib/utils"
-import type { MyTillBalance } from "@/app/actions/till.actions"
+import { HandoverCollectionCalcInfo } from "@/components/handover-collection-calc-info"
 import {
   LKR_DENOMINATIONS_CENTS,
   formatDenomLabel,
@@ -1294,7 +1295,17 @@ export function EndShiftHandoverDialog({
               </Alert>
             ) : expectedCollection ? (
               <div className="rounded-lg border p-3 space-y-1 text-sm">
-                <p className="font-medium text-muted-foreground mb-1">Expected collection</p>
+                <div className="mb-1 flex items-center gap-1">
+                  <p className="font-medium text-muted-foreground">Expected collection</p>
+                  <HandoverCollectionCalcInfo
+                    summaryCents={expectedCollection.summaryCents}
+                    previousHandovers={expectedCollection.previousHandovers}
+                    floatsIn={expectedCollection.floatsIn}
+                    floatsOut={expectedCollection.floatsOut}
+                    expectedCents={expectedCollection.expectedCents}
+                    enteredCents={enteredTotalCents}
+                  />
+                </div>
                 {expectedCollection.floatsInCents > 0 ? (
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Floats In</span>
@@ -1305,12 +1316,10 @@ export function EndShiftHandoverDialog({
                   <span className="text-muted-foreground">Summary</span>
                   <span className="tabular-nums">{formatCents(expectedCollection.summaryCents)}</span>
                 </div>
-                {expectedCollection.previousHandoversCents > 0 ? (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Previous handovers</span>
-                    <span className="tabular-nums">{formatCents(expectedCollection.previousHandoversCents)}</span>
-                  </div>
-                ) : null}
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Previous handovers</span>
+                  <span className="tabular-nums">{formatCents(expectedCollection.previousHandoversCents)}</span>
+                </div>
                 {expectedCollection.floatsOutCents > 0 ? (
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Floats Out</span>

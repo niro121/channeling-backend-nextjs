@@ -18,6 +18,7 @@ import {
 } from "@/services/float-request.service"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
 import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
@@ -33,6 +34,7 @@ import {
   normalizedIncludedIds,
   sumReceivedHandoverFloats,
   type ExpectedHandoverCollection,
+  type ExpectedHandoverCollectionSourceRow,
 } from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
@@ -111,7 +113,6 @@ export async function getExpectedHandoverCollection(params: {
   shiftId: string
   shiftStartedAt: Date | string
   windowEnd?: Date
-  previousHandoversCents: number
 }): Promise<
   | { success: true; data: ExpectedHandoverCollection }
   | { success: false; error: string }
@@ -131,7 +132,7 @@ export async function getExpectedHandoverCollection(params: {
     return { success: false, error: "Could not determine the cashier summary window for this handover." }
   }
 
-  const [summaryResult, receivedFloats] = await Promise.all([
+  const [summaryResult, receivedFloats, previousHandovers] = await Promise.all([
     getCashierSummaryReportService({
       userId: params.cashierUserId,
       dateFrom: summaryFilters.dateFrom,
@@ -144,6 +145,7 @@ export async function getExpectedHandoverCollection(params: {
       shiftStartedAt,
       windowEnd,
     }),
+    listPreviousHandoversForExpectedCollection(params.cashierUserId, params.shiftId),
   ])
 
   if (!summaryResult.success) {
@@ -156,8 +158,22 @@ export async function getExpectedHandoverCollection(params: {
   }
 
   const { floatsInCents, floatsOutCents } = sumReceivedHandoverFloats(receivedFloats)
+  const floatsIn = receivedFloats
+    .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction !== "out")
+    .map((f) => ({
+      id: f.id,
+      label: f.floatNoString?.trim() || "Float in",
+      cents: f.amountReceivedCents ?? 0,
+    }))
+  const floatsOut = receivedFloats
+    .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction === "out")
+    .map((f) => ({
+      id: f.id,
+      label: f.floatNoString?.trim() || "Float out",
+      cents: f.amountReceivedCents ?? 0,
+    }))
   const summaryCents = cashierSummaryGrandTotalCents(summaryResult.grandTotals)
-  const previousHandoversCents = params.previousHandoversCents
+  const previousHandoversCents = previousHandovers.reduce((sum, h) => sum + h.cents, 0)
   const data: ExpectedHandoverCollection = {
     floatsInCents,
     floatsOutCents,
@@ -169,8 +185,82 @@ export async function getExpectedHandoverCollection(params: {
       summaryCents,
       previousHandoversCents,
     }),
+    previousHandovers,
+    floatsIn,
+    floatsOut,
   }
   return { success: true, data }
+}
+
+/**
+ * Previous handovers that belong in Total Collection:
+ * approved handovers received on this shift, plus any other unforwarded
+ * handovers the sender must pass on (same documents the handover detail page lists).
+ */
+async function listPreviousHandoversForExpectedCollection(
+  cashierUserId: string,
+  shiftId: string
+): Promise<ExpectedHandoverCollectionSourceRow[]> {
+  const [receivedOnShift, receivedByUser] = await Promise.all([
+    prisma.shiftHandover.findMany({
+      where: {
+        toShiftId: shiftId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        totalCents: true,
+        handoverNoString: true,
+        fromUser: { select: { name: true, staff: { select: { code: true } } } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.shiftHandover.findMany({
+      where: {
+        toUserId: cashierUserId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        totalCents: true,
+        handoverNoString: true,
+        forwardedToHandoverId: true,
+        reconciliationStatus: true,
+        fromUser: { select: { name: true, staff: { select: { code: true } } } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ])
+
+  const byId = new Map<string, ExpectedHandoverCollectionSourceRow>()
+  const add = (h: {
+    id: string
+    totalCents: number
+    handoverNoString?: string | null
+    fromUser: { name: string | null; staff?: { code: string } | null } | null
+  }) => {
+    const from = handoverFromLabel(h.fromUser)
+    const label = h.handoverNoString?.trim() ? `${h.handoverNoString.trim()} · ${from}` : from
+    byId.set(h.id, { id: h.id, label, cents: h.totalCents ?? 0 })
+  }
+
+  for (const h of receivedOnShift) {
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    add(h)
+  }
+  for (const h of receivedByUser) {
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    if (h.forwardedToHandoverId != null) continue
+    if (isExcludedFromBulkTransfer(h.reconciliationStatus)) continue
+    if (!byId.has(h.id)) add(h)
+  }
+  return [...byId.values()]
 }
 
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
@@ -333,12 +423,10 @@ export async function processShiftHandover(
     amt.creditCents < available.creditCents ||
     amt.eWalletCents < available.eWalletCents
 
-  const previousHandoversCents = includable.reduce((sum, h) => sum + (h.totalCents ?? 0), 0)
   const expectedCollection = await getExpectedHandoverCollection({
     cashierUserId: validFrom,
     shiftId: validShiftId,
     shiftStartedAt: shift.startedAt,
-    previousHandoversCents,
   })
   if (!expectedCollection.success) {
     return { success: false, error: expectedCollection.error }
