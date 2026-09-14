@@ -600,9 +600,8 @@ export function MakeDoctorPaymentClient({
                       clearLoadedResults();
                     }}
                     placeholder="Select doctor"
-                    allOptionValue=""
-                    allOptionLabel="Select doctor"
                     className="w-full"
+                    searchable
                   />
                 </div>
                 <div className="min-w-0 space-y-2">
