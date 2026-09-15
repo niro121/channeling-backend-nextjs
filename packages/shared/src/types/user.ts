@@ -1,0 +1,52 @@
+type Location = {
+    id: string
+    name: string
+}
+
+// EXPORT ALL TYPES RELATED TO USERS FROM HERE
+export type User = {
+    id?: string
+    name: string
+    email: string
+    username?: string | null // Optional; user can log in with email or username
+    phone?: string | null // Mobile number for 2FA SMS (e.g. 07XXXXXXXX)
+    twoFactorEnabled?: boolean // Admin/user preference: require 2FA at login
+    password: string
+    confirmPassword?: string
+    userType: number // 1 = admin, 2 = staff, 3 = doctor, 4 = api user
+    status: number //0 -> inactive, 1 ->  active
+    checkedDefaultLocation: boolean // == false: not selected default location | true: selected default selection == //
+    defaultLocation?: string | null
+    defaultBookingMethod?: number | null // 0–5 = channel booking PAYMENT_METHODS id; null = no default
+    userLocationId?: string | null
+    userLocation?: Location | null
+    staffId?: string | null
+    staff?: { id: string; name: string; code?: string } | null
+    /** Doctor master id (doctor users); persisted via Account.userId + Account.doctorId */
+    doctorId?: string | null
+    bookingLocations?: { locationId: string; location?: Location }[]
+    bookingLocationIds?: string[] // form-only: ids for multi-select, synced to bookingLocations
+    userGroupId?: string | null
+    createdAt?: Date
+    updatedAt?: Date
+}
+
+export type GetUsersParams = {
+    page?: string
+    limit?: string
+    keyword?: string
+    userType?: string
+}
+
+export type GetUsersQuery = {
+    page: number
+    limit: number
+    keyword: string
+    userType?: string
+}
+
+export type GetUsersReturn = {
+    data: User[]
+    totalRecords: number
+}
+

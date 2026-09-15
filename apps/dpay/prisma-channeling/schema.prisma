@@ -1,0 +1,36 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/channeling-prisma"
+  binaryTargets = ["native", "darwin-arm64", "darwin", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("CHANNELING_DATABASE_URL")
+}
+
+/// Read-only subset for resolving the logged-in user's branch (Channeling User Location).
+model User {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  email          String    @unique
+  username       String?
+  status         Int
+  userLocationId String?   @db.ObjectId
+  userLocation   Location? @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Location {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  name   String
+  code   String @unique
+  status Int
+  users  User[] @relation("LocationToUser")
+}
+
+/// Banks for payment dropdowns (Channeling Tag type = 4).
+model Tag {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  name   String?
+  type   Int?
+  status Int?
+}

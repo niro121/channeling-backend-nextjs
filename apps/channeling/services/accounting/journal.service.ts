@@ -1,0 +1,246 @@
+'use server';
+
+import prisma from '@/lib/prisma';
+import type { CreateJournalEntryInput } from '@/types/accounting';
+import { validateJournalLines, netEffectForAccountType } from '@/lib/accounting/helpers';
+import { getNextSequenceNumber } from '@/services/channel-booking/helpers/sequence';
+import type { AccountingTx } from './balance-calc.service';
+import { getAccountBalance, getAccountBalanceWithTx } from './balance-calc.service';
+
+const JOURNAL_SEQUENCE_SCOPE = 'journal';
+
+// --- createJournalEntry (with minBalanceAllowed check) ---
+export async function createJournalEntry(
+  input: CreateJournalEntryInput
+): Promise<
+  | { success: true; journalId: string }
+  | { success: false; error: string; errorCode?: string; accountId?: string }
+> {
+  const validation = validateJournalLines(input.lines);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+  const accounts = await prisma.account.findMany({
+    where: { id: { in: accountIds } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      minBalanceAllowed: true,
+      maxBalanceAllowed: true,
+    },
+  });
+
+  for (const acc of accounts) {
+    const netEffect = input.lines
+      .filter((l) => l.accountId === acc.id)
+      .reduce(
+        (sum, l) =>
+          sum + netEffectForAccountType(l.debitAmount, l.creditAmount, acc.type),
+        0
+      );
+
+    const currentBalance = await getAccountBalance(acc.id);
+    const newBalance = currentBalance + netEffect;
+
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}".`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}".`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+  }
+
+  const seqResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, {
+    startFrom: 1,
+  });
+  const journalNumber = seqResult.success ? seqResult.value : null;
+
+  const journal = await prisma.journal.create({
+    data: {
+      journalNumber,
+      date: input.date,
+      description: input.description,
+      referenceType: input.referenceType ?? null,
+      referenceId: input.referenceId ?? null,
+      locationId: input.locationId ?? null,
+      createdBy: input.createdBy ?? null,
+    },
+  });
+
+  await prisma.journalLine.createMany({
+    data: input.lines.map((l) => ({
+      journalId: journal.id,
+      accountId: l.accountId,
+      debitAmount: l.debitAmount,
+      creditAmount: l.creditAmount,
+      memo: l.memo ?? '',
+      paymentMethod: l.paymentMethod ?? null,
+    })),
+  });
+
+  return { success: true, journalId: journal.id };
+}
+
+/**
+ * Check if posting the given journal entry would violate any account's minBalanceAllowed or maxBalanceAllowed.
+ * Use before creating a booking/receipt to fail fast with a clear error (e.g. agent/credit customer limit).
+ */
+export async function checkJournalEntryBalance(
+  input: CreateJournalEntryInput
+): Promise<
+  | { allowed: true }
+  | { allowed: false; error: string; errorCode: string; accountId?: string }
+> {
+  const validation = validateJournalLines(input.lines);
+  if (!validation.valid) {
+    return { allowed: false, error: validation.error, errorCode: 'VALIDATION_ERROR' };
+  }
+
+  const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+  const accounts = await prisma.account.findMany({
+    where: { id: { in: accountIds } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      minBalanceAllowed: true,
+      maxBalanceAllowed: true,
+    },
+  });
+
+  for (const acc of accounts) {
+    const netEffect = input.lines
+      .filter((l) => l.accountId === acc.id)
+      .reduce(
+        (sum, l) =>
+          sum + netEffectForAccountType(l.debitAmount, l.creditAmount, acc.type),
+        0
+      );
+
+    const currentBalance = await getAccountBalance(acc.id);
+    const newBalance = currentBalance + netEffect;
+
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
+      return {
+        allowed: false,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}". This booking cannot be completed.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        allowed: false,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}". This booking cannot be completed.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Create a journal entry inside an existing transaction. Use when receipt and journal must be atomic.
+ * Call getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 }) before the transaction and pass the value.
+ */
+export async function createJournalEntryInTransaction(
+  tx: AccountingTx,
+  input: CreateJournalEntryInput,
+  journalNumber: number
+): Promise<
+  | { success: true; journalId: string }
+  | { success: false; error: string; errorCode?: string; accountId?: string }
+> {
+  const validation = validateJournalLines(input.lines);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  const accountIds = [...new Set(input.lines.map((l) => l.accountId))];
+  const accounts = await tx.account.findMany({
+    where: { id: { in: accountIds } },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      minBalanceAllowed: true,
+      maxBalanceAllowed: true,
+    },
+  });
+
+  for (const acc of accounts) {
+    const netEffect = input.lines
+      .filter((l) => l.accountId === acc.id)
+      .reduce(
+        (sum, l) =>
+          sum + netEffectForAccountType(l.debitAmount, l.creditAmount, acc.type),
+        0
+      );
+
+    const currentBalance = await getAccountBalanceWithTx(tx, acc.id);
+    const newBalance = currentBalance + netEffect;
+
+    if (acc.minBalanceAllowed !== null && newBalance < acc.minBalanceAllowed) {
+      const minDisplay = (acc.minBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Hard credit limit exceeded. The accounting minimum balance (${minDisplay}) would be breached for account "${acc.name}". This transaction cannot be completed.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+    if (acc.maxBalanceAllowed !== null && newBalance > acc.maxBalanceAllowed) {
+      const maxDisplay = (acc.maxBalanceAllowed / 100).toFixed(2);
+      return {
+        success: false,
+        error: `Hard credit limit exceeded. The accounting maximum balance (${maxDisplay}) would be exceeded for account "${acc.name}". This transaction cannot be completed.`,
+        errorCode: 'INSUFFICIENT_BALANCE',
+        accountId: acc.id,
+      };
+    }
+  }
+
+  const journal = await tx.journal.create({
+    data: {
+      journalNumber,
+      date: input.date,
+      description: input.description,
+      referenceType: input.referenceType ?? null,
+      referenceId: input.referenceId ?? null,
+      locationId: input.locationId ?? null,
+      createdBy: input.createdBy ?? null,
+    },
+  });
+
+  await tx.journalLine.createMany({
+    data: input.lines.map((l) => ({
+      journalId: journal.id,
+      accountId: l.accountId,
+      debitAmount: l.debitAmount,
+      creditAmount: l.creditAmount,
+      memo: l.memo ?? '',
+      paymentMethod: l.paymentMethod ?? null,
+    })),
+  });
+
+  return { success: true, journalId: journal.id };
+}

@@ -1,0 +1,745 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useChannelBooking } from "../context/channel-booking-context"
+import { usePermissions } from "@/components/hooks/use-permissions"
+import {
+  addBlockedAppointmentNumbersAction,
+  getSessionActivityForChannelBooking,
+  removeBlockedAppointmentNumbersAction,
+  sendSmsToSessionAction,
+  type SessionActivityEntry,
+} from "@/app/actions/channel-booking"
+import { useToast } from "@/components/hooks/use-toast"
+import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
+import { Ban, DollarSign, FileClock, Loader2, MessageCircle } from "lucide-react"
+import {
+  formatSessionDateShort,
+  formatSessionDay,
+  formatSessionStartTimeDisplay,
+} from "./sessions-selection/util"
+import type { Session } from "@/types/booking.dashboard"
+import moment from "moment"
+
+function sessionSummary(session: Session): string {
+  const date = session.date instanceof Date ? session.date : new Date(session.date)
+  const start = formatSessionStartTimeDisplay(session.startTime, date)
+  const end = formatSessionStartTimeDisplay(session.endTime, date)
+  return `${formatSessionDateShort(date)} - ${formatSessionDay(date)} (${start} - ${end})`
+}
+
+const MAX_NAME_CHARS = 25
+
+function truncateName(name: string, maxChars: number): string {
+  if (name.length <= maxChars) return name
+  return name.slice(0, maxChars) + "..."
+}
+
+function actionLabel(entry: SessionActivityEntry): string {
+  if (entry.action === "booking.transferred") {
+    const dir = entry.metadata?.direction as string | undefined
+    if (dir === "outgoing") return "Transfer out"
+    if (dir === "incoming") return "Transfer in"
+    return "Transfer"
+  }
+  if (entry.action === "session.sms_sent") return "SMS sent"
+  if (entry.action === "session.updated") return "Session updated"
+  if (entry.action === "session.deleted") return "Session deleted"
+  if (entry.action === "session.created.bulk") return "Sessions created (bulk)"
+  if (entry.action === "session.appointment_blocks_added") return "Appointment blocks added"
+  if (entry.action === "session.appointment_blocks_removed") return "Appointment blocks removed"
+  return entry.action
+}
+
+export function Bookings() {
+  const {
+    selectedSession,
+    bookings,
+    bookingsLoading,
+    selectedBooking,
+    onBookingSelect,
+    selectedTransferBookingIds,
+    toggleTransferBooking,
+    setSelectedTransferBookingIds,
+    updateSessionInList,
+  } = useChannelBooking()
+
+  const { has } = usePermissions()
+  const canBlockAppointments = has("channel-booking-block", "view")
+
+  const { toast } = useToast()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [activityLog, setActivityLog] = useState<SessionActivityEntry[] | null>(null)
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [smsSending, setSmsSending] = useState(false)
+  const [blocksDialogOpen, setBlocksDialogOpen] = useState(false)
+  const [blockNumbersInput, setBlockNumbersInput] = useState("")
+  const [blocksBusy, setBlocksBusy] = useState(false)
+  const [unblockConfirmOpen, setUnblockConfirmOpen] = useState(false)
+  const [pendingUnblockNumber, setPendingUnblockNumber] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!historyOpen || !selectedSession?.id) {
+      setActivityLog(null)
+      return
+    }
+    let cancelled = false
+    setActivityLoading(true)
+    getSessionActivityForChannelBooking(selectedSession.id)
+      .then((res) => {
+        if (cancelled) return
+        setActivityLog(res.success && res.data ? res.data : [])
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [historyOpen, selectedSession?.id])
+
+  const hasSession = !!selectedSession
+
+  const displayRows = useMemo(() => {
+    if (!selectedSession) return []
+    const blocked = new Set(selectedSession.blockedAppointmentNumbers ?? [])
+    const bookingNos = new Set(bookings.map((b) => b.appointmentNo))
+    type Row =
+      | { kind: "booking"; b: (typeof bookings)[0] }
+      | { kind: "blocked"; n: number }
+    const rows: Row[] = bookings.map((b) => ({ kind: "booking" as const, b }))
+    for (const n of blocked) {
+      if (!bookingNos.has(n)) rows.push({ kind: "blocked", n })
+    }
+    rows.sort((a, b) => {
+      const na = a.kind === "booking" ? a.b.appointmentNo : a.n
+      const nb = b.kind === "booking" ? b.b.appointmentNo : b.n
+      return nb - na
+    })
+    return rows
+  }, [bookings, selectedSession])
+
+  const sequenceLastForUnblock =
+    selectedSession?.appointmentSequenceLastValue ??
+    (selectedSession ? selectedSession.startingPatientNumber - 1 : 0)
+
+  function parseBlockNumbers(raw: string): number[] {
+    return raw
+      .split(/[\s,;]+/)
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n))
+  }
+
+  async function handleAddBlocks() {
+    if (!selectedSession?.id) return
+    const nums = parseBlockNumbers(blockNumbersInput)
+    if (nums.length === 0) {
+      toast({ title: "Nothing to add", description: "Enter one or more numbers.", variant: "destructive" })
+      return
+    }
+    setBlocksBusy(true)
+    try {
+      const res = await addBlockedAppointmentNumbersAction({
+        sessionId: selectedSession.id,
+        numbers: nums,
+      })
+      if (res.success) {
+        setBlockNumbersInput("")
+        updateSessionInList(selectedSession.id, {
+          blockedAppointmentNumbers: res.blockedAppointmentNumbers,
+        })
+        toast({ title: "Blocked", description: "Appointment number(s) updated." })
+      } else {
+        toast({ title: "Could not block", description: res.message, variant: "destructive" })
+      }
+    } finally {
+      setBlocksBusy(false)
+    }
+  }
+
+  function requestUnblockConfirmation(n: number) {
+    setPendingUnblockNumber(n)
+    setUnblockConfirmOpen(true)
+  }
+
+  async function executeConfirmedUnblock() {
+    const n = pendingUnblockNumber
+    if (n == null || !selectedSession?.id) return
+    setBlocksBusy(true)
+    try {
+      const res = await removeBlockedAppointmentNumbersAction({
+        sessionId: selectedSession.id,
+        numbers: [n],
+      })
+      if (res.success) {
+        updateSessionInList(selectedSession.id, {
+          blockedAppointmentNumbers: res.blockedAppointmentNumbers,
+        })
+        toast({ title: "Unblocked", description: `Number ${String(n).padStart(2, "0")} is no longer blocked.` })
+        setUnblockConfirmOpen(false)
+        setPendingUnblockNumber(null)
+      } else {
+        toast({ title: "Could not unblock", description: res.message, variant: "destructive" })
+      }
+    } finally {
+      setBlocksBusy(false)
+    }
+  }
+
+  return (
+    <Card className="flex flex-col min-h-0 h-full">
+      <CardContent className="flex flex-col flex-1 min-h-0 p-2 pt-2">
+        <div className="flex items-center justify-between shrink-0 mb-1.5">
+          <h3 className="font-semibold text-sm">Bookings</h3>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
+              aria-label="Session history"
+              title="Session history"
+              disabled={!hasSession}
+              onClick={() => setHistoryOpen(true)}
+            >
+              <FileClock className="h-4 w-4" />
+            </button>
+            {canBlockAppointments && (
+              <button
+                type="button"
+                className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
+                aria-label="Block appointment numbers"
+                title="Block appointment numbers"
+                disabled={!hasSession}
+                onClick={() => setBlocksDialogOpen(true)}
+              >
+                <Ban className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="h-8 w-8 rounded-md border border-border bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 disabled:opacity-50"
+              aria-label="Send SMS to session"
+              title="Send SMS to session"
+              disabled={!hasSession}
+              onClick={() => setSmsDialogOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {!hasSession ? (
+            <div className="flex flex-1 min-h-0 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground px-2">
+              Please Select a Session
+            </div>
+          ) : bookingsLoading ? (
+            <div className="flex flex-1 min-h-0 w-full items-center justify-center py-8">
+              <div
+                className="h-10 w-10 animate-spin rounded-full border-2 border-gray-300 border-t-green-800"
+                aria-label="Loading bookings"
+              />
+            </div>
+          ) : displayRows.length === 0 ? (
+            <div className="flex flex-1 min-h-0 w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground px-2">
+              No bookings for this session
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thinner border border-border rounded-md">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 bg-muted/80 z-10">
+                  <tr>
+                    <th className="w-8 px-1 py-1.5 text-left">
+                      <Checkbox
+                        aria-label="Select all for transfer"
+                        className="h-3.5 w-3.5"
+                        checked={
+                          (() => {
+                            const transferable = bookings.filter(
+                              (b) =>
+                                b.status !== 2 &&
+                                b.status !== 3 &&
+                                (b.refund === 0 || b.refund == null)
+                            )
+                            return (
+                              transferable.length > 0 &&
+                              transferable.every((b) => selectedTransferBookingIds.includes(b.id))
+                            )
+                          })()
+                        }
+                        onCheckedChange={() => {
+                          const transferable = bookings.filter(
+                            (b) => b.status !== 2 && (b.refund === 0 || b.refund == null)
+                          )
+                          const allSelected = transferable.every((b) =>
+                            selectedTransferBookingIds.includes(b.id)
+                          )
+                          if (allSelected) {
+                            setSelectedTransferBookingIds([])
+                          } else {
+                            setSelectedTransferBookingIds(transferable.map((b) => b.id))
+                          }
+                        }}
+                      />
+                    </th>
+                    <th className="w-8 px-1 py-1.5 text-left font-medium">No</th>
+                    <th className="min-w-[200px] px-1 py-1.5 text-left font-medium">Name</th>
+                    <th className="whitespace-nowrap px-1 py-1.5 text-left font-medium">Paid</th>
+                    <th className="px-1 py-1.5 text-left font-medium">Agent/Staff</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayRows.map((row) => {
+                    if (row.kind === "blocked") {
+                      const n = row.n
+                      const canUnblock = n > sequenceLastForUnblock
+                      return (
+                        <tr
+                          key={`blocked-${n}`}
+                          className="border-t border-orange-200/70 bg-orange-50/90 text-muted-foreground dark:border-orange-900/50 dark:bg-orange-950/40"
+                        >
+                          <td className="w-8 px-1 py-1.5" />
+                          <td className="w-8 px-1 py-1.5 tabular-nums font-semibold text-foreground">
+                            {n}
+                          </td>
+                          <td className="min-w-0 px-1 py-1.5">
+                            <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-900 dark:bg-orange-950/50 dark:text-orange-200">
+                              Blocked
+                            </span>
+                            {!canUnblock && (
+                              <span className="ml-1 text-[10px] text-muted-foreground">
+                                Unblock only above seq. {sequenceLastForUnblock}
+                              </span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-1 py-1.5">
+                            {canUnblock && canBlockAppointments ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 min-h-6 py-0 px-2 text-[10px] leading-none font-medium"
+                                disabled={blocksBusy}
+                                onClick={() => requestUnblockConfirmation(n)}
+                              >
+                                Unblock
+                              </Button>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-1 py-1.5">—</td>
+                        </tr>
+                      )
+                    }
+                    const b = row.b
+                    const isSelected = selectedBooking?.id === b.id
+                    const isTransferSelected = selectedTransferBookingIds.includes(b.id)
+                    const isCanceledOrRefunded =
+                      b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+                    const canTransfer = !isCanceledOrRefunded
+                    const paidLabel =
+                      b.status === 1
+                        ? `Paid - ${b.methodName}`
+                        : `Credit - ${b.methodName}`
+                    const displayName = [b.title, b.name].filter(Boolean).join(" ") || "—"
+                    const agentStaff =
+                      b.method === 2
+                        ? b.agencyCode || b.agencyRef || "—"
+                        : b.method === 3
+                          ? b.staffCode || b.staffId || "—"
+                          : b.staffId || "—"
+                    return (
+                      <tr
+                        key={b.id}
+                        onClick={() => onBookingSelect(isSelected ? null : b)}
+                        className={cn(
+                          "border-t border-border cursor-pointer transition-colors",
+                          "hover:bg-primary/10",
+                          isSelected && !isCanceledOrRefunded && "bg-primary/15",
+                          isCanceledOrRefunded && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                          isCanceledOrRefunded && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60"
+                        )}
+                      >
+                        <td
+                          className="w-8 px-1 py-1.5"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (canTransfer) toggleTransferBooking(b.id)
+                          }}
+                        >
+                          {canTransfer && (
+                            <Checkbox
+                              checked={isTransferSelected}
+                              aria-label={`Transfer ${displayName}`}
+                              className="h-3.5 w-3.5 pointer-events-none"
+                            />
+                          )}
+                        </td>
+                        <td className="w-8 px-1 py-1.5 tabular-nums font-semibold">
+                          {b.appointmentNo}
+                        </td>
+                        <td className="min-w-0 px-1 py-1.5 overflow-hidden">
+                          <span className="flex items-center gap-1 min-w-0">
+                            <span
+                              className="truncate min-w-0"
+                              title={displayName}
+                            >
+                              {truncateName(displayName, MAX_NAME_CHARS)}
+                            </span>
+                            {b.doctorPayment && (
+                              <span
+                                className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/25 dark:bg-emerald-950/50 dark:text-emerald-400 dark:ring-emerald-500/30"
+                                title="Doctor payment completed"
+                                aria-label="Doctor payment completed"
+                              >
+                                <DollarSign className="h-3 w-3" strokeWidth={2.5} />
+                              </span>
+                            )}
+                            {b.movedAt && (
+                              <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                Moved
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-1 py-1.5">
+                          <span
+                            className={cn(
+                              b.status === 0 && "text-amber-600 font-medium"
+                            )}
+                          >
+                            {paidLabel}
+                          </span>
+                        </td>
+                        <td className="px-1 py-1.5 tabular-nums text-muted-foreground">
+                          {agentStaff}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </CardContent>
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-sm">
+              Session history
+              {selectedSession && (
+                <span className="block text-xs font-normal text-muted-foreground mt-1">
+                  {sessionSummary(selectedSession)}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+            {!selectedSession ? (
+              <p className="text-xs text-muted-foreground py-2">Select a session to view history.</p>
+            ) : activityLoading ? (
+              <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground text-xs">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
+            ) : activityLog && activityLog.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No activity recorded for this session.</p>
+            ) : activityLog ? (
+              <ul className="divide-y divide-border/40 text-xs space-y-2">
+                {activityLog.map((entry) => (
+                  <li key={entry.id} className="py-2 first:pt-0">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                      <span className="font-medium text-foreground">{actionLabel(entry)}</span>
+                      <span className="text-muted-foreground">{entry.userName ?? "—"}</span>
+                      <span className="text-muted-foreground">
+                        {moment(entry.createdAt).format("DD MMM YYYY h:mm A")}
+                      </span>
+                    </div>
+                    {entry.action === "booking.transferred" && entry.metadata && (
+                      <div className="mt-1.5 pl-0 text-muted-foreground space-y-0.5">
+                        {entry.metadata.before != null && (
+                          <p className="text-[11px]">
+                            <span className="font-medium text-foreground/80">From: </span>
+                            {String(entry.metadata.before)}
+                          </p>
+                        )}
+                        {entry.metadata.after != null && (
+                          <p className="text-[11px]">
+                            <span className="font-medium text-foreground/80">To: </span>
+                            {String(entry.metadata.after)}
+                          </p>
+                        )}
+                        {entry.metadata.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
+                          <p className="text-[11px] truncate" title={String(entry.metadata.remarks)}>
+                            <span className="font-medium text-foreground/80">Remarks: </span>
+                            {String(entry.metadata.remarks)}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                    {entry.action === "session.sms_sent" && entry.metadata?.recipientCount != null && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Sent to {Number(entry.metadata.recipientCount)} recipient
+                        {Number(entry.metadata.recipientCount) !== 1 ? "s" : ""}.
+                      </p>
+                    )}
+                    {entry.action !== "booking.transferred" && entry.action !== "session.sms_sent" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
+                      <p className="text-muted-foreground mt-0.5 truncate" title={String(entry.metadata.remarks)}>
+                        {String(entry.metadata.remarks)}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={blocksDialogOpen}
+        onOpenChange={(open) => {
+          setBlocksDialogOpen(open)
+          if (!open) setBlockNumbersInput("")
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Block appointment numbers</DialogTitle>
+            {selectedSession && (
+              <p className="text-xs text-muted-foreground pt-1">
+                Session #{selectedSession.startingPatientNumber}–{selectedSession.maxPatientNumber}. Auto
+                booking skips blocked numbers. Sequence cursor: {sequenceLastForUnblock}. You can only
+                unblock blocked numbers strictly above that cursor; for others, add a forced booking for
+                that appointment number.
+              </p>
+            )}
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div>
+              <p className="font-medium text-foreground mb-1">Currently blocked</p>
+              {(selectedSession?.blockedAppointmentNumbers?.length ?? 0) === 0 ? (
+                <p className="text-muted-foreground">None</p>
+              ) : (
+                <ul className="flex flex-wrap gap-1.5">
+                  {(selectedSession?.blockedAppointmentNumbers ?? []).map((n) => (
+                    <li
+                      key={n}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-orange-100 px-2 py-1 tabular-nums text-sm font-semibold text-orange-950 shadow-sm ring-1 ring-orange-200/80 dark:border-orange-700 dark:bg-orange-950/50 dark:text-orange-50 dark:ring-orange-900/60"
+                    >
+                      <span className="min-w-[1.25rem] text-center">{String(n).padStart(2, "0")}</span>
+                      {n > sequenceLastForUnblock ? (
+                        <button
+                          type="button"
+                          className="text-primary hover:underline disabled:opacity-50"
+                          disabled={blocksBusy}
+                          onClick={() => requestUnblockConfirmation(n)}
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">locked</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(selectedSession?.blockedAppointmentNumbers?.length ?? 0) > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+                  Who added or removed blocks appears in{" "}
+                  <span className="font-medium text-foreground/90">Session history</span> (activity log),
+                  not on this list.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium text-foreground">Add numbers</label>
+              <Input
+                placeholder="e.g. 2, 3, 4"
+                value={blockNumbersInput}
+                onChange={(e) => setBlockNumbersInput(e.target.value)}
+                disabled={blocksBusy}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setBlocksDialogOpen(false)}
+                disabled={blocksBusy}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={blocksBusy}
+                onClick={() => void handleAddBlocks()}
+              >
+                {blocksBusy ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                    Saving…
+                  </>
+                ) : (
+                  "Add blocks"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={smsDialogOpen} onOpenChange={setSmsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Send SMS to Session</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Message <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                placeholder="Enter message to send to all bookings (refunded excluded)"
+                value={smsMessage}
+                onChange={(e) => setSmsMessage(e.target.value)}
+                className="min-h-[100px] resize-y"
+                disabled={smsSending}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSmsDialogOpen(false)}
+                disabled={smsSending}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  if (!selectedSession?.id || !smsMessage.trim()) return
+                  setSmsSending(true)
+                  try {
+                    const result = await sendSmsToSessionAction({
+                      sessionId: selectedSession.id,
+                      message: smsMessage.trim(),
+                    })
+                    if (result.success) {
+                      toast({
+                        title: "SMS sent",
+                        description: `Message sent to ${result.recipientCount} recipient(s).`,
+                      })
+                      setSmsDialogOpen(false)
+                      setSmsMessage("")
+                    } else {
+                      toast({
+                        title: "Send failed",
+                        description: result.message ?? result.errorCode ?? "Please try again.",
+                        variant: "destructive",
+                      })
+                    }
+                  } catch (e) {
+                    toast({
+                      title: "Error",
+                      description: e instanceof Error ? e.message : "Failed to send SMS.",
+                      variant: "destructive",
+                    })
+                  } finally {
+                    setSmsSending(false)
+                  }
+                }}
+                disabled={!smsMessage.trim() || smsSending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {smsSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Sending…
+                  </>
+                ) : (
+                  "Send"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={unblockConfirmOpen}
+        onOpenChange={(open) => {
+          setUnblockConfirmOpen(open)
+          if (!open) setPendingUnblockNumber(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unblock appointment number?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingUnblockNumber != null ? (
+                <>
+                  This removes the block on{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    #{String(pendingUnblockNumber).padStart(2, "0")}
+                  </span>
+                  . Auto booking will use this slot again when it becomes the next available number.
+                </>
+              ) : (
+                "Remove the block on this appointment number?"
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={blocksBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={blocksBusy || pendingUnblockNumber == null}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void executeConfirmedUnblock()
+              }}
+            >
+              {blocksBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5 inline" />
+                  Working…
+                </>
+              ) : (
+                "Unblock"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
