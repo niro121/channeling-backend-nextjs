@@ -841,6 +841,10 @@ export default function CashierSummaryContent({
           .cashier-summary-print-root .rpt-print-root th {
             font-size: 6pt !important;
           }
+          /* Hide empty sections that only show "No transactions found..." */
+          .cashier-summary-print-root .cashier-section-empty {
+            display: none !important;
+          }
         }
       `}</style>
       <Card className="print:hidden">
@@ -1038,9 +1042,10 @@ function SectionBlock({
   const isIncomeExpense = section.key === 'incomeExpense';
   const isAgencyBillSection = AGENCY_BILL_SECTION_KEYS.has(section.key);
   const hasAnyTotal = PAYMENT_COLUMNS.some((col) => section.totals[col.key] !== 0);
+  const isEmptySection = !(showRows && section.rows.length > 0) && !hasAnyTotal;
 
   return (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5${isEmptySection ? ' cashier-section-empty' : ''}`}>
       <h3 className="font-semibold text-xs">{section.title}</h3>
       {showRows && section.rows.length > 0 ? (
         <div className="rounded-md border overflow-x-auto">

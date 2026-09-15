@@ -64,6 +64,24 @@ export const exportAllDoctorViewReportData = async (
       doctorSessionTime: row.doctorSessionTimes.join(' / '),
     }));
 
+    // Same Total footer row as the on-screen / print table.
+    if (result.totals) {
+      mappedData.push({
+        no: result.totals.no.toString(),
+        consultant: 'Total',
+        notPaid: '',
+        paid: '',
+        cancel: '',
+        hosRefund: '',
+        proRefund: '',
+        hosValid: '',
+        proValid: '',
+        nettValid: '',
+        total: result.totals.total.toFixed(2),
+        doctorSessionTime: '',
+      });
+    }
+
     return {
       success: true,
       data: mappedData,

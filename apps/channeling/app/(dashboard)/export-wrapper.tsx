@@ -57,6 +57,10 @@ export type ExportWrapperProps<T> = {
     keys: (keyof T)[];
     fileName?: string;
   }) => void | Promise<void>;
+  /** Page orientation for branded PDF/Excel when using default handlers. Defaults to landscape. */
+  exportOrientation?: 'portrait' | 'landscape';
+  /** Smaller fonts/columns for wide portrait exports. */
+  compactTable?: boolean;
 };
 
 function resolveSummaryItems(
@@ -86,7 +90,9 @@ export const ExportWrapper = <T,>({
   customDownloadPdf,
   pdfSummaryItems,
   pdfGeneratedAt,
-  customDownloadExcel
+  customDownloadExcel,
+  exportOrientation = 'landscape',
+  compactTable = false,
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -175,6 +181,8 @@ export const ExportWrapper = <T,>({
           columns,
           keys,
           fileName: `${formattedFileName}.pdf`,
+          orientation: exportOrientation,
+          compactTable: compactTable || exportOrientation === 'portrait',
         });
       }
     } catch (error: any) {
@@ -222,6 +230,8 @@ export const ExportWrapper = <T,>({
           keys,
           fileName: `${formattedFileName}.xlsx`,
           sheetName: title.slice(0, 31),
+          orientation: exportOrientation,
+          compactTable: compactTable || exportOrientation === 'portrait',
         });
       }
     } catch (error: any) {

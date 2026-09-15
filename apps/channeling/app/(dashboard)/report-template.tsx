@@ -419,6 +419,7 @@ function ReportTemplateContent<T, E = T>({
       keys: (keyof E)[];
       fileName?: string;
     }) => {
+      const isPortrait = printPageSize.toLowerCase().includes('portrait');
       await downloadBrandedReportPdf({
         reportName: args.title,
         summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
@@ -427,9 +428,8 @@ function ReportTemplateContent<T, E = T>({
         columns: args.columns,
         keys: args.keys,
         fileName: args.fileName,
-        orientation: printPageSize.toLowerCase().includes('portrait')
-          ? 'portrait'
-          : 'landscape',
+        orientation: isPortrait ? 'portrait' : 'landscape',
+        compactTable: isPortrait,
       });
     },
     [printSummaryItems, lastRun?.generatedAt, printPageSize]
@@ -443,6 +443,7 @@ function ReportTemplateContent<T, E = T>({
       keys: (keyof E)[];
       fileName?: string;
     }) => {
+      const isPortrait = printPageSize.toLowerCase().includes('portrait');
       await downloadBrandedReportExcel({
         reportName: args.title,
         summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
@@ -452,9 +453,11 @@ function ReportTemplateContent<T, E = T>({
         keys: args.keys,
         fileName: args.fileName,
         sheetName: args.title.slice(0, 31),
+        orientation: isPortrait ? 'portrait' : 'landscape',
+        compactTable: isPortrait,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt]
+    [printSummaryItems, lastRun?.generatedAt, printPageSize]
   );
 
   return (
