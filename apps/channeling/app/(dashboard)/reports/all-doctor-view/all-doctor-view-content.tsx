@@ -161,7 +161,30 @@ export default function AllDoctorViewReportContent({
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2">
+    <div className="container mx-auto py-6 space-y-6 print:py-2 all-doctor-view-print-root">
+      <style>{`
+        @media print {
+          .all-doctor-view-print-root .overflow-x-auto,
+          .all-doctor-view-print-root .overflow-auto {
+            overflow: visible !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root th,
+          .all-doctor-view-print-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -289,6 +312,8 @@ export default function AllDoctorViewReportContent({
               fileName={`all-doctor-view-report-${date ? moment(date).format('YYYY-MM-DD') : 'report'}`}
               onBrowserPrint={handlePrint}
               showPrintButton
+              exportOrientation="portrait"
+              compactTable
               pdfSummaryItems={toBrandedPdfSummaryItems([
                 { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
                 {
@@ -319,7 +344,7 @@ export default function AllDoctorViewReportContent({
           {/* Results Table */}
           <ReportPrintLayout
             reportName="All Doctor View Report"
-            pageSize="A4 landscape"
+            pageSize="A4 portrait"
             generatedAt={new Date().toLocaleString()}
             summaryItems={[
               { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
