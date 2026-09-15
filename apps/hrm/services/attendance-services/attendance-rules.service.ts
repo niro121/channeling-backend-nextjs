@@ -172,10 +172,8 @@ function isLateArrival(firstInAt: Date, shift: ShiftRuleInput): boolean {
   const grace = Math.max(0, shift.graceMinutes || 0);
   const arrival = colomboMinutesFromMidnight(firstInAt);
 
-  // Overnight: early-morning arrivals (before noon) may belong to previous start — compare against start when arrival >= start-12h window simply:
-  if (shift.isOvernight && arrival < startMins - 12 * 60) {
-    // Arrival after midnight for overnight shift starting previous evening — treat vs end-of-window not start.
-    // For v1: if arrival is after midnight and shift is overnight, do not mark late relative to evening start.
+  // Overnight: first-in after midnight is not "late vs evening start".
+  if (shift.isOvernight && arrival < startMins) {
     return false;
   }
 

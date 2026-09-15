@@ -283,6 +283,7 @@ apps/hrm/
 
   app/api/attendance/
     punches/route.ts                      # Device ingest
+    recompute/route.ts                    # Cron / ops: Absent + day recompute for a date
     stream/route.ts                       # Optional SSE for live UI
     enroll/…                              # Optional: enrollment listen (after device setup — §4.3)
 
@@ -392,9 +393,9 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Apply grace / late thresholds
 - [x] Flag missing punches, early exit, exceptions
 - [x] Write/update `AttendanceDay`
-- [ ] Overnight window respects `attendanceAllocation` (basic overnight late skip; full allocation-date wiring later)
-- [ ] Nightly (or on-demand) job for Absent when rostered with zero punches
-- [ ] Leave-aware status when leave data is available (`on_leave`) — uses `RosterAllocation.isLeave` when present
+- [x] Overnight window respects `attendanceAllocation` (`shift_start` / `shift_end` / `split_both`; punch window + day posting)
+- [x] Nightly (or on-demand) job for Absent when rostered with zero punches — `recomputeAttendanceDaysForDate` + `POST /api/attendance/recompute` + `npm run recompute:attendance`
+- [x] Leave-aware status when leave data is available (`on_leave`) — uses `RosterAllocation.isLeave` when present
 
 ### Phase P3 — RFID Attendance UI (primary mock)
 
@@ -483,6 +484,19 @@ The script (`scripts/smoke-attendance-ingest.mjs`) loads `.env`, auto-seeds `DEV
 1. First punch succeeds  
 2. Same `externalPunchId` → `duplicate: true`  
 3. Unknown RFID → `matchStatus: unmatched`
+
+### Absent / day recompute (P2)
+
+Marks **Absent** (and refreshes other statuses) for rostered staff whose attendance posts to a Colombo civil date — respects overnight `attendanceAllocation`.
+
+```bash
+cd apps/hrm
+npm run recompute:attendance              # today Asia/Colombo
+npm run recompute:attendance -- 2025-08-15
+```
+
+Or: `POST /api/attendance/recompute` with the same API key and optional `{ "date": "yyyy-MM-dd" }`.  
+HR UI can call `recomputeAttendanceDaysForDateAction` (`attendance` / `edit`).
 
 ### Curl (manual)
 

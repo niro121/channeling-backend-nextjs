@@ -74,6 +74,11 @@ export function colomboDateIsoToUtc(dateIso: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+/** Add whole civil days to a UTC-midnight Colombo civil date. */
+export function addColomboCivilDays(civilDayUtc: Date, days: number): Date {
+  return new Date(civilDayUtc.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
 /**
  * Convert Colombo wall-clock on a civil day to a UTC instant.
  * `hours`/`minutes` are Colombo local (e.g. shift start 08:00).

@@ -7,7 +7,8 @@
     "db:generate": "prisma generate",
     "start": "next start",
     "type-check": "tsc --noEmit",
-    "smoke:attendance": "node scripts/smoke-attendance-ingest.mjs"
+    "smoke:attendance": "node scripts/smoke-attendance-ingest.mjs",
+    "recompute:attendance": "node scripts/recompute-attendance-day.mjs"
   },
   "dependencies": {
     "@archmage/db-auth": "*",
