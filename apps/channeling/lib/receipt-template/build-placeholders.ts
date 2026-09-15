@@ -3,6 +3,7 @@ import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { LedgerReceiptDetail } from "@/services/ledger/get-ledger-receipt.service"
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import type { DoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service"
+import { RUHUNU_HOSPITAL } from "@/lib/receipt-template/ruhunu-hospital"
 
 /**
  * Build placeholder map for ledger receipt (for DB template replacement).
@@ -44,9 +45,10 @@ export function buildPlaceholdersForLedger(
   return {
     company_name: companyName,
     location_name: locationLine,
-    tel: options.tel ?? "",
-    email: options.email ?? "",
-    web: options.web ?? "",
+    location_address: locationLine,
+    tel: options.tel ?? RUHUNU_HOSPITAL.phone,
+    email: options.email ?? RUHUNU_HOSPITAL.email,
+    web: options.web ?? RUHUNU_HOSPITAL.web,
     receipt_no: receipt.receiptNoString,
     date_time: dateTime,
     title: receipt.methodName,
@@ -132,6 +134,18 @@ export type BookingReceiptPrintInput = {
   billSubTotal: string
   discount: string
   billTotal: string
+  hospitalFee: string
+  hospitalFeeDiscount: string
+  totalHospitalFee: string
+  professionalFee: string
+  professionalFeeDiscount: string
+  totalProfessionalFee: string
+  billedAt: string
+  cashierCode: string
+  invoiceStatus: string
+  printedBy: string
+  debiter: string
+  showProfessionalBill: boolean
   billedBy: string
   remarks: string
   area: string
@@ -142,28 +156,33 @@ export type BookingReceiptPrintInput = {
   generatedBy: string
   companyName?: string
   locationName?: string
+  locationAddress?: string
   email?: string
   web?: string
   duplicateLabel?: string
+  statusBanner?: string
 }
 
 /**
- * Placeholders for the Sails-style booking patient bill.
+ * Placeholders for the Sails-style hospital + professional bill.
  * Empty refund_* values stay blank on a normal paid print.
  */
 export function buildPlaceholdersForBookingReceipt(
   input: BookingReceiptPrintInput
 ): ReceiptPlaceholderMap {
   const generatedAt = format(new Date(), "dd/MM/yyyy HH.mm")
-  const locationName = input.locationName ?? ""
-  const companyName = input.companyName ?? locationName
+  const locationName = input.locationName || RUHUNU_HOSPITAL.name
+  const locationAddress = input.locationAddress || RUHUNU_HOSPITAL.address
+  const companyName = input.companyName || locationName
   return {
     company_name: companyName,
     location_name: locationName,
-    tel: input.tel,
-    email: input.email ?? "",
-    web: input.web ?? "",
+    location_address: locationAddress,
+    tel: RUHUNU_HOSPITAL.phone,
+    email: input.email ?? RUHUNU_HOSPITAL.email,
+    web: input.web ?? RUHUNU_HOSPITAL.web,
     duplicate_label: input.duplicateLabel ?? "",
+    status_banner: input.statusBanner ?? "",
     patient_name: input.patientName,
     consultant: input.consultant,
     appointment_no: input.appointmentNo,
@@ -174,6 +193,18 @@ export function buildPlaceholdersForBookingReceipt(
     bill_sub_total: input.billSubTotal,
     discount: input.discount,
     bill_total: input.billTotal,
+    hospital_fee: input.hospitalFee,
+    hospital_fee_discount: input.hospitalFeeDiscount,
+    total_hospital_fee: input.totalHospitalFee,
+    professional_fee: input.professionalFee,
+    professional_fee_discount: input.professionalFeeDiscount,
+    total_professional_fee: input.totalProfessionalFee,
+    billed_at: input.billedAt,
+    cashier_code: input.cashierCode,
+    invoice_status: input.invoiceStatus,
+    printed_by: input.printedBy,
+    debiter: input.debiter,
+    show_professional_bill: input.showProfessionalBill ? "1" : "",
     billed_by: input.billedBy,
     remarks: input.remarks,
     area: input.area,

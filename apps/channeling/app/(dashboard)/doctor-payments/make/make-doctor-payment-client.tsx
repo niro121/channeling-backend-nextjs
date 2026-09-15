@@ -562,98 +562,101 @@ export function MakeDoctorPaymentClient({
         </CardHeader>
         <CardContent>
           <div className="rounded-xl border bg-muted/40 p-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 lg:gap-6 lg:items-end">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Speciality</label>
-                <ReferenceSelect
-                  options={specialities}
-                  value={specialityId}
-                  onChange={(id) => {
-                    const next = id || ALL_SPECIALITIES_VALUE;
-                    setSpecialityId(next);
-                    const nextDoctors = doctorsForSpeciality(doctors, next);
-                    if (doctorId && !nextDoctors.some((d) => d.id === doctorId)) {
-                      setDoctorId("");
-                      clearLoadedResults();
-                    }
-                  }}
-                  placeholder="Select speciality"
-                  allOptionValue={ALL_SPECIALITIES_VALUE}
-                  allOptionLabel="All specialities"
-                  className="w-[220px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Doctor</label>
-                <ReferenceSelect
-                  options={filteredDoctors}
-                  value={doctorId}
-                  onChange={(id) => {
-                    setDoctorId(id);
-                    if (id) {
-                      const selected = doctors.find((d) => d.id === id);
-                      if (selected?.specialityId && selected.specialityId !== specialityId) {
-                        setSpecialityId(selected.specialityId);
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:items-end">
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Speciality</label>
+                  <ReferenceSelect
+                    options={specialities}
+                    value={specialityId}
+                    onChange={(id) => {
+                      const next = id || ALL_SPECIALITIES_VALUE;
+                      setSpecialityId(next);
+                      const nextDoctors = doctorsForSpeciality(doctors, next);
+                      if (doctorId && !nextDoctors.some((d) => d.id === doctorId)) {
+                        setDoctorId("");
+                        clearLoadedResults();
                       }
-                    }
-                    clearLoadedResults();
-                  }}
-                  placeholder="Select doctor"
-                  allOptionValue=""
-                  allOptionLabel="Select doctor"
-                  className="w-[220px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Branch</label>
-                <ReferenceSelect
-                  options={locations}
-                  value={branchId}
-                  onChange={(id) => {
-                    setBranchId(id || ALL_BRANCHES_VALUE);
-                    clearLoadedResults();
-                  }}
-                  placeholder="Select branch"
-                  allOptionValue={ALL_BRANCHES_VALUE}
-                  allOptionLabel="All branches"
-                  className="w-[220px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="step1-date-from">From date</Label>
-                <div className="relative">
-                  <input
-                    id="step1-date-from"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    disabled={loadingPendingFromDate}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+                    }}
+                    placeholder="Select speciality"
+                    allOptionValue={ALL_SPECIALITIES_VALUE}
+                    allOptionLabel="All specialities"
+                    className="w-full"
                   />
-                  {loadingPendingFromDate ? (
-                    <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                  ) : null}
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Doctor</label>
+                  <ReferenceSelect
+                    options={filteredDoctors}
+                    value={doctorId}
+                    onChange={(id) => {
+                      setDoctorId(id);
+                      if (id) {
+                        const selected = doctors.find((d) => d.id === id);
+                        if (selected?.specialityId && selected.specialityId !== specialityId) {
+                          setSpecialityId(selected.specialityId);
+                        }
+                      }
+                      clearLoadedResults();
+                    }}
+                    placeholder="Select doctor"
+                    className="w-full"
+                    searchable
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Branch</label>
+                  <ReferenceSelect
+                    options={locations}
+                    value={branchId}
+                    onChange={(id) => {
+                      setBranchId(id || ALL_BRANCHES_VALUE);
+                      clearLoadedResults();
+                    }}
+                    placeholder="Select branch"
+                    allOptionValue={ALL_BRANCHES_VALUE}
+                    allOptionLabel="All branches"
+                    className="w-full"
+                  />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="step1-date-to">To date</Label>
-                <input
-                  id="step1-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
-              </div>
-              <div className="flex flex-col gap-2 pt-1 sm:flex-row lg:flex-col lg:pt-0">
-                <Button
-                  onClick={handleLoad}
-                  disabled={loadingEligible || loadingPendingFromDate}
-                  className="h-10 w-full sm:w-auto lg:w-full"
-                >
-                  {loadingEligible ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Load sessions
-                </Button>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:items-end">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="step1-date-from">From date</Label>
+                  <div className="relative">
+                    <input
+                      id="step1-date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      disabled={loadingPendingFromDate}
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+                    />
+                    {loadingPendingFromDate ? (
+                      <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                    ) : null}
+                  </div>
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="step1-date-to">To date</Label>
+                  <input
+                    id="step1-date-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={handleLoad}
+                    disabled={loadingEligible || loadingPendingFromDate}
+                    className="h-10 w-full"
+                  >
+                    {loadingEligible ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Load sessions
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

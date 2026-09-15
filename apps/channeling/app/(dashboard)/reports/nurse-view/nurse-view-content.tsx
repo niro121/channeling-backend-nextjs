@@ -8,7 +8,6 @@ import { NurseViewBookingData, NurseViewSessionData } from '@/types/report';
 import Loading from '@/app/(dashboard)/loading';
 import moment from 'moment';
 import { NurseViewReportColumns } from './columns';
-import { printPdfUtilWithHeader } from '@/lib/utils';
 
 type NurseViewReportContentProps = {
   sessionId: string;
@@ -71,12 +70,6 @@ export default function NurseViewReportContent({
             [data-nurse-view-report] .flex.flex-wrap.items-center.gap-3 > button {
               display: none !important;
             }
-
-            /* Keep only Print button in ExportWrapper (hide PDF + Excel) */
-            [data-nurse-view-report] .flex.gap-2 > button:first-child,
-            [data-nurse-view-report] .flex.gap-2 > button:nth-child(2) {
-              display: none !important;
-            }
           `
           }}
         />
@@ -88,28 +81,47 @@ export default function NurseViewReportContent({
           // This report is session-driven; if sessionId is missing, don't auto-fetch.
           skipFetchWhenNoParams={true}
           showPrintButton={Boolean(sessionData)}
-          customPrintPdf={({ title, data, columns, keys }) => {
-            if (!sessionData) return;
-
-            const headerLines = [
-              `Branch: ${sessionData.location?.name ?? '-'}`,
-              `Date: ${formatDate(sessionData.date)}`,
-              `Session Time: ${formatTime(sessionData.startTime)} - ${formatTime(sessionData.endTime)}`,
-              `Department Name: ${sessionData.department?.name ?? '-'}`,
-              `Consultant: ${
-                sessionData.doctor
-                  ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-                  : '-'
-              }`
-            ];
-
-            printPdfUtilWithHeader<NurseViewExportRow>({
-              title,
-              headerLines,
-              data,
-              columns,
-              keys
-            });
+          generationDetails={{
+            generatedBy: 'System',
+            formatFilters: () =>
+              sessionData ? (
+                <>
+                  Branch: {sessionData.location?.name ?? '-'} | Date:{' '}
+                  {formatDate(sessionData.date)} | Session:{' '}
+                  {formatTime(sessionData.startTime)} - {formatTime(sessionData.endTime)} |
+                  Dept: {sessionData.department?.name ?? '-'} | Consultant:{' '}
+                  {sessionData.doctor
+                    ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                    : '-'}
+                </>
+              ) : (
+                '—'
+              ),
+            formatPrintSummaryItems: () =>
+              sessionData
+                ? [
+                    {
+                      label: 'Branch',
+                      value: sessionData.location?.name ?? '-',
+                    },
+                    { label: 'Date', value: formatDate(sessionData.date) },
+                    {
+                      label: 'Session',
+                      value: `${formatTime(sessionData.startTime)} - ${formatTime(sessionData.endTime)}`,
+                    },
+                    {
+                      label: 'Department',
+                      value: sessionData.department?.name ?? '-',
+                    },
+                    {
+                      label: 'Consultant',
+                      value: sessionData.doctor
+                        ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                        : '-',
+                      fullWidth: true,
+                    },
+                  ]
+                : [],
           }}
           filterContent={() => (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">

@@ -88,7 +88,51 @@ function ContentInner({
               <div>Speciality: {specialityLabel} | Discount Scheme: {discountSchemeLabel}</div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const fromDateTime = values.fromDateTime ?? '';
+          const toDateTime = values.toDateTime ?? '';
+          const doctorId = values.doctorId ?? '__all__';
+          const locationId = values.locationId ?? '__all__';
+          const specialityId = values.specialityId ?? '__all__';
+          const discountSchemeId = values.discountSchemeId ?? '__all__';
+          return [
+            {
+              label: 'Period',
+              value: formatReportRangeLabel(fromDateTime, toDateTime),
+              fullWidth: true,
+            },
+            {
+              label: 'Doctor',
+              value:
+                doctorId === '__all__'
+                  ? 'All Doctors'
+                  : (doctorOptions.find((d) => d.id === doctorId)?.name ?? doctorId),
+            },
+            {
+              label: 'Branch',
+              value:
+                locationId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId),
+            },
+            {
+              label: 'Speciality',
+              value:
+                specialityId === '__all__'
+                  ? 'All Specialities'
+                  : (specialityOptions.find((s) => s.id === specialityId)?.name ?? specialityId),
+            },
+            {
+              label: 'Discount Scheme',
+              value:
+                discountSchemeId === '__all__'
+                  ? 'All Discount Schemes'
+                  : (discountSchemeOptions.find((d) => d.id === discountSchemeId)?.name ??
+                    discountSchemeId),
+            },
+          ];
+        },
       }}
       initialFilterValues={{
         ...getDefaultDateTimeRange(),
