@@ -171,6 +171,7 @@ model Staff {
   rosterAmendments RosterAmendment[]
   attendancePunches AttendancePunch[]
   attendanceDays    AttendanceDay[]
+  attendanceCorrections AttendanceCorrection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -930,6 +931,57 @@ model AttendanceDay {
   @@index([location, date])
   @@index([shiftTypeId])
   @@index([rosterAllocationId])
+}
+
+/// HR correction request over AttendanceDay (punches stay immutable).
+model AttendanceCorrection {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  code   String @unique // COR-n
+  staffId String @db.ObjectId
+  /// Colombo civil day as UTC midnight (same as AttendanceDay.date).
+  date   DateTime
+  attendanceDayId String? @db.ObjectId
+
+  staffCode   String @default("")
+  staffName   String @default("")
+  department  String @default("")
+  designation String @default("")
+
+  originalFirstInAt  DateTime?
+  originalLastOutAt  DateTime?
+  originalStatus     String   @default("")
+
+  correctedFirstInAt DateTime?
+  correctedLastOutAt DateTime?
+  correctedStatus    String   @default("present")
+
+  reason String @default("")
+  /// draft | pending_approval | approved | rejected | cancelled
+  status String @default("draft")
+
+  requestedById   String?   @db.ObjectId
+  requestedByName String    @default("")
+  requestedAt     DateTime?
+  approvedById    String?   @db.ObjectId
+  approvedByName  String    @default("")
+  approvedAt      DateTime?
+  rejectedById    String?   @db.ObjectId
+  rejectedByName  String    @default("")
+  rejectedAt      DateTime?
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId, date])
+  @@index([date])
+  @@index([status])
+  @@index([department])
+  @@index([designation])
+  @@index([requestedById])
 }
 
 /* ---------------------------------

@@ -1,3 +1,5 @@
+import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
+
 /** `generateRecordCode('ATD')` → ATD-1 */
 export const ATTENDANCE_DEVICE_CODE_PREFIX = 'ATD';
 
@@ -142,4 +144,165 @@ export type RfidAttendanceDashboard = {
     staff: RfidFilterOption[];
   };
 };
+
+/* ---------------------------------
+Attendance Corrections
+--------------------------------- */
+
+/** `generateRecordCode('COR')` → COR-1 */
+export const ATTENDANCE_CORRECTION_CODE_PREFIX = 'COR';
+
+export const ATTENDANCE_CORRECTION_STATUSES = [
+  'draft',
+  'pending_approval',
+  'approved',
+  'rejected',
+  'cancelled'
+] as const;
+export type AttendanceCorrectionStatus =
+  (typeof ATTENDANCE_CORRECTION_STATUSES)[number];
+
+export const ATTENDANCE_CORRECTION_STATUS_OPTIONS: RfidFilterOption[] = [
+  { id: 'draft', name: 'Draft' },
+  { id: 'pending_approval', name: 'Pending Approval' },
+  { id: 'approved', name: 'Approved' },
+  { id: 'rejected', name: 'Rejected' },
+  { id: 'cancelled', name: 'Cancelled' }
+];
+
+/** Statuses HR can set on a corrected day. */
+export const ATTENDANCE_CORRECTION_DAY_STATUS_OPTIONS: RfidFilterOption[] = [
+  { id: 'present', name: 'Present' },
+  { id: 'absent', name: 'Absent' },
+  { id: 'late', name: 'Late' },
+  { id: 'early_out', name: 'Early Out' },
+  { id: 'half_day', name: 'Half Day' },
+  { id: 'leave', name: 'Leave' },
+  { id: 'missing_punch', name: 'Missing Punch' },
+  { id: 'incomplete', name: 'Incomplete' }
+];
+
+/** Filter: attendance day statuses (system / original). */
+export const ATTENDANCE_CORRECTION_ATTENDANCE_STATUS_OPTIONS: RfidFilterOption[] =
+  [
+    { id: 'present', name: 'Present' },
+    { id: 'late', name: 'Late' },
+    { id: 'absent', name: 'Absent' },
+    { id: 'missing_punch', name: 'Missing Punch' },
+    { id: 'on_leave', name: 'On Leave' }
+  ];
+
+export type AttendanceAuditFields = {
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdUser?: AuthUserSummary | null;
+  updatedUser?: AuthUserSummary | null;
+};
+
+export type AttendanceCorrectionRecord = AttendanceAuditFields & {
+  id: string;
+  code: string;
+  staffId: string;
+  date: string;
+  attendanceDayId: string | null;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  originalFirstInAt: string | null;
+  originalLastOutAt: string | null;
+  originalFirstInLabel: string;
+  originalLastOutLabel: string;
+  originalStatus: string;
+  correctedFirstInAt: string | null;
+  correctedLastOutAt: string | null;
+  correctedFirstInLabel: string;
+  correctedLastOutLabel: string;
+  correctedStatus: string;
+  reason: string;
+  status: AttendanceCorrectionStatus | string;
+  requestedById: string | null;
+  requestedByName: string;
+  requestedAt: string | null;
+  approvedById: string | null;
+  approvedByName: string;
+  approvedAt: string | null;
+  rejectedById: string | null;
+  rejectedByName: string;
+  rejectedAt: string | null;
+};
+
+export type AttendanceCorrectionPayload = {
+  staffId: string;
+  date: string; // yyyy-MM-dd Colombo
+  correctedFirstIn?: string | null; // HH:mm
+  correctedLastOut?: string | null; // HH:mm
+  correctedStatus: string;
+  reason: string;
+  status?: 'draft' | 'pending_approval';
+};
+
+export type GetAttendanceCorrectionsParams = {
+  page?: string;
+  limit?: string;
+  staffId?: string;
+  staffCode?: string;
+  department?: string;
+  designation?: string;
+  /** Workflow status (draft / pending_approval / …). */
+  status?: string;
+  /** Original / system attendance status. */
+  attendanceStatus?: string;
+  /** Corrected day status (present / absent / late / …). */
+  correctedStatus?: string;
+  requestedById?: string;
+  fromDate?: string;
+  toDate?: string;
+  code?: string;
+};
+
+export type AttendanceCorrectionSummary = {
+  totalCorrections: number;
+  pendingApproval: number;
+  approved: number;
+  rejected: number;
+};
+
+export type AttendanceCorrectionFilterOptions = {
+  staff: RfidFilterOption[];
+  departments: RfidFilterOption[];
+  designations: RfidFilterOption[];
+  attendanceStatuses: RfidFilterOption[];
+  correctedStatuses: RfidFilterOption[];
+  requesters: RfidFilterOption[];
+};
+
+export type AttendanceCorrectionFormOptions = {
+  staff: RfidFilterOption[];
+  dayStatuses: RfidFilterOption[];
+  statuses: RfidFilterOption[];
+};
+
+export type AttendanceDayLookupForCorrection = {
+  attendanceDayId: string | null;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  originalFirstInAt: string | null;
+  originalLastOutAt: string | null;
+  originalFirstInLabel: string;
+  originalLastOutLabel: string;
+  originalStatus: string;
+};
+
+export function isAttendanceCorrectionLocked(
+  status: AttendanceCorrectionStatus | string
+): boolean {
+  return (
+    status === 'approved' || status === 'rejected' || status === 'cancelled'
+  );
+}
 

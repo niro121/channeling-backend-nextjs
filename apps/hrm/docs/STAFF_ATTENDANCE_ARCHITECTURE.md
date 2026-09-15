@@ -4,7 +4,7 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** P0–P2 backend done; **P3 RFID Attendance UI** started (14 Sep 2026). Corrections page is a stub linked from Add Correction.  
+**Status:** P0–P3 done; **P4 Corrections** shipped (15 Sep 2026). Remaining P4: Devices, Daily register, punch/daily export.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
 
@@ -145,10 +145,19 @@ One document per staff per **calendar date in Asia/Colombo**.
 | `confirmedToRosterAt` | Set when HR confirms sync |
 | `correctionReason`, `correctedBy`, `correctedAt` | Last correction metadata |
 
-### 3.5 Optional later: `AttendanceCorrection` / `AttendanceIdentityMap`
+### 3.5 `AttendanceCorrection` (register + approval workflow)
 
-- **Correction:** full before/after audit trail if last-correction fields are not enough.
-- **IdentityMap:** only if device ID ≠ `fingerPrintRfid`.
+Workflow collection for HR corrections over `AttendanceDay`. Raw punches stay immutable.
+
+| Field | Purpose |
+|-------|---------|
+| `code` | `COR-n` |
+| `staffId`, `date`, `attendanceDayId` | Target day |
+| `original*` / `corrected*` | Before/after check-in, check-out, status |
+| `reason`, `status` | `draft` \| `pending_approval` \| `approved` \| `rejected` \| `cancelled` |
+| Approver audit | `approvedBy*` / `rejectedBy*` timestamps |
+
+**IdentityMap** (device ID ≠ `fingerPrintRfid`) remains optional later.
 
 ### 3.6 What we do **not** store on `RosterAllocation`
 
@@ -279,7 +288,7 @@ Action: **Confirm to Duty Roster** (single day or bulk).
 
 ```
 apps/hrm/
-  prisma/schema.prisma                    # AttendanceDevice, AttendancePunch, AttendanceDay
+  prisma/schema.prisma                    # AttendanceDevice, AttendancePunch, AttendanceDay, AttendanceCorrection
 
   app/api/attendance/
     punches/route.ts                      # Device ingest
@@ -288,28 +297,30 @@ apps/hrm/
     enroll/…                              # Optional: enrollment listen (after device setup — §4.3)
 
   app/actions/attendance-actions/
-    device.actions.ts
+    rfid-attendance.actions.ts
     attendance-day.actions.ts
     attendance-correction.actions.ts
-    attendance-confirm-roster.actions.ts
-    attendance-export.actions.ts
+    device.actions.ts                     # P4 remaining
+    attendance-confirm-roster.actions.ts  # P5
+    attendance-export.actions.ts          # P4 remaining
 
   services/attendance-services/
     device.service.ts
     punch-ingest.service.ts
     attendance-day.service.ts
     attendance-rules.service.ts
-    attendance-confirm-roster.service.ts
-    attendance-export.service.ts
+    rfid-attendance.service.ts
+    attendance-correction.service.ts
+    attendance-confirm-roster.service.ts  # P5
+    attendance-export.service.ts          # P4 remaining
 
   app/(dashboard)/(attendance)/
     rfid-attendance/                      # Live dashboard (primary mock)
-    attendance-daily/
-    attendance-devices/
-    attendance-corrections/
+    attendance-corrections/               # Register + Create / Approve / Reject
+    attendance-daily/                     # P4 remaining
+    attendance-devices/                   # P4 remaining
 
   types/attendance.ts
-  lib/mappers/attendance-*.ts             # If forms need mappers
   lib/helpers/attendance-timezone.helper.ts   # Asia/Colombo via @date-fns/tz (TZDate)
 ```
 
@@ -407,15 +418,16 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Wire cards + table to `AttendanceDay` / recent punches (empty state until data exists)
 - [ ] Polling (or SSE) for live updates + Streaming badge (Streaming badge is heuristic for now; auto-poll later)
 - [x] Permission gates (`attendance` view)
-- [x] **Add Correction** → `/attendance-corrections` (stub until P4)
+- [x] **Add Correction** → `/attendance-corrections`
 
 ### Phase P4 — Devices, Daily register, Corrections, Export
 
 - [ ] `/attendance-devices` CRUD (Sheets or pages — follow Shift Types / OT patterns)
 - [ ] `/attendance-daily` `CommonDataTable` register
-- [ ] Add Correction flow → updates `AttendanceDay` + audit fields (punches untouched)
-- [ ] Export CSV/Excel (punches and/or daily summaries) — table-only export pattern
-- [ ] `/attendance-corrections` register if corrections are not only a dialog on the live page
+- [x] Add Correction flow → `AttendanceCorrection` register + approve updates `AttendanceDay` + audit fields (punches untouched)
+- [x] Export CSV/Excel on corrections register — table-only export pattern (`CommonDataTable`)
+- [x] `/attendance-corrections` register (Create / Approve / Reject, filters, summary cards)
+- [ ] Export for punches / daily summaries (RFID / daily register)
 
 ### Phase P5 — Confirm to Duty Roster + hardening
 
