@@ -334,6 +334,8 @@ export default function DoctorAppointmentCountReportContent({
       columns: [...columns],
       keys,
       fileName: `${formatExportFileName('doctor-appointment-count')}.pdf`,
+      orientation: 'portrait',
+      compactTable: true,
     });
   };
 
@@ -418,6 +420,8 @@ export default function DoctorAppointmentCountReportContent({
         ],
         fileName: `${formatExportFileName('doctor-appointment-count')}.xlsx`,
         sheetName: 'Appointment Count',
+        orientation: 'portrait',
+        compactTable: true,
       });
     } catch (error: unknown) {
       toast({
@@ -431,7 +435,30 @@ export default function DoctorAppointmentCountReportContent({
   };
 
   return (
-    <div className="w-full py-2 space-y-3">
+    <div className="w-full py-2 space-y-3 doctor-appointment-count-print-root">
+      <style>{`
+        @media print {
+          .doctor-appointment-count-print-root .overflow-x-auto,
+          .doctor-appointment-count-print-root .overflow-auto {
+            overflow: visible !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root th,
+          .doctor-appointment-count-print-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-0 print:bg-white">
         <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -541,7 +568,7 @@ export default function DoctorAppointmentCountReportContent({
           ) : (
             <ReportPrintLayout
               reportName="Doctor Appointment Count Report ( By Session Date )"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

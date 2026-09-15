@@ -63,10 +63,43 @@ function DoctorLeaveReportContentInner({
   });
 
   return (
-    <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .doctor-leave-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .doctor-leave-report-root .rpt-print-root th,
+          .doctor-leave-report-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+          }
+          .doctor-leave-report-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+          .doctor-leave-report-root .rpt-print-root svg {
+            display: none !important;
+          }
+          .doctor-leave-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
       title="Doctor Leave Report"
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 doctor-leave-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -267,6 +300,7 @@ function DoctorLeaveReportContentInner({
         return `${code} – ${name}`;
       }}
     />
+    </>
   );
 }
 

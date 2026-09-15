@@ -40,14 +40,14 @@ function statusBanner(opts: { status: number; refund: number; isDuplicate: boole
   return ""
 }
 
-async function resolveUserPrintLabel(userId: string | null | undefined): Promise<string> {
-  if (!userId) return "NO USER NAME"
+/** Cashier Code / Printed by: staff code only (no display name). */
+async function resolveUserPrintCode(userId: string | null | undefined): Promise<string> {
+  if (!userId) return ""
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, staff: { select: { code: true } } },
+    select: { staff: { select: { code: true } } },
   })
-  if (!user) return "NO USER FOUND!"
-  return user.staff?.code ? `${user.name} (${user.staff.code})` : user.name
+  return user?.staff?.code?.trim() || ""
 }
 
 export type PrintBookingReceiptData = {
@@ -163,8 +163,8 @@ export async function printBookingReceiptService(
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
 
     const [cashierCode, printedBy] = await Promise.all([
-      resolveUserPrintLabel(extra?.createdBy),
-      resolveUserPrintLabel(printedByUserId),
+      resolveUserPrintCode(extra?.createdBy),
+      resolveUserPrintCode(printedByUserId),
     ])
 
     const billedAt = format(new Date(details.createdAt), "yyyy-MM-dd, h:mm:ss a")

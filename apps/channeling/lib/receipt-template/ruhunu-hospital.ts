@@ -26,7 +26,7 @@ export function formatLocationAddress(location: {
 }
 
 export function ruhunuPhoneFaxLine(): string {
-  return `Phone : ${RUHUNU_HOSPITAL.phone} | Fax : ${RUHUNU_HOSPITAL.fax}`
+  return `Phone : ${RUHUNU_HOSPITAL.phone}`
 }
 
 export function ruhunuEmailWebLine(): string {
