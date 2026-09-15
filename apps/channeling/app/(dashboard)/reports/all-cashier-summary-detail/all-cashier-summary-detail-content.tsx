@@ -239,7 +239,7 @@ export default function AllCashierSummaryDetailContent({
 
       if (format === 'summary') {
         type ExcelRow = {
-          no: string;
+          no: string | null;
           userName: string;
           receiptCount: string;
           cash: string;
@@ -249,8 +249,8 @@ export default function AllCashierSummaryDetailContent({
           agent: string;
           agentCredit: string;
           eWallet: string;
-          handoverDate: string;
-          checkedBy: string;
+          handoverDate: string | null;
+          checkedBy: string | null;
         };
         const data: ExcelRow[] = summaryRows.map((r, i) => ({
           no: String(i + 1),
@@ -263,12 +263,12 @@ export default function AllCashierSummaryDetailContent({
           agent: formatAmountForCsv(r.agent),
           agentCredit: formatAmountForCsv(r.agentCredit),
           eWallet: formatAmountForCsv(r.eWallet),
-          handoverDate: '',
-          checkedBy: '',
+          handoverDate: null,
+          checkedBy: null,
         }));
         if (grandTotals) {
           data.push({
-            no: '',
+            no: null,
             userName: 'Total',
             receiptCount: String(totalReceipts),
             cash: formatAmountForCsv(grandTotals.cash),
@@ -278,8 +278,8 @@ export default function AllCashierSummaryDetailContent({
             agent: formatAmountForCsv(grandTotals.agent),
             agentCredit: formatAmountForCsv(grandTotals.agentCredit),
             eWallet: formatAmountForCsv(grandTotals.eWallet),
-            handoverDate: '',
-            checkedBy: '',
+            handoverDate: null,
+            checkedBy: null,
           });
         }
         await downloadBrandedReportExcel({
@@ -311,6 +311,7 @@ export default function AllCashierSummaryDetailContent({
           ],
           fileName,
           sheetName: 'All Cashier Summary',
+          orientation: 'portrait',
         });
         return;
       }
@@ -390,6 +391,7 @@ export default function AllCashierSummaryDetailContent({
         ],
         fileName,
         sheetName: 'All Cashier Detail',
+        orientation: 'portrait',
       });
     } catch (error: unknown) {
       toast({
@@ -490,6 +492,7 @@ export default function AllCashierSummaryDetailContent({
           'checkedBy',
         ],
         fileName,
+        orientation: 'portrait',
       });
       return;
     }
@@ -567,6 +570,7 @@ export default function AllCashierSummaryDetailContent({
         'eWallet',
       ],
       fileName,
+      orientation: 'portrait',
     });
   };
 
@@ -596,7 +600,26 @@ export default function AllCashierSummaryDetailContent({
           }
           .all-cashier-print-report [class*="border-dotted"] {
             border-bottom: 1px dotted #000 !important;
-            min-height: 18px !important;
+            min-height: 14px !important;
+          }
+          /* Portrait: keep all summary columns readable on narrower page */
+          .all-cashier-print-report .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .all-cashier-print-report .rpt-print-root th,
+          .all-cashier-print-report .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.8mm 0.6mm !important;
+            line-height: 1.15 !important;
+          }
+          .all-cashier-print-report .rpt-print-root thead th,
+          .all-cashier-print-report .rpt-print-root th {
+            font-size: 6pt !important;
+          }
+          .all-cashier-print-report .rpt-print-root [class*="w-[130px]"] {
+            width: 100% !important;
+            max-width: none !important;
           }
         }
       `}</style>
@@ -732,7 +755,7 @@ export default function AllCashierSummaryDetailContent({
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
               reportName="All Cashier Summary and Detail Report"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

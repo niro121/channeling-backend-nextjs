@@ -24,6 +24,8 @@ export type DownloadBrandedReportPdfOptions<T> = {
   organizationName?: string
   logoSrc?: string | null
   orientation?: "landscape" | "portrait"
+  /** Use smaller fonts/padding so wide tables fit on portrait A4. */
+  compactTable?: boolean
 }
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
@@ -270,6 +272,7 @@ export async function downloadBrandedReportPdf<T>({
   organizationName = RUHUNU_PRINT_BRAND_NAME,
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
   orientation = "landscape",
+  compactTable = false,
 }: DownloadBrandedReportPdfOptions<T>): Promise<void> {
   const margin = 10
   const doc = new jsPDF({
@@ -278,6 +281,9 @@ export async function downloadBrandedReportPdf<T>({
   })
   const { width: pageWidth } = pageSize(doc)
   const tableWidth = pageWidth - margin * 2
+  const bodyFontSize = compactTable ? 5.5 : 8
+  const headFontSize = compactTable ? 5 : 7.5
+  const cellPadding = compactTable ? 0.7 : 1.6
 
   const startY = await drawBrandedPdfHeader(doc, {
     reportName,
@@ -300,9 +306,10 @@ export async function downloadBrandedReportPdf<T>({
     startY,
     margin: { left: margin, right: margin, bottom: 12 },
     tableWidth,
+    showHead: "everyPage",
     styles: {
-      fontSize: 8,
-      cellPadding: 1.6,
+      fontSize: bodyFontSize,
+      cellPadding,
       minCellWidth: 0,
       overflow: "linebreak",
       textColor: [0, 0, 0],
@@ -314,26 +321,32 @@ export async function downloadBrandedReportPdf<T>({
       fillColor: [232, 232, 232],
       textColor: [0, 0, 0],
       fontStyle: "bold",
-      fontSize: 7.5,
+      fontSize: headFontSize,
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
     },
     bodyStyles: {
       fontStyle: "normal",
     },
-    // Bold last row when it looks like a total (caller typically appends Total / Grand Total)
     didParseCell: (data) => {
       if (data.section !== "body") return
       const raw = data.row.raw
       if (!Array.isArray(raw)) return
-      const first = String(raw[0] ?? "")
-      const second = String(raw[1] ?? "")
-      if (
-        /^total$/i.test(first) ||
-        /^grand total$/i.test(first) ||
-        /^total$/i.test(second) ||
-        /user total/i.test(second)
-      ) {
+      const isTotalLike = raw.some((cell) => {
+        const s = String(cell ?? "").trim().toLowerCase()
+        return (
+          s === "total" ||
+          s === "grand total" ||
+          s === "user total" ||
+          s === "credit summary" ||
+          s === "cash summary" ||
+          s.endsWith(" total") ||
+          s === "total (credit summary)" ||
+          s === "total (cash summary)" ||
+          s === "grand total (credit + cash)"
+        )
+      })
+      if (isTotalLike) {
         data.cell.styles.fontStyle = "bold"
       }
     },
