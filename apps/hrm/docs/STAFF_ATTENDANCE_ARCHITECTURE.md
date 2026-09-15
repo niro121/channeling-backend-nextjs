@@ -4,11 +4,11 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** P0–P2 foundations in progress (14 Sep 2026). RFID Attendance UI deferred until product mocks are attached.  
+**Status:** P0–P2 backend done; **P3 RFID Attendance UI** started (14 Sep 2026). Corrections page is a stub linked from Add Correction.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
 
-**UI gate:** Do **not** start Phase P3 (RFID Attendance screens) until the user attaches additional UI designs for that module. Ask for those mocks when backend P0–P2 are ready and UI work is the next step.
+**UI gate:** Additional RFID Attendance mocks welcome for polish; primary live dashboard mock is in use for P3.
 
 ---
 
@@ -399,16 +399,15 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 
 ### Phase P3 — RFID Attendance UI (primary mock)
 
-> **Blocked on designs:** Ask the user to attach additional RFID Attendance UI mocks before starting this phase.
-
-- [ ] Sidebar group **Staff Attendance** + `/rfid-attendance` page shell
-- [ ] `CommonManagerHeader`: title, subtitle (reader count · today date), Refresh / Export / Add Correction
-- [ ] Summary cards: Today Present, Late, Missing Punches, Absent, Exceptions
-- [ ] Live check-ins table: Staff, Department, Time, Status badges (In / Late / Missing Out)
-- [ ] Filters sidebar: Department, Location, Date, Shift, Staff
-- [ ] Wire cards + table to `AttendanceDay` / recent punches (no sample-only data for ship)
-- [ ] Polling (or SSE) for live updates + Streaming badge
-- [ ] Permission gates (`attendance` view)
+- [x] Sidebar group **Staff Attendance** + `/rfid-attendance` page shell
+- [x] `CommonManagerHeader`: title, subtitle (reader count · today date), Refresh / Export / Add Correction
+- [x] Summary cards: Today Present, Late, Missing Punches, Absent, Exceptions
+- [x] Live check-ins table: Staff, Department, Time, Status badges (In / Late / Missing Out)
+- [x] Filters sidebar: Department, Location, Date, Shift, Staff
+- [x] Wire cards + table to `AttendanceDay` / recent punches (empty state until data exists)
+- [ ] Polling (or SSE) for live updates + Streaming badge (Streaming badge is heuristic for now; auto-poll later)
+- [x] Permission gates (`attendance` view)
+- [x] **Add Correction** → `/attendance-corrections` (stub until P4)
 
 ### Phase P4 — Devices, Daily register, Corrections, Export
 

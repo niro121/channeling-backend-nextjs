@@ -78,3 +78,68 @@ export type AttendanceDayRecord = {
   confirmedToRosterAt: string | null;
   correctionReason: string;
 };
+
+/** Live-row badge on RFID Attendance (UI), derived from day status/flags. */
+export const RFID_LIVE_STATUS_LABELS = [
+  'In',
+  'Late',
+  'Missing Out',
+  'Missing In',
+  'Absent',
+  'Leave',
+  'Exception'
+] as const;
+export type RfidLiveStatusLabel = (typeof RFID_LIVE_STATUS_LABELS)[number];
+
+export type RfidAttendanceFilters = {
+  department?: string;
+  location?: string;
+  date?: string; // yyyy-MM-dd Colombo
+  shiftTypeId?: string;
+  staffId?: string;
+};
+
+export type RfidAttendanceSummary = {
+  present: number;
+  presentPct: number | null;
+  late: number;
+  lateAfterLabel: string | null;
+  missingPunches: number;
+  absent: number;
+  absentPct: number | null;
+  exceptions: number;
+  rosteredTotal: number;
+};
+
+export type RfidLiveCheckInRow = {
+  id: string;
+  staffId: string | null;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  timeLabel: string;
+  punchedAt: string | null;
+  statusLabel: RfidLiveStatusLabel;
+  avatarInitials: string;
+};
+
+export type RfidFilterOption = {
+  id: string;
+  name: string;
+};
+
+export type RfidAttendanceDashboard = {
+  date: string;
+  dateLabel: string;
+  activeReaderCount: number;
+  streaming: boolean;
+  summary: RfidAttendanceSummary;
+  liveRows: RfidLiveCheckInRow[];
+  filterOptions: {
+    departments: RfidFilterOption[];
+    locations: RfidFilterOption[];
+    shifts: RfidFilterOption[];
+    staff: RfidFilterOption[];
+  };
+};
+

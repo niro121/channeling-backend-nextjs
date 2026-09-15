@@ -34,6 +34,7 @@ import {
   MapPin,
   Layers,
   DoorOpen,
+  Fingerprint,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -277,6 +278,39 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/public-holiday-shifts"
                   label="Public Holiday Shifts"
                   icon={<PartyPopper className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/rfid-attendance') ||
+          hasAccess('/attendance-corrections') ||
+          hasAccess('/attendance-daily') ||
+          hasAccess('/attendance-devices')) && (
+          <SidebarGroup label="Staff Attendance">
+            <SidebarCollapsible
+              label="Attendance"
+              icon={<Fingerprint className="h-5 w-5" />}
+              paths={[
+                '/rfid-attendance',
+                '/attendance-daily',
+                '/attendance-devices',
+                '/attendance-corrections'
+              ]}
+              defaultOpen
+            >
+              {hasAccess('/rfid-attendance') && (
+                <NavLink
+                  href="/rfid-attendance"
+                  label="RFID Attendance"
+                  icon={<Fingerprint className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-corrections') && (
+                <NavLink
+                  href="/attendance-corrections"
+                  label="Corrections"
+                  icon={<FilePenLine className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
