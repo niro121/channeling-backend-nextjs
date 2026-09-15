@@ -247,10 +247,12 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
     padding-left: 2px;
   }
   .professional-bill {
-    margin-top: 6mm;
-    padding-top: 6mm;
-    border-top: 1px dashed #000;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
     text-align: center;
+    page-break-before: always;
+    break-before: page;
   }
   .doctor-note {
     font-size: 10pt;

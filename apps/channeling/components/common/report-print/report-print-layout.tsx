@@ -238,6 +238,11 @@ export function ReportPrintLayout({
             border-collapse: collapse !important;
             table-layout: fixed !important;
           }
+          /* Keep each data row on one page — avoids mid-name fragments after page breaks. */
+          .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
           .rpt-print-root th,
           .rpt-print-root td {
             border: 0.7pt solid #000 !important;
@@ -249,8 +254,9 @@ export function ReportPrintLayout({
             background: #fff !important;
             vertical-align: middle !important;
             white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: anywhere !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -270,6 +276,10 @@ export function ReportPrintLayout({
             font-weight: 700 !important;
             background: #fff !important;
             border-top: 1.2pt solid #000 !important;
+          }
+          /* Default tfoot repeats on every printed page; keep Total only after the last body rows. */
+          .rpt-print-root tfoot {
+            display: table-row-group !important;
           }
           .rpt-print-root .rounded-md { border-radius: 0 !important; }
         }

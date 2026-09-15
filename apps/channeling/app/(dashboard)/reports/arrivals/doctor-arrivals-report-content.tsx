@@ -66,10 +66,43 @@ function DoctorArrivalsReportContentInner({
   });
 
   return (
-    <ReportTemplate<DoctorArrivalsReportRow, DoctorArrivalsReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .doctor-arrivals-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root th,
+          .doctor-arrivals-report-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root svg {
+            display: none !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<DoctorArrivalsReportRow, DoctorArrivalsReportExportRow>
       title="Doctor Arrivals Report"
       description="View doctor arrival and departure by session with filters for date & time, institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 doctor-arrivals-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -232,6 +265,7 @@ function DoctorArrivalsReportContentInner({
         return `${code} – ${name}`;
       }}
     />
+    </>
   );
 }
 
