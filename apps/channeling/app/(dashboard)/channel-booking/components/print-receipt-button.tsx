@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils"
 function printHtmlInIframe(html: string) {
   const iframe = document.createElement("iframe")
   iframe.setAttribute("title", "Print receipt")
-  // Real page size off-screen. A 0×0 iframe makes Chrome shrink the job on dot-matrix printers.
+  // Off-screen A5 viewport so Chrome print preview matches the receipt page size.
   iframe.setAttribute(
     "style",
-    "position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0"
+    "position:fixed;left:-10000px;top:0;width:148mm;height:210mm;border:0"
   )
   document.body.appendChild(iframe)
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document
