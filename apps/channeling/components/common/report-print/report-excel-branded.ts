@@ -17,6 +17,20 @@ export type DownloadBrandedReportExcelOptions<T> = {
   organizationName?: string
   logoSrc?: string | null
   sheetName?: string
+  /** Page orientation when printing the sheet from Excel. Defaults to landscape. */
+  orientation?: "landscape" | "portrait"
+  /** Smaller table fonts/columns so wide reports fit portrait print. */
+  compactTable?: boolean
+}
+
+function portraitCompactColumnWidth(columnIndex1Based: number, colCount: number): number {
+  if (columnIndex1Based === 1) return 11
+  if (columnIndex1Based === 2) return 15
+  if (columnIndex1Based === 3) return 8
+  if (columnIndex1Based === 4) return 11
+  if (columnIndex1Based <= 10) return 9
+  if (columnIndex1Based <= colCount) return 8
+  return 9
 }
 
 let cachedLogoBase64: string | null | undefined
@@ -83,23 +97,60 @@ export async function downloadBrandedReportExcel<T>({
   organizationName = RUHUNU_PRINT_BRAND_NAME,
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
   sheetName = "Report",
+  orientation = "landscape",
+  compactTable = false,
 }: DownloadBrandedReportExcelOptions<T>): Promise<void> {
   const colCount = Math.max(columns.length, 3)
   const lastCol = colLetter(colCount)
+  const isPortrait = orientation === "portrait"
+  const useCompactTable = compactTable || (isPortrait && colCount >= 14)
+  const tableFontSize = useCompactTable ? 8 : 9
+  const safeSheetName = (sheetName || "Report").replace(/[:\\/?*\[\]]/g, " ").slice(0, 31)
 
   const workbook = new ExcelJS.Workbook()
   workbook.creator = organizationName
   workbook.created = new Date()
 
-  const sheet = workbook.addWorksheet(sheetName.slice(0, 31), {
+  const sheet = workbook.addWorksheet(safeSheetName, {
     views: [{ showGridLines: false }],
+    pageSetup: {
+      paperSize: 9, // A4
+      orientation: isPortrait ? "portrait" : "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      horizontalCentered: true,
+      margins: {
+        left: 0.3,
+        right: 0.3,
+        top: 0.4,
+        bottom: 0.4,
+        header: 0.2,
+        footer: 0.2,
+      },
+    },
   })
 
-  sheet.columns = columns.map((header, i) => ({
-    header: undefined,
-    key: String(keys[i] ?? `c${i}`),
-    width: i === 0 ? 8 : i === 1 ? 28 : 14,
-  }))
+  // Widths only — do not set column `key`s. Keyed columns + empty-string cell
+  // values can produce corrupt/ghost values (e.g. "31") in Excel/Numbers.
+  const narrow = isPortrait
+  for (let i = 1; i <= colCount; i += 1) {
+    if (useCompactTable) {
+      sheet.getColumn(i).width = portraitCompactColumnWidth(i, colCount)
+    } else {
+      sheet.getColumn(i).width = narrow
+        ? i === 1
+          ? 5
+          : i === 2
+            ? 18
+            : 9
+        : i === 1
+          ? 8
+          : i === 2
+            ? 28
+            : 14
+    }
+  }
 
   let row = 1
   let titleStartCol = 1
@@ -223,7 +274,7 @@ export async function downloadBrandedReportExcel<T>({
   columns.forEach((col, i) => {
     const cell = headerRow.getCell(i + 1)
     cell.value = col
-    cell.font = { bold: true, size: 9, name: "Arial" }
+    cell.font = { bold: true, size: tableFontSize, name: "Arial" }
     cell.fill = {
       type: "pattern",
       pattern: "solid",
@@ -241,23 +292,30 @@ export async function downloadBrandedReportExcel<T>({
       wrapText: true,
     }
   })
-  headerRow.height = 20
+  headerRow.height = useCompactTable ? 16 : 20
   row += 1
 
   // Data rows
   for (const item of data) {
     const values = keys.map((key) => {
       const value = item[key]
-      return value !== undefined && value !== null ? value : ""
+      return value !== undefined && value !== null ? value : null
     })
     const dataRow = sheet.getRow(row)
-    const totalLike = isTotalLikeRow(values)
+    const totalLike = isTotalLikeRow(values.map((v) => (v == null ? "" : v)))
     values.forEach((value, i) => {
       const cell = dataRow.getCell(i + 1)
-      cell.value = typeof value === "number" || typeof value === "string" ? value : String(value)
+      // Use null (omit value) for blanks — empty strings can show as garbage in some Excel clients.
+      if (value === null || value === "") {
+        cell.value = null
+      } else if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+        cell.value = value
+      } else {
+        cell.value = String(value)
+      }
       cell.font = {
         bold: totalLike,
-        size: 9,
+        size: tableFontSize,
         name: "Arial",
       }
       cell.border = {
@@ -288,6 +346,13 @@ export async function downloadBrandedReportExcel<T>({
   const footerCell = sheet.getCell(row, 1)
   footerCell.value = `Generated: ${generatedAt}`
   footerCell.font = { size: 8, name: "Arial", color: { argb: "FF555555" } }
+
+  sheet.pageSetup.printArea = `A1:${lastCol}${row}`
+  sheet.pageSetup.orientation = isPortrait ? "portrait" : "landscape"
+  sheet.pageSetup.fitToPage = true
+  sheet.pageSetup.fitToWidth = 1
+  sheet.pageSetup.fitToHeight = 0
+  sheet.pageSetup.paperSize = 9
 
   const buffer = await workbook.xlsx.writeBuffer()
   saveAs(new Blob([buffer]), fileName)
