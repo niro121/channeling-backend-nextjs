@@ -14,6 +14,7 @@ import {
 import { DoctorLeaveReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import {DoctorLeaveReportExportRow, DoctorLeaveReportContentProps, DoctorLeaveReportRow} from '@/types/reports/doctor.leave'
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 
 function filterOptionLabel(
   id: string | undefined,
@@ -108,7 +109,52 @@ function DoctorLeaveReportContentInner({
               </div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const branchOpts = withAllBranchesOptions(locationOptions);
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          return [
+            {
+              label: 'Period',
+              value:
+                from && to ? formatReportRangeLabel(from, to) : `${from || '—'} to ${to || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                specialityOptions
+              ),
+            },
+            {
+              label: 'Institution',
+              value: filterOptionLabel(
+                values.institutionId,
+                'All Institutions',
+                institutionOptions
+              ),
+            },
+            {
+              label: 'Branch',
+              value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
+            },
+            {
+              label: 'Department',
+              value: filterOptionLabel(
+                values.departmentId,
+                'All Departments',
+                departmentOptions
+              ),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <>

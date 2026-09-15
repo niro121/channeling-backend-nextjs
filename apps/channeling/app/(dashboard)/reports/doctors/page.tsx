@@ -26,8 +26,9 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
 import { SearchIcon } from '@/components/icons';
-import { Printer } from 'lucide-react';
 import { ExportWrapper } from '../../export-wrapper';
+import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 
 function AllDoctorsReportContent() {
   const router = useRouter();
@@ -37,6 +38,7 @@ function AllDoctorsReportContent() {
   const [loading, setLoading] = useState(false);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [generatedAt, setGeneratedAt] = useState(() => new Date().toLocaleString());
   
   // Filter states
   const [date, setDate] = useState<Date>(new Date());
@@ -55,6 +57,7 @@ function AllDoctorsReportContent() {
       if (result.success) {
         setDoctors(result.data);
         setTotalRecords(result.totalRecords);
+        setGeneratedAt(new Date().toLocaleString());
       } else {
         toast({
           variant: 'destructive',
@@ -109,10 +112,18 @@ function AllDoctorsReportContent() {
     inputClassName: 'col-span-full sm:col-span-3'
   };
 
+  const printSummaryItems: ReportPrintSummaryItem[] = [
+    { label: 'Date', value: date.toLocaleDateString() },
+    { label: 'Doctor Name', value: doctorName || 'All' },
+    { label: 'Doctor Code', value: doctorCode || 'All' },
+    { label: 'Generated At', value: generatedAt },
+    { label: 'Total Records', value: String(totalRecords) },
+  ];
+
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <Card>
-        <CardHeader>
+      <Card className="print:shadow-none print:border-0">
+        <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle className="text-2xl font-bold">All Doctors Report</CardTitle>
@@ -145,22 +156,17 @@ function AllDoctorsReportContent() {
                 ]}
                 title="All Doctors Report"
                 fileName={`doctors-report-${date.toISOString().split('T')[0]}`}
+                onBrowserPrint={handlePrint}
+                showPrintButton
+                pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
+                pdfGeneratedAt={generatedAt}
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-                className="gap-2"
-              >
-                <Printer />
-                Print
-              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {/* Filters - Horizontal Layout */}
-          <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 pb-4 border-b">
+          <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 pb-4 border-b print:hidden">
             <div className="flex-1 min-w-[200px]">
               <CustomDatePickerField
                 id="date"
@@ -224,16 +230,22 @@ function AllDoctorsReportContent() {
 
           {/* Results */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center print:hidden">
               <p className="text-sm text-muted-foreground">
                 Total Records: {totalRecords}
               </p>
             </div>
 
+            <ReportPrintLayout
+              reportName="All Doctors Report"
+              pageSize="A4 landscape"
+              generatedAt={generatedAt}
+              summaryItems={printSummaryItems}
+            >
             {loading ? (
               <div className="text-center py-8">Loading...</div>
             ) : doctors.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-muted-foreground print:hidden">
                 No doctors found
               </div>
             ) : (
@@ -312,6 +324,7 @@ function AllDoctorsReportContent() {
                 </Table>
               </div>
             )}
+            </ReportPrintLayout>
           </div>
         </CardContent>
       </Card>

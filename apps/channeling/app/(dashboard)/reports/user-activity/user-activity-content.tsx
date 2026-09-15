@@ -33,7 +33,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { SearchIcon, Printer, List } from 'lucide-react';
+import { SearchIcon, List } from 'lucide-react';
 import { ExportWrapper } from '../../export-wrapper';
 import type { ExportUserActivityData } from '@/types/report';
 import {
@@ -44,6 +44,8 @@ import {
 import { ACTIVITY_ACTIONS_AUDIT } from '@/lib/activity-actions-audit';
 import { ReportUserSelect } from '@/components/common/user-select';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
+import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 
 type UserActivityContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -62,6 +64,8 @@ export default function UserActivityContent({
   const [toDate, setToDate] = useState<string | undefined>();
   const [userId, setUserId] = useState<string>('__all__');
   const [action, setAction] = useState<string>('');
+  const [generatedAt, setGeneratedAt] = useState(() => new Date().toLocaleString());
+  const [hasSearched, setHasSearched] = useState(false);
 
   const userOptions = initialUserOptions;
 
@@ -88,6 +92,8 @@ export default function UserActivityContent({
         setRows(result.data);
         setTotalReturned(result.totalReturned);
         setHasMore(result.hasMore ?? false);
+        setGeneratedAt(new Date().toLocaleString());
+        setHasSearched(true);
       } else {
         toast({
           variant: 'destructive',
@@ -162,9 +168,26 @@ export default function UserActivityContent({
     'importance',
   ];
 
+  const userLabel =
+    userId === '__all__'
+      ? 'All Users'
+      : userOptions.find((u) => u.id === userId)?.name ?? userId;
+
+  const printSummaryItems: ReportPrintSummaryItem[] = [
+    {
+      label: 'Period',
+      value: `${fromDate ?? '—'} to ${toDate ?? '—'}`,
+      fullWidth: true,
+    },
+    { label: 'User', value: userLabel },
+    { label: 'Action', value: action.trim() || 'All' },
+    { label: 'Generated At', value: generatedAt },
+    { label: 'Total Records', value: String(totalReturned) },
+  ];
+
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <Card>
+      <Card className="print:hidden">
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -180,11 +203,11 @@ export default function UserActivityContent({
                 keys={exportKeys}
                 title="User Activity Report"
                 fileName={`user-activity-${fromDate ?? ''}-to-${toDate ?? ''}`.replace(/^-to-|-to$/g, '') || 'user-activity-report'}
+                onBrowserPrint={handlePrint}
+                showPrintButton
+                pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
+                pdfGeneratedAt={generatedAt}
               />
-              <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
-                <Printer />
-                Print
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -255,8 +278,8 @@ export default function UserActivityContent({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card className="print:shadow-none print:border-0 print:bg-white">
+        <CardHeader className="print:hidden">
           <div>
             <CardTitle>Activity</CardTitle>
             <CardDescription>
@@ -269,13 +292,25 @@ export default function UserActivityContent({
           </div>
         </CardHeader>
         <CardContent>
+          <ReportPrintLayout
+            reportName="User Activity Report"
+            pageSize="A4 landscape"
+            generatedAt={generatedAt}
+            summaryItems={
+              hasSearched
+                ? printSummaryItems
+                : [{ label: 'Generated At', value: generatedAt }]
+            }
+          >
           {loading ? (
             <div className="text-center py-8">Loading...</div>
           ) : rows.length === 0 ? (
-            <ReportEmptyStateCard
-              title="No results"
-              description="No data available. Please select date range and click Search."
-            />
+            <div className="print:hidden">
+              <ReportEmptyStateCard
+                title="No results"
+                description="No data available. Please select date range and click Search."
+              />
+            </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <Table>
@@ -337,6 +372,7 @@ export default function UserActivityContent({
               </Table>
             </div>
           )}
+          </ReportPrintLayout>
         </CardContent>
       </Card>
     </div>

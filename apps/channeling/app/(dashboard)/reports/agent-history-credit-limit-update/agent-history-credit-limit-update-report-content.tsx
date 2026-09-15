@@ -70,6 +70,31 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const agencyId = values.agencyId ?? '__all__';
+          const limitType = values.limitType ?? '__all__';
+          const changedByUserId = values.changedByUserId ?? '__all__';
+          return [
+            {
+              label: 'Agent',
+              value:
+                agencyId === '__all__'
+                  ? 'All Agents'
+                  : agentOptions.find((a) => a.id === agencyId)?.name ?? agencyId,
+            },
+            {
+              label: 'Limit Type',
+              value: limitType === 'soft' ? 'Soft' : limitType === 'hard' ? 'Hard' : 'All',
+            },
+            {
+              label: 'Changed By',
+              value:
+                changedByUserId === '__all__'
+                  ? 'All Users'
+                  : userOptions.find((u) => u.id === changedByUserId)?.name ?? changedByUserId,
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">

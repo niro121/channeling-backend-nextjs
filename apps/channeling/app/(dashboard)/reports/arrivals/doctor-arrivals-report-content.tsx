@@ -92,7 +92,37 @@ function DoctorArrivalsReportContentInner({
               </div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const branchOpts = withAllBranchesOptions(locationOptions);
+          return [
+            {
+              label: 'Period',
+              value: `${values.fromDateTime || '—'} to ${values.toDateTime || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(values.specialityId, 'All Specialities', specialityOptions),
+            },
+            {
+              label: 'Institution',
+              value: filterOptionLabel(values.institutionId, 'All Institutions', institutionOptions),
+            },
+            {
+              label: 'Branch',
+              value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
+            },
+            {
+              label: 'Department',
+              value: filterOptionLabel(values.departmentId, 'All Departments', departmentOptions),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <>

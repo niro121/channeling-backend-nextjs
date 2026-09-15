@@ -85,6 +85,26 @@ function DoctorBalanceReportContentInner({
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const statusLabel =
+            values.status === '1' ? 'Active' : values.status === '0' ? 'Inactive' : 'All Status';
+          return [
+            { label: 'As of', value: values.asOfDate ?? defaultAsOfDate },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                specialityOptions
+              ),
+            },
+            { label: 'Status', value: statusLabel },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <>

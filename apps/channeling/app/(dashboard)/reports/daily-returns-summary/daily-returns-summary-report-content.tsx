@@ -65,6 +65,19 @@ export default function DailyReturnsSummaryReportContent({ currentUserName, loca
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const locId = values.locationId ?? '__all__';
+          return [
+            { label: 'Date', value: values.reportDate ?? '—' },
+            {
+              label: 'Branch',
+              value:
+                locId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">

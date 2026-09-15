@@ -116,6 +116,72 @@ function ConsultantPaymentsReportContentInner({
             </>
           );
         },
+        formatPrintSummaryItems: (values) => {
+          const fromDateTime = values.fromDateTime ?? '';
+          const toDateTime = values.toDateTime ?? '';
+          const institutionId = values.institutionId ?? '__all__';
+          const locationId = values.locationId ?? '__all__';
+          const departmentId = values.departmentId ?? '__all__';
+          const specialityId = values.specialityId ?? '__all__';
+          const doctorId = values.doctorId ?? '__all__';
+          const status = values.status ?? '__all__';
+          const sessionType = values.sessionType ?? '__all__';
+          return [
+            {
+              label: 'Period',
+              value: formatReportRangeLabel(fromDateTime, toDateTime),
+              fullWidth: true,
+            },
+            {
+              label: 'Institution',
+              value:
+                institutionId === '__all__'
+                  ? 'All Institutions'
+                  : (institutionOptions.find((i) => i.id === institutionId)?.name ?? institutionId),
+            },
+            {
+              label: 'Branch',
+              value:
+                locationId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId),
+            },
+            {
+              label: 'Department',
+              value:
+                departmentId === '__all__'
+                  ? 'All Departments'
+                  : (departmentOptions.find((d) => d.id === departmentId)?.name ?? departmentId),
+            },
+            {
+              label: 'Speciality',
+              value:
+                specialityId === '__all__'
+                  ? 'All Specialities'
+                  : (specialityOptions.find((s) => s.id === specialityId)?.name ?? specialityId),
+            },
+            {
+              label: 'Doctor',
+              value:
+                doctorId === '__all__'
+                  ? 'All Doctors'
+                  : (doctorOptions.find((d) => d.id === doctorId)?.name ?? doctorId),
+            },
+            {
+              label: 'Status',
+              value: status === '__all__' ? 'All Status' : status === '1' ? 'Paid' : 'Due Pay',
+            },
+            {
+              label: 'Session',
+              value:
+                sessionType === '__all__'
+                  ? 'All Session'
+                  : sessionType === 'morning'
+                    ? 'Morning'
+                    : 'Evening',
+            },
+          ];
+        },
       }}
       initialFilterValues={{
         fromDateTime: getTodayDateTimeRange().from,
