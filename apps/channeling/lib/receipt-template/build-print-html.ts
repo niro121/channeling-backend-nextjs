@@ -154,67 +154,109 @@ ${bodyContent}
 }
 
 const BOOKING_RECEIPT_PAGE_STYLES = `
-  /* Dot matrix / tractor-feed: use the printer's paper, do not shrink to A5. */
-  @page { margin: 8mm 10mm; }
-  html, body { margin: 0; padding: 0; width: 100%; background: #fff; }
-  * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
-  body {
-    font-family: Verdana, Geneva, sans-serif;
-    font-size: 33px;
-    line-height: 1.25;
-    color: #000;
-    padding: 2mm 4mm;
+  /* A5 portrait — Hospital Bill (top) + Professional Bill (bottom), same field layout as legacy receipt. */
+  @page {
+    size: A5 portrait;
+    margin: 8mm 10mm;
   }
-  .invoice-wrap { text-align: center; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    background: #fff;
+  }
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  body {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 11pt;
+    line-height: 1.35;
+    color: #000;
+    padding: 0;
+  }
+  .invoice-wrap {
+    width: 100%;
+    max-width: 128mm;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hospital-half {
+    padding-bottom: 4mm;
+  }
   .hospital-name {
-    font-size: 40px;
+    font-size: 14pt;
     font-weight: 700;
     margin: 0;
-    line-height: 1.2;
+    line-height: 1.25;
   }
   .contact {
-    font-size: 26px;
-    font-weight: 700;
-    margin: 2px 0 0;
-    line-height: 1.3;
+    font-size: 8.5pt;
+    font-weight: 600;
+    margin: 1px 0 0;
+    line-height: 1.35;
   }
   .bill-title {
-    font-size: 40px;
+    font-size: 13pt;
     font-weight: 700;
-    margin: 10px 0 4px;
+    margin: 8px 0 4px;
   }
   .status-banner {
-    font-size: 34px;
+    font-size: 11pt;
     font-weight: 700;
-    margin: 4px 0 8px;
+    margin: 2px 0 6px;
   }
   .invoice-fields {
     margin: 0 auto;
     border-collapse: collapse;
     text-align: left;
+    width: auto;
+    max-width: 100%;
   }
   .invoice-fields td {
     border: none;
-    padding: 4px 0;
-    font-size: 33px;
+    padding: 1.5px 0;
+    font-size: 10.5pt;
     vertical-align: top;
+    line-height: 1.35;
   }
-  .invoice-fields .label { min-width: 390px; padding-right: 8px; }
-  .invoice-fields .colon { padding-right: 8px; }
-  .invoice-fields .value { font-weight: 400; }
-  .invoice-fields .strong { font-weight: 700; }
-  .appt-no {
-    font-size: 70px;
+  .invoice-fields .label {
+    width: 42mm;
+    min-width: 38mm;
+    padding-right: 4px;
+    white-space: nowrap;
+  }
+  .invoice-fields .colon {
+    width: 4mm;
+    padding-right: 6px;
+    text-align: center;
+  }
+  .invoice-fields .value {
+    font-weight: 400;
+  }
+  .invoice-fields .strong {
     font-weight: 700;
-    padding-left: 15px;
-    line-height: 1;
   }
-  .professional-bill { margin-top: 36px; padding-top: 12px; }
+  .appt-no {
+    font-size: 22pt;
+    font-weight: 700;
+    line-height: 1.1;
+    display: inline-block;
+    padding-left: 2px;
+  }
+  .professional-bill {
+    margin-top: 6mm;
+    padding-top: 6mm;
+    border-top: 1px dashed #000;
+    text-align: center;
+  }
   .doctor-note {
-    font-size: 31px;
+    font-size: 10pt;
     font-weight: 700;
     text-align: center;
-    margin: 36px 0 0;
+    margin: 10px 0 0;
   }
 `
 
@@ -288,20 +330,22 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
 
   return `
   <div class="invoice-wrap">
-    <div class="hospital-name">${escapeHtml(companyName)}</div>
-    <div class="hospital-name">${escapeHtml(locationAddress)}</div>
-    <p class="contact">${escapeHtml(ruhunuPhoneFaxLine())}</p>
-    <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
-    <div class="bill-title">Invoice - Hospital Bill</div>
-    ${statusHtml}
-    <table class="invoice-fields"><tbody>${hospitalRows}</tbody></table>
+    <div class="hospital-half">
+      <div class="hospital-name">${escapeHtml(companyName)}</div>
+      <div class="hospital-name">${escapeHtml(locationAddress)}</div>
+      <p class="contact">${escapeHtml(ruhunuPhoneFaxLine())}</p>
+      <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
+      <div class="bill-title">Invoice - Hospital Bill</div>
+      ${statusHtml}
+      <table class="invoice-fields"><tbody>${hospitalRows}</tbody></table>
+    </div>
     ${
       showProfessional
         ? `<div class="professional-bill">
       <div class="bill-title">Professional Bill</div>
       ${statusHtml}
       <table class="invoice-fields"><tbody>${professionalRows}</tbody></table>
-      <p class="doctor-note">Collected for and on behalf of the Doctor*</p>
+      <p class="doctor-note">Collected for and on behalf of the Doctor</p>
     </div>`
         : ""
     }
@@ -310,8 +354,8 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
 }
 
 /**
- * Build full HTML for booking receipt print.
- * Sized for a graphics-capable dot-matrix on tractor-feed paper (same look as Sails).
+ * Build full HTML for booking receipt print (A5 portrait).
+ * Top: Hospital Bill; bottom: Professional Bill (when applicable).
  */
 export function buildBookingReceiptPrintHtml(
   placeholders: ReceiptPlaceholderMap,
