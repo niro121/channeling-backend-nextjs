@@ -74,11 +74,49 @@ function ConsultantPaymentsReportContentInner({
   ];
 
   return (
-    <ReportTemplate<ConsultantPaymentsReportRow, ConsultantPaymentsReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .consultant-payments-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th,
+          .consultant-payments-report-root .rpt-print-root td {
+            font-size: 5.5pt !important;
+            padding: 0.5mm 0.35mm !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: hidden !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th *,
+          .consultant-payments-report-root .rpt-print-root td * {
+            font-size: inherit !important;
+            line-height: inherit !important;
+            color: #000 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root thead th {
+            font-size: 5pt !important;
+          }
+          .consultant-payments-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .consultant-payments-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<ConsultantPaymentsReportRow, ConsultantPaymentsReportExportRow>
       title="Consultant Payments Report"
       description="View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status"
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 consultant-payments-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -343,6 +381,7 @@ function ConsultantPaymentsReportContentInner({
       initialEmptyMessage="No consultant payments found. Select filters and click Search."
       emptyMessage="No consultant payments found for the selected filters."
     />
+    </>
   );
 }
 

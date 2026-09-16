@@ -14,7 +14,15 @@ import {
   getChannelBookingsReportData,
   exportChannelBookingsReportData
 } from '@/app/actions/reports/channel-bookings.report.action';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import { ChannelBookingsReportColumns } from './columns';
+import { ChannelBookingsPrintLayout } from './channel-bookings-print-layout';
+import { downloadChannelBookingsReportPdf } from './channel-bookings-pdf';
+import { downloadChannelBookingsReportExcel } from './channel-bookings-excel';
+import {
+  CHANNEL_BOOKINGS_EXPORT_COLUMNS,
+  CHANNEL_BOOKINGS_EXPORT_KEYS,
+} from './channel-bookings-export-config';
 import Loading from '@/app/(dashboard)/loading';
 import {
   ChannelBookingsReportExportRow,
@@ -29,6 +37,105 @@ function filterOptionLabel(
 ): string {
   if (id == null || id === '' || id === '__all__') return allLabel;
   return options.find((o) => o.id === id)?.name ?? id;
+}
+
+type FilterValueMap = Record<string, string | undefined>;
+
+function buildChannelBookingsPrintSummaryItems(
+  values: FilterValueMap,
+  props: ChannelBookingsReportContentProps
+) {
+  const from = values.fromDateTime ?? '';
+  const to = values.toDateTime ?? '';
+  const dateTypeId = values.dateType ?? 'session_date';
+  const dateTypeLabel =
+    props.dateTypeOptions.find((o) => o.id === dateTypeId)?.name ?? dateTypeId;
+  const phone = values.patientPhone?.trim();
+  return [
+    {
+      label: 'Period',
+      value: `${from || '—'} to ${to || '—'}`,
+      fullWidth: true as const,
+    },
+    { label: 'Date Type', value: dateTypeLabel },
+    {
+      label: 'Institution',
+      value: filterOptionLabel(
+        values.institutionId,
+        'All Institutions',
+        props.institutionOptions
+      ),
+    },
+    {
+      label: 'Branch Type',
+      value: filterOptionLabel(
+        values.branchTypeId,
+        'All Branch Types',
+        props.branchTypeOptions
+      ),
+    },
+    {
+      label: 'Branch',
+      value: filterOptionLabel(values.locationId, 'All Branches', props.locationOptions),
+    },
+    {
+      label: 'Department',
+      value: filterOptionLabel(
+        values.departmentId,
+        'All Departments',
+        props.departmentOptions
+      ),
+    },
+    {
+      label: 'Area',
+      value: filterOptionLabel(values.areaId, 'All Areas', props.areaOptions),
+    },
+    {
+      label: 'Agency',
+      value: filterOptionLabel(values.agencyId, 'All Agents', props.agencyOptions),
+    },
+    {
+      label: 'Doctor',
+      value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
+    },
+    {
+      label: 'Speciality',
+      value: filterOptionLabel(
+        values.specialityId,
+        'All Specialities',
+        props.specialityOptions
+      ),
+    },
+    { label: 'Patient Phone', value: phone || '—' },
+    {
+      label: 'Gender',
+      value: filterOptionLabel(values.gender, 'All', props.genderOptions),
+    },
+    {
+      label: 'Status',
+      value: filterOptionLabel(values.status, 'All Statuses', props.statusOptions),
+    },
+    {
+      label: 'Refund',
+      value: filterOptionLabel(
+        values.refundStatus,
+        'All Refund Statuses',
+        props.refundStatusOptions
+      ),
+    },
+    {
+      label: 'Payment',
+      value: filterOptionLabel(
+        values.paymentTypeId,
+        'All Payment Types',
+        props.paymentTypeOptions
+      ),
+    },
+    {
+      label: 'Method',
+      value: filterOptionLabel(values.methodId, 'All Methods', props.methodOptions),
+    },
+  ];
 }
 
 /** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm for datetime-local (same as doctor arrivals). */
@@ -53,25 +160,75 @@ function ChannelBookingsReportContentInner(
     return { fromDateTime: from, toDateTime: to };
   }, []);
 
-  const buildQuery = () => ({
-    fromDateTime: searchParams.get('fromDateTime') ?? undefined,
-    toDateTime: searchParams.get('toDateTime') ?? undefined,
-    dateType: searchParams.get('dateType') ?? undefined,
-    institutionId: searchParams.get('institutionId') ?? undefined,
-    locationId: searchParams.get('locationId') ?? undefined,
-    departmentId: searchParams.get('departmentId') ?? undefined,
-    branchTypeId: searchParams.get('branchTypeId') ?? undefined,
-    specialityId: searchParams.get('specialityId') ?? undefined,
-    doctorId: searchParams.get('doctorId') ?? undefined,
-    status: searchParams.get('status') ?? undefined,
-    refundStatus: searchParams.get('refundStatus') ?? undefined,
-    areaId: searchParams.get('areaId') ?? undefined,
-    agencyId: searchParams.get('agencyId') ?? undefined,
-    patientPhone: searchParams.get('patientPhone') ?? undefined,
-    gender: searchParams.get('gender') ?? undefined,
-    paymentTypeId: searchParams.get('paymentTypeId') ?? undefined,
-    methodId: searchParams.get('methodId') ?? undefined
-  });
+  const buildQuery = React.useCallback(
+    () => ({
+      fromDateTime: searchParams.get('fromDateTime') ?? undefined,
+      toDateTime: searchParams.get('toDateTime') ?? undefined,
+      dateType: searchParams.get('dateType') ?? undefined,
+      institutionId: searchParams.get('institutionId') ?? undefined,
+      locationId: searchParams.get('locationId') ?? undefined,
+      departmentId: searchParams.get('departmentId') ?? undefined,
+      branchTypeId: searchParams.get('branchTypeId') ?? undefined,
+      specialityId: searchParams.get('specialityId') ?? undefined,
+      doctorId: searchParams.get('doctorId') ?? undefined,
+      status: searchParams.get('status') ?? undefined,
+      refundStatus: searchParams.get('refundStatus') ?? undefined,
+      areaId: searchParams.get('areaId') ?? undefined,
+      agencyId: searchParams.get('agencyId') ?? undefined,
+      patientPhone: searchParams.get('patientPhone') ?? undefined,
+      gender: searchParams.get('gender') ?? undefined,
+      paymentTypeId: searchParams.get('paymentTypeId') ?? undefined,
+      methodId: searchParams.get('methodId') ?? undefined,
+    }),
+    [searchParams]
+  );
+
+  /** Channel Booking Details PDF only — A4 landscape (matches Print grouping). */
+  const handleChannelBookingsPdfDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelBookingsReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelBookingsReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const summaryItems = toBrandedPdfSummaryItems(
+        buildChannelBookingsPrintSummaryItems(buildQuery(), props)
+      );
+      await downloadChannelBookingsReportPdf({
+        reportName: 'Channel Booking Details Report',
+        summaryItems,
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildQuery, props]
+  );
+
+  /** Channel Booking Details Excel only — grouped columns matching Print. */
+  const handleChannelBookingsExcelDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelBookingsReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelBookingsReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const summaryItems = toBrandedPdfSummaryItems(
+        buildChannelBookingsPrintSummaryItems(buildQuery(), props)
+      );
+      await downloadChannelBookingsReportExcel({
+        reportName: 'Channel Booking Details Report',
+        summaryItems,
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: (args.title || 'Channel Bookings').slice(0, 31),
+      });
+    },
+    [buildQuery, props]
+  );
 
   return (
     <ReportTemplate<ChannelBookingsReportRow, ChannelBookingsReportExportRow>
@@ -79,6 +236,11 @@ function ChannelBookingsReportContentInner(
       description="View channel booking records with filters for date range, data type, institution, branch, department, speciality, doctor, status, refund status, area, agency, patient phone, gender, payment type, and method"
       filterButtonLabel="Search"
       initialEmptyMessage="No bookings found. Select filters and click Search."
+      printPageSize="A4 landscape"
+      containerClassName="container mx-auto py-3 space-y-4 channel-bookings-report-root"
+      renderPrintContent={(rows) => <ChannelBookingsPrintLayout rows={rows} />}
+      customDownloadPdf={handleChannelBookingsPdfDownload}
+      customDownloadExcel={handleChannelBookingsExcelDownload}
       generationDetails={{
         generatedBy: props.currentUserName,
         formatFilters: (values) => {
@@ -174,99 +336,8 @@ function ChannelBookingsReportContentInner(
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const from = values.fromDateTime ?? '';
-          const to = values.toDateTime ?? '';
-          const dateTypeId = values.dateType ?? 'session_date';
-          const dateTypeLabel =
-            props.dateTypeOptions.find((o) => o.id === dateTypeId)?.name ?? dateTypeId;
-          const phone = values.patientPhone?.trim();
-          return [
-            {
-              label: 'Period',
-              value: `${from || '—'} to ${to || '—'}`,
-              fullWidth: true,
-            },
-            { label: 'Date Type', value: dateTypeLabel },
-            {
-              label: 'Institution',
-              value: filterOptionLabel(
-                values.institutionId,
-                'All Institutions',
-                props.institutionOptions
-              ),
-            },
-            {
-              label: 'Branch Type',
-              value: filterOptionLabel(
-                values.branchTypeId,
-                'All Branch Types',
-                props.branchTypeOptions
-              ),
-            },
-            {
-              label: 'Branch',
-              value: filterOptionLabel(values.locationId, 'All Branches', props.locationOptions),
-            },
-            {
-              label: 'Department',
-              value: filterOptionLabel(
-                values.departmentId,
-                'All Departments',
-                props.departmentOptions
-              ),
-            },
-            {
-              label: 'Area',
-              value: filterOptionLabel(values.areaId, 'All Areas', props.areaOptions),
-            },
-            {
-              label: 'Agency',
-              value: filterOptionLabel(values.agencyId, 'All Agents', props.agencyOptions),
-            },
-            {
-              label: 'Doctor',
-              value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
-            },
-            {
-              label: 'Speciality',
-              value: filterOptionLabel(
-                values.specialityId,
-                'All Specialities',
-                props.specialityOptions
-              ),
-            },
-            { label: 'Patient Phone', value: phone || '—' },
-            {
-              label: 'Gender',
-              value: filterOptionLabel(values.gender, 'All', props.genderOptions),
-            },
-            {
-              label: 'Status',
-              value: filterOptionLabel(values.status, 'All Statuses', props.statusOptions),
-            },
-            {
-              label: 'Refund',
-              value: filterOptionLabel(
-                values.refundStatus,
-                'All Refund Statuses',
-                props.refundStatusOptions
-              ),
-            },
-            {
-              label: 'Payment',
-              value: filterOptionLabel(
-                values.paymentTypeId,
-                'All Payment Types',
-                props.paymentTypeOptions
-              ),
-            },
-            {
-              label: 'Method',
-              value: filterOptionLabel(values.methodId, 'All Methods', props.methodOptions),
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) =>
+          buildChannelBookingsPrintSummaryItems(values, props),
       }}
       filterContent={({ values, setValue }) => {
         const hasDateRange = Boolean(
@@ -483,56 +554,8 @@ function ChannelBookingsReportContentInner(
       }}
       exportData={async () => exportChannelBookingsReportData(buildQuery())}
       columns={ChannelBookingsReportColumns}
-      exportColumns={[
-        'Consultant Code-Name',
-        'Speciality',
-        'Apply Date',
-        'Apply Time',
-        'Apply Number',
-        'Bill Number',
-        'Method',
-        'Status',
-        'Refund Status',
-        'Refunded At',
-        'Refunded By',
-        'Patient Name',
-        'Patient Number',
-        'Area',
-        'Updater',
-        'Creator',
-        'Hospital Fee',
-        'Doctor Fee',
-        'Discount',
-        'Total Fee',
-        'Payment Mode',
-        'Agent Name'
-      ]}
-      exportKeys={
-        [
-          'consultantCodeName',
-          'speciality',
-          'applyDate',
-          'applyTime',
-          'applyNumber',
-          'billNumber',
-          'method',
-          'status',
-          'refundStatus',
-          'refundedAt',
-          'refundedBy',
-          'patientName',
-          'patientNumber',
-          'area',
-          'updater',
-          'creator',
-          'hospitalFee',
-          'doctorFee',
-          'discount',
-          'totalFee',
-          'paymentMode',
-          'agentName'
-        ] as (keyof ChannelBookingsReportExportRow)[]
-      }
+      exportColumns={[...CHANNEL_BOOKINGS_EXPORT_COLUMNS]}
+      exportKeys={[...CHANNEL_BOOKINGS_EXPORT_KEYS]}
       exportTitle="Channel Bookings Report"
       exportFileName="channel-bookings-report"
       getRowId={(row) => row.id}

@@ -154,10 +154,10 @@ ${bodyContent}
 }
 
 const BOOKING_RECEIPT_PAGE_STYLES = `
-  /* A5 portrait — Hospital Bill (top) + Professional Bill (bottom), same field layout as legacy receipt. */
+  /* A5 portrait — Hospital Bill (page 1) + Professional Bill (page 2). */
   @page {
     size: A5 portrait;
-    margin: 8mm 10mm;
+    margin: 7mm 8mm;
   }
   html, body {
     margin: 0;
@@ -172,14 +172,14 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
   }
   body {
     font-family: Verdana, Geneva, Tahoma, sans-serif;
-    font-size: 11pt;
-    line-height: 1.35;
+    font-size: 13pt;
+    line-height: 1.4;
     color: #000;
     padding: 0;
   }
   .invoice-wrap {
     width: 100%;
-    max-width: 128mm;
+    max-width: 100%;
     margin: 0 auto;
     text-align: center;
   }
@@ -187,26 +187,26 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
     padding-bottom: 4mm;
   }
   .hospital-name {
-    font-size: 14pt;
+    font-size: 17pt;
     font-weight: 700;
     margin: 0;
     line-height: 1.25;
   }
   .contact {
-    font-size: 8.5pt;
+    font-size: 10.5pt;
     font-weight: 600;
-    margin: 1px 0 0;
-    line-height: 1.35;
+    margin: 2px 0 0;
+    line-height: 1.4;
   }
   .bill-title {
-    font-size: 13pt;
+    font-size: 15pt;
     font-weight: 700;
-    margin: 8px 0 4px;
+    margin: 10px 0 5px;
   }
   .status-banner {
-    font-size: 11pt;
+    font-size: 13pt;
     font-weight: 700;
-    margin: 2px 0 6px;
+    margin: 3px 0 8px;
   }
   .invoice-fields {
     margin: 0 auto;
@@ -217,20 +217,20 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
   }
   .invoice-fields td {
     border: none;
-    padding: 1.5px 0;
-    font-size: 10.5pt;
+    padding: 2.5px 0;
+    font-size: 12.5pt;
     vertical-align: top;
-    line-height: 1.35;
+    line-height: 1.4;
   }
   .invoice-fields .label {
-    width: 42mm;
-    min-width: 38mm;
-    padding-right: 4px;
+    width: 48mm;
+    min-width: 44mm;
+    padding-right: 6px;
     white-space: nowrap;
   }
   .invoice-fields .colon {
-    width: 4mm;
-    padding-right: 6px;
+    width: 5mm;
+    padding-right: 8px;
     text-align: center;
   }
   .invoice-fields .value {
@@ -240,7 +240,7 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
     font-weight: 700;
   }
   .appt-no {
-    font-size: 22pt;
+    font-size: 28pt;
     font-weight: 700;
     line-height: 1.1;
     display: inline-block;
@@ -255,10 +255,10 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
     break-before: page;
   }
   .doctor-note {
-    font-size: 10pt;
+    font-size: 12pt;
     font-weight: 700;
     text-align: center;
-    margin: 10px 0 0;
+    margin: 14px 0 0;
   }
 `
 

@@ -175,6 +175,16 @@ export interface ReportTemplateProps<T, E = T> {
   };
   /** `@page` size for branded browser print (default: A4 landscape). */
   printPageSize?: string;
+  /**
+   * PDF/Excel page orientation. When omitted, follows `printPageSize`
+   * (portrait if that string includes "portrait", otherwise landscape).
+   */
+  exportOrientation?: 'portrait' | 'landscape';
+  /**
+   * Optional print-only body. When set, the on-screen table is hidden during
+   * print and this content is shown instead (other reports stay unchanged).
+   */
+  renderPrintContent?: (rows: T[]) => React.ReactNode;
 };
 
 function ReportTemplateContent<T, E = T>({
@@ -212,6 +222,8 @@ function ReportTemplateContent<T, E = T>({
   tableClassName,
   generationDetails,
   printPageSize = 'A4 landscape',
+  exportOrientation,
+  renderPrintContent,
 }: ReportTemplateProps<T, E>) {
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -419,7 +431,10 @@ function ReportTemplateContent<T, E = T>({
       keys: (keyof E)[];
       fileName?: string;
     }) => {
-      const isPortrait = printPageSize.toLowerCase().includes('portrait');
+      const isPortrait =
+        exportOrientation != null
+          ? exportOrientation === 'portrait'
+          : printPageSize.toLowerCase().includes('portrait');
       await downloadBrandedReportPdf({
         reportName: args.title,
         summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
@@ -432,7 +447,7 @@ function ReportTemplateContent<T, E = T>({
         compactTable: isPortrait,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt, printPageSize]
+    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation]
   );
 
   const handleBrandedExcelDownload = React.useCallback(
@@ -443,7 +458,10 @@ function ReportTemplateContent<T, E = T>({
       keys: (keyof E)[];
       fileName?: string;
     }) => {
-      const isPortrait = printPageSize.toLowerCase().includes('portrait');
+      const isPortrait =
+        exportOrientation != null
+          ? exportOrientation === 'portrait'
+          : printPageSize.toLowerCase().includes('portrait');
       await downloadBrandedReportExcel({
         reportName: args.title,
         summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
@@ -457,7 +475,7 @@ function ReportTemplateContent<T, E = T>({
         compactTable: isPortrait,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt, printPageSize]
+    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation]
   );
 
   return (
@@ -580,7 +598,16 @@ function ReportTemplateContent<T, E = T>({
                 description={effectiveEmptyMessage}
               />
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <>
+              {renderPrintContent ? (
+                <div className="hidden print:block">{renderPrintContent(data)}</div>
+              ) : null}
+              <div
+                className={cn(
+                  'border rounded-lg overflow-hidden',
+                  renderPrintContent && 'print:hidden'
+                )}
+              >
                 <Table className={tableClassName}>
                   <TableHeader>
                     <TableRow>
@@ -761,6 +788,7 @@ function ReportTemplateContent<T, E = T>({
                   )}
                 </Table>
               </div>
+              </>
             )}
             </ReportPrintLayout>
           </div>
