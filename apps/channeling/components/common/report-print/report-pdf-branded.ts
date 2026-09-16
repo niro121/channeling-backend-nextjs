@@ -13,13 +13,26 @@ export type BrandedPdfSummaryItem = {
   fullWidth?: boolean
 }
 
+export type BrandedPdfTableSection = {
+  /** Optional section heading above the table (e.g. "Revenue Breakdown"). */
+  title?: string
+  columns: string[]
+  body: (string | number)[][]
+}
+
 export type DownloadBrandedReportPdfOptions<T> = {
   reportName: string
   summaryItems: BrandedPdfSummaryItem[]
   generatedAt: string
-  data: T[]
-  columns: string[]
-  keys: (keyof T)[]
+  /** Single-table mode (ignored when `sections` is provided). */
+  data?: T[]
+  columns?: string[]
+  keys?: (keyof T)[]
+  /**
+   * Multi-table mode — each section is rendered after the branded header.
+   * Use this when a report has more than one table (e.g. counts + revenue).
+   */
+  sections?: BrandedPdfTableSection[]
   fileName?: string
   organizationName?: string
   logoSrc?: string | null
@@ -268,6 +281,7 @@ export async function downloadBrandedReportPdf<T>({
   data,
   columns,
   keys,
+  sections,
   fileName = "report.pdf",
   organizationName = RUHUNU_PRINT_BRAND_NAME,
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
@@ -285,7 +299,7 @@ export async function downloadBrandedReportPdf<T>({
   const headFontSize = compactTable ? 5 : 7.5
   const cellPadding = compactTable ? 0.7 : 1.6
 
-  const startY = await drawBrandedPdfHeader(doc, {
+  let startY = await drawBrandedPdfHeader(doc, {
     reportName,
     summaryItems,
     organizationName,
@@ -293,64 +307,97 @@ export async function downloadBrandedReportPdf<T>({
     margin,
   })
 
-  const rows = data.map((item) =>
-    keys.map((key) => {
-      const value = item[key]
-      return value !== undefined && value !== null ? String(value) : "-"
-    })
-  )
+  const tableSections: BrandedPdfTableSection[] =
+    sections && sections.length > 0
+      ? sections
+      : [
+          {
+            columns: columns ?? [],
+            body: (data ?? []).map((item) =>
+              (keys ?? []).map((key) => {
+                const value = item[key]
+                return value !== undefined && value !== null ? String(value) : "-"
+              })
+            ),
+          },
+        ]
 
-  autoTable(doc, {
-    head: [columns],
-    body: rows,
-    startY,
-    margin: { left: margin, right: margin, bottom: 12 },
-    tableWidth,
-    showHead: "everyPage",
-    styles: {
-      fontSize: bodyFontSize,
-      cellPadding,
-      minCellWidth: 0,
-      overflow: "linebreak",
-      textColor: [0, 0, 0],
-      lineColor: [0, 0, 0],
-      lineWidth: 0.2,
-      fontStyle: "normal",
-    },
-    headStyles: {
-      fillColor: [232, 232, 232],
-      textColor: [0, 0, 0],
-      fontStyle: "bold",
-      fontSize: headFontSize,
-      lineColor: [0, 0, 0],
-      lineWidth: 0.2,
-    },
-    bodyStyles: {
-      fontStyle: "normal",
-    },
-    didParseCell: (data) => {
-      if (data.section !== "body") return
-      const raw = data.row.raw
-      if (!Array.isArray(raw)) return
-      const isTotalLike = raw.some((cell) => {
-        const s = String(cell ?? "").trim().toLowerCase()
-        return (
-          s === "total" ||
-          s === "grand total" ||
-          s === "user total" ||
-          s === "credit summary" ||
-          s === "cash summary" ||
-          s.endsWith(" total") ||
-          s === "total (credit summary)" ||
-          s === "total (cash summary)" ||
-          s === "grand total (credit + cash)"
-        )
-      })
-      if (isTotalLike) {
-        data.cell.styles.fontStyle = "bold"
+  const markTotalRows = (hookData: {
+    section: string
+    row: { raw?: unknown }
+    cell: { styles: { fontStyle?: string } }
+  }) => {
+    if (hookData.section !== "body") return
+    const raw = hookData.row.raw
+    if (!Array.isArray(raw)) return
+    const isTotalLike = raw.some((cell) => {
+      const s = String(cell ?? "").trim().toLowerCase()
+      return (
+        s === "total" ||
+        s === "grand total" ||
+        s === "user total" ||
+        s === "credit summary" ||
+        s === "cash summary" ||
+        s.endsWith(" total") ||
+        s === "total (credit summary)" ||
+        s === "total (cash summary)" ||
+        s === "grand total (credit + cash)"
+      )
+    })
+    if (isTotalLike) {
+      hookData.cell.styles.fontStyle = "bold"
+    }
+  }
+
+  for (let i = 0; i < tableSections.length; i += 1) {
+    const section = tableSections[i]!
+    if (section.title) {
+      const pageH = pageSize(doc).height
+      if (startY > pageH - 40) {
+        doc.addPage()
+        startY = margin
       }
-    },
-  })
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(compactTable ? 8 : 10)
+      doc.setTextColor(0, 0, 0)
+      doc.text(section.title, margin, startY + 3)
+      startY += 7
+    }
+
+    autoTable(doc, {
+      head: [section.columns],
+      body: section.body.map((row) => row.map((cell) => String(cell))),
+      startY,
+      margin: { left: margin, right: margin, bottom: 12 },
+      tableWidth,
+      showHead: "everyPage",
+      styles: {
+        fontSize: bodyFontSize,
+        cellPadding,
+        minCellWidth: 0,
+        overflow: "linebreak",
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 0.2,
+        fontStyle: "normal",
+      },
+      headStyles: {
+        fillColor: [232, 232, 232],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        fontSize: headFontSize,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.2,
+      },
+      bodyStyles: {
+        fontStyle: "normal",
+      },
+      didParseCell: markTotalRows,
+    })
+
+    const last = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable
+    startY = (last?.finalY ?? startY) + (i < tableSections.length - 1 ? 10 : 0)
+  }
 
   drawBrandedPdfFooter(doc, generatedAt, margin)
   doc.save(fileName)

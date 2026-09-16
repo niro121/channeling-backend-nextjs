@@ -7,7 +7,8 @@ export {
 } from "./report-pdf-branded"
 export type {
   BrandedPdfSummaryItem,
+  BrandedPdfTableSection,
   DownloadBrandedReportPdfOptions,
 } from "./report-pdf-branded"
 export { downloadBrandedReportExcel } from "./report-excel-branded"
-export type { DownloadBrandedReportExcelOptions } from "./report-excel-branded"
+export type { DownloadBrandedReportExcelOptions, BrandedExcelTableSection } from "./report-excel-branded"
