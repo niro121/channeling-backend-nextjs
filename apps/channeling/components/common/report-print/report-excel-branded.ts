@@ -6,13 +6,26 @@ import {
 } from "./report-print-layout"
 import type { BrandedPdfSummaryItem } from "./report-pdf-branded"
 
+export type BrandedExcelTableSection = {
+  /** Optional section heading above the table (e.g. "Revenue Breakdown"). */
+  title?: string
+  columns: string[]
+  body: (string | number | boolean | null)[][]
+}
+
 export type DownloadBrandedReportExcelOptions<T> = {
   reportName: string
   summaryItems: BrandedPdfSummaryItem[]
   generatedAt: string
-  data: T[]
-  columns: string[]
-  keys: (keyof T)[]
+  /** Single-table mode (ignored when `sections` is provided). */
+  data?: T[]
+  columns?: string[]
+  keys?: (keyof T)[]
+  /**
+   * Multi-table mode — each section is rendered after the branded header.
+   * Use when a report has more than one table (e.g. counts + revenue).
+   */
+  sections?: BrandedExcelTableSection[]
   fileName?: string
   organizationName?: string
   logoSrc?: string | null
@@ -93,6 +106,7 @@ export async function downloadBrandedReportExcel<T>({
   data,
   columns,
   keys,
+  sections,
   fileName = "report.xlsx",
   organizationName = RUHUNU_PRINT_BRAND_NAME,
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
@@ -100,7 +114,26 @@ export async function downloadBrandedReportExcel<T>({
   orientation = "landscape",
   compactTable = false,
 }: DownloadBrandedReportExcelOptions<T>): Promise<void> {
-  const colCount = Math.max(columns.length, 3)
+  const tableSections: BrandedExcelTableSection[] =
+    sections && sections.length > 0
+      ? sections
+      : [
+          {
+            columns: columns ?? [],
+            body: (data ?? []).map((item) =>
+              (keys ?? []).map((key) => {
+                const value = item[key]
+                if (value === undefined || value === null || value === "") return null
+                if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                  return value
+                }
+                return String(value)
+              })
+            ),
+          },
+        ]
+
+  const colCount = Math.max(3, ...tableSections.map((s) => s.columns.length))
   const lastCol = colLetter(colCount)
   const isPortrait = orientation === "portrait"
   const useCompactTable = compactTable || (isPortrait && colCount >= 14)
@@ -253,7 +286,7 @@ export async function downloadBrandedReportExcel<T>({
     itemCol += span
   }
 
-  const summaryRowsUsed = Math.max(2, (itemRow + 2))
+  const summaryRowsUsed = Math.max(2, itemRow + 2)
   // Draw outer border around summary body
   const summaryEndRow = summaryStartRow + summaryRowsUsed - 1
   for (let r = summaryStartRow; r <= summaryEndRow; r++) {
@@ -269,54 +302,26 @@ export async function downloadBrandedReportExcel<T>({
   }
   row = summaryEndRow + 2
 
-  // Table header
-  const headerRow = sheet.getRow(row)
-  columns.forEach((col, i) => {
-    const cell = headerRow.getCell(i + 1)
-    cell.value = col
-    cell.font = { bold: true, size: tableFontSize, name: "Arial" }
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFE8E8E8" },
+  const writeTableSection = (section: BrandedExcelTableSection) => {
+    if (section.title) {
+      sheet.mergeCells(row, 1, row, colCount)
+      const titleCell = sheet.getCell(row, 1)
+      titleCell.value = section.title
+      titleCell.font = { bold: true, size: useCompactTable ? 9 : 10, name: "Arial" }
+      titleCell.alignment = { vertical: "middle", horizontal: "left" }
+      sheet.getRow(row).height = 18
+      row += 1
     }
-    cell.border = {
-      top: { style: "thin", color: { argb: "FF000000" } },
-      left: { style: "thin", color: { argb: "FF000000" } },
-      right: { style: "thin", color: { argb: "FF000000" } },
-      bottom: { style: "thin", color: { argb: "FF000000" } },
-    }
-    cell.alignment = {
-      vertical: "middle",
-      horizontal: i === 0 || i === 1 ? "left" : "right",
-      wrapText: true,
-    }
-  })
-  headerRow.height = useCompactTable ? 16 : 20
-  row += 1
 
-  // Data rows
-  for (const item of data) {
-    const values = keys.map((key) => {
-      const value = item[key]
-      return value !== undefined && value !== null ? value : null
-    })
-    const dataRow = sheet.getRow(row)
-    const totalLike = isTotalLikeRow(values.map((v) => (v == null ? "" : v)))
-    values.forEach((value, i) => {
-      const cell = dataRow.getCell(i + 1)
-      // Use null (omit value) for blanks — empty strings can show as garbage in some Excel clients.
-      if (value === null || value === "") {
-        cell.value = null
-      } else if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
-        cell.value = value
-      } else {
-        cell.value = String(value)
-      }
-      cell.font = {
-        bold: totalLike,
-        size: tableFontSize,
-        name: "Arial",
+    const headerRow = sheet.getRow(row)
+    section.columns.forEach((col, i) => {
+      const cell = headerRow.getCell(i + 1)
+      cell.value = col
+      cell.font = { bold: true, size: tableFontSize, name: "Arial" }
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE8E8E8" },
       }
       cell.border = {
         top: { style: "thin", color: { argb: "FF000000" } },
@@ -329,15 +334,55 @@ export async function downloadBrandedReportExcel<T>({
         horizontal: i === 0 || i === 1 ? "left" : "right",
         wrapText: true,
       }
-      if (totalLike) {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFF5F5F5" },
-        }
-      }
     })
+    headerRow.height = useCompactTable ? 16 : 20
     row += 1
+
+    for (const values of section.body) {
+      const dataRow = sheet.getRow(row)
+      const totalLike = isTotalLikeRow(values.map((v) => (v == null ? "" : v)))
+      values.forEach((value, i) => {
+        const cell = dataRow.getCell(i + 1)
+        if (value === null || value === "") {
+          cell.value = null
+        } else if (typeof value === "number" || typeof value === "string" || typeof value === "boolean") {
+          cell.value = value
+        } else {
+          cell.value = String(value)
+        }
+        cell.font = {
+          bold: totalLike,
+          size: tableFontSize,
+          name: "Arial",
+        }
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF000000" } },
+          left: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF000000" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+        }
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: i === 0 || i === 1 ? "left" : "right",
+          wrapText: true,
+        }
+        if (totalLike) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF5F5F5" },
+          }
+        }
+      })
+      row += 1
+    }
+  }
+
+  for (let i = 0; i < tableSections.length; i += 1) {
+    writeTableSection(tableSections[i]!)
+    if (i < tableSections.length - 1) {
+      row += 1
+    }
   }
 
   // Footer

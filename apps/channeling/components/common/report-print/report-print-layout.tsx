@@ -260,6 +260,13 @@ export function ReportPrintLayout({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+          /* Nested Tailwind size utilities (e.g. text-xs) use rem and can print larger than the cell. */
+          .rpt-print-root th *,
+          .rpt-print-root td * {
+            font-size: inherit !important;
+            line-height: inherit !important;
+            color: #000 !important;
+          }
           .rpt-print-root thead th,
           .rpt-print-root th {
             font-weight: 700 !important;
