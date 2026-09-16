@@ -54,11 +54,43 @@ function ContentInner({
   });
 
   return (
-    <ReportTemplate<ChannelDiscountReportRow, ChannelDiscountReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .channel-discount-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .channel-discount-report-root .rpt-print-root th,
+          .channel-discount-report-root .rpt-print-root td {
+            font-size: 6pt !important;
+            padding: 0.6mm 0.4mm !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: hidden !important;
+          }
+          .channel-discount-report-root .rpt-print-root thead th {
+            font-size: 5.5pt !important;
+          }
+          .channel-discount-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .channel-discount-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<ChannelDiscountReportRow, ChannelDiscountReportExportRow>
       title="Channel Discount Report"
       description="Shows channel bookings with fee discounts, grouped as billed discount transactions."
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 channel-discount-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -245,6 +277,7 @@ function ContentInner({
       initialEmptyMessage="No channel discount records found. Select filters and click Search."
       emptyMessage="No channel discount records found for the selected filters."
     />
+    </>
   );
 }
 

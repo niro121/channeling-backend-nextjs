@@ -298,129 +298,102 @@ export default function ChannelPatientCountAccountingWiseReportContent({
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadPdf = async () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
-      return;
-    }
-    if (!reportMeta) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
-      return;
-    }
-    type PdfRow = {
-      bookingType: string;
-      paidBillPaid: string;
-      paidBillPending: string;
-      paidBillNet: string;
-      cancelBillPaid: string;
-      cancelBillPending: string;
-      cancelBillNet: string;
-      refundBillHos: string;
-      refundBillPro: string;
-      totalCountPaid: string;
-      totalCountPending: string;
-      totalCountNet: string;
-      nettRevenueTotal: string;
-    };
-    const toRow = (r: ChannelPatientCountAccountingWiseRow): PdfRow => ({
-      bookingType: r.bookingType,
-      paidBillPaid: String(r.paidBillPaid),
-      paidBillPending: String(r.paidBillPending),
-      paidBillNet: String(r.paidBillNet),
-      cancelBillPaid: String(r.cancelBillPaid),
-      cancelBillPending: String(r.cancelBillPending),
-      cancelBillNet: String(r.cancelBillNet),
-      refundBillHos: String(r.refundBillHos),
-      refundBillPro: String(r.refundBillPro),
-      totalCountPaid: String(r.totalCountPaid),
-      totalCountPending: String(r.totalCountPending),
-      totalCountNet: String(r.totalCountNet),
-      nettRevenueTotal: money(r.nettRevenueTotal),
-    });
-    const data = [...rows.map(toRow), ...(totals ? [toRow(totals)] : [])];
-    await downloadBrandedReportPdf({
-      reportName: 'Channel Patient Count (Accounting Wise)',
-      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
-      generatedAt: reportMeta.generatedAt,
-      data,
-      columns: [
-        'Booking Type',
-        'Paid-Paid',
-        'Paid-Pending',
-        'Paid-Net',
-        'Cancel-Paid',
-        'Cancel-Pending',
-        'Cancel-Net',
-        'Refund-Hos',
-        'Refund-Pro',
-        'Total-Paid',
-        'Total-Pending',
-        'Total-Net',
-        'Nett Revenue',
-      ],
-      keys: [
-        'bookingType',
-        'paidBillPaid',
-        'paidBillPending',
-        'paidBillNet',
-        'cancelBillPaid',
-        'cancelBillPending',
-        'cancelBillNet',
-        'refundBillHos',
-        'refundBillPro',
-        'totalCountPaid',
-        'totalCountPending',
-        'totalCountNet',
-        'nettRevenueTotal',
-      ],
-      fileName: `${formatExportFileName('channel-patient-count-accounting-wise')}.pdf`,
-    });
-  };
+  const buildBrandedExportSections = () => {
+    const countRows = [
+      ...rows.map((r, idx) => [
+        String(idx + 1),
+        r.bookingType,
+        String(r.paidBillPaid),
+        String(r.paidBillPending),
+        String(r.paidBillNet),
+        String(r.cancelBillPaid),
+        String(r.cancelBillPending),
+        String(r.cancelBillNet),
+        String(r.refundBillHos),
+        String(r.refundBillPro),
+        String(r.totalCountPaid),
+        String(r.totalCountPending),
+        String(r.totalCountNet),
+      ]),
+      ...(totals
+        ? [
+            [
+              '',
+              totals.bookingType,
+              String(totals.paidBillPaid),
+              String(totals.paidBillPending),
+              String(totals.paidBillNet),
+              String(totals.cancelBillPaid),
+              String(totals.cancelBillPending),
+              String(totals.cancelBillNet),
+              String(totals.refundBillHos),
+              String(totals.refundBillPro),
+              String(totals.totalCountPaid),
+              String(totals.totalCountPending),
+              String(totals.totalCountNet),
+            ],
+          ]
+        : []),
+    ];
 
-  const handleDownloadExcel = async () => {
-    if (rows.length === 0 || !reportMeta) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
-      return;
-    }
-    setLoadingExcel(true);
-    try {
-      type ExcelRow = {
-        bookingType: string;
-        paidBillPaid: string;
-        paidBillPending: string;
-        paidBillNet: string;
-        cancelBillPaid: string;
-        cancelBillPending: string;
-        cancelBillNet: string;
-        refundBillHos: string;
-        refundBillPro: string;
-        totalCountPaid: string;
-        totalCountPending: string;
-        totalCountNet: string;
-        nettRevenueTotal: string;
-      };
-      const toRow = (r: ChannelPatientCountAccountingWiseRow): ExcelRow => ({
-        bookingType: r.bookingType,
-        paidBillPaid: String(r.paidBillPaid),
-        paidBillPending: String(r.paidBillPending),
-        paidBillNet: String(r.paidBillNet),
-        cancelBillPaid: String(r.cancelBillPaid),
-        cancelBillPending: String(r.cancelBillPending),
-        cancelBillNet: String(r.cancelBillNet),
-        refundBillHos: String(r.refundBillHos),
-        refundBillPro: String(r.refundBillPro),
-        totalCountPaid: String(r.totalCountPaid),
-        totalCountPending: String(r.totalCountPending),
-        totalCountNet: String(r.totalCountNet),
-        nettRevenueTotal: money(r.nettRevenueTotal),
-      });
-      const data = [...rows.map(toRow), ...(totals ? [toRow(totals)] : [])];
-      await downloadBrandedReportExcel({
-        reportName: 'Channel Patient Count (Accounting Wise)',
-        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
-        generatedAt: reportMeta.generatedAt,
-        data,
+    const revenueRows = [
+      ...rows.map((r, idx) => [
+        String(idx + 1),
+        r.bookingType,
+        money(r.paidRevenueHosFee),
+        money(r.paidRevenueHosDis),
+        money(r.paidRevenueProFee),
+        money(r.paidRevenueProDis),
+        money(r.paidRevenueTotal),
+        money(r.cancelRevenueHosFee),
+        money(r.cancelRevenueHosDis),
+        money(r.cancelRevenueProFee),
+        money(r.cancelRevenueProDis),
+        money(r.cancelRevenueTotal),
+        money(r.refundRevenueHosRefund),
+        money(r.refundRevenueProRefund),
+        money(r.nettRevenueHosFee),
+        money(r.nettRevenueHosDis),
+        money(r.nettRevenueProFee),
+        money(r.nettRevenueProDis),
+        money(r.nettRevenueTotal),
+        money(r.pendingRevenueHosFee),
+        money(r.pendingRevenueProFee),
+      ]),
+      ...(totals
+        ? [
+            [
+              '',
+              totals.bookingType,
+              money(totals.paidRevenueHosFee),
+              money(totals.paidRevenueHosDis),
+              money(totals.paidRevenueProFee),
+              money(totals.paidRevenueProDis),
+              money(totals.paidRevenueTotal),
+              money(totals.cancelRevenueHosFee),
+              money(totals.cancelRevenueHosDis),
+              money(totals.cancelRevenueProFee),
+              money(totals.cancelRevenueProDis),
+              money(totals.cancelRevenueTotal),
+              money(totals.refundRevenueHosRefund),
+              money(totals.refundRevenueProRefund),
+              money(totals.nettRevenueHosFee),
+              money(totals.nettRevenueHosDis),
+              money(totals.nettRevenueProFee),
+              money(totals.nettRevenueProDis),
+              money(totals.nettRevenueTotal),
+              money(totals.pendingRevenueHosFee),
+              money(totals.pendingRevenueProFee),
+            ],
+          ]
+        : []),
+    ];
+
+    return [
+      {
+        title: 'Bill Counts',
         columns: [
+          '#',
           'Booking Type',
           'Paid-Paid',
           'Paid-Pending',
@@ -433,25 +406,76 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           'Total-Paid',
           'Total-Pending',
           'Total-Net',
-          'Nett Revenue',
         ],
-        keys: [
-          'bookingType',
-          'paidBillPaid',
-          'paidBillPending',
-          'paidBillNet',
-          'cancelBillPaid',
-          'cancelBillPending',
-          'cancelBillNet',
-          'refundBillHos',
-          'refundBillPro',
-          'totalCountPaid',
-          'totalCountPending',
-          'totalCountNet',
-          'nettRevenueTotal',
+        body: countRows,
+      },
+      {
+        title: 'Revenue Breakdown',
+        columns: [
+          '#',
+          'Booking Type',
+          'Paid Hos Fee',
+          'Paid Hos Dis',
+          'Paid Pro Fee',
+          'Paid Pro Dis',
+          'Paid Hos Total',
+          'Cancel Hos Fee',
+          'Cancel Hos Dis',
+          'Cancel Pro Fee',
+          'Cancel Pro Dis',
+          'Cancel Hos Total',
+          'Refund Hos',
+          'Refund Pro',
+          'Nett Hos Fee',
+          'Nett Hos Dis',
+          'Nett Pro Fee',
+          'Nett Pro Dis',
+          'Nett Hos Total',
+          'Pending Hos',
+          'Pending Pro',
         ],
+        body: revenueRows,
+      },
+    ];
+  };
+
+  const handleDownloadPdf = async () => {
+    if (rows.length === 0) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+    if (!reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+
+    await downloadBrandedReportPdf({
+      reportName: 'Channel Patient Count (Accounting Wise)',
+      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
+      generatedAt: reportMeta.generatedAt,
+      fileName: `${formatExportFileName('channel-patient-count-accounting-wise')}.pdf`,
+      orientation: 'portrait',
+      compactTable: true,
+      sections: buildBrandedExportSections(),
+    });
+  };
+
+  const handleDownloadExcel = async () => {
+    if (rows.length === 0 || !reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
+      return;
+    }
+    setLoadingExcel(true);
+    try {
+      await downloadBrandedReportExcel({
+        reportName: 'Channel Patient Count (Accounting Wise)',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
+        generatedAt: reportMeta.generatedAt,
         fileName: `${formatExportFileName('channel-patient-count-accounting-wise')}.xlsx`,
         sheetName: 'Patient Count',
+        orientation: 'portrait',
+        compactTable: true,
+        sections: buildBrandedExportSections(),
       });
     } catch (error: unknown) {
       toast({
@@ -465,7 +489,34 @@ export default function ChannelPatientCountAccountingWiseReportContent({
   };
 
   return (
-    <div className="w-full py-2 space-y-3">
+    <div className="w-full py-2 space-y-3 channel-patient-count-print-root">
+      <style>{`
+        @media print {
+          .channel-patient-count-print-root .overflow-x-auto,
+          .channel-patient-count-print-root .overflow-auto {
+            overflow: visible !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root th,
+          .channel-patient-count-print-root .rpt-print-root td {
+            font-size: 6pt !important;
+            padding: 0.6mm 0.4mm !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root thead th {
+            font-size: 5.5pt !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-0 print:bg-white">
         <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -568,7 +619,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           ) : (
             <ReportPrintLayout
               reportName="Channel Patient Count (Accounting Wise)"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

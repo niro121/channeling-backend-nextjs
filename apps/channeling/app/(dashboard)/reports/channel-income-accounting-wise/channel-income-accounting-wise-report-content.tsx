@@ -208,6 +208,7 @@ export default function ChannelIncomeAccountingWiseReportContent({
       return;
     }
     type PdfRow = {
+      no: string;
       bookingType: string;
       totalChannel: string;
       discount: string;
@@ -215,23 +216,40 @@ export default function ChannelIncomeAccountingWiseReportContent({
       refund: string;
       nettAmount: string;
     };
-    const toRow = (r: ChannelIncomeAccountingWiseRow): PdfRow => ({
-      bookingType: r.bookingType,
-      totalChannel: money(r.totalChannel),
-      discount: money(r.discount),
-      cancel: money(r.cancel),
-      refund: money(r.refund),
-      nettAmount: money(r.nettAmount),
-    });
-    const data = [...rows.map(toRow), ...(totals ? [toRow(totals)] : [])];
+    const data: PdfRow[] = [
+      ...rows.map((r, idx) => ({
+        no: String(idx + 1),
+        bookingType: r.bookingType,
+        totalChannel: money(r.totalChannel),
+        discount: money(r.discount),
+        cancel: money(r.cancel),
+        refund: money(r.refund),
+        nettAmount: money(r.nettAmount),
+      })),
+      ...(totals
+        ? [
+            {
+              no: '',
+              bookingType: totals.bookingType,
+              totalChannel: money(totals.totalChannel),
+              discount: money(totals.discount),
+              cancel: money(totals.cancel),
+              refund: money(totals.refund),
+              nettAmount: money(totals.nettAmount),
+            },
+          ]
+        : []),
+    ];
     await downloadBrandedReportPdf({
       reportName: 'Channel Income Report (Accounting Wise)',
       summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
       data,
-      columns: ['Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
-      keys: ['bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
+      columns: ['#', 'Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
+      keys: ['no', 'bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
       fileName: `${formatExportFileName('channel-income-accounting-wise')}.pdf`,
+      orientation: 'portrait',
+      compactTable: true,
     });
   };
 
@@ -243,6 +261,7 @@ export default function ChannelIncomeAccountingWiseReportContent({
     setLoadingExcel(true);
     try {
       type ExcelRow = {
+        no: string;
         bookingType: string;
         totalChannel: string;
         discount: string;
@@ -250,24 +269,41 @@ export default function ChannelIncomeAccountingWiseReportContent({
         refund: string;
         nettAmount: string;
       };
-      const toRow = (r: ChannelIncomeAccountingWiseRow): ExcelRow => ({
-        bookingType: r.bookingType,
-        totalChannel: money(r.totalChannel),
-        discount: money(r.discount),
-        cancel: money(r.cancel),
-        refund: money(r.refund),
-        nettAmount: money(r.nettAmount),
-      });
-      const data = [...rows.map(toRow), ...(totals ? [toRow(totals)] : [])];
+      const data: ExcelRow[] = [
+        ...rows.map((r, idx) => ({
+          no: String(idx + 1),
+          bookingType: r.bookingType,
+          totalChannel: money(r.totalChannel),
+          discount: money(r.discount),
+          cancel: money(r.cancel),
+          refund: money(r.refund),
+          nettAmount: money(r.nettAmount),
+        })),
+        ...(totals
+          ? [
+              {
+                no: '',
+                bookingType: totals.bookingType,
+                totalChannel: money(totals.totalChannel),
+                discount: money(totals.discount),
+                cancel: money(totals.cancel),
+                refund: money(totals.refund),
+                nettAmount: money(totals.nettAmount),
+              },
+            ]
+          : []),
+      ];
       await downloadBrandedReportExcel({
         reportName: 'Channel Income Report (Accounting Wise)',
         summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
         data,
-        columns: ['Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
-        keys: ['bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
+        columns: ['#', 'Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
+        keys: ['no', 'bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
         fileName: `${formatExportFileName('channel-income-accounting-wise')}.xlsx`,
         sheetName: 'Channel Income',
+        orientation: 'portrait',
+        compactTable: true,
       });
     } catch (error: unknown) {
       toast({
@@ -281,7 +317,34 @@ export default function ChannelIncomeAccountingWiseReportContent({
   };
 
   return (
-    <div className="w-full py-2 space-y-3">
+    <div className="w-full py-2 space-y-3 channel-income-print-root">
+      <style>{`
+        @media print {
+          .channel-income-print-root .overflow-x-auto,
+          .channel-income-print-root .overflow-auto {
+            overflow: visible !important;
+          }
+          .channel-income-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .channel-income-print-root .rpt-print-root th,
+          .channel-income-print-root .rpt-print-root td {
+            font-size: 8pt !important;
+            padding: 1mm 0.8mm !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .channel-income-print-root .rpt-print-root thead th {
+            font-size: 7.5pt !important;
+          }
+          .channel-income-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-0 print:bg-white">
         <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -384,7 +447,7 @@ export default function ChannelIncomeAccountingWiseReportContent({
           ) : (
             <ReportPrintLayout
               reportName="Channel Income Report (Accounting Wise)"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
