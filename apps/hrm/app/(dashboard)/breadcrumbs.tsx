@@ -35,7 +35,7 @@ const PATH_NAMES = [
   { path: 'attendance', name: 'Attendance' },
   { path: 'rfid-attendance', name: 'RFID Attendance' },
   { path: 'attendance-corrections', name: 'Corrections' },
-  { path: 'attendance-daily', name: 'Daily Register' },
+  { path: 'attendance-daily', name: 'Daily Attendance' },
   { path: 'attendance-devices', name: 'Devices' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },

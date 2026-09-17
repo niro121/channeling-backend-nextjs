@@ -306,6 +306,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<Fingerprint className="h-5 w-5" />}
                 />
               )}
+              {hasAccess('/attendance-daily') && (
+                <NavLink
+                  href="/attendance-daily"
+                  label="Daily Attendance"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/attendance-corrections') && (
                 <NavLink
                   href="/attendance-corrections"

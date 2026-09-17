@@ -4,7 +4,7 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** P0–P3 done; **P4 Corrections** shipped (15 Sep 2026). Remaining P4: Devices, Daily register, punch/daily export.  
+**Status:** P0–P3 done; **P4 Corrections + Daily Attendance** shipped (15 Sep 2026). Remaining P4: Devices, punch/daily export polish.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
 
@@ -311,13 +311,14 @@ apps/hrm/
     attendance-rules.service.ts
     rfid-attendance.service.ts
     attendance-correction.service.ts
+    daily-attendance.service.ts
     attendance-confirm-roster.service.ts  # P5
     attendance-export.service.ts          # P4 remaining
 
   app/(dashboard)/(attendance)/
     rfid-attendance/                      # Live dashboard (primary mock)
     attendance-corrections/               # Register + Create / Approve / Reject
-    attendance-daily/                     # P4 remaining
+    attendance-daily/                     # Daily register (summary + CommonDataTable)
     attendance-devices/                   # P4 remaining
 
   types/attendance.ts
@@ -423,11 +424,12 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 ### Phase P4 — Devices, Daily register, Corrections, Export
 
 - [ ] `/attendance-devices` CRUD (Sheets or pages — follow Shift Types / OT patterns)
-- [ ] `/attendance-daily` `CommonDataTable` register
+- [x] `/attendance-daily` `CommonDataTable` register (summary cards, filters, Refresh recompute)
 - [x] Add Correction flow → `AttendanceCorrection` register + approve updates `AttendanceDay` + audit fields (punches untouched)
 - [x] Export CSV/Excel on corrections register — table-only export pattern (`CommonDataTable`)
 - [x] `/attendance-corrections` register (Create / Approve / Reject, filters, summary cards)
-- [ ] Export for punches / daily summaries (RFID / daily register)
+- [x] Export on daily attendance register (`CommonDataTable`)
+- [ ] Export for punches from RFID live page
 
 ### Phase P5 — Confirm to Duty Roster + hardening
 

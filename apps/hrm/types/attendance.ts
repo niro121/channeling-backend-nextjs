@@ -146,6 +146,96 @@ export type RfidAttendanceDashboard = {
 };
 
 /* ---------------------------------
+Daily Attendance register
+--------------------------------- */
+
+export const DAILY_ATTENDANCE_STATUS_OPTIONS: RfidFilterOption[] = [
+  { id: 'present', name: 'Present' },
+  { id: 'absent', name: 'Absent' },
+  { id: 'late', name: 'Late' },
+  { id: 'early_out', name: 'Early Out' },
+  { id: 'half_day', name: 'Half Day' },
+  { id: 'leave', name: 'Leave' },
+  { id: 'holiday', name: 'Holiday' },
+  { id: 'day_off', name: 'Day Off' },
+  { id: 'missing_punch', name: 'Missing Punch' },
+  { id: 'incomplete', name: 'Incomplete' }
+];
+
+export type DailyAttendanceDisplayStatus =
+  (typeof DAILY_ATTENDANCE_STATUS_OPTIONS)[number]['id'];
+
+export type GetDailyAttendanceParams = {
+  page?: string;
+  limit?: string;
+  date?: string; // yyyy-MM-dd Colombo
+  institution?: string;
+  department?: string;
+  room?: string;
+  staffCategory?: string;
+  designation?: string;
+  staffId?: string;
+  shiftTypeId?: string;
+  status?: string;
+};
+
+export type DailyAttendanceSummary = {
+  present: number;
+  presentPct: number | null;
+  absent: number;
+  absentPct: number | null;
+  lateEarlyOut: number;
+  lateCount: number;
+  earlyOutCount: number;
+  missingPunches: number;
+  rosteredTotal: number;
+};
+
+export type DailyAttendanceRow = {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  date: string;
+  dateLabel: string;
+  scheduledShift: string;
+  shiftStart: string;
+  shiftEnd: string;
+  checkIn: string;
+  checkOut: string;
+  totalHours: string;
+  late: string;
+  earlyOut: string;
+  overtime: string;
+  status: string;
+  statusLabel: string;
+  source: string;
+  remarks: string;
+};
+
+export type DailyAttendanceFilterOptions = {
+  institutions: RfidFilterOption[];
+  departments: RfidFilterOption[];
+  rooms: RfidFilterOption[];
+  staffCategories: RfidFilterOption[];
+  designations: RfidFilterOption[];
+  staff: RfidFilterOption[];
+  shifts: RfidFilterOption[];
+  statuses: RfidFilterOption[];
+};
+
+export type DailyAttendanceRegister = {
+  date: string;
+  dateLabel: string;
+  summary: DailyAttendanceSummary;
+  rows: DailyAttendanceRow[];
+  totalRecords: number;
+  filterOptions: DailyAttendanceFilterOptions;
+};
+
+/* ---------------------------------
 Attendance Corrections
 --------------------------------- */
 
