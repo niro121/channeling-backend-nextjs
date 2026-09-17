@@ -908,6 +908,11 @@ model AttendanceDay {
   location            String    @default("")
   firstInAt           DateTime?
   lastOutAt           DateTime?
+  /// HR-verified times from Fingerprint Verification (punches stay on firstIn/lastOut until confirm).
+  verifiedFirstInAt   DateTime?
+  verifiedLastOutAt   DateTime?
+  verifiedBy          String?   @db.ObjectId
+  verifiedAt          DateTime?
   status              String    @default("absent") // present | late | absent | missing_punch | on_leave | not_rostered
   flags               String[]  @default([])
   shiftTypeId         String?   @db.ObjectId

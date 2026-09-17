@@ -286,6 +286,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         {(hasAccess('/rfid-attendance') ||
           hasAccess('/attendance-corrections') ||
           hasAccess('/attendance-daily') ||
+          hasAccess('/fingerprint-verification') ||
           hasAccess('/attendance-devices')) && (
           <SidebarGroup label="Staff Attendance">
             <SidebarCollapsible
@@ -294,6 +295,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               paths={[
                 '/rfid-attendance',
                 '/attendance-daily',
+                '/fingerprint-verification',
                 '/attendance-devices',
                 '/attendance-corrections'
               ]}
@@ -311,6 +313,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/attendance-daily"
                   label="Daily Attendance"
                   icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/fingerprint-verification') && (
+                <NavLink
+                  href="/fingerprint-verification"
+                  label="Fingerprint Verification"
+                  icon={<Fingerprint className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/attendance-corrections') && (

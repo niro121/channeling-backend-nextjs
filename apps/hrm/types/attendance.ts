@@ -73,6 +73,8 @@ export type AttendanceDayRecord = {
   location: string;
   firstInAt: string | null;
   lastOutAt: string | null;
+  verifiedFirstInAt: string | null;
+  verifiedLastOutAt: string | null;
   status: AttendanceDayStatus | string;
   flags: string[];
   shiftTypeId: string | null;
@@ -233,6 +235,92 @@ export type DailyAttendanceRegister = {
   rows: DailyAttendanceRow[];
   totalRecords: number;
   filterOptions: DailyAttendanceFilterOptions;
+};
+
+/* ---------------------------------
+Fingerprint Verification
+--------------------------------- */
+
+export const FINGERPRINT_VERIFICATION_MODES = ['roster', 'staff'] as const;
+export type FingerprintVerificationMode =
+  (typeof FINGERPRINT_VERIFICATION_MODES)[number];
+
+export const FINGERPRINT_ROW_STATUSES = [
+  'ok',
+  'missing',
+  'late',
+  'early_out'
+] as const;
+export type FingerprintRowStatus = (typeof FINGERPRINT_ROW_STATUSES)[number];
+
+export type GetFingerprintVerificationParams = {
+  mode?: FingerprintVerificationMode | string;
+  fromDate?: string;
+  toDate?: string;
+  shiftRosterId?: string;
+  staffId?: string;
+};
+
+export type FingerprintVerificationSummary = {
+  verified: number;
+  late: number;
+  missingPunch: number;
+  earlyOut: number;
+};
+
+export type FingerprintVerificationRow = {
+  /** Stable client key: allocationId or attendanceDayId */
+  rowKey: string;
+  attendanceDayId: string | null;
+  rosterAllocationId: string | null;
+  staffId: string;
+  date: string;
+  dateLabel: string;
+  no: number;
+  shiftLabel: string;
+  durationMinutes: number;
+  staffCode: string;
+  staffLegacyId: string;
+  leaveReplace: string;
+  staffName: string;
+  attStart: string;
+  attEnd: string;
+  exceptionCode: string;
+  verifiedStart: string;
+  verifiedEnd: string;
+  status: FingerprintRowStatus | string;
+  statusLabel: string;
+  shiftStartTime: string;
+  shiftEndTime: string;
+  graceMinutes: number;
+  earlyExitThresholdMinutes: number;
+};
+
+export type FingerprintVerificationFilterOptions = {
+  rosters: RfidFilterOption[];
+  staff: RfidFilterOption[];
+};
+
+export type FingerprintVerificationWorkspace = {
+  mode: FingerprintVerificationMode;
+  fromDate: string;
+  toDate: string;
+  summary: FingerprintVerificationSummary;
+  rows: FingerprintVerificationRow[];
+  filterOptions: FingerprintVerificationFilterOptions;
+};
+
+export type FingerprintVerificationSaveRow = {
+  rowKey: string;
+  attendanceDayId?: string | null;
+  rosterAllocationId?: string | null;
+  staffId: string;
+  date: string;
+  attStart?: string | null;
+  attEnd?: string | null;
+  verifiedStart?: string | null;
+  verifiedEnd?: string | null;
+  clearVerified?: boolean;
 };
 
 /* ---------------------------------

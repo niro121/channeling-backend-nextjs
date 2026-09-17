@@ -70,6 +70,8 @@ function toDayRecord(row: {
   location: string;
   firstInAt: Date | null;
   lastOutAt: Date | null;
+  verifiedFirstInAt?: Date | null;
+  verifiedLastOutAt?: Date | null;
   status: string;
   flags: string[];
   shiftTypeId: string | null;
@@ -87,6 +89,8 @@ function toDayRecord(row: {
     location: row.location,
     firstInAt: row.firstInAt?.toISOString() ?? null,
     lastOutAt: row.lastOutAt?.toISOString() ?? null,
+    verifiedFirstInAt: row.verifiedFirstInAt?.toISOString() ?? null,
+    verifiedLastOutAt: row.verifiedLastOutAt?.toISOString() ?? null,
     status: row.status,
     flags: row.flags,
     shiftTypeId: row.shiftTypeId,

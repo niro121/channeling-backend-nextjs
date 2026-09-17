@@ -34,6 +34,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/attendance-daily': 'attendance',
   '/attendance-devices': 'attendance',
   '/attendance-corrections': 'attendance',
+  '/fingerprint-verification': 'attendance',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

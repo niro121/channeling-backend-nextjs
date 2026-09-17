@@ -4,7 +4,7 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** P0–P3 done; **P4 Corrections + Daily Attendance** shipped (15 Sep 2026). Remaining P4: Devices, punch/daily export polish.  
+**Status:** P0–P3 done; **P4 Corrections + Daily Attendance + Fingerprint Verification** shipped. Remaining P4: Devices, punch/daily export polish.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
 
@@ -41,10 +41,11 @@ Pages must not call Prisma. No business rules in components. Device traffic uses
 |-------|----------------|------|
 | `/rfid-attendance` | `attendance` | Live RFID check-ins dashboard (summary cards + streaming table + filters) |
 | `/attendance-daily` | `attendance` | Daily register (`AttendanceDay` list, export) |
+| `/fingerprint-verification` | `attendance` | Roster×date reconcile; save `verifiedFirstInAt` / `verifiedLastOutAt` |
 | `/attendance-devices` | `attendance` | Reader registry / health |
 | `/attendance-corrections` | `attendance` | Manual corrections (“Add Correction”) |
 
-Sidebar group (target): **Staff Attendance** — RFID Attendance, Daily Register, Devices, Corrections.
+Sidebar group (target): **Staff Attendance** — RFID Attendance, Daily Attendance, Fingerprint Verification, Corrections, Devices.
 
 Primary mock for Phase UI: **RFID Attendance** — live check-ins from N readers, Today Present / Late / Missing Punches / Absent / Exceptions, filters (Department, Location, Date, Shift, Staff), Refresh / Export / Add Correction.
 
@@ -136,7 +137,9 @@ One document per staff per **calendar date in Asia/Colombo**.
 | Field | Notes |
 |-------|--------|
 | `staffId`, `date` | Unique pair (`date` = UTC start-of-day for that Colombo date) |
-| `firstInAt`, `lastOutAt` | Pairing result |
+| `firstInAt`, `lastOutAt` | Pairing result (device punches — immutable from Fingerprint Verification) |
+| `verifiedFirstInAt`, `verifiedLastOutAt` | HR-verified times from Fingerprint Verification |
+| `verifiedBy`, `verifiedAt` | Who/when last verified |
 | `status` | `present` \| `late` \| `absent` \| `missing_punch` \| `on_leave` \| `not_rostered` |
 | `flags` | e.g. `missing_in`, `missing_out`, `early_exit`, `exception` |
 | `shiftTypeId` | From planned `RosterAllocation` when present |
@@ -300,6 +303,7 @@ apps/hrm/
     rfid-attendance.actions.ts
     attendance-day.actions.ts
     attendance-correction.actions.ts
+    fingerprint-verification.actions.ts
     device.actions.ts                     # P4 remaining
     attendance-confirm-roster.actions.ts  # P5
     attendance-export.actions.ts          # P4 remaining
@@ -312,6 +316,7 @@ apps/hrm/
     rfid-attendance.service.ts
     attendance-correction.service.ts
     daily-attendance.service.ts
+    fingerprint-verification.service.ts
     attendance-confirm-roster.service.ts  # P5
     attendance-export.service.ts          # P4 remaining
 
@@ -319,6 +324,7 @@ apps/hrm/
     rfid-attendance/                      # Live dashboard (primary mock)
     attendance-corrections/               # Register + Create / Approve / Reject
     attendance-daily/                     # Daily register (summary + CommonDataTable)
+    fingerprint-verification/             # Roster×date verify grid (CommonDataTable + groupBy)
     attendance-devices/                   # P4 remaining
 
   types/attendance.ts
@@ -421,7 +427,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Permission gates (`attendance` view)
 - [x] **Add Correction** → `/attendance-corrections`
 
-### Phase P4 — Devices, Daily register, Corrections, Export
+### Phase P4 — Devices, Daily register, Corrections, Fingerprint Verification, Export
 
 - [ ] `/attendance-devices` CRUD (Sheets or pages — follow Shift Types / OT patterns)
 - [x] `/attendance-daily` `CommonDataTable` register (summary cards, filters, Refresh recompute)
@@ -429,6 +435,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Export CSV/Excel on corrections register — table-only export pattern (`CommonDataTable`)
 - [x] `/attendance-corrections` register (Create / Approve / Reject, filters, summary cards)
 - [x] Export on daily attendance register (`CommonDataTable`)
+- [x] `/fingerprint-verification` day-grouped `CommonDataTable` (By Roster / By Staff, Fill / Save, `verified*` on `AttendanceDay`)
 - [ ] Export for punches from RFID live page
 
 ### Phase P5 — Confirm to Duty Roster + hardening
