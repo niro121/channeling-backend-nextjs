@@ -45,8 +45,9 @@ Pages must not call Prisma. No business rules in components. Device traffic uses
 | `/fingerprint-verification` | `attendance` | Roster×date reconcile; save `verifiedFirstInAt` / `verifiedLastOutAt` |
 | `/attendance-devices` | `attendance` | Reader registry / health |
 | `/attendance-corrections` | `attendance` | Manual corrections (“Add Correction”) |
+| `/attendance-summary` | `attendance` | Period summary by staff (cards + CommonDataTable + detail sheet) |
 
-Sidebar group: **Staff Attendance** — Guide (`/attendance`), RFID Attendance, Daily Attendance, Fingerprint Verification, Devices, Corrections.
+Sidebar group: **Staff Attendance** — Guide (`/attendance`), RFID Attendance, Daily Attendance, Fingerprint Verification, Devices, Corrections, Summary.
 
 Primary mock for Phase UI: **RFID Attendance** — live check-ins from N readers, Today Present / Late / Missing Punches / Absent / Exceptions, filters (Department, Location, Date, Shift, Staff), Refresh / Export / Add Correction.
 
@@ -426,6 +427,7 @@ apps/hrm/
     attendance-daily/                     # Daily register (summary + CommonDataTable)
     fingerprint-verification/             # Roster×date verify grid (CommonDataTable + groupBy)
     attendance-devices/                   # Device registry CRUD
+    attendance-summary/                   # Period aggregate by staff + detail sheet
 
   types/attendance.ts
   lib/helpers/attendance-timezone.helper.ts   # Asia/Colombo via @date-fns/tz (TZDate)
@@ -537,6 +539,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Export on daily attendance register (`CommonDataTable`)
 - [x] `/fingerprint-verification` day-grouped `CommonDataTable` (By Roster / By Staff, Fill / Save, `verified*` on `AttendanceDay`)
 - [x] `/attendance` module guidance hub (process, device install → HRM connection, links to screens)
+- [x] `/attendance-summary` period summary (`CommonDataTable`, combobox filters, View Details sheet, Created/Updated columns)
 - [ ] Export for punches from RFID live page
 
 ### Phase P5 — Confirm to Duty Roster + hardening

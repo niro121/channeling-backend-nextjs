@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
   ArrowRight,
+  BarChart3,
   CheckCircle2,
   ClipboardList,
   FilePenLine,
@@ -181,6 +182,14 @@ const MODULES: ModuleCard[] = [
     step: 'Correct',
     icon: <FilePenLine className="h-5 w-5" />,
     writeHint: 'add / edit / delete'
+  },
+  {
+    href: '/attendance-summary',
+    title: 'Summary',
+    description:
+      'Period overview by staff: present / absent / leave / OT totals with day-level detail sheet.',
+    step: 'Report',
+    icon: <BarChart3 className="h-5 w-5" />
   }
 ];
 

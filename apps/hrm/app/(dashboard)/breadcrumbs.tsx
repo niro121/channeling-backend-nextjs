@@ -38,6 +38,7 @@ const PATH_NAMES = [
   { path: 'attendance-daily', name: 'Daily Attendance' },
   { path: 'fingerprint-verification', name: 'Fingerprint Verification' },
   { path: 'attendance-devices', name: 'Devices' },
+  { path: 'attendance-summary', name: 'Attendance Summary' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },
   { path: 'reports', name: 'Reports' },

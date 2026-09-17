@@ -34,6 +34,7 @@ import {
   MapPin,
   Layers,
   DoorOpen,
+  BarChart3,
   BookOpen,
   TabletSmartphone,
   Fingerprint,
@@ -290,7 +291,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/attendance-corrections') ||
           hasAccess('/attendance-daily') ||
           hasAccess('/fingerprint-verification') ||
-          hasAccess('/attendance-devices')) && (
+          hasAccess('/attendance-devices') ||
+          hasAccess('/attendance-summary')) && (
           <SidebarGroup label="Staff Attendance">
             <SidebarCollapsible
               label="Attendance"
@@ -301,7 +303,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/attendance-daily',
                 '/fingerprint-verification',
                 '/attendance-devices',
-                '/attendance-corrections'
+                '/attendance-corrections',
+                '/attendance-summary'
               ]}
               defaultOpen
             >
@@ -345,6 +348,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/attendance-corrections"
                   label="Corrections"
                   icon={<FilePenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-summary') && (
+                <NavLink
+                  href="/attendance-summary"
+                  label="Summary"
+                  icon={<BarChart3 className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

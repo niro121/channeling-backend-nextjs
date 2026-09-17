@@ -290,6 +290,7 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 | `/fingerprint-verification` | `attendance` |
 | `/attendance-devices` | `attendance` |
 | `/attendance-corrections` | `attendance` |
+| `/attendance-summary` | `attendance` |
 | `/payroll` | `payroll` |
 | `/salary-structures` | `salary-structures` |
 | `/reports` | `reports` |

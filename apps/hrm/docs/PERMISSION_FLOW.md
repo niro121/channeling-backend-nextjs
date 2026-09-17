@@ -226,6 +226,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/fingerprint-verification` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-devices` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-corrections` | `attendance` | Staff Attendance (same grant) |
+| `/attendance-summary` | `attendance` | Staff Attendance (same grant) |
 | `/payroll` | `payroll` | Payroll |
 | `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
 | `/reports` | `reports` | Reports |

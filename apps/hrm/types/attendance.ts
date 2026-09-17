@@ -285,6 +285,118 @@ export type DailyAttendanceRegister = {
 };
 
 /* ---------------------------------
+Attendance Summary (period aggregate)
+--------------------------------- */
+
+export type GetAttendanceSummaryParams = {
+  page?: string;
+  limit?: string;
+  fromDate?: string;
+  toDate?: string;
+  institution?: string;
+  department?: string;
+  room?: string;
+  staffCategory?: string;
+  designation?: string;
+  staffId?: string;
+  shiftTypeId?: string;
+};
+
+export type AttendanceSummaryCards = {
+  totalStaff: number;
+  present: number;
+  presentPct: number | null;
+  absent: number;
+  absentPct: number | null;
+  late: number;
+  leave: number;
+  dayOff: number;
+  holiday: number;
+  missingAttendance: number;
+  overtimeHours: number;
+};
+
+export type AttendanceSummaryRow = {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  workingDays: number;
+  presentDays: number;
+  absentDays: number;
+  leaveDays: number;
+  holidayDays: number;
+  dayOffDays: number;
+  lateCount: number;
+  earlyOutCount: number;
+  overtimeHours: number;
+  missingPunches: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdUser: AuthUserSummary | null;
+  updatedUser: AuthUserSummary | null;
+};
+
+export type AttendanceSummaryDetailDay = {
+  date: string;
+  dateLabel: string;
+  status: string;
+  statusLabel: string;
+  checkIn: string;
+  checkOut: string;
+  scheduledShift: string;
+  remarks: string;
+};
+
+export type AttendanceSummaryDetail = {
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  fromDate: string;
+  toDate: string;
+  periodLabel: string;
+  totals: Omit<
+    AttendanceSummaryRow,
+    | 'id'
+    | 'staffId'
+    | 'staffCode'
+    | 'staffName'
+    | 'department'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'createdBy'
+    | 'updatedBy'
+    | 'createdUser'
+    | 'updatedUser'
+  >;
+  days: AttendanceSummaryDetailDay[];
+};
+
+export type AttendanceSummaryFilterOptions = {
+  institutions: RfidFilterOption[];
+  departments: RfidFilterOption[];
+  rooms: RfidFilterOption[];
+  staffCategories: RfidFilterOption[];
+  designations: RfidFilterOption[];
+  staff: RfidFilterOption[];
+  shifts: RfidFilterOption[];
+};
+
+export type AttendanceSummaryRegister = {
+  fromDate: string;
+  toDate: string;
+  periodLabel: string;
+  cards: AttendanceSummaryCards;
+  rows: AttendanceSummaryRow[];
+  totalRecords: number;
+  filterOptions: AttendanceSummaryFilterOptions;
+};
+
+/* ---------------------------------
 Fingerprint Verification
 --------------------------------- */
 
