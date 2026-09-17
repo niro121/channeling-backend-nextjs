@@ -21,7 +21,7 @@ Pages must not call Prisma. No business rules in components. Device traffic uses
 | 3 | **Duty Roster sync:** RFID-derived status stays **separate** until HR confirms. Do **not** auto-overwrite `RosterAllocation.attendance`. |
 | 4 | **Device hardware:** Not chosen yet. HRM exposes a **vendor-neutral punch ingest API**; adapters (push / pull / CSV) live outside or beside the app. |
 | 5 | **Mapping table:** Start **without** `AttendanceIdentityMap`. Add later only if enrollment ID ≠ device ID (legacy Emp No, reissued cards). |
-| 6 | **Permission:** One resource `attendance` for the whole Staff Attendance group (same pattern as OT → `overtime-requests`). |
+| 6 | **Permission:** One resource `attendance` (**Staff Attendance** in User Groups) for the whole group — including Guide `/attendance`, RFID, Daily, Fingerprint Verification, Devices, Corrections (same pattern as OT → `overtime-requests`). |
 | 7 | **Punch log is immutable:** Corrections adjust `AttendanceDay` (and optional correction audit), never delete or rewrite device punches. |
 | 8 | **Staff RFID enrollment:** Text input remains the stored value today. **Scan-from-reader** capture on the staff general form is planned **after device / gateway setup** (see §4.3). |
 
@@ -39,15 +39,48 @@ Pages must not call Prisma. No business rules in components. Device traffic uses
 
 | Route | Resource key | Role |
 |-------|----------------|------|
+| `/attendance` | `attendance` | **Module guidance hub** — process, device install, links to all screens |
 | `/rfid-attendance` | `attendance` | Live RFID check-ins dashboard (summary cards + streaming table + filters) |
 | `/attendance-daily` | `attendance` | Daily register (`AttendanceDay` list, export) |
 | `/fingerprint-verification` | `attendance` | Roster×date reconcile; save `verifiedFirstInAt` / `verifiedLastOutAt` |
 | `/attendance-devices` | `attendance` | Reader registry / health |
 | `/attendance-corrections` | `attendance` | Manual corrections (“Add Correction”) |
 
-Sidebar group (target): **Staff Attendance** — RFID Attendance, Daily Attendance, Fingerprint Verification, Corrections, Devices.
+Sidebar group: **Staff Attendance** — Guide (`/attendance`), RFID Attendance, Daily Attendance, Fingerprint Verification, Devices, Corrections.
 
 Primary mock for Phase UI: **RFID Attendance** — live check-ins from N readers, Today Present / Late / Missing Punches / Absent / Exceptions, filters (Department, Location, Date, Shift, Staff), Refresh / Export / Add Correction.
+
+---
+
+## 1.1 End-to-end process (HR procedure)
+
+**Simple story:** Staff tap a **reader** → HRM records **who** and **when** → HR **reviews and fixes** that day → later HR **confirms** the result onto the duty roster.
+
+| Step | Where | What happens |
+|------|--------|----------------|
+| **0. Setup** | Devices + Staff + env | Register readers; enroll each staff `fingerPrintRfid`; set `ATTENDANCE_DEVICE_API_KEY`; point gateway at HRM ingest URL |
+| **1. Punch** | Physical reader → gateway → `POST /api/attendance/punches` | Immutable `AttendancePunch`; day recompute; device `lastSeenAt` |
+| **2. Live watch** | RFID Attendance | See today’s check-ins, present / late / missing / absent |
+| **3. Verify** | Fingerprint Verification | Reconcile roster × date; Fill / edit **Verified** start–end; Save (punches unchanged) |
+| **4. Daily view** | Daily Attendance | Operational register for a civil date; Refresh recomputes |
+| **5. Correct** | Corrections | Formal draft → approve/reject when status/times need an audited change |
+| **6. Confirm** | Confirm to Duty Roster *(P5)* | Explicit HR action maps day status → `RosterAllocation.attendance` |
+
+**Hard rules:**
+
+1. **Punches are immutable** — never edit/delete device punch rows from HR screens.
+2. **Verification & corrections** write `AttendanceDay` (and correction audit), not the punch log.
+3. **Duty Roster is not auto-updated** by punches — only Confirm (P5) writes the roster cell.
+
+```
+[Reader] → [Gateway] → [HRM ingest API]
+                              ↓
+                     AttendancePunch + AttendanceDay
+                              ↓
+        RFID live · Fingerprint verify · Daily register · Corrections
+                              ↓
+                    Confirm → Duty Roster (P5)
+```
 
 ---
 
@@ -170,13 +203,79 @@ Do not write every punch onto the duty cell. Keep punches on `AttendancePunch`. 
 
 ## 4. Device integration (recommended methods)
 
-Hardware is not implemented yet. Prefer this order:
+Hardware vendor is not locked. Prefer this order for **how events reach HRM**:
 
 | Priority | Method | When |
 |----------|--------|------|
 | **1 — Push gateway (recommended)** | LAN middleware / vendor push receives SDK or ADMS events and `POST`s to HRM | Realtime live dashboard; vendor-agnostic HRM |
 | **2 — Pull poller** | Job polls device DB/API every N seconds, then posts the same DTO | Vendor only supports “download logs” |
 | **3 — CSV / file import** | Backfill, go-live, broken reader days | Manual ops fallback |
+
+Browsers **cannot** talk to most hospital panels (proprietary LAN SDK / Windows service). Always use a **gateway / adapter** between the reader and HRM.
+
+### 4.0 Device installation & connection to HRM
+
+This is the ops checklist to bring a new reader online.
+
+#### A. Install / commission the physical reader
+
+1. Mount the reader at the agreed location (gate, ward, HR desk).
+2. Connect power + network (LAN) per vendor manual.
+3. Note the vendor’s **device / terminal ID** (or assign a stable code you will use in HRM, e.g. `GATE-01`).
+4. Install or configure the **vendor middleware / ADMS / SDK service** on a PC or appliance on the same LAN (the “gateway”).
+5. Confirm the gateway can see the reader (vendor console / LED / test tap).
+
+#### B. Register the device in HRM
+
+1. Open **Staff Attendance → Devices** (`/attendance-devices`).
+2. **Add Device**:
+   - **Code** — must match what the gateway will send as `deviceCode` (or leave blank to auto-generate `ATD-n`, then configure the gateway to that code).
+   - **Name** / **Location** — for filters and ops.
+   - **Status** — `active`.
+   - Optional **API Key** — hashed and stored on the device record for future per-device auth (ingest today primarily uses the **global** env key — see below).
+3. Save. The device must exist (and preferably be `active`) before production punches for that code are accepted.
+
+#### C. Connect the gateway to HRM (network + auth)
+
+| Piece | Value |
+|-------|--------|
+| **HRM ingest URL** | `{HRM_BASE_URL}/api/attendance/punches` (e.g. `https://hrm.example.com/api/attendance/punches`) |
+| **Method** | `POST` |
+| **Auth header** | `X-Attendance-Api-Key: <ATTENDANCE_DEVICE_API_KEY>` **or** `Authorization: Bearer <ATTENDANCE_DEVICE_API_KEY>` |
+| **Env (HRM server)** | `ATTENDANCE_DEVICE_API_KEY` in `apps/hrm/.env` — shared secret the gateway uses |
+| **Content-Type** | `application/json` |
+
+Configure the gateway so that every successful tap is translated into the **ingest DTO** (§4.1) and posted to that URL. The gateway is responsible for:
+
+- Mapping vendor events → `deviceCode`, `externalPunchId`, `rfid`, `punchedAt`, optional `direction`
+- Retries / queueing if HRM is briefly down
+- Not posting the same `externalPunchId` twice for the same device (HRM also idempotently ignores duplicates)
+
+**Local / smoke without hardware:** use code `DEV-LOCAL` (auto-seeded on ingest) + `npm run smoke:attendance` (§13).
+
+#### D. Enroll staff identity
+
+1. On **Staff → General**, set **Finger Print / RFID** to the exact ID the machine will send (trim; unique among active staff).
+2. Optional later: **Scan from reader** capture (§4.3) once a desk reader + gateway are live.
+
+#### E. Acceptance test for a new installation
+
+1. Tap a known enrolled staff card/finger on the new reader.
+2. Gateway logs a successful `POST` (HTTP 200).
+3. **Devices** → that reader’s **Last Seen** updates.
+4. **RFID Attendance** shows the live row (matched).
+5. Repeat tap with same `externalPunchId` → response `duplicate: true` (no double day corruption).
+6. Unknown RFID → `matchStatus: unmatched` (still stored as punch for ops).
+
+#### Why the Devices module exists
+
+| Need | Why |
+|------|-----|
+| Known source | Every punch links to a registered `AttendanceDevice` |
+| Location / filters | Gate vs ward vs HR desk |
+| Health | `lastSeenAt` shows silent / offline readers |
+| Lifecycle | Set **inactive** without deleting punch history |
+| Trust | Only registered codes are used in production ops |
 
 ### 4.1 Ingest contract
 
@@ -321,6 +420,7 @@ apps/hrm/
     attendance-export.service.ts          # P4 remaining
 
   app/(dashboard)/(attendance)/
+    attendance/                           # Module guidance hub (/attendance)
     rfid-attendance/                      # Live dashboard (primary mock)
     attendance-corrections/               # Register + Create / Approve / Reject
     attendance-daily/                     # Daily register (summary + CommonDataTable)
@@ -436,6 +536,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] `/attendance-corrections` register (Create / Approve / Reject, filters, summary cards)
 - [x] Export on daily attendance register (`CommonDataTable`)
 - [x] `/fingerprint-verification` day-grouped `CommonDataTable` (By Roster / By Staff, Fill / Save, `verified*` on `AttendanceDay`)
+- [x] `/attendance` module guidance hub (process, device install → HRM connection, links to screens)
 - [ ] Export for punches from RFID live page
 
 ### Phase P5 — Confirm to Duty Roster + hardening

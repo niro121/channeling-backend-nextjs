@@ -220,7 +220,12 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/overtime-extra-time` | `overtime-requests` | OT Requests (same grant) |
 | `/overtime-day-off-ph-shift` | `overtime-requests` | OT Requests (same grant) |
 | `/overtime-extra-shift-normal` | `overtime-requests` | OT Requests (same grant) |
-| `/attendance` | `attendance` | Attendance |
+| `/attendance` | `attendance` | Staff Attendance — **Guide** hub (`view`) |
+| `/rfid-attendance` | `attendance` | Staff Attendance (same grant) |
+| `/attendance-daily` | `attendance` | Staff Attendance (same grant) |
+| `/fingerprint-verification` | `attendance` | Staff Attendance (same grant) |
+| `/attendance-devices` | `attendance` | Staff Attendance (same grant) |
+| `/attendance-corrections` | `attendance` | Staff Attendance (same grant) |
 | `/payroll` | `payroll` | Payroll |
 | `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
 | `/reports` | `reports` | Reports |

@@ -34,6 +34,7 @@ import {
   MapPin,
   Layers,
   DoorOpen,
+  BookOpen,
   TabletSmartphone,
   Fingerprint,
 } from "lucide-react";
@@ -284,7 +285,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/rfid-attendance') ||
+        {(hasAccess('/attendance') ||
+          hasAccess('/rfid-attendance') ||
           hasAccess('/attendance-corrections') ||
           hasAccess('/attendance-daily') ||
           hasAccess('/fingerprint-verification') ||
@@ -294,6 +296,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Attendance"
               icon={<Fingerprint className="h-5 w-5" />}
               paths={[
+                '/attendance',
                 '/rfid-attendance',
                 '/attendance-daily',
                 '/fingerprint-verification',
@@ -302,6 +305,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               ]}
               defaultOpen
             >
+              {hasAccess('/attendance') && (
+                <NavLink
+                  href="/attendance"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/rfid-attendance') && (
                 <NavLink
                   href="/rfid-attendance"
