@@ -40,6 +40,48 @@ export type AttendanceDayFlag = (typeof ATTENDANCE_DAY_FLAGS)[number];
 /** Default local test device when no hardware is registered yet. */
 export const DEFAULT_ATTENDANCE_DEVICE_CODE = 'DEV-LOCAL';
 
+export type GetAttendanceDevicesParams = {
+  page?: string;
+  limit?: string;
+  code?: string;
+  name?: string;
+  location?: string;
+  status?: string;
+};
+
+export type AttendanceDeviceRecord = {
+  id: string;
+  code: string;
+  name: string;
+  location: string;
+  status: AttendanceDeviceStatus | string;
+  lastSeenAt: string | null;
+  /** True when a per-device API key hash is stored (hash never returned). */
+  hasApiKey: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdUser: AuthUserSummary | null;
+  updatedUser: AuthUserSummary | null;
+};
+
+export type AttendanceDeviceSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  seenRecently: number;
+};
+
+export type AttendanceDevicePayload = {
+  code?: string;
+  name: string;
+  location?: string;
+  status?: AttendanceDeviceStatus | string;
+  /** Plaintext key — hashed server-side; empty string clears the key. */
+  apiKey?: string | null;
+};
+
 export type AttendancePunchIngestPayload = {
   deviceCode: string;
   externalPunchId: string;
@@ -131,6 +173,11 @@ export type RfidFilterOption = {
   id: string;
   name: string;
 };
+
+export const ATTENDANCE_DEVICE_STATUS_OPTIONS: RfidFilterOption[] = [
+  { id: 'active', name: 'Active' },
+  { id: 'inactive', name: 'Inactive' }
+];
 
 export type RfidAttendanceDashboard = {
   date: string;

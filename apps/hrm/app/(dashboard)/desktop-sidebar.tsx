@@ -34,6 +34,7 @@ import {
   MapPin,
   Layers,
   DoorOpen,
+  TabletSmartphone,
   Fingerprint,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -320,6 +321,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/fingerprint-verification"
                   label="Fingerprint Verification"
                   icon={<Fingerprint className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-devices') && (
+                <NavLink
+                  href="/attendance-devices"
+                  label="Devices"
+                  icon={<TabletSmartphone className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/attendance-corrections') && (

@@ -4,7 +4,7 @@ Guidance for building the **Staff Attendance** module group in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 Roster attendance enum remains on Duty Roster — see `ROSTER_SHIFTS_MANAGER_GUIDE.md` (no auto-overwrite from RFID until HR confirms).
 
-**Status:** P0–P3 done; **P4 Corrections + Daily Attendance + Fingerprint Verification** shipped. Remaining P4: Devices, punch/daily export polish.  
+**Status:** P0–P3 done; **P4 Corrections + Daily Attendance + Fingerprint Verification + Devices** shipped. Remaining P4: punch export from RFID live page.  
 **Build path:** Schema / identity → Device ingest API → Day recompute → UI (RFID Attendance) → Corrections / Export → Optional Duty Roster confirm sync.  
 Pages must not call Prisma. No business rules in components. Device traffic uses **REST API routes**, not Server Actions.
 
@@ -304,7 +304,7 @@ apps/hrm/
     attendance-day.actions.ts
     attendance-correction.actions.ts
     fingerprint-verification.actions.ts
-    device.actions.ts                     # P4 remaining
+    device.actions.ts
     attendance-confirm-roster.actions.ts  # P5
     attendance-export.actions.ts          # P4 remaining
 
@@ -325,7 +325,7 @@ apps/hrm/
     attendance-corrections/               # Register + Create / Approve / Reject
     attendance-daily/                     # Daily register (summary + CommonDataTable)
     fingerprint-verification/             # Roster×date verify grid (CommonDataTable + groupBy)
-    attendance-devices/                   # P4 remaining
+    attendance-devices/                   # Device registry CRUD
 
   types/attendance.ts
   lib/helpers/attendance-timezone.helper.ts   # Asia/Colombo via @date-fns/tz (TZDate)
@@ -429,7 +429,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 
 ### Phase P4 — Devices, Daily register, Corrections, Fingerprint Verification, Export
 
-- [ ] `/attendance-devices` CRUD (Sheets or pages — follow Shift Types / OT patterns)
+- [x] `/attendance-devices` CRUD (Sheets or pages — follow Shift Types / OT patterns)
 - [x] `/attendance-daily` `CommonDataTable` register (summary cards, filters, Refresh recompute)
 - [x] Add Correction flow → `AttendanceCorrection` register + approve updates `AttendanceDay` + audit fields (punches untouched)
 - [x] Export CSV/Excel on corrections register — table-only export pattern (`CommonDataTable`)
