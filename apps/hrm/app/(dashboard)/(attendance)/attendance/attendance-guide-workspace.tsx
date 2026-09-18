@@ -12,6 +12,7 @@ import {
   KeyRound,
   Lock,
   Network,
+  ScrollText,
   ShieldAlert,
   TabletSmartphone,
   Workflow
@@ -190,6 +191,14 @@ const MODULES: ModuleCard[] = [
       'Period overview by staff: present / absent / leave / OT totals with day-level detail sheet.',
     step: 'Report',
     icon: <BarChart3 className="h-5 w-5" />
+  },
+  {
+    href: '/attendance-logs',
+    title: 'Logs',
+    description:
+      'Read-only audit history of attendance events, corrections, and system actions.',
+    step: 'Audit',
+    icon: <ScrollText className="h-5 w-5" />
   }
 ];
 

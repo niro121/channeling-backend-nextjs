@@ -643,3 +643,158 @@ export function isAttendanceCorrectionLocked(
   );
 }
 
+/* ---------------------------------
+Attendance Log (read-only audit trail)
+--------------------------------- */
+
+export const ATTENDANCE_LOG_ACTION_TYPES = [
+  'attendance_created',
+  'attendance_updated',
+  'check_in_modified',
+  'check_out_modified',
+  'status_changed',
+  'correction_submitted',
+  'correction_approved',
+  'correction_rejected',
+  'attendance_deleted',
+  'system_generated'
+] as const;
+export type AttendanceLogActionType =
+  (typeof ATTENDANCE_LOG_ACTION_TYPES)[number];
+
+export const ATTENDANCE_LOG_ACTION_TYPE_OPTIONS: RfidFilterOption[] = [
+  { id: 'attendance_created', name: 'Attendance Created' },
+  { id: 'attendance_updated', name: 'Attendance Updated' },
+  { id: 'check_in_modified', name: 'Check In Modified' },
+  { id: 'check_out_modified', name: 'Check Out Modified' },
+  { id: 'status_changed', name: 'Status Changed' },
+  { id: 'correction_submitted', name: 'Correction Submitted' },
+  { id: 'correction_approved', name: 'Correction Approved' },
+  { id: 'correction_rejected', name: 'Correction Rejected' },
+  { id: 'attendance_deleted', name: 'Attendance Deleted' },
+  { id: 'system_generated', name: 'System Generated' }
+];
+
+/** Day attendance status used by the Logs filter (screenshot set). */
+export const ATTENDANCE_LOG_DAY_STATUS_OPTIONS: RfidFilterOption[] = [
+  { id: 'present', name: 'Present' },
+  { id: 'absent', name: 'Absent' },
+  { id: 'late', name: 'Late' },
+  { id: 'early_out', name: 'Early Out' },
+  { id: 'missing_punch', name: 'Missing Punch' },
+  { id: 'incomplete', name: 'Incomplete' }
+];
+
+export const ATTENDANCE_LOG_SOURCES = [
+  'rfid',
+  'web',
+  'system',
+  'roster',
+  'correction',
+  'import'
+] as const;
+export type AttendanceLogSource = (typeof ATTENDANCE_LOG_SOURCES)[number];
+
+export const ATTENDANCE_LOG_SOURCE_OPTIONS: RfidFilterOption[] = [
+  { id: 'rfid', name: 'RFID' },
+  { id: 'web', name: 'Web' },
+  { id: 'system', name: 'System' },
+  { id: 'roster', name: 'Roster' },
+  { id: 'correction', name: 'Correction' },
+  { id: 'import', name: 'Import' }
+];
+
+export const ATTENDANCE_LOG_STATUSES = [
+  'pending',
+  'approved',
+  'recorded',
+  'completed',
+  'rejected'
+] as const;
+export type AttendanceLogStatus = (typeof ATTENDANCE_LOG_STATUSES)[number];
+
+export type GetAttendanceLogsParams = {
+  page?: string;
+  limit?: string;
+  fromDate?: string;
+  toDate?: string;
+  /** Combined staff name / code search. */
+  staffSearch?: string;
+  department?: string;
+  actionType?: string;
+  attendanceStatus?: string;
+  source?: string;
+  /** Performed-by user id or synthetic system id. */
+  performedById?: string;
+};
+
+export type AttendanceLogCards = {
+  logEvents: number;
+  systemGenerated: number;
+  manualUpdates: number;
+  rejectedChanges: number;
+};
+
+export type AttendanceLogRecord = {
+  id: string;
+  logCode: string;
+  eventAt: string;
+  eventDateLabel: string;
+  eventTimeLabel: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  attendanceDate: string;
+  attendanceDateLabel: string;
+  actionType: AttendanceLogActionType;
+  actionLabel: string;
+  previousValue: string;
+  newValue: string;
+  source: AttendanceLogSource;
+  sourceLabel: string;
+  performedById: string | null;
+  performedByName: string;
+  remarks: string;
+  /** Workflow / audit badge (Pending, Approved, Recorded, …). */
+  logStatus: AttendanceLogStatus;
+  logStatusLabel: string;
+  /** Day attendance status for filtering (present / late / …). */
+  attendanceStatus: string;
+  attendanceStatusLabel: string;
+  entityType: 'AttendanceDay' | 'AttendanceCorrection';
+  entityId: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdUser: AuthUserSummary | null;
+  updatedUser: AuthUserSummary | null;
+};
+
+export type AttendanceLogHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type AttendanceLogFilterOptions = {
+  departments: RfidFilterOption[];
+  actionTypes: RfidFilterOption[];
+  attendanceStatuses: RfidFilterOption[];
+  sources: RfidFilterOption[];
+  users: RfidFilterOption[];
+};
+
+export type AttendanceLogRegister = {
+  fromDate: string;
+  toDate: string;
+  periodLabel: string;
+  cards: AttendanceLogCards;
+  rows: AttendanceLogRecord[];
+  totalRecords: number;
+  filterOptions: AttendanceLogFilterOptions;
+};
+

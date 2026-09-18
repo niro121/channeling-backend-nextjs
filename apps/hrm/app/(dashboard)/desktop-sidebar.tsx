@@ -36,6 +36,7 @@ import {
   DoorOpen,
   BarChart3,
   BookOpen,
+  ScrollText,
   TabletSmartphone,
   Fingerprint,
 } from "lucide-react";
@@ -292,7 +293,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/attendance-daily') ||
           hasAccess('/fingerprint-verification') ||
           hasAccess('/attendance-devices') ||
-          hasAccess('/attendance-summary')) && (
+          hasAccess('/attendance-summary') ||
+          hasAccess('/attendance-logs')) && (
           <SidebarGroup label="Staff Attendance">
             <SidebarCollapsible
               label="Attendance"
@@ -304,7 +306,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/fingerprint-verification',
                 '/attendance-devices',
                 '/attendance-corrections',
-                '/attendance-summary'
+                '/attendance-summary',
+                '/attendance-logs'
               ]}
               defaultOpen
             >
@@ -355,6 +358,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/attendance-summary"
                   label="Summary"
                   icon={<BarChart3 className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-logs') && (
+                <NavLink
+                  href="/attendance-logs"
+                  label="Logs"
+                  icon={<ScrollText className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

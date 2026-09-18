@@ -39,6 +39,7 @@ const PATH_NAMES = [
   { path: 'fingerprint-verification', name: 'Fingerprint Verification' },
   { path: 'attendance-devices', name: 'Devices' },
   { path: 'attendance-summary', name: 'Attendance Summary' },
+  { path: 'attendance-logs', name: 'Attendance Log' },
   { path: 'payroll', name: 'Payroll' },
   { path: 'salary-structures', name: 'Salary Structures' },
   { path: 'reports', name: 'Reports' },
