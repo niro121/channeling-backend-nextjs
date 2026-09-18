@@ -183,6 +183,7 @@ export type RfidAttendanceDashboard = {
   date: string;
   dateLabel: string;
   activeReaderCount: number;
+  /** True when a device punch arrived within the last few minutes. */
   streaming: boolean;
   summary: RfidAttendanceSummary;
   liveRows: RfidLiveCheckInRow[];
@@ -192,6 +193,21 @@ export type RfidAttendanceDashboard = {
     shifts: RfidFilterOption[];
     staff: RfidFilterOption[];
   };
+};
+
+/** Flat punch row for RFID live page export. */
+export type RfidPunchExportRow = {
+  punchedAt: string;
+  punchedAtLabel: string;
+  deviceCode: string;
+  externalPunchId: string;
+  rfid: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  direction: string;
+  source: string;
+  matchStatus: string;
 };
 
 /* ---------------------------------

@@ -4,7 +4,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { requirePermission } from '@/lib/server-permissions';
-import { getRfidAttendanceDashboard } from '@/services/attendance-services/rfid-attendance.service';
+import {
+  getRfidAttendanceDashboard,
+  getRfidAttendancePunchesForExport
+} from '@/services/attendance-services/rfid-attendance.service';
 import type { RfidAttendanceFilters } from '@/types/attendance';
 
 export async function getRfidAttendanceDashboardAction(
@@ -31,6 +34,28 @@ export async function getRfidAttendanceDashboardAction(
       errors: {
         message: error.message ?? 'Failed to load RFID attendance'
       }
+    };
+  }
+}
+
+export async function getRfidAttendanceExportAction(
+  filters: RfidAttendanceFilters = {}
+) {
+  try {
+    await requirePermission('attendance', 'view');
+    const result = await getRfidAttendancePunchesForExport(filters);
+    if (!result.success || !result.data?.length) {
+      return {
+        success: false,
+        message: result.error?.message ?? 'No punches to export'
+      };
+    }
+    return { success: true, data: result.data };
+  } catch (error: any) {
+    console.error('getRfidAttendanceExportAction error', error);
+    return {
+      success: false,
+      message: error.message ?? 'Failed to export punches'
     };
   }
 }

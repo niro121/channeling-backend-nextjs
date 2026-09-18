@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 type SectionLiveCheckinsProps = {
   rows: RfidLiveCheckInRow[];
   streaming: boolean;
+  /** Client auto-refresh is active. */
+  polling?: boolean;
 };
 
 function statusBadgeClass(label: RfidLiveStatusLabel): string {
@@ -27,21 +29,39 @@ function statusBadgeClass(label: RfidLiveStatusLabel): string {
 
 export default function SectionLiveCheckins({
   rows,
-  streaming
+  streaming,
+  polling = false
 }: SectionLiveCheckinsProps) {
+  const badgeLabel = streaming
+    ? 'Streaming'
+    : polling
+      ? 'Live'
+      : 'Idle';
+  const badgeClass = streaming
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+    : polling
+      ? 'border-sky-200 bg-sky-50 text-sky-800'
+      : 'border-border bg-muted text-muted-foreground';
+
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="text-base font-semibold">Live RFID Check-ins</h2>
         <span
           className={cn(
-            'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
-            streaming
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-border bg-muted text-muted-foreground'
+            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium',
+            badgeClass
           )}
         >
-          {streaming ? 'Streaming' : 'Idle'}
+          {streaming || polling ? (
+            <span
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                streaming ? 'animate-pulse bg-emerald-500' : 'bg-sky-500'
+              )}
+            />
+          ) : null}
+          {badgeLabel}
         </span>
       </div>
 

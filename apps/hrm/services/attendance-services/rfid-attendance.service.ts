@@ -10,7 +10,8 @@ import type {
   RfidAttendanceDashboard,
   RfidAttendanceFilters,
   RfidLiveCheckInRow,
-  RfidLiveStatusLabel
+  RfidLiveStatusLabel,
+  RfidPunchExportRow
 } from '@/types/attendance';
 
 function initials(name: string): string {
@@ -213,7 +214,7 @@ export async function getRfidAttendanceDashboard(
         date: dateIso,
         dateLabel: formatDateLabel(dateIso),
         activeReaderCount: activeReaders,
-        streaming: Boolean(recentDevicePunch) || activeReaders > 0,
+        streaming: Boolean(recentDevicePunch),
         summary: {
           present: present + late,
           presentPct: pct(present + late, rosteredTotal || days.length),
@@ -242,6 +243,141 @@ export async function getRfidAttendanceDashboard(
     return {
       success: false,
       error: { message: error.message || 'Failed to load RFID attendance' }
+    };
+  }
+}
+
+/**
+ * Export immutable punches for the RFID live page date (optional staff / day filters).
+ */
+export async function getRfidAttendancePunchesForExport(
+  filters: RfidAttendanceFilters = {}
+): Promise<{
+  success: boolean;
+  data?: RfidPunchExportRow[];
+  error?: { message?: string };
+}> {
+  try {
+    const dateIso =
+      filters.date?.trim().slice(0, 10) || toColomboDateIso(new Date());
+    const civilDay = colomboDateIsoToUtc(dateIso);
+    const dayEnd = new Date(civilDay.getTime() + 24 * 60 * 60 * 1000);
+
+    let staffIds: string[] | null = null;
+    const needsDayFilter =
+      Boolean(filters.department?.trim()) ||
+      Boolean(filters.location?.trim()) ||
+      Boolean(filters.shiftTypeId?.trim() && filters.shiftTypeId !== '__all__');
+
+    if (needsDayFilter) {
+      const dayWhere: Record<string, unknown> = { date: civilDay };
+      if (filters.department?.trim()) {
+        dayWhere.department = filters.department.trim();
+      }
+      if (filters.location?.trim()) {
+        dayWhere.location = filters.location.trim();
+      }
+      if (filters.shiftTypeId?.trim() && filters.shiftTypeId !== '__all__') {
+        dayWhere.shiftTypeId = filters.shiftTypeId.trim();
+      }
+      if (filters.staffId?.trim()) {
+        dayWhere.staffId = filters.staffId.trim();
+      }
+      const days = await prisma.attendanceDay.findMany({
+        where: dayWhere,
+        select: { staffId: true }
+      });
+      staffIds = [...new Set(days.map((d) => d.staffId))];
+      if (staffIds.length === 0) {
+        return { success: true, data: [] };
+      }
+    }
+
+    const punchWhere: Record<string, unknown> = {
+      punchedAt: { gte: civilDay, lt: dayEnd }
+    };
+    if (staffIds) {
+      punchWhere.staffId = { in: staffIds };
+    } else if (filters.staffId?.trim()) {
+      punchWhere.staffId = filters.staffId.trim();
+    }
+
+    const punches = await prisma.attendancePunch.findMany({
+      where: punchWhere,
+      orderBy: { punchedAt: 'desc' },
+      take: 5000
+    });
+
+    const punchStaffIds = [
+      ...new Set(
+        punches.map((p) => p.staffId).filter((id): id is string => Boolean(id))
+      )
+    ];
+    const [dayStaff, staffRows] = await Promise.all([
+      punchStaffIds.length
+        ? prisma.attendanceDay.findMany({
+            where: { date: civilDay, staffId: { in: punchStaffIds } },
+            select: {
+              staffId: true,
+              staffCode: true,
+              staffName: true,
+              department: true
+            }
+          })
+        : Promise.resolve([]),
+      punchStaffIds.length
+        ? prisma.staff.findMany({
+            where: { id: { in: punchStaffIds } },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              employmentDetails: true
+            }
+          })
+        : Promise.resolve([])
+    ]);
+    const dayByStaff = new Map(dayStaff.map((d) => [d.staffId, d]));
+    const staffById = new Map(staffRows.map((s) => [s.id, s]));
+
+    const data: RfidPunchExportRow[] = punches.map((p) => {
+      const day = p.staffId ? dayByStaff.get(p.staffId) : undefined;
+      const staff = p.staffId ? staffById.get(p.staffId) : undefined;
+      const emp = (
+        staff?.employmentDetails as {
+          employment?: { department?: string | null };
+        } | null
+      )?.employment;
+      const staffName =
+        day?.staffName?.trim() ||
+        staff?.name?.trim() ||
+        (p.matchStatus === 'unmatched' ? 'Unmatched' : '—');
+      const staffCode = day?.staffCode?.trim() || staff?.code?.trim() || '—';
+      const department =
+        day?.department?.trim() || emp?.department?.trim() || '—';
+
+      const zoned = new TZDate(p.punchedAt.getTime(), ATTENDANCE_TIMEZONE);
+      return {
+        punchedAt: p.punchedAt.toISOString(),
+        punchedAtLabel: format(zoned, 'd MMM yyyy HH:mm:ss'),
+        deviceCode: p.deviceCode || '—',
+        externalPunchId: p.externalPunchId,
+        rfid: p.rfid,
+        staffCode,
+        staffName,
+        department,
+        direction: p.direction || 'unknown',
+        source: p.source || 'device',
+        matchStatus: p.matchStatus
+      };
+    });
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('getRfidAttendancePunchesForExport error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to export punches' }
     };
   }
 }

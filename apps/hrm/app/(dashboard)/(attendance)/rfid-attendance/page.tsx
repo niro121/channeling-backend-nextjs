@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { getRfidAttendanceDashboardAction } from '@/app/actions/attendance-actions/rfid-attendance.actions';
-import { logRfidAttendanceVisitAction } from '@/app/actions/attendance-actions/rfid-attendance.actions';
+import {
+  getRfidAttendanceDashboardAction,
+  getRfidAttendanceExportAction,
+  logRfidAttendanceVisitAction
+} from '@/app/actions/attendance-actions/rfid-attendance.actions';
 import RfidAttendanceWorkspace from './rfid-attendance-workspace';
 
 type PageProps = {
@@ -39,7 +42,27 @@ export default async function RfidAttendancePage({ searchParams }: PageProps) {
     );
   }
 
+  const handleExport = async () => {
+    'use server';
+
+    const exportResponse = await getRfidAttendanceExportAction(filters);
+    if (!exportResponse.success || !exportResponse.data?.length) {
+      return {
+        success: false,
+        message: exportResponse.message ?? 'No punches to export'
+      };
+    }
+    return {
+      success: true,
+      data: exportResponse.data as unknown as Record<string, unknown>[]
+    };
+  };
+
   return (
-    <RfidAttendanceWorkspace dashboard={result.data} filters={filters} />
+    <RfidAttendanceWorkspace
+      dashboard={result.data}
+      filters={filters}
+      onExport={handleExport}
+    />
   );
 }
