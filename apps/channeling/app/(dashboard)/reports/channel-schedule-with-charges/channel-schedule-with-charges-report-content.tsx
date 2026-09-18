@@ -6,12 +6,20 @@ import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Selector } from '@/components/common/selector';
 import { Combobox } from '@/components/common/combobox';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 import {
   getChannelScheduleWithChargesReportData,
   exportChannelScheduleWithChargesReportData
 } from '@/app/actions/reports/channel-schedule-with-charges.report.action';
 import { ChannelScheduleWithChargesColumns } from './columns';
+import { ChannelScheduleWithChargesPrintLayout } from './channel-schedule-with-charges-print-layout';
+import { downloadChannelScheduleWithChargesReportPdf } from './channel-schedule-with-charges-pdf';
+import { downloadChannelScheduleWithChargesReportExcel } from './channel-schedule-with-charges-excel';
+import {
+  CHANNEL_SCHEDULE_EXPORT_COLUMNS,
+  CHANNEL_SCHEDULE_EXPORT_KEYS,
+} from './channel-schedule-with-charges-export-config';
 import type {
   ChannelScheduleWithChargesReportContentProps,
   ChannelScheduleWithChargesReportExportRow,
@@ -47,11 +55,104 @@ function ChannelScheduleWithChargesReportContentInner(
     reportType: searchParams.get('reportType') ?? undefined
   });
 
+  const buildSummaryItems = React.useCallback(
+    (values: Record<string, string | undefined>) => {
+      const branchOpts = withAllBranchesOptions(props.locationOptions);
+      const rtId = values.reportType ?? '__all__';
+      return [
+        {
+          label: 'Institution',
+          value: filterOptionLabel(
+            values.institutionId,
+            'All Institutions',
+            props.institutionOptions
+          ),
+        },
+        {
+          label: 'Branch',
+          value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
+        },
+        {
+          label: 'Department',
+          value: filterOptionLabel(
+            values.departmentId,
+            'All Departments',
+            props.departmentOptions
+          ),
+        },
+        {
+          label: 'Doctor',
+          value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
+        },
+        {
+          label: 'Speciality',
+          value: filterOptionLabel(
+            values.specialityId,
+            'All Specialities',
+            props.specialityOptions
+          ),
+        },
+        {
+          label: 'Type',
+          value:
+            rtId === '__all__' || rtId === ''
+              ? 'All report types'
+              : reportTypeOptions.find((o) => o.id === rtId)?.name ?? rtId,
+        },
+      ];
+    },
+    [props, reportTypeOptions]
+  );
+
+  const handlePdfDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelScheduleWithChargesReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelScheduleWithChargesReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelScheduleWithChargesReportPdf({
+        reportName: 'Channel schedule with charges',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelScheduleWithChargesReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelScheduleWithChargesReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelScheduleWithChargesReportExcel({
+        reportName: 'Channel schedule with charges',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: (args.title || 'Schedule Charges').slice(0, 31),
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<ChannelScheduleWithChargesReportRow, ChannelScheduleWithChargesReportExportRow>
       title="Channel schedule with charges"
       description="View doctor sessions with charge breakdown, filtered by institution, branch, department, speciality, doctor, and report type."
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 channel-schedule-charges-report-root"
+      renderPrintContent={(rows) => <ChannelScheduleWithChargesPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: props.currentUserName,
         formatFilters: (values) => {
@@ -97,51 +198,7 @@ function ChannelScheduleWithChargesReportContentInner(
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const branchOpts = withAllBranchesOptions(props.locationOptions);
-          const rtId = values.reportType ?? '__all__';
-          return [
-            {
-              label: 'Institution',
-              value: filterOptionLabel(
-                values.institutionId,
-                'All Institutions',
-                props.institutionOptions
-              ),
-            },
-            {
-              label: 'Branch',
-              value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
-            },
-            {
-              label: 'Department',
-              value: filterOptionLabel(
-                values.departmentId,
-                'All Departments',
-                props.departmentOptions
-              ),
-            },
-            {
-              label: 'Doctor',
-              value: filterOptionLabel(values.doctorId, 'All Doctors', props.doctorOptions),
-            },
-            {
-              label: 'Speciality',
-              value: filterOptionLabel(
-                values.specialityId,
-                'All Specialities',
-                props.specialityOptions
-              ),
-            },
-            {
-              label: 'Type',
-              value:
-                rtId === '__all__' || rtId === ''
-                  ? 'All report types'
-                  : reportTypeOptions.find((o) => o.id === rtId)?.name ?? rtId,
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <>
@@ -205,71 +262,9 @@ function ChannelScheduleWithChargesReportContentInner(
       }}
       exportData={async () => exportChannelScheduleWithChargesReportData(buildQuery())}
       columns={ChannelScheduleWithChargesColumns}
-      exportColumns={[
-        'location(location)',
-        'Doctor Name',
-        'Session Name',
-        'Room',
-        'Start Time',
-        'End Time',
-        'Date Type',
-        'Apply Only To(Ignores Date Type)',
-        'Doctor Fee (Local)',
-        'Hospital Fee (Local)',
-        'Agency Fee (Local)',
-        'Scan Fee (Local)',
-        'On-Call Fee (Local)',
-        'Credit Card Commission (Local)',
-        'API Fee (Local)',
-        'Session Value (Local)',
-        'Doctor Fee (Foreign)',
-        'Hospital Fee (Foreign)',
-        'Agency Fee (Foreign)',
-        'Scan Fee (Foreign)',
-        'On-Call Fee (Foreign)',
-        'Credit Card Commission Fee (Foreign)',
-        'API Fee (Foreign)',
-        'Session Value (Foreign)',
-        'Starting Patient No',
-        'Maximum Patient No',
-        'Previous Session',
-        'Refundable',
-        'Advance /Booking Days',
-        'Status'
-      ]}
+      exportColumns={CHANNEL_SCHEDULE_EXPORT_COLUMNS}
       exportKeys={
-        [
-          'locationName',
-          'doctorName',
-          'sessionName',
-          'roomName',
-          'startTime',
-          'endTime',
-          'dateType',
-          'applyOnlyTo',
-          'doctorFeeLocal',
-          'hospitalFeeLocal',
-          'agencyFeeLocal',
-          'scanFeeLocal',
-          'onCallFeeLocal',
-          'creditCardCommissionLocal',
-          'apiFeeLocal',
-          'sessionValueLocal',
-          'doctorFeeForeign',
-          'hospitalFeeForeign',
-          'agencyFeeForeign',
-          'scanFeeForeign',
-          'onCallFeeForeign',
-          'creditCardCommissionForeign',
-          'apiFeeForeign',
-          'sessionValueForeign',
-          'startingPatientNo',
-          'maximumPatientNo',
-          'previousSession',
-          'refundable',
-          'advanceBookingEnabled',
-          'status'
-        ] as (keyof ChannelScheduleWithChargesReportExportRow)[]
+        CHANNEL_SCHEDULE_EXPORT_KEYS as (keyof ChannelScheduleWithChargesReportExportRow)[]
       }
       exportTitle="Channel schedule with charges"
       exportFileName="channel-schedule-with-charges"

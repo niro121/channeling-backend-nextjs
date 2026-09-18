@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
@@ -11,10 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getChannelAgentReferenceBookReportData, exportChannelAgentReferenceBookReportData } from '@/app/actions/reports/report.action';
 import { AgencyBook } from '@/types/agencybook';
 import { ExportChannelAgentReferenceBookData } from '@/types/report';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import { ChannelAgentReferenceBookReportColumns } from './columns';
+import { ChannelAgentReferenceBookPrintLayout } from './channel-agent-reference-book-print-layout';
+import { downloadChannelAgentReferenceBookReportPdf } from './channel-agent-reference-book-pdf';
+import { downloadChannelAgentReferenceBookReportExcel } from './channel-agent-reference-book-excel';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import Loading from '@/app/(dashboard)/loading';
 
 export type ChannelAgentReferenceBookReportContentProps = {
+  currentUserName: string;
   initialAgencyOptions: Array<{ id: string; name: string }>;
   initialUserOptions: Array<{ id: string; name: string }>;
 };
@@ -31,7 +37,24 @@ function getDefaultDateTimeRange(): { from: string; to: string } {
   };
 }
 
+function filterOptionLabel(
+  id: string | undefined,
+  allLabel: string,
+  options: Array<{ id: string; name: string }>
+): string {
+  if (id == null || id === '' || id === '__all__') return allLabel;
+  return options.find((o) => o.id === id)?.name ?? id;
+}
+
+function statusLabel(status: string | undefined): string {
+  if (status == null || status === '' || status === '__all__') return 'All';
+  if (status === '1') return 'Active';
+  if (status === '0') return 'Inactive';
+  return status;
+}
+
 function ChannelAgentReferenceBookReportContentInner({
+  currentUserName,
   initialAgencyOptions,
   initialUserOptions
 }: ChannelAgentReferenceBookReportContentProps) {
@@ -47,11 +70,100 @@ function ChannelAgentReferenceBookReportContentInner({
     status: searchParams.get('status') ?? undefined
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>) => {
+      const from = values.fromDate ?? '';
+      const to = values.toDate ?? '';
+      return [
+        {
+          label: 'Period',
+          value: from && to ? formatReportRangeLabel(from, to) : `${from || '—'} to ${to || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Agent',
+          value: filterOptionLabel(values.agencyId, 'All Agency', initialAgencyOptions),
+        },
+        { label: 'Book Number', value: values.bookNumber?.trim() || 'All' },
+        {
+          label: 'Created By',
+          value: filterOptionLabel(values.createdBy, 'All Users', initialUserOptions),
+        },
+        {
+          label: 'Updated By',
+          value: filterOptionLabel(values.updatedBy, 'All Users', initialUserOptions),
+        },
+        { label: 'Status', value: statusLabel(values.status) },
+      ];
+    },
+    [initialAgencyOptions, initialUserOptions]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: ExportChannelAgentReferenceBookData[];
+      columns: string[];
+      keys: (keyof ExportChannelAgentReferenceBookData)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelAgentReferenceBookReportPdf({
+        reportName: 'Channel Agent Reference Book',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: ExportChannelAgentReferenceBookData[];
+      columns: string[];
+      keys: (keyof ExportChannelAgentReferenceBookData)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelAgentReferenceBookReportExcel({
+        reportName: 'Channel Agent Reference Book',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: (args.title || 'Agent Reference Book').slice(0, 31),
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<AgencyBook, ExportChannelAgentReferenceBookData>
       title="Channel Agent Reference Book"
       description="View channel agent reference book information with filters"
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="container mx-auto py-3 space-y-4 channel-agent-reference-book-report-root"
+      renderPrintContent={(rows) => <ChannelAgentReferenceBookPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
+      generationDetails={{
+        generatedBy: currentUserName,
+        formatFilters: (values) => (
+          <>
+            <div>
+              Range: {values.fromDate || '—'} to {values.toDate || '—'}
+            </div>
+            <div>
+              Agent: {filterOptionLabel(values.agencyId, 'All Agency', initialAgencyOptions)} |
+              Book: {values.bookNumber?.trim() || 'All'} | Status: {statusLabel(values.status)}
+            </div>
+          </>
+        ),
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
+      }}
       filterContent={({ values, setValue }) => (
         <>
           <div className="basis-full flex flex-wrap items-end gap-3">
