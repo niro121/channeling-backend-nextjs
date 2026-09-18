@@ -38,6 +38,22 @@ export async function exportWithholdingTaxReportData(
       netAmt: String(row.netAmt ?? 0)
     }));
 
+    const totalAmt = result.data.reduce((sum, row) => sum + (Number(row.totalAmt) || 0), 0);
+    const holdingTax = result.data.reduce((sum, row) => sum + (Number(row.holdingTax) || 0), 0);
+    const netAmt = result.data.reduce((sum, row) => sum + (Number(row.netAmt) || 0), 0);
+    data.push({
+      sNo: 'Total',
+      docDate: '',
+      docNo: '',
+      consultant: '',
+      speciality: '',
+      remarks: '',
+      totalAmt: String(totalAmt),
+      taxPercent: '',
+      holdingTax: String(holdingTax),
+      netAmt: String(netAmt),
+    });
+
     return { success: true, data };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to export withholding tax report';
