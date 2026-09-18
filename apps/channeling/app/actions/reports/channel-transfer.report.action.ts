@@ -31,18 +31,24 @@ export async function exportChannelTransferReportData(
       return { success: false, message: result.message ?? 'No data available' };
     }
 
-    const mapped: ChannelTransferReportExportRow[] = result.data.map((r) => ({
-      transferredAt: moment(r.transferredAt).format('YYYY-MM-DD HH:mm:ss'),
-      transferredBy: r.transferredByUserName ?? r.transferredByUserId ?? '-',
-      bookingId: r.bookingDisplayId ?? r.bookingId ?? '-',
-
-      beforeActivity: r.beforeActivity ?? '-',
-
-      afterActivity: r.afterActivity ?? '-',
-
-      remarks: r.remarks ?? '-',
-      action: 'booking.transferred',
-    }));
+    const mapped: ChannelTransferReportExportRow[] = result.data.map((r) => {
+      const meta = r.metadata ?? {};
+      const newAppt = meta.newAppointmentNo ?? meta.newAppointmentNumber;
+      return {
+        transferredAt: moment(r.transferredAt).format('YYYY-MM-DD HH:mm:ss'),
+        transferredBy: r.transferredByUserName ?? r.transferredByUserId ?? '-',
+        bookingId: r.bookingDisplayId ?? r.bookingId ?? '-',
+        beforeActivity: r.beforeActivity ?? '-',
+        afterActivity: r.afterActivity ?? '-',
+        remarks: r.remarks ?? '-',
+        action: 'booking.transferred',
+        fromSessionId: String(meta.fromSessionId ?? r.fromSessionId ?? '-'),
+        toSessionId: String(meta.toSessionId ?? r.toSessionId ?? '-'),
+        toDoctorId: String(meta.toDoctorId ?? r.toDoctorId ?? '-'),
+        newAppointmentNo:
+          newAppt != null && String(newAppt).trim() !== '' ? String(newAppt) : '-',
+      };
+    });
 
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {

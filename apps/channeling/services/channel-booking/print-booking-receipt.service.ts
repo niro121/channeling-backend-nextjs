@@ -50,6 +50,46 @@ async function resolveUserPrintCode(userId: string | null | undefined): Promise<
   return user?.staff?.code?.trim() || ""
 }
 
+/**
+ * Normal prints: booking.createdBy → staff code (unchanged).
+ * Refund prints: prefer payment-receipt cashier, then booking staff code, then booking creator.
+ */
+async function resolveCashierCodeForPrint(opts: {
+  bookingId: string
+  bookingCreatedBy: string | null | undefined
+  bookingStaffCode: string | null | undefined
+  receiptMethod: number
+  receiptCreatedBy: string | null | undefined
+  isRefunded: boolean
+}): Promise<string> {
+  const isRefundReceipt = opts.receiptMethod === 0
+  if (!opts.isRefunded && !isRefundReceipt) {
+    return resolveUserPrintCode(opts.bookingCreatedBy)
+  }
+
+  let paymentCreatedBy =
+    opts.receiptMethod === 1 ? opts.receiptCreatedBy : null
+  if (!paymentCreatedBy) {
+    const payment = await prisma.receipt.findFirst({
+      where: { bookingId: opts.bookingId, method: 1 },
+      orderBy: { createdAt: "asc" },
+      select: { createdBy: true },
+    })
+    paymentCreatedBy = payment?.createdBy ?? null
+  }
+
+  const fromPayment = await resolveUserPrintCode(paymentCreatedBy)
+  if (fromPayment) return fromPayment
+
+  const staffCode = opts.bookingStaffCode?.trim()
+  if (staffCode) return staffCode
+
+  const fromBookingCreator = await resolveUserPrintCode(opts.bookingCreatedBy)
+  if (fromBookingCreator) return fromBookingCreator
+
+  return resolveUserPrintCode(opts.receiptCreatedBy)
+}
+
 export type PrintBookingReceiptData = {
   placeholders: ReceiptPlaceholderMap
   template: ReceiptTemplateRecord | null
@@ -71,6 +111,8 @@ export async function printBookingReceiptService(
         printCount: true,
         printedAt: true,
         locationId: true,
+        method: true,
+        createdBy: true,
       },
     })
     if (!receipt) {
@@ -163,7 +205,14 @@ export async function printBookingReceiptService(
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
 
     const [cashierCode, printedBy] = await Promise.all([
-      resolveUserPrintCode(extra?.createdBy),
+      resolveCashierCodeForPrint({
+        bookingId: receipt.bookingId,
+        bookingCreatedBy: extra?.createdBy,
+        bookingStaffCode: extra?.staff?.code,
+        receiptMethod: receipt.method,
+        receiptCreatedBy: receipt.createdBy,
+        isRefunded: (details.refund ?? 0) !== 0,
+      }),
       resolveUserPrintCode(printedByUserId),
     ])
 

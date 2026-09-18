@@ -16,11 +16,12 @@ import { ReportAgentSelect } from '@/components/common/agent-select';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
+import { AgencyStatementPrintLayout } from './agency-statement-print-layout';
+import { downloadAgencyStatementReportPdf } from './agency-statement-pdf';
+import { downloadAgencyStatementReportExcel } from './agency-statement-excel';
 
 type Props = {
   agentOptions: Array<{ id: string; name: string }>;
@@ -129,97 +130,12 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
       return;
     }
-    type PdfRow = {
-      no: string;
-      date: string;
-      particulars: string;
-      appointmentDateTime: string;
-      receiptNo: string;
-      docFee: string;
-      hosFee: string;
-      discount: string;
-      amount: string;
-      balance: string;
-      comments: string;
-      createdBy: string;
-    };
-    const rows: PdfRow[] = [
-      {
-        no: '',
-        date: '',
-        particulars: 'Opening Balance',
-        appointmentDateTime: '',
-        receiptNo: '',
-        docFee: '',
-        hosFee: '',
-        discount: '',
-        amount: '',
-        balance: data.openingBalance.toFixed(2),
-        comments: '',
-        createdBy: '',
-      },
-      ...data.rows.map((r) => ({
-        no: String(r.no),
-        date: new Date(r.date).toLocaleString(),
-        particulars: r.particulars,
-        appointmentDateTime: r.appointmentDateTime ?? '',
-        receiptNo: r.receiptNo,
-        docFee: r.docFee.toFixed(2),
-        hosFee: r.hosFee.toFixed(2),
-        discount: r.discount.toFixed(2),
-        amount: r.amount.toFixed(2),
-        balance: r.runningBalance.toFixed(2),
-        comments: r.comments,
-        createdBy: r.createdBy,
-      })),
-      {
-        no: '',
-        date: '',
-        particulars: 'Closing Balance',
-        appointmentDateTime: '',
-        receiptNo: '',
-        docFee: '',
-        hosFee: '',
-        discount: '',
-        amount: '',
-        balance: data.closingBalance.toFixed(2),
-        comments: '',
-        createdBy: '',
-      },
-    ];
-    await downloadBrandedReportPdf({
+    await downloadAgencyStatementReportPdf({
       reportName: 'Agency Statement',
       summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(data, meta)),
       generatedAt: meta.generatedAt,
-      data: rows,
-      columns: [
-        'No.',
-        'Date',
-        'Particulars',
-        'Appointment',
-        'Receipt No',
-        'Doc Fee',
-        'Hos Fee',
-        'Discount',
-        'Amount',
-        'Balance',
-        'Comments',
-        'Created By',
-      ],
-      keys: [
-        'no',
-        'date',
-        'particulars',
-        'appointmentDateTime',
-        'receiptNo',
-        'docFee',
-        'hosFee',
-        'discount',
-        'amount',
-        'balance',
-        'comments',
-        'createdBy',
-      ],
+      data,
+      periodFrom: meta.from,
       fileName: `${formatExportFileName('agency-statement')}.pdf`,
     });
   };
@@ -231,97 +147,12 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
     }
     setLoadingExcel(true);
     try {
-      type ExcelRow = {
-        no: string;
-        date: string;
-        particulars: string;
-        appointmentDateTime: string;
-        receiptNo: string;
-        docFee: string;
-        hosFee: string;
-        discount: string;
-        amount: string;
-        balance: string;
-        comments: string;
-        createdBy: string;
-      };
-      const rows: ExcelRow[] = [
-        {
-          no: '',
-          date: '',
-          particulars: 'Opening Balance',
-          appointmentDateTime: '',
-          receiptNo: '',
-          docFee: '',
-          hosFee: '',
-          discount: '',
-          amount: '',
-          balance: data.openingBalance.toFixed(2),
-          comments: '',
-          createdBy: '',
-        },
-        ...data.rows.map((r) => ({
-          no: String(r.no),
-          date: new Date(r.date).toLocaleString(),
-          particulars: r.particulars,
-          appointmentDateTime: r.appointmentDateTime ?? '',
-          receiptNo: r.receiptNo,
-          docFee: r.docFee.toFixed(2),
-          hosFee: r.hosFee.toFixed(2),
-          discount: r.discount.toFixed(2),
-          amount: r.amount.toFixed(2),
-          balance: r.runningBalance.toFixed(2),
-          comments: r.comments,
-          createdBy: r.createdBy,
-        })),
-        {
-          no: '',
-          date: '',
-          particulars: 'Closing Balance',
-          appointmentDateTime: '',
-          receiptNo: '',
-          docFee: '',
-          hosFee: '',
-          discount: '',
-          amount: '',
-          balance: data.closingBalance.toFixed(2),
-          comments: '',
-          createdBy: '',
-        },
-      ];
-      await downloadBrandedReportExcel({
+      await downloadAgencyStatementReportExcel({
         reportName: 'Agency Statement',
         summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(data, meta)),
         generatedAt: meta.generatedAt,
-        data: rows,
-        columns: [
-          'No.',
-          'Date',
-          'Particulars',
-          'Appointment',
-          'Receipt No',
-          'Doc Fee',
-          'Hos Fee',
-          'Discount',
-          'Amount',
-          'Balance',
-          'Comments',
-          'Created By',
-        ],
-        keys: [
-          'no',
-          'date',
-          'particulars',
-          'appointmentDateTime',
-          'receiptNo',
-          'docFee',
-          'hosFee',
-          'discount',
-          'amount',
-          'balance',
-          'comments',
-          'createdBy',
-        ],
+        data,
+        periodFrom: meta.from,
         fileName: `${formatExportFileName('agency-statement')}.xlsx`,
         sheetName: 'Agency Statement',
       });
@@ -357,7 +188,7 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
     ) : null;
 
   return (
-    <div className="w-full py-2 space-y-3">
+    <div className="w-full py-2 space-y-3 agency-statement-report-root">
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -436,15 +267,15 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
               reportName="Agency Statement"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={meta.generatedAt}
               summaryItems={buildSummaryItems(data, meta)}
             >
               {loading ? (
-                <div className="text-center py-8">Loading...</div>
+                <div className="text-center py-8 print:hidden">Loading...</div>
               ) : (
                 <>
-                  <div className="rounded-md border overflow-x-auto">
+                  <div className="rounded-md border overflow-x-auto print:hidden">
                     <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                       <TableHeader>
                         <TableRow className="border-b">
@@ -501,6 +332,10 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                       </TableBody>
                     </Table>
                   </div>
+                  <AgencyStatementPrintLayout
+                    data={data}
+                    periodFrom={meta.from}
+                  />
                   <div className="print:hidden">{renderMeta()}</div>
                 </>
               )}
