@@ -52,11 +52,49 @@ function ContentInner({
   });
 
   return (
-    <ReportTemplate<WithholdingTaxReportRow, WithholdingTaxReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .withholding-tax-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .withholding-tax-report-root .rpt-print-root th,
+          .withholding-tax-report-root .rpt-print-root td {
+            font-size: 6pt !important;
+            padding: 0.6mm 0.4mm !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: hidden !important;
+          }
+          .withholding-tax-report-root .rpt-print-root th *,
+          .withholding-tax-report-root .rpt-print-root td * {
+            font-size: inherit !important;
+            line-height: inherit !important;
+            color: #000 !important;
+          }
+          .withholding-tax-report-root .rpt-print-root thead th {
+            font-size: 5.5pt !important;
+          }
+          .withholding-tax-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .withholding-tax-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<WithholdingTaxReportRow, WithholdingTaxReportExportRow>
       title="Withholding Tax Report"
       description="Shows doctor payments with WHT deductions."
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 withholding-tax-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -221,6 +259,7 @@ function ContentInner({
       initialEmptyMessage="No withholding tax records found. Select filters and click Search."
       emptyMessage="No withholding tax records found for the selected filters."
     />
+    </>
   );
 }
 
