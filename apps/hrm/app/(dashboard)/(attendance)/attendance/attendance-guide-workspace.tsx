@@ -90,7 +90,9 @@ const PROCESS_STEPS: ProcessStep[] = [
   {
     n: 6,
     title: 'Confirm to roster',
-    body: 'Coming next (P5): an explicit HR action copies the final day status onto the duty roster cell. Never automatic from punches.'
+    body: 'On Daily Attendance, use Confirm to Duty Roster (single row or whole date) to copy present / late / absent onto the duty cell. Never automatic from punches.',
+    href: '/attendance-daily',
+    linkLabel: 'Open Daily Attendance'
   }
 ];
 
@@ -215,7 +217,7 @@ const PERMISSION_ACTIONS = [
   {
     action: 'edit',
     meaning:
-      'Update devices, save verification, refresh daily, approve/reject corrections'
+      'Update devices, save verification, refresh daily, approve/reject corrections, confirm to duty roster'
   },
   {
     action: 'delete',
@@ -326,7 +328,7 @@ export default function AttendanceGuideWorkspace() {
             </span>
             <ArrowRight className="h-3.5 w-3.5" />
             <span className="rounded-md bg-muted px-2.5 py-1 font-medium text-foreground">
-              Confirm (P5)
+              Confirm → Duty Roster
             </span>
           </div>
         </CardContent>
@@ -509,7 +511,7 @@ export default function AttendanceGuideWorkspace() {
               </li>
               <li>
                 Duty Roster cells are <strong>not</strong> overwritten by
-                punches — only Confirm to Duty Roster (P5).
+                punches — only Confirm to Duty Roster on Daily Attendance.
               </li>
             </ul>
           </div>

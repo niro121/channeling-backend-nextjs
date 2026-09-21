@@ -505,7 +505,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Resolve staff by `fingerPrintRfid`; mark unmatched punches
 - [x] Persist `AttendancePunch` (immutable)
 - [x] Update `AttendanceDevice.lastSeenAt`
-- [ ] Unit/integration smoke: duplicate punch, unmatched RFID, matched RFID — run `npm run smoke:attendance` in `apps/hrm` (see §13)
+- [x] Unit/integration smoke: duplicate punch, unmatched RFID, matched RFID — run `npm run smoke:attendance` in `apps/hrm` (see §13)
 - [x] Env docs: device key(s) in `apps/hrm/.env.example` (no real secrets)
 
 ### Phase P2 — Day recompute + rules
@@ -527,7 +527,7 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] Live check-ins table: Staff, Department, Time, Status badges (In / Late / Missing Out)
 - [x] Filters sidebar: Department, Location, Date, Shift, Staff
 - [x] Wire cards + table to `AttendanceDay` / recent punches (empty state until data exists)
-- [ ] Polling (or SSE) for live updates + Streaming badge (Streaming badge is heuristic for now; auto-poll later)
+- [x] Polling (15s `router.refresh`) for live updates + Streaming badge (Streaming = punch in last 5 min; Live = polling idle)
 - [x] Permission gates (`attendance` view)
 - [x] **Add Correction** → `/attendance-corrections`
 
@@ -543,19 +543,19 @@ Use these checkboxes while building. Mark items done in PRs / when closing a pha
 - [x] `/attendance` module guidance hub (process, device install → HRM connection, links to screens)
 - [x] `/attendance-summary` period summary (`CommonDataTable`, combobox filters, View Details sheet, Created/Updated columns)
 - [x] `/attendance-logs` read-only audit trail (combined staff search, Combobox dept/user, Selector action/status/source, View + History sheets, Created/Updated)
-- [ ] Export for punches from RFID live page
+- [x] Export for punches from RFID live page (`ExportWrapper` PDF/Excel via `getRfidAttendancePunchesForExport`)
 
 ### Phase P5 — Confirm to Duty Roster + hardening
 
-- [ ] Server action + service: Confirm to Duty Roster (single / bulk)
-- [ ] Map day status → `RosterAllocation.attendance` (`present` \| `late` \| `absent`)
-- [ ] Set `confirmedToRosterAt`; activity log
-- [ ] Guard: do not auto-sync on ingest
+- [x] Server action + service: Confirm to Duty Roster (single / bulk) — Daily Attendance header + per-row
+- [x] Map day status → `RosterAllocation.attendance` (`present` \| `late` \| `absent`); skip missing_punch / leave / off
+- [x] Set `confirmedToRosterAt`; activity log
+- [x] Guard: do not auto-sync on ingest (punch ingest + day recompute never write duty attendance)
 - [ ] Device gateway sample / README for push adapter (vendor-agnostic DTO)
 - [ ] Rate limit + basic abuse protection on ingest
 - [ ] Unmatched RFID ops queue / Exceptions drill-down
 - [ ] Duplicate-burst suppression / debounce window
-- [ ] Update this doc status + `ROSTER_SHIFTS_MANAGER_GUIDE.md` RFID deferral note
+- [x] Update this doc status + `ROSTER_SHIFTS_MANAGER_GUIDE.md` RFID deferral note (Confirm path documented)
 - [ ] Non-admin permission smoke test
 
 ### Optional / later

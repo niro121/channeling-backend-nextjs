@@ -95,6 +95,7 @@ async function resolveStaffByRfid(rfid: string) {
 /**
  * Ingest a single punch from a device gateway.
  * Idempotent on (deviceId, externalPunchId).
+ * Never writes RosterAllocation.attendance — that is HR Confirm to Duty Roster only (P5).
  */
 export async function ingestAttendancePunch(payload: unknown): Promise<{
   success: boolean;

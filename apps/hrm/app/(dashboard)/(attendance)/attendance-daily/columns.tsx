@@ -1,10 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ColumnDef } from '@tanstack/react-table';
-import { Eye, History, Pencil } from 'lucide-react';
-import { Badge, Button } from '@archmage/ui';
+import { CheckCircle2, Eye, History, Pencil } from 'lucide-react';
+import { Badge, Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { usePermissions } from '@/components/hooks/use-permissions';
+import { confirmAttendanceDayToRosterAction } from '@/app/actions/attendance-actions/attendance-confirm-roster.actions';
 import type { DailyAttendanceRow } from '@/types/attendance';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -19,6 +23,129 @@ const STATUS_STYLES: Record<string, string> = {
   day_off: 'bg-emerald-50 text-emerald-800 hover:bg-emerald-50',
   holiday: 'bg-violet-100 text-violet-800 hover:bg-violet-100'
 };
+
+function DailyRecordActions({ record }: { record: DailyAttendanceRow }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const { has } = usePermissions();
+  const canConfirm = has('attendance', 'edit') && record.canConfirmToRoster;
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    const result = await confirmAttendanceDayToRosterAction(record.id);
+    setLoading(false);
+    setOpen(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Confirm failed',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Could not confirm to duty roster.'
+      });
+      return;
+    }
+    const item = result.data?.items[0];
+    if (item?.outcome === 'skipped') {
+      toast({
+        title: 'Skipped',
+        description: item.reason ?? 'This day was not confirmed.'
+      });
+    } else if (item?.outcome === 'failed') {
+      toast({
+        variant: 'destructive',
+        title: 'Confirm failed',
+        description: item.reason ?? 'Could not confirm to duty roster.'
+      });
+    } else {
+      toast({
+        variant: 'success',
+        title: 'Confirmed to duty roster',
+        description: `${record.staffName} marked ${item?.dutyAttendance ?? 'updated'} on the roster.`
+      });
+    }
+    router.refresh();
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-end gap-1">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground"
+          asChild
+        >
+          <Link
+            href={`/attendance-corrections?staffId=${record.staffId}`}
+            aria-label={`View corrections for ${record.staffCode}`}
+          >
+            <Eye className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground"
+          asChild
+        >
+          <Link
+            href="/attendance-corrections"
+            aria-label={`Correct attendance for ${record.staffCode}`}
+          >
+            <Pencil className="h-4 w-4" />
+          </Link>
+        </Button>
+        {canConfirm ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-emerald-700"
+            aria-label={`Confirm ${record.staffCode} to duty roster`}
+            title={
+              record.confirmedToRosterAt
+                ? 'Re-confirm to duty roster'
+                : 'Confirm to duty roster'
+            }
+            onClick={() => setOpen(true)}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground"
+          asChild
+        >
+          <Link
+            href={`/attendance-corrections?staffId=${record.staffId}`}
+            aria-label={`History for ${record.staffCode}`}
+          >
+            <History className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+
+      <CustomAlertDialog
+        open={open}
+        handleVisibilityChange={setOpen}
+        loading={loading}
+        title="Confirm to Duty Roster"
+        description={`Copy ${record.staffName}'s attendance status onto the duty roster cell for ${record.dateLabel}?`}
+        handleContinue={() => {
+          void handleConfirm();
+        }}
+      />
+    </>
+  );
+}
 
 export const dailyAttendanceColumns: ColumnDef<DailyAttendanceRow>[] = [
   {
@@ -117,15 +244,22 @@ export const dailyAttendanceColumns: ColumnDef<DailyAttendanceRow>[] = [
     accessorKey: 'status',
     header: () => <span className="whitespace-nowrap">Attendance Status</span>,
     cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium whitespace-nowrap',
-          STATUS_STYLES[row.original.status] ?? STATUS_STYLES.incomplete
-        )}
-      >
-        {row.original.statusLabel}
-      </Badge>
+      <div className="flex flex-col gap-1">
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium whitespace-nowrap',
+            STATUS_STYLES[row.original.status] ?? STATUS_STYLES.incomplete
+          )}
+        >
+          {row.original.statusLabel}
+        </Badge>
+        {row.original.confirmedToRosterAt ? (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-700">
+            Confirmed
+          </span>
+        ) : null}
+      </div>
     )
   },
   {
@@ -145,52 +279,7 @@ export const dailyAttendanceColumns: ColumnDef<DailyAttendanceRow>[] = [
   {
     id: 'actions',
     header: () => <div>Actions</div>,
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end gap-1">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground"
-          asChild
-        >
-          <Link
-            href={`/attendance-corrections?staffId=${row.original.staffId}`}
-            aria-label={`View corrections for ${row.original.staffCode}`}
-          >
-            <Eye className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground"
-          asChild
-        >
-          <Link
-            href="/attendance-corrections"
-            aria-label={`Correct attendance for ${row.original.staffCode}`}
-          >
-            <Pencil className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground"
-          asChild
-        >
-          <Link
-            href={`/attendance-corrections?staffId=${row.original.staffId}`}
-            aria-label={`History for ${row.original.staffCode}`}
-          >
-            <History className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-    ),
+    cell: ({ row }) => <DailyRecordActions record={row.original} />,
     enableHiding: false
   }
 ];

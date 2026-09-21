@@ -278,6 +278,10 @@ export type DailyAttendanceRow = {
   statusLabel: string;
   source: string;
   remarks: string;
+  rosterAllocationId: string | null;
+  confirmedToRosterAt: string | null;
+  /** True when day status maps to present|late|absent and has a roster cell. */
+  canConfirmToRoster: boolean;
 };
 
 export type DailyAttendanceFilterOptions = {
@@ -812,5 +816,30 @@ export type AttendanceLogRegister = {
   rows: AttendanceLogRecord[];
   totalRecords: number;
   filterOptions: AttendanceLogFilterOptions;
+};
+
+/* ---------------------------------
+Confirm to Duty Roster (P5)
+--------------------------------- */
+
+export type DutyAttendanceMapped = 'present' | 'late' | 'absent';
+
+export type ConfirmAttendanceToRosterResultItem = {
+  attendanceDayId: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  outcome: 'confirmed' | 'skipped' | 'failed';
+  reason?: string;
+  dutyAttendance?: DutyAttendanceMapped | null;
+  rosterAllocationId?: string | null;
+};
+
+export type ConfirmAttendanceToRosterResult = {
+  date: string;
+  confirmed: number;
+  skipped: number;
+  failed: number;
+  items: ConfirmAttendanceToRosterResultItem[];
 };
 

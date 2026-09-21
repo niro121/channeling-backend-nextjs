@@ -55,7 +55,7 @@ Pages must not call Prisma. No business rules in components. Next: **D11 Public 
 - Night / Overnight / Holiday are **registers of allocations** (shift-type flags or holiday date). **Add** only if that staff + date has no cell. Phase 0 status dropdowns stay until wiring; they **map to the cell/period**, they are not a second approval engine.
 - Holiday dates: owned by **HR Administration** (`HolidayCalendar` CRUD on `/holiday-calendar`). Public Holiday Shifts **reads** that master. Further Staff/Roster master wiring (department, unit, designation, roster group, grade) is tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 — finish remaining HR Admin masters before a broad integration wave.
 - Grant Lieu Leave / Send to Payroll: **flags only** in v1 (no Leave Entitlement write, no payroll engine).
-- Duty attendance: store Present / Late / Absent. No RFID engine in roster v1 — RFID / finger-scan architecture lives in `STAFF_ATTENDANCE_ARCHITECTURE.md` (separate until HR confirms sync).
+- Duty attendance: store Present / Late / Absent. RFID / finger-scan engine is in `STAFF_ATTENDANCE_ARCHITECTURE.md`. HR confirms sync from **Daily Attendance → Confirm to Duty Roster** (never auto from punches).
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness:** one shift per staff per calendar date (hospital-wide).
 - Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.

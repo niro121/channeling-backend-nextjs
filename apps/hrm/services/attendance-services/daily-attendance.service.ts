@@ -17,6 +17,7 @@ import {
   type DailyAttendanceSummary,
   type GetDailyAttendanceParams
 } from '@/types/attendance';
+import { mapDayStatusToDutyAttendance } from '@/services/attendance-services/attendance-confirm-roster.service';
 
 function toOption(value: string): { id: string; name: string } {
   return { id: value, name: value };
@@ -553,7 +554,13 @@ export async function getDailyAttendanceRegister(
           correctionReason: day.correctionReason,
           lateMinutes,
           earlyOutMinutes
-        })
+        }),
+        rosterAllocationId: allocation?.id ?? day.rosterAllocationId ?? null,
+        confirmedToRosterAt: day.confirmedToRosterAt?.toISOString() ?? null,
+        canConfirmToRoster:
+          Boolean(allocation) &&
+          !allocation?.isLeave &&
+          mapDayStatusToDutyAttendance(day.status, day.flags) != null
       });
 
       if (displayStatus === 'present') present += 1;
@@ -737,7 +744,8 @@ export async function getDailyAttendanceForExport(
       overtime: row.overtime,
       status: row.statusLabel,
       source: row.source,
-      remarks: row.remarks
+      remarks: row.remarks,
+      confirmedToRosterAt: row.confirmedToRosterAt ?? ''
     }))
   };
 }
