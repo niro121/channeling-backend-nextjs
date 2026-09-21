@@ -186,8 +186,10 @@ export default function SheetDeviceForm({
                 placeholder="Status"
                 options={ATTENDANCE_DEVICE_STATUS_OPTIONS}
                 value={formik.values.statusId}
-                onChange={(value) => formik.setFieldValue('statusId', value)}
-                onBlur={() => formik.setFieldTouched('statusId', true)}
+                onChange={(value) => {
+                  formik.setFieldValue('statusId', value);
+                  formik.setFieldTouched('statusId', true);
+                }}
                 required
                 styleClasses={fieldStyleClasses}
               />
