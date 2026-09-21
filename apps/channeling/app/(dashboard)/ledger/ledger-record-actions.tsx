@@ -9,6 +9,7 @@ import { Pencil, XCircle } from "lucide-react"
 import type { LedgerReceiptListItem } from "@/services/ledger/list-ledger-receipts.service"
 import { EditLedgerTransactionDialog } from "./edit-ledger-transaction-dialog"
 import { CancelLedgerEntryDialog } from "./cancel-ledger-entry-dialog"
+import { PrintLedgerReceiptButton } from "./print-ledger-receipt-button"
 import { RECEIPT_METHOD } from "@/types/receipt"
 
 type LedgerRecordActionsProps = {
@@ -42,6 +43,13 @@ export function LedgerRecordActions({
   return (
     <>
       <DataTableRowActions>
+        {receiptId && (
+          <PrintLedgerReceiptButton
+            receiptId={receiptId}
+            iconOnly
+            className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
+          />
+        )}
         <Button
           variant="ghost"
           size="icon"

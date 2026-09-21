@@ -1,7 +1,11 @@
-import { CommonManagerHeader } from "@/components/common/common-manager-header";
-import TabLayout from "../tab-layout";
+import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { getStaffSpecialityOptionsAction } from '@/app/actions/hr-admin-actions/staff-speciality.actions';
+import TabLayout from '../tab-layout';
 
-export default function StaffAddPage() {
+export default async function StaffAddPage() {
+  const optionsRes = await getStaffSpecialityOptionsAction({ activeOnly: true });
+  const specialityOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+
   return (
     <div className="space-y-6">
       <CommonManagerHeader
@@ -9,7 +13,7 @@ export default function StaffAddPage() {
         description="Add a new staff member to the system."
         backwordButton={true}
       />
-      <TabLayout />
+      <TabLayout specialityOptions={specialityOptions} />
     </div>
   );
 }

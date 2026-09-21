@@ -359,6 +359,8 @@ export async function createPublicAgentBooking(
     area: { id: "", name: area },
     remarks: params.remarks?.trim() ?? "",
     foriegner,
+    // method: Agent (2) only when paymentMode=agent. Advance unpaid is On-Call (1);
+    // paid website bookings are API (4). Agency may still be tagged on the booking.
     payment_method: pricingContext.payment_method,
     payment_type: pricingContext.payment_type,
     ...(hasAgencyRef
@@ -383,7 +385,8 @@ export async function createPublicAgentBooking(
   const result = await saveBookingService(input, createdByUserId, {
     requireActiveShift: false,
     agencyRefUniqueOnly: hasAgencyRef,
-    // On-Call never creates a receipt; paid API/Agent path settles against the agency.
+    // On-Call never creates a receipt and does not debit the agency; paid API/Agent
+    // path settles against the agency. Agency + bookReference may still be stored as a tag.
     settleOnCreate: !isOnCall,
   })
 

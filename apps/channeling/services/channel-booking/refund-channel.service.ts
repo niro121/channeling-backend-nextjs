@@ -33,6 +33,7 @@ import {
   SAVE_PAYMENT_TYPE_MIXED,
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
+import { receiptAgencyIdIfAgentPayment } from "@/types/receipt"
 import type { ReceiptPaymentLineDraft } from "./helpers/create-receipt-for-booking"
 import { formatSlipDate, parseSlipDateInput } from "@/lib/slip-date"
 
@@ -463,7 +464,7 @@ export async function refundChannelService(
           remarks,
           type: 0,
           method: 0,
-          agencyId: booking.agencyId ?? null,
+          agencyId: receiptAgencyIdIfAgentPayment(refundTo, booking.agencyId ?? null),
           creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
           createdBy: userId,
           shiftId,
@@ -667,7 +668,7 @@ export async function refundChannelService(
         remarks,
         type: 0,
         method: 0,
-        agencyId: booking.agencyId ?? null,
+        agencyId: receiptAgencyIdIfAgentPayment(refundTo, booking.agencyId ?? null),
         creditCustomerId: refundTo === 5 ? bookingCreditCustomerId : null,
         createdBy: userId,
         shiftId,

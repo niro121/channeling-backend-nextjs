@@ -158,7 +158,7 @@ export function SeedActionsClient() {
             <CardDescription>
               This will <strong>erase all</strong> receipt templates (main, headers, footers), then
               create default Ledger, Agent Receipt, Expenses Note, Debit Note, and Consultant Payment
-              templates (slip + custom size).
+              templates (slip + dot matrix).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

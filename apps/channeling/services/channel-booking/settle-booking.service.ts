@@ -25,6 +25,7 @@ import {
   SAVE_PAYMENT_TYPE_MIXED,
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
+import { receiptAgencyIdIfAgentPayment } from "@/types/receipt"
 import { parseSlipDateInput } from "@/lib/slip-date"
 import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 
@@ -388,7 +389,7 @@ export async function settleBookingService(
       remarks: "POS PAYMENT", // Settling a pending bill is issued as POS PAYMENT (same as save-booking)
       type: 1,
       method: 1, // PAYMENT RECEIPTS
-      agencyId: booking.agencyId ?? null,
+      agencyId: receiptAgencyIdIfAgentPayment(input.settle_method, booking.agencyId ?? null),
       createdBy: userId,
       shiftId,
       userLocationId: receiptLocationId,

@@ -17,17 +17,20 @@ import FormHrDetail, { type HrDetailFormActions } from './form-hr-detail';
 import FormEmployment, { type EmploymentFormActions } from './form-employment';
 import SectionAdditionalDetailContent from './section-additional-detail-content';
 import type { StaffRecord, StaffWithAuthUsers } from '@/types/staff';
+import type { StaffSpecialityOption } from '@/types/staff-speciality';
 
 type TabLayoutProps = {
   staff?: StaffRecord | StaffWithAuthUsers | null;
   staffId?: string;
   isEditPage?: boolean;
+  specialityOptions?: StaffSpecialityOption[];
 };
 
 export default function TabLayout({
   staff,
   staffId,
-  isEditPage = false
+  isEditPage = false,
+  specialityOptions = []
 }: TabLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -116,6 +119,7 @@ export default function TabLayout({
           staff={staff}
           staffId={staffId}
           isEditPage={isEditPage}
+          specialityOptions={specialityOptions}
           onRegisterActions={handleRegisterGeneralActions}
           onLoadingChange={setLoading}
         />

@@ -21,6 +21,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/holiday-calendar': 'holiday-calendar',
   '/designations': 'designations',
   '/staff-grades': 'staff-grades',
+  '/staff-specialities': 'staff-specialities',
   '/manage-rosters': 'manage-rosters',
   '/departments': 'organizations',
   '/locations': 'organizations',
@@ -28,6 +29,14 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/rooms': 'organizations',
   '/users': 'users',
   '/user-groups': 'users',
+  '/attendance': 'attendance',
+  '/rfid-attendance': 'attendance',
+  '/attendance-daily': 'attendance',
+  '/attendance-devices': 'attendance',
+  '/attendance-corrections': 'attendance',
+  '/fingerprint-verification': 'attendance',
+  '/attendance-summary': 'attendance',
+  '/attendance-logs': 'attendance',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

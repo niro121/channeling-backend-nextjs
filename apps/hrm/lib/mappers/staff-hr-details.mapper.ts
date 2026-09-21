@@ -21,7 +21,7 @@ export function mapHrDetailsToFormValues(
   | 'resignedWithoutNotice'
   | 'resignedWithNoticeDate'
   | 'dateRetired'
-  | 'speciality'
+  | 'specialityIds'
 > {
   return {
     initials: hrDetails?.initials ?? '',
@@ -40,7 +40,7 @@ export function mapHrDetailsToFormValues(
     resignedWithoutNotice: hrDetails?.resignedWithoutNotice ?? false,
     resignedWithNoticeDate: toDate(hrDetails?.resignedWithNoticeDate),
     dateRetired: toDate(hrDetails?.dateRetired),
-    speciality: hrDetails?.speciality ?? ''
+    specialityIds: hrDetails?.specialityIds ?? []
   };
 }
 
@@ -61,7 +61,7 @@ export function mapFormValuesToHrDetails(values: GeneralFormValues): StaffHrDeta
     resignedWithoutNotice: values.resignedWithoutNotice ?? false,
     resignedWithNoticeDate: values.resignedWithNoticeDate ?? null,
     dateRetired: values.dateRetired ?? null,
-    speciality: values.speciality || null
+    specialityIds: values.specialityIds ?? []
   };
 }
 
