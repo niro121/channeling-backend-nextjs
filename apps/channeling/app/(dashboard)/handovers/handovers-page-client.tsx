@@ -449,12 +449,21 @@ export default function HandoversPageClient() {
   }, [tab, fetchHistory])
 
   useEffect(() => {
-    const onFocus = () => {
+    const refetch = () => {
       fetchActive()
       if (tab === "history") fetchHistory()
     }
-    window.addEventListener("focus", onFocus)
-    return () => window.removeEventListener("focus", onFocus)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refetch()
+    }
+    window.addEventListener("focus", refetch)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("handovers:refresh", refetch)
+    return () => {
+      window.removeEventListener("focus", refetch)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("handovers:refresh", refetch)
+    }
   }, [fetchActive, fetchHistory, tab])
 
   useEffect(() => {

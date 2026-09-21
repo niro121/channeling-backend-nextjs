@@ -9,7 +9,6 @@ import {
 } from '@/types/reports/channel-report-receipt-wise';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
-import { HANDOVER_STATUS } from '@/types/handover';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('channel_report_receipt_wise', 31);
 const MAX_RECORDS_SCAN = getReportMaxRecords('channel_report_receipt_wise', 30000);
@@ -61,6 +60,15 @@ function mapReceiptCategoryToMethods(category?: string): number[] | null {
     default:
       return null;
   }
+}
+
+const DOCTOR_PAYMENT_HANDED_PREFIX = 'DOCTOR PAYMENT Handed:';
+
+function parseHandedToStaff(remarks?: string | null): string {
+  const text = remarks?.trim() ?? '';
+  if (!text.startsWith(DOCTOR_PAYMENT_HANDED_PREFIX)) return '-';
+  const name = text.slice(DOCTOR_PAYMENT_HANDED_PREFIX.length).trim();
+  return name || '-';
 }
 
 function parseDateRange(from?: string, to?: string): { from: Date; to: Date } | null {
@@ -143,7 +151,7 @@ export async function getChannelReportReceiptWiseService(
         paymentLines: { select: { paymentMethod: true, amount: true } },
         method: true,
         createdBy: true,
-        shiftId: true,
+        remarks: true,
         cancelReason: true,
         reverseReceiptId: true,
         reversedReceiptId: true,
@@ -178,31 +186,6 @@ export async function getChannelReportReceiptWiseService(
     const creatorById = new Map(
       creators.map((u) => [u.id, formatUserDisplayName(u.name, u.id, u.staff?.code)])
     );
-
-    const shiftIds = Array.from(new Set(receipts.map((r) => r.shiftId).filter(Boolean))) as string[];
-    const handovers =
-      shiftIds.length > 0
-        ? await prisma.shiftHandover.findMany({
-            where: {
-              shiftId: { in: shiftIds },
-              status: { in: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.APPROVED] },
-            },
-            select: {
-              shiftId: true,
-              createdAt: true,
-              toUser: { select: { id: true, name: true, staff: { select: { code: true } } } },
-            },
-            orderBy: { createdAt: 'desc' },
-          })
-        : [];
-    const handoverPersonByShiftId = new Map<string, string>();
-    for (const handover of handovers) {
-      if (handoverPersonByShiftId.has(handover.shiftId)) continue;
-      handoverPersonByShiftId.set(
-        handover.shiftId,
-        formatUserDisplayName(handover.toUser?.name, handover.toUser?.id, handover.toUser.staff?.code)
-      );
-    }
 
     const relatedReceiptIds = Array.from(
       new Set(
@@ -282,7 +265,7 @@ export async function getChannelReportReceiptWiseService(
         agency: booking?.agency?.name || receipt.agency?.name || '-',
         creditCustomer: receipt.creditCustomer?.name || '-',
         creator: receipt.createdBy ? creatorById.get(receipt.createdBy) || 'Unknown user' : 'System',
-        handoverPerson: receipt.shiftId ? handoverPersonByShiftId.get(receipt.shiftId) || '-' : '-',
+        handedToStaff: parseHandedToStaff(receipt.remarks),
         cancelReason:
           receipt.cancelReason?.trim() ||
           (receipt.reversedReceiptId

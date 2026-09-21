@@ -466,6 +466,8 @@ export default function HandoverDetailPage() {
       toast({ title: "Handover rejected." })
       setRejectOpen(false)
       setRejectReason("")
+      window.dispatchEvent(new Event("handovers:refresh"))
+      router.refresh()
       router.push("/handovers")
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to reject", variant: "destructive" })
