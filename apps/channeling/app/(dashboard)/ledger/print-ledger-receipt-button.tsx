@@ -4,12 +4,37 @@ import { useState } from "react"
 import { Printer, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/hooks/use-toast"
-import { printBookingReceiptAction } from "@/app/actions/channel-booking"
-import { buildBookingReceiptPrintHtml } from "@/lib/receipt-template/build-print-html"
+import { printLedgerReceiptAction } from "@/app/actions/ledger/print-ledger-receipt.action"
+import { buildLedgerReceiptPrintHtml } from "@/lib/receipt-template/build-print-html"
 import { printHtmlInIframe } from "@/lib/receipt-template/print-html-iframe"
 import { cn } from "@/lib/utils"
 
-type PrintReceiptButtonProps = {
+export async function printLedgerReceiptById(
+  receiptId: string
+): Promise<{ success: boolean; message?: string }> {
+  if (!receiptId.trim()) {
+    return { success: false, message: "Receipt is required." }
+  }
+  const result = await printLedgerReceiptAction(receiptId.trim())
+  if (!result.success || !result.data) {
+    return { success: false, message: result.message ?? "Could not prepare the receipt." }
+  }
+  const html = buildLedgerReceiptPrintHtml(
+    result.data.placeholders,
+    result.data.template,
+    result.data.receiptNoString
+  )
+  printHtmlInIframe(html, {
+    title: "Print receipt",
+    // A5 portrait — same default as handover. Keep the iframe at paper size so Chrome
+    // does not scale/crop the job.
+    width: "148mm",
+    height: "210mm",
+  })
+  return { success: true }
+}
+
+type PrintLedgerReceiptButtonProps = {
   receiptId: string
   label?: string
   iconOnly?: boolean
@@ -18,14 +43,14 @@ type PrintReceiptButtonProps = {
   variant?: "default" | "outline" | "ghost"
 }
 
-export function PrintReceiptButton({
+export function PrintLedgerReceiptButton({
   receiptId,
   label = "Print Receipt",
   iconOnly = false,
   className,
   size = "sm",
   variant = "default",
-}: PrintReceiptButtonProps) {
+}: PrintLedgerReceiptButtonProps) {
   const { toast } = useToast()
   const [printing, setPrinting] = useState(false)
 
@@ -33,21 +58,14 @@ export function PrintReceiptButton({
     if (!receiptId || printing) return
     setPrinting(true)
     try {
-      const result = await printBookingReceiptAction(receiptId)
-      if (!result.success || !result.data) {
+      const result = await printLedgerReceiptById(receiptId)
+      if (!result.success) {
         toast({
           title: "Print failed",
-          description: result.message ?? "Could not prepare the receipt.",
+          description: result.message ?? "Could not print the receipt.",
           variant: "destructive",
         })
-        return
       }
-      const html = buildBookingReceiptPrintHtml(
-        result.data.placeholders,
-        result.data.template,
-        result.data.receiptNoString
-      )
-      printHtmlInIframe(html)
     } catch (e) {
       toast({
         title: "Print failed",
@@ -69,11 +87,7 @@ export function PrintReceiptButton({
         title="Print receipt"
         aria-label="Print receipt"
       >
-        {printing ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Printer className="size-3" />
-        )}
+        {printing ? <Loader2 className="size-3 animate-spin" /> : <Printer className="size-3" />}
       </button>
     )
   }
@@ -87,11 +101,7 @@ export function PrintReceiptButton({
       disabled={printing}
       className={cn("gap-1.5", className)}
     >
-      {printing ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : (
-        <Printer className="h-3.5 w-3.5" />
-      )}
+      {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
       {label}
     </Button>
   )

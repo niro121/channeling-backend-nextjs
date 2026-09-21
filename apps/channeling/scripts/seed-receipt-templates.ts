@@ -1,21 +1,28 @@
 /**
  * CLI entry point for seeding receipt templates.
- * All logic lives in services/seed/seed-receipt-templates.service.ts (used by this script and by /admin/seed).
+ * Default: upsert defaults (dot-matrix + slip) without deleting existing templates.
+ * Wipe:  npx tsx scripts/seed-receipt-templates.ts --wipe  (requires SEED_HELPER=true)
  *
  * Run: npx tsx scripts/seed-receipt-templates.ts
  * Or:  npm run seed:receipt-templates
- *
- * Requires SEED_HELPER=true (or SEED_HELPER=1) in .env.
  */
 
 import "dotenv/config"
-import { runSeedReceiptTemplates } from "@/services/seed/seed-receipt-templates.service"
+import {
+  ensureDefaultReceiptTemplates,
+  runSeedReceiptTemplates,
+} from "@/services/seed/seed-receipt-templates.service"
 import prisma from "@/lib/prisma"
 
 async function main() {
-  console.log("Seeding receipt templates (remove all, then re-add)...\n")
+  const wipe = process.argv.includes("--wipe")
+  if (wipe) {
+    console.log("Wiping and re-seeding receipt templates...\n")
+  } else {
+    console.log("Ensuring default receipt templates (dot-matrix + slip)...\n")
+  }
 
-  const result = await runSeedReceiptTemplates()
+  const result = wipe ? await runSeedReceiptTemplates() : await ensureDefaultReceiptTemplates()
 
   if (result.success) {
     console.log(result.details)

@@ -50,6 +50,16 @@ async function resolveUserPrintLabel(userId: string | null | undefined): Promise
   return user.staff?.code ? `${user.name} (${user.staff.code})` : user.name
 }
 
+/** Staff code of the user who created the receipt. Empty if the user has no staff code. */
+async function resolveCashierCode(userId: string | null | undefined): Promise<string> {
+  if (!userId) return ""
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { staff: { select: { code: true } } },
+  })
+  return user?.staff?.code?.trim() ?? ""
+}
+
 export type PrintBookingReceiptData = {
   placeholders: ReceiptPlaceholderMap
   template: ReceiptTemplateRecord | null
@@ -71,6 +81,7 @@ export async function printBookingReceiptService(
         printCount: true,
         printedAt: true,
         locationId: true,
+        createdBy: true,
       },
     })
     if (!receipt) {
@@ -163,7 +174,7 @@ export async function printBookingReceiptService(
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
 
     const [cashierCode, printedBy] = await Promise.all([
-      resolveUserPrintLabel(extra?.createdBy),
+      resolveCashierCode(receipt.createdBy ?? extra?.createdBy),
       resolveUserPrintLabel(printedByUserId),
     ])
 

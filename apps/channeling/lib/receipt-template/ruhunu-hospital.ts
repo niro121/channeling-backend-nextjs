@@ -29,6 +29,16 @@ export function ruhunuPhoneFaxLine(): string {
   return `Phone : ${RUHUNU_HOSPITAL.phone} | Fax : ${RUHUNU_HOSPITAL.fax}`
 }
 
+/** Tel-only line used on Sails agent/ledger receipts (no fax). */
+export function ruhunuTelLine(): string {
+  return `Tel : ${RUHUNU_HOSPITAL.phone}`
+}
+
 export function ruhunuEmailWebLine(): string {
   return `Email : ${RUHUNU_HOSPITAL.email} | Web : ${RUHUNU_HOSPITAL.web}`
+}
+
+/** Fallback address line: "Ruhunu Hospital, Karapitiya, Galle". */
+export function ruhunuHospitalAddressLine(): string {
+  return `${RUHUNU_HOSPITAL.name}, ${RUHUNU_HOSPITAL.address}`
 }
