@@ -12,6 +12,7 @@ import {
   CustomCheckedField,
   CustomDatePickerField,
   CustomFormField,
+  CustomMultiSelect,
   CustomSelectField,
   Label,
   useToast
@@ -34,6 +35,7 @@ import {
   StaffRecord
 } from '@/types/staff';
 import type { GeneralFormValues } from '@/types/staff';
+import type { StaffSpecialityOption } from '@/types/staff-speciality';
 import {
   createStaffAction,
   updateStaffAction
@@ -48,7 +50,6 @@ import { buildChannelingSyncDialogDescription } from '@/lib/helpers/staff-channe
 export type { GeneralFormValues } from '@/types/staff';
 
 const ZONE_CODE_OPTIONS: { id: string; name: string }[] = [];
-const SPECIALITY_OPTIONS: { id: string; name: string }[] = [];
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-2 items-start',
@@ -163,7 +164,7 @@ const validationSchema = Yup.object({
       STAFF_STATUS_OPTIONS.map((option) => option.id),
       'Select a valid status'
     ),
-  speciality: optionalString()
+  specialityIds: Yup.array().of(Yup.string())
 }).test('employment-dates', function validateEmploymentDates(values) {
   if (!values) return true;
 
@@ -223,7 +224,7 @@ const initialValues: GeneralFormValues = {
   resignedWithNoticeDate: undefined,
   dateRetired: undefined,
   status: STAFF_STATUS_OPTIONS[1].id,
-  speciality: ''
+  specialityIds: []
 };
 
 function getFullName(firstName: string, lastName: string) {
@@ -242,6 +243,7 @@ type FormGeneralProps = {
   staff?: StaffRecord | GeneralFormValues | null;
   staffId?: string;
   isEditPage?: boolean;
+  specialityOptions?: StaffSpecialityOption[];
   onRegisterActions?: (actions: GeneralFormActions) => void;
   onLoadingChange?: (loading: boolean) => void;
 };
@@ -275,6 +277,7 @@ export default function FormGeneral({
   staff,
   staffId,
   isEditPage = false,
+  specialityOptions = [],
   onRegisterActions,
   onLoadingChange
 }: FormGeneralProps) {
@@ -940,25 +943,16 @@ export default function FormGeneral({
                       styleClasses={fieldStyleClasses}
                     />
 
-                    <div className={fieldStyleClasses.parentDiv}>
-                      <Label className={fieldStyleClasses.labelClassName}>
-                        Speciality
-                      </Label>
-                      <div className={fieldStyleClasses.inputClassName}>
-                        <Combobox
-                          label="Speciality"
-                          options={SPECIALITY_OPTIONS}
-                          value={formik.values.speciality}
-                          defaultValue=""
-                          clearable
-                          triggerClassName="w-full max-w-none font-normal!"
-                          popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                          onChange={(value) =>
-                            formik.setFieldValue('speciality', value)
-                          }
-                        />
-                      </div>
-                    </div>
+                    <CustomMultiSelect
+                      id="specialityIds"
+                      placeholder="Specialities"
+                      options={specialityOptions}
+                      value={formik.values.specialityIds ?? []}
+                      onChange={(values) =>
+                        formik.setFieldValue('specialityIds', values)
+                      }
+                      styleClasses={fieldStyleClasses}
+                    />
                   </div>
                 </AccordionContent>
               </AccordionItem>

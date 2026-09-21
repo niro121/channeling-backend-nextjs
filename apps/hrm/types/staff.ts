@@ -23,7 +23,7 @@ export type StaffHrDetails = {
   resignedWithoutNotice?: boolean;
   resignedWithNoticeDate?: Date | null;
   dateRetired?: Date | null;
-  speciality?: string | null;
+  specialityIds?: string[];
 };
 
 export type StaffPersonalDetails = {
@@ -211,7 +211,7 @@ export type GeneralFormValues = {
   resignedWithNoticeDate: Date | undefined;
   dateRetired: Date | undefined;
   status: string;
-  speciality: string;
+  specialityIds: string[];
 };
 
 export type HrDetailFormValues = {

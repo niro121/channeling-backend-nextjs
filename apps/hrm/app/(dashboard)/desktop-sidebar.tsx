@@ -28,11 +28,17 @@ import {
   Building2,
   CalendarHeart,
   Award,
+  Stethoscope,
   Network,
   Building,
   MapPin,
   Layers,
   DoorOpen,
+  BarChart3,
+  BookOpen,
+  ScrollText,
+  TabletSmartphone,
+  Fingerprint,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -281,9 +287,93 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
+        {(hasAccess('/attendance') ||
+          hasAccess('/rfid-attendance') ||
+          hasAccess('/attendance-corrections') ||
+          hasAccess('/attendance-daily') ||
+          hasAccess('/fingerprint-verification') ||
+          hasAccess('/attendance-devices') ||
+          hasAccess('/attendance-summary') ||
+          hasAccess('/attendance-logs')) && (
+          <SidebarGroup label="Staff Attendance">
+            <SidebarCollapsible
+              label="Attendance"
+              icon={<Fingerprint className="h-5 w-5" />}
+              paths={[
+                '/attendance',
+                '/rfid-attendance',
+                '/attendance-daily',
+                '/fingerprint-verification',
+                '/attendance-devices',
+                '/attendance-corrections',
+                '/attendance-summary',
+                '/attendance-logs'
+              ]}
+              defaultOpen
+            >
+              {hasAccess('/attendance') && (
+                <NavLink
+                  href="/attendance"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/rfid-attendance') && (
+                <NavLink
+                  href="/rfid-attendance"
+                  label="RFID Attendance"
+                  icon={<Fingerprint className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-daily') && (
+                <NavLink
+                  href="/attendance-daily"
+                  label="Daily Attendance"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/fingerprint-verification') && (
+                <NavLink
+                  href="/fingerprint-verification"
+                  label="Fingerprint Verification"
+                  icon={<Fingerprint className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-devices') && (
+                <NavLink
+                  href="/attendance-devices"
+                  label="Devices"
+                  icon={<TabletSmartphone className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-corrections') && (
+                <NavLink
+                  href="/attendance-corrections"
+                  label="Corrections"
+                  icon={<FilePenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-summary') && (
+                <NavLink
+                  href="/attendance-summary"
+                  label="Summary"
+                  icon={<BarChart3 className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/attendance-logs') && (
+                <NavLink
+                  href="/attendance-logs"
+                  label="Logs"
+                  icon={<ScrollText className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
         {(hasAccess('/holiday-calendar') ||
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
+          hasAccess('/staff-specialities') ||
           hasAccess('/manage-rosters')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
@@ -293,6 +383,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/holiday-calendar',
                 '/designations',
                 '/staff-grades',
+                '/staff-specialities',
                 '/manage-rosters'
               ]}
               defaultOpen
@@ -316,6 +407,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/staff-grades"
                   label="Area / Staff Grade"
                   icon={<Award className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/staff-specialities') && (
+                <NavLink
+                  href="/staff-specialities"
+                  label="Staff Specialities"
+                  icon={<Stethoscope className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/manage-rosters') && (
