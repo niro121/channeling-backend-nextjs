@@ -25,4 +25,6 @@ export type ChannelAgentReceiptReportExportRow = {
   billValue: string;
 };
 
-export type ChannelAgentReceiptReportContentProps = Record<string, never>;
+export type ChannelAgentReceiptReportContentProps = {
+  currentUserName: string;
+};

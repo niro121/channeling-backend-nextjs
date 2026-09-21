@@ -16,8 +16,6 @@ import { ReportUserSelect } from '@/components/common/user-select';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
@@ -26,6 +24,9 @@ import type {
   AllCashierUserSummaryRow,
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
+import { AllCashierSummaryDetailPrintLayout } from './all-cashier-summary-detail-print-layout';
+import { downloadAllCashierSummaryDetailReportPdf } from './all-cashier-summary-detail-pdf';
+import { downloadAllCashierSummaryDetailReportExcel } from './all-cashier-summary-detail-excel';
 
 type Props = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -224,9 +225,13 @@ export default function AllCashierSummaryDetailContent({
   };
 
   const downloadExcel = async () => {
+    if (!reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
+      return;
+    }
     const hasRows =
-      format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
-    if ((!hasRows && !grandTotals) || !reportMeta) {
+      reportMeta.format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
+    if (!hasRows && !grandTotals) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
       return;
     }
@@ -237,161 +242,31 @@ export default function AllCashierSummaryDetailContent({
       const reportName = 'All Cashier Summary and Detail Report';
       const summaryItems = toBrandedPdfSummaryItems(buildSummaryItems(reportMeta));
 
-      if (format === 'summary') {
-        type ExcelRow = {
-          no: string | null;
-          userName: string;
-          receiptCount: string;
-          cash: string;
-          creditCard: string;
-          slip: string;
-          cheque: string;
-          agent: string;
-          agentCredit: string;
-          eWallet: string;
-          handoverDate: string | null;
-          checkedBy: string | null;
-        };
-        const data: ExcelRow[] = summaryRows.map((r, i) => ({
-          no: String(i + 1),
-          userName: r.userName,
-          receiptCount: String(r.receiptCount),
-          cash: formatAmountForCsv(r.cash),
-          creditCard: formatAmountForCsv(r.creditCard),
-          slip: formatAmountForCsv(r.slip),
-          cheque: formatAmountForCsv(r.cheque),
-          agent: formatAmountForCsv(r.agent),
-          agentCredit: formatAmountForCsv(r.agentCredit),
-          eWallet: formatAmountForCsv(r.eWallet),
-          handoverDate: null,
-          checkedBy: null,
-        }));
-        if (grandTotals) {
-          data.push({
-            no: null,
-            userName: 'Total',
-            receiptCount: String(totalReceipts),
-            cash: formatAmountForCsv(grandTotals.cash),
-            creditCard: formatAmountForCsv(grandTotals.creditCard),
-            slip: formatAmountForCsv(grandTotals.slip),
-            cheque: formatAmountForCsv(grandTotals.cheque),
-            agent: formatAmountForCsv(grandTotals.agent),
-            agentCredit: formatAmountForCsv(grandTotals.agentCredit),
-            eWallet: formatAmountForCsv(grandTotals.eWallet),
-            handoverDate: null,
-            checkedBy: null,
-          });
-        }
-        await downloadBrandedReportExcel({
+      if (reportMeta.format === 'summary') {
+        await downloadAllCashierSummaryDetailReportExcel({
+          mode: 'summary',
           reportName,
           summaryItems,
           generatedAt: reportMeta.generatedAt,
-          data,
-          columns: [
-            'No.',
-            'User',
-            'Receipts',
-            ...PAYMENT_COLUMNS.map((c) => c.label),
-            'Handover Date',
-            'Checked By',
-          ],
-          keys: [
-            'no',
-            'userName',
-            'receiptCount',
-            'cash',
-            'creditCard',
-            'slip',
-            'cheque',
-            'agent',
-            'agentCredit',
-            'eWallet',
-            'handoverDate',
-            'checkedBy',
-          ],
+          summaryRows,
+          grandTotals,
+          totalReceipts,
           fileName,
           sheetName: 'All Cashier Summary',
-          orientation: 'portrait',
         });
         return;
       }
 
-      type DetailExcelRow = {
-        userName: string;
-        section: string;
-        receiptCount: string;
-        cash: string;
-        creditCard: string;
-        slip: string;
-        cheque: string;
-        agent: string;
-        agentCredit: string;
-        eWallet: string;
-      };
-      const data: DetailExcelRow[] = [];
-      for (const u of detailRows) {
-        for (const s of u.sections) {
-          data.push({
-            userName: u.userName,
-            section: s.title,
-            receiptCount: String(s.receiptCount),
-            cash: formatAmountForCsv(s.totals.cash),
-            creditCard: formatAmountForCsv(s.totals.creditCard),
-            slip: formatAmountForCsv(s.totals.slip),
-            cheque: formatAmountForCsv(s.totals.cheque),
-            agent: formatAmountForCsv(s.totals.agent),
-            agentCredit: formatAmountForCsv(s.totals.agentCredit),
-            eWallet: formatAmountForCsv(s.totals.eWallet),
-          });
-        }
-        data.push({
-          userName: u.userName,
-          section: 'User Total',
-          receiptCount: String(u.receiptCount),
-          cash: formatAmountForCsv(u.totals.cash),
-          creditCard: formatAmountForCsv(u.totals.creditCard),
-          slip: formatAmountForCsv(u.totals.slip),
-          cheque: formatAmountForCsv(u.totals.cheque),
-          agent: formatAmountForCsv(u.totals.agent),
-          agentCredit: formatAmountForCsv(u.totals.agentCredit),
-          eWallet: formatAmountForCsv(u.totals.eWallet),
-        });
-      }
-      if (grandTotals) {
-        data.push({
-          userName: 'Grand Total',
-          section: '',
-          receiptCount: String(totalReceipts),
-          cash: formatAmountForCsv(grandTotals.cash),
-          creditCard: formatAmountForCsv(grandTotals.creditCard),
-          slip: formatAmountForCsv(grandTotals.slip),
-          cheque: formatAmountForCsv(grandTotals.cheque),
-          agent: formatAmountForCsv(grandTotals.agent),
-          agentCredit: formatAmountForCsv(grandTotals.agentCredit),
-          eWallet: formatAmountForCsv(grandTotals.eWallet),
-        });
-      }
-      await downloadBrandedReportExcel({
+      await downloadAllCashierSummaryDetailReportExcel({
+        mode: 'detail',
         reportName,
         summaryItems,
         generatedAt: reportMeta.generatedAt,
-        data,
-        columns: ['User', 'Section', 'Receipts', ...PAYMENT_COLUMNS.map((c) => c.label)],
-        keys: [
-          'userName',
-          'section',
-          'receiptCount',
-          'cash',
-          'creditCard',
-          'slip',
-          'cheque',
-          'agent',
-          'agentCredit',
-          'eWallet',
-        ],
+        detailRows,
+        grandTotals,
+        totalReceipts,
         fileName,
         sheetName: 'All Cashier Detail',
-        orientation: 'portrait',
       });
     } catch (error: unknown) {
       toast({
@@ -405,224 +280,49 @@ export default function AllCashierSummaryDetailContent({
   };
 
   const downloadPdf = async () => {
-    const hasRows =
-      format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
-    if (!hasRows && !grandTotals) {
+    if (!reportMeta) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
       return;
     }
-    if (!reportMeta) {
+    const hasRows =
+      reportMeta.format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
+    if (!hasRows && !grandTotals) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
       return;
     }
 
     const summaryItems = toBrandedPdfSummaryItems(buildSummaryItems(reportMeta));
     const fileName = `${formatExportFileName('all-cashier-summary-detail')}.pdf`;
+    const reportName = 'All Cashier Summary and Detail Report';
 
-    if (format === 'summary') {
-      type PdfRow = {
-        no: string;
-        userName: string;
-        receiptCount: string;
-        cash: string;
-        creditCard: string;
-        slip: string;
-        cheque: string;
-        agent: string;
-        agentCredit: string;
-        eWallet: string;
-        handoverDate: string;
-        checkedBy: string;
-      };
-      const data: PdfRow[] = summaryRows.map((r, i) => ({
-        no: String(i + 1),
-        userName: r.userName,
-        receiptCount: String(r.receiptCount),
-        cash: formatAmountForCsv(r.cash),
-        creditCard: formatAmountForCsv(r.creditCard),
-        slip: formatAmountForCsv(r.slip),
-        cheque: formatAmountForCsv(r.cheque),
-        agent: formatAmountForCsv(r.agent),
-        agentCredit: formatAmountForCsv(r.agentCredit),
-        eWallet: formatAmountForCsv(r.eWallet),
-        handoverDate: '----------',
-        checkedBy: '----------',
-      }));
-      if (grandTotals) {
-        data.push({
-          no: '',
-          userName: 'Total',
-          receiptCount: String(totalReceipts),
-          cash: formatAmountForCsv(grandTotals.cash),
-          creditCard: formatAmountForCsv(grandTotals.creditCard),
-          slip: formatAmountForCsv(grandTotals.slip),
-          cheque: formatAmountForCsv(grandTotals.cheque),
-          agent: formatAmountForCsv(grandTotals.agent),
-          agentCredit: formatAmountForCsv(grandTotals.agentCredit),
-          eWallet: formatAmountForCsv(grandTotals.eWallet),
-          handoverDate: '',
-          checkedBy: '',
-        });
-      }
-      await downloadBrandedReportPdf({
-        reportName: 'All Cashier Summary and Detail Report',
+    if (reportMeta.format === 'summary') {
+      await downloadAllCashierSummaryDetailReportPdf({
+        mode: 'summary',
+        reportName,
         summaryItems,
         generatedAt: reportMeta.generatedAt,
-        data,
-        columns: [
-          'No.',
-          'User',
-          'Receipts',
-          ...PAYMENT_COLUMNS.map((c) => c.label),
-          'Handover Date',
-          'Checked By',
-        ],
-        keys: [
-          'no',
-          'userName',
-          'receiptCount',
-          'cash',
-          'creditCard',
-          'slip',
-          'cheque',
-          'agent',
-          'agentCredit',
-          'eWallet',
-          'handoverDate',
-          'checkedBy',
-        ],
+        summaryRows,
+        grandTotals,
+        totalReceipts,
         fileName,
-        orientation: 'portrait',
       });
       return;
     }
-    type DetailPdfRow = {
-      userName: string;
-      section: string;
-      receiptCount: string;
-      cash: string;
-      creditCard: string;
-      slip: string;
-      cheque: string;
-      agent: string;
-      agentCredit: string;
-      eWallet: string;
-    };
-    const data: DetailPdfRow[] = [];
-    for (const u of detailRows) {
-      for (const s of u.sections) {
-        data.push({
-          userName: u.userName,
-          section: s.title,
-          receiptCount: String(s.receiptCount),
-          cash: formatAmountForCsv(s.totals.cash),
-          creditCard: formatAmountForCsv(s.totals.creditCard),
-          slip: formatAmountForCsv(s.totals.slip),
-          cheque: formatAmountForCsv(s.totals.cheque),
-          agent: formatAmountForCsv(s.totals.agent),
-          agentCredit: formatAmountForCsv(s.totals.agentCredit),
-          eWallet: formatAmountForCsv(s.totals.eWallet),
-        });
-      }
-      data.push({
-        userName: u.userName,
-        section: 'User Total',
-        receiptCount: String(u.receiptCount),
-        cash: formatAmountForCsv(u.totals.cash),
-        creditCard: formatAmountForCsv(u.totals.creditCard),
-        slip: formatAmountForCsv(u.totals.slip),
-        cheque: formatAmountForCsv(u.totals.cheque),
-        agent: formatAmountForCsv(u.totals.agent),
-        agentCredit: formatAmountForCsv(u.totals.agentCredit),
-        eWallet: formatAmountForCsv(u.totals.eWallet),
-      });
-    }
-    if (grandTotals) {
-      data.push({
-        userName: 'Grand Total',
-        section: '',
-        receiptCount: String(totalReceipts),
-        cash: formatAmountForCsv(grandTotals.cash),
-        creditCard: formatAmountForCsv(grandTotals.creditCard),
-        slip: formatAmountForCsv(grandTotals.slip),
-        cheque: formatAmountForCsv(grandTotals.cheque),
-        agent: formatAmountForCsv(grandTotals.agent),
-        agentCredit: formatAmountForCsv(grandTotals.agentCredit),
-        eWallet: formatAmountForCsv(grandTotals.eWallet),
-      });
-    }
-    await downloadBrandedReportPdf({
-      reportName: 'All Cashier Summary and Detail Report',
+
+    await downloadAllCashierSummaryDetailReportPdf({
+      mode: 'detail',
+      reportName,
       summaryItems,
       generatedAt: reportMeta.generatedAt,
-      data,
-      columns: ['User', 'Section', 'Receipts', ...PAYMENT_COLUMNS.map((c) => c.label)],
-      keys: [
-        'userName',
-        'section',
-        'receiptCount',
-        'cash',
-        'creditCard',
-        'slip',
-        'cheque',
-        'agent',
-        'agentCredit',
-        'eWallet',
-      ],
+      detailRows,
+      grandTotals,
+      totalReceipts,
       fileName,
-      orientation: 'portrait',
     });
   };
 
   return (
-    <div className="w-full py-2 space-y-3">
-      <style>{`
-        @media print {
-          body {
-            background: #fff !important;
-            color: #000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          .all-cashier-print-report {
-            border: 0 !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #fff !important;
-            box-shadow: none !important;
-          }
-          .all-cashier-print-report > div {
-            padding: 0 !important;
-          }
-          .all-cashier-print-report .overflow-x-auto,
-          .all-cashier-print-report .overflow-auto {
-            overflow: visible !important;
-          }
-          .all-cashier-print-report [class*="border-dotted"] {
-            border-bottom: 1px dotted #000 !important;
-            min-height: 14px !important;
-          }
-          /* Portrait: keep all summary columns readable on narrower page */
-          .all-cashier-print-report .rpt-print-root table {
-            table-layout: fixed !important;
-            width: 100% !important;
-          }
-          .all-cashier-print-report .rpt-print-root th,
-          .all-cashier-print-report .rpt-print-root td {
-            font-size: 6.5pt !important;
-            padding: 0.8mm 0.6mm !important;
-            line-height: 1.15 !important;
-          }
-          .all-cashier-print-report .rpt-print-root thead th,
-          .all-cashier-print-report .rpt-print-root th {
-            font-size: 6pt !important;
-          }
-          .all-cashier-print-report .rpt-print-root [class*="w-[130px]"] {
-            width: 100% !important;
-            max-width: none !important;
-          }
-        }
-      `}</style>
+    <div className="w-full py-2 space-y-3 all-cashier-summary-detail-report-root">
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -744,7 +444,7 @@ export default function AllCashierSummaryDetailContent({
       )}
 
       {reportMeta && (
-        <Card className="all-cashier-print-report bg-muted/20 print:shadow-none print:border-0 print:bg-white">
+        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white">
           <CardHeader className="py-2 print:hidden">
             <CardTitle className="text-base">All Cashier Summary and Detail Report</CardTitle>
             <CardDescription className="text-xs mt-0.5">
@@ -761,151 +461,204 @@ export default function AllCashierSummaryDetailContent({
             >
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
-              ) : format === 'summary' ? (
-                <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
-                    <TableHeader>
-                      <TableRow className="border-b">
-                        <TableHead className="w-10 text-right">No.</TableHead>
-                        <TableHead className="pr-0">User</TableHead>
-                        <TableHead className="text-right">Receipts</TableHead>
-                        {PAYMENT_COLUMNS.map((c) => (
-                          <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
-                        ))}
-                        <TableHead className="text-center">Handover Date</TableHead>
-                        <TableHead className="text-center">Checked By</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {summaryRows.map((r, i) => (
-                        <TableRow key={r.userId} className="border-b border-border/50">
-                          <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
-                          <TableCell className="pr-0">{r.userName}</TableCell>
-                          <TableCell className="text-right tabular-nums">{r.receiptCount}</TableCell>
-                          {PAYMENT_COLUMNS.map((c) => (
-                            <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(r[c.key])}</TableCell>
-                          ))}
-                          <TableCell className="text-center">
-                            <div
-                              className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                              aria-hidden
-                            />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div
-                              className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                              aria-hidden
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {grandTotals && (
-                        <TableRow className="rpt-print-total font-medium bg-muted/50">
-                          <TableCell colSpan={3} className="text-left">Total</TableCell>
-                          {PAYMENT_COLUMNS.map((c) => (
-                            <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(grandTotals[c.key])}</TableCell>
-                          ))}
-                          <TableCell />
-                          <TableCell />
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
               ) : (
-                <div className="space-y-3">
-                  {detailRows.map((u, idx) => (
-                    <div key={u.userId} className="rounded-md border overflow-x-auto">
-                      <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_td]:border-r">
-                        <TableHeader>
-                          <TableRow className="border-b">
-                            <TableHead className="w-10 text-right">No.</TableHead>
-                            <TableHead className="pr-0">User</TableHead>
-                            <TableHead>Section</TableHead>
-                            <TableHead className="text-right">Receipts</TableHead>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
-                            ))}
-                            <TableHead className="text-center">Handover Date</TableHead>
-                            <TableHead className="text-center">Checked By</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {u.sections.map((s, i) => (
-                            <TableRow key={`${u.userId}-${s.key}`} className="border-b border-border/50">
-                              <TableCell className="text-center tabular-nums">{i === 0 ? idx + 1 : ''}</TableCell>
-                              <TableCell className="pr-0">{i === 0 ? u.userName : ''}</TableCell>
-                              <TableCell>{s.title}</TableCell>
-                              <TableCell className="text-right tabular-nums">{s.receiptCount}</TableCell>
+                <>
+                  <div className="acs-screen-table print:hidden">
+                    {reportMeta.format === 'summary' ? (
+                      <div className="rounded-md border overflow-x-auto">
+                        <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                          <TableHeader>
+                            <TableRow className="border-b">
+                              <TableHead className="w-10 text-right">No.</TableHead>
+                              <TableHead className="pr-0">User</TableHead>
+                              <TableHead className="text-right">Receipts</TableHead>
                               {PAYMENT_COLUMNS.map((c) => (
-                                <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(s.totals[c.key])}</TableCell>
+                                <TableHead key={c.key} className="text-right tabular-nums">
+                                  {c.label}
+                                </TableHead>
                               ))}
-                              {i === 0 && (
-                                <>
-                                  <TableCell
-                                    rowSpan={u.sections.length + 1}
-                                    className="text-center"
-                                  >
-                                    <div
-                                      className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                      aria-hidden
-                                    />
-                                  </TableCell>
-                                  <TableCell
-                                    rowSpan={u.sections.length + 1}
-                                    className="text-center"
-                                  >
-                                    <div
-                                      className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                      aria-hidden
-                                    />
-                                  </TableCell>
-                                </>
-                              )}
+                              <TableHead className="text-center">Handover Date</TableHead>
+                              <TableHead className="text-center">Checked By</TableHead>
                             </TableRow>
-                          ))}
-                          <TableRow className="rpt-print-total font-medium bg-muted/50">
-                            <TableCell colSpan={3}>User Total</TableCell>
-                            <TableCell className="text-right tabular-nums">{u.receiptCount}</TableCell>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(u.totals[c.key])}</TableCell>
+                          </TableHeader>
+                          <TableBody>
+                            {summaryRows.map((r, i) => (
+                              <TableRow key={r.userId} className="border-b border-border/50">
+                                <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
+                                <TableCell className="pr-0">{r.userName}</TableCell>
+                                <TableCell className="text-right tabular-nums">{r.receiptCount}</TableCell>
+                                {PAYMENT_COLUMNS.map((c) => (
+                                  <TableCell key={c.key} className="text-right tabular-nums">
+                                    {formatAmount(r[c.key])}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="text-center">
+                                  <div
+                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                    aria-hidden
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div
+                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                    aria-hidden
+                                  />
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ))}
-                  {grandTotals && (
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
-                        <TableHeader>
-                          <TableRow className="border-b">
-                            <TableHead colSpan={4}>Grand Total</TableHead>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableHead key={c.key} className="text-right tabular-nums">{c.label}</TableHead>
-                            ))}
-                            <TableHead />
-                            <TableHead />
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow className="rpt-print-total font-medium bg-muted/50">
-                            <TableCell colSpan={4}>Total</TableCell>
-                            {PAYMENT_COLUMNS.map((c) => (
-                              <TableCell key={c.key} className="text-right tabular-nums">{formatAmount(grandTotals[c.key])}</TableCell>
-                            ))}
-                            <TableCell />
-                            <TableCell />
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                  <div className="rounded-md border border-primary/20 bg-primary/[0.03] px-3 py-2 text-[11px] print:hidden">
-                    <span className="text-muted-foreground">Total receipts in report:</span> <span className="font-semibold">{totalReceipts}</span>
+                            {grandTotals && (
+                              <TableRow className="font-medium bg-muted/50">
+                                <TableCell colSpan={3} className="text-left">
+                                  Total
+                                </TableCell>
+                                {PAYMENT_COLUMNS.map((c) => (
+                                  <TableCell key={c.key} className="text-right tabular-nums">
+                                    {formatAmount(grandTotals[c.key])}
+                                  </TableCell>
+                                ))}
+                                <TableCell />
+                                <TableCell />
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {detailRows.map((u, idx) => (
+                          <div key={u.userId} className="rounded-md border overflow-x-auto">
+                            <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_td]:border-r">
+                              <TableHeader>
+                                <TableRow className="border-b">
+                                  <TableHead className="w-10 text-right">No.</TableHead>
+                                  <TableHead className="pr-0">User</TableHead>
+                                  <TableHead>Section</TableHead>
+                                  <TableHead className="text-right">Receipts</TableHead>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableHead key={c.key} className="text-right tabular-nums">
+                                      {c.label}
+                                    </TableHead>
+                                  ))}
+                                  <TableHead className="text-center">Handover Date</TableHead>
+                                  <TableHead className="text-center">Checked By</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {u.sections.map((s, i) => (
+                                  <TableRow
+                                    key={`${u.userId}-${s.key}`}
+                                    className="border-b border-border/50"
+                                  >
+                                    <TableCell className="text-center tabular-nums">
+                                      {i === 0 ? idx + 1 : ''}
+                                    </TableCell>
+                                    <TableCell className="pr-0">
+                                      {i === 0 ? u.userName : ''}
+                                    </TableCell>
+                                    <TableCell>{s.title}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {s.receiptCount}
+                                    </TableCell>
+                                    {PAYMENT_COLUMNS.map((c) => (
+                                      <TableCell key={c.key} className="text-right tabular-nums">
+                                        {formatAmount(s.totals[c.key])}
+                                      </TableCell>
+                                    ))}
+                                    {i === 0 && (
+                                      <>
+                                        <TableCell
+                                          rowSpan={u.sections.length + 1}
+                                          className="text-center"
+                                        >
+                                          <div
+                                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                            aria-hidden
+                                          />
+                                        </TableCell>
+                                        <TableCell
+                                          rowSpan={u.sections.length + 1}
+                                          className="text-center"
+                                        >
+                                          <div
+                                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                            aria-hidden
+                                          />
+                                        </TableCell>
+                                      </>
+                                    )}
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-medium bg-muted/50">
+                                  <TableCell colSpan={3}>User Total</TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {u.receiptCount}
+                                  </TableCell>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableCell key={c.key} className="text-right tabular-nums">
+                                      {formatAmount(u.totals[c.key])}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ))}
+                        {grandTotals && (
+                          <div className="rounded-md border overflow-x-auto">
+                            <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                              <TableHeader>
+                                <TableRow className="border-b">
+                                  <TableHead colSpan={4}>Grand Total</TableHead>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableHead key={c.key} className="text-right tabular-nums">
+                                      {c.label}
+                                    </TableHead>
+                                  ))}
+                                  <TableHead />
+                                  <TableHead />
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow className="font-medium bg-muted/50">
+                                  <TableCell colSpan={4}>Total</TableCell>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableCell key={c.key} className="text-right tabular-nums">
+                                      {formatAmount(grandTotals[c.key])}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell />
+                                  <TableCell />
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        <div className="rounded-md border border-primary/20 bg-primary/[0.03] px-3 py-2 text-[11px]">
+                          <span className="text-muted-foreground">Total receipts in report:</span>{' '}
+                          <span className="font-semibold">{totalReceipts}</span>
+                        </div>
+                        {renderReportMetaCard(reportMeta)}
+                      </div>
+                    )}
                   </div>
-                  <div className="print:hidden">{renderReportMetaCard(reportMeta)}</div>
-                </div>
+                  <div className="acs-print-only hidden print:block">
+                    {reportMeta.format === 'summary' ? (
+                      <AllCashierSummaryDetailPrintLayout
+                        mode="summary"
+                        summaryRows={summaryRows}
+                        grandTotals={grandTotals}
+                        totalReceipts={totalReceipts}
+                      />
+                    ) : (
+                      <AllCashierSummaryDetailPrintLayout
+                        mode="detail"
+                        detailRows={detailRows}
+                        grandTotals={grandTotals}
+                        totalReceipts={totalReceipts}
+                      />
+                    )}
+                  </div>
+                </>
               )}
             </ReportPrintLayout>
           </CardContent>

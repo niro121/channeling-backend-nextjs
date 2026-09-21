@@ -1,12 +1,14 @@
 'use client';
 
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   CardSummaryBankWiseReportExportRow,
@@ -16,6 +18,9 @@ import type {
 } from '@/types/reports/card-summary-bank-wise';
 import { exportCardSummaryBankWiseReportData, getCardSummaryBankWiseReportData } from '@/app/actions/reports/card-summary-bank-wise.report.action';
 import { CardSummaryBankWiseDetailColumns, CardSummaryBankWiseSummaryColumns } from './columns';
+import { CardSummaryBankWisePrintLayout } from './card-summary-bank-wise-print-layout';
+import { downloadCardSummaryBankWiseReportPdf } from './card-summary-bank-wise-pdf';
+import { downloadCardSummaryBankWiseReportExcel } from './card-summary-bank-wise-excel';
 
 type Props = {
   currentUserName: string;
@@ -65,13 +70,99 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
     format
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const df = values.dateFrom ?? '';
+      const dt = values.dateTo ?? '';
+      const bankId = values.bankId ?? '__all__';
+      const locId = values.locationId ?? '__all__';
+      const fmt = (values.format ?? format) as string;
+      return [
+        {
+          label: 'Period',
+          value: `${df || '—'} to ${dt || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Bank',
+          value:
+            bankId === '__all__'
+              ? 'All Banks'
+              : bankOptions.find((b) => b.id === bankId)?.name ?? bankId,
+        },
+        {
+          label: 'Branch',
+          value:
+            locId === '__all__'
+              ? 'All Branches'
+              : locationOptions.find((l) => l.id === locId)?.name ?? locId,
+        },
+        {
+          label: 'Format',
+          value: fmt === 'detail' ? 'Detail' : 'Summary',
+        },
+      ];
+    },
+    [bankOptions, locationOptions, format]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CardSummaryBankWiseReportExportRow[];
+      columns: string[];
+      keys: (keyof CardSummaryBankWiseReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const query = buildQuery();
+      await downloadCardSummaryBankWiseReportPdf({
+        reportName: 'Card Summary - Bank Wise',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(query)),
+        generatedAt: new Date().toLocaleString(),
+        format: query.format,
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems, format]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CardSummaryBankWiseReportExportRow[];
+      columns: string[];
+      keys: (keyof CardSummaryBankWiseReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const query = buildQuery();
+      await downloadCardSummaryBankWiseReportExcel({
+        reportName: 'Card Summary - Bank Wise',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(query)),
+        generatedAt: new Date().toLocaleString(),
+        format: query.format,
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: query.format === 'detail' ? 'Detail' : 'Summary',
+      });
+    },
+    [buildSummaryItems, format]
+  );
+
   return (
     <ReportTemplate<CardSummaryBankWiseReportRow, CardSummaryBankWiseReportExportRow>
       title="Card Summary - Bank Wise"
       description="Lists card movements by bank, including collections and refunds. Use Summary for bank totals, or Detail for receipt-level records."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 card-summary-bank-wise-report-root"
+      renderPrintContent={(rows) => (
+        <CardSummaryBankWisePrintLayout format={format} rows={rows} />
+      )}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -90,38 +181,7 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const df = values.dateFrom ?? '';
-          const dt = values.dateTo ?? '';
-          const bankId = values.bankId ?? '__all__';
-          const locId = values.locationId ?? '__all__';
-          const fmt = (values.format ?? 'summary') as string;
-          return [
-            {
-              label: 'Period',
-              value: `${df || '—'} to ${dt || '—'}`,
-              fullWidth: true,
-            },
-            {
-              label: 'Bank',
-              value:
-                bankId === '__all__'
-                  ? 'All Banks'
-                  : bankOptions.find((b) => b.id === bankId)?.name ?? bankId,
-            },
-            {
-              label: 'Branch',
-              value:
-                locId === '__all__'
-                  ? 'All Branches'
-                  : locationOptions.find((l) => l.id === locId)?.name ?? locId,
-            },
-            {
-              label: 'Format',
-              value: fmt === 'detail' ? 'Detail' : 'Summary',
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
@@ -229,4 +289,3 @@ export default function CardSummaryBankWiseReportContent(props: Props) {
     </Suspense>
   );
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateRangePicker } from '@/components/common/date-range-picker';
@@ -8,6 +8,8 @@ import { ReportUserSelect } from '@/components/common/user-select';
 import { Selector } from '@/components/common/selector';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatCents } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import type {
@@ -20,6 +22,9 @@ import {
   getCompletedHandoversReportData,
 } from '@/app/actions/reports/completed-handovers.report.action';
 import { CompletedHandoversColumns } from './columns';
+import { CompletedHandoversPrintLayout } from './completed-handovers-print-layout';
+import { downloadCompletedHandoversReportPdf } from './completed-handovers-pdf';
+import { downloadCompletedHandoversReportExcel } from './completed-handovers-excel';
 
 type Props = {
   currentUserName: string;
@@ -66,13 +71,105 @@ function ContentInner({ currentUserName, userOptions }: Props) {
     reconciliationStatus: searchParams.get('reconciliationStatus') ?? '__all__',
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const df = values.dateFrom ?? '';
+      const dt = values.dateTo ?? '';
+      const fromUserId = values.fromUserId ?? '__all__';
+      const toUserId = values.toUserId ?? '__all__';
+      const status = values.status ?? '__all__';
+      const reconciliationStatus = values.reconciliationStatus ?? '__all__';
+      return [
+        {
+          label: 'Period',
+          value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'From',
+          value:
+            fromUserId === '__all__'
+              ? 'All Users'
+              : userOptions.find((u) => u.id === fromUserId)?.name ?? fromUserId,
+        },
+        {
+          label: 'To',
+          value:
+            toUserId === '__all__'
+              ? 'All Users'
+              : userOptions.find((u) => u.id === toUserId)?.name ?? toUserId,
+        },
+        {
+          label: 'Status',
+          value:
+            status === '__all__'
+              ? 'All Statuses'
+              : STATUS_OPTIONS.find((s) => s.id === status)?.name ?? status,
+        },
+        {
+          label: 'Reconciliation',
+          value:
+            reconciliationStatus === '__all__'
+              ? 'All Reconciliation Statuses'
+              : RECONCILIATION_STATUS_OPTIONS.find((s) => s.id === reconciliationStatus)?.name ??
+                reconciliationStatus,
+        },
+      ];
+    },
+    [userOptions]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CompletedHandoversReportExportRow[];
+      columns: string[];
+      keys: (keyof CompletedHandoversReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadCompletedHandoversReportPdf({
+        reportName: 'Handovers Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CompletedHandoversReportExportRow[];
+      columns: string[];
+      keys: (keyof CompletedHandoversReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadCompletedHandoversReportExcel({
+        reportName: 'Handovers Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: 'Handovers',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<CompletedHandoversReportRow, CompletedHandoversReportExportRow>
       title="Handovers Report"
       description="View pending, approved, and rejected shift handovers for any user. Filter by date, sender, recipient, handover status, and reconciliation status."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 completed-handovers-report-root"
+      renderPrintContent={(rows) => <CompletedHandoversPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -111,50 +208,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const df = values.dateFrom ?? '';
-          const dt = values.dateTo ?? '';
-          const fromUserId = values.fromUserId ?? '__all__';
-          const toUserId = values.toUserId ?? '__all__';
-          const status = values.status ?? '__all__';
-          const reconciliationStatus = values.reconciliationStatus ?? '__all__';
-          return [
-            {
-              label: 'Period',
-              value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
-              fullWidth: true,
-            },
-            {
-              label: 'From',
-              value:
-                fromUserId === '__all__'
-                  ? 'All Users'
-                  : userOptions.find((u) => u.id === fromUserId)?.name ?? fromUserId,
-            },
-            {
-              label: 'To',
-              value:
-                toUserId === '__all__'
-                  ? 'All Users'
-                  : userOptions.find((u) => u.id === toUserId)?.name ?? toUserId,
-            },
-            {
-              label: 'Status',
-              value:
-                status === '__all__'
-                  ? 'All Statuses'
-                  : STATUS_OPTIONS.find((s) => s.id === status)?.name ?? status,
-            },
-            {
-              label: 'Reconciliation',
-              value:
-                reconciliationStatus === '__all__'
-                  ? 'All Reconciliation Statuses'
-                  : RECONCILIATION_STATUS_OPTIONS.find((s) => s.id === reconciliationStatus)
-                      ?.name ?? reconciliationStatus,
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
