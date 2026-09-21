@@ -35,18 +35,18 @@ import { formatExportFileName } from '@/lib/utils';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import type {
   CashierSummaryReportSection,
-  CashierSummaryReportLineItem,
   CashierSummaryPaymentAmounts,
   CashierSummaryIncludedShift,
 } from '@/types/report';
+import { CashierSummaryPrintLayout } from './cashier-summary-print-layout';
+import { downloadCashierSummaryReportPdf } from './cashier-summary-pdf';
+import { downloadCashierSummaryReportExcel } from './cashier-summary-excel';
 
 type CashierSummaryContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -273,7 +273,7 @@ export default function CashierSummaryContent({
     generatedAt: string;
     includedShifts: CashierSummaryIncludedShift[];
   }): ReportPrintSummaryItem[] => [
-    { label: 'Period', value: formatReportRangeLabel(meta.from, meta.to) },
+    { label: 'Period', value: formatReportRangeLabel(meta.from, meta.to), fullWidth: true },
     { label: 'Staff', value: meta.userLabel },
     { label: 'Branch', value: meta.locationLabel },
     { label: 'Report Type', value: meta.format === 'detail' ? 'Detail' : 'Summary' },
@@ -424,209 +424,6 @@ export default function CashierSummaryContent({
     window.print();
   };
 
-  type CashierSummaryExportRow = {
-    section: string;
-    txCreated: string;
-    shift: string;
-    sessionDateTime: string;
-    billId: string;
-    receiptId: string;
-    patientOrAgency: string;
-    consultant: string;
-    name: string;
-    type: string;
-    cash: string;
-    creditCard: string;
-    slip: string;
-    cheque: string;
-    agent: string;
-    agentCredit: string;
-    eWallet: string;
-  };
-
-  const CASHIER_SUMMARY_EXPORT_COLUMNS = [
-    'Section',
-    'Tx Created',
-    'Shift',
-    'Session',
-    'Bill ID',
-    'Receipt ID',
-    'Patient/Agency',
-    'Consultant',
-    'Name',
-    'Type',
-    ...PAYMENT_COLUMNS.map((c) => c.label),
-  ] as const;
-
-  const CASHIER_SUMMARY_EXPORT_KEYS: (keyof CashierSummaryExportRow)[] = [
-    'section',
-    'txCreated',
-    'shift',
-    'sessionDateTime',
-    'billId',
-    'receiptId',
-    'patientOrAgency',
-    'consultant',
-    'name',
-    'type',
-    'cash',
-    'creditCard',
-    'slip',
-    'cheque',
-    'agent',
-    'agentCredit',
-    'eWallet',
-  ];
-
-  const buildCashierSummaryExportRows = (
-    reportFormat: 'summary' | 'detail' = format
-  ): CashierSummaryExportRow[] => {
-    const data: CashierSummaryExportRow[] = [];
-    const emptyAmountRow = (): Pick<
-      CashierSummaryExportRow,
-      'cash' | 'creditCard' | 'slip' | 'cheque' | 'agent' | 'agentCredit' | 'eWallet'
-    > => ({
-      cash: '',
-      creditCard: '',
-      slip: '',
-      cheque: '',
-      agent: '',
-      agentCredit: '',
-      eWallet: '',
-    });
-
-    const amountsFromLine = (row: CashierSummaryReportLineItem | CashierSummaryPaymentAmounts) => ({
-      cash: formatAmount(row.cash),
-      creditCard: formatAmount(row.creditCard),
-      slip: formatAmount(row.slip),
-      cheque: formatAmount(row.cheque),
-      agent: formatAmount(row.agent),
-      agentCredit: formatAmount(row.agentCredit),
-      eWallet: formatAmount(row.eWallet),
-    });
-
-    const pushSectionTotalRow = (section: CashierSummaryReportSection) => {
-      data.push({
-        section: section.title,
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: 'Total',
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        ...amountsFromLine(section.totals),
-      });
-    };
-
-    const pushDetailRow = (section: CashierSummaryReportSection, row: CashierSummaryReportLineItem) => {
-      const isIncomeExpense = section.key === 'incomeExpense';
-      data.push({
-        section: section.title,
-        txCreated:
-          row.txCreated instanceof Date
-            ? row.txCreated.toLocaleString()
-            : String(row.txCreated ?? ''),
-        shift: row.shiftLabel ?? '',
-        sessionDateTime: row.sessionDateTime ?? '',
-        billId: row.billId ?? '',
-        receiptId: row.receiptId,
-        patientOrAgency: isIncomeExpense ? '' : (row.patient ?? ''),
-        consultant: isIncomeExpense ? '' : (row.consultant ?? ''),
-        name: isIncomeExpense ? (row.name ?? '') : '',
-        type: isIncomeExpense ? (row.type ?? '') : '',
-        ...amountsFromLine(row),
-      });
-    };
-
-    const pushSummaryAmountRow = (
-      sectionLabel: string,
-      billIdLabel: string,
-      amounts: Partial<Record<keyof CashierSummaryPaymentAmounts, number>>,
-      /** Single combined total shown in the Cash column (credit/cash footer). */
-      combinedTotal?: number
-    ) => {
-      data.push({
-        section: sectionLabel,
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: billIdLabel,
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        cash:
-          combinedTotal != null
-            ? formatAmount(combinedTotal)
-            : amounts.cash != null
-              ? formatAmount(amounts.cash)
-              : '',
-        creditCard: amounts.creditCard != null ? formatAmount(amounts.creditCard) : '',
-        slip: amounts.slip != null ? formatAmount(amounts.slip) : '',
-        cheque: amounts.cheque != null ? formatAmount(amounts.cheque) : '',
-        agent: amounts.agent != null ? formatAmount(amounts.agent) : '',
-        agentCredit: amounts.agentCredit != null ? formatAmount(amounts.agentCredit) : '',
-        eWallet: amounts.eWallet != null ? formatAmount(amounts.eWallet) : '',
-      });
-    };
-
-    for (const section of sections) {
-      const showRows = cashierSectionShowDetailRows(reportFormat, section.key);
-      const hasAnyTotal = cashierSectionHasAnyTotal(section);
-
-      if (showRows && section.rows.length > 0) {
-        for (const row of section.rows) {
-          pushDetailRow(section, row);
-        }
-        pushSectionTotalRow(section);
-      } else if (hasAnyTotal) {
-        pushSectionTotalRow(section);
-      }
-    }
-
-    if (grandTotals) {
-      const crSlip = Number(grandTotals.slip);
-      const crCust = Number(grandTotals.agentCredit);
-      const crTotal = crSlip + crCust;
-      const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
-      const agentTotal = Number(grandTotals.agent);
-
-      data.push({
-        section: '',
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: '',
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        ...emptyAmountRow(),
-      });
-      pushSummaryAmountRow('Credit Summary', '', {});
-      pushSummaryAmountRow('Credit Summary', 'Slip Total', { slip: crSlip });
-      pushSummaryAmountRow('Credit Summary', 'Credit Total', { agentCredit: crCust });
-      pushSummaryAmountRow('Credit Summary', 'Total (Credit Summary)', {}, crTotal);
-      pushSummaryAmountRow('Cash Summary', '', {});
-      for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
-        const n = Number(grandTotals[col.key]);
-        pushSummaryAmountRow('Cash Summary', `${col.label} Total`, {
-          [col.key]: Number.isFinite(n) ? n : 0,
-        });
-      }
-      pushSummaryAmountRow('Cash Summary', 'Total (Cash Summary)', {}, cashTotal);
-      pushSummaryAmountRow('', 'Grand Total (Credit + Cash)', {}, crTotal + cashTotal);
-      pushSummaryAmountRow('', 'Agent Total', { agent: agentTotal });
-    }
-
-    return data;
-  };
-
   const handleDownloadCSV = () => {
     if (sections.length === 0 && !grandTotals) {
       toast({
@@ -760,21 +557,18 @@ export default function CashierSummaryContent({
       });
       return;
     }
-    const exportMeta = { ...reportMeta, format };
-    const data = buildCashierSummaryExportRows(format);
-    await downloadBrandedReportPdf({
+    const mode = reportMeta.format;
+    await downloadCashierSummaryReportPdf({
+      mode,
       reportName:
-        format === 'detail'
+        mode === 'detail'
           ? 'Userwise Cashier Detail - Channel'
           : 'Userwise Cashier Summary',
-      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(exportMeta)),
+      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
-      data,
-      columns: [...CASHIER_SUMMARY_EXPORT_COLUMNS],
-      keys: CASHIER_SUMMARY_EXPORT_KEYS,
+      sections,
+      grandTotals,
       fileName: `${formatExportFileName('cashier-summary')}.pdf`,
-      orientation: 'portrait',
-      compactTable: true,
     });
   };
 
@@ -789,22 +583,19 @@ export default function CashierSummaryContent({
     }
     setLoadingExcel(true);
     try {
-      const exportMeta = { ...reportMeta, format };
-      const data = buildCashierSummaryExportRows(format);
-      await downloadBrandedReportExcel({
+      const mode = reportMeta.format;
+      await downloadCashierSummaryReportExcel({
+        mode,
         reportName:
-          format === 'detail'
+          mode === 'detail'
             ? 'Userwise Cashier Detail - Channel'
             : 'Userwise Cashier Summary',
-        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(exportMeta)),
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
-        data,
-        columns: [...CASHIER_SUMMARY_EXPORT_COLUMNS],
-        keys: CASHIER_SUMMARY_EXPORT_KEYS,
+        sections,
+        grandTotals,
         fileName: `${formatExportFileName('cashier-summary')}.xlsx`,
-        sheetName: 'Cashier Summary',
-        orientation: 'portrait',
-        compactTable: true,
+        sheetName: mode === 'detail' ? 'Cashier Detail' : 'Cashier Summary',
       });
     } catch (error: unknown) {
       toast({
@@ -820,33 +611,7 @@ export default function CashierSummaryContent({
   const hasData = sections.some((s) => s.rows.length > 0 || PAYMENT_COLUMNS.some((col) => s.totals[col.key] !== 0));
 
   return (
-    <div className="w-full py-2 space-y-3 print:py-2 cashier-summary-print-root">
-      <style>{`
-        @media print {
-          .cashier-summary-print-root .overflow-x-auto,
-          .cashier-summary-print-root .overflow-auto {
-            overflow: visible !important;
-          }
-          .cashier-summary-print-root .rpt-print-root table {
-            table-layout: fixed !important;
-            width: 100% !important;
-          }
-          .cashier-summary-print-root .rpt-print-root th,
-          .cashier-summary-print-root .rpt-print-root td {
-            font-size: 6.5pt !important;
-            padding: 0.8mm 0.6mm !important;
-            line-height: 1.15 !important;
-          }
-          .cashier-summary-print-root .rpt-print-root thead th,
-          .cashier-summary-print-root .rpt-print-root th {
-            font-size: 6pt !important;
-          }
-          /* Hide empty sections that only show "No transactions found..." */
-          .cashier-summary-print-root .cashier-section-empty {
-            display: none !important;
-          }
-        }
-      `}</style>
+    <div className="w-full py-2 space-y-3 print:py-2 cashier-summary-report-root">
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -993,33 +758,62 @@ export default function CashierSummaryContent({
           </CardHeader>
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
-              reportName={format === 'detail' ? 'Userwise Cashier Detail - Channel' : 'Userwise Cashier Summary'}
+              reportName={
+                reportMeta.format === 'detail'
+                  ? 'Userwise Cashier Detail - Channel'
+                  : 'Userwise Cashier Summary'
+              }
               pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
-              summaryItems={buildSummaryItems({ ...reportMeta, format })}
+              summaryItems={buildSummaryItems(reportMeta)}
             >
+              {/* Always mount for @page A4 portrait + branded header print tweaks */}
+              {reportMeta.format === 'detail' ? (
+                <CashierSummaryPrintLayout
+                  mode="detail"
+                  sections={sections}
+                  grandTotals={grandTotals}
+                />
+              ) : (
+                <CashierSummaryPrintLayout mode="summary" />
+              )}
+
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
               ) : !hasData ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No data for the selected filters. Try a different date range, branch, or user.
                 </div>
-              ) : (
-                <>
+              ) : reportMeta.format === 'detail' ? (
+                <div className="ucs-screen-detail print:hidden space-y-3">
                   {sections.map((section) => (
                     <SectionBlock
                       key={section.key}
                       section={section}
-                      showRows={cashierSectionShowDetailRows(format, section.key)}
+                      showRows={cashierSectionShowDetailRows('detail', section.key)}
                     />
                   ))}
-
                   {grandTotals && (
                     <div className="border-t pt-4 mt-2">
                       <CashierCreditCashSummaryFooter totals={grandTotals} />
                     </div>
                   )}
-                </>
+                </div>
+              ) : (
+                <div className="ucs-screen-summary space-y-3">
+                  {sections.map((section) => (
+                    <SectionBlock
+                      key={section.key}
+                      section={section}
+                      showRows={cashierSectionShowDetailRows('summary', section.key)}
+                    />
+                  ))}
+                  {grandTotals && (
+                    <div className="border-t pt-4 mt-2">
+                      <CashierCreditCashSummaryFooter totals={grandTotals} />
+                    </div>
+                  )}
+                </div>
               )}
               {!loading && (
                 <div className="border-t pt-4 mt-2 print:hidden">{renderReportMetaCard(reportMeta)}</div>

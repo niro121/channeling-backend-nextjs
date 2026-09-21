@@ -46,6 +46,9 @@ import { ReportUserSelect } from '@/components/common/user-select';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
+import { UserActivityPrintLayout } from './user-activity-print-layout';
+import { downloadUserActivityReportPdf } from './user-activity-pdf';
+import { downloadUserActivityReportExcel } from './user-activity-excel';
 
 type UserActivityContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -185,8 +188,41 @@ export default function UserActivityContent({
     { label: 'Total Records', value: String(totalReturned) },
   ];
 
+  const handlePdfDownload = async (args: {
+    title: string;
+    data: ExportUserActivityData[];
+    columns: string[];
+    keys: (keyof ExportUserActivityData)[];
+    fileName?: string;
+  }) => {
+    await downloadUserActivityReportPdf({
+      reportName: 'User Activity Report',
+      summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+      generatedAt,
+      rows: args.data,
+      fileName: args.fileName,
+    });
+  };
+
+  const handleExcelDownload = async (args: {
+    title: string;
+    data: ExportUserActivityData[];
+    columns: string[];
+    keys: (keyof ExportUserActivityData)[];
+    fileName?: string;
+  }) => {
+    await downloadUserActivityReportExcel({
+      reportName: 'User Activity Report',
+      summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+      generatedAt,
+      rows: args.data,
+      fileName: args.fileName,
+      sheetName: 'User Activity',
+    });
+  };
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6 user-activity-report-root">
       <Card className="print:hidden">
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -205,8 +241,11 @@ export default function UserActivityContent({
                 fileName={`user-activity-${fromDate ?? ''}-to-${toDate ?? ''}`.replace(/^-to-|-to$/g, '') || 'user-activity-report'}
                 onBrowserPrint={handlePrint}
                 showPrintButton
+                customDownloadPdf={handlePdfDownload}
+                customDownloadExcel={handleExcelDownload}
                 pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
                 pdfGeneratedAt={generatedAt}
+                exportOrientation="portrait"
               />
             </div>
           </div>
@@ -294,7 +333,7 @@ export default function UserActivityContent({
         <CardContent>
           <ReportPrintLayout
             reportName="User Activity Report"
-            pageSize="A4 landscape"
+            pageSize="A4 portrait"
             generatedAt={generatedAt}
             summaryItems={
               hasSearched
@@ -303,7 +342,7 @@ export default function UserActivityContent({
             }
           >
           {loading ? (
-            <div className="text-center py-8">Loading...</div>
+            <div className="text-center py-8 print:hidden">Loading...</div>
           ) : rows.length === 0 ? (
             <div className="print:hidden">
               <ReportEmptyStateCard
@@ -312,65 +351,70 @@ export default function UserActivityContent({
               />
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {UserActivityReportColumns.map((col, idx) => {
-                      const accessorKey = (col as { accessorKey?: string }).accessorKey;
-                      return (
-                        <TableHead
-                          key={col.id || accessorKey || idx}
-                          className={accessorKey === 'createdAt' ? 'min-w-[140px]' : ''}
-                        >
-                          {typeof col.header === 'string'
-                            ? col.header
-                            : col.header?.({ column: col as any, header: {} as any, table: {} as any }) ?? ''}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row, index) => (
-                    <TableRow key={row.id || index}>
-                      {UserActivityReportColumns.map((col, colIdx) => {
+            <>
+              <div className="ua-print-only">
+                <UserActivityPrintLayout rows={rows} />
+              </div>
+              <div className="ua-screen-table rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {UserActivityReportColumns.map((col, idx) => {
                         const accessorKey = (col as { accessorKey?: string }).accessorKey;
-                        let cellValue: React.ReactNode = '-';
-                        if (col.cell && typeof col.cell === 'function') {
-                          const mockRow = {
-                            original: row,
-                            getValue: (key: string) => {
-                              const k = key.split('.')[0];
-                              return (row as Record<string, unknown>)[k];
-                            },
-                            index,
-                          };
-                          cellValue = col.cell({
-                            row: mockRow as any,
-                            column: col as any,
-                            table: {} as any,
-                            cell: col.cell,
-                            getValue: mockRow.getValue,
-                            renderValue: mockRow.getValue,
-                          } as any);
-                        } else if (accessorKey && row[accessorKey as keyof UserActivityRow] != null) {
-                          cellValue = String((row as Record<string, unknown>)[accessorKey]);
-                        }
                         return (
-                          <TableCell
-                            key={col.id || accessorKey || colIdx}
+                          <TableHead
+                            key={col.id || accessorKey || idx}
                             className={accessorKey === 'createdAt' ? 'min-w-[140px]' : ''}
                           >
-                            {cellValue}
-                          </TableCell>
+                            {typeof col.header === 'string'
+                              ? col.header
+                              : col.header?.({ column: col as any, header: {} as any, table: {} as any }) ?? ''}
+                          </TableHead>
                         );
                       })}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, index) => (
+                      <TableRow key={row.id || index}>
+                        {UserActivityReportColumns.map((col, colIdx) => {
+                          const accessorKey = (col as { accessorKey?: string }).accessorKey;
+                          let cellValue: React.ReactNode = '-';
+                          if (col.cell && typeof col.cell === 'function') {
+                            const mockRow = {
+                              original: row,
+                              getValue: (key: string) => {
+                                const k = key.split('.')[0];
+                                return (row as Record<string, unknown>)[k];
+                              },
+                              index,
+                            };
+                            cellValue = col.cell({
+                              row: mockRow as any,
+                              column: col as any,
+                              table: {} as any,
+                              cell: col.cell,
+                              getValue: mockRow.getValue,
+                              renderValue: mockRow.getValue,
+                            } as any);
+                          } else if (accessorKey && row[accessorKey as keyof UserActivityRow] != null) {
+                            cellValue = String((row as Record<string, unknown>)[accessorKey]);
+                          }
+                          return (
+                            <TableCell
+                              key={col.id || accessorKey || colIdx}
+                              className={accessorKey === 'createdAt' ? 'min-w-[140px]' : ''}
+                            >
+                              {cellValue}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
           </ReportPrintLayout>
         </CardContent>

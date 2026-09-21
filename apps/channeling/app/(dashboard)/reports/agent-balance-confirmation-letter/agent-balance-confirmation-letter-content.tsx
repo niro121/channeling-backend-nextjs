@@ -7,6 +7,10 @@ import html2canvas from 'html2canvas';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
+import {
+  RUHUNU_HOSPITAL_LOGO_SRC,
+  RUHUNU_PRINT_BRAND_NAME,
+} from '@/components/common/report-print';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import {
@@ -21,9 +25,43 @@ import {
 } from '@/types/reports/agent.balance.confirmation.letter';
 import { AgentBalanceConfirmationLetterColumns } from './columns';
 
+const REPORT_LETTER_NAME = 'Agent Balance Confirmation Letter';
+
 const SINHALA_FONT_VFS_NAME = 'NotoSansSinhala-Regular.ttf';
 const SINHALA_FONT_FAMILY = 'NotoSansSinhala';
 let sinhalaFontLoaded = false;
+
+let cachedLetterLogoDataUrl: string | null | undefined;
+
+async function loadLetterLogoDataUrl(): Promise<string | null> {
+  if (cachedLetterLogoDataUrl !== undefined) return cachedLetterLogoDataUrl;
+  try {
+    const res = await fetch(RUHUNU_HOSPITAL_LOGO_SRC);
+    if (!res.ok) {
+      cachedLetterLogoDataUrl = null;
+      return null;
+    }
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    cachedLetterLogoDataUrl = dataUrl;
+    return dataUrl;
+  } catch {
+    cachedLetterLogoDataUrl = null;
+    return null;
+  }
+}
+
+function logoSrcForHtml(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${RUHUNU_HOSPITAL_LOGO_SRC}`;
+  }
+  return RUHUNU_HOSPITAL_LOGO_SRC;
+}
 
 function formatAmount(amount: unknown): string {
   const num =
@@ -86,16 +124,41 @@ function getLangCode(language: string): 'en' | 'si' {
   return 'en';
 }
 
-function formatEnglishAgencyLine(agentName?: string): string {
+function formatAgencyLineWithComma(agentName?: string): string {
   const trimmed = agentName?.trim();
   if (!trimmed) return '-';
   return trimmed.endsWith(',') ? trimmed : `${trimmed},`;
 }
 
-function formatAgencyLineWithComma(agentName?: string): string {
-  const trimmed = agentName?.trim();
-  if (!trimmed) return '-';
-  return trimmed.endsWith(',') ? trimmed : `${trimmed},`;
+function buildLetterheadHtml(_reportName?: string): string {
+  return `
+    <div style="
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 8px;
+    ">
+      <img
+        src="${escapeHtml(logoSrcForHtml())}"
+        alt="${escapeHtml(RUHUNU_PRINT_BRAND_NAME)}"
+        width="160"
+        height="48"
+        style="height: 48px; width: auto; max-width: 160px; object-fit: contain; display: block;"
+        crossorigin="anonymous"
+      />
+      <div style="flex: 1; min-width: 0; padding-top: 8px;">
+        <div style="
+          font-family: Helvetica, Arial, sans-serif;
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          color: #000;
+          line-height: 1.2;
+        ">${escapeHtml(RUHUNU_PRINT_BRAND_NAME.toUpperCase())}</div>
+      </div>
+    </div>
+    <div style="border-bottom: 2px solid #000; margin-bottom: 24px;"></div>
+  `;
 }
 
 function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExportRow): string {
@@ -132,6 +195,8 @@ function buildLetterHtml(title: string, row: AgentBalanceConfirmationLetterExpor
       color: #000;
       min-height: 720px;
     ">
+      ${buildLetterheadHtml(title)}
+
       ${isSinhala
         ? `
       <div style="text-align: left;">
@@ -189,6 +254,21 @@ function escapeHtml(raw: string): string {
     .replace(/'/g, '&#039;');
 }
 
+async function waitForLetterImages(container: HTMLElement): Promise<void> {
+  const images = Array.from(container.querySelectorAll('img'));
+  await Promise.all(
+    images.map(
+      (img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            })
+    )
+  );
+}
+
 async function downloadLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceConfirmationLetterExportRow, fileName?: string) {
   const container = document.createElement('div');
   container.style.position = 'fixed';
@@ -206,6 +286,7 @@ async function downloadLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceC
   } catch {
     // Ignore font readiness errors; html2canvas will still render.
   }
+  await waitForLetterImages(container);
 
   const canvas = await html2canvas(container, {
     scale: 3,
@@ -226,7 +307,10 @@ async function downloadLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceC
   pdf.save(fileName || 'Agent Balance Confirmation Letter.pdf');
 }
 
-async function openLetterPrintWindowViaHtml(title: string, row: AgentBalanceConfirmationLetterExportRow) {
+async function printLetterViaHiddenIframe(
+  title: string,
+  row: AgentBalanceConfirmationLetterExportRow
+): Promise<void> {
   const htmlBody = buildLetterHtml(title, row);
   const langCode = getLangCode(row.language);
   const fontFaceCss =
@@ -245,9 +329,19 @@ async function openLetterPrintWindowViaHtml(title: string, row: AgentBalanceConf
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${langCode === 'si' ? '' : escapeHtml(title)}</title>
+        <title></title>
         <style>
-          @page { size: A4; margin: 10mm; }
+          @page {
+            size: A4 portrait;
+            margin: 12mm 14mm;
+            /* Suppress browser-injected URL / title headers & footers. */
+            @top-left { content: ""; }
+            @top-center { content: ""; }
+            @top-right { content: ""; }
+            @bottom-left { content: ""; }
+            @bottom-center { content: ""; }
+            @bottom-right { content: ""; }
+          }
           html, body { margin: 0; padding: 0; background: #fff; }
           body { font-family: ${langCode === 'si' ? "'NotoSansSinhala', serif" : "Arial, sans-serif"}; }
           ${fontFaceCss}
@@ -259,79 +353,82 @@ async function openLetterPrintWindowViaHtml(title: string, row: AgentBalanceConf
     </html>
   `;
 
-  const win = window.open('', '_blank');
-  if (!win) return;
-  win.document.open();
-  win.document.write(docHtml);
-  win.document.close();
+  // Print from a hidden iframe so we stay on the current page (no about:blank tab).
+  const existing = document.getElementById('abcl-print-iframe');
+  if (existing) existing.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'abcl-print-iframe';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc || !iframe.contentWindow) {
+    iframe.remove();
+    return;
+  }
+
+  iframeDoc.open();
+  iframeDoc.write(docHtml);
+  iframeDoc.close();
+
+  const cleanup = () => {
+    try {
+      iframe.remove();
+    } catch {
+      // ignore
+    }
+  };
 
   const triggerPrint = async () => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fonts: any = (win.document as any).fonts;
-      if (fonts?.ready) {
-        await fonts.ready;
-      }
+      const fonts: any = (iframeDoc as any).fonts;
+      if (fonts?.ready) await fonts.ready;
     } catch {
       // ignore font readiness errors
     }
-    // Allow layout/paint to complete before printing
+
+    await waitForLetterImages(iframeDoc.body);
+
+    const win = iframe.contentWindow;
+    if (!win) {
+      cleanup();
+      return;
+    }
+
+    const onAfterPrint = () => {
+      win.removeEventListener('afterprint', onAfterPrint);
+      cleanup();
+    };
+    win.addEventListener('afterprint', onAfterPrint);
+
+    // Fallback cleanup if afterprint is not fired (some browsers).
+    setTimeout(cleanup, 60_000);
+
     setTimeout(() => {
       try {
         win.focus();
         win.print();
       } catch {
-        // ignore
+        cleanup();
       }
     }, 120);
   };
 
-  if (win.document.readyState === 'complete') {
+  if (iframeDoc.readyState === 'complete') {
     void triggerPrint();
   } else {
-    win.addEventListener('load', () => void triggerPrint());
+    iframe.addEventListener('load', () => void triggerPrint());
   }
-}
-
-async function printLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceConfirmationLetterExportRow) {
-  // Render the HTML letter off-screen, rasterize at high scale, then print via jsPDF for crisp Sinhala.
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-10000px';
-  container.style.top = '0';
-  container.style.background = '#fff';
-  container.innerHTML = buildLetterHtml(title, row);
-  document.body.appendChild(container);
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fonts: any = (document as any).fonts;
-    if (fonts?.ready) await fonts.ready;
-  } catch {
-    // ignore
-  }
-
-  const canvas = await html2canvas(container, {
-    scale: 3,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-  });
-  container.remove();
-
-  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  const pageWidth = 210;
-  const pageMargin = 10;
-  const imgWidth = pageWidth - pageMargin * 2;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-  const imgData = canvas.toDataURL('image/png');
-  pdf.addImage(imgData, 'PNG', pageMargin, 10, imgWidth, imgHeight);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const jsDoc = pdf as any;
-  if (typeof jsDoc.autoPrint === 'function') {
-    jsDoc.autoPrint({ variant: 'non-conform' });
-  }
-  window.open(pdf.output('bloburl'), '_blank');
 }
 
 async function ensureSinhalaFont(doc: jsPDF) {
@@ -359,6 +456,40 @@ async function ensureSinhalaFont(doc: jsPDF) {
   sinhalaFontLoaded = true;
 }
 
+async function drawLetterheadOnPdf(
+  doc: jsPDF,
+  _reportName: string,
+  margin: number
+): Promise<number> {
+  const pageWidth =
+    (typeof doc.internal.pageSize.getWidth === 'function'
+      ? doc.internal.pageSize.getWidth()
+      : doc.internal.pageSize.width) ?? 210;
+
+  let y = margin;
+  const logoH = 14;
+  const logoMaxW = 48;
+  let textX = margin;
+
+  const logoData = await loadLetterLogoDataUrl();
+  if (logoData) {
+    const logoW = Math.min(logoMaxW, logoH * (526 / 160));
+    doc.addImage(logoData, 'PNG', margin, y, logoW, logoH);
+    textX = margin + logoW + 4;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text(RUHUNU_PRINT_BRAND_NAME.toUpperCase(), textX, y + 8);
+
+  y += logoH + 3;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageWidth - margin, y);
+  return y + 8;
+}
+
 async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetterExportRow): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const margin = 18;
@@ -366,6 +497,9 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
       : doc.internal.pageSize.width) ?? 210;
+
+  const reportName = title?.trim() || REPORT_LETTER_NAME;
+  let y = await drawLetterheadOnPdf(doc, reportName, margin);
 
   const t = letterLabels(row.language);
   const isSinhala = row.language === 'si' || row.language.toLowerCase() === 'sinhala';
@@ -375,11 +509,8 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
   } else {
     doc.setFont('helvetica', 'normal');
   }
-  let y = 20;
 
-  // Omit the external report title on the printable letter. We'll use the
-  // centered letter title below instead.
-  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
 
   if (isSinhala) {
     // Sinhala letter header format:
@@ -557,99 +688,168 @@ function AgentBalanceConfirmationLetterContentInner({
       customPrintPdf={async ({ title, data }) => {
         const row = data?.[0];
         if (!row) return;
-        const langCode = getLangCode(row.language);
-        // Print via HTML to preserve Sinhala shaping and layout.
-        if (langCode === 'si') {
-          await printLetterPdfViaHtml2Canvas(title, row);
-          return;
-        }
-        const doc = await buildLetterPdf(title, row);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const jsDoc = doc as any;
-        if (typeof jsDoc.autoPrint === 'function') {
-          jsDoc.autoPrint({ variant: 'non-conform' });
-        }
-        window.open(doc.output('bloburl'), '_blank');
+        // Print dialog only — no new browser tab.
+        await printLetterViaHiddenIframe(title, row);
       }}
-      customDownloadExcel={async ({ title, data, fileName }) => {
+      customDownloadExcel={async ({ data, fileName }) => {
         const row = data?.[0];
         if (!row) return;
 
         const isSinhala = getLangCode(row.language) === 'si';
         const t = letterLabels(row.language);
         const asAtDate = row.asAtDate || '';
+        const agencyLine = formatAgencyLineWithComma(row.agentName);
 
         const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet(title || 'Sheet1');
+        workbook.creator = RUHUNU_PRINT_BRAND_NAME;
+        workbook.created = new Date();
 
-        // Configure columns (three columns for table section; first column wide for text)
-        sheet.columns = [
-          { header: '', key: 'col1', width: 60 },
-          { header: '', key: 'col2', width: 24 },
-          { header: '', key: 'col3', width: 24 }
-        ];
+        const sheet = workbook.addWorksheet('Balance Letter', {
+          views: [{ showGridLines: false }],
+          pageSetup: {
+            paperSize: 9,
+            orientation: 'portrait',
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+            horizontalCentered: true,
+            margins: {
+              left: 0.6,
+              right: 0.6,
+              top: 0.5,
+              bottom: 0.5,
+              header: 0.2,
+              footer: 0.2,
+            },
+          },
+        });
 
-        let r = 1;
-        // Header block
-        if (isSinhala) {
-          sheet.addRow([`කළමනාකාරතුමා,`]); r++;
-          sheet.addRow([row.agentName || '-']); r++;
-          sheet.addRow([asAtDate]); r++;
-          sheet.addRow([`මහත්මයාණෙනි,`]); r++;
-          sheet.addRow(['']); r++;
+        // Match print letter: wide first col + two data cols
+        sheet.getColumn(1).width = 48;
+        sheet.getColumn(2).width = 22;
+        sheet.getColumn(3).width = 22;
 
-          sheet.addRow([`${asAtDate} දිනට ශේෂ සහතිකය.`]); r++;
-          // Title style
-          sheet.getCell(`A${r - 1}`).font = { bold: true };
-          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
-
-          sheet.addRow(['']); r++;
-          sheet.addRow([`අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${asAtDate} දිනට ශේෂය පහත පරිදි වේ.`]); r++;
-          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
-          sheet.addRow(['']); r++;
-        } else {
-          // English header
-          sheet.addRow([row.agentName || '-']); r++;
-          sheet.addRow([asAtDate]); r++;
-          sheet.addRow([t.greeting]); r++;
-          sheet.addRow(['']); r++;
-
-          sheet.addRow([t.title]); r++;
-          sheet.getCell(`A${r - 1}`).font = { bold: true, underline: true };
-          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
-          sheet.addRow(['']); r++;
-
-          const bodyEn = t.body.replace(' on was ', ` on ${asAtDate} was `);
-          sheet.addRow([bodyEn]); r++;
-          sheet.getCell(`A${r - 1}`).alignment = { horizontal: 'center' };
-          sheet.addRow(['']); r++;
+        let brandCol = 1;
+        const logoDataUrl = await loadLetterLogoDataUrl();
+        if (logoDataUrl) {
+          const base64 = logoDataUrl.includes(',')
+            ? logoDataUrl.split(',')[1]!
+            : logoDataUrl;
+          const imageId = workbook.addImage({ base64, extension: 'png' });
+          sheet.addImage(imageId, {
+            tl: { col: 0, row: 0 },
+            ext: { width: 140, height: 42 },
+          });
+          sheet.getRow(1).height = 20;
+          sheet.getRow(2).height = 16;
+          brandCol = 2;
         }
 
-        // Table headers
-        sheet.addRow([t.nameOfAgent, t.agentCode, t.balanceAsAtDate]); r++;
-        sheet.getRow(r - 1).font = { bold: true };
-        sheet.getCell(`B${r - 1}`).alignment = { horizontal: 'center' };
-        sheet.getCell(`C${r - 1}`).alignment = { horizontal: 'right' };
+        // Brand only (same as print — no report title)
+        sheet.mergeCells(1, brandCol, 1, 3);
+        sheet.getCell(1, brandCol).value = RUHUNU_PRINT_BRAND_NAME.toUpperCase();
+        sheet.getCell(1, brandCol).font = { bold: true, size: 14, name: 'Arial' };
+        sheet.getCell(1, brandCol).alignment = { vertical: 'middle' };
 
-        // Table row
-        sheet.addRow([row.agentName || '-', row.agentCode || '-', formatAmount(row.balance ?? 0)]); r++;
-        sheet.getCell(`B${r - 1}`).alignment = { horizontal: 'center' };
-        sheet.getCell(`C${r - 1}`).alignment = { horizontal: 'right' };
+        // Divider under letterhead
+        sheet.mergeCells('A3:C3');
+        sheet.getCell(3, 1).border = {
+          bottom: { style: 'medium', color: { argb: 'FF000000' } },
+        };
+        sheet.addRow([]); // ensure row 4 blank gap after divider area
+        sheet.addRow([]);
 
-        // Footer
-        r += 1;
-        sheet.addRow([t.footer1]); r++;
-        sheet.addRow([t.footer2]); r++;
-        sheet.addRow([t.footer3]); r++;
-        sheet.addRow([t.footer4]); r++;
+        const styleLast = (opts?: {
+          bold?: boolean;
+          underline?: boolean;
+          center?: boolean;
+          merge?: boolean;
+          wrap?: boolean;
+          align2?: 'center' | 'right';
+          align3?: 'center' | 'right';
+        }) => {
+          const excelRow = sheet.lastRow!;
+          excelRow.font = {
+            name: 'Arial',
+            size: 11,
+            bold: opts?.bold,
+            underline: opts?.underline,
+          };
+          if (opts?.merge) {
+            sheet.mergeCells(excelRow.number, 1, excelRow.number, 3);
+          }
+          if (opts?.center || opts?.wrap) {
+            excelRow.getCell(1).alignment = {
+              horizontal: opts.center ? 'center' : 'left',
+              wrapText: Boolean(opts.wrap),
+            };
+          }
+          if (opts?.align2) {
+            excelRow.getCell(2).alignment = { horizontal: opts.align2 };
+          }
+          if (opts?.align3) {
+            excelRow.getCell(3).alignment = { horizontal: opts.align3 };
+          }
+        };
+
         if (isSinhala) {
-          sheet.addRow([`ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.`]); r++;
+          sheet.addRow(['කළමනාකාරතුමා,']);
+          sheet.addRow([agencyLine]);
+          sheet.addRow([asAtDate]);
+          sheet.addRow(['මහත්මයාණෙනි,']);
+          sheet.addRow(['']);
+          sheet.addRow([`${asAtDate} දිනට ශේෂ සහතිකය.`]);
+          styleLast({ bold: true, center: true, merge: true });
+          sheet.addRow(['']);
+          sheet.addRow([
+            `අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${asAtDate} දිනට ශේෂය පහත පරිදි වේ.`,
+          ]);
+          styleLast({ center: true, merge: true, wrap: true });
+          sheet.addRow(['']);
         } else {
-          sheet.addRow([`Ruhunu Hospital (Pvt.) Ltd.`]); r++;
+          sheet.addRow(['The Manager,']);
+          sheet.addRow([agencyLine]);
+          sheet.addRow([asAtDate]);
+          sheet.addRow([t.greeting]);
+          sheet.addRow(['']);
+          sheet.addRow([t.title]);
+          styleLast({ bold: true, underline: true, center: true, merge: true });
+          sheet.addRow(['']);
+          sheet.addRow([t.body.replace(' on was ', ` on ${asAtDate} was `)]);
+          styleLast({ center: true, merge: true, wrap: true });
+          sheet.addRow(['']);
         }
+
+        // Agent / code / balance (same as print)
+        sheet.addRow([t.nameOfAgent, t.agentCode, t.balanceAsAtDate]);
+        styleLast({ bold: true, align2: 'center', align3: 'right' });
+
+        sheet.addRow([
+          row.agentName || '-',
+          row.agentCode || '-',
+          formatAmount(row.balance ?? 0),
+        ]);
+        styleLast({ align2: 'center', align3: 'right' });
+
+        sheet.addRow([]);
+        sheet.addRow([t.footer1]);
+        sheet.addRow([t.footer2]);
+        sheet.addRow([t.footer3]);
+        sheet.addRow([t.footer4]);
+        if (isSinhala) {
+          sheet.addRow(['ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.']);
+        }
+
+        const lastRow = sheet.lastRow?.number ?? 1;
+        sheet.pageSetup.printArea = `A1:C${lastRow}`;
+        sheet.pageSetup.orientation = 'portrait';
+        sheet.pageSetup.paperSize = 9;
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), (fileName || 'agent-balance-confirmation-letter.xlsx'));
+        saveAs(
+          new Blob([buffer]),
+          fileName || 'agent-balance-confirmation-letter.xlsx'
+        );
       }}
       getRowId={(row) => row.id}
       showPrintButton={true}
