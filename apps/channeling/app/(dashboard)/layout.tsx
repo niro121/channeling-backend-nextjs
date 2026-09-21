@@ -240,12 +240,12 @@ export default async function DashboardLayout({
         />
         <div className="flex min-h-screen w-full flex-col bg-background">
           <ChannelBookingLayoutClient session={session} e2eRunEnabled={E2E_RUN_ENABLED}>
-            <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
-              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
+            <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-4 sm:px-6">
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden sm:gap-4">
                 <DashboardBreadcrumb />
                 <ChannelBookingShiftBar />
               </div>
-              <div className="ml-auto shrink-0">
+              <div className="ml-auto flex shrink-0 items-center gap-1">
                 <HeaderClientControls session={session} e2eRunEnabled={E2E_RUN_ENABLED} />
               </div>
             </header>

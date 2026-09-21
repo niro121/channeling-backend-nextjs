@@ -337,14 +337,14 @@ ${bodyContent}
 
 const LEDGER_RECEIPT_PAGE_STYLES = `
   /*
-   * Follow the printer dialog (Paper: Bills, Margins: Default, Scale: Default).
-   * Do not lock @page to A5 — that shrinks the bill onto the Bills form.
-   * @page margin stays 0 so Default dialog margins are not stacked twice.
-   * Only a small top inset is in CSS.
+   * Same print box as channel booking receipts (the job that already fits this printer):
+   * iframe 8.5in × 11in, no @page size (Paper: Bills), @page margin 8mm 10mm, width 100%.
+   * 8.5in is the tractor printable width; 9.5in includes the holes and clips.
    */
-  @page { margin: 0; }
+  @page { margin: 8mm 10mm; }
   html, body {
     margin: 0;
+    padding: 0;
     width: 100%;
     max-width: 100%;
     background: #fff;
@@ -357,7 +357,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
     font-size: 12px;
     line-height: 1.3;
     color: #000;
-    padding: 4mm 0 0 0;
+    padding: 2mm 4mm;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -459,12 +459,12 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   .receipt-body { margin-bottom: 4px; }
   .receipt-footer { margin-top: 8px; }
   @media print {
-    @page { margin: 0; }
+    @page { margin: 8mm 10mm; }
     html, body { width: 100%; max-width: 100%; }
     body {
       font-size: 12px;
       line-height: 1.3;
-      padding: 4mm 0 0 0;
+      padding: 2mm 4mm;
     }
     .hospital-name, .print-title { font-size: 16px; }
     .bill-title, .print-status { font-size: 14px; }

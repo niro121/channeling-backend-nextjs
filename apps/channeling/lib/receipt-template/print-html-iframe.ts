@@ -1,6 +1,6 @@
 /**
  * Print HTML through an off-screen iframe sized like a real page.
- * A 0×0 iframe makes Chrome shrink the job. Ledger uses A5; booking uses letter/tractor-feed.
+ * A 0×0 iframe makes Chrome shrink the job. Default 8.5in × 11in matches channel booking (tractor printable width).
  */
 export function printHtmlInIframe(
   html: string,
