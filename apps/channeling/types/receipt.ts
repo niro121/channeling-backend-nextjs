@@ -31,6 +31,24 @@ export const RECEIPT_PAYMENT_METHOD = {
   MIXED: 7,
 } as const;
 
+/** True when the receipt itself was billed as Agent (payment type 4), not merely tagged with an agency. */
+export function isAgentPaymentMethod(paymentMethod: number): boolean {
+  return paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT
+}
+
+/**
+ * Store Receipt.agencyId only for Agent-type payments.
+ * Advance/API On-Call may tag Booking.agencyId without being agent-billed; counter cash/card
+ * settlement of those bookings must not copy the tag onto the receipt.
+ */
+export function receiptAgencyIdIfAgentPayment(
+  paymentMethod: number,
+  agencyId: string | null | undefined
+): string | null {
+  if (!isAgentPaymentMethod(paymentMethod) || !agencyId) return null
+  return agencyId
+}
+
 export const PAYMENT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_PAYMENT_METHOD.CASH]: 'Cash',
   [RECEIPT_PAYMENT_METHOD.CREDIT_CARD]: 'Credit Card',

@@ -1,11 +1,13 @@
 const DEFAULT_MAX_EDGE = 1000
 const FALLBACK_MAX_EDGES = [1000, 800, 640]
 
-function scaledSize(width: number, height: number, maxEdge: number) {
-  if (width <= maxEdge && height <= maxEdge) {
-    return { width, height }
+/** Scale a tiny aspect-ratio probe so the longest side is `maxEdge`. */
+function sizeForMaxEdge(width: number, height: number, maxEdge: number) {
+  const longest = Math.max(width, height)
+  if (longest <= 0) {
+    return { width: 1, height: 1 }
   }
-  const scale = maxEdge / Math.max(width, height)
+  const scale = maxEdge / longest
   return {
     width: Math.max(1, Math.round(width * scale)),
     height: Math.max(1, Math.round(height * scale)),
@@ -67,13 +69,13 @@ async function compressAtMaxEdge(file: File, maxEdge: number, quality: number): 
     resizeQuality: "pixelated",
     imageOrientation: "from-image",
   })
-  const target = scaledSize(probe.width, probe.height, maxEdge)
+  const target = sizeForMaxEdge(probe.width, probe.height, maxEdge)
   probe.close()
 
   const bitmap = await bitmapFromFile(file, {
     resizeWidth: target.width,
     resizeHeight: target.height,
-    resizeQuality: "medium",
+    resizeQuality: "high",
     imageOrientation: "from-image",
   })
   try {

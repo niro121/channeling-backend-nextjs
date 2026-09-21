@@ -5,6 +5,7 @@ import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from 
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD } from '@/types/receipt';
+import { isAgentBookingMethod } from '@/types/save-booking';
 import type {
   AllCashierSummaryDetailReportQuery,
   AllCashierSummaryDetailReportResponse,
@@ -40,10 +41,11 @@ function sectionKeyFromReceipt(
     bookingId: string | null;
     agencyId: string | null;
     reversedReceiptId: string | null;
-    booking?: { status: number; refund: number } | null;
+    booking?: { status: number; refund: number; method?: number | null } | null;
   },
   agentDepositCancelOrigIds: Set<string>
 ): { key: string; title: string } {
+  const isAgentBooking = isAgentBookingMethod(r.booking?.method);
   if (
     r.method === RECEIPT_METHOD.AGENCY_WITHDRAW &&
     r.reversedReceiptId &&
@@ -52,19 +54,19 @@ function sectionKeyFromReceipt(
   ) {
     return { key: 'agentDepositCanceled', title: 'Agent Deposit - Canceled Bills' };
   }
-  if (r.method === RECEIPT_METHOD.PAYMENT && r.bookingId && !r.agencyId) {
+  if (r.method === RECEIPT_METHOD.PAYMENT && r.bookingId && !isAgentBooking) {
     return { key: 'channelBilled', title: 'Channel Billed Bills' };
   }
-  if (r.method === RECEIPT_METHOD.REFUND && r.bookingId && !r.agencyId) {
+  if (r.method === RECEIPT_METHOD.REFUND && r.bookingId && !isAgentBooking) {
     if (r.booking?.refund === 3 && r.booking?.status === 2) {
       return { key: 'channelCancel', title: 'Channel Cancel Bills' };
     }
     return { key: 'channelRefund', title: 'Channel Refund Bills' };
   }
-  if (r.agencyId && r.method === RECEIPT_METHOD.PAYMENT) {
+  if (isAgentBooking && r.method === RECEIPT_METHOD.PAYMENT) {
     return { key: 'agentBilled', title: 'Agent - Billed Bills' };
   }
-  if (r.agencyId && r.method === RECEIPT_METHOD.REFUND) {
+  if (isAgentBooking && r.method === RECEIPT_METHOD.REFUND) {
     if (r.booking?.refund === 3 && r.booking?.status === 2) {
       return { key: 'agentCanceled', title: 'Agent - Canceled Bills' };
     }
@@ -150,7 +152,7 @@ export async function getAllCashierSummaryDetailReportService(
       agencyId: true,
       reversedReceiptId: true,
       paymentLines: { select: { paymentMethod: true, amount: true } },
-      booking: { select: { status: true, refund: true } },
+      booking: { select: { status: true, refund: true, method: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
