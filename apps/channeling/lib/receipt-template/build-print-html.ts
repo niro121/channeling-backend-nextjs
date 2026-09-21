@@ -383,16 +383,16 @@ ${bodyContent}
 
 const LEDGER_RECEIPT_PAGE_STYLES = `
   /*
-   * A5 portrait, full paper width. No left/right template inset — Chrome Default
-   * margins (or the tractor-feed unprintable strip) supply side room.
-   * Small top margin only so the header is not flush with the paper edge.
+   * Follow the printer dialog (Paper: Bills, Margins: Default, Scale: Default).
+   * Do not lock @page to A5 — that shrinks the bill onto the Bills form.
+   * @page margin stays 0 so Default dialog margins are not stacked twice.
+   * Only a small top inset is in CSS.
    */
-  @page { size: A5 portrait; margin: 4mm 0 0 0; }
+  @page { margin: 0; }
   html, body {
     margin: 0;
     width: 100%;
     max-width: 100%;
-    min-height: 100%;
     background: #fff;
     overflow: visible;
   }
@@ -400,10 +400,10 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
   body {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.3;
     color: #000;
-    padding: 0;
+    padding: 4mm 0 0 0;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -419,7 +419,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   }
   .contact {
     text-align: center;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     margin: 0;
     line-height: 1.3;
@@ -454,7 +454,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
     border: none;
     padding: 1px 4px 1px 0;
     vertical-align: top;
-    font-size: 11px;
+    font-size: 12px;
     overflow: visible;
   }
   .info-grid .label {
@@ -498,24 +498,24 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   .remarks,
   .generated {
     text-align: left;
-    font-size: 11px;
+    font-size: 12px;
     margin: 8px 0 0;
   }
   .receipt-header { text-align: center; margin-bottom: 4px; }
   .receipt-body { margin-bottom: 4px; }
   .receipt-footer { margin-top: 8px; }
   @media print {
-    @page { size: A5 portrait; margin: 4mm 0 0 0; }
+    @page { margin: 0; }
     html, body { width: 100%; max-width: 100%; }
     body {
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.3;
-      padding: 0;
+      padding: 4mm 0 0 0;
     }
-    .hospital-name, .print-title { font-size: 14px; }
-    .bill-title, .print-status { font-size: 13px; }
-    .status-banner { font-size: 17px; }
-    .contact, .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 10px; }
+    .hospital-name, .print-title { font-size: 16px; }
+    .bill-title, .print-status { font-size: 14px; }
+    .status-banner { font-size: 18px; }
+    .contact, .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 12px; }
   }
 `
 

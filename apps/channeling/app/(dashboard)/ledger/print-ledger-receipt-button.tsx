@@ -26,9 +26,10 @@ export async function printLedgerReceiptById(
   )
   printHtmlInIframe(html, {
     title: "Print receipt",
-    // A5 paper box. Side inset comes from the printer (Default margins), not the template.
-    width: "148mm",
-    height: "210mm",
+    // Match tractor-feed / Windows "Bills" form so Chrome does not layout as A5
+    // then shrink it onto the printer page.
+    width: "9.5in",
+    height: "11in",
   })
   return { success: true }
 }
