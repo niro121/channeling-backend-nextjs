@@ -37,11 +37,11 @@ const LEDGER_METHODS: number[] = [
 
 function ledgerPrintTitle(method: number): string {
   if (method === RECEIPT_METHOD.AGENCY_DEPOSIT || method === RECEIPT_METHOD.AGENCY_WITHDRAW) {
-    return "Agent Receipt"
+    return "AGENT RECEIPT"
   }
-  if (method === RECEIPT_METHOD.BRANCH_EXPENSE) return "Expenses Note"
-  if (method === RECEIPT_METHOD.BRANCH_INCOME) return "Income Note"
-  return RECEIPT_METHOD_NAMES[method] ?? "Ledger Receipt"
+  if (method === RECEIPT_METHOD.BRANCH_EXPENSE) return "EXPENSES NOTE"
+  if (method === RECEIPT_METHOD.BRANCH_INCOME) return "INCOME NOTE"
+  return (RECEIPT_METHOD_NAMES[method] ?? "Ledger Receipt").toUpperCase()
 }
 
 function ledgerTemplateType(method: number): string {

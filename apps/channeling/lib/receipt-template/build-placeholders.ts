@@ -111,40 +111,35 @@ function escapePlaceholder(value: string): string {
 }
 
 function formatLedgerInfoBlock(input: LedgerReceiptPrintInput): string {
-  const pair = (leftLabel: string, leftValue: string, rightLabel: string, rightValue: string) =>
+  const row = (label: string, value: string) =>
     `<tr>
-      <td class="label">${leftLabel}</td>
-      <td class="value">${leftValue}</td>
-      <td class="label">${rightLabel}</td>
-      <td class="value">${rightValue}</td>
+      <td class="label">${label}</td>
+      <td class="colon">:</td>
+      <td class="value">${value}</td>
     </tr>`
   const rows = input.showAgentFields
     ? [
-        pair("Receipt No", escapePlaceholder(input.receiptNo), "Date/Time", escapePlaceholder(input.dateTime)),
-        pair("Agent Name", escapePlaceholder(input.agentName), "Agent Code", escapePlaceholder(input.agentCode)),
-        pair("Agent City", escapePlaceholder(input.agentCity), "Contact No", escapePlaceholder(input.agentContact)),
+        row("Receipt No", escapePlaceholder(input.receiptNo)),
+        row("Date/Time", escapePlaceholder(input.dateTime)),
+        row("Agent Name", escapePlaceholder(input.agentName)),
+        row("Agent Code", escapePlaceholder(input.agentCode)),
+        row("Agent City", escapePlaceholder(input.agentCity)),
+        row("Contact No", escapePlaceholder(input.agentContact)),
       ]
     : [
-        pair("Receipt No", escapePlaceholder(input.receiptNo), "Date/Time", escapePlaceholder(input.dateTime)),
-        pair(
-          "Branch",
-          escapePlaceholder(input.branchName),
-          "Transaction Type",
-          escapePlaceholder(input.transactionType)
-        ),
+        row("Receipt No", escapePlaceholder(input.receiptNo)),
+        row("Date/Time", escapePlaceholder(input.dateTime)),
+        row("Branch", escapePlaceholder(input.branchName)),
+        row("Transaction Type", escapePlaceholder(input.transactionType)),
       ]
   return `<table class="info-grid"><tbody>${rows.join("")}</tbody></table>`
 }
 
 function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmount: string): string {
   const rows = lines
-    .map((line, index) => {
-      const siNo = String(index + 1).padStart(2, "0")
+    .map((line) => {
       return `<tr>
-        <td class="si">${escapePlaceholder(siNo)}</td>
         <td class="mode">${escapePlaceholder(line.mode)}</td>
-        <td class="details">${escapePlaceholder(line.paymentDetails)}</td>
-        <td class="txn">${escapePlaceholder(line.transactionNo)}</td>
         <td class="amt">${escapePlaceholder(line.amount)}</td>
       </tr>`
     })
@@ -152,19 +147,13 @@ function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmo
   return `<table class="lines">
     <thead>
       <tr>
-        <th class="si">SI No</th>
         <th class="mode">Mode</th>
-        <th class="details">Payment Details</th>
-        <th class="txn">Transaction No</th>
         <th class="amt">Amount (Rs)</th>
       </tr>
     </thead>
     <tbody>
       ${rows}
       <tr>
-        <td></td>
-        <td></td>
-        <td></td>
         <td class="total-label">Total</td>
         <td class="amt">${escapePlaceholder(totalAmount)}</td>
       </tr>

@@ -32,9 +32,9 @@ ${ruhunuEmailWebLine()}`,
 const LEDGER_HEADER = {
   name: "Ruhunu ledger header",
   content: `<div class="hospital-name">{{company_name}}</div>
-<div class="hospital-name">{{location_address}}</div>
+<div class="hospital-address">{{location_address}}</div>
 <p class="contact">Tel : {{tel}}</p>
-<p class="contact">Email : {{email}} | Web : {{web}}</p>`,
+<p class="contact contact-email">Email : {{email}} | Web : {{web}}</p>`,
 }
 
 const DEFAULT_FOOTER = {
