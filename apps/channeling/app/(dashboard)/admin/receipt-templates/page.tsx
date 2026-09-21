@@ -41,7 +41,7 @@ export default async function AdminReceiptTemplatesPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Receipt templates</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Configure printable receipt layout with placeholders (e.g. {`{{receipt_no}}`}, {`{{amount}}`}). Each template can use a header and footer and be set for slip printer or custom size. Channel booking Print Receipt uses the active <span className="font-medium text-foreground">Booking Receipt</span> template (A5 custom size); seed via Admin seed or <code className="text-xs">npm run seed:receipt-templates</code>.
+          Configure printable receipt layout with placeholders (e.g. {`{{receipt_no}}`}, {`{{amount}}`}). Ledger / agent receipts print as <span className="font-medium text-foreground">A5 portrait</span> (same style as handover). Channel booking uses the tractor-feed layout. Seed via Admin seed or <code className="text-xs">npm run seed:receipt-templates</code>.
         </p>
       </div>
       <ReceiptTemplatesContent

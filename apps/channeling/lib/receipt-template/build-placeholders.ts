@@ -73,6 +73,163 @@ export function buildPlaceholdersForLedger(
   }
 }
 
+export type LedgerReceiptPrintLineInput = {
+  mode: string
+  paymentDetails: string
+  transactionNo: string
+  amount: string
+}
+
+export type LedgerReceiptPrintInput = {
+  companyName: string
+  locationName?: string
+  locationAddress: string
+  title: string
+  receiptNo: string
+  dateTime: string
+  agentName: string
+  agentCode: string
+  agentCity: string
+  agentContact: string
+  branchName: string
+  transactionType: string
+  showAgentFields: boolean
+  lines: LedgerReceiptPrintLineInput[]
+  totalAmount: string
+  remarks: string
+  generatedBy: string
+  statusBanner?: string
+  duplicateLabel?: string
+}
+
+function escapePlaceholder(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function formatLedgerInfoBlock(input: LedgerReceiptPrintInput): string {
+  const pair = (leftLabel: string, leftValue: string, rightLabel: string, rightValue: string) =>
+    `<tr>
+      <td class="label">${leftLabel}</td>
+      <td class="value">${leftValue}</td>
+      <td class="label">${rightLabel}</td>
+      <td class="value">${rightValue}</td>
+    </tr>`
+  const rows = input.showAgentFields
+    ? [
+        pair("Receipt No", escapePlaceholder(input.receiptNo), "Date/Time", escapePlaceholder(input.dateTime)),
+        pair("Agent Name", escapePlaceholder(input.agentName), "Agent Code", escapePlaceholder(input.agentCode)),
+        pair("Agent City", escapePlaceholder(input.agentCity), "Contact No", escapePlaceholder(input.agentContact)),
+      ]
+    : [
+        pair("Receipt No", escapePlaceholder(input.receiptNo), "Date/Time", escapePlaceholder(input.dateTime)),
+        pair(
+          "Branch",
+          escapePlaceholder(input.branchName),
+          "Transaction Type",
+          escapePlaceholder(input.transactionType)
+        ),
+      ]
+  return `<table class="info-grid"><tbody>${rows.join("")}</tbody></table>`
+}
+
+function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmount: string): string {
+  const rows = lines
+    .map((line, index) => {
+      const siNo = String(index + 1).padStart(2, "0")
+      return `<tr>
+        <td class="si">${escapePlaceholder(siNo)}</td>
+        <td class="mode">${escapePlaceholder(line.mode)}</td>
+        <td class="details">${escapePlaceholder(line.paymentDetails)}</td>
+        <td class="txn">${escapePlaceholder(line.transactionNo)}</td>
+        <td class="amt">${escapePlaceholder(line.amount)}</td>
+      </tr>`
+    })
+    .join("")
+  return `<table class="lines">
+    <thead>
+      <tr>
+        <th class="si">SI No</th>
+        <th class="mode">Mode</th>
+        <th class="details">Payment Details</th>
+        <th class="txn">Transaction No</th>
+        <th class="amt">Amount (Rs)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td class="total-label">Total</td>
+        <td class="amt">${escapePlaceholder(totalAmount)}</td>
+      </tr>
+    </tbody>
+  </table>`
+}
+
+/** TSV line_items: siNo, mode, paymentDetails, transactionNo, amount */
+function formatLedgerLineItems(lines: LedgerReceiptPrintLineInput[]): string {
+  return lines
+    .map((line, index) =>
+      [
+        String(index + 1).padStart(2, "0"),
+        line.mode,
+        line.paymentDetails,
+        line.transactionNo,
+        line.amount,
+      ].join("\t")
+    )
+    .join("\n")
+}
+
+/**
+ * Placeholders for the Sails-style agent / ledger receipt (dot-matrix).
+ */
+export function buildPlaceholdersForLedgerReceipt(
+  input: LedgerReceiptPrintInput
+): ReceiptPlaceholderMap {
+  const generatedAt = format(new Date(), "dd/MM/yyyy HH.mm")
+  const first = input.lines[0]
+  const statusBanner = (input.statusBanner ?? "").trim()
+  return {
+    company_name: escapePlaceholder(input.companyName),
+    location_name: escapePlaceholder(input.locationName || input.companyName),
+    location_address: escapePlaceholder(input.locationAddress),
+    tel: escapePlaceholder(RUHUNU_HOSPITAL.phone),
+    email: escapePlaceholder(RUHUNU_HOSPITAL.email),
+    web: escapePlaceholder(RUHUNU_HOSPITAL.web),
+    title: escapePlaceholder(input.title),
+    receipt_no: escapePlaceholder(input.receiptNo),
+    date_time: escapePlaceholder(input.dateTime),
+    agency_name: escapePlaceholder(input.agentName),
+    agency_code: escapePlaceholder(input.agentCode),
+    agent_city: escapePlaceholder(input.agentCity),
+    agent_contact: escapePlaceholder(input.agentContact),
+    branch_name: escapePlaceholder(input.branchName),
+    transaction_type: escapePlaceholder(input.transactionType),
+    show_agent_fields: input.showAgentFields ? "1" : "",
+    line_items: formatLedgerLineItems(input.lines),
+    payment_table: formatLedgerPaymentTable(input.lines, input.totalAmount),
+    info_block: formatLedgerInfoBlock(input),
+    mode: escapePlaceholder(first?.mode ?? ""),
+    payment_details: escapePlaceholder(first?.paymentDetails ?? ""),
+    transaction_no: escapePlaceholder(first?.transactionNo ?? ""),
+    amount: escapePlaceholder(input.totalAmount),
+    remarks: escapePlaceholder(input.remarks),
+    generated_by: escapePlaceholder(input.generatedBy),
+    generated_at: escapePlaceholder(generatedAt),
+    status_banner: statusBanner
+      ? `<div class="status-banner">${escapePlaceholder(statusBanner)}</div>`
+      : "",
+    duplicate_label: escapePlaceholder(input.duplicateLabel ?? ""),
+  }
+}
+
 /**
  * Build placeholder map for doctor payment (Consultant Payment) receipt.
  * Keys: consultant_name, document_status, invoice_no, line_items, sub_payable, wht, net_paid_amount,
