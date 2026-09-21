@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { getStaffByIdAction } from '@/app/actions/staff-actions/staff.actions';
+import { getStaffSpecialityOptionsAction } from '@/app/actions/hr-admin-actions/staff-speciality.actions';
 import TabLayout from '../../tab-layout';
 
 type EditStaffPageProps = {
@@ -15,6 +16,13 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
     notFound();
   }
 
+  const selectedIds = response.data.hrDetails?.specialityIds ?? [];
+  const optionsRes = await getStaffSpecialityOptionsAction({
+    activeOnly: true,
+    includeIds: selectedIds
+  });
+  const specialityOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+
   return (
     <div className="space-y-6">
       <CommonManagerHeader
@@ -22,7 +30,12 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
         description="Update staff member details."
         backwordButton={true}
       />
-      <TabLayout staff={response.data} staffId={id} isEditPage />
+      <TabLayout
+        staff={response.data}
+        staffId={id}
+        isEditPage
+        specialityOptions={specialityOptions}
+      />
     </div>
   );
 }

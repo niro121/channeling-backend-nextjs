@@ -6,7 +6,9 @@ import { format } from "date-fns"
 import {
   RUHUNU_HOSPITAL,
   ruhunuEmailWebLine,
+  ruhunuHospitalAddressLine,
   ruhunuPhoneFaxLine,
+  ruhunuTelLine,
 } from "@/lib/receipt-template/ruhunu-hospital"
 
 const PRINT_PAGE_STYLES = `
@@ -378,3 +380,290 @@ ${bodyContent}
 </body>
 </html>`
 }
+
+const LEDGER_RECEIPT_PAGE_STYLES = `
+  /* Same A5 portrait style as handover summary print. */
+  @page { size: A5 portrait; margin: 4mm; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    background: #fff;
+    overflow: visible;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
+  body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #000;
+    padding: 0 8mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .invoice-wrap { text-align: left; width: 100%; max-width: 100%; overflow: visible; }
+  .hospital-name,
+  .print-title {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.25;
+    letter-spacing: 0.02em;
+  }
+  .contact {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.3;
+  }
+  .bill-title,
+  .print-status {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 8px 0;
+    letter-spacing: 0.04em;
+  }
+  .status-banner {
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    margin: 2px 0 8px;
+    letter-spacing: 0.06em;
+  }
+  .info-grid,
+  .lines {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    text-align: left;
+    margin: 4px 0 0;
+  }
+  .info-grid td,
+  .lines th,
+  .lines td {
+    border: none;
+    padding: 1px 4px 1px 0;
+    vertical-align: top;
+    font-size: 11px;
+    overflow: visible;
+  }
+  .info-grid .label {
+    font-weight: 700;
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 6px;
+  }
+  .info-grid .value {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .lines {
+    margin-top: 8px;
+  }
+  .lines th,
+  .lines td {
+    border-top: 1px solid #000;
+    padding: 1px 4px;
+  }
+  .lines th { font-weight: 700; }
+  .lines .si { white-space: nowrap; width: 1%; }
+  .lines .mode { white-space: nowrap; width: 1%; }
+  .lines .details { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+  .lines .txn { white-space: nowrap; width: 1%; }
+  .lines .amt,
+  .lines th.amt,
+  .lines td.amt {
+    text-align: right;
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 0;
+  }
+  .lines .total-label {
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .lines tbody tr:last-child td { border-bottom: 1px solid #000; }
+  .remarks,
+  .generated {
+    text-align: left;
+    font-size: 11px;
+    margin: 8px 0 0;
+  }
+  .receipt-header { text-align: center; margin-bottom: 4px; }
+  .receipt-body { margin-bottom: 4px; }
+  .receipt-footer { margin-top: 8px; }
+  @media print {
+    body { font-size: 10px; line-height: 1.3; }
+    .hospital-name, .print-title { font-size: 14px; }
+    .bill-title, .print-status { font-size: 13px; }
+    .status-banner { font-size: 17px; }
+    .contact, .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 10px; }
+  }
+`
+
+type LedgerPrintLine = {
+  siNo: string
+  mode: string
+  paymentDetails: string
+  transactionNo: string
+  amount: string
+}
+
+function parseLedgerLineItems(tsv: string): LedgerPrintLine[] {
+  return tsv
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const [siNo = "", mode = "", paymentDetails = "", transactionNo = "", amount = ""] =
+        line.split("\t")
+      return { siNo, mode, paymentDetails, transactionNo, amount }
+    })
+}
+
+function infoPairRow(
+  leftLabel: string,
+  leftValue: string,
+  rightLabel: string,
+  rightValue: string
+): string {
+  return `<tr>
+    <td class="label">${escapeHtml(leftLabel)}</td>
+    <td class="value">${escapeHtml(leftValue)}</td>
+    <td class="label">${escapeHtml(rightLabel)}</td>
+    <td class="value">${escapeHtml(rightValue)}</td>
+  </tr>`
+}
+
+function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): string {
+  const statusBanner = (placeholders.status_banner ?? "").trim()
+  const companyName = placeholders.company_name || RUHUNU_HOSPITAL.name
+  const locationAddress = placeholders.location_address || ruhunuHospitalAddressLine()
+  const showAgent = (placeholders.show_agent_fields ?? "").trim() === "1"
+  const lines = parseLedgerLineItems(placeholders.line_items ?? "")
+  const totalAmount = placeholders.amount ?? ""
+  const remarks = (placeholders.remarks ?? "").trim()
+  const generatedBy = (placeholders.generated_by ?? "").trim()
+  const generatedAt = (placeholders.generated_at ?? "").trim()
+
+  const infoRows = showAgent
+    ? [
+        infoPairRow("Receipt No", placeholders.receipt_no ?? "", "Date/Time", placeholders.date_time ?? ""),
+        infoPairRow("Agent Name", placeholders.agency_name ?? "", "Agent Code", placeholders.agency_code ?? ""),
+        infoPairRow("Agent City", placeholders.agent_city ?? "", "Contact No", placeholders.agent_contact ?? ""),
+      ].join("")
+    : [
+        infoPairRow("Receipt No", placeholders.receipt_no ?? "", "Date/Time", placeholders.date_time ?? ""),
+        infoPairRow("Branch", placeholders.branch_name ?? "", "Transaction Type", placeholders.transaction_type ?? ""),
+      ].join("")
+
+  const lineRows = lines
+    .map(
+      (line) => `<tr>
+        <td class="si">${escapeHtml(line.siNo)}</td>
+        <td class="mode">${escapeHtml(line.mode)}</td>
+        <td class="details">${escapeHtml(line.paymentDetails)}</td>
+        <td class="txn">${escapeHtml(line.transactionNo)}</td>
+        <td class="amt">${escapeHtml(line.amount)}</td>
+      </tr>`
+    )
+    .join("")
+
+  const statusHtml = !statusBanner
+    ? ""
+    : statusBanner.includes("<")
+      ? statusBanner
+      : `<div class="status-banner">${escapeHtml(statusBanner)}</div>`
+
+  return `
+  <div class="invoice-wrap">
+    <div class="hospital-name">${escapeHtml(companyName)}</div>
+    <div class="hospital-name">${escapeHtml(locationAddress)}</div>
+    <p class="contact">${escapeHtml(ruhunuTelLine())}</p>
+    <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
+    <div class="bill-title">${escapeHtml(placeholders.title || "Ledger Receipt")}</div>
+    ${statusHtml}
+    <table class="info-grid"><tbody>${infoRows}</tbody></table>
+    <table class="lines">
+      <thead>
+        <tr>
+          <th class="si">SI No</th>
+          <th class="mode">Mode</th>
+          <th class="details">Payment Details</th>
+          <th class="txn">Transaction No</th>
+          <th class="amt">Amount (Rs)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lineRows}
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="total-label">Total</td>
+          <td class="amt">${escapeHtml(totalAmount)}</td>
+        </tr>
+      </tbody>
+    </table>
+    ${remarks ? `<p class="remarks">Remarks : ${escapeHtml(remarks)}</p>` : ""}
+    <p class="generated">Generated By : ${escapeHtml(generatedBy)}${generatedAt ? ` &nbsp; ${escapeHtml(generatedAt)}` : ""}</p>
+  </div>
+  `
+}
+
+/**
+ * Build full HTML for ledger / agent receipt print.
+ * A5 portrait, compact monospace — same print style as handover summary.
+ * Template HTML is inserted as-is (placeholders are escaped when built).
+ */
+export function buildLedgerReceiptPrintHtml(
+  placeholders: ReceiptPlaceholderMap,
+  template: ReceiptTemplateRecord | null,
+  receiptNoString: string
+): string {
+  const templateLooksHtml = Boolean(
+    template &&
+      (template.bodyContent.includes("<") || template.headerTemplate?.content.includes("<"))
+  )
+
+  let bodyContent: string
+  if (template && templateLooksHtml) {
+    const headerHtml = template.headerTemplate
+      ? replacePlaceholders(template.headerTemplate.content, placeholders)
+      : ""
+    const bodyHtml = replacePlaceholders(template.bodyContent, placeholders)
+    const footerHtml = template.footerTemplate
+      ? replacePlaceholders(template.footerTemplate.content, placeholders)
+      : ""
+    bodyContent = `
+    <div class="invoice-wrap">
+      ${headerHtml}
+      ${bodyHtml}
+      ${footerHtml}
+    </div>
+    `
+  } else {
+    bodyContent = buildSailsLedgerReceiptHtml(placeholders)
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Receipt ${escapeHtml(receiptNoString)}</title>
+  <style>${LEDGER_RECEIPT_PAGE_STYLES}</style>
+</head>
+<body>
+${bodyContent}
+</body>
+</html>`
+}
+
