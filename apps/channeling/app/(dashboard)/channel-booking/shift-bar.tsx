@@ -635,14 +635,19 @@ export function ChannelBookingShiftBar() {
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 max-w-full items-center gap-1.5 sm:gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               size="sm"
               disabled={!!actionLoading}
+              title={
+                isExpired && !isHandoverPending
+                  ? "Shift expired — handover required"
+                  : undefined
+              }
               className={cn(
-                "gap-2 rounded-md font-medium",
+                "min-w-0 max-w-full gap-1.5 rounded-md px-2 font-medium sm:gap-2 sm:px-3",
                 isExpired && !isHandoverPending && "bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
                 !isExpired && isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
                 !isExpired && isPaused && "bg-amber-600 text-white hover:bg-amber-700 hover:text-white",
@@ -654,16 +659,21 @@ export function ChannelBookingShiftBar() {
               ) : (
                 <CircleDot className="h-4 w-4 shrink-0" />
               )}
-              <span className="flex items-center gap-1.5">
+              <span className="min-w-0 truncate">
                 {isHandoverPending
                   ? "Handover pending"
                   : isExpired
-                    ? "Shift expired — handover required"
+                    ? (
+                      <>
+                        <span className="sm:hidden">Shift expired</span>
+                        <span className="hidden sm:inline">Shift expired — handover required</span>
+                      </>
+                    )
                     : isActive
                       ? "Shift active"
                       : "Shift paused"}
                 {!isHandoverPending && !isExpired && (
-                  <span className="opacity-90 tabular-nums">
+                  <span className="ml-1.5 hidden opacity-90 tabular-nums sm:inline">
                     {elapsed}
                   </span>
                 )}
@@ -783,7 +793,8 @@ export function ChannelBookingShiftBar() {
                     className="gap-1.5 rounded-md font-medium text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 bg-background hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/30 dark:hover:text-amber-300 focus-visible:ring-amber-500/50 focus-visible:ring-offset-background"
                   >
                     <Banknote className="h-4 w-4 shrink-0" />
-                    Float request is pending
+                    <span className="hidden sm:inline">Float request is pending</span>
+                    <span className="sm:hidden">Pending</span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-90" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -824,7 +835,7 @@ export function ChannelBookingShiftBar() {
                 onClick={() => setReceiveFloatOpen(true)}
               >
                 <CheckCircle className="h-4 w-4 shrink-0" />
-                Receive float
+                <span className="hidden sm:inline">Receive float</span>
               </Button>
             ) : (
               <Button
@@ -837,11 +848,11 @@ export function ChannelBookingShiftBar() {
                 }}
               >
                 <Banknote className="h-4 w-4 shrink-0" />
-                Request float
+                <span className="hidden sm:inline">Request float</span>
               </Button>
             )}
             {floatBalanceCents !== null && (
-              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+              <span className="hidden sm:inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
                 Float: LKR {formatCents(floatBalanceCents)}
                 <Button
                   type="button"

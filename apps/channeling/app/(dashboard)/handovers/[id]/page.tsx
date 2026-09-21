@@ -159,7 +159,7 @@ function printHandoverDocument(mode: "report" | "summary") {
   }
   el.textContent =
     mode === "summary"
-      ? "@media print { @page { margin: 0; } }"
+      ? "@media print { @page { margin: 8mm 10mm; } }"
       : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
   document.body.classList.toggle("print-handover-summary", mode === "summary")
   const cleanup = () => {

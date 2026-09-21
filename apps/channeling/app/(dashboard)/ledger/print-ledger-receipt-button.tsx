@@ -24,13 +24,7 @@ export async function printLedgerReceiptById(
     result.data.template,
     result.data.receiptNoString
   )
-  printHtmlInIframe(html, {
-    title: "Print receipt",
-    // Match tractor-feed / Windows "Bills" form so Chrome does not layout as A5
-    // then shrink it onto the printer page.
-    width: "9.5in",
-    height: "11in",
-  })
+  printHtmlInIframe(html)
   return { success: true }
 }
 
