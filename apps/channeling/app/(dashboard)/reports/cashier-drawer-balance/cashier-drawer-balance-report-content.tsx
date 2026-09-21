@@ -1,11 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Combobox } from '@/components/common/combobox';
 import { Input } from '@/components/ui/input';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatCents } from '@/lib/format-money';
 import type {
   CashierDrawerBalanceReportExportRow,
@@ -17,6 +19,8 @@ import {
   getCashierDrawerBalanceReportData
 } from '@/app/actions/reports/cashier-drawer-balance.report.action';
 import { CashierDrawerBalanceReportColumns } from './columns';
+import { CashierDrawerBalancePrintLayout } from './cashier-drawer-balance-print-layout';
+import { downloadCashierDrawerBalanceReportExcel } from './cashier-drawer-balance-excel';
 
 type Props = {
   currentUserName: string;
@@ -40,13 +44,54 @@ export default function CashierDrawerBalanceReportContent({ currentUserName, loc
     locationId: searchParams.get('locationId') ?? '__all__'
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const locId = values.locationId ?? '__all__';
+      return [
+        { label: 'As of', value: values.asOfDateTime ?? '—', fullWidth: true },
+        {
+          label: 'Branch',
+          value:
+            locId === '__all__'
+              ? 'All Branches'
+              : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
+        },
+      ];
+    },
+    [locationOptions]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CashierDrawerBalanceReportExportRow[];
+      columns: string[];
+      keys: (keyof CashierDrawerBalanceReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadCashierDrawerBalanceReportExcel({
+        reportName: 'Cashier Drawer Balance',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: 'Drawer Balance',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<CashierDrawerBalanceReportRow, CashierDrawerBalanceReportExportRow>
       title="Cashier Drawer Balance"
       description="Shows till balances by payment method as of selected date/time, with optional branch filter."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 cashier-drawer-balance-report-root"
+      renderPrintContent={(rows) => <CashierDrawerBalancePrintLayout rows={rows} />}
+      customDownloadExcel={handleExcelDownload}
       initialFilterValues={{ asOfDateTime: defaultAsOf, locationId: '__all__' }}
       generationDetails={{
         generatedBy: currentUserName,
@@ -62,19 +107,7 @@ export default function CashierDrawerBalanceReportContent({ currentUserName, loc
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const locId = values.locationId ?? '__all__';
-          return [
-            { label: 'As of', value: values.asOfDateTime ?? '—' },
-            {
-              label: 'Branch',
-              value:
-                locId === '__all__'
-                  ? 'All Branches'
-                  : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
@@ -160,4 +193,3 @@ export default function CashierDrawerBalanceReportContent({ currentUserName, loc
     />
   );
 }
-

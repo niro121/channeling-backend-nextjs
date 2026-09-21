@@ -42,6 +42,10 @@ export async function exportCashBookReportData(
       return { success: false, message: result.message ?? 'Failed to export cash book report' };
     }
 
+    const openingDateLabel = query.dateFrom
+      ? new Date(query.dateFrom).toLocaleString()
+      : '';
+
     const mappedRows: CashBookReportExportRow[] = result.data.map((row) => ({
       date: new Date(row.date).toLocaleString(),
       journalNo: row.journalNumber != null ? String(row.journalNumber) : '-',
@@ -55,13 +59,13 @@ export async function exportCashBookReportData(
 
     const exportData: CashBookReportExportRow[] = [
       {
-        date: '',
-        journalNo: '',
-        account: '',
+        date: openingDateLabel,
+        journalNo: '-',
+        account: '-',
         description: 'Opening Balance',
-        paymentType: '',
-        debit: '',
-        credit: '',
+        paymentType: '-',
+        debit: '-',
+        credit: '-',
         balance: formatCents(result.openingBalanceCents),
       },
       ...mappedRows,

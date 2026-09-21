@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
@@ -8,6 +8,8 @@ import { Combobox } from '@/components/common/combobox';
 import { ReportUserSelect } from '@/components/common/user-select';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   BankDepositsReportExportRow,
@@ -19,6 +21,9 @@ import {
   getBankDepositsReportData,
 } from '@/app/actions/reports/bank-deposits.report.action';
 import { BankDepositsColumns } from './columns';
+import { BankDepositsPrintLayout } from './bank-deposits-print-layout';
+import { downloadBankDepositsReportPdf } from './bank-deposits-pdf';
+import { downloadBankDepositsReportExcel } from './bank-deposits-excel';
 
 type Props = {
   currentUserName: string;
@@ -50,13 +55,96 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
     locationId: searchParams.get('locationId') ?? '__all__',
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const df = values.dateFrom ?? '';
+      const dt = values.dateTo ?? '';
+      const bankAccountId = values.bankAccountId ?? '__all__';
+      const userId = values.userId ?? '__all__';
+      const locationId = values.locationId ?? '__all__';
+      return [
+        {
+          label: 'Period',
+          value: `${df || '—'} to ${dt || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Branch',
+          value:
+            locationId === '__all__'
+              ? 'All Branches'
+              : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+        },
+        {
+          label: 'Bank Account',
+          value:
+            bankAccountId === '__all__'
+              ? 'All Bank Accounts'
+              : bankAccountOptions.find((b) => b.id === bankAccountId)?.name ?? bankAccountId,
+        },
+        {
+          label: 'User',
+          value:
+            userId === '__all__'
+              ? 'All Users'
+              : userOptions.find((u) => u.id === userId)?.name ?? userId,
+        },
+      ];
+    },
+    [bankAccountOptions, userOptions, locationOptions]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: BankDepositsReportExportRow[];
+      columns: string[];
+      keys: (keyof BankDepositsReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadBankDepositsReportPdf({
+        reportName: 'Bank Deposits',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: BankDepositsReportExportRow[];
+      columns: string[];
+      keys: (keyof BankDepositsReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadBankDepositsReportExcel({
+        reportName: 'Bank Deposits',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: 'Bank Deposits',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<BankDepositsReportRow, BankDepositsReportExportRow>
       title="Bank Deposits"
       description="Lists bank deposit and bank withdraw receipts by date/time range with optional branch, bank account, and user filters."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 bank-deposits-report-root"
+      renderPrintContent={(rows) => <BankDepositsPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -83,41 +171,7 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const df = values.dateFrom ?? '';
-          const dt = values.dateTo ?? '';
-          const bankAccountId = values.bankAccountId ?? '__all__';
-          const userId = values.userId ?? '__all__';
-          const locationId = values.locationId ?? '__all__';
-          return [
-            {
-              label: 'Period',
-              value: `${df || '—'} to ${dt || '—'}`,
-              fullWidth: true,
-            },
-            {
-              label: 'Branch',
-              value:
-                locationId === '__all__'
-                  ? 'All Branches'
-                  : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
-            },
-            {
-              label: 'Bank Account',
-              value:
-                bankAccountId === '__all__'
-                  ? 'All Bank Accounts'
-                  : bankAccountOptions.find((b) => b.id === bankAccountId)?.name ?? bankAccountId,
-            },
-            {
-              label: 'User',
-              value:
-                userId === '__all__'
-                  ? 'All Users'
-                  : userOptions.find((u) => u.id === userId)?.name ?? userId,
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
@@ -211,4 +265,3 @@ export default function BankDepositsReportContent(props: Props) {
     </Suspense>
   );
 }
-

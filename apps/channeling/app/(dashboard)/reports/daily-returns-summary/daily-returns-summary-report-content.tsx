@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { Combobox } from '@/components/common/combobox';
 import { Input } from '@/components/ui/input';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import {
   exportDailyReturnsSummaryReportData,
   getDailyReturnsSummaryReportData,
@@ -15,6 +17,9 @@ import type {
   DailyReturnsSummaryReportRow,
 } from '@/types/reports/daily-returns-summary';
 import { DailyReturnsSummaryReportColumns } from './columns';
+import { DailyReturnsSummaryPrintLayout } from './daily-returns-summary-print-layout';
+import { downloadDailyReturnsSummaryReportPdf } from './daily-returns-summary-pdf';
+import { downloadDailyReturnsSummaryReportExcel } from './daily-returns-summary-excel';
 
 type Props = {
   currentUserName: string;
@@ -41,13 +46,74 @@ export default function DailyReturnsSummaryReportContent({ currentUserName, loca
     locationId: searchParams.get('locationId') ?? '__all__',
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const locId = values.locationId ?? '__all__';
+      return [
+        { label: 'Date', value: values.reportDate ?? '—' },
+        {
+          label: 'Branch',
+          value:
+            locId === '__all__'
+              ? 'All Branches'
+              : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
+        },
+      ];
+    },
+    [locationOptions]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: DailyReturnsSummaryReportExportRow[];
+      columns: string[];
+      keys: (keyof DailyReturnsSummaryReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadDailyReturnsSummaryReportPdf({
+        reportName: 'Daily Returns Summary',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: DailyReturnsSummaryReportExportRow[];
+      columns: string[];
+      keys: (keyof DailyReturnsSummaryReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadDailyReturnsSummaryReportExcel({
+        reportName: 'Daily Returns Summary',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: 'Daily Returns',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<DailyReturnsSummaryReportRow, DailyReturnsSummaryReportExportRow>
       title="Daily Returns Summary"
       description="Receipt-based summary of daily cash float by receipt type (Settlement, Refund, Doctor Payment, Agency Deposit, Branch Income, Bank Deposit, etc.). Agency debit/credit notes are excluded."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 daily-returns-summary-report-root"
+      renderPrintContent={(rows) => <DailyReturnsSummaryPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       initialFilterValues={{ reportDate: defaultDate, locationId: '__all__' }}
       generationDetails={{
@@ -65,19 +131,7 @@ export default function DailyReturnsSummaryReportContent({ currentUserName, loca
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const locId = values.locationId ?? '__all__';
-          return [
-            { label: 'Date', value: values.reportDate ?? '—' },
-            {
-              label: 'Branch',
-              value:
-                locId === '__all__'
-                  ? 'All Branches'
-                  : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
