@@ -26,8 +26,7 @@ export async function printLedgerReceiptById(
   )
   printHtmlInIframe(html, {
     title: "Print receipt",
-    // A5 portrait — same default as handover. Keep the iframe at paper size so Chrome
-    // does not scale/crop the job.
+    // A5 paper box. Side inset comes from the printer (Default margins), not the template.
     width: "148mm",
     height: "210mm",
   })

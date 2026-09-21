@@ -382,13 +382,17 @@ ${bodyContent}
 }
 
 const LEDGER_RECEIPT_PAGE_STYLES = `
-  /* Same A5 portrait style as handover summary print. */
-  @page { size: A5 portrait; margin: 4mm; }
+  /*
+   * A5 portrait, full paper width. No left/right template inset — Chrome Default
+   * margins (or the tractor-feed unprintable strip) supply side room.
+   * Small top margin only so the header is not flush with the paper edge.
+   */
+  @page { size: A5 portrait; margin: 4mm 0 0 0; }
   html, body {
     margin: 0;
-    padding: 0;
     width: 100%;
     max-width: 100%;
+    min-height: 100%;
     background: #fff;
     overflow: visible;
   }
@@ -399,7 +403,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
     font-size: 11px;
     line-height: 1.3;
     color: #000;
-    padding: 0 8mm;
+    padding: 0;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -501,7 +505,13 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   .receipt-body { margin-bottom: 4px; }
   .receipt-footer { margin-top: 8px; }
   @media print {
-    body { font-size: 10px; line-height: 1.3; }
+    @page { size: A5 portrait; margin: 4mm 0 0 0; }
+    html, body { width: 100%; max-width: 100%; }
+    body {
+      font-size: 10px;
+      line-height: 1.3;
+      padding: 0;
+    }
     .hospital-name, .print-title { font-size: 14px; }
     .bill-title, .print-status { font-size: 13px; }
     .status-banner { font-size: 17px; }
