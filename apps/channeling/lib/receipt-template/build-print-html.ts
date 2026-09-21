@@ -365,26 +365,46 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   .hospital-name,
   .print-title {
     text-align: center;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 700;
     margin: 0;
     line-height: 1.25;
     letter-spacing: 0.02em;
   }
-  .contact {
+  .hospital-name + .hospital-name,
+  .hospital-address {
     text-align: center;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     margin: 0;
-    line-height: 1.3;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+  .contact {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .contact-email {
+    font-size: 9px;
   }
   .bill-title,
   .print-status {
     text-align: center;
-    font-size: 13px;
     font-weight: 700;
     margin: 8px 0;
+  }
+  .print-status {
+    font-size: 13px;
     letter-spacing: 0.04em;
+  }
+  .bill-title {
+    font-size: 17px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   .status-banner {
     text-align: center;
@@ -416,6 +436,10 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
     white-space: nowrap;
     width: 1%;
     padding-right: 6px;
+  }
+  .info-grid .colon {
+    width: 1%;
+    padding-right: 8px;
   }
   .info-grid .value {
     overflow-wrap: anywhere;
@@ -466,10 +490,13 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
       line-height: 1.3;
       padding: 2mm 4mm;
     }
-    .hospital-name, .print-title { font-size: 16px; }
-    .bill-title, .print-status { font-size: 14px; }
-    .status-banner { font-size: 18px; }
-    .contact, .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 12px; }
+    .hospital-name, .print-title { font-size: 20px; }
+    .hospital-name + .hospital-name, .hospital-address { font-size: 11px; }
+    .bill-title, .status-banner { font-size: 18px; }
+    .print-status { font-size: 14px; }
+    .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 12px; }
+    .contact { font-size: 10px; white-space: nowrap; }
+    .contact-email { font-size: 9px; }
   }
 `
 
@@ -493,17 +520,11 @@ function parseLedgerLineItems(tsv: string): LedgerPrintLine[] {
     })
 }
 
-function infoPairRow(
-  leftLabel: string,
-  leftValue: string,
-  rightLabel: string,
-  rightValue: string
-): string {
+function infoRow(label: string, value: string): string {
   return `<tr>
-    <td class="label">${escapeHtml(leftLabel)}</td>
-    <td class="value">${escapeHtml(leftValue)}</td>
-    <td class="label">${escapeHtml(rightLabel)}</td>
-    <td class="value">${escapeHtml(rightValue)}</td>
+    <td class="label">${escapeHtml(label)}</td>
+    <td class="colon">:</td>
+    <td class="value">${escapeHtml(value)}</td>
   </tr>`
 }
 
@@ -520,22 +541,24 @@ function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
 
   const infoRows = showAgent
     ? [
-        infoPairRow("Receipt No", placeholders.receipt_no ?? "", "Date/Time", placeholders.date_time ?? ""),
-        infoPairRow("Agent Name", placeholders.agency_name ?? "", "Agent Code", placeholders.agency_code ?? ""),
-        infoPairRow("Agent City", placeholders.agent_city ?? "", "Contact No", placeholders.agent_contact ?? ""),
+        infoRow("Receipt No", placeholders.receipt_no ?? ""),
+        infoRow("Date/Time", placeholders.date_time ?? ""),
+        infoRow("Agent Name", placeholders.agency_name ?? ""),
+        infoRow("Agent Code", placeholders.agency_code ?? ""),
+        infoRow("Agent City", placeholders.agent_city ?? ""),
+        infoRow("Contact No", placeholders.agent_contact ?? ""),
       ].join("")
     : [
-        infoPairRow("Receipt No", placeholders.receipt_no ?? "", "Date/Time", placeholders.date_time ?? ""),
-        infoPairRow("Branch", placeholders.branch_name ?? "", "Transaction Type", placeholders.transaction_type ?? ""),
+        infoRow("Receipt No", placeholders.receipt_no ?? ""),
+        infoRow("Date/Time", placeholders.date_time ?? ""),
+        infoRow("Branch", placeholders.branch_name ?? ""),
+        infoRow("Transaction Type", placeholders.transaction_type ?? ""),
       ].join("")
 
   const lineRows = lines
     .map(
       (line) => `<tr>
-        <td class="si">${escapeHtml(line.siNo)}</td>
         <td class="mode">${escapeHtml(line.mode)}</td>
-        <td class="details">${escapeHtml(line.paymentDetails)}</td>
-        <td class="txn">${escapeHtml(line.transactionNo)}</td>
         <td class="amt">${escapeHtml(line.amount)}</td>
       </tr>`
     )
@@ -550,28 +573,22 @@ function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
   return `
   <div class="invoice-wrap">
     <div class="hospital-name">${escapeHtml(companyName)}</div>
-    <div class="hospital-name">${escapeHtml(locationAddress)}</div>
+    <div class="hospital-address">${escapeHtml(locationAddress)}</div>
     <p class="contact">${escapeHtml(ruhunuTelLine())}</p>
-    <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
+    <p class="contact contact-email">${escapeHtml(ruhunuEmailWebLine())}</p>
     <div class="bill-title">${escapeHtml(placeholders.title || "Ledger Receipt")}</div>
     ${statusHtml}
     <table class="info-grid"><tbody>${infoRows}</tbody></table>
     <table class="lines">
       <thead>
         <tr>
-          <th class="si">SI No</th>
           <th class="mode">Mode</th>
-          <th class="details">Payment Details</th>
-          <th class="txn">Transaction No</th>
           <th class="amt">Amount (Rs)</th>
         </tr>
       </thead>
       <tbody>
         ${lineRows}
         <tr>
-          <td></td>
-          <td></td>
-          <td></td>
           <td class="total-label">Total</td>
           <td class="amt">${escapeHtml(totalAmount)}</td>
         </tr>
