@@ -68,7 +68,7 @@ function mapCompactReceipt(row: ChannelReportReceiptWiseRow): CompactReceipt {
     agency: dash(row.agency),
     creditCustomer: dash(row.creditCustomer),
     creator: dash(row.creator),
-    handover: dash(row.handoverPerson),
+    handover: dash(row.handedToStaff),
   };
 }
 

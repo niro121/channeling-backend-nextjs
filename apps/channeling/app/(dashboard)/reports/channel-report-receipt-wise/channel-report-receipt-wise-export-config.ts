@@ -66,7 +66,7 @@ export const RECEIPT_REPORT_EXPORT_GROUPS: ReceiptReportExportGroup[] = [
     title: 'Audit',
     columns: [
       { key: 'creator', header: 'Creator' },
-      { key: 'handoverPerson', header: 'Handover Person' },
+      { key: 'handedToStaff', header: 'Handed to Staff' },
     ],
   },
 ];
@@ -123,7 +123,7 @@ export function receiptReportPdfCompactRow(row: ChannelReportReceiptWiseExportRo
     amounts,
     `App #${s(row, 'appointmentNo')}\n${s(row, 'sessionDate')} · ${s(row, 'sessionTime')}\n${s(row, 'consultant')}`,
     `${s(row, 'patientName')}\n${s(row, 'bookingStatus')}\nAgy: ${s(row, 'agency')}\nCredit: ${s(row, 'creditCustomer')}`,
-    `By: ${s(row, 'creator')}\nHand: ${s(row, 'handoverPerson')}`,
+    `By: ${s(row, 'creator')}\nHand: ${s(row, 'handedToStaff')}`,
   ];
 }
 
