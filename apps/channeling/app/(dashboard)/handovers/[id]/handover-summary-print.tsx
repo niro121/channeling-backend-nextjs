@@ -339,7 +339,7 @@ export function HandoverSummaryPrint({
       <style>{`
         .handover-summary-print { display: none; }
         @media print {
-          @page { margin: 0; }
+          @page { margin: 8mm 10mm; }
           body.print-handover-summary header.sticky,
           body.print-handover-summary nav,
           body.print-handover-summary aside,
@@ -354,7 +354,7 @@ export function HandoverSummaryPrint({
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 4mm 0 0 0 !important;
+            padding: 2mm 4mm !important;
             box-sizing: border-box !important;
             background: #fff !important;
             color: #000 !important;
