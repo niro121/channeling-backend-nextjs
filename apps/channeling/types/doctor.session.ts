@@ -26,7 +26,7 @@ export interface DoctorSession {
   startingPatientNumber: number;
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
-  advancedBookingDays: number;
+  advancedBookingEnabled: boolean;
   fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
@@ -60,7 +60,7 @@ export type DoctorSessionFormValues = {
   startingPatientNumber: number;
   maxPatientNumber: number;
   refundable: number; // 0 = No, 1 = Yes
-  advancedBookingDays: number;
+  advancedBookingEnabled: boolean;
   fees: Fee[];
   amountLocal?: number;
   amountForeign?: number;
@@ -121,7 +121,7 @@ export const REFUNDABLE_OPTIONS: Option[] = [
   { id: '1', name: 'Yes' }
 ];
 
-/** Yes/No toggle for advance booking (stored as advancedBookingDays: 0 = off, >0 = on). */
+/** Yes/No toggle for advance booking (stored as advancedBookingEnabled). */
 export const ADVANCE_BOOKING_ENABLED_OPTIONS: Option[] = [
   { id: '0', name: 'No' },
   { id: '1', name: 'Yes' }
@@ -169,8 +169,41 @@ export const FEE_TYPES: Fee[] = [
     feeType: 'Own Institution',
     localFee: 0,
     foreignFee: 0
+  },
+  {
+    id: '6',
+    name: 'API Fee',
+    feeType: 'Own Institution',
+    localFee: 0,
+    foreignFee: 0
   }
 ];
+
+/** Fill missing catalog rows (e.g. API Fee on sessions created before id 6 existed). */
+export function mergeCanonicalSessionFees(
+  stored: unknown,
+  canonical: Fee[] = FEE_TYPES
+): Fee[] {
+  const source = Array.isArray(stored) ? stored : [];
+  return canonical.map((base) => {
+    const match = source.find((raw) => {
+      if (!raw || typeof raw !== 'object') return false;
+      const row = raw as Partial<Fee>;
+      return (
+        (row.id != null && String(row.id) === String(base.id)) ||
+        (typeof row.name === 'string' && row.name === base.name)
+      );
+    }) as Partial<Fee> | undefined;
+    if (!match) return { ...base };
+    return {
+      id: base.id,
+      name: typeof match.name === 'string' ? match.name : base.name,
+      feeType: typeof match.feeType === 'string' ? match.feeType : base.feeType,
+      localFee: Number(match.localFee ?? 0) || 0,
+      foreignFee: Number(match.foreignFee ?? 0) || 0
+    };
+  });
+}
 
 export const DAY_TYPES: Option[] = [
   { id: '1', name: 'Sunday' },
@@ -182,8 +215,3 @@ export const DAY_TYPES: Option[] = [
   { id: '7', name: 'Saturday' },
   { id: '8', name: 'Specific Date Only' }
 ];
-
-export const ADVANCED_BOOKING_OPTIONS = Array.from({ length: 101 }, (_, i) => ({
-  id: String(i),
-  name: String(i)
-}));

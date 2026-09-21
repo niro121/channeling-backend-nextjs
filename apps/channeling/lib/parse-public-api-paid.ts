@@ -29,3 +29,23 @@ export function parsePublicApiPaidParam(
     message: 'paid must be yes or no (or true/false)',
   }
 }
+
+/**
+ * Parse `amount` on POST /api/public/bookings.
+ * Omitted/empty → undefined (On-Call may omit; paid Agent/API bookings require it).
+ */
+export function parsePublicApiAmountParam(
+  value: unknown
+): { ok: true; amount: number | undefined } | { ok: false; message: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: true, amount: undefined }
+  }
+  const n = typeof value === "number" ? value : Number(String(value).trim())
+  if (!Number.isFinite(n)) {
+    return { ok: false, message: "amount must be a number" }
+  }
+  if (n < 0) {
+    return { ok: false, message: "amount must be greater than or equal to 0" }
+  }
+  return { ok: true, amount: n }
+}

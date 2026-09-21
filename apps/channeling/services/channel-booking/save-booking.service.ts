@@ -3,6 +3,9 @@ import moment from "moment"
 import { normalizeSessionTime } from "@/lib/utils"
 import type { SaveBookingInput, SaveBookingErrorCode } from "@/types/save-booking"
 import {
+  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
+  SAVE_BOOKING_METHOD_POS,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
@@ -57,7 +60,7 @@ export type SaveBookingServiceOptions = {
   agencyRefUniqueOnly?: boolean
   /**
    * When false, leave booking pending (status 0): no receipt, no agency balance debit.
-   * Applies to POS/Agent methods only. Default true.
+   * Applies to POS/Agent/API methods only. Default true.
    */
   settleOnCreate?: boolean
 }
@@ -75,8 +78,12 @@ function mapPrepareAppointmentFailure(
   return { errorCode: "INVALID_INPUT", message: r.message }
 }
 
-/** Spec §10: Create receipt for POS (0) or Agent (2); then set booking status 1 (booked). OnCall (1) does not create receipt. */
-const CREATE_RECEIPT_METHODS = [0, 2] // POS, Agent
+/** Spec §10: Create receipt for POS (0), Agent (2), or API (4); then set booking status 1 (booked). OnCall (1) does not create receipt. */
+const CREATE_RECEIPT_METHODS = [
+  SAVE_BOOKING_METHOD_POS,
+  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
+]
 
 /** SMS template type 4 = Agent Balance Message after Booking Agent Channel. Placeholders: {agency_ref}, {doctor}, {appointment_no}, {date}, {time}, {amount}, {balance}. */
 const SMS_TEMPLATE_TYPE_AGENCY_BALANCE = 4

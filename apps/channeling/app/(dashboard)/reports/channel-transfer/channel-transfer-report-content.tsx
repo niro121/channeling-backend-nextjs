@@ -10,7 +10,15 @@ import Loading from '@/app/(dashboard)/loading';
 import { getChannelTransferSessionOptionsAction } from '@/app/actions/reports/channel-transfer.sessions.action';
 import { getChannelTransferReportData, exportChannelTransferReportData } from '@/app/actions/reports/channel-transfer.report.action';
 import type { ChannelTransferReportExportRow, ChannelTransferReportQuery, ChannelTransferReportRow } from '@/types/reports/channel-transfer';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import { ChannelTransferReportColumns } from './columns';
+import { ChannelTransferPrintLayout } from './channel-transfer-print-layout';
+import {
+  CHANNEL_TRANSFER_EXPORT_COLUMNS,
+  CHANNEL_TRANSFER_EXPORT_KEYS,
+} from './channel-transfer-export-config';
+import { downloadChannelTransferReportPdf } from './channel-transfer-pdf';
+import { downloadChannelTransferReportExcel } from './channel-transfer-excel';
 import { ReportUserSelect } from '@/components/common/user-select';
 
 type Props = {
@@ -119,13 +127,151 @@ function ContentInner({ currentUserName, doctorOptions, userOptions, locationOpt
     [toSessionOptions]
   );
 
+  const buildSummaryItems = React.useCallback(
+    (values: Record<string, string | undefined>) => {
+      const df = values.dateFrom ?? '';
+      const dt = values.dateTo ?? '';
+      const branchId = values.branchId ?? '__all__';
+      const fromSpecialityId = values.fromSpecialityId ?? '__all__';
+      const toSpecialityId = values.toSpecialityId ?? '__all__';
+      const fromDocId = values.fromDoctorId ?? '__all__';
+      const toDocId = values.toDoctorId ?? '__all__';
+      const transferredByUserId = values.transferredByUserId ?? '__all__';
+      const fromId = values.fromSessionId ?? '__all__';
+      const toId = values.toSessionId ?? '__all__';
+      const bookingId = (values.bookingId ?? '').trim();
+      const items: Array<{ label: string; value: string; fullWidth?: boolean }> = [
+        {
+          label: 'Period',
+          value: `${df || '—'} to ${dt || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Branch',
+          value:
+            branchId === '__all__'
+              ? 'All Branches'
+              : (locationOptions.find((l) => l.id === branchId)?.name ?? branchId),
+        },
+        {
+          label: 'Transferred By',
+          value:
+            transferredByUserId === '__all__'
+              ? 'All Users'
+              : (userOptions.find((u) => u.id === transferredByUserId)?.name ??
+                transferredByUserId),
+        },
+        {
+          label: 'From Speciality',
+          value:
+            fromSpecialityId === '__all__'
+              ? 'All Specialities'
+              : (specialityOptions.find((s) => s.id === fromSpecialityId)?.name ??
+                fromSpecialityId),
+        },
+        {
+          label: 'From Doctor',
+          value:
+            fromDocId === '__all__'
+              ? 'All Doctors'
+              : (doctorOptions.find((d) => d.id === fromDocId)?.name ?? fromDocId),
+        },
+        {
+          label: 'From Session',
+          value:
+            fromId === '__all__'
+              ? 'All Sessions'
+              : (allFromSessionsOptions.find((o) => o.id === fromId)?.name ?? fromId),
+        },
+        {
+          label: 'To Speciality',
+          value:
+            toSpecialityId === '__all__'
+              ? 'All Specialities'
+              : (specialityOptions.find((s) => s.id === toSpecialityId)?.name ??
+                toSpecialityId),
+        },
+        {
+          label: 'To Doctor',
+          value:
+            toDocId === '__all__'
+              ? 'All Doctors'
+              : (doctorOptions.find((d) => d.id === toDocId)?.name ?? toDocId),
+        },
+        {
+          label: 'To Session',
+          value:
+            toId === '__all__'
+              ? 'All Sessions'
+              : (allToSessionsOptions.find((o) => o.id === toId)?.name ?? toId),
+        },
+      ];
+      if (bookingId) {
+        items.push({ label: 'Booking ID', value: bookingId });
+      }
+      return items;
+    },
+    [
+      allFromSessionsOptions,
+      allToSessionsOptions,
+      doctorOptions,
+      locationOptions,
+      specialityOptions,
+      userOptions,
+    ]
+  );
+
+  const handlePdfDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelTransferReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelTransferReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelTransferReportPdf({
+        reportName: 'Channel Transfer Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = React.useCallback(
+    async (args: {
+      title: string;
+      data: ChannelTransferReportExportRow[];
+      columns: string[];
+      keys: (keyof ChannelTransferReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadChannelTransferReportExcel({
+        reportName: 'Channel Transfer Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: (args.title || 'Channel Transfer').slice(0, 31),
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<ChannelTransferReportRow, ChannelTransferReportExportRow>
       title="Channel Transfer Report"
       description="Tracks channel booking transfers (from/to session details) using activity log + booking/session data."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 channel-transfer-report-root"
+      renderPrintContent={(rows) => <ChannelTransferPrintLayout rows={rows} />}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -178,6 +324,7 @@ function ContentInner({ currentUserName, doctorOptions, userOptions, locationOpt
             </>
           );
         },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
@@ -335,26 +482,8 @@ function ContentInner({ currentUserName, doctorOptions, userOptions, locationOpt
       }}
       exportData={async () => exportChannelTransferReportData(buildQuery())}
       columns={ChannelTransferReportColumns}
-      exportColumns={[
-        'Transferred At',
-        'Transferred By',
-        'Booking ID',
-        'Before',
-        'After',
-        'Remarks',
-        'Action',
-      ]}
-      exportKeys={
-        [
-          'transferredAt',
-          'transferredBy',
-          'bookingId',
-          'beforeActivity',
-          'afterActivity',
-          'remarks',
-          'action',
-        ] as (keyof ChannelTransferReportExportRow)[]
-      }
+      exportColumns={[...CHANNEL_TRANSFER_EXPORT_COLUMNS]}
+      exportKeys={[...CHANNEL_TRANSFER_EXPORT_KEYS]}
       exportTitle="Channel Transfer Report"
       exportFileName="channel-transfer-report"
       getRowId={(row) => row.id}

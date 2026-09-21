@@ -249,8 +249,8 @@ model DoctorSession {
   migrateSourceId      String?   // Source system id (e.g. legacy doctor_session_id) for migrate import lookup
   startingPatientNumber Int
   maxPatientNumber      Int
-  refundable            Int // == 0: No, 1: Yes == // 
-  advancedBookingDays   Int
+  refundable            Int // == 0: No, 1: Yes == //
+  advancedBookingEnabled Boolean @default(false) // true = On-Call unpaid public bookings allowed
   fees                  Json
   amountLocal           Float?
   amountForeign         Float?
@@ -913,10 +913,13 @@ model AgencyBook {
   startNumber String
   endNumber   String
   status      Int?
+  migrateSourceId String? // Legacy Agencybook Mongo id (Sails) for migrate import lookup
 
   // ==== RELATIONS ==== //
   agencyId String? @db.ObjectId
   agency   Agency? @relation("AgencyToAgencyBook", fields: [agencyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([migrateSourceId])
 
   // ==== AUDIT FIELDS ==== //
   createdAt DateTime @default(now())
@@ -1185,6 +1188,11 @@ model Receipt {
   cannotReconcileAt    DateTime?
   cannotReconcileBy    String?   @db.ObjectId
   cannotReconcileReason String?
+
+  /// First time this receipt was sent to print. Null until printed.
+  printedAt  DateTime?
+  /// Number of times Print Receipt was invoked. 0 = never printed (next print is original).
+  printCount Int      @default(0)
 
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])

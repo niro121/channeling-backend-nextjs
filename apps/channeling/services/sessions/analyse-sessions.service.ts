@@ -8,6 +8,7 @@ import orderBy from 'lodash/orderBy';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { resolveUsersHelper } from '@/lib/helpers/resolve-users.helper';
 import { Fee, SessionInputData } from '@/types/sessions';
+import { mergeCanonicalSessionFees } from '@/types/doctor.session';
 
 
 export interface AnalyseSessionsInput {
@@ -199,7 +200,7 @@ export async function analyseSessionsService(
           schedulesFound: schedule.length,
           emptyReason:
             resolvedData.length === 0
-              ? 'Schedules found but no dates in range matched (check dayType and advancedBookingDays).'
+              ? 'Schedules found but no dates in range matched (check dayType).'
               : undefined
         };
       }
@@ -241,7 +242,7 @@ export async function analyseSessionsService(
             startingPatientNumber: v.startingPatientNumber,
             maxPatientNumber: v.maxPatientNumber,
             refundable: v.refundable,
-            fees: (v.fees ?? {}) as Prisma.InputJsonValue,
+            fees: mergeCanonicalSessionFees(v.fees) as Prisma.InputJsonValue,
             amountLocal: v.amountLocal ?? undefined,
             amountForeign: v.amountForeign ?? undefined,
             status: v.status ?? 1,
@@ -291,7 +292,7 @@ export async function analyseSessionsService(
               startingPatientNumber: value.startingPatientNumber,
               maxPatientNumber: value.maxPatientNumber,
               refundable: value.refundable,
-              fees: value.fees,
+              fees: mergeCanonicalSessionFees(value.fees) as Prisma.InputJsonValue,
               amountLocal: value.amountLocal,
               amountForeign: value.amountForeign,
               remarks: value.remarks,

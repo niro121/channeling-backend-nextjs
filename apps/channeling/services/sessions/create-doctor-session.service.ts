@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { parseSessionDateTime } from '@/lib/utils';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
+import { mergeCanonicalSessionFees } from '@/types/doctor.session';
 
 const getDatesBetween = (start: Date, end: Date): Date[] => {
   const dates: Date[] = [];
@@ -129,7 +130,7 @@ export const createDoctorSessionService = async (
             startingPatientNumber: ds.startingPatientNumber,
             maxPatientNumber: ds.maxPatientNumber,
             refundable: ds.refundable,
-            fees: (ds.fees ?? {}) as Prisma.InputJsonValue,
+            fees: mergeCanonicalSessionFees(ds.fees) as Prisma.InputJsonValue,
             amountLocal: ds.amountLocal ?? undefined,
             amountForeign: ds.amountForeign ?? undefined,
             status: 1,

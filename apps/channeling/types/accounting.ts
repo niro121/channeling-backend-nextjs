@@ -20,6 +20,7 @@ export const REFERENCE_TYPES = {
   DoctorPayment: 'DoctorPayment',
   ShiftHandover: 'ShiftHandover',
   Reconciliation: 'Reconciliation',
+  AgencyOpeningBalance: 'AgencyOpeningBalance',
 } as const;
 
 export type ReferenceType = (typeof REFERENCE_TYPES)[keyof typeof REFERENCE_TYPES];

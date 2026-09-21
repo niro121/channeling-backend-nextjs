@@ -2,6 +2,7 @@
 
 import type { CancelOrRefundDetailsView, ReceiptRowView } from "@/services/channel-booking/get-booking-details.service"
 import { Ban } from "lucide-react"
+import { PrintReceiptButton } from "../print-receipt-button"
 
 function formatRs(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -30,7 +31,13 @@ function Row({
   )
 }
 
-export function CancelRefundDetailsCard({ details }: { details: CancelOrRefundDetailsView }) {
+export function CancelRefundDetailsCard({
+  details,
+  paymentReceiptId,
+}: {
+  details: CancelOrRefundDetailsView
+  paymentReceiptId?: string | null
+}) {
   const hasRefund = details.refundAmount !== 0 || details.refundReceipts.length > 0
   return (
     <div className="flex flex-1 flex-col min-h-0 rounded-lg border border-border bg-muted/10">
@@ -39,11 +46,19 @@ export function CancelRefundDetailsCard({ details }: { details: CancelOrRefundDe
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Cancel / refund details
         </span>
+        {paymentReceiptId ? (
+          <div className="ml-auto">
+            <PrintReceiptButton receiptId={paymentReceiptId} />
+          </div>
+        ) : null}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         {details.refundAmount !== 0 && (
           <Row label="Refund amount" value={formatRs(Math.abs(details.refundAmount))} highlight />
         )}
+        {details.refundReason ? (
+          <Row label="Cancel / refund remark" value={details.refundReason} />
+        ) : null}
         {details.refundReceipts.length > 0 ? (
           <>
             <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground pt-1">
@@ -65,7 +80,12 @@ export function CancelRefundDetailsCard({ details }: { details: CancelOrRefundDe
 function RefundReceiptRow({ row }: { row: ReceiptRowView }) {
   return (
     <div className="rounded border border-border/40 bg-background/50 p-2 space-y-0.5 text-xs">
-      <Row label="Receipt No." value={row.receiptNoString} />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Row label="Receipt No." value={row.receiptNoString} />
+        </div>
+        <PrintReceiptButton receiptId={row.id} iconOnly />
+      </div>
       <Row label="Payment by" value={row.paymentMethodName} />
       <Row label="Amount" value={formatRs(row.amount)} highlight />
       <Row label="Processed" value={row.processedBy} />

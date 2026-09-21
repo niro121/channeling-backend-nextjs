@@ -14,6 +14,7 @@ import {
 import { DoctorLeaveReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import {DoctorLeaveReportExportRow, DoctorLeaveReportContentProps, DoctorLeaveReportRow} from '@/types/reports/doctor.leave'
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 
 function filterOptionLabel(
   id: string | undefined,
@@ -62,10 +63,43 @@ function DoctorLeaveReportContentInner({
   });
 
   return (
-    <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .doctor-leave-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .doctor-leave-report-root .rpt-print-root th,
+          .doctor-leave-report-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+          }
+          .doctor-leave-report-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+          .doctor-leave-report-root .rpt-print-root svg {
+            display: none !important;
+          }
+          .doctor-leave-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
       title="Doctor Leave Report"
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 doctor-leave-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -108,7 +142,52 @@ function DoctorLeaveReportContentInner({
               </div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const branchOpts = withAllBranchesOptions(locationOptions);
+          const from = values.fromDateTime ?? '';
+          const to = values.toDateTime ?? '';
+          return [
+            {
+              label: 'Period',
+              value:
+                from && to ? formatReportRangeLabel(from, to) : `${from || '—'} to ${to || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                specialityOptions
+              ),
+            },
+            {
+              label: 'Institution',
+              value: filterOptionLabel(
+                values.institutionId,
+                'All Institutions',
+                institutionOptions
+              ),
+            },
+            {
+              label: 'Branch',
+              value: filterOptionLabel(values.locationId, 'All Branches', branchOpts),
+            },
+            {
+              label: 'Department',
+              value: filterOptionLabel(
+                values.departmentId,
+                'All Departments',
+                departmentOptions
+              ),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <>
@@ -221,6 +300,7 @@ function DoctorLeaveReportContentInner({
         return `${code} – ${name}`;
       }}
     />
+    </>
   );
 }
 

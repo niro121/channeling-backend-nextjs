@@ -74,11 +74,49 @@ function ConsultantPaymentsReportContentInner({
   ];
 
   return (
-    <ReportTemplate<ConsultantPaymentsReportRow, ConsultantPaymentsReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .consultant-payments-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th,
+          .consultant-payments-report-root .rpt-print-root td {
+            font-size: 5.5pt !important;
+            padding: 0.5mm 0.35mm !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow: hidden !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th *,
+          .consultant-payments-report-root .rpt-print-root td * {
+            font-size: inherit !important;
+            line-height: inherit !important;
+            color: #000 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root thead th {
+            font-size: 5pt !important;
+          }
+          .consultant-payments-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .consultant-payments-report-root .rpt-print-root [class*="truncate"] {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<ConsultantPaymentsReportRow, ConsultantPaymentsReportExportRow>
       title="Consultant Payments Report"
       description="View consultant (doctor) payments for channeling bookings with filters for date & time range, institution, branch, department, speciality, doctor, and payment status"
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 consultant-payments-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -115,6 +153,72 @@ function ConsultantPaymentsReportContentInner({
               </div>
             </>
           );
+        },
+        formatPrintSummaryItems: (values) => {
+          const fromDateTime = values.fromDateTime ?? '';
+          const toDateTime = values.toDateTime ?? '';
+          const institutionId = values.institutionId ?? '__all__';
+          const locationId = values.locationId ?? '__all__';
+          const departmentId = values.departmentId ?? '__all__';
+          const specialityId = values.specialityId ?? '__all__';
+          const doctorId = values.doctorId ?? '__all__';
+          const status = values.status ?? '__all__';
+          const sessionType = values.sessionType ?? '__all__';
+          return [
+            {
+              label: 'Period',
+              value: formatReportRangeLabel(fromDateTime, toDateTime),
+              fullWidth: true,
+            },
+            {
+              label: 'Institution',
+              value:
+                institutionId === '__all__'
+                  ? 'All Institutions'
+                  : (institutionOptions.find((i) => i.id === institutionId)?.name ?? institutionId),
+            },
+            {
+              label: 'Branch',
+              value:
+                locationId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === locationId)?.name ?? locationId),
+            },
+            {
+              label: 'Department',
+              value:
+                departmentId === '__all__'
+                  ? 'All Departments'
+                  : (departmentOptions.find((d) => d.id === departmentId)?.name ?? departmentId),
+            },
+            {
+              label: 'Speciality',
+              value:
+                specialityId === '__all__'
+                  ? 'All Specialities'
+                  : (specialityOptions.find((s) => s.id === specialityId)?.name ?? specialityId),
+            },
+            {
+              label: 'Doctor',
+              value:
+                doctorId === '__all__'
+                  ? 'All Doctors'
+                  : (doctorOptions.find((d) => d.id === doctorId)?.name ?? doctorId),
+            },
+            {
+              label: 'Status',
+              value: status === '__all__' ? 'All Status' : status === '1' ? 'Paid' : 'Due Pay',
+            },
+            {
+              label: 'Session',
+              value:
+                sessionType === '__all__'
+                  ? 'All Session'
+                  : sessionType === 'morning'
+                    ? 'Morning'
+                    : 'Evening',
+            },
+          ];
         },
       }}
       initialFilterValues={{
@@ -277,6 +381,7 @@ function ConsultantPaymentsReportContentInner({
       initialEmptyMessage="No consultant payments found. Select filters and click Search."
       emptyMessage="No consultant payments found for the selected filters."
     />
+    </>
   );
 }
 

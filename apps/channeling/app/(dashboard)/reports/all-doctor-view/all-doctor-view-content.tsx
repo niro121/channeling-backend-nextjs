@@ -11,13 +11,14 @@ import {
   CardContent
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Printer, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { ExportWrapper } from '../../export-wrapper';
 import CustomDatePickerField from '@/components/common/custom-date-picker-field';
 import { Selector } from '@/components/common/selector';
 import { SearchIcon } from '@/components/icons';
 import moment from 'moment';
-import { printPdfUtilWithHeader } from '@/lib/utils';
+import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 
 type AllDoctorViewReportContentProps = {
@@ -134,112 +135,7 @@ export default function AllDoctorViewReportContent({
   };
 
   const handlePrint = () => {
-    type AllDoctorViewPrintRow = {
-      no: string;
-      consultant: string;
-      notPaid: string;
-      paid: string;
-      cancel: string;
-      hosRefund: string;
-      proRefund: string;
-      hosValid: string;
-      proValid: string;
-      nettValid: string;
-      total: string;
-      doctorSessionTime: string;
-    };
-
-    const sessionTypeLabel =
-      sessionType === '__all__'
-        ? 'All'
-        : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType;
-
-    const feeTypeLabel =
-      feeType === '__all__'
-        ? 'All'
-        : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType;
-
-    const branchLabel =
-      locationId === '__all__'
-        ? 'All Branches'
-        : locationOptions.find((l) => l.id === locationId)?.name ?? locationId;
-
-    const headerLines = [
-      `Date: ${date ? moment(date).format('YYYY-MM-DD') : ''}`,
-      `Session Type: ${sessionTypeLabel}`,
-      `Fee Type: ${feeTypeLabel}`,
-      `Branch: ${branchLabel}`
-    ].filter(Boolean);
-
-    const mappedRows: AllDoctorViewPrintRow[] = rows.map((row) => ({
-      no: String(row.no ?? ''),
-      consultant: `${row.consultantName} (${row.consultantCode})`,
-      notPaid: String(row.notPaid ?? ''),
-      paid: String(row.paid ?? ''),
-      cancel: String(row.cancel ?? ''),
-      hosRefund: String(row.hosRefund ?? ''),
-      proRefund: String(row.proRefund ?? ''),
-      hosValid: String(row.hosValid ?? ''),
-      proValid: String(row.proValid ?? ''),
-      nettValid: String(row.nettValid ?? ''),
-      total: formatCurrency(row.total),
-      doctorSessionTime: row.doctorSessionTimes.join(' / ')
-    }));
-
-    if (totals) {
-      mappedRows.push({
-        no: String(totals.no ?? ''),
-        consultant: 'Total',
-        notPaid: '',
-        paid: '',
-        cancel: '',
-        hosRefund: '',
-        proRefund: '',
-        hosValid: '',
-        proValid: '',
-        nettValid: '',
-        total: formatCurrency(totals.total),
-        doctorSessionTime: ''
-      });
-    }
-
-    const columns = [
-      'No',
-      'Consultant',
-      'Not Paid',
-      'Paid',
-      'Cancel',
-      'Hos Refund',
-      'Pro Refund',
-      'Hos Valid',
-      'Pro Valid',
-      'Nett Valid',
-      'Total (Rs.)',
-      'Doctor Session Time'
-    ];
-
-    const keys = [
-      'no',
-      'consultant',
-      'notPaid',
-      'paid',
-      'cancel',
-      'hosRefund',
-      'proRefund',
-      'hosValid',
-      'proValid',
-      'nettValid',
-      'total',
-      'doctorSessionTime'
-    ] as (keyof AllDoctorViewPrintRow)[];
-
-    printPdfUtilWithHeader<AllDoctorViewPrintRow>({
-      title: 'All Doctor View Report',
-      headerLines,
-      data: mappedRows,
-      columns,
-      keys
-    });
+    window.print();
   };
 
   const formatCurrency = (amount: number) => {
@@ -265,24 +161,37 @@ export default function AllDoctorViewReportContent({
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2">
+    <div className="container mx-auto py-6 space-y-6 print:py-2 all-doctor-view-print-root">
+      <style>{`
+        @media print {
+          .all-doctor-view-print-root .overflow-x-auto,
+          .all-doctor-view-print-root .overflow-auto {
+            overflow: visible !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root th,
+          .all-doctor-view-print-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle className="text-2xl font-bold">All Doctor View (By Session Time)</CardTitle>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-                className="gap-2"
-              >
-                <Printer />
-                Print
-              </Button>
-            </div>
+
           </div>
         </CardHeader>
         <CardContent>
@@ -401,15 +310,72 @@ export default function AllDoctorViewReportContent({
               ]}
               title="All Doctor View Report"
               fileName={`all-doctor-view-report-${date ? moment(date).format('YYYY-MM-DD') : 'report'}`}
+              onBrowserPrint={handlePrint}
+              showPrintButton
+              exportOrientation="portrait"
+              compactTable
+              pdfSummaryItems={toBrandedPdfSummaryItems([
+                { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
+                {
+                  label: 'Session Type',
+                  value:
+                    sessionType === '__all__'
+                      ? 'All'
+                      : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType,
+                },
+                {
+                  label: 'Fee Type',
+                  value:
+                    feeType === '__all__'
+                      ? 'All'
+                      : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType,
+                },
+                {
+                  label: 'Branch',
+                  value:
+                    locationId === '__all__'
+                      ? 'All Branches'
+                      : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+                },
+              ])}
             />
           </div>
 
           {/* Results Table */}
-          <div className="mt-6">
+          <ReportPrintLayout
+            reportName="All Doctor View Report"
+            pageSize="A4 portrait"
+            generatedAt={new Date().toLocaleString()}
+            summaryItems={[
+              { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
+              {
+                label: 'Session Type',
+                value:
+                  sessionType === '__all__'
+                    ? 'All'
+                    : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType,
+              },
+              {
+                label: 'Fee Type',
+                value:
+                  feeType === '__all__'
+                    ? 'All'
+                    : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType,
+              },
+              {
+                label: 'Branch',
+                value:
+                  locationId === '__all__'
+                    ? 'All Branches'
+                    : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+              },
+            ] satisfies ReportPrintSummaryItem[]}
+          >
+          <div className="mt-6 print:mt-0">
             {loading ? (
               <Loading />
             ) : rows.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-muted-foreground print:hidden">
                 No data available. Please apply filters and search.
               </div>
             ) : (
@@ -479,9 +445,10 @@ export default function AllDoctorViewReportContent({
               </div>
             )}
           </div>
+          </ReportPrintLayout>
 
           {/* Pagination Info */}
-          <div className="mt-4 text-sm text-muted-foreground">
+          <div className="mt-4 text-sm text-muted-foreground print:hidden">
             {totalRecords > 0 
               ? `Showing 1 to ${totalRecords} of ${totalRecords} entries`
               : 'Showing 0 to 0 of 0 entries'}

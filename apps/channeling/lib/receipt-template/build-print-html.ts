@@ -3,6 +3,11 @@ import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { ReceiptTemplateRecord } from "@/types/receipt-template-db"
 import type { LedgerReceiptDetail } from "@/services/ledger/get-ledger-receipt.service"
 import { format } from "date-fns"
+import {
+  RUHUNU_HOSPITAL,
+  ruhunuEmailWebLine,
+  ruhunuPhoneFaxLine,
+} from "@/lib/receipt-template/ruhunu-hospital"
 
 const PRINT_PAGE_STYLES = `
   body { font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.4; color: #111; padding: 16px; max-width: 210mm; margin: 0 auto; }
@@ -141,6 +146,232 @@ export function buildDoctorPaymentPrintHtml(
   <meta charset="utf-8">
   <title>Consultant Payment ${escapeHtml(receiptNoString)}</title>
   <style>${PRINT_PAGE_STYLES}</style>
+</head>
+<body>
+${bodyContent}
+</body>
+</html>`
+}
+
+const BOOKING_RECEIPT_PAGE_STYLES = `
+  /* A5 portrait — Hospital Bill (page 1) + Professional Bill (page 2). */
+  @page {
+    size: A5 portrait;
+    margin: 7mm 8mm;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    background: #fff;
+  }
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  body {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 13pt;
+    line-height: 1.4;
+    color: #000;
+    padding: 0;
+  }
+  .invoice-wrap {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hospital-half {
+    padding-bottom: 4mm;
+  }
+  .hospital-name {
+    font-size: 17pt;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.25;
+  }
+  .contact {
+    font-size: 10.5pt;
+    font-weight: 600;
+    margin: 2px 0 0;
+    line-height: 1.4;
+  }
+  .bill-title {
+    font-size: 15pt;
+    font-weight: 700;
+    margin: 10px 0 5px;
+  }
+  .status-banner {
+    font-size: 13pt;
+    font-weight: 700;
+    margin: 3px 0 8px;
+  }
+  .invoice-fields {
+    margin: 0 auto;
+    border-collapse: collapse;
+    text-align: left;
+    width: auto;
+    max-width: 100%;
+  }
+  .invoice-fields td {
+    border: none;
+    padding: 2.5px 0;
+    font-size: 12.5pt;
+    vertical-align: top;
+    line-height: 1.4;
+  }
+  .invoice-fields .label {
+    width: 48mm;
+    min-width: 44mm;
+    padding-right: 6px;
+    white-space: nowrap;
+  }
+  .invoice-fields .colon {
+    width: 5mm;
+    padding-right: 8px;
+    text-align: center;
+  }
+  .invoice-fields .value {
+    font-weight: 400;
+  }
+  .invoice-fields .strong {
+    font-weight: 700;
+  }
+  .appt-no {
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.1;
+    display: inline-block;
+    padding-left: 2px;
+  }
+  .professional-bill {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    text-align: center;
+    page-break-before: always;
+    break-before: page;
+  }
+  .doctor-note {
+    font-size: 12pt;
+    font-weight: 700;
+    text-align: center;
+    margin: 14px 0 0;
+  }
+`
+
+function invoiceRow(
+  label: string,
+  value: string,
+  opts: { strongLabel?: boolean; strongValue?: boolean; huge?: boolean } = {}
+): string {
+  const labelHtml = opts.strongLabel ? `<strong>${escapeHtml(label)}</strong>` : escapeHtml(label)
+  const valueClass = opts.strongValue ? "value strong" : "value"
+  const valueHtml = opts.huge
+    ? `<span class="appt-no">${escapeHtml(value)}</span>`
+    : escapeHtml(value)
+  return `<tr>
+    <td class="label">${labelHtml}</td>
+    <td class="colon">:</td>
+    <td class="${valueClass}">${valueHtml}</td>
+  </tr>`
+}
+
+function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): string {
+  const statusBanner = (placeholders.status_banner ?? "").trim()
+  const hospitalDiscount = (placeholders.hospital_fee_discount ?? "").trim()
+  const professionalDiscount = (placeholders.professional_fee_discount ?? "").trim()
+  const refundReceiptNo = (placeholders.refund_receipt_no ?? "").trim()
+  const debiter = (placeholders.debiter ?? "").trim()
+  const showProfessional = (placeholders.show_professional_bill ?? "").trim() === "1"
+  const companyName = placeholders.company_name || RUHUNU_HOSPITAL.name
+  const locationAddress = placeholders.location_address || RUHUNU_HOSPITAL.address
+
+  const hospitalRows = [
+    invoiceRow("Number", placeholders.appointment_no ?? "", { strongLabel: true, huge: true }),
+    invoiceRow("Name", placeholders.patient_name ?? ""),
+    refundReceiptNo ? invoiceRow("Refund Invoice No", refundReceiptNo) : "",
+    invoiceRow("Invoice No", placeholders.bill_no ?? ""),
+    invoiceRow("Phone", placeholders.phone ?? placeholders.tel ?? ""),
+    invoiceRow("Appointment Type", placeholders.booking_method ?? ""),
+    invoiceRow("App. Date", placeholders.appointment_date ?? "", { strongLabel: true, strongValue: true }),
+    invoiceRow("App. Time", placeholders.appointment_time ?? "", { strongLabel: true, strongValue: true }),
+    invoiceRow("Hospital Fee", placeholders.hospital_fee ?? ""),
+    hospitalDiscount ? invoiceRow("Discount", hospitalDiscount) : "",
+    invoiceRow("Total Hospital Fee", placeholders.total_hospital_fee ?? "", {
+      strongLabel: true,
+      strongValue: true,
+    }),
+    invoiceRow("Billed At", placeholders.billed_at ?? ""),
+    invoiceRow("Cashier Code", placeholders.cashier_code ?? ""),
+    invoiceRow("Invoice Status", placeholders.invoice_status ?? ""),
+    debiter ? invoiceRow("Debiter", debiter) : "",
+    invoiceRow("Printed by", placeholders.printed_by ?? ""),
+  ]
+    .filter(Boolean)
+    .join("")
+
+  const professionalRows = [
+    invoiceRow("Name", placeholders.patient_name ?? ""),
+    invoiceRow("Invoice Ref", placeholders.bill_no ?? ""),
+    invoiceRow("Consultant", placeholders.consultant ?? "", { strongLabel: true, strongValue: true }),
+    invoiceRow("Professional Charges", placeholders.professional_fee ?? ""),
+    professionalDiscount ? invoiceRow("Discount", professionalDiscount) : "",
+    professionalDiscount
+      ? invoiceRow("Total Professional Fee", placeholders.total_professional_fee ?? "")
+      : "",
+  ]
+    .filter(Boolean)
+    .join("")
+
+  const statusHtml = statusBanner
+    ? `<div class="status-banner">${escapeHtml(statusBanner)}</div>`
+    : ""
+
+  return `
+  <div class="invoice-wrap">
+    <div class="hospital-half">
+      <div class="hospital-name">${escapeHtml(companyName)}</div>
+      <div class="hospital-name">${escapeHtml(locationAddress)}</div>
+      <p class="contact">${escapeHtml(ruhunuPhoneFaxLine())}</p>
+      <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
+      <div class="bill-title">Invoice - Hospital Bill</div>
+      ${statusHtml}
+      <table class="invoice-fields"><tbody>${hospitalRows}</tbody></table>
+    </div>
+    ${
+      showProfessional
+        ? `<div class="professional-bill">
+      <div class="bill-title">Professional Bill</div>
+      ${statusHtml}
+      <table class="invoice-fields"><tbody>${professionalRows}</tbody></table>
+      <p class="doctor-note">Collected for and on behalf of the Doctor</p>
+    </div>`
+        : ""
+    }
+  </div>
+  `
+}
+
+/**
+ * Build full HTML for booking receipt print (A5 portrait).
+ * Top: Hospital Bill; bottom: Professional Bill (when applicable).
+ */
+export function buildBookingReceiptPrintHtml(
+  placeholders: ReceiptPlaceholderMap,
+  _template: ReceiptTemplateRecord | null,
+  receiptNoString: string
+): string {
+  const bodyContent = buildSailsBookingReceiptHtml(placeholders)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Receipt ${escapeHtml(receiptNoString)}</title>
+  <style>${BOOKING_RECEIPT_PAGE_STYLES}</style>
 </head>
 <body>
 ${bodyContent}

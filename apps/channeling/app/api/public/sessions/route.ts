@@ -9,8 +9,9 @@ function withCors(res: NextResponse) {
 }
 
 /**
- * GET /api/public/sessions?doctorCode=DR0001&fromDate=YYYY-MM-DD
- * fromDate optional; default is today. Returns slim session DTOs (no audit fields).
+ * GET /api/public/sessions?doctorCode=DR0001&fromDate=YYYY-MM-DD&paymentMode=api|agent|oncall
+ * fromDate optional; default is today. paymentMode optional; default is api.
+ * Returns slim session DTOs priced for that booking method (POS fee set + first auto discount).
  */
 export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
@@ -39,7 +40,12 @@ export async function GET(request: NextRequest) {
   }
 
   const fromDateParam = searchParams.get("fromDate")?.trim() ?? null
-  const result = await getPublicSessionsByDoctorCode(doctorCode, fromDateParam)
+  const paymentModeParam = searchParams.get("paymentMode")?.trim() ?? null
+  const result = await getPublicSessionsByDoctorCode(
+    doctorCode,
+    fromDateParam,
+    paymentModeParam
+  )
 
   if (!result.success) {
     const status =

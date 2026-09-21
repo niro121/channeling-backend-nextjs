@@ -63,10 +63,55 @@ function DoctorBalanceReportContentInner({
   });
 
   return (
-    <ReportTemplate<DoctorBalanceReportRow, DoctorBalanceReportExportRow>
+    <>
+      <style>{`
+        @media print {
+          .doctor-balance-report-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          .doctor-balance-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          /* No. | Status | Code | Name | Speciality | Phone | Address | Balance */
+          .doctor-balance-report-root .rpt-print-root th:nth-child(1),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(1) { width: 5% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(2),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(2) { width: 8% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(3),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(3) { width: 9% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(4),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(4) { width: 22% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(5),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(5) { width: 14% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(6),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(6) { width: 11% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(7),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(7) { width: 18% !important; }
+          .doctor-balance-report-root .rpt-print-root th:nth-child(8),
+          .doctor-balance-report-root .rpt-print-root td:nth-child(8) { width: 13% !important; }
+          .doctor-balance-report-root .rpt-print-root th,
+          .doctor-balance-report-root .rpt-print-root td {
+            font-size: 6.5pt !important;
+            padding: 0.7mm 0.5mm !important;
+            line-height: 1.15 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
+          }
+          .doctor-balance-report-root .rpt-print-root thead th {
+            font-size: 6pt !important;
+          }
+        }
+      `}</style>
+      <ReportTemplate<DoctorBalanceReportRow, DoctorBalanceReportExportRow>
       title="Doctor Balance Report"
       description="Doctor payable balances as of a selected date, from linked PAYABLE accounts."
       filterButtonLabel="Search"
+      printPageSize="A4 portrait"
+      containerClassName="container mx-auto py-3 space-y-4 doctor-balance-report-root"
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       initialFilterValues={{ asOfDate: defaultAsOfDate }}
       generationDetails={{
@@ -84,6 +129,26 @@ function DoctorBalanceReportContentInner({
               </div>
             </>
           );
+        },
+        formatPrintSummaryItems: (values) => {
+          const statusLabel =
+            values.status === '1' ? 'Active' : values.status === '0' ? 'Inactive' : 'All Status';
+          return [
+            { label: 'As of', value: values.asOfDate ?? defaultAsOfDate },
+            {
+              label: 'Doctor',
+              value: filterOptionLabel(values.doctorId, 'All Doctors', doctorOptions),
+            },
+            {
+              label: 'Speciality',
+              value: filterOptionLabel(
+                values.specialityId,
+                'All Specialities',
+                specialityOptions
+              ),
+            },
+            { label: 'Status', value: statusLabel },
+          ];
         },
       }}
       filterContent={({ values, setValue }) => (
@@ -168,6 +233,7 @@ function DoctorBalanceReportContentInner({
       initialEmptyMessage="No doctor balances found. Select filters and click Search."
       emptyMessage="No doctor balances found for the selected filters."
     />
+    </>
   );
 }
 

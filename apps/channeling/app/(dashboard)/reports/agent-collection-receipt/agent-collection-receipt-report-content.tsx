@@ -9,6 +9,7 @@ import { ReportAgentSelect } from '@/components/common/agent-select';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { formatReceiptAmount } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import type {
   AgentCollectionReceiptPaymentType,
   AgentCollectionReceiptReportExportRow,
@@ -85,7 +86,39 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
               <div>Branch: {locLabel} | Agent: {agencyLabel} | Type: {ptLabel}</div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const df = values.dateFrom ?? '';
+          const dt = values.dateTo ?? '';
+          const locId = values.locationId ?? '__all__';
+          const agencyId = values.agencyId ?? '__all__';
+          const pt = (values.paymentType ?? '__all__') as AgentCollectionReceiptPaymentType;
+          return [
+            {
+              label: 'Period',
+              value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Branch',
+              value:
+                locId === '__all__'
+                  ? 'All Branches'
+                  : (allLocations.find((l) => l.id === locId)?.name ?? locId),
+            },
+            {
+              label: 'Agent',
+              value:
+                agencyId === '__all__'
+                  ? 'All Agents'
+                  : (agencyOptions.find((a) => a.id === agencyId)?.name ?? agencyId),
+            },
+            {
+              label: 'Type',
+              value: PAYMENT_TYPE_OPTIONS.find((p) => p.id === pt)?.name ?? pt,
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">

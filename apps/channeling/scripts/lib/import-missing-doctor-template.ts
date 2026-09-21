@@ -152,7 +152,7 @@ async function upsertOneTemplate(
     startingPatientNumber: safeNumber(s.starting_patient_number),
     maxPatientNumber: safeNumber(s.max_patient_number),
     refundable: safeNumber(s.refundable),
-    advancedBookingDays: safeNumber(s.advanced_booking_days),
+    advancedBookingEnabled: safeNumber(s.advanced_booking_days) > 0,
     fees: fees as unknown as Prisma.InputJsonValue,
     amountLocal: s.amount_local != null ? safeNumber(s.amount_local) : feeLocalSum,
     amountForeign: s.amount_foreign != null ? safeNumber(s.amount_foreign) : feeForeignSum,

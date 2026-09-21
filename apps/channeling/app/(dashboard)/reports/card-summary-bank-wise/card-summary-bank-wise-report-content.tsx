@@ -89,7 +89,39 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
               <div>Bank: {bankLabel} | Branch: {locLabel} | Format: {fmtLabel}</div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const df = values.dateFrom ?? '';
+          const dt = values.dateTo ?? '';
+          const bankId = values.bankId ?? '__all__';
+          const locId = values.locationId ?? '__all__';
+          const fmt = (values.format ?? 'summary') as string;
+          return [
+            {
+              label: 'Period',
+              value: `${df || '—'} to ${dt || '—'}`,
+              fullWidth: true,
+            },
+            {
+              label: 'Bank',
+              value:
+                bankId === '__all__'
+                  ? 'All Banks'
+                  : bankOptions.find((b) => b.id === bankId)?.name ?? bankId,
+            },
+            {
+              label: 'Branch',
+              value:
+                locId === '__all__'
+                  ? 'All Branches'
+                  : locationOptions.find((l) => l.id === locId)?.name ?? locId,
+            },
+            {
+              label: 'Format',
+              value: fmt === 'detail' ? 'Detail' : 'Summary',
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">

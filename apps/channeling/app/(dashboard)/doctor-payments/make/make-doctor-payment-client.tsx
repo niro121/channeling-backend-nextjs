@@ -77,8 +77,23 @@ function earlierISODate(a: string, b: string): string {
   return a <= b ? a : b;
 }
 
+const ALL_BRANCHES_VALUE = "__all__";
+const ALL_SPECIALITIES_VALUE = "__all__";
+
+function isSpecificBranchId(value: string | null | undefined): value is string {
+  return !!value && value !== ALL_BRANCHES_VALUE;
+}
+
+function doctorsForSpeciality(
+  doctors: ReferenceSelectOption[],
+  specialityId: string
+): ReferenceSelectOption[] {
+  if (!specialityId || specialityId === ALL_SPECIALITIES_VALUE) return doctors;
+  return doctors.filter((d) => d.specialityId === specialityId);
+}
+
 const STEPS = [
-  { num: 1, label: "Select doctor & date range" },
+  { num: 1, label: "Select doctor, branch & date range" },
   { num: 2, label: "Select sessions" },
   { num: 3, label: "Confirm & pay" },
 ] as const;
@@ -116,9 +131,11 @@ function getDoctorPaymentMethodOptions(methodCodes: number[]): { value: string; 
 
 type MakeDoctorPaymentClientProps = {
   locations: ReferenceSelectOption[];
+  specialities: ReferenceSelectOption[];
   doctors: ReferenceSelectOption[];
   staff: ReferenceSelectOption[];
   userId: string | null;
+  /** User's location: default branch filter and payment receipt location. */
   locationId: string | null;
   /** When provided (e.g. from channel-booking Payment tab), pre-select this doctor. */
   initialDoctorId?: string | null;
@@ -132,6 +149,7 @@ type MakeDoctorPaymentClientProps = {
 
 export function MakeDoctorPaymentClient({
   locations,
+  specialities,
   doctors,
   staff,
   userId,
@@ -145,6 +163,14 @@ export function MakeDoctorPaymentClient({
   const router = useRouter();
   const { toast } = useToast();
   const [doctorId, setDoctorId] = useState(initialDoctorId ?? "");
+  const [specialityId, setSpecialityId] = useState(() => {
+    if (!initialDoctorId) return ALL_SPECIALITIES_VALUE;
+    const doctor = doctors.find((d) => d.id === initialDoctorId);
+    return doctor?.specialityId || ALL_SPECIALITIES_VALUE;
+  });
+  const [branchId, setBranchId] = useState(() =>
+    locationId && locations.some((l) => l.id === locationId) ? locationId : ALL_BRANCHES_VALUE
+  );
   const today = getTodayISO();
   const [dateFrom, setDateFrom] = useState(() =>
     isValidISODate(initialDateFrom) ? initialDateFrom : today
@@ -179,6 +205,10 @@ export function MakeDoctorPaymentClient({
     () => getDoctorPaymentMethodOptions(doctorPaymentMethodCodes),
     [doctorPaymentMethodCodes]
   );
+  const filteredDoctors = React.useMemo(
+    () => doctorsForSpeciality(doctors, specialityId),
+    [doctors, specialityId]
+  );
 
   useEffect(() => {
     const allowed = paymentMethodOptions.map((o) => o.value);
@@ -187,7 +217,17 @@ export function MakeDoctorPaymentClient({
     }
   }, [paymentMethodOptions, paymentMethod]);
 
-  // When doctor is selected: From = earliest unpaid session (or URL hint), To = today.
+  const sessionLocationId = isSpecificBranchId(branchId) ? branchId : null;
+
+  const clearLoadedResults = () => {
+    setSessions([]);
+    setDetailRows([]);
+    setSelectedSessionIds(new Set());
+    setSelectedForPaymentIds(new Set());
+    setTotalDue(0);
+  };
+
+  // When doctor or branch is selected: From = earliest unpaid session (or URL hint), To = today.
   useEffect(() => {
     if (!doctorId.trim()) return;
     let cancelled = false;
@@ -205,7 +245,7 @@ export function MakeDoctorPaymentClient({
 
     void (async () => {
       try {
-        const res = await getEarliestPendingDoctorPaymentDate(doctorId);
+        const res = await getEarliestPendingDoctorPaymentDate(doctorId, sessionLocationId);
         if (cancelled) return;
         if (res.success && res.dateFrom) {
           setDateFrom(hint ? earlierISODate(res.dateFrom, hint) : res.dateFrom);
@@ -227,7 +267,7 @@ export function MakeDoctorPaymentClient({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctorId]);
+  }, [doctorId, sessionLocationId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -258,10 +298,17 @@ export function MakeDoctorPaymentClient({
     setDetailRows([]);
     setSelectedSessionIds(new Set());
     try {
-      const res = await getEligibleDoctorPaymentBookings(doctorId, dateFrom, dateTo);
+      const res = await getEligibleDoctorPaymentBookings(doctorId, dateFrom, dateTo, sessionLocationId);
       if (res.success) {
         setSessions(res.sessions);
         setSelectedSessionIds(new Set(res.sessions.map((s) => s.sessionId)));
+        if (res.sessions.length === 0) {
+          toast({
+            title: sessionLocationId
+              ? "No pending sessions for this doctor, date range, and branch. Choose All branches to include other locations."
+              : "No pending sessions for this doctor and date range.",
+          });
+        }
       } else {
         toast({ title: res.message ?? "Failed to load.", variant: "destructive" });
       }
@@ -313,13 +360,19 @@ export function MakeDoctorPaymentClient({
   const doctorOption = doctorId ? doctors.find((d) => d.id === doctorId) : null;
   const doctorFullLabel = doctorOption ? formatReferenceLabel(doctorOption.name, doctorOption.code) : null;
   const doctorDisplayName = doctorFullLabel ? truncateDoctorName(doctorFullLabel) : null;
+  const selectedBranch = isSpecificBranchId(branchId)
+    ? locations.find((l) => l.id === branchId)
+    : null;
+  const branchLabel = selectedBranch
+    ? formatReferenceLabel(selectedBranch.name, selectedBranch.code)
+    : "All branches";
   const step1Detail =
     doctorId && dateFrom && dateTo
-      ? [doctorDisplayName ?? "Doctor", formatDateRange(dateFrom, dateTo)].filter(Boolean).join(" · ")
+      ? [doctorDisplayName ?? "Doctor", branchLabel, formatDateRange(dateFrom, dateTo)].filter(Boolean).join(" · ")
       : null;
   const step1DetailTitle =
     doctorId && dateFrom && dateTo && doctorFullLabel
-      ? [doctorFullLabel, formatDateRange(dateFrom, dateTo)].filter(Boolean).join(" · ")
+      ? [doctorFullLabel, branchLabel, formatDateRange(dateFrom, dateTo)].filter(Boolean).join(" · ")
       : step1Detail;
   const step2Detail =
     sessions.length > 0
@@ -499,63 +552,111 @@ export function MakeDoctorPaymentClient({
       <Card className={currentStep === 1 ? "ring-2 ring-primary/20" : ""}>
         <CardHeader className="pb-4">
           <CardTitle className="text-lg">
-            <span className="text-muted-foreground font-normal">Step 1 —</span> Select doctor and date range
+            <span className="text-muted-foreground font-normal">Step 1 —</span> Select doctor, branch and date range
           </CardTitle>
           <CardDescription>
-            Choose the consultant and date range, then load sessions that have paid bookings with pending doctor payment.
-            From date defaults to the earliest unpaid session for that doctor; To date defaults to today.
+            Choose the speciality and consultant, then the branch and date range, and load sessions that have paid bookings with pending doctor payment.
+            Branch defaults to your location; choose All branches to pay sessions at every location.
+            From date defaults to the earliest unpaid session for that doctor and branch; To date defaults to today.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-xl border bg-muted/40 p-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:items-end">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Doctor</label>
-                <ReferenceSelect
-                  options={doctors}
-                  value={doctorId}
-                  onChange={setDoctorId}
-                  placeholder="Select doctor"
-                  allOptionValue=""
-                  allOptionLabel="Select doctor"
-                  className="w-[220px]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="step1-date-from">From date</Label>
-                <div className="relative">
-                  <input
-                    id="step1-date-from"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    disabled={loadingPendingFromDate}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:items-end">
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Speciality</label>
+                  <ReferenceSelect
+                    options={specialities}
+                    value={specialityId}
+                    onChange={(id) => {
+                      const next = id || ALL_SPECIALITIES_VALUE;
+                      setSpecialityId(next);
+                      const nextDoctors = doctorsForSpeciality(doctors, next);
+                      if (doctorId && !nextDoctors.some((d) => d.id === doctorId)) {
+                        setDoctorId("");
+                        clearLoadedResults();
+                      }
+                    }}
+                    placeholder="Select speciality"
+                    allOptionValue={ALL_SPECIALITIES_VALUE}
+                    allOptionLabel="All specialities"
+                    className="w-full"
                   />
-                  {loadingPendingFromDate ? (
-                    <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                  ) : null}
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Doctor</label>
+                  <ReferenceSelect
+                    options={filteredDoctors}
+                    value={doctorId}
+                    onChange={(id) => {
+                      setDoctorId(id);
+                      if (id) {
+                        const selected = doctors.find((d) => d.id === id);
+                        if (selected?.specialityId && selected.specialityId !== specialityId) {
+                          setSpecialityId(selected.specialityId);
+                        }
+                      }
+                      clearLoadedResults();
+                    }}
+                    placeholder="Select doctor"
+                    className="w-full"
+                    searchable
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <label className="text-sm font-medium">Branch</label>
+                  <ReferenceSelect
+                    options={locations}
+                    value={branchId}
+                    onChange={(id) => {
+                      setBranchId(id || ALL_BRANCHES_VALUE);
+                      clearLoadedResults();
+                    }}
+                    placeholder="Select branch"
+                    allOptionValue={ALL_BRANCHES_VALUE}
+                    allOptionLabel="All branches"
+                    className="w-full"
+                  />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="step1-date-to">To date</Label>
-                <input
-                  id="step1-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
-              </div>
-              <div className="flex flex-col gap-2 pt-1 sm:flex-row lg:flex-col lg:pt-0">
-                <Button
-                  onClick={handleLoad}
-                  disabled={loadingEligible || loadingPendingFromDate}
-                  className="h-10 w-full sm:w-auto lg:w-full"
-                >
-                  {loadingEligible ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Load sessions
-                </Button>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:items-end">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="step1-date-from">From date</Label>
+                  <div className="relative">
+                    <input
+                      id="step1-date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      disabled={loadingPendingFromDate}
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+                    />
+                    {loadingPendingFromDate ? (
+                      <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                    ) : null}
+                  </div>
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="step1-date-to">To date</Label>
+                  <input
+                    id="step1-date-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={handleLoad}
+                    disabled={loadingEligible || loadingPendingFromDate}
+                    className="h-10 w-full"
+                  >
+                    {loadingEligible ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Load sessions
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -580,7 +681,7 @@ export function MakeDoctorPaymentClient({
               return (
                 <label
                   key={session.sessionId}
-                  className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/50"
+                  className="flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/50"
                 >
                   <Checkbox
                     checked={isSelected}
@@ -589,6 +690,11 @@ export function MakeDoctorPaymentClient({
                   <span className="font-medium text-sm">
                     {formatSessionDate(session.sessionDate)} · {formatSessionTime(session.sessionStartTime)}–{formatSessionTime(session.sessionEndTime)}
                   </span>
+                  {session.locationName ? (
+                    <Badge variant="secondary" className="font-normal">
+                      {session.locationName}
+                    </Badge>
+                  ) : null}
                   <span className="text-muted-foreground text-sm">
                     {session.bookingCount} booking{session.bookingCount !== 1 ? "s" : ""} · {formatLKR(session.totalAmount)}
                   </span>

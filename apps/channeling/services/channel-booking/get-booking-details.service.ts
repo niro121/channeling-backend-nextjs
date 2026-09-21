@@ -6,6 +6,8 @@ import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
 import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
 import { getBookingApprovalSummaries } from "@/services/approval-request.service"
+import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
+import { userTypes } from "@/lib/roles"
 import type { BookingApprovalSummary } from "@/types/approval-request"
 
 /** One row for the receipts table on the Booking tab. */
@@ -23,11 +25,14 @@ export type ReceiptRowView = {
 /** When booking is canceled (status === 2): refund amount and refund receipts for display. */
 export type CancelOrRefundDetailsView = {
   refundAmount: number
+  /** Cancel / refund remark from booking.refundReason (Sails refund_reason). */
+  refundReason: string | null
   refundReceipts: ReceiptRowView[]
 }
 
 /** Settlement/receipt info when booking is paid (status !== 0). */
 export type SettlementDetailsView = {
+  receiptId: string
   receiptNo: number
   receiptNoString: string
   paymentMethod: number
@@ -73,7 +78,11 @@ export type SettlePreviewView = {
   autoDiscountId: string | null
   manualDiscountId: string | null
   autoScheme: SettleDiscountSchemeView | null
+  /** All active auto schemes; Settle tab picks the first applicable for the settle method. */
+  autoSchemes: SettleDiscountSchemeView[]
   manualScheme: SettleDiscountSchemeView | null
+  /** Public API On-Call bookings default settle method to Credit Card. */
+  createdViaPublicApi: boolean
 }
 
 /** Discount-related info for the Booking tab. */
@@ -138,6 +147,8 @@ export type BookingDetailsView = {
   billTotal: number
   billedBy: string
   remark: string
+  /** Cancel / refund remark (Sails refund_reason). */
+  refundReason: string | null
   area: string
   foreigner: boolean
   status: number
@@ -258,7 +269,20 @@ export async function getBookingDetailsService(
     if (!b.session) {
       return { success: false, message: "Booking has no session" }
     }
-    const createdByName = await resolveUser(b.createdBy)
+    const [creatorUser, autoCatalog] = await Promise.all([
+      b.createdBy
+        ? prisma.user.findUnique({
+            where: { id: b.createdBy },
+            select: { name: true, userType: true },
+          })
+        : Promise.resolve(null),
+      b.status === 0
+        ? getDiscountsForBookingService()
+        : Promise.resolve({ auto: [], manual: [] }),
+    ])
+    const createdByName = !b.createdBy
+      ? "NO USER NAME"
+      : creatorUser?.name ?? "NO USER FOUND!"
     const methodName = BOOKING_METHODS.find((m) => m.id === b.method)?.name ?? ""
     const sessionDate = b.session.date instanceof Date ? b.session.date : new Date(b.session.date)
     const startTime = normalizeSessionTime(b.session.startTime as Date | number, sessionDate)
@@ -291,8 +315,9 @@ export async function getBookingDetailsService(
       })
     )
     const settlement: SettlementDetailsView | undefined =
-      b.status !== 0 && b.receiptNo != null && b.receiptNoString
+      b.status !== 0 && b.receiptNo != null && b.receiptNoString && (b.receiptNoId || receipt?.id)
         ? {
+            receiptId: b.receiptNoId ?? receipt!.id,
             receiptNo: b.receiptNo,
             receiptNoString: b.receiptNoString,
             paymentMethod: b.receiptPaymentMethod ?? 0,
@@ -423,9 +448,16 @@ export async function getBookingDetailsService(
           }
         : null
 
-    const mapSettleScheme = (
-      r: (typeof discountRecords)[number] | undefined
-    ): SettleDiscountSchemeView | null => {
+    const mapSettleScheme = (r: {
+      id: string
+      name: string
+      discountType: number
+      applyTo: number
+      discountValue: number
+      discountValueForeign: number
+      discountMethod: unknown
+      paymentType: unknown
+    } | null | undefined): SettleDiscountSchemeView | null => {
       if (!r) return null
       return {
         id: r.id,
@@ -453,11 +485,15 @@ export async function getBookingDetailsService(
                 ? discountRecords.find((d) => d.id === autoDiscount.id)
                 : undefined
             ),
+            autoSchemes: autoCatalog.auto
+              .map((d) => mapSettleScheme(d))
+              .filter((d): d is SettleDiscountSchemeView => d != null),
             manualScheme: mapSettleScheme(
               manualDiscount
                 ? discountRecords.find((d) => d.id === manualDiscount.id)
                 : undefined
             ),
+            createdViaPublicApi: creatorUser?.userType === userTypes.apiUser,
           }
         : undefined
 
@@ -488,6 +524,7 @@ export async function getBookingDetailsService(
       billTotal: b.amount,
       billedBy: billedByStr,
       remark: b.remarks ?? "",
+      refundReason: b.refundReason?.trim() ? b.refundReason : null,
       area: b.area ?? "",
       foreigner: b.foriegner,
       status: b.status,
@@ -515,6 +552,7 @@ export async function getBookingDetailsService(
         b.status === 2 || (b.refund != null && b.refund !== 0)
           ? {
               refundAmount: b.refundAmount ?? 0,
+              refundReason: b.refundReason?.trim() ? b.refundReason : null,
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),
             }
           : undefined,

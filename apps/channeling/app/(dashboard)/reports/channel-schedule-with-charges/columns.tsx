@@ -225,6 +225,23 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       }
     },
     {
+      id: 'apiFeeLocal',
+      header: () => (
+        <div>
+          <div className="whitespace-nowrap">API Fee</div>
+          <div className="whitespace-nowrap">(Local)</div>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const fee = getFeeById(row.original.fees, 6);
+        return (
+          <span className="text-right tabular-nums block">
+            {formatMoney(fee?.localFee)}
+          </span>
+        );
+      }
+    },
+    {
       id: 'sessionValueLocal',
       header: () => (
         <div>
@@ -341,6 +358,23 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       }
     },
     {
+      id: 'apiFeeForeign',
+      header: () => (
+        <div>
+          <div className="whitespace-nowrap">API Fee</div>
+          <div className="whitespace-nowrap">(Foreign)</div>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const fee = getFeeById(row.original.fees, 6);
+        return (
+          <span className="text-right tabular-nums block">
+            {formatMoney(fee?.foreignFee)}
+          </span>
+        );
+      }
+    },
+    {
       id: 'sessionValueForeign',
       header: () => (
         <div>
@@ -405,13 +439,28 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
       }
     },
     {
-      id: 'advanceBookingDays',
-      header: () => <span className="whitespace-nowrap">Advance /Booking Days</span>,
-      cell: ({ row }) => (
-        <span className="text-right tabular-nums block">
-          {row.original.advancedBookingDays ?? '-'}
-        </span>
-      )
+      id: 'advanceBookingEnabled',
+      header: () => <span className="whitespace-nowrap">Advance Booking</span>,
+      cell: ({ row }) => {
+        const isYes = Boolean(row.original.advancedBookingEnabled);
+        return (
+          <Badge
+            variant={isYes ? 'default' : 'secondary'}
+            className={
+              isYes
+                ? 'gap-1 bg-primary/10 text-primary hover:bg-primary/20 border-0'
+                : 'gap-1 bg-muted text-muted-foreground hover:bg-muted'
+            }
+          >
+            {isYes ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <XCircle className="h-4 w-4" />
+            )}
+            {isYes ? 'Yes' : 'No'}
+          </Badge>
+        );
+      }
     },
     {
       id: 'status',

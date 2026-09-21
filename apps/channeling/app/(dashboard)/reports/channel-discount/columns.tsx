@@ -15,7 +15,7 @@ function formatSessionCell(date: Date | null, startUnix: number | null, endUnix:
 export const ChannelDiscountReportColumns: ColumnDef<ChannelDiscountReportRow>[] = [
   {
     accessorKey: 'bookingDate',
-    header: () => <span className="whitespace-nowrap">Booking Date</span>,
+    header: () => <span>Booking Date</span>,
     cell: ({ row }) => {
       const d = row.getValue<Date | null>('bookingDate');
       return d ? moment(d).format('DD-MM-YYYY hh:mm A') : '-';
@@ -23,7 +23,7 @@ export const ChannelDiscountReportColumns: ColumnDef<ChannelDiscountReportRow>[]
   },
   {
     id: 'session',
-    header: () => <span className="whitespace-nowrap">Session</span>,
+    header: () => <span>Session</span>,
     cell: ({ row }) => (
       <span className="whitespace-pre-line">
         {formatSessionCell(row.original.sessionDate, row.original.sessionStartTime, row.original.sessionEndTime)}
@@ -32,55 +32,55 @@ export const ChannelDiscountReportColumns: ColumnDef<ChannelDiscountReportRow>[]
   },
   {
     accessorKey: 'billNo',
-    header: () => <span className="whitespace-nowrap">Bill No</span>
+    header: () => <span>Bill No</span>
   },
   {
     accessorKey: 'patientName',
-    header: () => <span className="whitespace-nowrap">Patient Name</span>
+    header: () => <span>Patient Name</span>
   },
   {
     accessorKey: 'doctor',
-    header: () => <span className="whitespace-nowrap">Doctor</span>
+    header: () => <span>Doctor</span>
   },
   {
     accessorKey: 'type',
-    header: () => <span className="whitespace-nowrap">Type</span>
+    header: () => <span>Type</span>
   },
   {
     accessorKey: 'hospitalFee',
-    header: () => <span className="text-right block whitespace-nowrap">Hospital Fee</span>,
+    header: () => <span className="text-right block">Hos Fee</span>,
     cell: ({ row }) => <span className="text-right tabular-nums block">{formatLKR(row.getValue<number>('hospitalFee'))}</span>
   },
   {
     accessorKey: 'hospitalFeeDiscount',
-    header: () => <span className="text-right block whitespace-nowrap">Hospital Fee Discount</span>,
+    header: () => <span className="text-right block">Hos Fee Disc</span>,
     cell: ({ row }) => (
       <span className="text-right tabular-nums block">{formatLKR(row.getValue<number>('hospitalFeeDiscount'))}</span>
     )
   },
   {
     accessorKey: 'professionalFee',
-    header: () => <span className="text-right block whitespace-nowrap">Professional Fee</span>,
+    header: () => <span className="text-right block">Pro Fee</span>,
     cell: ({ row }) => <span className="text-right tabular-nums block">{formatLKR(row.getValue<number>('professionalFee'))}</span>
   },
   {
     accessorKey: 'professionalFeeDiscount',
-    header: () => <span className="text-right block whitespace-nowrap">Professional Fee Discount</span>,
+    header: () => <span className="text-right block">Pro Fee Disc</span>,
     cell: ({ row }) => (
       <span className="text-right tabular-nums block">{formatLKR(row.getValue<number>('professionalFeeDiscount'))}</span>
     )
   },
   {
     accessorKey: 'discount',
-    header: () => <span className="text-right block whitespace-nowrap">Discount</span>,
+    header: () => <span className="text-right block">Discount</span>,
     cell: ({ row }) => <span className="text-right tabular-nums font-semibold block">{formatLKR(row.getValue<number>('discount'))}</span>
   },
   {
     accessorKey: 'autoDiscountScheme',
-    header: () => <span className="whitespace-nowrap">Auto Discount Scheme</span>
+    header: () => <span>Auto Disc Scheme</span>
   },
   {
     accessorKey: 'discountScheme',
-    header: () => <span className="whitespace-nowrap">Discount Scheme</span>
+    header: () => <span>Discount Scheme</span>
   }
 ];

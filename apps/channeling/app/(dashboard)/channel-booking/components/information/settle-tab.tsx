@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   computeDiscountDivisionClient,
+  firstApplicableAutoDiscount,
   formatCategoryDiscountLabel,
   getDiscountCapExceededMessage,
   isDiscountApplicableForBookingType,
@@ -41,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CheckCircle2, Receipt } from "lucide-react"
+import { PrintReceiptButton } from "../print-receipt-button"
 import {
   SAVE_BOOKING_METHOD_ON_CALL,
   SAVE_BOOKING_METHOD_STAFF,
@@ -86,6 +88,23 @@ function schemeToCriteria(scheme: SettleDiscountSchemeView): DiscountCriteria {
     discountValue: scheme.discountValue,
     discountValueForeign: scheme.discountValueForeign,
   }
+}
+
+function settleAutoScheme(
+  preview: NonNullable<BookingDetailsView["settlePreview"]>,
+  settleMethod: number
+): SettleDiscountSchemeView | null {
+  const schemes =
+    preview.autoSchemes && preview.autoSchemes.length > 0
+      ? preview.autoSchemes
+      : preview.autoScheme
+        ? [preview.autoScheme]
+        : []
+  return firstApplicableAutoDiscount(
+    schemes,
+    preview.bookingMethod,
+    settleMethod
+  )
 }
 
 function computeSettleAmounts(
@@ -139,7 +158,7 @@ function computeSettleAmounts(
     }
   }
 
-  tryScheme(preview.autoScheme)
+  tryScheme(settleAutoScheme(preview, settleMethod))
   tryScheme(preview.manualScheme)
 
   const capExceededMessage = getDiscountCapExceededMessage(
@@ -181,6 +200,11 @@ function SettlementDetailsCard({ settlement }: { settlement: SettlementDetailsVi
         <span className="text-xs font-medium text-foreground uppercase tracking-wider text-muted-foreground">
           Settlement details
         </span>
+        {settlement.receiptId ? (
+          <div className="ml-auto">
+            <PrintReceiptButton receiptId={settlement.receiptId} />
+          </div>
+        ) : null}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         <Row label="Receipt No" value={settlement.receiptNoString} />
@@ -276,14 +300,23 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
     if (!selectedBooking?.id) {
       setDetails(null)
       setDetailsError(null)
+      setSettleMethod(SAVE_PAYMENT_TYPE_CASH)
       return
     }
     setLoading(true)
     setDetailsError(null)
     getBookingDetails(selectedBooking.id)
       .then((res) => {
-        if (res.success && res.data) setDetails(res.data)
-        else {
+        if (res.success && res.data) {
+          setDetails(res.data)
+          const preview = res.data.settlePreview
+          setSettleMethod(
+            preview?.bookingMethod === SAVE_BOOKING_METHOD_ON_CALL &&
+              preview.createdViaPublicApi
+              ? SAVE_PAYMENT_TYPE_CREDIT_CARD
+              : SAVE_PAYMENT_TYPE_CASH
+          )
+        } else {
           setDetails(null)
           setDetailsError(res.message ?? "Failed to load")
         }
@@ -453,7 +486,9 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
         booking_id: selectedBooking.id,
         settle_method: settleMethod,
         discount: settleAmounts?.division.total ?? details.discount,
-        auto_discount_type: details.settlePreview?.autoDiscountId ?? undefined,
+        auto_discount_type: details.settlePreview
+          ? settleAutoScheme(details.settlePreview, settleMethod)?.id ?? undefined
+          : undefined,
         bank: showBank && bankId ? { id: bankId, name: banks.find((b) => b.id === bankId)?.name } : null,
         slip_ref: showSlip ? slipRef : undefined,
         slip_date: showSlip ? slipDate : undefined,

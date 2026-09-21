@@ -13,16 +13,28 @@ import { getCurrentShift } from "@/services/shift.service"
 import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
 import {
   getOpenFloatsBlockingShiftEnd,
+  getReceivedFloatsForHandover,
   openFloatsBlockingMessage,
 } from "@/services/float-request.service"
+import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
+import { cashierSummaryGrandTotalCents } from "@/lib/cashier-summary-amounts"
+import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import { z } from "zod"
 import {
+  deriveHandoverCashierSummaryFilters,
   expectedHandoverAvailableFromTill,
+  expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverAmountsTotalCents,
+  handoverDiscrepancyReasonRequiredMessage,
+  isHandoverCollectionExcess,
   normalizedIncludedIds,
+  sumReceivedHandoverFloats,
+  type ExpectedHandoverCollection,
+  type ExpectedHandoverCollectionSourceRow,
 } from "@/lib/handover-utils"
 import { parseReportDateTime } from "@/lib/parse-report-datetime"
 import { allocateHandoverDocumentNumber, ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
@@ -95,6 +107,162 @@ const processHandoverSchema = z
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const shiftModel = (prisma as any).shift
 
+/** Sender's expected Total Collection for a shift being handed over. Fails closed if cashier summary cannot be loaded. */
+export async function getExpectedHandoverCollection(params: {
+  cashierUserId: string
+  shiftId: string
+  shiftStartedAt: Date | string
+  windowEnd?: Date
+}): Promise<
+  | { success: true; data: ExpectedHandoverCollection }
+  | { success: false; error: string }
+> {
+  const shiftStartedAt =
+    params.shiftStartedAt instanceof Date ? params.shiftStartedAt : new Date(params.shiftStartedAt)
+  if (!Number.isFinite(shiftStartedAt.getTime())) {
+    return { success: false, error: "Could not determine the shift start time for the collection summary." }
+  }
+  const windowEnd = params.windowEnd ?? new Date()
+  const summaryFilters = deriveHandoverCashierSummaryFilters({
+    fromUserId: params.cashierUserId,
+    createdAt: windowEnd,
+    shift: { startedAt: shiftStartedAt },
+  })
+  if (!summaryFilters) {
+    return { success: false, error: "Could not determine the cashier summary window for this handover." }
+  }
+
+  const [summaryResult, receivedFloats, previousHandovers] = await Promise.all([
+    getCashierSummaryReportService({
+      userId: params.cashierUserId,
+      dateFrom: summaryFilters.dateFrom,
+      dateTo: summaryFilters.dateTo,
+      format: "summary",
+    }),
+    getReceivedFloatsForHandover({
+      cashierUserId: params.cashierUserId,
+      shiftId: params.shiftId,
+      shiftStartedAt,
+      windowEnd,
+    }),
+    listPreviousHandoversForExpectedCollection(params.cashierUserId, params.shiftId),
+  ])
+
+  if (!summaryResult.success) {
+    return {
+      success: false,
+      error:
+        summaryResult.message?.trim() ||
+        "Could not load the cashier summary to check for excess. Please try again.",
+    }
+  }
+
+  const { floatsInCents, floatsOutCents } = sumReceivedHandoverFloats(receivedFloats)
+  const floatsIn = receivedFloats
+    .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction !== "out")
+    .map((f) => ({
+      id: f.id,
+      label: f.floatNoString?.trim() || "Float in",
+      cents: f.amountReceivedCents ?? 0,
+    }))
+  const floatsOut = receivedFloats
+    .filter((f) => f.status === FLOAT_REQUEST_STATUS.RECEIVED && f.direction === "out")
+    .map((f) => ({
+      id: f.id,
+      label: f.floatNoString?.trim() || "Float out",
+      cents: f.amountReceivedCents ?? 0,
+    }))
+  const summaryCents = cashierSummaryGrandTotalCents(summaryResult.grandTotals)
+  const previousHandoversCents = previousHandovers.reduce((sum, h) => sum + h.cents, 0)
+  const data: ExpectedHandoverCollection = {
+    floatsInCents,
+    floatsOutCents,
+    summaryCents,
+    previousHandoversCents,
+    expectedCents: expectedHandoverCollectionCents({
+      floatsInCents,
+      floatsOutCents,
+      summaryCents,
+      previousHandoversCents,
+    }),
+    previousHandovers,
+    floatsIn,
+    floatsOut,
+  }
+  return { success: true, data }
+}
+
+/**
+ * Previous handovers that belong in Total Collection:
+ * approved handovers received on this shift, plus any other unforwarded
+ * handovers the sender must pass on (same documents the handover detail page lists).
+ */
+async function listPreviousHandoversForExpectedCollection(
+  cashierUserId: string,
+  shiftId: string
+): Promise<ExpectedHandoverCollectionSourceRow[]> {
+  const [receivedOnShift, receivedByUser] = await Promise.all([
+    prisma.shiftHandover.findMany({
+      where: {
+        toShiftId: shiftId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        totalCents: true,
+        handoverNoString: true,
+        fromUser: { select: { name: true, staff: { select: { code: true } } } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.shiftHandover.findMany({
+      where: {
+        toUserId: cashierUserId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        totalCents: true,
+        handoverNoString: true,
+        forwardedToHandoverId: true,
+        reconciliationStatus: true,
+        fromUser: { select: { name: true, staff: { select: { code: true } } } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ])
+
+  const byId = new Map<string, ExpectedHandoverCollectionSourceRow>()
+  const add = (h: {
+    id: string
+    totalCents: number
+    handoverNoString?: string | null
+    fromUser: { name: string | null; staff?: { code: string } | null } | null
+  }) => {
+    const from = handoverFromLabel(h.fromUser)
+    const label = h.handoverNoString?.trim() ? `${h.handoverNoString.trim()} · ${from}` : from
+    byId.set(h.id, { id: h.id, label, cents: h.totalCents ?? 0 })
+  }
+
+  for (const h of receivedOnShift) {
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    add(h)
+  }
+  for (const h of receivedByUser) {
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    if (h.forwardedToHandoverId != null) continue
+    if (isExcludedFromBulkTransfer(h.reconciliationStatus)) continue
+    if (!byId.has(h.id)) add(h)
+  }
+  return [...byId.values()]
+}
+
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
 export async function processShiftHandover(
   shiftId: string,
@@ -152,7 +320,7 @@ export async function processShiftHandover(
       toUserId: validFrom,
       status: HANDOVER_STATUS.APPROVED,
     },
-    select: { id: true, forwardedToHandoverId: true, reconciliationStatus: true },
+    select: { id: true, totalCents: true, forwardedToHandoverId: true, reconciliationStatus: true },
     orderBy: { createdAt: "asc" },
   })
   const includable = includableRaw.filter(
@@ -254,10 +422,23 @@ export async function processShiftHandover(
     amt.checkCents < available.checkCents ||
     amt.creditCents < available.creditCents ||
     amt.eWalletCents < available.eWalletCents
-  if (hasShort && !parsed.data.discrepancyReason?.trim()) {
+
+  const expectedCollection = await getExpectedHandoverCollection({
+    cashierUserId: validFrom,
+    shiftId: validShiftId,
+    shiftStartedAt: shift.startedAt,
+  })
+  if (!expectedCollection.success) {
+    return { success: false, error: expectedCollection.error }
+  }
+  const enteredTotalCents = handoverAmountsTotalCents(amt)
+  const hasExcess = isHandoverCollectionExcess(
+    enteredTotalCents - expectedCollection.data.expectedCents
+  )
+  if ((hasShort || hasExcess) && !parsed.data.discrepancyReason?.trim()) {
     return {
       success: false,
-      error: "Please provide a reason for the discrepancy.",
+      error: handoverDiscrepancyReasonRequiredMessage({ hasShort: !!hasShort, hasExcess }),
     }
   }
 

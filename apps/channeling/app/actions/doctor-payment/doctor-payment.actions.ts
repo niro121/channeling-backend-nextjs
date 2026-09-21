@@ -23,14 +23,22 @@ import {
 } from "@/services/doctor-payment/cancel-doctor-payment.service";
 import { getEarliestPendingPaymentDateService } from "@/services/doctor-payment/get-earliest-pending-payment-date.service";
 
-export async function getEligibleDoctorPaymentBookings(doctorId: string, dateFrom: string, dateTo: string) {
+export async function getEligibleDoctorPaymentBookings(
+  doctorId: string,
+  dateFrom: string,
+  dateTo: string,
+  locationId?: string | null
+) {
   await requirePermission("doctor-payments", "view");
-  return getEligibleBookingsService({ doctorId, dateFrom, dateTo });
+  return getEligibleBookingsService({ doctorId, dateFrom, dateTo, locationId });
 }
 
-export async function getEarliestPendingDoctorPaymentDate(doctorId: string) {
+export async function getEarliestPendingDoctorPaymentDate(
+  doctorId: string,
+  locationId?: string | null
+) {
   await requirePermission("doctor-payments", "view");
-  return getEarliestPendingPaymentDateService({ doctorId });
+  return getEarliestPendingPaymentDateService({ doctorId, locationId });
 }
 
 export async function getDoctorPaymentBookingDetails(bookingIds: string[]) {

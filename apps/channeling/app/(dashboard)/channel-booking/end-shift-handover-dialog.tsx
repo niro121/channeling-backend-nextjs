@@ -27,6 +27,7 @@ import {
   getIncludableHandoversForSenderAction,
   getLinkedHandoversForShiftAction,
   getNonCashHeldInReconciliationAction,
+  getExpectedHandoverCollectionAction,
   canEndShiftWithoutHandoverAction,
   endShiftAction,
 } from "@/app/actions/shift.actions"
@@ -56,12 +57,19 @@ import type { ShiftBillAttachmentDto } from "@/types/shift-bill-attachment"
 import { SHIFT_BILL_KIND_LABELS, shiftBillUploaderTag } from "@/types/shift-bill-attachment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { formatCents } from "@/lib/format-money"
+import { cn } from "@/lib/utils"
+import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverAmountsTotalCents,
+  handoverDiscrepancyReasonLabel,
+  handoverDiscrepancyReasonPlaceholder,
+  handoverDiscrepancyReasonRequiredMessage,
+  isHandoverCollectionExcess,
+  type ExpectedHandoverCollection,
 } from "@/lib/handover-utils"
-import { cn } from "@/lib/utils"
-import type { MyTillBalance } from "@/app/actions/till.actions"
+import { HandoverCollectionCalcInfo } from "@/components/handover-collection-calc-info"
 import {
   LKR_DENOMINATIONS_CENTS,
   formatDenomLabel,
@@ -214,6 +222,8 @@ export function EndShiftHandoverDialog({
   const [billAttachments, setBillAttachments] = useState<ShiftBillAttachmentDto[]>([])
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([])
   const [billAttachmentsLoading, setBillAttachmentsLoading] = useState(false)
+  const [expectedCollection, setExpectedCollection] = useState<ExpectedHandoverCollection | null>(null)
+  const [expectedCollectionError, setExpectedCollectionError] = useState<string | null>(null)
   const { toast } = useToast()
   const hasOpenFloats = openFloatsCount(openFloatsBlocking) > 0
   const hasOpenApprovalRequests = openApprovalRequestsCount > 0
@@ -275,6 +285,8 @@ export function EndShiftHandoverDialog({
       setOpenFloatsBlocking(EMPTY_OPEN_FLOATS)
       setOpenApprovalRequestsCount(0)
       setOpenApprovalRequestsMessage(null)
+      setExpectedCollection(null)
+      setExpectedCollectionError(null)
       setBalanceLoading(true)
       setBillAttachmentsLoading(true)
       listMyShiftBillAttachmentsAction()
@@ -301,8 +313,11 @@ export function EndShiftHandoverDialog({
         getOpenFloatsBlockingShiftEndAction(),
         getOpenApprovalRequestsBlockingShiftEndAction(),
         canEndShiftWithoutHandoverAction(),
+        shiftId
+          ? getExpectedHandoverCollectionAction(shiftId)
+          : Promise.resolve({ success: false as const, error: "Shift is required." }),
       ])
-        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes]) => {
+        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes, expectedCollectionRes]) => {
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -355,6 +370,17 @@ export function EndShiftHandoverDialog({
           }
           if (endWithoutRes.success) {
             setCanEndWithoutHandover(!!endWithoutRes.allowed)
+          }
+          if (expectedCollectionRes.success) {
+            setExpectedCollection(expectedCollectionRes.data)
+            setExpectedCollectionError(null)
+          } else {
+            setExpectedCollection(null)
+            setExpectedCollectionError(
+              "error" in expectedCollectionRes
+                ? expectedCollectionRes.error
+                : "Could not load the collection summary to check for excess."
+            )
           }
         })
         .catch((err) => {
@@ -653,9 +679,10 @@ export function EndShiftHandoverDialog({
     creditCents,
     eWalletCents,
   }
+  const enteredTotalCents = handoverAmountsTotalCents(enteredAmounts)
   const amountOvers = expectedBalance ? getHandoverAmountOvers(enteredAmounts, expectedBalance) : []
   const hasOver = amountOvers.length > 0
-  const hasShort =
+  const hasShort = !!(
     expectedBalance &&
     (cashTotalCents < expectedBalance.cashCents ||
       cardCents < expectedBalance.cardCents ||
@@ -663,17 +690,29 @@ export function EndShiftHandoverDialog({
       checkCents < expectedBalance.checkCents ||
       creditCents < expectedBalance.creditCents ||
       eWalletCents < expectedBalance.eWalletCents)
-  const needsDiscrepancyReason = !!hasShort && !hasOver
+  )
+  const collectionDiffCents = expectedCollection
+    ? enteredTotalCents - expectedCollection.expectedCents
+    : 0
+  const hasExcess = !!expectedCollection && isHandoverCollectionExcess(collectionDiffCents)
+  const needsDiscrepancyReason = (hasShort || hasExcess) && !hasOver
+  const discrepancyCopy = { hasShort, hasExcess }
 
   const validateAndSubmit = async () => {
     if (!expectedBalance || !toUserId) return
     const errors: string[] = []
     errors.push(...validateMethodEntries())
+    if (expectedCollectionError || !expectedCollection) {
+      errors.push(
+        expectedCollectionError ??
+          "Could not load the collection summary to check for excess. Please try again."
+      )
+    }
     if (hasOver) {
       errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
     }
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
-      errors.push("Please provide a reason for the discrepancy.")
+      errors.push(handoverDiscrepancyReasonRequiredMessage(discrepancyCopy))
     }
     if (errors.length > 0) {
       setValidationErrors(errors)
@@ -1244,18 +1283,65 @@ export function EndShiftHandoverDialog({
               })}
               <div className="flex justify-between text-sm font-semibold border-t pt-2 mt-2">
                 <span>Total</span>
-                <span className="tabular-nums">
-                  {formatCents(
-                    cashTotalCents +
-                      cardCents +
-                      slipCents +
-                      checkCents +
-                      creditCents +
-                      eWalletCents
-                  )}
-                </span>
+                <span className="tabular-nums">{formatCents(enteredTotalCents)}</span>
               </div>
             </div>
+
+            {expectedCollectionError ? (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Could not check for excess</AlertTitle>
+                <AlertDescription>{expectedCollectionError}</AlertDescription>
+              </Alert>
+            ) : expectedCollection ? (
+              <div className="rounded-lg border p-3 space-y-1 text-sm">
+                <div className="mb-1 flex items-center gap-1">
+                  <p className="font-medium text-muted-foreground">Expected collection</p>
+                  <HandoverCollectionCalcInfo
+                    summaryCents={expectedCollection.summaryCents}
+                    previousHandovers={expectedCollection.previousHandovers}
+                    floatsIn={expectedCollection.floatsIn}
+                    floatsOut={expectedCollection.floatsOut}
+                    expectedCents={expectedCollection.expectedCents}
+                    enteredCents={enteredTotalCents}
+                  />
+                </div>
+                {expectedCollection.floatsInCents > 0 ? (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Floats In</span>
+                    <span className="tabular-nums">{formatCents(expectedCollection.floatsInCents)}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Summary</span>
+                  <span className="tabular-nums">{formatCents(expectedCollection.summaryCents)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Previous handovers</span>
+                  <span className="tabular-nums">{formatCents(expectedCollection.previousHandoversCents)}</span>
+                </div>
+                {expectedCollection.floatsOutCents > 0 ? (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Floats Out</span>
+                    <span className="tabular-nums">({formatCents(expectedCollection.floatsOutCents)})</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between gap-4 border-t pt-1 font-medium">
+                  <span>Expected</span>
+                  <span className="tabular-nums">{formatCents(expectedCollection.expectedCents)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span>Entered</span>
+                  <span className="tabular-nums">{formatCents(enteredTotalCents)}</span>
+                </div>
+                {hasExcess ? (
+                  <div className="flex justify-between gap-4 text-amber-700 dark:text-amber-400 font-medium">
+                    <span>Excess</span>
+                    <span className="tabular-nums">{formatCents(collectionDiffCents)}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {(() => {
               if (!expectedBalance) return null
@@ -1444,11 +1530,12 @@ export function EndShiftHandoverDialog({
               {needsDiscrepancyReason && (
                 <div className="space-y-1">
                   <Label htmlFor="discrepancy-reason">
-                    Reason for discrepancy <span className="text-destructive">*</span>
+                    {handoverDiscrepancyReasonLabel(discrepancyCopy)}{" "}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <Textarea
                     id="discrepancy-reason"
-                    placeholder="e.g. Counting difference, missing slip…"
+                    placeholder={handoverDiscrepancyReasonPlaceholder(discrepancyCopy)}
                     value={discrepancyReason}
                     onChange={(e) => setDiscrepancyReason(e.target.value)}
                     className="min-h-[80px] resize-y"
@@ -1479,6 +1566,7 @@ export function EndShiftHandoverDialog({
                   handoverUsers.length === 0 ||
                   hasOver ||
                   (needsDiscrepancyReason && !discrepancyReason.trim()) ||
+                  !expectedCollection ||
                   pendingHandoversToMe.length > 0 ||
                   hasOpenFloats ||
                   hasOpenApprovalRequests

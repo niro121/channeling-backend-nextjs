@@ -1,9 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { downloadExcelUtil, downloadPdfUtil, formatExportFileName, printPdfUtil } from '@/lib/utils';
+import { formatExportFileName, printPdfUtil } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
+import {
+  downloadBrandedReportExcel,
+  downloadBrandedReportPdf,
+  type BrandedPdfSummaryItem,
+} from '@/components/common/report-print';
 
 export type ExportWrapperProps<T> = {
   serverData: () => Promise<{ success: boolean; data?: T[]; message?: string }>;
@@ -14,6 +19,11 @@ export type ExportWrapperProps<T> = {
   fileName?: string;
   /** When true, shows the Print button (optional; wrapper is used in other components) */
   showPrintButton?: boolean;
+  /**
+   * When provided, Print uses browser printing (e.g. window.print + ReportPrintLayout)
+   * instead of generating a jsPDF document.
+   */
+  onBrowserPrint?: () => void | Promise<void>;
   /** Optional: custom print handler (PDF generation). When not provided, uses default `printPdfUtil`. */
   customPrintPdf?: (args: {
     title: string;
@@ -21,7 +31,7 @@ export type ExportWrapperProps<T> = {
     columns: string[];
     keys: (keyof T)[];
   }) => void | Promise<void>;
-  /** Optional: custom PDF download handler. When not provided, uses default `downloadPdfUtil`. */
+  /** Optional: custom PDF download handler. When not provided, uses branded hospital PDF. */
   customDownloadPdf?: (args: {
     title: string;
     data: T[];
@@ -29,7 +39,17 @@ export type ExportWrapperProps<T> = {
     keys: (keyof T)[];
     fileName?: string;
   }) => void | Promise<void>;
-  /** Optional: custom Excel download handler. When not provided, uses default `downloadExcelUtil`. */
+  /**
+   * Report Summary cells for branded PDF/Excel download (same structure as print header).
+   * Ignored when the matching custom download handler is provided.
+   */
+  pdfSummaryItems?: BrandedPdfSummaryItem[] | (() => BrandedPdfSummaryItem[]);
+  /** Timestamp shown in branded PDF/Excel footer / summary. Defaults to now. */
+  pdfGeneratedAt?: string;
+  /**
+   * Optional: custom Excel download handler.
+   * When not provided, uses branded hospital Excel (logo + Report Summary + table).
+   */
   customDownloadExcel?: (args: {
     title: string;
     data: T[];
@@ -37,7 +57,25 @@ export type ExportWrapperProps<T> = {
     keys: (keyof T)[];
     fileName?: string;
   }) => void | Promise<void>;
+  /** Page orientation for branded PDF/Excel when using default handlers. Defaults to landscape. */
+  exportOrientation?: 'portrait' | 'landscape';
+  /** Smaller fonts/columns for wide portrait exports. */
+  compactTable?: boolean;
 };
+
+function resolveSummaryItems(
+  pdfSummaryItems: BrandedPdfSummaryItem[] | (() => BrandedPdfSummaryItem[]) | undefined,
+  generatedAt: string,
+  recordCount: number
+): BrandedPdfSummaryItem[] {
+  const resolved =
+    typeof pdfSummaryItems === 'function' ? pdfSummaryItems() : pdfSummaryItems;
+  if (resolved?.length) return resolved;
+  return [
+    { label: 'Generated At', value: generatedAt },
+    { label: 'Total Records', value: String(recordCount) },
+  ];
+}
 
 export const ExportWrapper = <T,>({
   serverData,
@@ -47,9 +85,14 @@ export const ExportWrapper = <T,>({
   title = 'Report',
   fileName = 'report',
   showPrintButton = false,
+  onBrowserPrint,
   customPrintPdf,
   customDownloadPdf,
-  customDownloadExcel
+  pdfSummaryItems,
+  pdfGeneratedAt,
+  customDownloadExcel,
+  exportOrientation = 'landscape',
+  compactTable = false,
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -62,6 +105,12 @@ export const ExportWrapper = <T,>({
   const handlePrint = async () => {
     try {
       setLoadingPrint(true);
+
+      if (onBrowserPrint) {
+        await onBrowserPrint();
+        return;
+      }
+
       const response = await serverData();
 
       if (!response.success || !response.data?.length) {
@@ -123,12 +172,17 @@ export const ExportWrapper = <T,>({
           fileName: `${formattedFileName}.pdf`
         });
       } else {
-        downloadPdfUtil({
-          title,
+        const generatedAt = pdfGeneratedAt ?? new Date().toLocaleString();
+        await downloadBrandedReportPdf({
+          reportName: title,
+          summaryItems: resolveSummaryItems(pdfSummaryItems, generatedAt, response.data.length),
+          generatedAt,
           data: response.data,
           columns,
           keys,
-          fileName: `${formattedFileName}.pdf`
+          fileName: `${formattedFileName}.pdf`,
+          orientation: exportOrientation,
+          compactTable: compactTable || exportOrientation === 'portrait',
         });
       }
     } catch (error: any) {
@@ -166,13 +220,19 @@ export const ExportWrapper = <T,>({
           fileName: `${formattedFileName}.xlsx`
         });
       } else {
-        downloadExcelUtil({
-          title,
+        const generatedAt = pdfGeneratedAt ?? new Date().toLocaleString();
+        await downloadBrandedReportExcel({
+          reportName: title,
+          summaryItems: resolveSummaryItems(pdfSummaryItems, generatedAt, response.data.length),
+          generatedAt,
           data: response.data,
           columns,
           keys,
-          fileName: `${formattedFileName}.xlsx`
-        })
+          fileName: `${formattedFileName}.xlsx`,
+          sheetName: title.slice(0, 31),
+          orientation: exportOrientation,
+          compactTable: compactTable || exportOrientation === 'portrait',
+        });
       }
     } catch (error: any) {
       toast({

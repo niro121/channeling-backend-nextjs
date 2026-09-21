@@ -51,12 +51,13 @@ export type ChannelTransferReportExportRow = {
   transferredAt: string;
   transferredBy: string;
   bookingId: string;
-
   beforeActivity: string;
-
   afterActivity: string;
-
   remarks: string;
   action: string;
+  fromSessionId: string;
+  toSessionId: string;
+  toDoctorId: string;
+  newAppointmentNo: string;
 };
 

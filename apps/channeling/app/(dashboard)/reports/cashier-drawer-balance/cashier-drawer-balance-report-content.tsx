@@ -61,7 +61,20 @@ export default function CashierDrawerBalanceReportContent({ currentUserName, loc
               <div>Branch: {locLabel}</div>
             </>
           );
-        }
+        },
+        formatPrintSummaryItems: (values) => {
+          const locId = values.locationId ?? '__all__';
+          return [
+            { label: 'As of', value: values.asOfDateTime ?? '—' },
+            {
+              label: 'Branch',
+              value:
+                locId === '__all__'
+                  ? 'All Branches'
+                  : (locationOptions.find((l) => l.id === locId)?.name ?? locId),
+            },
+          ];
+        },
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">

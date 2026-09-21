@@ -53,7 +53,7 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
 
   const [session, refRes] = await Promise.all([
     fetchServerSession(),
-    getReferenceData({ locations: true, doctors: true, staff: true }),
+    getReferenceData({ locations: true, doctors: true, staff: true, specialities: true }),
   ]);
   const userId = session?.user?.id ?? null;
   let userLocationId: string | null = null;
@@ -67,6 +67,7 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
 
   const locations = refRes.success && refRes.locations ? refRes.locations : [];
   const doctors = refRes.success && refRes.doctors ? refRes.doctors : [];
+  const specialities = refRes.success && refRes.specialities ? refRes.specialities : [];
   const staff = refRes.success && refRes.staff ? refRes.staff : [];
 
   return (
@@ -78,6 +79,7 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
       <div className="h-full flex-1 flex-col space-y-8">
         <MakeDoctorPaymentClient
           locations={locations}
+          specialities={specialities}
           doctors={doctors}
           staff={staff}
           userId={userId}

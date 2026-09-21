@@ -7,13 +7,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, Printer, SearchIcon } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
+import {
+  ReportPrintLayout,
+  downloadBrandedReportExcel,
+  downloadBrandedReportPdf,
+  toBrandedPdfSummaryItems,
+} from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
+import { formatExportFileName } from '@/lib/utils';
 import {
   exportNoShowPatientReportData,
   getNoShowPatientReportData,
@@ -53,6 +61,7 @@ export default function NoShowPatientReportContent({
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(false);
+  const [loadingExcel, setLoadingExcel] = useState(false);
   const [rows, setRows] = useState<NoShowPatientReportRow[]>([]);
   const [periodKeys, setPeriodKeys] = useState<string[]>([]);
   const [periodLabels, setPeriodLabels] = useState<Record<string, string>>({});
@@ -199,6 +208,88 @@ export default function NoShowPatientReportContent({
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadPdf = async () => {
+    if (!hasSearched) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+    if (!reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+    const result = await exportNoShowPatientReportData(buildQuery());
+    if (!result.success || !result.data?.length) {
+      toast({ variant: 'destructive', title: 'No data', description: result.message || 'No data available.' });
+      return;
+    }
+    const dynamicHeaderKeys = periodKeys.map((k) => periodLabels[k] ?? k);
+    const columns = ['Speciality', 'Doctor Name', ...dynamicHeaderKeys, 'Total'];
+    const keys = ['speciality', 'doctorName', ...periodKeys, 'total'];
+    const data = result.data.map((row) => {
+      const out: Record<string, string> = {
+        speciality: String(row.speciality ?? ''),
+        doctorName: String(row.doctorName ?? ''),
+        total: String(row.total ?? ''),
+      };
+      for (const k of periodKeys) out[k] = String(row[k] ?? '');
+      return out;
+    });
+    await downloadBrandedReportPdf({
+      reportName: 'No Show Patient Report',
+      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
+      generatedAt: reportMeta.generatedAt,
+      data,
+      columns,
+      keys,
+      fileName: `${formatExportFileName('no-show-patient-report')}.pdf`,
+    });
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!hasSearched || !reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
+      return;
+    }
+    setLoadingExcel(true);
+    try {
+      const result = await exportNoShowPatientReportData(buildQuery());
+      if (!result.success || !result.data?.length) {
+        toast({ variant: 'destructive', title: 'No data', description: result.message || 'No data available.' });
+        return;
+      }
+      const dynamicHeaderKeys = periodKeys.map((k) => periodLabels[k] ?? k);
+      const columns = ['Speciality', 'Doctor Name', ...dynamicHeaderKeys, 'Total'];
+      const keys = ['speciality', 'doctorName', ...periodKeys, 'total'];
+      const data = result.data.map((row) => {
+        const out: Record<string, string> = {
+          speciality: String(row.speciality ?? ''),
+          doctorName: String(row.doctorName ?? ''),
+          total: String(row.total ?? ''),
+        };
+        for (const k of periodKeys) out[k] = String(row[k] ?? '');
+        return out;
+      });
+      await downloadBrandedReportExcel({
+        reportName: 'No Show Patient Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
+        generatedAt: reportMeta.generatedAt,
+        data,
+        columns,
+        keys,
+        fileName: `${formatExportFileName('no-show-patient-report')}.xlsx`,
+        sheetName: 'No Show Patient',
+      });
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Excel export failed',
+        description: error instanceof Error ? error.message : 'Unable to generate Excel.',
+      });
+    } finally {
+      setLoadingExcel(false);
+    }
+  };
+
   const renderReportMetaCard = () =>
     reportMeta ? (
       <ReportGenerationDetailsCard
@@ -236,10 +327,22 @@ export default function NoShowPatientReportContent({
       />
     ) : null;
 
+  const buildSummaryItems = (meta: NonNullable<typeof reportMeta>): ReportPrintSummaryItem[] => [
+    { label: 'Period', value: formatReportRangeLabel(meta.fromDate, meta.toDate) },
+    { label: 'Institution', value: meta.institutionLabel },
+    { label: 'Branch', value: meta.branchLabel },
+    { label: 'Department', value: meta.departmentLabel },
+    { label: 'Speciality', value: meta.specialityLabel },
+    { label: 'Doctor', value: meta.doctorLabel },
+    { label: 'Report Type', value: meta.reportTypeLabel },
+    { label: 'Generated By', value: meta.generatedBy },
+    { label: 'Generated At', value: meta.generatedAt },
+  ];
+
   return (
     <div className="container mx-auto py-3 space-y-4">
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="print:shadow-none print:border-0 print:bg-white">
+        <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <CardTitle className="text-xl font-bold">No Show Patient Report</CardTitle>
@@ -247,10 +350,30 @@ export default function NoShowPatientReportContent({
                 No-show patient counts by speciality and doctor, summarized by date or month.
               </CardDescription>
             </div>
-            <div className="flex gap-2 no-print">
+            <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
                 <Printer />
                 Print
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="gap-2">
+                <FileText />
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void handleDownloadExcel();
+                }}
+                disabled={loadingExcel}
+                className="gap-2"
+              >
+                {loadingExcel ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4" />
+                )}
+                Excel
               </Button>
               <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
                 <Download />
@@ -260,7 +383,7 @@ export default function NoShowPatientReportContent({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-end gap-4 mb-4 pb-3 border-b no-print">
+          <div className="flex flex-wrap items-end gap-4 mb-4 pb-3 border-b print:hidden">
             <div className="flex-shrink-0">
               <DateTimeRangePicker
                 label="Date & time range"
@@ -323,63 +446,72 @@ export default function NoShowPatientReportContent({
           {loading ? (
             <div className="text-center py-8">Loading...</div>
           ) : !hasSearched ? (
-            <ReportEmptyStateCard
-              title="Run a search to view results"
-              description="No no-show patients found. Select filters and click Search."
-            />
+            <div className="print:hidden">
+              <ReportEmptyStateCard
+                title="Run a search to view results"
+                description="No no-show patients found. Select filters and click Search."
+              />
+            </div>
           ) : rows.length === 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 print:hidden">
               {renderReportMetaCard()}
               <ReportEmptyStateCard
                 title="No results"
                 description="No no-show patients found for the selected filters."
               />
             </div>
-          ) : (
-            <div className="space-y-3">
-              {renderReportMetaCard()}
-              <div className="rounded-md border overflow-x-auto">
-                <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
-                  <TableHeader>
-                    <TableRow className="border-b">
-                      <TableHead className="text-left">Speciality</TableHead>
-                      <TableHead className="text-left">Doctor Name</TableHead>
-                      {periodKeys.map((k) => (
-                        <TableHead key={k} className="text-center">
-                          {periodLabels[k] ?? k}
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-center">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.rowId} className="border-b border-border/50">
-                        <TableCell>{row.speciality}</TableCell>
-                        <TableCell>{row.doctorName}</TableCell>
+          ) : reportMeta ? (
+            <ReportPrintLayout
+              reportName="No Show Patient Report"
+              pageSize="A4 landscape"
+              generatedAt={reportMeta.generatedAt}
+              summaryItems={buildSummaryItems(reportMeta)}
+            >
+              <div className="space-y-3">
+                <div className="print:hidden">{renderReportMetaCard()}</div>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                    <TableHeader>
+                      <TableRow className="border-b">
+                        <TableHead className="text-left">Speciality</TableHead>
+                        <TableHead className="text-left">Doctor Name</TableHead>
                         {periodKeys.map((k) => (
-                          <TableCell key={`${row.rowId}-${k}`} className="text-center tabular-nums">
-                            {row.periodCounts[k] ?? 0}
+                          <TableHead key={k} className="text-center">
+                            {periodLabels[k] ?? k}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-center">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row) => (
+                        <TableRow key={row.rowId} className="border-b border-border/50">
+                          <TableCell>{row.speciality}</TableCell>
+                          <TableCell>{row.doctorName}</TableCell>
+                          {periodKeys.map((k) => (
+                            <TableCell key={`${row.rowId}-${k}`} className="text-center tabular-nums">
+                              {row.periodCounts[k] ?? 0}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-center tabular-nums font-semibold">{row.total}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="rpt-print-total font-semibold bg-muted/50">
+                        <TableCell></TableCell>
+                        <TableCell>Total</TableCell>
+                        {periodKeys.map((k) => (
+                          <TableCell key={`total-${k}`} className="text-center tabular-nums">
+                            {columnTotals[k] ?? 0}
                           </TableCell>
                         ))}
-                        <TableCell className="text-center tabular-nums font-semibold">{row.total}</TableCell>
+                        <TableCell className="text-center tabular-nums">{grandTotal}</TableCell>
                       </TableRow>
-                    ))}
-                    <TableRow className="font-semibold bg-muted/50">
-                      <TableCell></TableCell>
-                      <TableCell>Total</TableCell>
-                      {periodKeys.map((k) => (
-                        <TableCell key={`total-${k}`} className="text-center tabular-nums">
-                          {columnTotals[k] ?? 0}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-center tabular-nums">{grandTotal}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
-          )}
+            </ReportPrintLayout>
+          ) : null}
         </CardContent>
       </Card>
     </div>

@@ -2,11 +2,21 @@
 
 import prisma from "@/lib/prisma";
 
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+
+function normalizeLocationId(locationId?: string | null): string | undefined {
+  const id = locationId?.trim();
+  if (!id || id === "__all__") return undefined;
+  return OBJECT_ID_RE.test(id) ? id : undefined;
+}
+
 export type EligibleSessionGroup = {
   sessionId: string;
   sessionDate: Date;
   sessionStartTime: number;
   sessionEndTime: number;
+  locationId: string | null;
+  locationName: string | null;
   bookingIds: string[];
   bookingCount: number;
   totalAmount: number;
@@ -18,12 +28,15 @@ export type GetEligibleBookingsResult =
 
 /**
  * Get sessions with pending doctor payment for a doctor in a date range.
+ * Optional locationId limits results to that session branch; omit for all branches.
  * Lightweight: only selects id and fee fields, returns session summaries with booking IDs (no full booking details).
  */
 export async function getEligibleBookingsService(params: {
   doctorId: string;
   dateFrom: string; // YYYY-MM-DD
   dateTo: string;   // YYYY-MM-DD
+  /** Session branch. Omit / null / `__all__` = all branches. */
+  locationId?: string | null;
 }): Promise<GetEligibleBookingsResult> {
   const { doctorId, dateFrom, dateTo } = params;
   if (!doctorId?.trim()) {
@@ -38,6 +51,7 @@ export async function getEligibleBookingsService(params: {
   startOfFrom.setUTCHours(0, 0, 0, 0);
   const endOfTo = new Date(to);
   endOfTo.setUTCHours(23, 59, 59, 999);
+  const sessionLocationId = normalizeLocationId(params.locationId);
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -47,6 +61,7 @@ export async function getEligibleBookingsService(params: {
       sessionId: { not: null },
       session: {
         date: { gte: startOfFrom, lte: endOfTo },
+        ...(sessionLocationId ? { locationId: sessionLocationId } : {}),
       },
     },
     select: {
@@ -61,13 +76,25 @@ export async function getEligibleBookingsService(params: {
           date: true,
           startTime: true,
           endTime: true,
+          locationId: true,
+          location: { select: { name: true } },
         },
       },
     },
     orderBy: [{ session: { date: "asc" } }, { session: { startTime: "asc" } }],
   });
 
-  const bySession = new Map<string, { ids: string[]; total: number; session: { date: Date; startTime: number; endTime: number } }>();
+  const bySession = new Map<string, {
+    ids: string[];
+    total: number;
+    session: {
+      date: Date;
+      startTime: number;
+      endTime: number;
+      locationId: string | null;
+      locationName: string | null;
+    };
+  }>();
   for (const b of bookings) {
     if (!b.session) continue;
     const session = b.session;
@@ -88,7 +115,13 @@ export async function getEligibleBookingsService(params: {
       bySession.set(session.id, {
         ids: [b.id],
         total: paymentRs,
-        session: { date: sessionDate, startTime, endTime },
+        session: {
+          date: sessionDate,
+          startTime,
+          endTime,
+          locationId: session.locationId ?? null,
+          locationName: session.location?.name ?? null,
+        },
       });
     }
   }
@@ -98,6 +131,8 @@ export async function getEligibleBookingsService(params: {
     sessionDate: data.session.date,
     sessionStartTime: data.session.startTime,
     sessionEndTime: data.session.endTime,
+    locationId: data.session.locationId,
+    locationName: data.session.locationName,
     bookingIds: data.ids,
     bookingCount: data.ids.length,
     totalAmount: data.total,
