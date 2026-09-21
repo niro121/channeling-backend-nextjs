@@ -5,6 +5,7 @@ import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from 
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD } from '@/types/receipt';
+import { SAVE_BOOKING_METHOD_AGENT } from '@/types/save-booking';
 import { REFERENCE_TYPES } from '@/types/accounting';
 import type {
   CashierSummaryReportQuery,
@@ -139,6 +140,26 @@ export async function getCashierSummaryReportService(
     },
   } as const;
 
+  const receiptIncludeAgentBooking = {
+    paymentLines: { select: { paymentMethod: true, amount: true } },
+    agency: { select: { name: true } },
+    booking: {
+      include: {
+        session: { select: { date: true, startTime: true } },
+        doctor: { select: { title: true, name: true } },
+        agency: { select: { name: true } },
+      },
+    },
+    shift: {
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        user: { select: { id: true, name: true, staff: { select: { code: true } } } },
+      },
+    },
+  } as const;
+
   const sections: CashierSummaryReportSection[] = [];
   let grandTotals = { ...ZERO_AMOUNTS };
   const includedShiftMap = new Map<string, CashierSummaryIncludedShift>();
@@ -162,10 +183,15 @@ export async function getCashierSummaryReportService(
     }
   }
 
-  // --- Channel Billed: method PAYMENT, bookingId not null ---
+  // --- Channel Billed: PAYMENT for non-Agent bookings (POS / On-Call / API / Staff) ---
+  // Online advance tags an agency but Booking.method is On-Call, not Agent.
   const channelBilled = await prisma.receipt.findMany({
-    // Channel sections should exclude agent-linked bookings (those belong under Agent - ... sections).
-    where: { ...baseWhere, method: RECEIPT_METHOD.PAYMENT, bookingId: { not: null }, agencyId: null },
+    where: {
+      ...baseWhere,
+      method: RECEIPT_METHOD.PAYMENT,
+      bookingId: { not: null },
+      booking: { method: { not: SAVE_BOOKING_METHOD_AGENT } },
+    },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
   });
@@ -201,8 +227,12 @@ export async function getCashierSummaryReportService(
       ...baseWhere,
       method: RECEIPT_METHOD.REFUND,
       bookingId: { not: null },
-      agencyId: null,
-      booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
+      booking: {
+        AND: [
+          { method: { not: SAVE_BOOKING_METHOD_AGENT } },
+          { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
+        ],
+      },
     },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
@@ -239,8 +269,7 @@ export async function getCashierSummaryReportService(
       ...baseWhere,
       method: RECEIPT_METHOD.REFUND,
       bookingId: { not: null },
-      agencyId: null,
-      booking: { AND: [{ refund: 3 }, { status: 2 }] },
+      booking: { AND: [{ method: { not: SAVE_BOOKING_METHOD_AGENT } }, { refund: 3 }, { status: 2 }] },
     },
     include: receiptIncludeBookingSessionDoctor,
     orderBy: { createdAt: 'asc' },
@@ -271,15 +300,10 @@ export async function getCashierSummaryReportService(
   });
   grandTotals = addAmounts(grandTotals, channelCancelTotals);
 
-  // --- Agent Billed: agencyId not null, method PAYMENT ---
+  // --- Agent Billed: Booking.method Agent (2). Cash refunds of these stay in Agent refund/cancel. ---
   const agentBilled = await prisma.receipt.findMany({
-    where: { ...baseWhere, agencyId: { not: null }, method: RECEIPT_METHOD.PAYMENT },
-    include: {
-      paymentLines: { select: { paymentMethod: true, amount: true } },
-      agency: { select: { name: true } },
-      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
-      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
-    },
+    where: { ...baseWhere, method: RECEIPT_METHOD.PAYMENT, booking: { method: SAVE_BOOKING_METHOD_AGENT } },
+    include: receiptIncludeAgentBooking,
     orderBy: { createdAt: 'asc' },
   });
   const agentBilledRows: CashierSummaryReportLineItem[] = agentBilled.map((r) => {
@@ -293,7 +317,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: r.agency?.name ?? null,
+      patient: r.agency?.name ?? r.booking?.agency?.name ?? null,
       consultant,
       ...amounts,
     };
@@ -312,16 +336,15 @@ export async function getCashierSummaryReportService(
   const agentRefunded = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
-      agencyId: { not: null },
       method: RECEIPT_METHOD.REFUND,
-      booking: { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
+      booking: {
+        AND: [
+          { method: SAVE_BOOKING_METHOD_AGENT },
+          { OR: [{ refund: { not: 3 } }, { status: { not: 2 } }] },
+        ],
+      },
     },
-    include: {
-      paymentLines: { select: { paymentMethod: true, amount: true } },
-      agency: { select: { name: true } },
-      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
-      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
-    },
+    include: receiptIncludeAgentBooking,
     orderBy: { createdAt: 'asc' },
   });
   const agentRefundedRows: CashierSummaryReportLineItem[] = agentRefunded.map((r) => {
@@ -335,7 +358,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: r.agency?.name ?? null,
+      patient: r.agency?.name ?? r.booking?.agency?.name ?? null,
       consultant,
       ...amounts,
     };
@@ -354,16 +377,10 @@ export async function getCashierSummaryReportService(
   const agentCanceled = await prisma.receipt.findMany({
     where: {
       ...baseWhere,
-      agencyId: { not: null },
       method: RECEIPT_METHOD.REFUND,
-      booking: { AND: [{ refund: 3 }, { status: 2 }] },
+      booking: { AND: [{ method: SAVE_BOOKING_METHOD_AGENT }, { refund: 3 }, { status: 2 }] },
     },
-    include: {
-      paymentLines: { select: { paymentMethod: true, amount: true } },
-      agency: { select: { name: true } },
-      booking: { include: { session: { select: { date: true, startTime: true } }, doctor: { select: { title: true, name: true } } } },
-      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
-    },
+    include: receiptIncludeAgentBooking,
     orderBy: { createdAt: 'asc' },
   });
   const agentCanceledRows: CashierSummaryReportLineItem[] = agentCanceled.map((r) => {
@@ -377,7 +394,7 @@ export async function getCashierSummaryReportService(
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
-      patient: r.agency?.name ?? null,
+      patient: r.agency?.name ?? r.booking?.agency?.name ?? null,
       consultant,
       ...amounts,
     };

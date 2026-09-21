@@ -159,6 +159,8 @@ export function ChannelBookingShiftBar() {
   const floatRequestSocketUserIdRef = useRef<string | null>(null)
   const floatBalanceUserIdRef = useRef<string | null>(null)
   const shiftSocketUserIdRef = useRef<string | null>(null)
+  const shiftRef = useRef<ShiftRecord | null>(null)
+  const cancelledHandoverByMeRef = useRef(false)
   const { toast } = useToast()
 
   const refreshFloatBalance = useCallback(() => {
@@ -213,12 +215,26 @@ export function ChannelBookingShiftBar() {
     return () => clearInterval(interval)
   }, [shift?.id, shift?.status])
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback((opts?: { silent?: boolean }) => {
     if (!hasShiftPermission) return
-    setLoading(true)
+    if (!opts?.silent) setLoading(true)
     getCurrentShiftAction()
-      .then((s: ShiftRecord | null) => setShift(s))
+      .then((s: ShiftRecord | null) => {
+        const prev = shiftRef.current
+        shiftRef.current = s
+        setShift(s)
+        if (prev?.status === SHIFT_STATUS.HANDOVER_PENDING && s?.status === SHIFT_STATUS.ACTIVE) {
+          if (!cancelledHandoverByMeRef.current) {
+            toast({
+              title: "Handover rejected",
+              description: "Your shift is active again. You can continue or submit a new handover.",
+            })
+          }
+          cancelledHandoverByMeRef.current = false
+        }
+      })
       .catch((err: unknown) => {
+        shiftRef.current = null
         setShift(null)
         const message = err instanceof Error ? err.message : "You don’t have permission to use shift features."
         toast({
@@ -227,12 +243,36 @@ export function ChannelBookingShiftBar() {
           variant: "destructive",
         })
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!opts?.silent) setLoading(false)
+      })
   }, [hasShiftPermission, toast])
 
   useEffect(() => {
     refresh()
   }, [hasShiftPermission, refresh])
+
+  // Socket may be unavailable (next:dev) or missed while the cashier waits for approval.
+  // Poll and refetch on focus so a reject/approve updates the bar without a full reload.
+  useEffect(() => {
+    if (!hasShiftPermission) return
+    const onFocus = () => refresh({ silent: true })
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh({ silent: true })
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [hasShiftPermission, refresh])
+
+  useEffect(() => {
+    if (!shift || shift.status !== SHIFT_STATUS.HANDOVER_PENDING) return
+    const interval = setInterval(() => refresh({ silent: true }), 5000)
+    return () => clearInterval(interval)
+  }, [shift?.id, shift?.status, refresh])
 
   useEffect(() => {
     if (!hasShiftPermission) return
@@ -318,7 +358,7 @@ export function ChannelBookingShiftBar() {
     else socket.once("connect", doSubscribe)
 
     const onShiftUpdate = () => {
-      refresh()
+      refresh({ silent: true })
     }
     socket.on("shift-update", onShiftUpdate)
 
@@ -580,11 +620,13 @@ export function ChannelBookingShiftBar() {
   async function handleCancelHandover() {
     if (!pendingHandover) return
     setActionLoading("cancel-handover")
+    cancelledHandoverByMeRef.current = true
     try {
       await cancelHandoverAction(pendingHandover.id)
-      refresh()
+      refresh({ silent: true })
       toast({ title: "Handover cancelled. Shift is active again." })
     } catch (e) {
+      cancelledHandoverByMeRef.current = false
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to cancel handover", variant: "destructive" })
     } finally {
       setActionLoading(null)

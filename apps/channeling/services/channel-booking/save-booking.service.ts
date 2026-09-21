@@ -48,6 +48,7 @@ import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-ar
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
 import { Prisma } from "@prisma/client"
+import { receiptAgencyIdIfAgentPayment } from "@/types/receipt"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -773,7 +774,7 @@ export async function saveBookingService(
             remarks,
             type: 1,
             method: 1,
-            agencyId: input.agency?.id ?? null,
+            agencyId: receiptAgencyIdIfAgentPayment(input.payment_type, input.agency?.id ?? null),
             creditCustomerId: input.credit_customer?.id ?? null,
             createdBy: userId,
             shiftId,
@@ -831,7 +832,7 @@ export async function saveBookingService(
           const io = getIO()
           if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
         }
-        if (input.agency?.id) {
+        if (isAgent && input.agency?.id) {
             const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
             // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone
             const agencyDetails = await prisma.agency.findUnique({
