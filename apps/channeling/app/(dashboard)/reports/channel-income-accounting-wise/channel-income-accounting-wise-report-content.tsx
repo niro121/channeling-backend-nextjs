@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { getChannelIncomeAccountingWiseData } from '@/app/actions/reports/channel-income-accounting-wise.report.action';
@@ -151,52 +151,6 @@ export default function ChannelIncomeAccountingWiseReportContent({
   ];
 
   const handlePrint = () => window.print();
-
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push('Channel Income Report (Accounting Wise)');
-    lines.push(['Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'].join(','));
-    for (const r of rows) {
-      lines.push(
-        [
-          r.bookingType,
-          money(r.totalChannel),
-          money(r.discount),
-          money(r.cancel),
-          money(r.refund),
-          money(r.nettAmount),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      );
-    }
-    if (totals) {
-      lines.push(
-        [
-          totals.bookingType,
-          money(totals.totalChannel),
-          money(totals.discount),
-          money(totals.cancel),
-          money(totals.refund),
-          money(totals.nettAmount),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      );
-    }
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `channel-income-accounting-wise-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleDownloadPdf = async () => {
     if (rows.length === 0) {
@@ -378,10 +332,6 @@ export default function ChannelIncomeAccountingWiseReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
