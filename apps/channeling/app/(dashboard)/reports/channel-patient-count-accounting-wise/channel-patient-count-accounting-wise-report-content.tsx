@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { getChannelPatientCountAccountingWiseData } from '@/app/actions/reports/channel-patient-count-accounting-wise.report.action';
@@ -162,141 +162,6 @@ export default function ChannelPatientCountAccountingWiseReportContent({
   ];
 
   const handlePrint = () => window.print();
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push('Channel Counts');
-    lines.push([
-      'Booking Type',
-      'Paid Bill Count - Paid',
-      'Paid Bill Count - Pending',
-      'Paid Bill Count - Net',
-      'Cancel Bill Count - Paid',
-      'Cancel Bill Count - Pending',
-      'Cancel Bill Count - Net',
-      'Refund Bill Count - Hos Refund',
-      'Refund Bill Count - Pro Refund',
-      'Total Count - Paid',
-      'Total Count - Pending',
-      'Total Count - Net',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.bookingType,
-        String(r.paidBillPaid),
-        String(r.paidBillPending),
-        String(r.paidBillNet),
-        String(r.cancelBillPaid),
-        String(r.cancelBillPending),
-        String(r.cancelBillNet),
-        String(r.refundBillHos),
-        String(r.refundBillPro),
-        String(r.totalCountPaid),
-        String(r.totalCountPending),
-        String(r.totalCountNet),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        totals.bookingType,
-        String(totals.paidBillPaid),
-        String(totals.paidBillPending),
-        String(totals.paidBillNet),
-        String(totals.cancelBillPaid),
-        String(totals.cancelBillPending),
-        String(totals.cancelBillNet),
-        String(totals.refundBillHos),
-        String(totals.refundBillPro),
-        String(totals.totalCountPaid),
-        String(totals.totalCountPending),
-        String(totals.totalCountNet),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-
-    lines.push('');
-    lines.push('Revenue Breakdown');
-    lines.push([
-      'Booking Type',
-      'Paid Revenue - Hos Fee',
-      'Paid Revenue - Hos Dis',
-      'Paid Revenue - Pro Fee',
-      'Paid Revenue - Pro Dis',
-      'Paid Revenue - Hos Total',
-      'Cancel Revenue - Hos Fee',
-      'Cancel Revenue - Hos Dis',
-      'Cancel Revenue - Pro Fee',
-      'Cancel Revenue - Pro Dis',
-      'Cancel Revenue - Hos Total',
-      'Refund Revenue - Hos Refund',
-      'Refund Revenue - Pro Refund',
-      'Nett Revenue - Hos Fee',
-      'Nett Revenue - Hos Dis',
-      'Nett Revenue - Pro Fee',
-      'Nett Revenue - Pro Dis',
-      'Nett Revenue - Hos Total',
-      'Pending Revenue - Hos Fee',
-      'Pending Revenue - Pro Fee',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.bookingType,
-        money(r.paidRevenueHosFee),
-        money(r.paidRevenueHosDis),
-        money(r.paidRevenueProFee),
-        money(r.paidRevenueProDis),
-        money(r.paidRevenueTotal),
-        money(r.cancelRevenueHosFee),
-        money(r.cancelRevenueHosDis),
-        money(r.cancelRevenueProFee),
-        money(r.cancelRevenueProDis),
-        money(r.cancelRevenueTotal),
-        money(r.refundRevenueHosRefund),
-        money(r.refundRevenueProRefund),
-        money(r.nettRevenueHosFee),
-        money(r.nettRevenueHosDis),
-        money(r.nettRevenueProFee),
-        money(r.nettRevenueProDis),
-        money(r.nettRevenueTotal),
-        money(r.pendingRevenueHosFee),
-        money(r.pendingRevenueProFee),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        totals.bookingType,
-        money(totals.paidRevenueHosFee),
-        money(totals.paidRevenueHosDis),
-        money(totals.paidRevenueProFee),
-        money(totals.paidRevenueProDis),
-        money(totals.paidRevenueTotal),
-        money(totals.cancelRevenueHosFee),
-        money(totals.cancelRevenueHosDis),
-        money(totals.cancelRevenueProFee),
-        money(totals.cancelRevenueProDis),
-        money(totals.cancelRevenueTotal),
-        money(totals.refundRevenueHosRefund),
-        money(totals.refundRevenueProRefund),
-        money(totals.nettRevenueHosFee),
-        money(totals.nettRevenueHosDis),
-        money(totals.nettRevenueProFee),
-        money(totals.nettRevenueProDis),
-        money(totals.nettRevenueTotal),
-        money(totals.pendingRevenueHosFee),
-        money(totals.pendingRevenueProFee),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `channel-patient-count-accounting-wise-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const buildBrandedExportSections = () => {
     const countRows = [
@@ -550,10 +415,6 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
