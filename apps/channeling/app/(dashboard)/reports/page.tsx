@@ -127,14 +127,14 @@ const reportsData: ReportListItem[] = [
     id: '24',
     rank: 24,
     masterData: 'All Cashier Summary and Detail Report',
-    description: 'All-cashier report with date/time, branch, and user filters; supports Summary and Detail formats with print, PDF, Excel, and CSV.',
+    description: 'All-cashier report with date/time, branch, and user filters; supports Summary and Detail formats with print, PDF, and Excel.',
     route: '/reports/all-cashier-summary-detail'
   },
   {
     id: '25',
     rank: 25,
     masterData: 'Userwise Cashier Detail - Channel',
-    description: 'User-wise cashier summary by date range with optional branch and user filters; Summary (refunds in detail) or Detail (all transactions). Print, PDF, Excel, and Download CSV.',
+    description: 'User-wise cashier summary by date range with optional branch and user filters; Summary (refunds in detail) or Detail (all transactions). Print, PDF, and Excel.',
     route: '/reports/cashier-summary'
   },
   {
@@ -252,6 +252,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/completed-handovers'
   },
   {
+    id: '41',
+    rank: 41,
+    masterData: 'Approval Requests Report',
+    description:
+      'View Approval Center cancellations, refunds, and bank deposits for a period, including who requested, approved, and rejected each item.',
+    route: '/reports/approval-requests'
+  },
+  {
     id: '42',
     rank: 42,
     masterData: 'No Show Patient Report',
@@ -325,6 +333,7 @@ export default async function ReportsPage() {
       '/reports/cash-book',
       '/reports/bank-deposits',
       '/reports/completed-handovers',
+      '/reports/approval-requests',
     ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>

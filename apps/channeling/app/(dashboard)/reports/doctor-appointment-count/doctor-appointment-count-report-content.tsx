@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/common/date-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import {
@@ -185,70 +185,6 @@ export default function DoctorAppointmentCountReportContent({
   ];
 
   const handlePrint = () => window.print();
-
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push([
-      'Consultant',
-      'Speciality',
-      'Not Paid',
-      'Paid',
-      'Cancel',
-      'Hos Refund',
-      'Pro Refund',
-      'Hos Valid',
-      'Pro Valid',
-      'Nett Valid',
-      'Hos',
-      'Pro',
-      'Total ( Rs. )',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.consultant,
-        r.speciality,
-        String(r.notPaid),
-        String(r.paid),
-        String(r.cancel),
-        String(r.hosRefund),
-        String(r.proRefund),
-        String(r.hosValid),
-        String(r.proValid),
-        String(r.nettValid),
-        money(r.hos),
-        money(r.pro),
-        money(r.total),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        'Total',
-        '',
-        String(totals.notPaid),
-        String(totals.paid),
-        String(totals.cancel),
-        String(totals.hosRefund),
-        String(totals.proRefund),
-        String(totals.hosValid),
-        String(totals.proValid),
-        String(totals.nettValid),
-        money(totals.hos),
-        money(totals.pro),
-        money(totals.total),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `doctor-appointment-count-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleDownloadPdf = async () => {
     if (rows.length === 0) {
@@ -492,10 +428,6 @@ export default function DoctorAppointmentCountReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>

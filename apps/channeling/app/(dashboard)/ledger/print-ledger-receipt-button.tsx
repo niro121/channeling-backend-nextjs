@@ -24,13 +24,7 @@ export async function printLedgerReceiptById(
     result.data.template,
     result.data.receiptNoString
   )
-  printHtmlInIframe(html, {
-    title: "Print receipt",
-    // A5 portrait — same default as handover. Keep the iframe at paper size so Chrome
-    // does not scale/crop the job.
-    width: "148mm",
-    height: "210mm",
-  })
+  printHtmlInIframe(html)
   return { success: true }
 }
 
@@ -79,16 +73,19 @@ export function PrintLedgerReceiptButton({
 
   if (iconOnly) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={handlePrint}
         disabled={printing}
-        className={cn("text-slate-500 hover:text-foreground p-0.5 -m-0.5 disabled:opacity-50", className)}
+        className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", className)}
         title="Print receipt"
         aria-label="Print receipt"
       >
-        {printing ? <Loader2 className="size-3 animate-spin" /> : <Printer className="size-3" />}
-      </button>
+        {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+        <span className="sr-only">Print receipt</span>
+      </Button>
     )
   }
 

@@ -6,7 +6,7 @@ import { DateTimeRangePicker } from '@/components/common/date-time-range-picker'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { getAgencyStatementReportData } from '@/app/actions/reports/agency-statement.report.action';
 import type { AgencyStatementReportData } from '@/types/reports/agency-statement';
 import { formatLKR } from '@/lib/format-money';
@@ -88,41 +88,6 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
     } finally {
       setLoading(false);
     }
-  };
-
-  const downloadCsv = () => {
-    if (!data) return;
-    const lines = [
-      ['No.', 'Date', 'Particulars', 'Appointment Date/Time', 'Receipt No', 'Doc Fee', 'Hos Fee', 'Discount', 'Amount', 'Balance', 'Comments', 'Transaction Create By'].join(','),
-      ...data.rows.map((r) =>
-        [
-          r.no,
-          new Date(r.date).toLocaleString(),
-          r.particulars,
-          r.appointmentDateTime ?? '',
-          r.receiptNo,
-          r.docFee.toFixed(2),
-          r.hosFee.toFixed(2),
-          r.discount.toFixed(2),
-          r.amount.toFixed(2),
-          r.runningBalance.toFixed(2),
-          r.comments,
-          r.createdBy,
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      ),
-      '',
-      `"Opening Balance",,,,,,,,,"${data.openingBalance.toFixed(2)}",,`,
-      `"Closing Balance",,,,,,,,,"${data.closingBalance.toFixed(2)}",,`,
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agency-statement-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const downloadPdf = async () => {
@@ -217,7 +182,6 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                 )}
                 Excel
               </Button>
-              <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2"><Download />Download CSV</Button>
             </div>
           </div>
         </CardHeader>

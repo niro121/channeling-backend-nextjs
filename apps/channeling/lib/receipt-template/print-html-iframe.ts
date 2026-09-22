@@ -1,7 +1,7 @@
 /**
  * Print HTML through an off-screen iframe sized like a real page.
- * A 0×0 iframe makes Chrome shrink the job. Both ledger and booking receipts pass A5;
- * the letter-size defaults suit tractor-feed callers.
+ * A 0×0 iframe makes Chrome shrink the job. The 8.5in × 11in default is the tractor
+ * printable width; callers with a different page box (e.g. the A5 booking receipt) pass their own.
  */
 export function printHtmlInIframe(
   html: string,
