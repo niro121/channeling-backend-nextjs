@@ -13,6 +13,7 @@ import {
   buildSalaryCycleOptions,
   EMPTY_SALARY_GENERATION_CYCLE_VALUES,
   type SalaryGenerationCycleFormValues,
+  type SalaryGenerationStaffRow,
   type SalaryGenerationTab
 } from '@/types/payroll';
 import { SalaryGenerationHeaderActions } from './header-actions';
@@ -30,6 +31,10 @@ export default function SalaryGenerationWorkspace() {
     );
   const [formKey, setFormKey] = useState(0);
   const [generated, setGenerated] = useState(false);
+  const [staffRows] = useState<SalaryGenerationStaffRow[]>([]);
+
+  const staffCount = staffRows.length;
+  const staffCountLabel = `${staffCount.toLocaleString()} staff`;
 
   const handleGenerate = () => {
     if (!cycleValues.salaryCycleId) {
@@ -101,7 +106,7 @@ export default function SalaryGenerationWorkspace() {
 
       <SalaryGenerationHeaderActions
         cycleLabel={cycleValues.salaryCycleId || null}
-        staffCountLabel="— staff"
+        staffCountLabel={staffCountLabel}
         onGenerate={handleGenerate}
         onSave={handleSave}
         onClear={handleClear}
@@ -143,7 +148,7 @@ export default function SalaryGenerationWorkspace() {
         </TabsContent>
 
         <TabsContent value="staff-list" className="mt-0">
-          <SectionStaffList />
+          <SectionStaffList records={staffRows} totalRecords={staffCount} />
         </TabsContent>
 
         <TabsContent value="staff-salary" className="mt-0">

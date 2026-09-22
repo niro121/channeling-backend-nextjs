@@ -13,12 +13,37 @@ export type SalaryCycleOption = {
   name: string;
 };
 
+export type SalaryFilterOption = {
+  id: string;
+  name: string;
+};
+
 export type SalaryGenerationCycleFormValues = {
   salaryCycleId: string;
   salaryFromDate: Date | null;
   salaryToDate: Date | null;
   workedFromDate: Date | null;
   workedToDate: Date | null;
+};
+
+export type SalaryGenerationStaffFilters = {
+  staffId?: string;
+  institution?: string;
+  departmentId?: string;
+  staffCategory?: string;
+  designationId?: string;
+  rosterId?: string;
+};
+
+export type SalaryGenerationStaffRow = {
+  id: string;
+  roster: string;
+  resignedDate: string | null;
+  workingDaysPh: number;
+  workingDaysWork: number;
+  designation: string;
+  code: string;
+  name: string;
 };
 
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
