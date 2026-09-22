@@ -75,12 +75,12 @@ export function ReconciliationPrint({
 
   const generatedBy = (session?.user?.name ?? "—").toUpperCase()
 
-  const requiredByMethod: Record<string, number> = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
-  for (const { handover } of chain) {
-    requiredByMethod.cardCents += handover.cardCents
-    requiredByMethod.slipCents += handover.slipCents
-    requiredByMethod.checkCents += handover.checkCents
-    requiredByMethod.eWalletCents += handover.eWalletCents
+  const topHandover = chain[0]?.handover
+  const requiredByMethod: Record<string, number> = {
+    cardCents: topHandover?.cardCents ?? 0,
+    slipCents: topHandover?.slipCents ?? 0,
+    checkCents: topHandover?.checkCents ?? 0,
+    eWalletCents: topHandover?.eWalletCents ?? 0,
   }
 
   const methodKeyMap: Record<number, string> = {
