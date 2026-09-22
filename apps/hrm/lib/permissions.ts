@@ -37,6 +37,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/fingerprint-verification': 'attendance',
   '/attendance-summary': 'attendance',
   '/attendance-logs': 'attendance',
+  '/salary-generation': 'payroll',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

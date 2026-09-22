@@ -39,6 +39,8 @@ import {
   ScrollText,
   TabletSmartphone,
   Fingerprint,
+  Wallet,
+  PlayCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -367,6 +369,22 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<ScrollText className="h-5 w-5" />}
                 />
               )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/salary-generation') && (
+          <SidebarGroup label="Payroll">
+            <SidebarCollapsible
+              label="Payroll"
+              icon={<Wallet className="h-5 w-5" />}
+              paths={['/salary-generation']}
+              defaultOpen
+            >
+              <NavLink
+                href="/salary-generation"
+                label="Salary Generation"
+                icon={<PlayCircle className="h-5 w-5" />}
+              />
             </SidebarCollapsible>
           </SidebarGroup>
         )}

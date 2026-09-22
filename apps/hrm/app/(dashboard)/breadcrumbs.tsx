@@ -41,6 +41,7 @@ const PATH_NAMES = [
   { path: 'attendance-summary', name: 'Attendance Summary' },
   { path: 'attendance-logs', name: 'Attendance Log' },
   { path: 'payroll', name: 'Payroll' },
+  { path: 'salary-generation', name: 'Salary Generation' },
   { path: 'salary-structures', name: 'Salary Structures' },
   { path: 'reports', name: 'Reports' },
   { path: 'users', name: 'Users' },
