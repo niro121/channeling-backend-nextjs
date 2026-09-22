@@ -24,7 +24,11 @@ import type {
   AllCashierUserSummaryRow,
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
-import { AllCashierSummaryDetailPrintLayout } from './all-cashier-summary-detail-print-layout';
+import {
+  AllCashierSummaryDetailPrintLayout,
+  ShiftHandoverMarks,
+} from './all-cashier-summary-detail-print-layout';
+import { formatAcsShiftMarksPlain } from './all-cashier-summary-detail-export-config';
 import { downloadAllCashierSummaryDetailReportPdf } from './all-cashier-summary-detail-pdf';
 import { downloadAllCashierSummaryDetailReportExcel } from './all-cashier-summary-detail-excel';
 
@@ -425,7 +429,7 @@ export default function AllCashierSummaryDetailContent({
                                   {c.label}
                                 </TableHead>
                               ))}
-                              <TableHead className="text-center">Handover Date</TableHead>
+                              <TableHead className="min-w-[190px]">Shifts</TableHead>
                               <TableHead className="text-center">Checked By</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -440,11 +444,8 @@ export default function AllCashierSummaryDetailContent({
                                     {formatAmount(r[c.key])}
                                   </TableCell>
                                 ))}
-                                <TableCell className="text-center">
-                                  <div
-                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                    aria-hidden
-                                  />
+                                <TableCell className="align-top">
+                                  <ShiftHandoverMarks shifts={r.shifts} />
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <div
@@ -487,7 +488,7 @@ export default function AllCashierSummaryDetailContent({
                                       {c.label}
                                     </TableHead>
                                   ))}
-                                  <TableHead className="text-center">Handover Date</TableHead>
+                                  <TableHead className="min-w-[190px]">Shifts</TableHead>
                                   <TableHead className="text-center">Checked By</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -516,12 +517,9 @@ export default function AllCashierSummaryDetailContent({
                                       <>
                                         <TableCell
                                           rowSpan={u.sections.length + 1}
-                                          className="text-center"
+                                          className="align-top"
                                         >
-                                          <div
-                                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                            aria-hidden
-                                          />
+                                          <ShiftHandoverMarks shifts={u.shifts} />
                                         </TableCell>
                                         <TableCell
                                           rowSpan={u.sections.length + 1}

@@ -11,7 +11,13 @@ export async function POST(request: Request) {
     if (!identifier || !password) return NextResponse.json({ error: 'Email/username and password required' }, { status: 400 });
 
     const user = await authPrisma.user.findFirst({
-      where: { OR: [{ email: identifier }, { username: identifier }], status: 1 },
+      where: {
+        OR: [
+          { email: { equals: identifier, mode: 'insensitive' } },
+          { username: { equals: identifier, mode: 'insensitive' } },
+        ],
+        status: 1,
+      },
       include: { userGroup: true },
     });
     if (!user || !user.password) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

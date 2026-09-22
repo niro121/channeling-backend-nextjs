@@ -6,9 +6,11 @@ import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { RECEIPT_METHOD } from '@/types/receipt';
 import { isAgentBookingMethod } from '@/types/save-booking';
+import { HANDOVER_STATUS } from '@/types/handover';
 import type {
   AllCashierSummaryDetailReportQuery,
   AllCashierSummaryDetailReportResponse,
+  AllCashierShiftHandover,
   AllCashierUserSummaryRow,
   AllCashierUserDetailRow,
   CashierSummaryPaymentAmounts,
@@ -93,6 +95,68 @@ function sectionKeyFromReceipt(
   return { key: 'other', title: 'Other Receipts' };
 }
 
+function toIso(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Shifts that produced receipts for each cashier, with the approved handover if one exists. */
+async function loadShiftsByUser(
+  users: Array<{ userId: string; shiftIds: Set<string> }>
+): Promise<Map<string, AllCashierShiftHandover[]>> {
+  const allShiftIds = Array.from(new Set(users.flatMap((u) => Array.from(u.shiftIds))));
+  const shiftRows = allShiftIds.length
+    ? await prisma.shift.findMany({
+        where: { id: { in: allShiftIds } },
+        select: {
+          id: true,
+          startedAt: true,
+          handovers: {
+            select: {
+              status: true,
+              handoverNoString: true,
+              approvedAt: true,
+              createdAt: true,
+            },
+          },
+        },
+      })
+    : [];
+  const shiftById = new Map(shiftRows.map((s) => [s.id, s]));
+  const result = new Map<string, AllCashierShiftHandover[]>();
+
+  for (const user of users) {
+    const rows = Array.from(user.shiftIds)
+      .map((id) => shiftById.get(id))
+      .filter((s): s is NonNullable<typeof s> => Boolean(s))
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime() || a.id.localeCompare(b.id));
+
+    result.set(
+      user.userId,
+      rows.map((shift, index) => {
+        const approved = shift.handovers
+          .filter((h) => h.status === HANDOVER_STATUS.APPROVED)
+          .sort((a, b) => {
+            const at = (a.approvedAt ?? a.createdAt).getTime();
+            const bt = (b.approvedAt ?? b.createdAt).getTime();
+            return bt - at;
+          })[0];
+        return {
+          shiftId: shift.id,
+          shiftNo: index + 1,
+          startedAt: shift.startedAt.toISOString(),
+          handedOver: Boolean(approved),
+          handoverNo: approved?.handoverNoString?.trim() || null,
+          handedOverAt: approved ? toIso(approved.approvedAt ?? approved.createdAt) : null,
+        };
+      })
+    );
+  }
+
+  return result;
+}
+
 export async function getAllCashierSummaryDetailReportService(
   query: AllCashierSummaryDetailReportQuery
 ): Promise<AllCashierSummaryDetailReportResponse> {
@@ -143,6 +207,7 @@ export async function getAllCashierSummaryDetailReportService(
     select: {
       id: true,
       createdBy: true,
+      shiftId: true,
       paymentMethod: true,
       amount: true,
       type: true,
@@ -191,6 +256,7 @@ export async function getAllCashierSummaryDetailReportService(
       receiptCount: number;
       totals: CashierSummaryPaymentAmounts;
       sections: Map<string, { key: string; title: string; receiptCount: number; totals: CashierSummaryPaymentAmounts }>;
+      shiftIds: Set<string>;
     }
   >();
 
@@ -214,9 +280,11 @@ export async function getAllCashierSummaryDetailReportService(
         receiptCount: 0,
         totals: { ...ZERO_AMOUNTS },
         sections: new Map(),
+        shiftIds: new Set(),
       });
     }
     const entry = byUser.get(userId)!;
+    if (r.shiftId) entry.shiftIds.add(r.shiftId);
     const amounts =
       r.method === RECEIPT_METHOD.DOCTOR_PAYMENT || r.method === RECEIPT_METHOD.DOCTOR_CANCEL
         ? receiptToAmountsDoctorPaymentNet(r.paymentMethod, r.amount, r.type, r.whd, r.paymentLines)
@@ -238,10 +306,12 @@ export async function getAllCashierSummaryDetailReportService(
   }
 
   const sortedUsers = Array.from(byUser.values()).sort((a, b) => a.userName.localeCompare(b.userName));
+  const shiftsByUser = await loadShiftsByUser(sortedUsers.map((u) => ({ userId: u.userId, shiftIds: u.shiftIds })));
   const summaryRows: AllCashierUserSummaryRow[] = sortedUsers.map((u) => ({
     userId: u.userId,
     userName: u.userName,
     receiptCount: u.receiptCount,
+    shifts: shiftsByUser.get(u.userId) ?? [],
     ...u.totals,
   }));
 
@@ -251,6 +321,7 @@ export async function getAllCashierSummaryDetailReportService(
     receiptCount: u.receiptCount,
     totals: u.totals,
     sections: Array.from(u.sections.values()).sort((a, b) => a.title.localeCompare(b.title)),
+    shifts: shiftsByUser.get(u.userId) ?? [],
   }));
 
   return {

@@ -24,6 +24,7 @@ import {
   acsSummaryPdfCompactRow,
   buildAcsDetailCompactRows,
   buildAcsSummaryCompactRows,
+  type AcsShiftMarkLine,
 } from './all-cashier-summary-detail-export-config';
 
 let cachedLogoBase64: string | null | undefined;
@@ -70,9 +71,26 @@ const thinBorder: Partial<ExcelJS.Borders> = {
 };
 
 /** ~ ACS_SUMMARY_PDF_COL_PERCENTS */
-const SUMMARY_COLUMN_WIDTHS = [6, 22, 10, 28, 14, 14];
+const SUMMARY_COLUMN_WIDTHS = [6, 18, 10, 24, 32, 14];
 /** ~ ACS_DETAIL_PDF_COL_PERCENTS */
-const DETAIL_COLUMN_WIDTHS = [5, 18, 18, 10, 28, 14, 14];
+const DETAIL_COLUMN_WIDTHS = [5, 16, 16, 10, 24, 32, 14];
+
+function shiftMarksRichText(lines: AcsShiftMarkLine[]): ExcelJS.CellRichTextValue {
+  return {
+    richText: lines.map((line, i) => ({
+      text: i === 0 ? line.text : `\n${line.text}`,
+      font: {
+        size: 8,
+        name: 'Arial',
+        bold: true,
+        color: {
+          argb:
+            line.tone === 'handed' ? 'FF15803D' : line.tone === 'open' ? 'FFDC2626' : 'FF111111',
+        },
+      },
+    })),
+  };
+}
 
 function cellValue(raw: string | undefined | null): string | null {
   if (raw === undefined || raw === null || raw === '') return null;
@@ -294,9 +312,14 @@ export async function downloadAllCashierSummaryDetailReportExcel(
       const isTotal = Boolean(compact.isTotal);
       for (let c = 0; c < colCount; c++) {
         const cell = sheet.getCell(row, c + 1);
-        cell.value = cellValue(values[c]);
-        cell.numFmt = '@';
-        cell.font = { size: 8, name: 'Arial', bold: isTotal };
+        const marks = !isTotal && c === 4 ? compact.shiftMarks : undefined;
+        if (marks?.length) {
+          cell.value = shiftMarksRichText(marks);
+        } else {
+          cell.value = cellValue(values[c]);
+          cell.numFmt = '@';
+          cell.font = { size: 8, name: 'Arial', bold: isTotal };
+        }
         cell.border = thinBorder;
         cell.alignment = {
           vertical: 'top',
@@ -307,7 +330,7 @@ export async function downloadAllCashierSummaryDetailReportExcel(
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
         }
       }
-      sheet.getRow(row).height = isTotal ? 72 : 72;
+      sheet.getRow(row).height = Math.max(72, (compact.shiftMarks?.length ?? 0) * 14);
       row += 1;
     }
   } else {
@@ -358,9 +381,14 @@ export async function downloadAllCashierSummaryDetailReportExcel(
                       ? compact.payments
                       : null
             : values[c];
-        cell.value = cellValue(raw);
-        cell.numFmt = '@';
-        cell.font = { size: 8, name: 'Arial', bold: isHighlight };
+        const marks = !isHighlight && c === 5 ? compact.shiftMarks : undefined;
+        if (marks?.length) {
+          cell.value = shiftMarksRichText(marks);
+        } else {
+          cell.value = cellValue(raw);
+          cell.numFmt = '@';
+          cell.font = { size: 8, name: 'Arial', bold: isHighlight };
+        }
         cell.border = thinBorder;
         cell.alignment = {
           vertical: 'top',
@@ -373,7 +401,7 @@ export async function downloadAllCashierSummaryDetailReportExcel(
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
         }
       }
-      sheet.getRow(row).height = isHighlight ? 72 : 72;
+      sheet.getRow(row).height = Math.max(72, (compact.shiftMarks?.length ?? 0) * 14);
       row += 1;
     }
   }

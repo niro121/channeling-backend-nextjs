@@ -38,6 +38,7 @@ import { SHIFT_STATUS } from "@/types/shift"
 import type { FloatRequest } from "@/types/float-request"
 import { useToast } from "@/components/hooks/use-toast"
 import { usePermissions } from "@/components/hooks/use-permissions"
+import { hasPermission as hasGrantedPermission } from "@/lib/permissions"
 import { CircleDot, Pause, Play, Square, ChevronDown, Loader2, PlayCircle, Banknote, Ban, CheckCircle, RefreshCw, Info, Camera } from "lucide-react"
 import { cn, SRI_LANKA_TZ } from "@/lib/utils"
 import Link from "next/link"
@@ -123,9 +124,10 @@ function formatElapsed(startedAt: Date | string, asOf: Date): string {
 }
 
 export function ChannelBookingShiftBar() {
-  const { has: hasPermission } = usePermissions()
+  const { permissions, has: hasPermission } = usePermissions()
   const hasShiftPermission = hasPermission("shift", "view")
   const hasFloatRequestPermission = hasPermission("bulk-cashier", "float-request")
+  const canAutoPromptFloatRequest = hasGrantedPermission(permissions, "bulk-cashier", "float-request")
   const [shift, setShift] = useState<ShiftRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -438,7 +440,7 @@ export function ChannelBookingShiftBar() {
   }, [shift?.id, hasFloatRequestPermission, pendingFloatRequest?.id, toast])
 
   useEffect(() => {
-    if (!hasFloatRequestPermission) return
+    if (!canAutoPromptFloatRequest) return
     const openRequestFloat = (e: Event) => {
       const shiftId = (e as CustomEvent<{ shiftId?: string | null }>)?.detail?.shiftId ?? null
       setRequestFloatShiftIdOverride(shiftId ?? null)
@@ -446,7 +448,7 @@ export function ChannelBookingShiftBar() {
     }
     window.addEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
     return () => window.removeEventListener("channel-booking:open-request-float-dialog", openRequestFloat)
-  }, [hasFloatRequestPermission])
+  }, [canAutoPromptFloatRequest])
 
   useEffect(() => {
     if (!shiftDetailsOpen || !shift?.id) {

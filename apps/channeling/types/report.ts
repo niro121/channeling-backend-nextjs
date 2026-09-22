@@ -433,10 +433,23 @@ export type AllCashierSummaryDetailReportQuery = {
   format: 'summary' | 'detail';
 };
 
+/** A shift that contributed receipts for one cashier in the report range. */
+export type AllCashierShiftHandover = {
+  shiftId: string;
+  /** 1-based order of this cashier's shifts in the report, by start time. */
+  shiftNo: number;
+  startedAt: string;
+  handedOver: boolean;
+  handoverNo: string | null;
+  /** When the handover was approved. Null when the shift was not handed over. */
+  handedOverAt: string | null;
+};
+
 export type AllCashierUserSummaryRow = {
   userId: string;
   userName: string;
   receiptCount: number;
+  shifts: AllCashierShiftHandover[];
 } & CashierSummaryPaymentAmounts;
 
 export type AllCashierUserDetailSection = {
@@ -452,6 +465,7 @@ export type AllCashierUserDetailRow = {
   receiptCount: number;
   totals: CashierSummaryPaymentAmounts;
   sections: AllCashierUserDetailSection[];
+  shifts: AllCashierShiftHandover[];
 };
 
 export type AllCashierSummaryDetailReportResponse = {
