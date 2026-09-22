@@ -6,7 +6,7 @@ import { Selector } from '@/components/common/selector';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { getAgentBalanceReportData } from '@/app/actions/reports/agent-balance.report.action';
 import type { AgentBalanceReportContentProps, AgentBalanceReportRow } from '@/types/reports/agent-balance';
 import { formatLKR } from '@/lib/format-money';
@@ -101,52 +101,6 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
       />
     ) : null;
 
-  const downloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download.' });
-      return;
-    }
-    const lines = [
-      [
-        'S No.',
-        'Status',
-        'Agent Code',
-        'Parent Agent',
-        'Agent Name',
-        'Agent Phone No',
-        'Agent Address',
-        'Hard credit limit',
-        'Agency credit limit',
-        'Allowed credit limit',
-        'Agent Balance',
-      ].join(','),
-      ...rows.map((r, i) =>
-        [
-          i + 1,
-          r.status === 1 ? 'Active' : 'Inactive',
-          r.agentCode,
-          r.parentAgent,
-          r.agentName,
-          r.agentPhoneNo,
-          r.agentAddress,
-          r.hardCreditLimit.toFixed(2),
-          r.agencyCreditLimit.toFixed(2),
-          r.allowedCreditLimit.toFixed(2),
-          r.agentBalance.toFixed(2),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      ),
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agent-balance-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const downloadPdf = async () => {
     if (rows.length === 0) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -223,7 +177,6 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                 )}
                 Excel
               </Button>
-              <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2"><Download />Download CSV</Button>
             </div>
           </div>
         </CardHeader>

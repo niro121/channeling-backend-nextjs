@@ -229,7 +229,7 @@ export default function UserActivityContent({
             <div>
               <CardTitle className="text-2xl font-bold">User Activity Report</CardTitle>
               <CardDescription>
-                View user activity by user and date range. Display is capped at 10,000 records; use Export to download (PDF/CSV).
+                View user activity by user and date range. Display is capped at 10,000 records; use Export to download (PDF/EXCEL).
               </CardDescription>
             </div>
             <div className="flex gap-2">

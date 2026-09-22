@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon, X } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon, X } from 'lucide-react';
 import { getAllCashierSummaryDetailReportData } from '@/app/actions/reports/all-cashier-summary-detail.action';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
@@ -48,13 +48,6 @@ function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
   if (!Number.isFinite(num)) return '0.00';
   return formatReceiptAmount(num);
-}
-
-function formatAmountForCsv(n: number | undefined | null): string {
-  const num = Number(n);
-  if (!Number.isFinite(num)) return '0.00';
-  // Receipt.amount is already in rupees (not cents), so do not divide by 100.
-  return num.toFixed(2);
 }
 
 function getDefaultDateTimeRange(): { from: string; to: string } {
@@ -181,47 +174,6 @@ export default function AllCashierSummaryDetailContent({
     } finally {
       setLoading(false);
     }
-  };
-
-  const downloadCsv = () => {
-    const lines: string[] = [];
-    if (format === 'summary') {
-      lines.push(['User', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
-      for (const r of summaryRows) {
-        lines.push(
-          [
-            r.userName,
-            String(r.receiptCount),
-            ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(r[c.key])),
-          ]
-            .map((x) => `"${String(x).replace(/"/g, '""')}"`)
-            .join(',')
-        );
-      }
-    } else {
-      lines.push(['User', 'Section', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
-      for (const u of detailRows) {
-        for (const s of u.sections) {
-          lines.push(
-            [
-              u.userName,
-              s.title,
-              String(s.receiptCount),
-              ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(s.totals[c.key])),
-            ]
-              .map((x) => `"${String(x).replace(/"/g, '""')}"`)
-              .join(',')
-          );
-        }
-      }
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `all-cashier-summary-detail-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const downloadExcel = async () => {
@@ -367,10 +319,6 @@ export default function AllCashierSummaryDetailContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>

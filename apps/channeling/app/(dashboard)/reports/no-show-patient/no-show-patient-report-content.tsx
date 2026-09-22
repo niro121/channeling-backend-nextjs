@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
@@ -177,37 +177,6 @@ export default function NoShowPatientReportContent({
 
   const handlePrint = () => window.print();
 
-  const handleDownloadCsv = async () => {
-    if (!hasSearched) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const result = await exportNoShowPatientReportData(buildQuery());
-    if (!result.success || !result.data?.length) {
-      toast({ variant: 'destructive', title: 'No data', description: result.message || 'No data available.' });
-      return;
-    }
-
-    const dynamicHeaderKeys = periodKeys.map((k) => periodLabels[k] ?? k);
-    const headerKeys = ['speciality', 'doctorName', ...dynamicHeaderKeys, 'total'];
-    const headers = ['Speciality', 'Doctor Name', ...dynamicHeaderKeys, 'Total'];
-    const lines: string[] = [];
-    lines.push(headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','));
-
-    for (const row of result.data) {
-      const rowVals = headerKeys.map((k) => String(row[k] ?? ''));
-      lines.push(rowVals.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `no-show-patient-report-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadPdf = async () => {
     if (!hasSearched) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -374,10 +343,6 @@ export default function NoShowPatientReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
