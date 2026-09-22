@@ -268,16 +268,15 @@ export function ReconciliationDocumentView({
   /** Top-level handover (first in chain). */
   const topHandover = chain[0]?.handover
 
-  /** Required amounts summed across ALL handovers in the chain (not just top-level). */
+  /** Top-level totals already include included handovers, so do not add the chain again. */
   const requiredByMethod = useMemo(() => {
-    const totals = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
-    for (const { handover } of chain) {
-      totals.cardCents += handover.cardCents
-      totals.slipCents += handover.slipCents
-      totals.checkCents += handover.checkCents
-      totals.eWalletCents += handover.eWalletCents
+    const handover = chain[0]?.handover
+    return {
+      cardCents: handover?.cardCents ?? 0,
+      slipCents: handover?.slipCents ?? 0,
+      checkCents: handover?.checkCents ?? 0,
+      eWalletCents: handover?.eWalletCents ?? 0,
     }
-    return totals
   }, [chain])
 
   type RefEntryWithSource = { reference: string; amountCents: number; from: string }
