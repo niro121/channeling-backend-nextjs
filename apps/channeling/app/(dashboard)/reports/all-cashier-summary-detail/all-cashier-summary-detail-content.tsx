@@ -24,7 +24,11 @@ import type {
   AllCashierUserSummaryRow,
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
-import { AllCashierSummaryDetailPrintLayout } from './all-cashier-summary-detail-print-layout';
+import {
+  AllCashierSummaryDetailPrintLayout,
+  ShiftHandoverMarks,
+} from './all-cashier-summary-detail-print-layout';
+import { formatAcsShiftMarksPlain } from './all-cashier-summary-detail-export-config';
 import { downloadAllCashierSummaryDetailReportPdf } from './all-cashier-summary-detail-pdf';
 import { downloadAllCashierSummaryDetailReportExcel } from './all-cashier-summary-detail-excel';
 
@@ -186,20 +190,21 @@ export default function AllCashierSummaryDetailContent({
   const downloadCsv = () => {
     const lines: string[] = [];
     if (format === 'summary') {
-      lines.push(['User', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
+      lines.push(['User', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label), 'Shifts'].join(','));
       for (const r of summaryRows) {
         lines.push(
           [
             r.userName,
             String(r.receiptCount),
             ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(r[c.key])),
+            formatAcsShiftMarksPlain(r.shifts).replace(/\n/g, ' | '),
           ]
             .map((x) => `"${String(x).replace(/"/g, '""')}"`)
             .join(',')
         );
       }
     } else {
-      lines.push(['User', 'Section', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label)].join(','));
+      lines.push(['User', 'Section', 'Receipt Count', ...PAYMENT_COLUMNS.map((c) => c.label), 'Shifts'].join(','));
       for (const u of detailRows) {
         for (const s of u.sections) {
           lines.push(
@@ -208,6 +213,7 @@ export default function AllCashierSummaryDetailContent({
               s.title,
               String(s.receiptCount),
               ...PAYMENT_COLUMNS.map((c) => formatAmountForCsv(s.totals[c.key])),
+              formatAcsShiftMarksPlain(u.shifts).replace(/\n/g, ' | '),
             ]
               .map((x) => `"${String(x).replace(/"/g, '""')}"`)
               .join(',')
@@ -477,7 +483,7 @@ export default function AllCashierSummaryDetailContent({
                                   {c.label}
                                 </TableHead>
                               ))}
-                              <TableHead className="text-center">Handover Date</TableHead>
+                              <TableHead className="min-w-[190px]">Shifts</TableHead>
                               <TableHead className="text-center">Checked By</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -492,11 +498,8 @@ export default function AllCashierSummaryDetailContent({
                                     {formatAmount(r[c.key])}
                                   </TableCell>
                                 ))}
-                                <TableCell className="text-center">
-                                  <div
-                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                    aria-hidden
-                                  />
+                                <TableCell className="align-top">
+                                  <ShiftHandoverMarks shifts={r.shifts} />
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <div
@@ -539,7 +542,7 @@ export default function AllCashierSummaryDetailContent({
                                       {c.label}
                                     </TableHead>
                                   ))}
-                                  <TableHead className="text-center">Handover Date</TableHead>
+                                  <TableHead className="min-w-[190px]">Shifts</TableHead>
                                   <TableHead className="text-center">Checked By</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -568,12 +571,9 @@ export default function AllCashierSummaryDetailContent({
                                       <>
                                         <TableCell
                                           rowSpan={u.sections.length + 1}
-                                          className="text-center"
+                                          className="align-top"
                                         >
-                                          <div
-                                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
-                                            aria-hidden
-                                          />
+                                          <ShiftHandoverMarks shifts={u.shifts} />
                                         </TableCell>
                                         <TableCell
                                           rowSpan={u.sections.length + 1}

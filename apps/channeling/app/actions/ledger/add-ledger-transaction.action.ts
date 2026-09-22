@@ -181,6 +181,17 @@ export async function addLedgerTransaction(
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
     return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
   }
+  if (
+    transactionType === "BANK_DEPOSIT" &&
+    !parsed.data.slipImageKey?.trim() &&
+    !parsed.data.shiftBillAttachmentId?.trim()
+  ) {
+    return {
+      success: false,
+      message: "A deposit slip photo is required.",
+      errorCode: "VALIDATION",
+    }
+  }
 
   try {
     if (isBankDeposit) {

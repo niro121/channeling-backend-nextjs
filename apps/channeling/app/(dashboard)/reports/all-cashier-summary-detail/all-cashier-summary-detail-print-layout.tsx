@@ -2,10 +2,12 @@
 
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
+  AllCashierShiftHandover,
   AllCashierUserDetailRow,
   AllCashierUserSummaryRow,
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
+import { formatAcsShiftDateTime } from './all-cashier-summary-detail-export-config';
 
 type SummaryProps = {
   mode: 'summary';
@@ -66,6 +68,38 @@ function PaymentsBlock({ amounts }: { amounts: CashierSummaryPaymentAmounts }) {
 
 function SignatureLine() {
   return <div className="acs-sig" aria-hidden />;
+}
+
+export function ShiftHandoverMarks({
+  shifts,
+}: {
+  shifts: AllCashierShiftHandover[] | undefined;
+}) {
+  if (!shifts?.length) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="space-y-1 text-left leading-tight">
+      {shifts.map((shift) => (
+        <div key={shift.shiftId}>
+          <div className="font-medium tabular-nums">
+            #{shift.shiftNo} · {formatAcsShiftDateTime(shift.startedAt)}
+          </div>
+          <div
+            className={
+              shift.handedOver
+                ? 'font-medium text-green-700 acs-handed'
+                : 'font-medium text-red-600 acs-open'
+            }
+          >
+            {shift.handedOver
+              ? `Handed over ${formatAcsShiftDateTime(shift.handedOverAt)}${shift.handoverNo ? ` · ${shift.handoverNo}` : ''}`
+              : 'Not handed over'}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -179,6 +213,16 @@ export function AllCashierSummaryDetailPrintLayout(props: Props) {
             line-height: inherit !important;
             color: #000 !important;
           }
+          .all-cashier-summary-detail-report-root .rpt-print-root table.acs-print-table td .acs-handed,
+          .all-cashier-summary-detail-report-root .rpt-print-root table.acs-print-table td .acs-handed * {
+            color: #15803d !important;
+            font-weight: 700 !important;
+          }
+          .all-cashier-summary-detail-report-root .rpt-print-root table.acs-print-table td .acs-open,
+          .all-cashier-summary-detail-report-root .rpt-print-root table.acs-print-table td .acs-open * {
+            color: #dc2626 !important;
+            font-weight: 700 !important;
+          }
           .all-cashier-summary-detail-report-root .rpt-print-root table.acs-print-table tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
@@ -239,18 +283,18 @@ export function AllCashierSummaryDetailPrintLayout(props: Props) {
           }
 
           .all-cashier-summary-detail-report-root .acs-s0 { width: 5% !important; }
-          .all-cashier-summary-detail-report-root .acs-s1 { width: 22% !important; }
-          .all-cashier-summary-detail-report-root .acs-s2 { width: 10% !important; }
-          .all-cashier-summary-detail-report-root .acs-s3 { width: 33% !important; }
-          .all-cashier-summary-detail-report-root .acs-s4 { width: 15% !important; }
+          .all-cashier-summary-detail-report-root .acs-s1 { width: 16% !important; }
+          .all-cashier-summary-detail-report-root .acs-s2 { width: 8% !important; }
+          .all-cashier-summary-detail-report-root .acs-s3 { width: 28% !important; }
+          .all-cashier-summary-detail-report-root .acs-s4 { width: 28% !important; }
           .all-cashier-summary-detail-report-root .acs-s5 { width: 15% !important; }
 
           .all-cashier-summary-detail-report-root .acs-d0 { width: 4% !important; }
-          .all-cashier-summary-detail-report-root .acs-d1 { width: 16% !important; }
-          .all-cashier-summary-detail-report-root .acs-d2 { width: 18% !important; }
-          .all-cashier-summary-detail-report-root .acs-d3 { width: 8% !important; }
-          .all-cashier-summary-detail-report-root .acs-d4 { width: 28% !important; }
-          .all-cashier-summary-detail-report-root .acs-d5 { width: 13% !important; }
+          .all-cashier-summary-detail-report-root .acs-d1 { width: 13% !important; }
+          .all-cashier-summary-detail-report-root .acs-d2 { width: 15% !important; }
+          .all-cashier-summary-detail-report-root .acs-d3 { width: 7% !important; }
+          .all-cashier-summary-detail-report-root .acs-d4 { width: 24% !important; }
+          .all-cashier-summary-detail-report-root .acs-d5 { width: 24% !important; }
           .all-cashier-summary-detail-report-root .acs-d6 { width: 13% !important; }
 
           .all-cashier-summary-detail-report-root .acs-user-block {
@@ -300,7 +344,7 @@ function SummaryPrintTable({
           <th className="acs-s1">User</th>
           <th className="acs-s2 acs-nums">Receipts</th>
           <th className="acs-s3">Payments</th>
-          <th className="acs-s4">Handover Date</th>
+          <th className="acs-s4">Shifts</th>
           <th className="acs-s5">Checked By</th>
         </tr>
       </thead>
@@ -324,7 +368,7 @@ function SummaryPrintTable({
                   <PaymentsBlock amounts={r} />
                 </td>
                 <td className="acs-s4">
-                  <SignatureLine />
+                  <ShiftHandoverMarks shifts={r.shifts} />
                 </td>
                 <td className="acs-s5">
                   <SignatureLine />
@@ -388,7 +432,7 @@ function DetailPrintTable({
                 <th className="acs-d2">Section</th>
                 <th className="acs-d3 acs-nums">Receipts</th>
                 <th className="acs-d4">Payments</th>
-                <th className="acs-d5">Handover Date</th>
+                <th className="acs-d5">Shifts</th>
                 <th className="acs-d6">Checked By</th>
               </tr>
             </thead>
@@ -411,7 +455,7 @@ function DetailPrintTable({
                   {i === 0 ? (
                     <>
                       <td className="acs-d5" rowSpan={u.sections.length + 1}>
-                        <SignatureLine />
+                        <ShiftHandoverMarks shifts={u.shifts} />
                       </td>
                       <td className="acs-d6" rowSpan={u.sections.length + 1}>
                         <SignatureLine />
