@@ -59,6 +59,9 @@ export function CancelRefundDetailsCard({
         {details.refundReason ? (
           <Row label="Cancel / refund remark" value={details.refundReason} />
         ) : null}
+        {details.approvals.map((approval, index) => (
+          <Row key={`${approval.label}-${index}`} label={approval.label} value={approval.value} highlight />
+        ))}
         {details.refundReceipts.length > 0 ? (
           <>
             <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground pt-1">

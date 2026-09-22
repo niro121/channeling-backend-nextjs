@@ -96,6 +96,10 @@ export type ApprovalRequestListItem = BookingApprovalSummary & {
   sessionLabel: string
   detailTitle: string
   detailSub: string
+  /** Booking.method: POS, On-Call, Agent, Staff, API. */
+  paymentMethodName: string
+  /** Booking.receiptPaymentMethod: Cash, Credit Card, Slip, and so on. */
+  paymentTypeName: string
   receiptId: string | null
   receiptNoString: string | null
   slipImageUrl: string | null

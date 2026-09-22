@@ -299,6 +299,8 @@ export type BookingReceiptPrintInput = {
   refundAmount: string
   refundReceiptNo: string
   refundReason: string
+  /** Who approved the paid cancel or refund. Blank when there was no approval. */
+  approvedBy: string
   generatedBy: string
   companyName?: string
   locationName?: string
@@ -358,6 +360,7 @@ export function buildPlaceholdersForBookingReceipt(
     refund_amount: input.refundAmount,
     refund_receipt_no: input.refundReceiptNo,
     refund_reason: input.refundReason,
+    approved_by: input.approvedBy,
     generated_by: input.generatedBy,
     generated_at: generatedAt,
     phone: input.tel,
