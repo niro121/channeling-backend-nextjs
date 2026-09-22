@@ -46,6 +46,53 @@ export type SalaryGenerationStaffRow = {
   name: string;
 };
 
+export type SalaryGenerationSummary = {
+  totalEarnings: number;
+  totalDeductions: number;
+  netPayable: number;
+  employeeCount: number;
+};
+
+export type SalaryBreakdownChartPoint = {
+  category: string;
+  amount: number;
+};
+
+export type SalaryGenerationPreviewRow = {
+  id: string;
+  employee: string;
+  basic: number;
+  allowances: number;
+  ot: number;
+  gross: number;
+  epf8: number;
+  paye: number;
+  loans: number;
+  net: number;
+};
+
+export const EMPTY_SALARY_GENERATION_SUMMARY: SalaryGenerationSummary = {
+  totalEarnings: 0,
+  totalDeductions: 0,
+  netPayable: 0,
+  employeeCount: 0
+};
+
+/** Fixed chart categories (Phase 0 shell — amounts stay 0 until dynamic phase). */
+export const EMPTY_EARNINGS_BREAKDOWN: SalaryBreakdownChartPoint[] = [
+  { category: 'Basic', amount: 0 },
+  { category: 'Allowances', amount: 0 },
+  { category: 'OT', amount: 0 },
+  { category: 'Other', amount: 0 }
+];
+
+export const EMPTY_DEDUCTIONS_BREAKDOWN: SalaryBreakdownChartPoint[] = [
+  { category: 'EPF 8%', amount: 0 },
+  { category: 'PAYE', amount: 0 },
+  { category: 'Loans', amount: 0 },
+  { category: 'Other', amount: 0 }
+];
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',

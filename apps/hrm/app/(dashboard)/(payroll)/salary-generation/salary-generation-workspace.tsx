@@ -11,11 +11,16 @@ import {
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
   buildSalaryCycleOptions,
+  EMPTY_DEDUCTIONS_BREAKDOWN,
+  EMPTY_EARNINGS_BREAKDOWN,
   EMPTY_SALARY_GENERATION_CYCLE_VALUES,
+  EMPTY_SALARY_GENERATION_SUMMARY,
   type SalaryGenerationCycleFormValues,
+  type SalaryGenerationPreviewRow,
   type SalaryGenerationStaffRow,
   type SalaryGenerationTab
 } from '@/types/payroll';
+import { formatAmount } from '@/lib/utils/currency';
 import { SalaryGenerationHeaderActions } from './header-actions';
 import SectionCycle from './section-cycle';
 import SectionStaffList from './section-staff-list';
@@ -32,9 +37,15 @@ export default function SalaryGenerationWorkspace() {
   const [formKey, setFormKey] = useState(0);
   const [generated, setGenerated] = useState(false);
   const [staffRows] = useState<SalaryGenerationStaffRow[]>([]);
+  const [previewRows] = useState<SalaryGenerationPreviewRow[]>([]);
 
   const staffCount = staffRows.length;
-  const staffCountLabel = `${staffCount.toLocaleString()} staff`;
+  const staffCountLabel = `${formatAmount(staffCount)} staff`;
+
+  const salarySummary = {
+    ...EMPTY_SALARY_GENERATION_SUMMARY,
+    employeeCount: staffCount
+  };
 
   const handleGenerate = () => {
     if (!cycleValues.salaryCycleId) {
@@ -152,7 +163,12 @@ export default function SalaryGenerationWorkspace() {
         </TabsContent>
 
         <TabsContent value="staff-salary" className="mt-0">
-          <SectionStaffSalary />
+          <SectionStaffSalary
+            summary={salarySummary}
+            earningsBreakdown={EMPTY_EARNINGS_BREAKDOWN}
+            deductionsBreakdown={EMPTY_DEDUCTIONS_BREAKDOWN}
+            previewRows={previewRows}
+          />
         </TabsContent>
       </Tabs>
     </div>
