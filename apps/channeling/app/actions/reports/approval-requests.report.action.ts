@@ -41,6 +41,8 @@ export async function exportApprovalRequestsReportData(
       no: String(index + 1),
       requestedAt: r.requestedAt ? moment(r.requestedAt).format('YYYY-MM-DD HH:mm:ss') : '—',
       type: r.typeLabel,
+      channelType: dash(r.channelType),
+      paymentMode: dash(r.paymentMode),
       details: [r.details, r.detailsSub].filter(Boolean).join(' — '),
       amount: formatReceiptAmount(r.amount ?? 0),
       requestedBy: dash(r.requestedByName),
@@ -49,6 +51,7 @@ export async function exportApprovalRequestsReportData(
       approvedAt: r.approvedAt ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm:ss') : '—',
       rejectedBy: dash(r.rejectedByName),
       rejectedAt: r.rejectedAt ? moment(r.rejectedAt).format('YYYY-MM-DD HH:mm:ss') : '—',
+      withdrawnAt: r.withdrawnAt ? moment(r.withdrawnAt).format('YYYY-MM-DD HH:mm:ss') : '—',
       remarks: dash(r.remarks),
       rejectReason: dash(r.rejectReason),
     }));
@@ -58,6 +61,8 @@ export async function exportApprovalRequestsReportData(
       no: '',
       requestedAt: 'Total',
       type: '',
+      channelType: '',
+      paymentMode: '',
       details: '',
       amount: formatReceiptAmount(totalAmount),
       requestedBy: '',
@@ -66,6 +71,7 @@ export async function exportApprovalRequestsReportData(
       approvedAt: '',
       rejectedBy: '',
       rejectedAt: '',
+      withdrawnAt: '',
       remarks: '',
       rejectReason: '',
     });
