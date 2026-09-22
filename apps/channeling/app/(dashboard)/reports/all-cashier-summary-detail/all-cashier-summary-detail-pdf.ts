@@ -155,7 +155,7 @@ function isShiftMarkRow(row: ShiftMarkRow | undefined): row is ShiftMarkRow & { 
 
 /** Keep the plain text so the row is tall enough, then paint status lines in color. */
 function hideShiftMarkText(
-  hookData: { section: string; column: { index: number }; cell: { styles: { textColor: number[] } } },
+  hookData: { section: string; column: { index: number }; cell: { styles: { textColor: unknown } } },
   row: ShiftMarkRow | undefined,
   shiftsCol: number
 ) {
