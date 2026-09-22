@@ -286,6 +286,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
   const hospitalDiscount = (placeholders.hospital_fee_discount ?? "").trim()
   const professionalDiscount = (placeholders.professional_fee_discount ?? "").trim()
   const refundReceiptNo = (placeholders.refund_receipt_no ?? "").trim()
+  const approvedBy = (placeholders.approved_by ?? "").trim()
   const debiter = (placeholders.debiter ?? "").trim()
   const showProfessional = (placeholders.show_professional_bill ?? "").trim() === "1"
   const companyName = placeholders.company_name || RUHUNU_HOSPITAL.name
@@ -309,6 +310,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     invoiceRow("Billed At", placeholders.billed_at ?? ""),
     invoiceRow("Cashier Code", placeholders.cashier_code ?? ""),
     invoiceRow("Invoice Status", placeholders.invoice_status ?? ""),
+    approvedBy ? invoiceRow("Approved by", approvedBy) : "",
     debiter ? invoiceRow("Debiter", debiter) : "",
     invoiceRow("Printed by", placeholders.printed_by ?? ""),
   ]
@@ -324,6 +326,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     professionalDiscount
       ? invoiceRow("Total Professional Fee", placeholders.total_professional_fee ?? "")
       : "",
+    approvedBy ? invoiceRow("Approved by", approvedBy) : "",
   ]
     .filter(Boolean)
     .join("")

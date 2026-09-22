@@ -459,10 +459,16 @@ export function MakeDoctorPaymentClient({
         router.push("/doctor-payments");
         router.refresh();
       } else {
-        toast({ title: res.message ?? "Payment failed.", variant: "destructive" });
+        toast({
+          title: res.errorCode === "SHIFT_EXPIRED" ? "Shift expired" : (res.message ?? "Payment failed."),
+          variant: "destructive",
+        });
       }
     } catch (e) {
-      toast({ title: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      const raw = e instanceof Error ? e.message : "Error";
+      const hidden =
+        raw.includes("Server Components render") || raw.includes("omitted in production");
+      toast({ title: hidden ? "Payment failed." : raw, variant: "destructive" });
     } finally {
       setSubmitting(false);
       setShowPayConfirm(false);

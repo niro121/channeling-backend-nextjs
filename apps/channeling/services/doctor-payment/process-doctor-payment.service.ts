@@ -18,8 +18,8 @@ import {
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { formatCents } from "@/lib/format-money";
-import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
-import { isShiftRequirementError } from "@/lib/shift-requirement-error";
+import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
+import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
@@ -100,23 +100,12 @@ export async function processDoctorPaymentService(
   } = input;
 
   if (userId) {
-    try {
-      await requireActiveShift(userId, { allowExpired: true });
-    } catch (e) {
-      if (isShiftRequirementError(e)) {
-        return {
-          success: false,
-          errorCode: e.code,
-          message: e.message,
-        };
-      }
+    const shiftFailure = await getShiftRequirementFailure(userId);
+    if (shiftFailure) {
       return {
         success: false,
-        errorCode: "NO_ACTIVE_SHIFT",
-        message:
-          e instanceof Error
-            ? e.message
-            : "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+        errorCode: shiftFailure.code,
+        message: shiftFailure.code === "SHIFT_EXPIRED" ? "Shift expired" : shiftFailure.message,
       };
     }
   }
@@ -276,28 +265,44 @@ export async function processDoctorPaymentService(
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0;
 
-  const result = await prisma.$transaction(async (tx) => {
-    const r = await createReceiptWithoutBooking(tx, receiptParams);
-    if (!r.success) return r;
+  let result: Awaited<ReturnType<typeof createReceiptWithoutBooking>>;
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      const r = await createReceiptWithoutBooking(tx, receiptParams);
+      if (!r.success) return r;
 
-    const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts);
-    if (journalInput && journalNumber > 0) {
-      const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber);
-      if (!jResult.success) throw new Error(jResult.error);
-    }
+      const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts);
+      if (journalInput && journalNumber > 0) {
+        const jResult = await createJournalEntryInTransaction(tx, journalInput, journalNumber);
+        if (!jResult.success) throw new Error(jResult.error);
+      }
 
-    await tx.booking.updateMany({
-      where: { id: { in: bookingIds } },
-      data: {
-        doctorPayment: true,
-        doctorPaymentAt: r.receipt.createdAt,
-        doctorPaymentReceiptId: r.receipt.id,
-        doctorPaymentReceiptString: r.receipt.receiptNoString,
-      },
+      await tx.booking.updateMany({
+        where: { id: { in: bookingIds } },
+        data: {
+          doctorPayment: true,
+          doctorPaymentAt: r.receipt.createdAt,
+          doctorPaymentReceiptId: r.receipt.id,
+          doctorPaymentReceiptString: r.receipt.receiptNoString,
+        },
+      });
+
+      return r;
     });
-
-    return r;
-  });
+  } catch (e) {
+    if (isShiftRequirementError(e)) {
+      return {
+        success: false,
+        errorCode: e.code,
+        message: shiftRequirementMessage(e),
+      };
+    }
+    return {
+      success: false,
+      errorCode: "SERVER_ERROR",
+      message: e instanceof Error && e.message.trim() ? e.message : "Payment failed.",
+    };
+  }
 
   if (!result.success) {
     return { success: false, errorCode: result.errorCode, message: result.message };
