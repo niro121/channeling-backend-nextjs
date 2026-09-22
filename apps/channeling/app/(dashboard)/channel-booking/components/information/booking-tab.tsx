@@ -814,20 +814,26 @@ export function BookingTab() {
             ) : (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
             )}
-            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">Remark · Referred</span>
+            <span className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">
+              {details.cancelOrRefundDetails?.approvals.length ? "Approved by" : "Remark · Referred"}
+            </span>
             {!otherExpanded && (
               <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate ml-auto">
-                {details.remark?.trim()
-                  ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}`
-                  : details.refundReason?.trim()
-                    ? `${details.refundReason.slice(0, 20)}${details.refundReason.length > 20 ? "…" : ""}`
-                    : details.referredBy
-                      ? "Referred"
-                      : details.foreigner
-                        ? "Foreigner"
-                        : details.agentRef !== "-"
-                          ? "Agent"
-                          : "—"}
+                {details.cancelOrRefundDetails?.approvals[0]
+                  ? details.cancelOrRefundDetails.approvals
+                      .map((approval) => approval.value)
+                      .join(" · ")
+                  : details.remark?.trim()
+                    ? `${details.remark.slice(0, 20)}${details.remark.length > 20 ? "…" : ""}`
+                    : details.refundReason?.trim()
+                      ? `${details.refundReason.slice(0, 20)}${details.refundReason.length > 20 ? "…" : ""}`
+                      : details.referredBy
+                        ? "Referred"
+                        : details.foreigner
+                          ? "Foreigner"
+                          : details.agentRef !== "-"
+                            ? "Agent"
+                            : "—"}
               </span>
             )}
           </button>
@@ -842,6 +848,9 @@ export function BookingTab() {
                   <Row label="Referred By" value="—" />
                 )}
               </div>
+              {details.cancelOrRefundDetails?.approvals.map((approval, index) => (
+                <Row key={`${approval.label}-${index}`} label={approval.label} value={approval.value} highlight />
+              ))}
             </div>
           )}
         </div>
@@ -1128,6 +1137,14 @@ function ReceiptViewDialog({
                 <DetailRow label="Slip date" value={details.slipDate} />
               ) : null}
               <DetailRow label="Processed by" value={details.processedBy} />
+              {details.approvals.map((approval, index) => (
+                <DetailRow
+                  key={`${approval.label}-${index}`}
+                  label={approval.label}
+                  value={approval.value}
+                  highlight
+                />
+              ))}
               <DetailRow label="Created" value={createdAtStr} />
               {details.remarks ? (
                 <DetailRow label="Remarks" value={details.remarks} />

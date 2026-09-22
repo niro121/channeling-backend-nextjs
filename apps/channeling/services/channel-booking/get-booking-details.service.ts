@@ -5,7 +5,11 @@ import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from "@/types/receipt"
 import { formatSlipDate } from "@/lib/slip-date"
 import { resolveUser } from "./helpers/resolve-user"
 import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
-import { getBookingApprovalSummaries } from "@/services/approval-request.service"
+import {
+  getBookingApprovalSummaries,
+  getCompletedChannelApprovals,
+  type CompletedChannelApproval,
+} from "@/services/approval-request.service"
 import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
 import { userTypes } from "@/lib/roles"
 import type { BookingApprovalSummary } from "@/types/approval-request"
@@ -22,12 +26,44 @@ export type ReceiptRowView = {
   createdAt: Date
 }
 
+/** Who approved a paid cancel or refund. Unpaid cancels have no approval. */
+export type CancelApprovalDisplay = {
+  /** "Cancel approved by" or "Refund approved by". */
+  label: string
+  /** Approver name, with approval time when known. */
+  value: string
+}
+
 /** When booking is canceled (status === 2): refund amount and refund receipts for display. */
 export type CancelOrRefundDetailsView = {
   refundAmount: number
   /** Cancel / refund remark from booking.refundReason (Sails refund_reason). */
   refundReason: string | null
   refundReceipts: ReceiptRowView[]
+  /** Completed paid cancel/refund approvals. Empty when the booking was canceled unpaid. */
+  approvals: CancelApprovalDisplay[]
+}
+
+function formatApprovalWhen(date: Date | null): string | null {
+  if (!date) return null
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  })
+}
+
+export function toApprovalDisplays(rows: CompletedChannelApproval[]): CancelApprovalDisplay[] {
+  return rows.map((row) => {
+    const when = formatApprovalWhen(row.approvedAt)
+    return {
+      label: row.type === "channel_cancel" ? "Cancel approved by" : "Refund approved by",
+      value: when ? `${row.approvedByName} · ${when}` : row.approvedByName,
+    }
+  })
 }
 
 /** Settlement/receipt info when booking is paid (status !== 0). */
@@ -391,7 +427,11 @@ export async function getBookingDetailsService(
       b.referredStaff != null ? [b.referredStaff.name, b.referredStaff.code].filter(Boolean).join(" ").trim() || null : null
     const referredParts = [referredDoctorName, referredAgencyName, referredStaffName].filter(Boolean)
     const referredBy = referredParts.length > 0 ? referredParts.join(" · ") : ""
-    const approvalSummaries = await getBookingApprovalSummaries(b.id)
+    const needsCancelApprovals = b.status === 2 || (b.refund != null && b.refund !== 0)
+    const [approvalSummaries, completedApprovals] = await Promise.all([
+      getBookingApprovalSummaries(b.id),
+      needsCancelApprovals ? getCompletedChannelApprovals(b.id) : Promise.resolve([]),
+    ])
 
     const movedByUserId = (b as { movedBy?: string | null }).movedBy ?? null
     const movedAt = (b as { movedAt?: Date | null }).movedAt ?? null
@@ -554,6 +594,7 @@ export async function getBookingDetailsService(
               refundAmount: b.refundAmount ?? 0,
               refundReason: b.refundReason?.trim() ? b.refundReason : null,
               refundReceipts: receiptRows.filter((r) => r.type === "Refund"),
+              approvals: toApprovalDisplays(completedApprovals),
             }
           : undefined,
       movedAt: movedAt ?? null,
