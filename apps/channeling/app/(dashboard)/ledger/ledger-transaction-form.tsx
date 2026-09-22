@@ -254,6 +254,7 @@ export function LedgerTransactionForm({
   const [shiftBills, setShiftBills] = useState<ShiftBillAttachmentDto[]>([])
   const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
   const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
+  const [slipRequiredError, setSlipRequiredError] = useState<string | null>(null)
 
   useEffect(() => {
     return () => {
@@ -274,6 +275,7 @@ export function LedgerTransactionForm({
     setSlipPreviewUrl(null)
     setSelectedShiftBill(null)
     setShiftPickerOpen(false)
+    setSlipRequiredError(null)
     if (slipInputRef.current) slipInputRef.current.value = ""
     if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
   }
@@ -284,6 +286,7 @@ export function LedgerTransactionForm({
       toast({ title: "Please choose an image.", variant: "destructive" })
       return
     }
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     const url = URL.createObjectURL(file)
     setSlipPreviewObjectUrl(url)
@@ -294,6 +297,7 @@ export function LedgerTransactionForm({
   }
 
   function handleSelectShiftBill(item: ShiftBillAttachmentDto) {
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     setSlipFile(null)
     setSelectedShiftBill(item)
@@ -361,6 +365,16 @@ export function LedgerTransactionForm({
     }
 
     const amountNum = parseFloat(values.amount)
+    if (isBankDeposit && !slipFile && !selectedShiftBill) {
+      setSlipRequiredError("A deposit slip photo is required.")
+      toast({
+        title: "Validation",
+        description: "Attach a deposit slip photo before requesting a bank deposit.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     try {
       let slipImageKey: string | undefined
       if (isBankDeposit && slipFile) {
@@ -853,7 +867,9 @@ export function LedgerTransactionForm({
 
             {isBankDeposit && (
               <div className="space-y-2">
-                <Label htmlFor="depositSlip">Deposit slip (optional)</Label>
+                <Label htmlFor="depositSlip">
+                  Deposit slip <span className="text-destructive">*</span>
+                </Label>
                 <input
                   ref={slipInputRef}
                   id="depositSlip"
@@ -992,8 +1008,11 @@ export function LedgerTransactionForm({
                     )}
                   </div>
                 )}
+                {slipRequiredError && (
+                  <p className="text-sm text-destructive">{slipRequiredError}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Upload a photo of the bank slip, or attach one already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
+                  A photo of the bank slip is required. Take one, choose a file, or attach a photo already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
                 </p>
               </div>
             )}

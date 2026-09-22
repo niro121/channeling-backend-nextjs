@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { startShiftAction } from "@/app/actions/shift.actions"
 import { useToast } from "@/components/hooks/use-toast"
+import { usePermissions } from "@/components/hooks/use-permissions"
+import { hasPermission } from "@/lib/permissions"
 import { Loader2, Play, SkipForward, MapPin } from "lucide-react"
 
 const OPEN_REQUEST_FLOAT_EVENT = "channel-booking:open-request-float-dialog"
@@ -37,6 +39,9 @@ export function StartShiftDialog({
 }: StartShiftDialogProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const { permissions } = usePermissions()
+  // Auto-prompt only when Float Request is granted on the user group.
+  const canPromptFloatRequest = hasPermission(permissions, "bulk-cashier", "float-request")
   const canStart = Boolean(location?.locationId) && !locationLoading
 
   async function handleStart() {
@@ -53,11 +58,13 @@ export function StartShiftDialog({
       const shift = await startShiftAction(location.locationId)
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("channel-booking:shift-started"))
-        window.dispatchEvent(
-          new CustomEvent(OPEN_REQUEST_FLOAT_EVENT, {
-            detail: { shiftId: (shift as { id: string })?.id ?? null },
-          })
-        )
+        if (canPromptFloatRequest) {
+          window.dispatchEvent(
+            new CustomEvent(OPEN_REQUEST_FLOAT_EVENT, {
+              detail: { shiftId: (shift as { id: string })?.id ?? null },
+            })
+          )
+        }
       }
       onStarted()
       toast({ title: "Shift started", description: `Your shift is active for up to ${shiftMaxHours} hours.` })
