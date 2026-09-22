@@ -349,6 +349,7 @@ This document lists all user activities recorded in the application’s activity
 | `reports.channel-agent-reference-book.exported` | Medium | User exports Channel Agent Reference Book report |
 | `reports.doctor-arrivals.exported` | Medium | User exports Doctor Arrivals report |
 | `reports.user-activity.exported` | Medium | User exports User Activity report (capped at 10k; note if more exist) |
+| `reports.approval-requests.exported` | Medium | User exports Approval Requests report |
 | `reports.agent-history-credit-limit-update.exported` | Medium | User exports Agent History(Credit Limit Update) report |
 | `reports.channel-transfer.exported` | Medium | User exports Channel Transfer Report |
 | `reports.cashier-drawer-balance.exported` | Medium | User exports Cashier Drawer Balance report |

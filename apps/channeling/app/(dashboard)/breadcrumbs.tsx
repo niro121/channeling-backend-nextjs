@@ -32,6 +32,7 @@ const PATH_NAMES: Path[] = [
     { path: "discounts", name: "Discounts" },
     { path: "sms-playground", name: "SMS Playground" },
     { path: "reports", name: "Reports" },
+    { path: "approval-requests", name: "Approval Requests" },
     { path: "channel-booking", name: "Channel Booking" },
     { path: "approvals", name: "Approval Center" },
     { path: "sessions", name: "Sessions" },

@@ -252,6 +252,14 @@ const reportsData: ReportListItem[] = [
     route: '/reports/completed-handovers'
   },
   {
+    id: '41',
+    rank: 41,
+    masterData: 'Approval Requests Report',
+    description:
+      'View Approval Center cancellations, refunds, and bank deposits for a period, including who requested, approved, and rejected each item.',
+    route: '/reports/approval-requests'
+  },
+  {
     id: '42',
     rank: 42,
     masterData: 'No Show Patient Report',
@@ -325,6 +333,7 @@ export default async function ReportsPage() {
       '/reports/cash-book',
       '/reports/bank-deposits',
       '/reports/completed-handovers',
+      '/reports/approval-requests',
     ].includes(r.route)
   );
   const smsAndApi = reportsData.filter((r) =>

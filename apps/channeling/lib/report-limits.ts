@@ -22,6 +22,7 @@ type ReportLimitKey =
   | 'cash_book'
   | 'bank_deposits'
   | 'completed_handovers'
+  | 'approval_requests'
   | 'channel_report_receipt_wise'
   | 'room_occupancy'
   | 'no_show_patient'
