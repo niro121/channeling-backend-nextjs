@@ -21,11 +21,14 @@ export type ApprovalRequestsReportRow = {
   typeLabel: string;
   status: number;
   statusLabel: string;
+  channelType: string;
+  paymentMode: string;
   details: string;
   detailsSub: string;
   amount: number;
   requestedByName: string;
   requestedAt: Date;
+  withdrawnAt: Date | null;
   approvedByName: string | null;
   approvedAt: Date | null;
   rejectedByName: string | null;
@@ -38,6 +41,8 @@ export type ApprovalRequestsReportExportRow = {
   no: string;
   requestedAt: string;
   type: string;
+  channelType: string;
+  paymentMode: string;
   details: string;
   amount: string;
   requestedBy: string;
@@ -46,6 +51,7 @@ export type ApprovalRequestsReportExportRow = {
   approvedAt: string;
   rejectedBy: string;
   rejectedAt: string;
+  withdrawnAt: string;
   remarks: string;
   rejectReason: string;
 };

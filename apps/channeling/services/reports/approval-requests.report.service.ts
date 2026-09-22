@@ -9,8 +9,11 @@ import {
   APPROVAL_REQUEST_STATUS,
   APPROVAL_REQUEST_TYPE,
   approvalRequestStatusLabel,
+  type ApprovalPaymentLineSnapshot,
   type BankDepositSnapshot,
 } from '@/types/approval-request';
+import { BOOKING_METHODS } from '@/types/channel-booking';
+import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import type {
   ApprovalRequestsReportQuery,
   ApprovalRequestsReportRow,
@@ -63,6 +66,54 @@ function userName(user?: UserNameSelect | null): string {
 function depositSnapshot(raw: unknown): BankDepositSnapshot {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   return raw as BankDepositSnapshot;
+}
+
+function paymentLineSnapshots(raw: unknown): ApprovalPaymentLineSnapshot[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (line): line is ApprovalPaymentLineSnapshot =>
+      !!line && typeof line === 'object' && typeof (line as ApprovalPaymentLineSnapshot).payment_method === 'number'
+  );
+}
+
+function paymentMethodLabel(method: number | null | undefined): string | null {
+  if (method == null || !Number.isFinite(method)) return null;
+  return PAYMENT_METHOD_NAMES[method] ?? `Method ${method}`;
+}
+
+function channelTypeLabel(method: number | null | undefined): string {
+  if (method == null) return '—';
+  return BOOKING_METHODS.find((m) => m.id === method)?.name ?? String(method);
+}
+
+function resolvePaymentMode(params: {
+  isDeposit: boolean;
+  receiptPaymentMethod: number | null | undefined;
+  receiptMethod: number | null | undefined;
+  refundTo: number | null | undefined;
+  paymentLines: unknown;
+}): string {
+  const fromBooking = paymentMethodLabel(params.receiptPaymentMethod);
+  if (fromBooking) return fromBooking;
+
+  const lineLabels = [
+    ...new Set(
+      paymentLineSnapshots(params.paymentLines)
+        .map((line) => paymentMethodLabel(line.payment_method))
+        .filter((label): label is string => Boolean(label))
+    ),
+  ];
+  if (lineLabels.length > 0) return lineLabels.join(', ');
+
+  if (!params.isDeposit) {
+    const fromRefundTo = paymentMethodLabel(params.refundTo);
+    if (fromRefundTo) return fromRefundTo;
+  }
+
+  const fromReceipt = paymentMethodLabel(params.receiptMethod);
+  if (fromReceipt) return fromReceipt;
+
+  return '—';
 }
 
 function formatDoctorName(doctor?: { title?: string | null; name?: string | null } | null): string {
@@ -162,19 +213,23 @@ export async function getApprovalRequestsReportService(
       amount: true,
       remarks: true,
       rejectReason: true,
+      refundTo: true,
       paymentLines: true,
       createdAt: true,
+      withdrawnAt: true,
       approvedAt: true,
       rejectedAt: true,
       requestedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
       approvedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
       rejectedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
       bankAccount: { select: { name: true, accountNumber: true } },
-      receipt: { select: { receiptNoString: true } },
+      receipt: { select: { receiptNoString: true, paymentMethod: true } },
       booking: {
         select: {
           title: true,
           name: true,
+          method: true,
+          receiptPaymentMethod: true,
           appointmentNo: true,
           receiptNoString: true,
           bookingid_string: true,
@@ -238,11 +293,20 @@ export async function getApprovalRequestsReportService(
       typeLabel: typeLabel(row.type),
       status: row.status,
       statusLabel: approvalRequestStatusLabel(row.status),
+      channelType: isDeposit ? '—' : channelTypeLabel(row.booking?.method),
+      paymentMode: resolvePaymentMode({
+        isDeposit,
+        receiptPaymentMethod: row.booking?.receiptPaymentMethod,
+        receiptMethod: row.receipt?.paymentMethod,
+        refundTo: row.refundTo,
+        paymentLines: row.paymentLines,
+      }),
       details,
       detailsSub,
       amount: Number(row.amount) || 0,
       requestedByName: userName(row.requestedBy),
       requestedAt: row.createdAt,
+      withdrawnAt: row.withdrawnAt,
       approvedByName: row.approvedBy ? userName(row.approvedBy) : null,
       approvedAt: row.approvedAt,
       rejectedByName: row.rejectedBy ? userName(row.rejectedBy) : null,

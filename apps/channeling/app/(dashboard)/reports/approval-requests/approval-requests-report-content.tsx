@@ -194,8 +194,10 @@ function ContentInner({ currentUserName, userOptions }: Props) {
       columns={ApprovalRequestsColumns}
       exportColumns={[
         'No.',
-        'Requested at',
+        'Requested Time',
         'Type',
+        'Channel Type',
+        'Payment mode',
         'Details',
         'Amount',
         'Requested by',
@@ -204,6 +206,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'Approved at',
         'Rejected by',
         'Rejected at',
+        'Withdraw Time',
         'Remarks',
         'Reject reason',
       ]}
@@ -211,6 +214,8 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'no',
         'requestedAt',
         'type',
+        'channelType',
+        'paymentMode',
         'details',
         'amount',
         'requestedBy',
@@ -219,6 +224,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'approvedAt',
         'rejectedBy',
         'rejectedAt',
+        'withdrawnAt',
         'remarks',
         'rejectReason',
       ]}
@@ -229,13 +235,13 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         const totalAmount = rows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
         return (
           <TableRow className="font-semibold bg-muted/50">
-            <TableCell colSpan={4} className="text-left">
+            <TableCell colSpan={6} className="text-left">
               Total
             </TableCell>
             <TableCell className="text-right tabular-nums">
               {formatReceiptAmount(totalAmount)}
             </TableCell>
-            <TableCell colSpan={8} />
+            <TableCell colSpan={9} />
           </TableRow>
         );
       }}
