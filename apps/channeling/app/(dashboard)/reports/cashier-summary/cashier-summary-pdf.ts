@@ -48,8 +48,12 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
 /** Same min width as print `.ucs-amt` — fits ≥6 digits (e.g. 999,999.00). */
 const AMOUNT_COL_MM = 18;
 
-/** Relative shares for the 6 non-amount columns (No … Consultant). */
-const META_SHARES = [0.06, 0.24, 0.16, 0.16, 0.2, 0.18] as const;
+/**
+ * Meta column widths matching print (mm):
+ * No | Tx | Session | Receipt | Patient | Consultant
+ * Receipt narrower / Consultant wider by the same amount as print.
+ */
+const META_WIDTHS_MM = [7, 54, 28, 28, 16, 18] as const;
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -287,7 +291,7 @@ function ensureRoom(doc: jsPDF, y: number, margin: number, needed: number): numb
 function drawSectionTitle(doc: jsPDF, title: string, y: number, margin: number): number {
   const next = ensureRoom(doc, y, margin, 8);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   doc.text(title, margin, next + 3);
   return next + 5;
@@ -297,16 +301,18 @@ function rowTableColumnStyles(
   tableWidth: number
 ): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
   const amountTotal = AMOUNT_COL_MM * PAYMENT_COLUMNS.length;
-  const metaWidth = Math.max(40, tableWidth - amountTotal);
+  const metaSum = META_WIDTHS_MM.reduce((a, b) => a + b, 0);
+  const metaBudget = Math.max(metaSum, tableWidth - amountTotal);
+  const scale = metaBudget / metaSum;
   const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
-  META_SHARES.forEach((share, i) => {
+  META_WIDTHS_MM.forEach((mm, i) => {
     styles[i] = {
-      cellWidth: metaWidth * share,
+      cellWidth: mm * scale,
       halign: i === 0 ? 'center' : 'left',
     };
   });
   for (let i = 0; i < PAYMENT_COLUMNS.length; i++) {
-    styles[META_SHARES.length + i] = {
+    styles[META_WIDTHS_MM.length + i] = {
       cellWidth: AMOUNT_COL_MM,
       halign: 'right',
     };
@@ -425,7 +431,7 @@ function drawBodyTables(
   let y = startY;
   const rowStyles = rowTableColumnStyles(tableWidth);
   const totalStyles = totalsOnlyColumnStyles(tableWidth);
-  const lastAmountCol = META_SHARES.length + PAYMENT_COLUMNS.length - 1;
+  const lastAmountCol = META_WIDTHS_MM.length + PAYMENT_COLUMNS.length - 1;
   const lastTotalsCol = PAYMENT_COLUMNS.length;
 
   for (const section of sections) {
@@ -476,8 +482,8 @@ function drawBodyTables(
         showHead: 'everyPage',
         styles: {
           font: 'helvetica',
-          fontSize: 7,
-          cellPadding: { top: 0.9, right: 0.9, bottom: 0.9, left: 0.9 },
+          fontSize: 6.5,
+          cellPadding: { top: 0.8, right: 0.9, bottom: 0.8, left: 0.9 },
           overflow: 'linebreak',
           valign: 'top',
           textColor: [0, 0, 0],
@@ -488,7 +494,7 @@ function drawBodyTables(
           fillColor: [232, 232, 232],
           textColor: [0, 0, 0],
           fontStyle: 'bold',
-          fontSize: 6.5,
+          fontSize: 6,
           valign: 'middle',
           halign: 'left',
           lineColor: [0, 0, 0],
@@ -500,8 +506,8 @@ function drawBodyTables(
             hook.cell.styles.fontStyle = 'bold';
             hook.cell.styles.fillColor = [243, 243, 243];
           }
-          // Keep last-column border visible (Windows print/PDF engines)
-          if (hook.column.index === lastAmountCol) {
+          // Keep outer column borders visible
+          if (hook.column.index === 0 || hook.column.index === lastAmountCol) {
             hook.cell.styles.lineWidth = 0.35;
           }
         },
@@ -515,8 +521,8 @@ function drawBodyTables(
         tableWidth,
         styles: {
           font: 'helvetica',
-          fontSize: 7,
-          cellPadding: { top: 0.9, right: 0.9, bottom: 0.9, left: 0.9 },
+          fontSize: 6.5,
+          cellPadding: { top: 0.8, right: 0.9, bottom: 0.8, left: 0.9 },
           overflow: 'linebreak',
           valign: 'middle',
           textColor: [0, 0, 0],
@@ -528,7 +534,7 @@ function drawBodyTables(
           fillColor: [232, 232, 232],
           textColor: [0, 0, 0],
           fontStyle: 'bold',
-          fontSize: 6.5,
+          fontSize: 6,
           valign: 'middle',
           lineColor: [0, 0, 0],
           lineWidth: 0.25,
@@ -551,8 +557,8 @@ function drawBodyTables(
 export async function downloadCashierSummaryReportPdf(
   opts: DownloadCashierSummaryPdfOptions
 ): Promise<void> {
-  // Match print: tight side margins so tables use full page width
-  const margin = 5;
+  // Match print: 10mm side margins
+  const margin = 10;
   const doc = new jsPDF({ orientation: 'l', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;

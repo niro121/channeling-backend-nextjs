@@ -9,10 +9,10 @@ export function CashierSummaryPrintLayout() {
     <div className="ucs-print-root">
       <style>{`
         @media print {
-          /* Landscape + tight margins — full printable width (Windows + Mac) */
+          /* Landscape + slight left inset so first-column border is not clipped */
           @page {
             size: A4 landscape;
-            margin: 6mm 5mm 11mm;
+            margin: 6mm 10mm 11mm 10mm;
           }
 
           html, body {
@@ -148,30 +148,33 @@ export function CashierSummaryPrintLayout() {
 
           /*
             Full-page tables: fixed layout fills landscape width.
-            Width slightly under 100% keeps the last-column border on Windows.
+            Slight left inset + under-100% width keeps outer borders on Windows.
           */
           .cashier-summary-report-root .ucs-screen-summary table,
           .cashier-summary-report-root .ucs-screen-detail table {
-            width: 99.6% !important;
-            max-width: 99.6% !important;
+            width: 99.2% !important;
+            max-width: 99.2% !important;
+            margin-left: 0.5mm !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             box-sizing: border-box !important;
+            border-left: 0.5pt solid #000 !important;
+            border-right: 0.5pt solid #000 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary th,
           .cashier-summary-report-root .ucs-screen-summary td,
           .cashier-summary-report-root .ucs-screen-detail th,
           .cashier-summary-report-root .ucs-screen-detail td {
-            font-size: 7.5pt !important;
-            padding: 1mm 1mm !important;
-            line-height: 1.2 !important;
+            font-size: 6.5pt !important;
+            padding: 0.8mm 0.9mm !important;
+            line-height: 1.15 !important;
             border: 0.35pt solid #000 !important;
             color: #000 !important;
             vertical-align: top !important;
             box-sizing: border-box !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             word-break: break-word !important;
-            overflow-wrap: anywhere !important;
+            overflow-wrap: break-word !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -183,16 +186,74 @@ export function CashierSummaryPrintLayout() {
           .cashier-summary-report-root .ucs-amt {
             width: 18mm !important;
             min-width: 18mm !important;
-            max-width: none !important;
             white-space: nowrap !important;
             text-align: right !important;
+            font-size: 6.5pt !important;
             font-variant-numeric: tabular-nums !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             word-break: normal !important;
             overflow-wrap: normal !important;
           }
 
-          /* Reinforce right edge so Windows does not drop the last vertical line */
+          /*
+            Tx / Receipt: stay inside cell (no bleed into next column).
+            Line 1 stays one line; line 2 wraps inside the column if long.
+            All stack lines use body size 6.5pt.
+          */
+          .cashier-summary-report-root .ucs-tx-shift {
+            width: 54mm !important;
+            min-width: 54mm !important;
+            max-width: 54mm !important;
+            overflow: hidden !important;
+          }
+          .cashier-summary-report-root .ucs-receipt-bill {
+            width: 28mm !important;
+            min-width: 28mm !important;
+            max-width: 28mm !important;
+            overflow: hidden !important;
+          }
+          .cashier-summary-report-root .ucs-consultant {
+            width: 18mm !important;
+            min-width: 18mm !important;
+            max-width: 18mm !important;
+            overflow: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          .cashier-summary-report-root .ucs-session {
+            width: 28mm !important;
+            min-width: 28mm !important;
+            max-width: 28mm !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+          }
+          .cashier-summary-report-root .ucs-tx-shift .ucs-stack-line,
+          .cashier-summary-report-root .ucs-receipt-bill .ucs-stack-line {
+            display: block !important;
+            max-width: 100% !important;
+            line-height: 1.1 !important;
+            font-size: 6.5pt !important;
+          }
+          .cashier-summary-report-root .ucs-tx-shift .ucs-stack-line:first-child,
+          .cashier-summary-report-root .ucs-receipt-bill .ucs-stack-line:first-child {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+          }
+          .cashier-summary-report-root .ucs-tx-shift .ucs-stack-line:last-child,
+          .cashier-summary-report-root .ucs-receipt-bill .ucs-stack-line:last-child {
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            word-break: break-word !important;
+          }
+
+          /* Reinforce outer edges so Windows does not drop first/last vertical lines */
+          .cashier-summary-report-root .ucs-screen-summary th:first-child,
+          .cashier-summary-report-root .ucs-screen-summary td:first-child,
+          .cashier-summary-report-root .ucs-screen-detail th:first-child,
+          .cashier-summary-report-root .ucs-screen-detail td:first-child {
+            border-left: 0.6pt solid #000 !important;
+            box-shadow: inset 0.6pt 0 0 #000 !important;
+          }
           .cashier-summary-report-root .ucs-screen-summary th:last-child,
           .cashier-summary-report-root .ucs-screen-summary td:last-child,
           .cashier-summary-report-root .ucs-screen-detail th:last-child,
@@ -203,7 +264,7 @@ export function CashierSummaryPrintLayout() {
           .cashier-summary-report-root .ucs-screen-detail thead th,
           .cashier-summary-report-root .ucs-screen-summary th,
           .cashier-summary-report-root .ucs-screen-detail th {
-            font-size: 7pt !important;
+            font-size: 6pt !important;
             font-weight: 700 !important;
             background: #e8e8e8 !important;
           }
