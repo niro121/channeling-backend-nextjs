@@ -3,6 +3,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { RECEIPT_METHOD } from '@/types/receipt';
+import { APPROVAL_REQUEST_TYPE } from '@/types/approval-request';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
@@ -127,8 +128,9 @@ export async function getBankDepositsReportService(
   const bankAccountIds = Array.from(
     new Set(sliced.map((r) => r.bankId).filter((x): x is string => typeof x === 'string' && x.trim() !== ''))
   );
+  const receiptIds = sliced.map((r) => r.id);
 
-  const [locations, users, bankAccounts] = await Promise.all([
+  const [locations, users, bankAccounts, approvals] = await Promise.all([
     locationIds.length
       ? prisma.location.findMany({
           where: { id: { in: locationIds } },
@@ -152,6 +154,19 @@ export async function getBankDepositsReportService(
           },
         })
       : Promise.resolve([]),
+    receiptIds.length
+      ? prisma.approvalRequest.findMany({
+          where: {
+            receiptId: { in: receiptIds },
+            type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
+          },
+          select: {
+            receiptId: true,
+            approvedAt: true,
+            approvedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const locationById = new Map(locations.map((l) => [l.id, l]));
@@ -162,6 +177,14 @@ export async function getBankDepositsReportService(
       `${b.name} - ${b.accountNumber}${b.bank?.name ? ` (${b.bank.name})` : ''}`,
     ])
   );
+  const approvalByReceiptId = new Map<string, (typeof approvals)[number]>();
+  for (const approval of approvals) {
+    if (!approval.receiptId) continue;
+    const existing = approvalByReceiptId.get(approval.receiptId);
+    if (!existing || (!existing.approvedAt && approval.approvedAt)) {
+      approvalByReceiptId.set(approval.receiptId, approval);
+    }
+  }
 
   const data: BankDepositsReportRow[] = sliced.map((r) => {
     const totalAmount =
@@ -173,6 +196,11 @@ export async function getBankDepositsReportService(
     const userLocationLabel = loc?.name ? `${loc.name}${loc.code ? ` (${loc.code})` : ''}` : null;
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
+    const approval = approvalByReceiptId.get(r.id) ?? null;
+    const approver = approval?.approvedBy ?? null;
+    const approvedByLabel = approver
+      ? formatUserDisplayName(approver.name, approver.id, approver.staff?.code)
+      : null;
     const mappedBankAccountName = r.bankId ? bankAccountById.get(r.bankId) ?? null : null;
     return {
       id: r.id,
@@ -187,6 +215,8 @@ export async function getBankDepositsReportService(
       userLocation: userLocationLabel,
       user: userLabel,
       createdAt: r.createdAt ?? null,
+      approvedBy: approvedByLabel,
+      approvedAt: approval?.approvedAt ?? null,
       bankAccountId: r.bankId ?? null,
       bankAccountName: mappedBankAccountName ?? ((r.bank ?? '').trim() || null),
       totalAmount,

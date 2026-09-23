@@ -2,7 +2,7 @@
 
 /**
  * Bank Deposits — Excel ONLY (A4 portrait, matches Print / PDF).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details (Loc / User / At / Approved by / Approved at / Remark) | Bank Account | Total
  */
 
 import ExcelJS from 'exceljs';
@@ -79,10 +79,13 @@ type DetailLine = { label: string; value: string };
 
 function getDetailLines(row: BankDepositsReportExportRow): DetailLine[] {
   const created = (row.createdAt || '—').replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):\d{2}$/, '$1');
+  const approvedAt = (row.approvedAt || '—').replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):\d{2}$/, '$1');
   const lines: DetailLine[] = [
     { label: 'Loc', value: row.userLocation || '—' },
     { label: 'User', value: row.user || '—' },
     { label: 'At', value: created },
+    { label: 'Approved by', value: row.approvedBy && row.approvedBy !== '-' ? row.approvedBy : '—' },
+    { label: 'Approved at', value: approvedAt === '-' ? '—' : approvedAt },
   ];
   const remark = (row.remarks || '').trim();
   if (remark && remark !== '-') {
