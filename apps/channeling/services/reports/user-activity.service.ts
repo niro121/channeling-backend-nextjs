@@ -1,19 +1,9 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { getInclusiveDaySpan, getReportMaxRangeDays } from '@/lib/report-limits';
+import { getInclusiveDaySpan, getReportMax, getReportMaxRangeDays } from '@/lib/report-limits';
 
-const DEFAULT_REPORT_MAX = 10000;
 const MAX_RANGE_DAYS = getReportMaxRangeDays('user_activity', 62);
-
-/** Max rows for report queries (env: REPORT_MAX). Used across reports to protect the server. */
-function getReportMax(): number {
-  const raw = process.env.REPORT_MAX;
-  if (raw == null || raw === '') return DEFAULT_REPORT_MAX;
-  const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_REPORT_MAX;
-  return n;
-}
 
 /** Parse YYYY-MM-DD to start/end of day in server local time. */
 function parseLocalDay(dateStr: string): { start: Date; end: Date } {
