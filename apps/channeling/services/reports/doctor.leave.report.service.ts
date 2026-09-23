@@ -235,8 +235,24 @@ export const getDoctorLeaveReportService = async ({
 
     const sessionMap = new Map<string, { date: Date; startTime: Date; endTime: Date }>();
     if (allSessionIds.size > 0) {
+      // DoctorSession only decides which doctors to include. A doctor can have
+      // leave sessions at several branches, so the row filter has to use the
+      // dated Session's own branch, institution, and department.
+      const datedSessionWhere: Prisma.SessionWhereInput = {
+        id: { in: Array.from(allSessionIds) }
+      };
+      if (locationId && locationId !== '__all__' && locationId !== '') {
+        datedSessionWhere.locationId = locationId;
+      }
+      if (departmentId && departmentId !== '__all__' && departmentId !== '') {
+        datedSessionWhere.departmentId = departmentId;
+      }
+      if (institutionId && institutionId !== '__all__' && institutionId !== '') {
+        const instNum = parseInt(institutionId, 10);
+        if (!isNaN(instNum)) datedSessionWhere.institution = instNum;
+      }
       const sessions = await prisma.session.findMany({
-        where: { id: { in: Array.from(allSessionIds) } },
+        where: datedSessionWhere,
         select: { id: true, date: true, startTime: true, endTime: true }
       });
       for (const s of sessions) {
