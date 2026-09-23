@@ -40,15 +40,18 @@ export function CancelRefundDetailsCard({
 }) {
   const hasRefund = details.refundAmount !== 0 || details.refundReceipts.length > 0
   return (
-    <div className="flex flex-1 flex-col min-h-0 rounded-lg border border-border bg-muted/10">
-      <div className="flex items-center gap-2 p-3 border-b border-border/60">
+    <div className="flex flex-1 flex-col min-h-0 rounded-lg border border-red-200/80 bg-red-50 dark:bg-red-950/30 dark:border-red-800/50">
+      <div className="flex items-center gap-2 p-3 border-b border-red-200/70 dark:border-red-800/50">
         <Ban className="size-5 text-red-600 dark:text-red-400 shrink-0" aria-hidden />
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Cancel / refund details
         </span>
         {paymentReceiptId ? (
           <div className="ml-auto">
-            <PrintReceiptButton receiptId={paymentReceiptId} />
+            <PrintReceiptButton
+              receiptId={paymentReceiptId}
+              className="bg-red-700 hover:bg-red-800 text-white"
+            />
           </div>
         ) : null}
       </div>
@@ -87,7 +90,11 @@ function RefundReceiptRow({ row }: { row: ReceiptRowView }) {
         <div className="min-w-0 flex-1">
           <Row label="Receipt No." value={row.receiptNoString} />
         </div>
-        <PrintReceiptButton receiptId={row.id} iconOnly />
+        <PrintReceiptButton
+          receiptId={row.id}
+          iconOnly
+          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+        />
       </div>
       <Row label="Payment by" value={row.paymentMethodName} />
       <Row label="Amount" value={formatRs(row.amount)} highlight />

@@ -267,6 +267,15 @@ export function BookingTab() {
 
   const pendingPayment = details.status === 0
   const paymentReceiptId = paymentReceiptIdFromDetails(details)
+  const isCanceled = details.status === 2
+  const isRefunded =
+    details.status === 3 || (details.refund != null && details.refund !== 0)
+  const isCanceledOrRefunded = isCanceled || isRefunded
+  const printBannerLabel = isCanceled
+    ? "Canceled."
+    : isRefunded
+      ? "Refunded."
+      : "Payment Success."
 
   return (
     <div className="space-y-3">
@@ -276,11 +285,33 @@ export function BookingTab() {
         </div>
       )}
       {!pendingPayment && paymentReceiptId && (
-        <div className="rounded-md border border-emerald-200/80 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800/50 px-2 py-1.5 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">
-            Payment Success.
+        <div
+          className={cn(
+            "rounded-md px-2 py-1.5 flex items-center justify-between gap-2",
+            isCanceledOrRefunded
+              ? "border border-red-200/80 bg-red-50 dark:bg-red-950/30 dark:border-red-800/50"
+              : "border border-emerald-200/80 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800/50"
+          )}
+        >
+          <span
+            className={cn(
+              "text-xs font-medium",
+              isCanceledOrRefunded
+                ? "text-red-800 dark:text-red-200"
+                : "text-emerald-800 dark:text-emerald-200"
+            )}
+          >
+            {printBannerLabel}
           </span>
-          <PrintReceiptButton receiptId={paymentReceiptId} className="h-7 bg-emerald-700 hover:bg-emerald-800 text-white" />
+          <PrintReceiptButton
+            receiptId={paymentReceiptId}
+            className={cn(
+              "h-7 text-white",
+              isCanceledOrRefunded
+                ? "bg-red-700 hover:bg-red-800"
+                : "bg-emerald-700 hover:bg-emerald-800"
+            )}
+          />
         </div>
       )}
       {/* Primary: Patient, Appointment — compact, equal-height panels */}
@@ -1219,7 +1250,15 @@ function ReceiptCard({
             <ExternalLink className="size-3" />
             Details
           </button>
-          <PrintReceiptButton receiptId={row.id} iconOnly />
+          <PrintReceiptButton
+            receiptId={row.id}
+            iconOnly
+            className={
+              isRefund
+                ? "text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                : undefined
+            }
+          />
         </div>
       </div>
       <div className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-400 truncate" title={row.receiptNoString}>

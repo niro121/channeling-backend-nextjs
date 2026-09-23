@@ -280,23 +280,26 @@ export function ChannelBookingShiftBar() {
     if (!hasShiftPermission) return
     const onShiftStarted = () => {
       refresh()
+      refreshFloatBalance()
       if (hasFloatRequestPermission) {
-        refreshFloatBalance()
         refreshPendingFloatRequest()
         refreshApprovedFloatRequest()
       }
     }
     window.addEventListener("channel-booking:shift-started", onShiftStarted)
     return () => window.removeEventListener("channel-booking:shift-started", onShiftStarted)
-  }, [hasShiftPermission, hasFloatRequestPermission, refreshFloatBalance, refreshPendingFloatRequest])
+  }, [hasShiftPermission, hasFloatRequestPermission, refresh, refreshFloatBalance, refreshPendingFloatRequest, refreshApprovedFloatRequest])
 
   useEffect(() => {
-    if (shift && hasFloatRequestPermission) {
+    if (shift) {
       refreshFloatBalance()
+    } else {
+      setFloatBalanceCents(null)
+    }
+    if (shift && hasFloatRequestPermission) {
       refreshPendingFloatRequest()
       refreshApprovedFloatRequest()
     } else {
-      if (!hasFloatRequestPermission) setFloatBalanceCents(null)
       setPendingFloatRequest(null)
       setApprovedFloatRequest(null)
     }
@@ -348,12 +351,10 @@ export function ChannelBookingShiftBar() {
     const doSubscribe = () => {
       shiftSocketUserIdRef.current = userId
       socket.emit("shift:subscribe", { userId })
-      if (hasFloatRequestPermission) {
-        socket.emit("float-balance:subscribe", { userId })
-        if (pendingFloatRequest) {
-          floatRequestSocketUserIdRef.current = userId
-          socket.emit("float-request:subscribe", { userId })
-        }
+      socket.emit("float-balance:subscribe", { userId })
+      if (hasFloatRequestPermission && pendingFloatRequest) {
+        floatRequestSocketUserIdRef.current = userId
+        socket.emit("float-request:subscribe", { userId })
       }
     }
     if (socket.connected) doSubscribe()
@@ -785,8 +786,7 @@ export function ChannelBookingShiftBar() {
           </Button>
         </span>
         {hasFloatRequestPermission && (
-          <>
-            {pendingFloatRequest ? (
+          pendingFloatRequest ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -852,24 +852,23 @@ export function ChannelBookingShiftBar() {
                 <Banknote className="h-4 w-4 shrink-0" />
                 <span className="hidden sm:inline">Request float</span>
               </Button>
-            )}
-            {floatBalanceCents !== null && (
-              <span className="hidden sm:inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
-                Float: LKR {formatCents(floatBalanceCents)}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                  onClick={refreshFloatBalance}
-                  disabled={floatBalanceRefreshing}
-                  title="Refresh balance"
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", floatBalanceRefreshing && "animate-spin")} />
-                </Button>
-              </span>
-            )}
-          </>
+            )
+        )}
+        {floatBalanceCents !== null && (
+          <span className="hidden sm:inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+            Float: LKR {formatCents(floatBalanceCents)}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={refreshFloatBalance}
+              disabled={floatBalanceRefreshing}
+              title="Refresh balance"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", floatBalanceRefreshing && "animate-spin")} />
+            </Button>
+          </span>
         )}
       </div>
       {hasFloatRequestPermission && (
@@ -1050,8 +1049,8 @@ export function ChannelBookingShiftBar() {
           onSuccess={() => {
             handoverDialogShiftRef.current = null
             refresh()
+            refreshFloatBalance()
             if (hasFloatRequestPermission) {
-              refreshFloatBalance()
               refreshPendingFloatRequest()
               refreshApprovedFloatRequest()
             }
