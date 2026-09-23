@@ -56,6 +56,11 @@ export function CancelDoctorPaymentDialog({
         setReason("");
         onOpenChange(false);
         onSuccess?.();
+      } else if (result.errorCode === "SHIFT_EXPIRED") {
+        toast({
+          variant: "destructive",
+          title: "Shift expired",
+        });
       } else {
         toast({
           variant: "destructive",
@@ -64,10 +69,13 @@ export function CancelDoctorPaymentDialog({
         });
       }
     } catch (e) {
+      const raw = e instanceof Error ? e.message : "Something went wrong.";
+      const hidden =
+        raw.includes("Server Components render") || raw.includes("omitted in production");
       toast({
         variant: "destructive",
         title: "Error",
-        description: e instanceof Error ? e.message : "Something went wrong.",
+        description: hidden ? "Could not cancel this doctor payment." : raw,
       });
     } finally {
       setLoading(false);

@@ -56,6 +56,16 @@ function truncateName(name: string, maxChars: number): string {
   return name.slice(0, maxChars) + "..."
 }
 
+/** Compact mark: C = canceled (status 2), R = refunded (status 3 or a partial refund). */
+function cancelOrRefundMark(
+  status: number,
+  refund?: number | null
+): { letter: "C" | "R"; label: string } | null {
+  if (status === 2) return { letter: "C", label: "Canceled" }
+  if (status === 3 || (refund != null && refund !== 0)) return { letter: "R", label: "Refunded" }
+  return null
+}
+
 function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "booking.transferred") {
     const dir = entry.metadata?.direction as string | undefined
@@ -356,8 +366,8 @@ export function Bookings() {
                     const b = row.b
                     const isSelected = selectedBooking?.id === b.id
                     const isTransferSelected = selectedTransferBookingIds.includes(b.id)
-                    const isCanceledOrRefunded =
-                      b.status === 2 || b.status === 3 || (b.refund != null && b.refund !== 0)
+                    const statusMark = cancelOrRefundMark(b.status, b.refund)
+                    const isCanceledOrRefunded = statusMark != null
                     const canTransfer = !isCanceledOrRefunded
                     const paidLabel =
                       b.status === 1
@@ -402,6 +412,15 @@ export function Bookings() {
                         </td>
                         <td className="min-w-0 px-1 py-1.5 overflow-hidden">
                           <span className="flex items-center gap-1 min-w-0">
+                            {statusMark && (
+                              <span
+                                className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-red-600 px-1 text-[10px] font-bold leading-none text-white dark:bg-red-500"
+                                title={statusMark.label}
+                                aria-label={statusMark.label}
+                              >
+                                {statusMark.letter}
+                              </span>
+                            )}
                             <span
                               className="truncate min-w-0"
                               title={displayName}

@@ -1,6 +1,6 @@
 "use server"
 
-import { checkPermission } from "@/lib/server-permissions"
+import { assertCanCancelLedgerReceiptMethod } from "@/lib/server-permissions"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { logActivityNonBlocking } from "@/lib/activity-log"
@@ -15,16 +15,6 @@ export async function cancelLedgerReceiptAction(
   receiptId: string,
   cancelReason: string
 ): Promise<CancelLedgerReceiptResult> {
-  const canCancel = await checkPermission("ledger", "cancel")
-  const canCancelBankDeposit = await checkPermission("ledger", "cancel-bank-deposit")
-  if (!canCancel && !canCancelBankDeposit) {
-    return {
-      success: false,
-      errorCode: "FORBIDDEN",
-      message: "You don't have permission to cancel ledger entries.",
-    }
-  }
-
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id ?? null
   if (!userId) {
@@ -39,19 +29,15 @@ export async function cancelLedgerReceiptAction(
     return { success: false, errorCode: "NOT_FOUND", message: "Receipt not found." }
   }
 
+  const canCancelThis = await assertCanCancelLedgerReceiptMethod(original.method)
   const isBankDeposit = original.method === RECEIPT_METHOD.BANK_DEPOSIT
-  if (isBankDeposit && !canCancelBankDeposit) {
+  if (!canCancelThis) {
     return {
       success: false,
       errorCode: "FORBIDDEN",
-      message: "You don't have permission to cancel bank deposits.",
-    }
-  }
-  if (!isBankDeposit && !canCancel) {
-    return {
-      success: false,
-      errorCode: "FORBIDDEN",
-      message: "You don't have permission to cancel ledger entries.",
+      message: isBankDeposit
+        ? "You don't have permission to cancel bank deposits."
+        : "You don't have permission to cancel this transaction type.",
     }
   }
 
@@ -59,8 +45,8 @@ export async function cancelLedgerReceiptAction(
     receiptId,
     canceledBy: userId,
     cancelReason: cancelReason.trim(),
-    allowLedgerCancel: canCancel,
-    allowBankDepositCancel: canCancelBankDeposit,
+    allowLedgerCancel: !isBankDeposit,
+    allowBankDepositCancel: isBankDeposit,
   })
 
   if (result.success && isBankDeposit) {

@@ -175,7 +175,11 @@ export async function resolveBankDepositSlipSnapshot(params: {
   }
 
   if (!key) {
-    return { success: true, snapshot: {} }
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "A deposit slip photo is required.",
+    }
   }
   if (!isOwnedSlipKey(key, params.userId)) {
     return { success: false, errorCode: "VALIDATION", message: "Deposit slip upload is invalid." }

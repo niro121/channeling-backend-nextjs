@@ -166,6 +166,7 @@ export const BOOKING_RECEIPT_PLACEHOLDERS = [
   "refund_amount",
   "refund_receipt_no",
   "refund_reason",
+  "approved_by",
   "generated_by",
   "generated_at",
   "company_name",

@@ -3,6 +3,18 @@
 import { fetchServerSession } from "./session"
 import { canAccessRoute, hasPermission, canPerformAction } from "./permissions"
 import { userTypes } from "./roles"
+import prisma from "@/lib/prisma"
+import type { Permissions } from "@/types/user-group"
+import {
+  CANCELABLE_LEDGER_METHODS,
+  allowedLedgerTransactionTypes,
+  canAddLedgerTransactionType,
+  canCancelLedgerReceiptMethod,
+} from "./ledger-type-permissions"
+import {
+  LEDGER_TRANSACTION_TYPES,
+  type LedgerTransactionType,
+} from "@/services/ledger/create-ledger-receipt.service"
 
 /**
  * Server-side permission checking utilities
@@ -80,5 +92,61 @@ export async function requirePermission(
   const hasAccess = await checkPermission(resource, action)
   if (!hasAccess) {
     throw new Error(`Access denied: You don't have permission to ${action} ${resource}`)
+  }
+}
+
+/** Transaction types the signed-in user may record. Admins may record every type. */
+export async function getAllowedLedgerTransactionTypes(): Promise<LedgerTransactionType[]> {
+  const { isAdmin, permissions } = await getLedgerPermissionContext()
+  if (isAdmin) return [...LEDGER_TRANSACTION_TYPES]
+  return allowedLedgerTransactionTypes(permissions)
+}
+
+export async function assertCanAddLedgerTransactionType(
+  type: LedgerTransactionType
+): Promise<boolean> {
+  const { isAdmin, permissions } = await getLedgerPermissionContext()
+  if (isAdmin) return true
+  return canAddLedgerTransactionType(permissions, type)
+}
+
+/** Receipt methods this user may cancel. Bank deposit uses its own cancel permission. */
+export async function getCancelableLedgerMethods(): Promise<number[]> {
+  const { isAdmin, permissions } = await getLedgerPermissionContext()
+  if (isAdmin) return [...CANCELABLE_LEDGER_METHODS]
+  return CANCELABLE_LEDGER_METHODS.filter((method) =>
+    canCancelLedgerReceiptMethod(permissions, method)
+  )
+}
+
+export async function assertCanCancelLedgerReceiptMethod(method: number): Promise<boolean> {
+  const { isAdmin, permissions } = await getLedgerPermissionContext()
+  if (isAdmin) return (CANCELABLE_LEDGER_METHODS as readonly number[]).includes(method)
+  return canCancelLedgerReceiptMethod(permissions, method)
+}
+
+/**
+ * Read the user group's permissions from the database so a type that was just
+ * turned off is hidden and rejected without waiting for a new login.
+ */
+async function getLedgerPermissionContext(): Promise<{
+  isAdmin: boolean
+  permissions: Permissions | null | undefined
+}> {
+  const session = await fetchServerSession()
+  if (!session?.user?.id) return { isAdmin: false, permissions: null }
+  if (session.user.userType === userTypes.admin) {
+    return { isAdmin: true, permissions: session.user.permissions }
+  }
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { userGroup: { select: { permissions: true } } },
+    })
+    const permissions = (user?.userGroup?.permissions ?? null) as Permissions | null
+    return { isAdmin: false, permissions: permissions ?? session.user.permissions }
+  } catch (err) {
+    console.error("getLedgerPermissionContext failed", err)
+    return { isAdmin: false, permissions: session.user.permissions }
   }
 }

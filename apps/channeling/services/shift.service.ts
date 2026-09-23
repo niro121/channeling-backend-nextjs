@@ -6,7 +6,7 @@ import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
-import { ShiftRequirementError } from "@/lib/shift-requirement-error"
+import { ShiftRequirementError, type ShiftRequirementErrorCode } from "@/lib/shift-requirement-error"
 import { hasPermission } from "@/lib/permissions"
 import { userTypes } from "@/lib/roles"
 import {
@@ -141,33 +141,57 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
+export type ShiftRequirementFailure = {
+  code: ShiftRequirementErrorCode
+  message: string
+}
+
+/**
+ * Why a till action cannot proceed, or null when the user has a usable ACTIVE shift.
+ * Expired shifts are allowed only when `allowExpired` is set (float handover).
+ */
+export async function getShiftRequirementFailure(
+  userId: string,
+  options?: { allowExpired?: boolean }
+): Promise<ShiftRequirementFailure | null> {
+  const shift = await getCurrentShift(userId)
+  if (!shift) {
+    return {
+      code: "NO_ACTIVE_SHIFT",
+      message:
+        "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+    }
+  }
+  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
+    return {
+      code: "SHIFT_EXPIRED",
+      message: "Shift expired",
+    }
+  }
+  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
+    return { code: "HANDOVER_NOT_COMPLETE", message: "Handover not complete." }
+  }
+  if (shift.status !== SHIFT_STATUS.ACTIVE) {
+    return {
+      code: "SHIFT_PAUSED",
+      message: "Your shift is paused. Resume your shift from the top bar to continue.",
+    }
+  }
+  return null
+}
+
 /** Throws if the user does not have an ACTIVE shift. Expired shifts are allowed unless booking/ledger checks separately. */
 export async function requireActiveShift(
   userId: string,
   options?: { allowExpired?: boolean }
 ): Promise<void> {
-  const shift = await getCurrentShift(userId)
-  if (!shift) {
-    throw new ShiftRequirementError(
-      "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
-      "NO_ACTIVE_SHIFT"
-    )
-  }
-  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
-    throw new ShiftRequirementError(
-      "Your shift time limit has ended. Complete handover from the top bar before continuing.",
-      "SHIFT_EXPIRED"
-    )
-  }
-  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
-    throw new ShiftRequirementError("Handover not complete.", "HANDOVER_NOT_COMPLETE")
-  }
-  if (shift.status !== SHIFT_STATUS.ACTIVE) {
-    throw new ShiftRequirementError(
-      "Your shift is paused. Resume your shift from the top bar to continue.",
-      "SHIFT_PAUSED"
-    )
-  }
+  const failure = await getShiftRequirementFailure(userId, options)
+  if (!failure) return
+  const message =
+    failure.code === "SHIFT_EXPIRED"
+      ? "Your shift time limit has ended. Complete handover from the top bar before continuing."
+      : failure.message
+  throw new ShiftRequirementError(message, failure.code)
 }
 
 export type GetShiftsParams = {
