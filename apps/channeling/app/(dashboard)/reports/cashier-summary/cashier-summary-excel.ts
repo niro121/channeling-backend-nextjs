@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Userwise Cashier — Excel ONLY (A4 portrait, matches Print / PDF).
+ * Userwise Cashier — Excel ONLY (A4 landscape, matches Print / PDF).
  * Summary and Detail both use the same horizontal payment-column tables.
  */
 
@@ -44,8 +44,8 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Full-page A4 portrait column widths (fitToWidth stretches these across the sheet). */
-const ROW_WIDTHS = [6, 18, 13, 13, 15, 14, 10, 11, 9, 10, 10, 10, 10];
+/** Full-page A4 landscape; amount cols ≥12 (~6 digits, e.g. 999,999.00). */
+const ROW_WIDTHS = [6, 16, 12, 12, 14, 12, 12, 12, 12, 12, 12, 12, 12];
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -466,7 +466,7 @@ export async function downloadCashierSummaryReportExcel(
     views: [{ showGridLines: false }],
     pageSetup: {
       paperSize: 9, // A4
-      orientation: 'portrait',
+      orientation: 'landscape',
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
@@ -591,7 +591,7 @@ export async function downloadCashierSummaryReportExcel(
 
   sheet.pageSetup.printArea = `A1:${lastCol}${row}`;
   sheet.pageSetup.paperSize = 9;
-  sheet.pageSetup.orientation = 'portrait';
+  sheet.pageSetup.orientation = 'landscape';
   sheet.pageSetup.fitToPage = true;
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
