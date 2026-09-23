@@ -44,11 +44,11 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Same as print/view: No | Tx/Shift | Session | Receipt/Bill | Party | Consultant | 7 amounts */
-const ROW_PERCENTS = [4, 14, 10, 12, 12, 10, 5.4, 5.4, 5.4, 5.4, 5.4, 5.4, 5.2] as const;
+/** Same as print/view full-page fixed layout (A4 portrait, tight margins). */
+const ROW_PERCENTS = [3.5, 14, 10, 10, 12, 11, 5.64, 5.64, 5.64, 5.64, 5.64, 5.64, 5.66] as const;
 
-/** Totals-only: label + 7 amounts */
-const TOTAL_PERCENTS = [30, 10, 10, 10, 10, 10, 10, 10] as const;
+/** Totals-only: Total + 7 amounts — stretches across full printable width */
+const TOTAL_PERCENTS = [18, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7, 11.8] as const;
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -439,42 +439,46 @@ function drawBodyTables(
         head: [[
           'No.',
           'Tx Created / Shift',
-          'Session',
-          'Receipt / Bill',
+          'Session Date/Time',
+          'Receipt ID / Bill ID',
           partyHead,
           secondHead,
           ...PAYMENT_COLUMNS.map((c) => c.label),
         ]],
         body,
         startY: y,
-        margin: { left: margin, right: margin, bottom: 12 },
+        margin: { left: margin, right: margin, bottom: 11 },
         tableWidth,
         showHead: 'everyPage',
         styles: {
           font: 'helvetica',
-          fontSize: 5.5,
-          cellPadding: { top: 0.6, right: 0.4, bottom: 0.6, left: 0.4 },
+          fontSize: 7,
+          cellPadding: { top: 0.9, right: 0.9, bottom: 0.9, left: 0.9 },
           overflow: 'linebreak',
           valign: 'top',
           textColor: [0, 0, 0],
           lineColor: [0, 0, 0],
-          lineWidth: 0.15,
+          lineWidth: 0.25,
         },
         headStyles: {
           fillColor: [232, 232, 232],
           textColor: [0, 0, 0],
           fontStyle: 'bold',
-          fontSize: 5,
+          fontSize: 6.5,
           valign: 'middle',
           halign: 'left',
           lineColor: [0, 0, 0],
-          lineWidth: 0.15,
+          lineWidth: 0.25,
         },
         columnStyles: rowStyles,
         didParseCell: (hook) => {
           if (hook.section === 'body' && hook.row.index === body.length - 1) {
             hook.cell.styles.fontStyle = 'bold';
             hook.cell.styles.fillColor = [243, 243, 243];
+          }
+          // Keep last-column border visible (Windows print/PDF engines)
+          if (hook.column.index === ROW_PERCENTS.length - 1) {
+            hook.cell.styles.lineWidth = 0.35;
           }
         },
       });
@@ -483,29 +487,34 @@ function drawBodyTables(
         head: [['Total', ...PAYMENT_COLUMNS.map((c) => c.label)]],
         body: [['Total', ...amountCells(section.totals)]],
         startY: y,
-        margin: { left: margin, right: margin, bottom: 12 },
+        margin: { left: margin, right: margin, bottom: 11 },
         tableWidth,
         styles: {
           font: 'helvetica',
-          fontSize: 6.5,
-          cellPadding: { top: 0.8, right: 0.6, bottom: 0.8, left: 0.6 },
+          fontSize: 7,
+          cellPadding: { top: 0.9, right: 0.9, bottom: 0.9, left: 0.9 },
           overflow: 'linebreak',
           valign: 'middle',
           textColor: [0, 0, 0],
           lineColor: [0, 0, 0],
-          lineWidth: 0.15,
+          lineWidth: 0.25,
           fontStyle: 'bold',
         },
         headStyles: {
           fillColor: [232, 232, 232],
           textColor: [0, 0, 0],
           fontStyle: 'bold',
-          fontSize: 6,
+          fontSize: 6.5,
           valign: 'middle',
           lineColor: [0, 0, 0],
-          lineWidth: 0.15,
+          lineWidth: 0.25,
         },
         columnStyles: totalStyles,
+        didParseCell: (hook) => {
+          if (hook.column.index === TOTAL_PERCENTS.length - 1) {
+            hook.cell.styles.lineWidth = 0.35;
+          }
+        },
       });
     }
 
@@ -518,7 +527,8 @@ function drawBodyTables(
 export async function downloadCashierSummaryReportPdf(
   opts: DownloadCashierSummaryPdfOptions
 ): Promise<void> {
-  const margin = 8;
+  // Match print: tight side margins so tables use full page width
+  const margin = 5;
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
