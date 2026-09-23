@@ -2,7 +2,7 @@
 
 /**
  * Userwise Cashier — Excel ONLY (A4 portrait, matches Print / PDF).
- * Summary: section totals (+ refund rows). Detail: compact categorized columns.
+ * Summary and Detail both use the same horizontal payment-column tables.
  */
 
 import ExcelJS from 'exceljs';
@@ -44,12 +44,8 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Summary totals-only: Total + 7 payments */
-const SUMMARY_TOTAL_WIDTHS = [14, 12, 12, 12, 12, 12, 12, 12];
-/** Summary refund rows: No | Tx/Shift | Session | Receipt/Bill | Party | Consultant | 7 amounts */
-const SUMMARY_ROW_WIDTHS = [5, 18, 12, 14, 14, 12, 10, 10, 10, 10, 10, 10, 10];
-/** Detail compact: No | Tx/Shift | Receipt/Session | Party | Payments */
-const DETAIL_WIDTHS = [5, 18, 20, 24, 28];
+/** Full-page A4 portrait column widths (fitToWidth stretches these across the sheet). */
+const ROW_WIDTHS = [6, 18, 13, 13, 15, 14, 10, 11, 9, 10, 10, 10, 10];
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -111,20 +107,8 @@ function sectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
   return PAYMENT_COLUMNS.some((col) => section.totals[col.key] !== 0);
 }
 
-function showSummaryRows(sectionKey: string): boolean {
-  return sectionKey === 'channelRefund';
-}
-
-function paymentsText(amounts: CashierSummaryPaymentAmounts): string {
-  return [
-    `Cash ${formatAmount(amounts.cash)}`,
-    `Card ${formatAmount(amounts.creditCard)}`,
-    `Slip ${formatAmount(amounts.slip)}`,
-    `Cheque ${formatAmount(amounts.cheque)}`,
-    `Agent ${formatAmount(amounts.agent)}`,
-    `Credit ${formatAmount(amounts.agentCredit)}`,
-    `E-wallet ${formatAmount(amounts.eWallet)}`,
-  ].join('\n');
+function sectionShowRows(mode: 'summary' | 'detail', sectionKey: string): boolean {
+  return mode === 'detail' || sectionKey === 'channelRefund';
 }
 
 function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {
@@ -319,12 +303,12 @@ async function drawBrandedHeader(
 function writeHeaderRow(
   sheet: ExcelJS.Worksheet,
   row: number,
-  headers: string[],
+  headers: Array<string | null>,
   rightFrom = 99
 ): number {
   for (let c = 0; c < headers.length; c++) {
     const cell = sheet.getCell(row, c + 1);
-    cell.value = headers[c]!;
+    cell.value = headers[c] ?? null;
     cell.font = { bold: true, size: 8, name: 'Arial' };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
     cell.border = thinBorder;
@@ -465,12 +449,12 @@ export type DownloadCashierSummaryExcelOptions = {
 export async function downloadCashierSummaryReportExcel(
   opts: DownloadCashierSummaryExcelOptions
 ): Promise<void> {
-  const isDetail = opts.mode === 'detail';
-  const colCount = isDetail ? DETAIL_WIDTHS.length : SUMMARY_TOTAL_WIDTHS.length;
-  const widths = isDetail ? DETAIL_WIDTHS : SUMMARY_TOTAL_WIDTHS;
+  const colCount = ROW_WIDTHS.length;
   const lastCol = colLetter(colCount);
   const fileName = opts.fileName ?? 'cashier-summary.xlsx';
-  const safeSheetName = (opts.sheetName || (isDetail ? 'Cashier Detail' : 'Cashier Summary'))
+  const safeSheetName = (
+    opts.sheetName || (opts.mode === 'detail' ? 'Cashier Detail' : 'Cashier Summary')
+  )
     .replace(/[:\\/?*\[\]]/g, ' ')
     .slice(0, 31);
 
@@ -481,25 +465,25 @@ export async function downloadCashierSummaryReportExcel(
   const sheet = workbook.addWorksheet(safeSheetName, {
     views: [{ showGridLines: false }],
     pageSetup: {
-      paperSize: 9,
+      paperSize: 9, // A4
       orientation: 'portrait',
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
-      horizontalCentered: true,
+      horizontalCentered: false,
       margins: {
-        left: 0.35,
-        right: 0.35,
-        top: 0.4,
-        bottom: 0.4,
-        header: 0.2,
-        footer: 0.2,
+        left: 0.2,
+        right: 0.2,
+        top: 0.3,
+        bottom: 0.35,
+        header: 0.15,
+        footer: 0.15,
       },
     },
   });
 
   for (let i = 0; i < colCount; i++) {
-    sheet.getColumn(i + 1).width = widths[i] ?? 12;
+    sheet.getColumn(i + 1).width = ROW_WIDTHS[i] ?? 10;
   }
 
   let row = await drawBrandedHeader(workbook, sheet, {
@@ -508,133 +492,92 @@ export async function downloadCashierSummaryReportExcel(
     colCount,
   });
 
-  if (isDetail) {
-    for (const section of opts.sections) {
-      const withRows = section.rows.length > 0;
-      const hasTotals = sectionHasAnyTotal(section);
-      if (!withRows && !hasTotals) continue;
+  for (const section of opts.sections) {
+    const withRows = sectionShowRows(opts.mode, section.key) && section.rows.length > 0;
+    const hasTotals = sectionHasAnyTotal(section);
+    if (!withRows && !hasTotals) continue;
 
-      row = writeSectionTitle(sheet, row, section.title, colCount);
-      const isIncomeExpense = section.key === 'incomeExpense';
-      const isAgency = AGENCY_BILL_SECTION_KEYS.has(section.key);
-      const partyHead = isIncomeExpense
-        ? 'Name / Type'
-        : isAgency
-          ? 'Agency / Consultant'
-          : 'Patient / Consultant';
+    row = writeSectionTitle(sheet, row, section.title, colCount);
+    const isIncomeExpense = section.key === 'incomeExpense';
+    const isAgency = AGENCY_BILL_SECTION_KEYS.has(section.key);
 
-      if (withRows) {
-        row = writeHeaderRow(sheet, row, [
+    if (withRows) {
+      const partyHead = isIncomeExpense ? 'Name' : isAgency ? 'Agency' : 'Patient';
+      const secondHead = isIncomeExpense ? 'Type' : 'Consultant';
+      row = writeHeaderRow(
+        sheet,
+        row,
+        [
           'No.',
-          'Tx / Shift',
-          'Receipt / Session',
+          'Tx Created / Shift',
+          'Session Date/Time',
+          'Receipt ID / Bill ID',
           partyHead,
-          'Payments',
-        ]);
-        section.rows.forEach((r, idx) => {
-          row = writeDataRow(
-            sheet,
-            row,
-            [
-              String(idx + 1),
-              txLabel(r),
-              `${r.receiptId || '—'}\nBill ${r.billId ?? '—'}\n${r.sessionDateTime ?? '—'}`,
-              isIncomeExpense
-                ? `${r.name ?? '—'}\n${r.type ?? '—'}`
-                : `${r.patient ?? '—'}\n${r.consultant ?? '—'}`,
-              paymentsText(r),
-            ],
-            { height: 72 }
-          );
-        });
-        sheet.mergeCells(row, 2, row, 4);
+          secondHead,
+          ...PAYMENT_COLUMNS.map((c) => c.label),
+        ],
+        6
+      );
+      section.rows.forEach((r, idx) => {
         row = writeDataRow(
-          sheet,
-          row,
-          ['', 'Total', null, null, paymentsText(section.totals)],
-          { bold: true, fill: 'FFF3F3F3', height: 72 }
-        );
-      } else {
-        row = writeHeaderRow(sheet, row, ['Total', 'Payments']);
-        row = writeDataRow(sheet, row, ['Total', paymentsText(section.totals)], {
-          bold: true,
-          fill: 'FFF3F3F3',
-          height: 72,
-        });
-      }
-      row += 1;
-    }
-  } else {
-    for (const section of opts.sections) {
-      const withRows = showSummaryRows(section.key) && section.rows.length > 0;
-      const hasTotals = sectionHasAnyTotal(section);
-      if (!withRows && !hasTotals) continue;
-
-      row = writeSectionTitle(sheet, row, section.title, colCount);
-      const isIncomeExpense = section.key === 'incomeExpense';
-      const isAgency = AGENCY_BILL_SECTION_KEYS.has(section.key);
-
-      if (withRows) {
-        // Temporarily widen for refund detail columns
-        for (let i = 0; i < SUMMARY_ROW_WIDTHS.length; i++) {
-          sheet.getColumn(i + 1).width = SUMMARY_ROW_WIDTHS[i] ?? 10;
-        }
-        const partyHead = isIncomeExpense ? 'Name' : isAgency ? 'Agency' : 'Patient';
-        const secondHead = isIncomeExpense ? 'Type' : 'Consultant';
-        row = writeHeaderRow(
           sheet,
           row,
           [
-            'No.',
-            'Tx Created / Shift',
-            'Session',
-            'Receipt / Bill',
-            partyHead,
-            secondHead,
-            ...PAYMENT_COLUMNS.map((c) => c.label),
+            String(idx + 1),
+            txLabel(r),
+            r.sessionDateTime ?? '—',
+            `${r.receiptId || '—'}\n${r.billId ?? '—'}`,
+            isIncomeExpense ? (r.name ?? '—') : (r.patient ?? '—'),
+            isIncomeExpense ? (r.type ?? '—') : (r.consultant ?? '—'),
+            ...amountCells(r),
           ],
-          6
+          { rightFrom: 6, height: 28 }
         );
-        section.rows.forEach((r, idx) => {
-          row = writeDataRow(
-            sheet,
-            row,
-            [
-              String(idx + 1),
-              txLabel(r),
-              r.sessionDateTime ?? '—',
-              `${r.receiptId || '—'}\n${r.billId ?? '—'}`,
-              isIncomeExpense ? (r.name ?? '—') : (r.patient ?? '—'),
-              isIncomeExpense ? (r.type ?? '—') : (r.consultant ?? '—'),
-              ...amountCells(r),
-            ],
-            { rightFrom: 6, height: 28 }
-          );
-        });
-        row = writeDataRow(
-          sheet,
-          row,
-          ['', 'Total', '', '', '', '', ...amountCells(section.totals)],
-          { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
-        );
-      } else {
-        for (let i = 0; i < SUMMARY_TOTAL_WIDTHS.length; i++) {
-          sheet.getColumn(i + 1).width = SUMMARY_TOTAL_WIDTHS[i] ?? 12;
-        }
-        row = writeHeaderRow(
-          sheet,
-          row,
-          ['Total', ...PAYMENT_COLUMNS.map((c) => c.label)],
-          1
-        );
-        row = writeDataRow(sheet, row, ['Total', ...amountCells(section.totals)], {
-          bold: true,
-          fill: 'FFF3F3F3',
-          rightFrom: 1,
-        });
-      }
-      row += 1;
+      });
+      // Match print: Total spans first 6 columns, then 7 payment amounts
+      const totalRow = row;
+      sheet.mergeCells(totalRow, 1, totalRow, 6);
+      row = writeDataRow(
+        sheet,
+        row,
+        ['Total', null, null, null, null, null, ...amountCells(section.totals)],
+        { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
+      );
+      sheet.getCell(totalRow, 1).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+        wrapText: true,
+      };
+    } else {
+      // Totals-only: full 13-col width (Total spans 1–6, payments 7–13) — same as print
+      const totalsHeaderRow = row;
+      sheet.mergeCells(totalsHeaderRow, 1, totalsHeaderRow, 6);
+      row = writeHeaderRow(
+        sheet,
+        row,
+        ['Total', null, null, null, null, null, ...PAYMENT_COLUMNS.map((c) => c.label)],
+        6
+      );
+      sheet.getCell(totalsHeaderRow, 1).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+        wrapText: true,
+      };
+      const totalsDataRow = row;
+      sheet.mergeCells(totalsDataRow, 1, totalsDataRow, 6);
+      row = writeDataRow(
+        sheet,
+        row,
+        ['Total', null, null, null, null, null, ...amountCells(section.totals)],
+        { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
+      );
+      sheet.getCell(totalsDataRow, 1).alignment = {
+        vertical: 'middle',
+        horizontal: 'left',
+        wrapText: true,
+      };
     }
+    row += 1;
   }
 
   if (opts.grandTotals) {
@@ -652,6 +595,15 @@ export async function downloadCashierSummaryReportExcel(
   sheet.pageSetup.fitToPage = true;
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
+  sheet.pageSetup.horizontalCentered = false;
+  sheet.pageSetup.margins = {
+    left: 0.2,
+    right: 0.2,
+    top: 0.3,
+    bottom: 0.35,
+    header: 0.15,
+    footer: 0.15,
+  };
 
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), fileName);
