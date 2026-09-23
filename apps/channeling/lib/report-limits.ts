@@ -29,6 +29,16 @@ type ReportLimitKey =
   | 'daily_returns_summary'
   | 'doctor_balance';
 
+const DEFAULT_REPORT_MAX = 10000
+
+/**
+ * Row cap from REPORT_MAX. Used by report queries and list Excel/PDF exports.
+ * Falls back to 10000.
+ */
+export function getReportMax(): number {
+  return envPositiveInt(process.env.REPORT_MAX, DEFAULT_REPORT_MAX)
+}
+
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;

@@ -474,6 +474,49 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
+export const STAFF_EXPORT_LIMIT = 1000;
+
+/** Staff matching the search, capped for Excel/PDF export. */
+export async function getAllStaffForExport(keyword: string = ''): Promise<{
+  success: boolean;
+  data?: any[];
+  totalRecords?: number;
+  exportLimit?: number;
+  limited?: boolean;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const where: Prisma.StaffWhereInput = {
+      OR: [
+        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } }
+      ]
+    };
+    const [records, totalRecords] = await Promise.all([
+      prisma.staff.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: STAFF_EXPORT_LIMIT
+      }),
+      prisma.staff.count({ where })
+    ]);
+    return {
+      success: true,
+      data: records,
+      totalRecords,
+      exportLimit: STAFF_EXPORT_LIMIT,
+      limited: totalRecords > STAFF_EXPORT_LIMIT,
+      message: 'Staff fetched successfully'
+    };
+  } catch (error: any) {
+    console.error('getAllStaffForExport error:', error);
+    return { success: false, error: { message: error.message || 'Failed to fetch staff' } };
+  }
+}
+
 // ** Get Staff By ID Service * //
 export async function getStaffById(id: string): Promise<{
   success: boolean;
