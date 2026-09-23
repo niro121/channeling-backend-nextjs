@@ -643,11 +643,11 @@ export default function CashierSummaryContent({
                   ? 'Userwise Cashier Detail - Channel'
                   : 'Userwise Cashier Summary'
               }
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
-              {/* Print styles only: A4 landscape + view body tables; branded header unchanged */}
+              {/* Print styles only: A4 portrait + view body tables; branded header unchanged */}
               <CashierSummaryPrintLayout />
 
               {loading ? (
