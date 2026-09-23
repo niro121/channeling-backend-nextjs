@@ -211,6 +211,10 @@ export function ChannelTransferPrintLayout({ rows }: Props) {
                   {t.bookingId}
                 </span>
                 <span className="ct-print-inline-item">
+                  <span className="ct-print-muted">Receipt: </span>
+                  <span className="ct-print-mono ct-print-strong">{t.receiptId}</span>
+                </span>
+                <span className="ct-print-inline-item">
                   <span className="ct-print-muted">Remarks: </span>
                   <span className="ct-print-strong">{t.remarks}</span>
                 </span>
