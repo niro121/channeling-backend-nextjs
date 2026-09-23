@@ -232,7 +232,7 @@ export async function getChannelBookingsReportService(
       }
     }
 
-    // Status: 0=Pending, 1=Paid, 2=Cancel, 3=Refund
+    // Status: 0=Pending, 1=Paid, 2=Cancel. Refund is a separate field.
     if (status && status !== "__all__") {
       const s = parseInt(status, 10);
       if (!isNaN(s)) bookingWhere.status = s;

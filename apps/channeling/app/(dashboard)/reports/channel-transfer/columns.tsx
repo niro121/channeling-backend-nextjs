@@ -28,6 +28,14 @@ export const ChannelTransferReportColumns: ColumnDef<ChannelTransferReportRow>[]
     cell: ({ row }) => row.getValue<string>('transferredByUserName') ?? '-',
   },
   {
+    accessorKey: 'receiptNoString',
+    header: 'Receipt ID',
+    cell: ({ row }) => {
+      const v = row.getValue<string | null>('receiptNoString');
+      return <span className="font-mono text-xs">{v?.trim() ? v : '-'}</span>;
+    },
+  },
+  {
     accessorKey: 'beforeActivity',
     header: 'From (Before)',
     cell: ({ row }) => {
@@ -60,10 +68,14 @@ export const ChannelTransferReportColumns: ColumnDef<ChannelTransferReportRow>[]
               <DialogTitle>Transfer details</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div>
                   <div className="text-muted-foreground text-xs">Booking ID</div>
                   <div className="font-mono text-xs break-all">{r.bookingDisplayId ?? r.bookingId}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Receipt ID</div>
+                  <div className="font-mono text-xs break-all">{r.receiptNoString?.trim() ? r.receiptNoString : '-'}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-xs">Remarks</div>

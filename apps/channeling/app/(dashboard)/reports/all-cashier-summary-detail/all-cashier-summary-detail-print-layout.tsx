@@ -284,6 +284,23 @@ export function AllCashierSummaryDetailPrintLayout({
             overflow-wrap: normal !important;
           }
 
+          /* Receipts (numbers only) → still narrow but header fully visible; Δ to Shifts */
+          .all-cashier-summary-detail-report-root .acs-receipts {
+            width: 12mm !important;
+            min-width: 12mm !important;
+            max-width: 12mm !important;
+            white-space: nowrap !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
+            padding-left: 0.5mm !important;
+            padding-right: 0.5mm !important;
+            overflow: visible !important;
+          }
+          .all-cashier-summary-detail-report-root .acs-shifts {
+            width: 50mm !important;
+            min-width: 50mm !important;
+          }
+
           .all-cashier-summary-detail-report-root .acs-screen-table .acs-handed,
           .all-cashier-summary-detail-report-root .acs-screen-table .acs-handed * {
             color: #15803d !important;
