@@ -180,12 +180,11 @@ export async function getCashAccountsForFloatAction() {
   }
 }
 
-/** Current user's float balance (cashier CASH account) in smallest unit; 0 if no account yet. Requires float-request permission. */
+/** Current user's float balance (cashier CASH account) in smallest unit; 0 if no account yet. Requires shift view. */
 export async function getMyFloatBalanceAction() {
   const { requirePermission } = await import('@/lib/server-permissions');
   const { fetchServerSession } = await import('@/lib/session');
   await requirePermission('shift', 'view');
-  await requirePermission('bulk-cashier', 'float-request');
   const session = await fetchServerSession();
   const userId = session?.user?.id;
   if (!userId) return { success: true, balanceCents: 0 };

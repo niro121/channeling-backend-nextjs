@@ -10,31 +10,27 @@ import type { LedgerReceiptListItem } from "@/services/ledger/list-ledger-receip
 import { EditLedgerTransactionDialog } from "./edit-ledger-transaction-dialog"
 import { CancelLedgerEntryDialog } from "./cancel-ledger-entry-dialog"
 import { PrintLedgerReceiptButton } from "./print-ledger-receipt-button"
-import { RECEIPT_METHOD } from "@/types/receipt"
 
 type LedgerRecordActionsProps = {
   row: Row<LedgerReceiptListItem>
-  canCancel: boolean
-  canCancelBankDeposit: boolean
+  cancelableMethods: number[]
 }
 
 export function LedgerRecordActions({
   row,
-  canCancel,
-  canCancelBankDeposit,
+  cancelableMethods,
 }: LedgerRecordActionsProps) {
   const router = useRouter()
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const r = row.original
   const receiptId = r.id ?? null
-  const isBankDeposit = r.method === RECEIPT_METHOD.BANK_DEPOSIT
   const showCancel =
     Boolean(receiptId) &&
     !r.canceledAt &&
     !r.reverseReceiptId &&
     !r.reversedReceiptId &&
-    (isBankDeposit ? canCancelBankDeposit : canCancel)
+    cancelableMethods.includes(r.method)
 
   const handleCancelSuccess = () => {
     router.refresh()

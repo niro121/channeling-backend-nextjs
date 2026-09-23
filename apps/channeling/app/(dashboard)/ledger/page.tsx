@@ -2,7 +2,7 @@ import React, { Suspense } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
-import { checkRouteAccess, checkPermission } from "@/lib/server-permissions"
+import { checkRouteAccess, getAllowedLedgerTransactionTypes, getCancelableLedgerMethods } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { redirect } from "next/navigation"
 import Loading from "../loading"
@@ -31,9 +31,9 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
 
   const params = await searchParams
 
-  const canAdd = await checkPermission("ledger", "add")
-  const canCancel = await checkPermission("ledger", "cancel")
-  const canCancelBankDeposit = await checkPermission("ledger", "cancel-bank-deposit")
+  const allowedTransactionTypes = await getAllowedLedgerTransactionTypes()
+  const canAdd = allowedTransactionTypes.length > 0
+  const cancelableMethods = await getCancelableLedgerMethods()
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id ?? null
   let userLocationId: string | null = null
@@ -86,8 +86,8 @@ export default async function LedgerPage({ searchParams }: SearchParams) {
           data={data}
           totalRecords={totalRecords}
           canAdd={canAdd}
-          canCancel={canCancel}
-          canCancelBankDeposit={canCancelBankDeposit}
+          allowedTransactionTypes={allowedTransactionTypes}
+          cancelableMethods={cancelableMethods}
           page={params?.page}
           limit={params?.limit}
           branchId={params?.branchId}

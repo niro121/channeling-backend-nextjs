@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { useToast } from "@/components/hooks/use-toast"
@@ -229,6 +229,8 @@ type LedgerTransactionFormProps = {
   onSuccess?: () => void
   /** If provided, called with receiptId when user submitted via "Add transaction and print" (after onSuccess). Use to open print view. */
   onSuccessWithReceiptId?: (receiptId: string) => void | Promise<void>
+  /** Types this user is allowed to record. Others are omitted from the list. */
+  allowedTransactionTypes: LedgerTransactionType[]
 }
 
 export function LedgerTransactionForm({
@@ -240,6 +242,7 @@ export function LedgerTransactionForm({
   userLocationName = null,
   onSuccess,
   onSuccessWithReceiptId,
+  allowedTransactionTypes,
 }: LedgerTransactionFormProps) {
   const { toast } = useToast()
   const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
@@ -255,6 +258,15 @@ export function LedgerTransactionForm({
   const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
   const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
   const [slipRequiredError, setSlipRequiredError] = useState<string | null>(null)
+  const formSchema = useMemo(
+    () =>
+      validationSchema.shape({
+        transactionType: Yup.string()
+          .oneOf([...allowedTransactionTypes])
+          .required("Transaction type is required"),
+      }),
+    [allowedTransactionTypes]
+  )
 
   useEffect(() => {
     return () => {
@@ -327,7 +339,7 @@ export function LedgerTransactionForm({
   }
 
   const initialValues: LedgerFormValues = {
-    transactionType: "BRANCH_INCOME",
+    transactionType: allowedTransactionTypes[0] ?? "BRANCH_INCOME",
     branchId: "",
     agencyId: "",
     bankAccountId: "",
@@ -345,6 +357,15 @@ export function LedgerTransactionForm({
     { setSubmitting, setValues, setErrors, setTouched }: FormikHelpers<LedgerFormValues>
   ) {
     const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
+    if (!allowedTransactionTypes.includes(values.transactionType)) {
+      toast({
+        title: "Not allowed",
+        description: "You don't have permission to record this transaction type.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
     const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(values.transactionType)
     const effectiveBranchId = usesAssignedUserLocation(values.transactionType)
@@ -550,7 +571,7 @@ export function LedgerTransactionForm({
   return (
     <Formik
       initialValues={initialValues}
-      validationSchema={validationSchema}
+      validationSchema={formSchema}
       onSubmit={handleSubmit}
       enableReinitialize
     >
@@ -584,7 +605,7 @@ export function LedgerTransactionForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEDGER_TRANSACTION_TYPES.map((t) => (
+                  {allowedTransactionTypes.map((t) => (
                     <SelectItem key={t} value={t}>
                       {TRANSACTION_TYPE_LABELS[t]}
                     </SelectItem>

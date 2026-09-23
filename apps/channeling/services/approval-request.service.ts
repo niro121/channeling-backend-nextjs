@@ -5,6 +5,7 @@ import { createNotification } from "@/services/notification.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { hasPermission } from "@/lib/permissions"
+import { canAddLedgerTransactionType } from "@/lib/ledger-type-permissions"
 import { userTypes } from "@/lib/roles"
 import type { Permissions } from "@/types/user-group"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES } from "@/types/notification"
@@ -831,7 +832,7 @@ export function getApprovalAccess(
   const canApproveBankDeposit = hasPermission(permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT)
   const canView = hasPermission(permissions, "approvals", APPROVAL_ACTION.VIEW)
   const canEditBooking = hasPermission(permissions, "channel-booking", "edit")
-  const canAddLedger = hasPermission(permissions, "ledger", "add")
+  const canAddLedger = canAddLedgerTransactionType(permissions, "BANK_DEPOSIT")
   const canSeeCancels = canView || canApproveCancel
   const canSeeRefunds = canView || canApproveRefund
   const canSeeDeposits = canView || canApproveBankDeposit
