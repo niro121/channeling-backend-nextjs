@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/select';
 import { ReportUserSelect } from '@/components/common/user-select';
 import { ReportAgentSelect } from '@/components/common/agent-select';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import {
   getAgentHistoryCreditLimitUpdateReportData,
@@ -35,13 +37,40 @@ type Props = {
   currentUserName: string;
 };
 
+/** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm. */
+function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return { fromDateTime: `${y}-${m}-${d}T00:00`, toDateTime: `${y}-${m}-${d}T23:59` };
+}
+
+function limitTypeFilterLabel(limitType: string): string {
+  if (limitType === 'soft') return 'Soft';
+  if (limitType === 'hard') return 'Hard';
+  if (limitType === 'credit') return 'Credit';
+  return 'All';
+}
+
+function periodFilterLabel(fromDateTime?: string, toDateTime?: string): string {
+  const from = (fromDateTime ?? '').trim();
+  const to = (toDateTime ?? '').trim();
+  if (from && to) return formatReportRangeLabel(from, to);
+  if (!from && !to) return 'All dates';
+  return `${from || '—'} to ${to || '—'}`;
+}
+
 function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
   const searchParams = useSearchParams();
+  const defaultRange = getDefaultDateTimeRange();
 
   const buildQuery = (): AgentHistoryCreditLimitUpdateReportQuery => ({
     agencyId: searchParams.get('agencyId') ?? '__all__',
     limitType: searchParams.get('limitType') ?? '__all__',
     changedByUserId: searchParams.get('changedByUserId') ?? '__all__',
+    fromDateTime: searchParams.get('fromDateTime') ?? defaultRange.fromDateTime,
+    toDateTime: searchParams.get('toDateTime') ?? defaultRange.toDateTime,
   });
 
   const buildSummaryItems = React.useCallback(
@@ -51,6 +80,11 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       const changedByUserId = values.changedByUserId ?? '__all__';
       return [
         {
+          label: 'Period',
+          value: periodFilterLabel(values.fromDateTime, values.toDateTime),
+          fullWidth: true,
+        },
+        {
           label: 'Agent',
           value:
             agencyId === '__all__'
@@ -59,7 +93,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
         },
         {
           label: 'Limit Type',
-          value: limitType === 'soft' ? 'Soft' : limitType === 'hard' ? 'Hard' : 'All',
+          value: limitTypeFilterLabel(limitType),
         },
         {
           label: 'Changed By',
@@ -115,7 +149,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
   return (
     <ReportTemplate<AgentHistoryCreditLimitUpdateReportRow, AgentHistoryCreditLimitUpdateReportExportRow>
       title="Agent History(Credit Limit Update)"
-      description="Tracks changes to agent soft/hard credit limits (from activity log)."
+      description="Tracks changes to agent soft, credit, and hard limits (from activity log)."
       filterButtonLabel="Search"
       generationDetails={{
         generatedBy: currentUserName,
@@ -132,21 +166,38 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
             changedByUserId === '__all__'
               ? 'All Users'
               : userOptions.find((u) => u.id === changedByUserId)?.name ?? changedByUserId;
-          const limitTypeLabel =
-            limitType === 'soft' ? 'Soft' : limitType === 'hard' ? 'Hard' : 'All';
 
           return (
             <>
+              <div>Range: {periodFilterLabel(values.fromDateTime, values.toDateTime)}</div>
               <div>
-                Agent: {agentLabel} | Limit type: {limitTypeLabel} | Changed by: {userLabel}
+                Agent: {agentLabel} | Limit type: {limitTypeFilterLabel(limitType)} | Changed by: {userLabel}
               </div>
             </>
           );
         },
         formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
+      initialFilterValues={{
+        ...getDefaultDateTimeRange(),
+        agencyId: '__all__',
+        limitType: '__all__',
+        changedByUserId: '__all__',
+      }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-shrink-0">
+            <DateTimeRangePicker
+              label="Date & time range"
+              from={values.fromDateTime}
+              to={values.toDateTime}
+              onChange={({ from, to }) => {
+                setValue('fromDateTime', from ?? '');
+                setValue('toDateTime', to ?? '');
+              }}
+            />
+          </div>
+
           <div className="flex-shrink-0">
             <label className="text-sm font-semibold mb-2 block">Agent</label>
             <div className="w-[260px] [&_button]:w-full">
@@ -171,6 +222,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
               <SelectContent>
                 <SelectItem value="__all__">All</SelectItem>
                 <SelectItem value="soft">Soft</SelectItem>
+                <SelectItem value="credit">Credit</SelectItem>
                 <SelectItem value="hard">Hard</SelectItem>
               </SelectContent>
             </Select>
@@ -190,6 +242,8 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
           agencyId: params.get('agencyId') ?? '__all__',
           limitType: params.get('limitType') ?? '__all__',
           changedByUserId: params.get('changedByUserId') ?? '__all__',
+          fromDateTime: params.get('fromDateTime') ?? defaultRange.fromDateTime,
+          toDateTime: params.get('toDateTime') ?? defaultRange.toDateTime,
         };
         return getAgentHistoryCreditLimitUpdateReportData(query);
       }}

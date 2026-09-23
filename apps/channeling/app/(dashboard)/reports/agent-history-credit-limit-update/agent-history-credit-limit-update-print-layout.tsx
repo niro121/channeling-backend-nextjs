@@ -3,7 +3,7 @@
 import moment from 'moment';
 import { formatLKR } from '@/lib/format-money';
 import type { AgentHistoryCreditLimitUpdateReportRow } from '@/types/reports/agent-history-credit-limit-update';
-import { hardLimitFieldLabel } from './agent-history-credit-limit-update-export-config';
+import { hardLimitFieldLabel, limitTypeShortLabel } from './agent-history-credit-limit-update-export-config';
 
 type Props = {
   rows: AgentHistoryCreditLimitUpdateReportRow[];
@@ -211,7 +211,7 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
                 </td>
                 <td className="ahclu-c2">
                   <span className="ahclu-line ahclu-strong">
-                    {r.limitType === 'soft' ? 'Soft' : 'Hard'}
+                    {limitTypeShortLabel(r.limitType)}
                   </span>
                   {r.limitType === 'hard' ? (
                     <span className="ahclu-line ahclu-muted ahclu-clamp2">

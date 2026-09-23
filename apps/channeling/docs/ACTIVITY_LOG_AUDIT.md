@@ -243,6 +243,7 @@ This document lists all user activities recorded in the application’s activity
 | `agencies.agency.created` | High | User creates an agency |
 | `agencies.agency.updated` | High | User updates an agency |
 | `agencies.limit.soft_changed` | High | User updates an agency soft credit limit (`Agency.allowedCreditLimit`) |
+| `agencies.limit.credit_changed` | High | User updates an agency credit limit (`Agency.creditLimit`) |
 | `agencies.limit.hard_changed` | High | User updates an agent hard credit limit (linked `Account.maxBalanceAllowed`) |
 | `agencies.agency.deleted` | High | User deletes an agency |
 | `agencies.agencies.bulkDeleted` | High | User bulk-deletes agencies |
