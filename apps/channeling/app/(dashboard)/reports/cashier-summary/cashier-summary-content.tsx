@@ -625,7 +625,7 @@ export default function CashierSummaryContent({
       )}
 
       {reportMeta && (
-        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white">
+        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white print:rounded-none">
           <CardHeader className="py-2 print:hidden">
             <CardTitle className="text-base">Userwise Cashier Summary</CardTitle>
             <CardDescription className="text-xs mt-0.5">
@@ -636,7 +636,7 @@ export default function CashierSummaryContent({
               <span className="font-medium text-foreground">Range:</span> {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 py-2">
+          <CardContent className="space-y-3 py-2 print:p-0 print:space-y-0">
             <ReportPrintLayout
               reportName={
                 reportMeta.format === 'detail'
@@ -646,6 +646,7 @@ export default function CashierSummaryContent({
               pageSize="A4 portrait"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
+              className="print:space-y-0"
             >
               {/* Print styles only: A4 portrait + view body tables; branded header unchanged */}
               <CashierSummaryPrintLayout />
