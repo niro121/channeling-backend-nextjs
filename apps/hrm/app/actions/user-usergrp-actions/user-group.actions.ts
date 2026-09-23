@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { fetchServerSession } from '@/lib/session';
+import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
@@ -25,6 +25,8 @@ function stripUserGroupPayload(payload: UserGroup) {
   delete payload.createdAt;
   delete payload.updatedAt;
   delete payload.app;
+  delete payload.createdBy;
+  delete payload.updatedBy;
   delete payload.createdUser;
   delete payload.updatedUser;
 }
@@ -59,10 +61,10 @@ export async function bulkDeleteUserGroups(ids: string[]) {
 
   try {
     await deleteUserGroups(ids);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.bulkDeleted',
         entityType: 'UserGroup',
         importance: 'high',
@@ -84,10 +86,10 @@ export async function deleteUserGroup(id: string) {
 
   try {
     await deleteOneUserGroup(id);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.deleted',
         entityType: 'UserGroup',
         entityId: id,
@@ -110,11 +112,11 @@ export async function createNewUserGroup(payload: UserGroup) {
   try {
     stripUserGroupPayload(payload);
 
-    const result = await saveUserGroup(payload);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    const result = await saveUserGroup(payload, auditUser);
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.created',
         entityType: 'UserGroup',
         entityId: result.id,
@@ -149,11 +151,11 @@ export async function updateUserGroup(id: string, payload: UserGroup) {
   try {
     stripUserGroupPayload(payload);
 
-    await updateOneUserGroup(id, payload);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    await updateOneUserGroup(id, payload, auditUser);
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.updated',
         entityType: 'UserGroup',
         entityId: id,

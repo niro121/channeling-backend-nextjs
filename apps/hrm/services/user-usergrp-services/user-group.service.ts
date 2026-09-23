@@ -12,6 +12,8 @@ import {
   isHrmUserGroup,
   HRM_USER_GROUP_APP,
 } from '@/lib/helpers/auth/hrm-user-group-scope';
+import { toAuditUser, type AuditUser } from '@/lib/audit-user';
+import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 
 function keywordWhere(keyword: string) {
   const trimmed = keyword.trim();
@@ -69,9 +71,10 @@ export async function getUserGroups({
     });
 
     const totalRecords = await authPrisma.userGroup.count({ where });
+    const recordsWithUsers = await resolveAuthUsers(records);
 
     return {
-      data: records as UserGroup[],
+      data: recordsWithUsers as UserGroup[],
       totalRecords,
     };
   } catch (error) {
@@ -112,8 +115,13 @@ export async function deleteOneUserGroup(id: string) {
   }
 }
 
-export async function saveUserGroup(userGroup: UserGroup) {
+export async function saveUserGroup(
+  userGroup: UserGroup,
+  user?: AuditUser
+) {
   try {
+    const auditUser = toAuditUser(user);
+
     const result = await authPrisma.userGroup.create({
       data: {
         name: userGroup.name,
@@ -125,6 +133,10 @@ export async function saveUserGroup(userGroup: UserGroup) {
         twoFactorMethods: Array.isArray(userGroup.twoFactorMethods)
           ? userGroup.twoFactorMethods
           : [],
+        ...(auditUser?.id && {
+          createdBy: auditUser.id,
+          updatedBy: auditUser.id,
+        }),
       },
     });
 
@@ -140,13 +152,19 @@ export async function saveUserGroup(userGroup: UserGroup) {
   }
 }
 
-export async function updateOneUserGroup(id: string, payload: UserGroup) {
+export async function updateOneUserGroup(
+  id: string,
+  payload: UserGroup,
+  user?: AuditUser
+) {
   const existing = await authPrisma.userGroup.findUnique({ where: { id } });
   if (!existing || !isHrmUserGroup(existing)) {
     throw new Error('User group not found');
   }
 
   try {
+    const auditUser = toAuditUser(user);
+
     await authPrisma.userGroup.update({
       where: { id },
       data: {
@@ -159,6 +177,7 @@ export async function updateOneUserGroup(id: string, payload: UserGroup) {
         twoFactorMethods: Array.isArray(payload.twoFactorMethods)
           ? payload.twoFactorMethods
           : [],
+        ...(auditUser?.id && { updatedBy: auditUser.id }),
         updatedAt: new Date(),
       },
     });
@@ -175,7 +194,9 @@ export async function getUserGroupById(id: string) {
   try {
     const result = await authPrisma.userGroup.findUnique({ where: { id } });
     if (!result || !isHrmUserGroup(result)) return null;
-    return result;
+
+    const [record] = await resolveAuthUsers([result]);
+    return record;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error fetching user group';
     throw new Error(message);
@@ -228,9 +249,11 @@ export async function getUserGroupsForExport({
       orderBy: { createdAt: 'desc' },
     });
 
+    const recordsWithUsers = await resolveAuthUsers(records);
+
     return {
-      data: records as UserGroup[],
-      totalRecords: records.length,
+      data: recordsWithUsers as UserGroup[],
+      totalRecords: recordsWithUsers.length,
     };
   } catch (error) {
     console.error('getUserGroupsForExport error', error);
