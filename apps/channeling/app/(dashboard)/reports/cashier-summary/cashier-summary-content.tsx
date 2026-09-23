@@ -91,9 +91,9 @@ const AGENCY_BILL_SECTION_KEYS = new Set([
 
 /** Amount columns: modest min width (~999,999 scale); nowrap so wider values grow the column. */
 const AMOUNT_HEAD =
-  'text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap align-bottom';
+  'ucs-amt text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap align-bottom';
 const AMOUNT_CELL =
-  'text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
+  'ucs-amt text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
 
 /** Slip + Credit (credit customer) → Credit Summary; cash methods → Cash Summary (agent shown after Grand Total). */
 const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
@@ -643,12 +643,12 @@ export default function CashierSummaryContent({
                   ? 'Userwise Cashier Detail - Channel'
                   : 'Userwise Cashier Summary'
               }
-              pageSize="A4 portrait"
+              pageSize="A4 landscape"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
               className="print:space-y-0"
             >
-              {/* Print styles only: A4 portrait + view body tables; branded header unchanged */}
+              {/* Print styles only: A4 landscape + view body tables; branded header unchanged */}
               <CashierSummaryPrintLayout />
 
               {loading ? (
