@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requirePermission } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
+import { getReportMax } from "@/lib/report-limits"
 
 export const getPatientsAction = async (params: GetPatientsParams) => {
     try {
@@ -296,9 +297,10 @@ export const getAreasAction = async () => {
 // ==== PATIENTS EXPORT ==== //
 export const getPatientsExport = async (params: { keyword?: string }) => {
     try {
+        const exportLimit = getReportMax()
         const result = await getPatients({
             page: "1",
-            limit: "10000", // Get all records
+            limit: String(exportLimit),
             keyword: params.keyword ?? ""
         })
 
@@ -308,6 +310,7 @@ export const getPatientsExport = async (params: { keyword?: string }) => {
                 message: result.success ? 'No patients found' : result.error?.message || 'Error getting data'
             }
         }
+        const totalRecords = result.data.totalRecords ?? result.data.records.length
         const session = await getServerSession(authOptions)
         if (session?.user?.id) {
             logActivityNonBlocking({
@@ -315,12 +318,15 @@ export const getPatientsExport = async (params: { keyword?: string }) => {
                 action: "patients.exported",
                 entityType: "Patient",
                 importance: "medium",
-                metadata: { count: result.data?.records?.length ?? 0 },
+                metadata: { count: result.data.records.length, totalRecords },
             })
         }
         return {
             success: true,
-            data: result.data.records
+            data: result.data.records,
+            totalRecords,
+            exportLimit,
+            limited: totalRecords > exportLimit,
         }
     } catch (error: any) {
         console.log('getPatientsExport error', error)

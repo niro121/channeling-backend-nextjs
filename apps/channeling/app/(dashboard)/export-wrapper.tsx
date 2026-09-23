@@ -1,17 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { formatExportFileName, printPdfUtil } from '@/lib/utils';
 import { ExportButtons } from '@/components/common/export-btns';
 import { useToast } from '@/components/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   downloadBrandedReportExcel,
   downloadBrandedReportPdf,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
 
+export type ExportServerResult<T> = {
+  success: boolean;
+  data?: T[];
+  message?: string;
+  /** Full match count. When greater than exportLimit, the file contains only exportLimit rows. */
+  totalRecords?: number;
+  exportLimit?: number;
+  limited?: boolean;
+};
+
 export type ExportWrapperProps<T> = {
-  serverData: () => Promise<{ success: boolean; data?: T[]; message?: string }>;
+  serverData: () => Promise<ExportServerResult<T>>;
   data?: T[];
   columns: string[];
   keys: (keyof T)[];
@@ -98,6 +118,31 @@ export const ExportWrapper = <T,>({
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingExcel, setLoadingExcel] = useState(false);
   const [loadingPrint, setLoadingPrint] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<{
+    totalRecords: number;
+    exportLimit: number;
+    resolve: (accepted: boolean) => void;
+  } | null>(null);
+  const limitAcceptedRef = useRef(false);
+
+  const confirmLimitedExport = (response: ExportServerResult<T>) => {
+    if (!response.limited) return Promise.resolve(true);
+    limitAcceptedRef.current = false;
+    return new Promise<boolean>((resolve) => {
+      setLimitNotice({
+        totalRecords: response.totalRecords ?? response.data?.length ?? 0,
+        exportLimit: response.exportLimit ?? response.data?.length ?? 0,
+        resolve,
+      });
+    });
+  };
+
+  const settleLimitNotice = (accepted: boolean) => {
+    setLimitNotice((current) => {
+      current?.resolve(accepted);
+      return null;
+    });
+  };
 
   // Format the file name with the standard suffix
   const formattedFileName = formatExportFileName(fileName);
@@ -121,6 +166,8 @@ export const ExportWrapper = <T,>({
         });
         return;
       }
+
+      if (!(await confirmLimitedExport(response))) return;
 
       if (customPrintPdf) {
         await customPrintPdf({
@@ -162,6 +209,8 @@ export const ExportWrapper = <T,>({
         });
         return;
       }
+
+      if (!(await confirmLimitedExport(response))) return;
 
       if (customDownloadPdf) {
         await customDownloadPdf({
@@ -211,6 +260,8 @@ export const ExportWrapper = <T,>({
         return;
       }
 
+      if (!(await confirmLimitedExport(response))) return;
+
       if (customDownloadExcel) {
         await customDownloadExcel({
           title,
@@ -245,15 +296,47 @@ export const ExportWrapper = <T,>({
     }
   }
 
+  const limitTotal = (limitNotice?.totalRecords ?? 0).toLocaleString();
+  const limitCap = (limitNotice?.exportLimit ?? 0).toLocaleString();
+
   return (
-    <ExportButtons
-      onPdfExport={handlePdfDownload}
-      onExcelExport={handleExcelDownload}
-      onPrintExport={handlePrint}
-      loadingPdf={loadingPdf}
-      loadingExcel={loadingExcel}
-      loadingPrint={loadingPrint}
-      showPrintButton={showPrintButton}
-    />
+    <>
+      <ExportButtons
+        onPdfExport={handlePdfDownload}
+        onExcelExport={handleExcelDownload}
+        onPrintExport={handlePrint}
+        loadingPdf={loadingPdf}
+        loadingExcel={loadingExcel}
+        loadingPrint={loadingPrint}
+        showPrintButton={showPrintButton}
+      />
+      <AlertDialog
+        open={limitNotice != null}
+        onOpenChange={(open) => {
+          if (!open) settleLimitNotice(limitAcceptedRef.current);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export is limited to {limitCap} records</AlertDialogTitle>
+            <AlertDialogDescription>
+              There are {limitTotal} matching records. This file includes only the {limitCap} most
+              recently added. Download it anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="cursor-pointer"
+              onClick={() => {
+                limitAcceptedRef.current = true;
+              }}
+            >
+              Download
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };

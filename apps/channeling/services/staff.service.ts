@@ -2,6 +2,7 @@
 
 import { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
+import { getReportMax } from "@/lib/report-limits"
 import { GetStaffParams, Staff } from "@/types/staff"
 import { z } from "zod"
 import { sriLankaMobileRegex } from "@/lib/regex"
@@ -174,6 +175,17 @@ export async function getStaffById(id: string): Promise<{
   }
 }
 
+function staffSearchWhere(keyword: string): Prisma.StaffWhereInput {
+  return {
+    OR: [
+      { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+    ],
+  }
+}
+
 export async function getStaff(params: GetStaffParams): Promise<{
   success: boolean
   data?: { records: any[]; totalRecords: number }
@@ -185,14 +197,7 @@ export async function getStaff(params: GetStaffParams): Promise<{
     const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1)
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10))
     const skip = (pageNumber - 1) * pageSize
-    const whereClause: Prisma.StaffWhereInput = {
-      OR: [
-        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-      ],
-    }
+    const whereClause = staffSearchWhere(keyword)
     const [records, totalRecords] = await Promise.all([
       prisma.staff.findMany({
         where: whereClause,
@@ -209,6 +214,41 @@ export async function getStaff(params: GetStaffParams): Promise<{
     }
   } catch (error: any) {
     console.error("getStaff error:", error)
+    return { success: false, error: { message: error.message || "Failed to fetch staff" } }
+  }
+}
+
+/** Staff matching the search, capped for Excel/PDF export. */
+export async function getAllStaffForExport(keyword: string = ""): Promise<{
+  success: boolean
+  data?: any[]
+  totalRecords?: number
+  exportLimit?: number
+  limited?: boolean
+  message?: string
+  error?: { message?: string }
+}> {
+  try {
+    const where = staffSearchWhere(keyword)
+    const exportLimit = getReportMax()
+    const [records, totalRecords] = await Promise.all([
+      prisma.staff.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: exportLimit,
+      }),
+      prisma.staff.count({ where }),
+    ])
+    return {
+      success: true,
+      data: records,
+      totalRecords,
+      exportLimit,
+      limited: totalRecords > exportLimit,
+      message: "Staff fetched successfully",
+    }
+  } catch (error: any) {
+    console.error("getAllStaffForExport error:", error)
     return { success: false, error: { message: error.message || "Failed to fetch staff" } }
   }
 }
