@@ -2,16 +2,16 @@
 
 /**
  * Print styles for Userwise Cashier Summary / Detail.
- * Full-bleed A4 portrait tables (Windows + Mac). PDF/Excel are separate modules.
+ * Full-bleed A4 landscape tables (same layout as screen). PDF/Excel are separate modules.
  */
 export function CashierSummaryPrintLayout() {
   return (
     <div className="ucs-print-root">
       <style>{`
         @media print {
-          /* Tight margins so content uses full printable width (Windows Chromium clips at ~10mm+) */
+          /* Landscape + tight margins — full printable width (Windows + Mac) */
           @page {
-            size: A4 portrait;
+            size: A4 landscape;
             margin: 6mm 5mm 11mm;
           }
 
@@ -130,7 +130,7 @@ export function CashierSummaryPrintLayout() {
             max-width: 100% !important;
           }
 
-          /* Remove wrapper border/radius so only table borders print (avoids Windows right-edge clip) */
+          /* Remove wrapper border/radius so only table borders print */
           .cashier-summary-report-root .ucs-screen-summary .overflow-x-auto,
           .cashier-summary-report-root .ucs-screen-detail .overflow-x-auto,
           .cashier-summary-report-root .ucs-screen-summary .overflow-auto,
@@ -147,9 +147,8 @@ export function CashierSummaryPrintLayout() {
           }
 
           /*
-            Full-page tables: fixed layout fills width evenly.
-            Width slightly under 100% + box-sizing keeps the last-column border
-            visible on Windows Chromium print (100% + border often clips).
+            Full-page tables: fixed layout fills landscape width.
+            Width slightly under 100% keeps the last-column border on Windows.
           */
           .cashier-summary-report-root .ucs-screen-summary table,
           .cashier-summary-report-root .ucs-screen-detail table {
@@ -176,6 +175,23 @@ export function CashierSummaryPrintLayout() {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
+          /*
+            Amount columns (Cash … E-wallet): min width for ≥6 digits
+            (e.g. 999,999.00) — do not shrink below this on print.
+          */
+          .cashier-summary-report-root .ucs-amt {
+            width: 18mm !important;
+            min-width: 18mm !important;
+            max-width: none !important;
+            white-space: nowrap !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
+            overflow: visible !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+          }
+
           /* Reinforce right edge so Windows does not drop the last vertical line */
           .cashier-summary-report-root .ucs-screen-summary th:last-child,
           .cashier-summary-report-root .ucs-screen-summary td:last-child,

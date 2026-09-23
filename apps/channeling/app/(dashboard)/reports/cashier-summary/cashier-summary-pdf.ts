@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Userwise Cashier — PDF ONLY (A4 portrait).
- * Summary and Detail both match the print / on-screen horizontal payment-column tables.
+ * Userwise Cashier — PDF ONLY (A4 landscape, matches Print).
+ * Summary and Detail both use the same horizontal payment-column tables.
+ * Amount columns are fixed ≥18mm (min 6 digits, e.g. 999,999.00).
  */
 
 import jsPDF from 'jspdf';
@@ -44,11 +45,11 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Same as print/view full-page fixed layout (A4 portrait, tight margins). */
-const ROW_PERCENTS = [3.5, 14, 10, 10, 12, 11, 5.64, 5.64, 5.64, 5.64, 5.64, 5.64, 5.66] as const;
+/** Same min width as print `.ucs-amt` — fits ≥6 digits (e.g. 999,999.00). */
+const AMOUNT_COL_MM = 18;
 
-/** Totals-only: Total + 7 amounts — stretches across full printable width */
-const TOTAL_PERCENTS = [18, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7, 11.8] as const;
+/** Relative shares for the 6 non-amount columns (No … Consultant). */
+const META_SHARES = [0.06, 0.24, 0.16, 0.16, 0.2, 0.18] as const;
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -292,18 +293,39 @@ function drawSectionTitle(doc: jsPDF, title: string, y: number, margin: number):
   return next + 5;
 }
 
-function columnStyles(
-  tableWidth: number,
-  percents: readonly number[],
-  rightFrom: number
+function rowTableColumnStyles(
+  tableWidth: number
 ): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  const amountTotal = AMOUNT_COL_MM * PAYMENT_COLUMNS.length;
+  const metaWidth = Math.max(40, tableWidth - amountTotal);
   const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
-  percents.forEach((pct, i) => {
+  META_SHARES.forEach((share, i) => {
     styles[i] = {
-      cellWidth: (tableWidth * pct) / 100,
-      halign: i === 0 ? 'center' : i >= rightFrom ? 'right' : 'left',
+      cellWidth: metaWidth * share,
+      halign: i === 0 ? 'center' : 'left',
     };
   });
+  for (let i = 0; i < PAYMENT_COLUMNS.length; i++) {
+    styles[META_SHARES.length + i] = {
+      cellWidth: AMOUNT_COL_MM,
+      halign: 'right',
+    };
+  }
+  return styles;
+}
+
+/** Totals-only: Total label + 7 amount cols (amount ≥ AMOUNT_COL_MM). */
+function totalsOnlyColumnStyles(
+  tableWidth: number
+): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  const amountTotal = AMOUNT_COL_MM * PAYMENT_COLUMNS.length;
+  const labelWidth = Math.max(24, tableWidth - amountTotal);
+  const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {
+    0: { cellWidth: labelWidth, halign: 'left' },
+  };
+  for (let i = 0; i < PAYMENT_COLUMNS.length; i++) {
+    styles[i + 1] = { cellWidth: AMOUNT_COL_MM, halign: 'right' };
+  }
   return styles;
 }
 
@@ -391,7 +413,7 @@ export type DownloadCashierSummaryPdfOptions = CommonOpts & {
   mode: 'summary' | 'detail';
 };
 
-/** Portrait wide tables matching print / screen view (Summary + Detail). */
+/** Landscape wide tables matching print / screen view (Summary + Detail). */
 function drawBodyTables(
   doc: jsPDF,
   mode: 'summary' | 'detail',
@@ -401,8 +423,10 @@ function drawBodyTables(
   tableWidth: number
 ): number {
   let y = startY;
-  const rowStyles = columnStyles(tableWidth, ROW_PERCENTS, 6);
-  const totalStyles = columnStyles(tableWidth, TOTAL_PERCENTS, 1);
+  const rowStyles = rowTableColumnStyles(tableWidth);
+  const totalStyles = totalsOnlyColumnStyles(tableWidth);
+  const lastAmountCol = META_SHARES.length + PAYMENT_COLUMNS.length - 1;
+  const lastTotalsCol = PAYMENT_COLUMNS.length;
 
   for (const section of sections) {
     const withRows = sectionShowRows(mode, section.key) && section.rows.length > 0;
@@ -477,7 +501,7 @@ function drawBodyTables(
             hook.cell.styles.fillColor = [243, 243, 243];
           }
           // Keep last-column border visible (Windows print/PDF engines)
-          if (hook.column.index === ROW_PERCENTS.length - 1) {
+          if (hook.column.index === lastAmountCol) {
             hook.cell.styles.lineWidth = 0.35;
           }
         },
@@ -511,7 +535,7 @@ function drawBodyTables(
         },
         columnStyles: totalStyles,
         didParseCell: (hook) => {
-          if (hook.column.index === TOTAL_PERCENTS.length - 1) {
+          if (hook.column.index === lastTotalsCol) {
             hook.cell.styles.lineWidth = 0.35;
           }
         },
@@ -529,7 +553,7 @@ export async function downloadCashierSummaryReportPdf(
 ): Promise<void> {
   // Match print: tight side margins so tables use full page width
   const margin = 5;
-  const doc = new jsPDF({ orientation: 'p', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'l', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
