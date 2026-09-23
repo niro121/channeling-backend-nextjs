@@ -28,7 +28,6 @@ import {
   AllCashierSummaryDetailPrintLayout,
   ShiftHandoverMarks,
 } from './all-cashier-summary-detail-print-layout';
-import { formatAcsShiftMarksPlain } from './all-cashier-summary-detail-export-config';
 import { downloadAllCashierSummaryDetailReportPdf } from './all-cashier-summary-detail-pdf';
 import { downloadAllCashierSummaryDetailReportExcel } from './all-cashier-summary-detail-excel';
 
@@ -47,6 +46,11 @@ const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string 
   { key: 'agentCredit', label: 'Credit' },
   { key: 'eWallet', label: 'E-wallet' },
 ];
+
+const AMOUNT_HEAD =
+  'acs-amt text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap';
+const AMOUNT_CELL =
+  'acs-amt text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap';
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -407,15 +411,16 @@ export default function AllCashierSummaryDetailContent({
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
               reportName="All Cashier Summary and Detail Report"
-              pageSize="A4 portrait"
+              pageSize="A4 landscape"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
+              <AllCashierSummaryDetailPrintLayout generatedAt={reportMeta.generatedAt} />
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
               ) : (
                 <>
-                  <div className="acs-screen-table print:hidden">
+                  <div className="acs-screen-table">
                     {reportMeta.format === 'summary' ? (
                       <div className="rounded-md border overflow-x-auto">
                         <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
@@ -425,7 +430,7 @@ export default function AllCashierSummaryDetailContent({
                               <TableHead className="pr-0">User</TableHead>
                               <TableHead className="text-right">Receipts</TableHead>
                               {PAYMENT_COLUMNS.map((c) => (
-                                <TableHead key={c.key} className="text-right tabular-nums">
+                                <TableHead key={c.key} className={AMOUNT_HEAD}>
                                   {c.label}
                                 </TableHead>
                               ))}
@@ -440,7 +445,7 @@ export default function AllCashierSummaryDetailContent({
                                 <TableCell className="pr-0">{r.userName}</TableCell>
                                 <TableCell className="text-right tabular-nums">{r.receiptCount}</TableCell>
                                 {PAYMENT_COLUMNS.map((c) => (
-                                  <TableCell key={c.key} className="text-right tabular-nums">
+                                  <TableCell key={c.key} className={AMOUNT_CELL}>
                                     {formatAmount(r[c.key])}
                                   </TableCell>
                                 ))}
@@ -461,7 +466,7 @@ export default function AllCashierSummaryDetailContent({
                                   Total
                                 </TableCell>
                                 {PAYMENT_COLUMNS.map((c) => (
-                                  <TableCell key={c.key} className="text-right tabular-nums">
+                                  <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
                                     {formatAmount(grandTotals[c.key])}
                                   </TableCell>
                                 ))}
@@ -484,7 +489,7 @@ export default function AllCashierSummaryDetailContent({
                                   <TableHead>Section</TableHead>
                                   <TableHead className="text-right">Receipts</TableHead>
                                   {PAYMENT_COLUMNS.map((c) => (
-                                    <TableHead key={c.key} className="text-right tabular-nums">
+                                    <TableHead key={c.key} className={AMOUNT_HEAD}>
                                       {c.label}
                                     </TableHead>
                                   ))}
@@ -509,7 +514,7 @@ export default function AllCashierSummaryDetailContent({
                                       {s.receiptCount}
                                     </TableCell>
                                     {PAYMENT_COLUMNS.map((c) => (
-                                      <TableCell key={c.key} className="text-right tabular-nums">
+                                      <TableCell key={c.key} className={AMOUNT_CELL}>
                                         {formatAmount(s.totals[c.key])}
                                       </TableCell>
                                     ))}
@@ -540,7 +545,7 @@ export default function AllCashierSummaryDetailContent({
                                     {u.receiptCount}
                                   </TableCell>
                                   {PAYMENT_COLUMNS.map((c) => (
-                                    <TableCell key={c.key} className="text-right tabular-nums">
+                                    <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
                                       {formatAmount(u.totals[c.key])}
                                     </TableCell>
                                   ))}
@@ -556,7 +561,7 @@ export default function AllCashierSummaryDetailContent({
                                 <TableRow className="border-b">
                                   <TableHead colSpan={4}>Grand Total</TableHead>
                                   {PAYMENT_COLUMNS.map((c) => (
-                                    <TableHead key={c.key} className="text-right tabular-nums">
+                                    <TableHead key={c.key} className={AMOUNT_HEAD}>
                                       {c.label}
                                     </TableHead>
                                   ))}
@@ -568,7 +573,7 @@ export default function AllCashierSummaryDetailContent({
                                 <TableRow className="font-medium bg-muted/50">
                                   <TableCell colSpan={4}>Total</TableCell>
                                   {PAYMENT_COLUMNS.map((c) => (
-                                    <TableCell key={c.key} className="text-right tabular-nums">
+                                    <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
                                       {formatAmount(grandTotals[c.key])}
                                     </TableCell>
                                   ))}
@@ -579,29 +584,12 @@ export default function AllCashierSummaryDetailContent({
                             </Table>
                           </div>
                         )}
-                        <div className="rounded-md border border-primary/20 bg-primary/[0.03] px-3 py-2 text-[11px]">
+                        <div className="acs-total-receipts rounded-md border border-primary/20 bg-primary/[0.03] px-3 py-2 text-[11px]">
                           <span className="text-muted-foreground">Total receipts in report:</span>{' '}
                           <span className="font-semibold">{totalReceipts}</span>
                         </div>
-                        {renderReportMetaCard(reportMeta)}
+                        <div className="print:hidden">{renderReportMetaCard(reportMeta)}</div>
                       </div>
-                    )}
-                  </div>
-                  <div className="acs-print-only hidden print:block">
-                    {reportMeta.format === 'summary' ? (
-                      <AllCashierSummaryDetailPrintLayout
-                        mode="summary"
-                        summaryRows={summaryRows}
-                        grandTotals={grandTotals}
-                        totalReceipts={totalReceipts}
-                      />
-                    ) : (
-                      <AllCashierSummaryDetailPrintLayout
-                        mode="detail"
-                        detailRows={detailRows}
-                        grandTotals={grandTotals}
-                        totalReceipts={totalReceipts}
-                      />
                     )}
                   </div>
                 </>

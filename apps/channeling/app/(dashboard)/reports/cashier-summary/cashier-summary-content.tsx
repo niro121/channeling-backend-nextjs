@@ -649,7 +649,7 @@ export default function CashierSummaryContent({
               className="print:space-y-0"
             >
               {/* Print styles only: A4 landscape + view body tables; branded header unchanged */}
-              <CashierSummaryPrintLayout />
+              <CashierSummaryPrintLayout generatedAt={reportMeta.generatedAt} />
 
               {loading ? (
                 <div className="text-center py-8">Loading...</div>

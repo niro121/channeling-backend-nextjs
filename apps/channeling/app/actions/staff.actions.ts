@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import {
   getStaff,
+  getAllStaffForExport,
   getStaffById,
   getStaffOptions,
   createStaff,
@@ -238,19 +239,16 @@ export async function bulkDeleteStaffAction(ids: string[]) {
 // ==== STAFF EXPORT ==== //
 export const getStaffExport = async (params: { keyword?: string }) => {
   try {
-    const response = await getStaffAction({
-      page: "1",
-      limit: "10000", // Get all records
-      keyword: params.keyword ?? ""
-    });
+    await requirePermission("staff", "view")
+    const result = await getAllStaffForExport(params.keyword ?? "")
 
-    if (response.isError || !response.data?.data?.length) {
+    if (!result.success || !result.data?.length) {
       return {
         success: false,
-        message: response.isError 
-          ? (response.errors?.message || 'Error getting data')
-          : 'No staff found'
-      };
+        message: result.success
+          ? "No staff found"
+          : (result.error?.message || "Error getting data"),
+      }
     }
     const session = await getServerSession(authOptions)
     if (session?.user?.id) {
@@ -259,18 +257,21 @@ export const getStaffExport = async (params: { keyword?: string }) => {
         action: "staff.exported",
         entityType: "Staff",
         importance: "medium",
-        metadata: { count: response.data?.data?.length ?? 0 },
+        metadata: { count: result.data.length },
       })
     }
     return {
       success: true,
-      data: response.data.data
-    };
+      data: result.data,
+      totalRecords: result.totalRecords ?? result.data.length,
+      exportLimit: result.exportLimit,
+      limited: result.limited ?? false,
+    }
   } catch (error: any) {
-    console.log('getStaffExport error', error);
+    console.log("getStaffExport error", error)
     return {
       success: false,
-      message: 'Error getting data'
-    };
+      message: error.message || "Error getting data",
+    }
   }
-};
+}
