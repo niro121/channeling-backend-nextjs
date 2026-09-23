@@ -30,11 +30,11 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
       />
     ),
     enableSorting: false,
-    enableHiding: false,
+    enableHiding: false
   },
   {
     accessorKey: 'name',
-    header: 'Group Name',
+    header: 'Group Name'
   },
   {
     accessorKey: 'description',
@@ -42,7 +42,7 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
     cell: ({ row }) => {
       const description = row.getValue('description') as string;
       return description || '-';
-    },
+    }
   },
   {
     accessorKey: 'status',
@@ -66,29 +66,43 @@ export const userGroupColumns: ColumnDef<UserGroup>[] = [
           {isActive ? 'Published' : 'Unpublished'}
         </Badge>
       );
-    },
+    }
   },
   {
     id: 'updated',
     header: 'Updated',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatDateTime(row.original.updatedAt)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const date = row.original.updatedAt;
+      const updatedBy = row.original.updatedUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{updatedBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      );
+    }
   },
   {
     id: 'created',
     header: 'Created',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatDateTime(row.original.createdAt)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const date = row.original.createdAt;
+      const createdBy = row.original.createdUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{createdBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      );
+    }
   },
   {
     id: 'actions',
     header: () => <div className="text-right">Actions</div>,
-    cell: ({ row }) => <UserGroupRecordActions row={row} />,
-  },
+    cell: ({ row }) => <UserGroupRecordActions row={row} />
+  }
 ];

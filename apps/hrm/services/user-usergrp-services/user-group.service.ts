@@ -25,19 +25,41 @@ function keywordWhere(keyword: string) {
   };
 }
 
+function buildUserGroupsWhere({
+  keyword = '',
+  userGroupId,
+  status,
+}: {
+  keyword?: string;
+  userGroupId?: string;
+  status?: string;
+}) {
+  const statusFilter =
+    status === '0' || status === '1' ? { status: parseInt(status, 10) } : {};
+  const userGroupIdFilter = userGroupId?.trim()
+    ? { id: userGroupId.trim() }
+    : {};
+
+  return {
+    ...hrmUserGroupAppFilter,
+    ...keywordWhere(keyword),
+    ...userGroupIdFilter,
+    ...statusFilter,
+  };
+}
+
 export async function getUserGroups({
   page,
   limit,
   keyword,
+  userGroupId,
+  status,
 }: GetUserGroupsQuery): Promise<GetUserGroupsReturn> {
   const validLimit = limit > 0 ? limit : 10;
   const skip = page * validLimit;
 
   try {
-    const where = {
-      ...hrmUserGroupAppFilter,
-      ...keywordWhere(keyword),
-    };
+    const where = buildUserGroupsWhere({ keyword, userGroupId, status });
 
     const records = await authPrisma.userGroup.findMany({
       skip,
@@ -160,11 +182,14 @@ export async function getUserGroupById(id: string) {
   }
 }
 
-export async function getAllUserGroupsOptionsService() {
+export async function getAllUserGroupsOptionsService(options?: {
+  activeOnly?: boolean;
+}) {
   try {
+    const activeOnly = options?.activeOnly !== false;
     const records = await authPrisma.userGroup.findMany({
       where: {
-        status: 1,
+        ...(activeOnly ? { status: 1 } : {}),
         ...hrmUserGroupAppFilter,
       },
       select: {
@@ -183,5 +208,32 @@ export async function getAllUserGroupsOptionsService() {
     const message =
       error instanceof Error ? error.message : 'Error getting user group options';
     throw new Error(message);
+  }
+}
+
+export async function getUserGroupsForExport({
+  keyword = '',
+  userGroupId,
+  status,
+}: {
+  keyword?: string;
+  userGroupId?: string;
+  status?: string;
+}): Promise<GetUserGroupsReturn> {
+  try {
+    const where = buildUserGroupsWhere({ keyword, userGroupId, status });
+
+    const records = await authPrisma.userGroup.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      data: records as UserGroup[],
+      totalRecords: records.length,
+    };
+  } catch (error) {
+    console.error('getUserGroupsForExport error', error);
+    throw new Error('Error getting data');
   }
 }

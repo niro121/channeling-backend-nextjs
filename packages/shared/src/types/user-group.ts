@@ -29,12 +29,16 @@ export type GetUserGroupsParams = {
   page?: string;
   limit?: string;
   keyword?: string;
+  userGroupId?: string;
+  status?: string;
 };
 
 export type GetUserGroupsQuery = {
   page: number;
   limit: number;
   keyword: string;
+  userGroupId?: string;
+  status?: string;
 };
 
 export type GetUserGroupsReturn = {
