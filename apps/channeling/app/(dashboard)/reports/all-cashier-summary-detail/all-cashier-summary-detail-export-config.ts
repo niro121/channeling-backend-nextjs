@@ -100,15 +100,17 @@ export const ACS_AMOUNT_COL_MM = 18;
 /**
  * Summary wide (landscape): No | User | Receipts | 7 amounts | Shifts | Checked By
  * Meta mm before/after amounts; amounts fixed at ACS_AMOUNT_COL_MM.
+ * Receipts/Shifts match print `.acs-receipts` / `.acs-shifts` (12mm / 50mm).
  */
-export const ACS_SUMMARY_META_BEFORE_MM = [7, 36, 14] as const;
-export const ACS_SUMMARY_META_AFTER_MM = [48, 28] as const;
+export const ACS_SUMMARY_META_BEFORE_MM = [7, 36, 12] as const;
+export const ACS_SUMMARY_META_AFTER_MM = [50, 28] as const;
 
 /**
  * Detail wide: No | User | Section | Receipts | 7 amounts | Shifts | Checked By
+ * Receipts/Shifts same print widths as summary.
  */
 export const ACS_DETAIL_META_BEFORE_MM = [7, 28, 28, 12] as const;
-export const ACS_DETAIL_META_AFTER_MM = [42, 22] as const;
+export const ACS_DETAIL_META_AFTER_MM = [50, 22] as const;
 
 export const ACS_SUMMARY_WIDE_HEADERS = [
   'No.',
