@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * All Cashier Summary and Detail — PDF ONLY (A4 portrait, matches Print).
- * Summary & Detail: compact categorized columns (payments stacked).
+ * All Cashier Summary and Detail — PDF ONLY (A4 landscape, matches Print / screen).
+ * Horizontal payment columns (Cash … E-wallet), not compact stacked Payments.
  */
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type CellDef } from 'jspdf-autotable';
 import {
   RUHUNU_HOSPITAL_LOGO_SRC,
   RUHUNU_PRINT_BRAND_NAME,
@@ -18,15 +18,20 @@ import type {
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
 import {
-  ACS_DETAIL_PDF_COL_PERCENTS,
-  ACS_DETAIL_PDF_HEADERS,
-  ACS_SUMMARY_PDF_COL_PERCENTS,
-  ACS_SUMMARY_PDF_HEADERS,
-  acsDetailPdfCompactRow,
-  acsSummaryPdfCompactRow,
-  buildAcsDetailCompactRows,
-  buildAcsSummaryCompactRows,
+  ACS_AMOUNT_COL_MM,
+  ACS_DETAIL_META_AFTER_MM,
+  ACS_DETAIL_META_BEFORE_MM,
+  ACS_DETAIL_WIDE_HEADERS,
+  ACS_PAYMENT_COLUMNS,
+  ACS_SUMMARY_META_AFTER_MM,
+  ACS_SUMMARY_META_BEFORE_MM,
+  ACS_SUMMARY_WIDE_HEADERS,
+  amountCells,
+  buildAcsDetailUserWideRows,
+  buildAcsSummaryWideRows,
+  type AcsDetailWideRow,
   type AcsShiftMarkLine,
+  type AcsSummaryWideRow,
 } from './all-cashier-summary-detail-export-config';
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
@@ -34,6 +39,11 @@ function pageSize(doc: jsPDF): { width: number; height: number } {
     width: doc.internal.pageSize.getWidth(),
     height: doc.internal.pageSize.getHeight(),
   };
+}
+
+function lastTableY(doc: jsPDF, fallback: number): number {
+  const prev = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable;
+  return typeof prev?.finalY === 'number' ? prev.finalY : fallback;
 }
 
 let cachedLogoDataUrl: string | null | undefined;
@@ -149,11 +159,12 @@ type ShiftMarkRow = {
   isGrandTotal?: boolean;
 };
 
-function isShiftMarkRow(row: ShiftMarkRow | undefined): row is ShiftMarkRow & { shiftMarks: AcsShiftMarkLine[] } {
+function isShiftMarkRow(
+  row: ShiftMarkRow | undefined
+): row is ShiftMarkRow & { shiftMarks: AcsShiftMarkLine[] } {
   return Boolean(row?.shiftMarks?.length) && !row?.isTotal && !row?.isUserTotal && !row?.isGrandTotal;
 }
 
-/** Keep the plain text so the row is tall enough, then paint status lines in color. */
 function hideShiftMarkText(
   hookData: { section: string; column: { index: number }; cell: { styles: { textColor: unknown } } },
   row: ShiftMarkRow | undefined,
@@ -177,7 +188,7 @@ function drawShiftMarkText(
   let y = hookData.cell.y + 3.1;
   const x = hookData.cell.x + 0.9;
   const maxW = Math.max(8, hookData.cell.width - 1.8);
-  doc.setFontSize(6);
+  doc.setFontSize(6.5);
   for (const line of row.shiftMarks) {
     if (line.tone === 'handed') doc.setTextColor(21, 128, 61);
     else if (line.tone === 'open') doc.setTextColor(220, 38, 38);
@@ -189,14 +200,47 @@ function drawShiftMarkText(
   }
 }
 
+function buildColumnStyles(
+  tableWidth: number,
+  beforeMm: readonly number[],
+  afterMm: readonly number[],
+  amountStartIndex: number
+): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  const amountTotal = ACS_AMOUNT_COL_MM * ACS_PAYMENT_COLUMNS.length;
+  const metaSum = [...beforeMm, ...afterMm].reduce((a, b) => a + b, 0);
+  const metaBudget = Math.max(metaSum, tableWidth - amountTotal);
+  const scale = metaBudget / metaSum;
+  const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+  let col = 0;
+  beforeMm.forEach((mm, i) => {
+    styles[col] = {
+      cellWidth: mm * scale,
+      halign: i === 0 ? 'center' : col === amountStartIndex - 1 ? 'right' : 'left',
+    };
+    col += 1;
+  });
+  for (let i = 0; i < ACS_PAYMENT_COLUMNS.length; i++) {
+    styles[col] = { cellWidth: ACS_AMOUNT_COL_MM, halign: 'right' };
+    col += 1;
+  }
+  afterMm.forEach((mm) => {
+    styles[col] = { cellWidth: mm * scale, halign: 'left' };
+    col += 1;
+  });
+  return styles;
+}
+
 function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i += 1) {
     doc.setPage(i);
     const { width, height } = pageSize(doc);
-    const y = height - 7;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    const y = height - 8;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y - 3.5, width - margin, y - 3.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text(`Generated: ${generatedAt}`, margin, y);
     doc.text(`Page ${i} of ${pageCount}`, width - margin, y, { align: 'right' });
@@ -229,8 +273,9 @@ export type DownloadAllCashierSummaryDetailPdfOptions =
 export async function downloadAllCashierSummaryDetailReportPdf(
   opts: DownloadAllCashierSummaryDetailPdfOptions
 ): Promise<void> {
-  const margin = 8;
-  const doc = new jsPDF({ orientation: 'p', format: 'a4' });
+  // Match print: 10mm side margins, A4 landscape
+  const margin = 10;
+  const doc = new jsPDF({ orientation: 'l', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
@@ -240,123 +285,168 @@ export async function downloadAllCashierSummaryDetailReportPdf(
     margin,
   });
 
+  const commonStyles = {
+    font: 'helvetica' as const,
+    fontSize: 6.5,
+    cellPadding: { top: 0.8, right: 0.9, bottom: 0.8, left: 0.9 },
+    overflow: 'linebreak' as const,
+    valign: 'top' as const,
+    textColor: [0, 0, 0] as [number, number, number],
+    lineColor: [0, 0, 0] as [number, number, number],
+    lineWidth: 0.3,
+  };
+  const headStyles = {
+    fillColor: [232, 232, 232] as [number, number, number],
+    textColor: [0, 0, 0] as [number, number, number],
+    fontStyle: 'bold' as const,
+    fontSize: 6,
+    valign: 'middle' as const,
+    lineColor: [0, 0, 0] as [number, number, number],
+    lineWidth: 0.3,
+  };
+  const tableMargin = { left: margin, right: margin, bottom: 14 };
+
   if (opts.mode === 'summary') {
-    const compactRows = buildAcsSummaryCompactRows(
+    const wideRows = buildAcsSummaryWideRows(
       opts.summaryRows,
       opts.grandTotals,
       opts.totalReceipts
     );
-    const columnStyles: Record<
-      number,
-      Partial<{ cellWidth: number; halign: 'left' | 'right' | 'center' }>
-    > = {};
-    ACS_SUMMARY_PDF_COL_PERCENTS.forEach((pct, i) => {
-      columnStyles[i] = {
-        cellWidth: (tableWidth * pct) / 100,
-        halign: i === 0 ? 'center' : i === 2 ? 'right' : 'left',
-      };
-    });
+    const amountStart = ACS_SUMMARY_META_BEFORE_MM.length;
+    const shiftsCol = amountStart + ACS_PAYMENT_COLUMNS.length;
+    const lastCol = shiftsCol + ACS_SUMMARY_META_AFTER_MM.length - 1;
+    const columnStyles = buildColumnStyles(
+      tableWidth,
+      ACS_SUMMARY_META_BEFORE_MM,
+      ACS_SUMMARY_META_AFTER_MM,
+      amountStart
+    );
+    // Receipts col right-align
+    columnStyles[2] = { ...columnStyles[2], halign: 'right' };
 
     autoTable(doc, {
-      head: [Array.from(ACS_SUMMARY_PDF_HEADERS)],
-      body: compactRows.map(acsSummaryPdfCompactRow),
+      head: [Array.from(ACS_SUMMARY_WIDE_HEADERS)],
+      body: wideRows.map((r) => r.cells),
       startY,
-      margin: { left: margin, right: margin, bottom: 12 },
+      margin: tableMargin,
       tableWidth,
       showHead: 'everyPage',
-      styles: {
-        font: 'helvetica',
-        fontSize: 6.25,
-        cellPadding: { top: 1, right: 0.9, bottom: 1, left: 0.9 },
-        overflow: 'linebreak',
-        valign: 'top',
-        textColor: [0, 0, 0],
-        lineColor: [0, 0, 0],
-        lineWidth: 0.2,
-      },
-      headStyles: {
-        fillColor: [232, 232, 232],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        fontSize: 6,
-        valign: 'middle',
-        lineColor: [0, 0, 0],
-        lineWidth: 0.2,
-      },
+      styles: commonStyles,
+      headStyles,
       columnStyles,
       didParseCell: (hookData) => {
-        const row = compactRows[hookData.row.index];
-        if (hookData.section !== 'body' || !row) return;
-        if (row.isTotal) {
+        const row = wideRows[hookData.row.index] as AcsSummaryWideRow | undefined;
+        if (hookData.section === 'body' && row?.isTotal) {
           hookData.cell.styles.fontStyle = 'bold';
           hookData.cell.styles.fillColor = [243, 243, 243];
         }
-        hideShiftMarkText(hookData, row, 4);
+        if (hookData.column.index === 0 || hookData.column.index === lastCol) {
+          hookData.cell.styles.lineWidth = 0.35;
+        }
+        hideShiftMarkText(hookData, row, shiftsCol);
       },
       didDrawCell: (hookData) => {
-        drawShiftMarkText(doc, hookData, compactRows[hookData.row.index], 4);
+        drawShiftMarkText(doc, hookData, wideRows[hookData.row.index], shiftsCol);
       },
     });
   } else {
-    const compactRows = buildAcsDetailCompactRows(
-      opts.detailRows,
-      opts.grandTotals,
-      opts.totalReceipts
+    // Match print: separate table per user, then Grand Total table
+    const amountStart = ACS_DETAIL_META_BEFORE_MM.length;
+    const shiftsCol = amountStart + ACS_PAYMENT_COLUMNS.length;
+    const lastCol = shiftsCol + ACS_DETAIL_META_AFTER_MM.length - 1;
+    const columnStyles = buildColumnStyles(
+      tableWidth,
+      ACS_DETAIL_META_BEFORE_MM,
+      ACS_DETAIL_META_AFTER_MM,
+      amountStart
     );
-    const columnStyles: Record<
-      number,
-      Partial<{ cellWidth: number; halign: 'left' | 'right' | 'center' }>
-    > = {};
-    ACS_DETAIL_PDF_COL_PERCENTS.forEach((pct, i) => {
-      columnStyles[i] = {
-        cellWidth: (tableWidth * pct) / 100,
-        halign: i === 0 ? 'center' : i === 3 ? 'right' : 'left',
-      };
+    columnStyles[3] = { ...columnStyles[3], halign: 'right' };
+
+    let y = startY;
+    opts.detailRows.forEach((user, idx) => {
+      const wideRows = buildAcsDetailUserWideRows(user, idx);
+      autoTable(doc, {
+        head: [Array.from(ACS_DETAIL_WIDE_HEADERS)],
+        body: wideRows.map((r) => r.cells),
+        startY: y,
+        margin: tableMargin,
+        tableWidth,
+        showHead: 'everyPage',
+        styles: commonStyles,
+        headStyles,
+        columnStyles,
+        didParseCell: (hookData) => {
+          const row = wideRows[hookData.row.index] as AcsDetailWideRow | undefined;
+          if (hookData.section === 'body' && row?.isUserTotal) {
+            hookData.cell.styles.fontStyle = 'bold';
+            hookData.cell.styles.fillColor = [247, 247, 247];
+          }
+          if (hookData.column.index === 0 || hookData.column.index === lastCol) {
+            hookData.cell.styles.lineWidth = 0.35;
+          }
+          hideShiftMarkText(hookData, row, shiftsCol);
+        },
+        didDrawCell: (hookData) => {
+          drawShiftMarkText(doc, hookData, wideRows[hookData.row.index], shiftsCol);
+        },
+      });
+      y = lastTableY(doc, y) + 3.5;
     });
 
-    autoTable(doc, {
-      head: [Array.from(ACS_DETAIL_PDF_HEADERS)],
-      body: compactRows.map(acsDetailPdfCompactRow),
-      startY,
-      margin: { left: margin, right: margin, bottom: 12 },
-      tableWidth,
-      showHead: 'everyPage',
-      styles: {
-        font: 'helvetica',
-        fontSize: 6.25,
-        cellPadding: { top: 1, right: 0.9, bottom: 1, left: 0.9 },
-        overflow: 'linebreak',
-        valign: 'top',
-        textColor: [0, 0, 0],
-        lineColor: [0, 0, 0],
-        lineWidth: 0.2,
-      },
-      headStyles: {
-        fillColor: [232, 232, 232],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        fontSize: 6,
-        valign: 'middle',
-        lineColor: [0, 0, 0],
-        lineWidth: 0.2,
-      },
-      columnStyles,
-      didParseCell: (hookData) => {
-        const row = compactRows[hookData.row.index];
-        if (hookData.section !== 'body' || !row) return;
-        if (row.isGrandTotal) {
-          hookData.cell.styles.fontStyle = 'bold';
-          hookData.cell.styles.fillColor = [243, 243, 243];
-        } else if (row.isUserTotal) {
-          hookData.cell.styles.fontStyle = 'bold';
-          hookData.cell.styles.fillColor = [247, 247, 247];
-        }
-        hideShiftMarkText(hookData, row, 5);
-      },
-      didDrawCell: (hookData) => {
-        drawShiftMarkText(doc, hookData, compactRows[hookData.row.index], 5);
-      },
-    });
+    if (opts.grandTotals) {
+      const paymentHeads: CellDef[] = ACS_PAYMENT_COLUMNS.map((c) => ({
+        content: c.label,
+        styles: { halign: 'right' },
+      }));
+      const paymentVals: CellDef[] = amountCells(opts.grandTotals).map((v) => ({
+        content: v,
+        styles: { halign: 'right', fontStyle: 'bold' },
+      }));
+      autoTable(doc, {
+        head: [[
+          { content: 'Grand Total', colSpan: 4, styles: { halign: 'left', fontStyle: 'bold' } },
+          ...paymentHeads,
+          { content: '' },
+          { content: '' },
+        ]],
+        body: [[
+          { content: 'Total', colSpan: 4, styles: { halign: 'left', fontStyle: 'bold' } },
+          ...paymentVals,
+          { content: '' },
+          { content: '' },
+        ]],
+        startY: y,
+        margin: tableMargin,
+        tableWidth,
+        styles: { ...commonStyles, fontStyle: 'bold', valign: 'middle' },
+        headStyles,
+        columnStyles,
+        didParseCell: (hookData) => {
+          if (hookData.section === 'body') {
+            hookData.cell.styles.fillColor = [243, 243, 243];
+          }
+          if (hookData.column.index === 0 || hookData.column.index === lastCol) {
+            hookData.cell.styles.lineWidth = 0.35;
+          }
+        },
+      });
+    }
+
+    // Match screen/print: Total receipts in report
+    y = lastTableY(doc, y) + 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    const bannerH = 7;
+    doc.setFillColor(247, 247, 247);
+    doc.rect(margin, y, tableWidth, bannerH, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.text('Total receipts in report: ', margin + 2, y + 4.6);
+    const labelW = doc.getTextWidth('Total receipts in report: ');
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(opts.totalReceipts), margin + 2 + labelW, y + 4.6);
   }
 
   drawFooter(doc, opts.generatedAt, margin);

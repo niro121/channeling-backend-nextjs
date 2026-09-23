@@ -475,9 +475,9 @@ export async function downloadCashierSummaryReportExcel(
         left: 0.39,
         right: 0.39,
         top: 0.24,
-        bottom: 0.43,
+        bottom: 0.55,
         header: 0.15,
-        footer: 0.15,
+        footer: 0.3,
       },
     },
   });
@@ -587,7 +587,10 @@ export async function downloadCashierSummaryReportExcel(
   row += 1;
   sheet.mergeCells(`A${row}:${lastCol}${row}`);
   sheet.getCell(row, 1).value = `Generated: ${opts.generatedAt}`;
-  sheet.getCell(row, 1).font = { size: 8, name: 'Arial', color: { argb: 'FF555555' } };
+  sheet.getCell(row, 1).font = { bold: true, size: 9, name: 'Arial', color: { argb: 'FF000000' } };
+
+  sheet.headerFooter.oddFooter = `&LGenerated: ${opts.generatedAt}&RPage &P of &N`;
+  sheet.headerFooter.evenFooter = `&LGenerated: ${opts.generatedAt}&RPage &P of &N`;
 
   sheet.pageSetup.printArea = `A1:${lastCol}${row}`;
   sheet.pageSetup.paperSize = 9;
@@ -600,9 +603,9 @@ export async function downloadCashierSummaryReportExcel(
     left: 0.39,
     right: 0.39,
     top: 0.24,
-    bottom: 0.43,
+    bottom: 0.55,
     header: 0.15,
-    footer: 0.15,
+    footer: 0.3,
   };
 
   const buffer = await workbook.xlsx.writeBuffer();

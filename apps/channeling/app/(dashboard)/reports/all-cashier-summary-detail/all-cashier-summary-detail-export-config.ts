@@ -1,6 +1,7 @@
 /**
  * All Cashier Summary and Detail — shared helpers for Print / PDF / Excel.
- * Summary & Detail: compact categorized columns (payments stacked) for A4 portrait.
+ * Print/PDF: landscape horizontal payment columns (same as screen view).
+ * Excel may still use compact helpers until updated separately.
  */
 
 import { formatReceiptAmount } from '@/lib/format-money';
@@ -17,6 +18,19 @@ function formatAmount(n: number | undefined | null): string {
   return formatReceiptAmount(num);
 }
 
+export const ACS_PAYMENT_COLUMNS: {
+  key: keyof CashierSummaryPaymentAmounts;
+  label: string;
+}[] = [
+  { key: 'cash', label: 'Cash' },
+  { key: 'creditCard', label: 'Credit Card' },
+  { key: 'slip', label: 'Slip' },
+  { key: 'cheque', label: 'Cheque' },
+  { key: 'agent', label: 'Agent' },
+  { key: 'agentCredit', label: 'Credit' },
+  { key: 'eWallet', label: 'E-wallet' },
+];
+
 export function formatPaymentsBlock(amounts: CashierSummaryPaymentAmounts): string {
   return [
     `Cash ${formatAmount(amounts.cash)}`,
@@ -27,6 +41,10 @@ export function formatPaymentsBlock(amounts: CashierSummaryPaymentAmounts): stri
     `Credit ${formatAmount(amounts.agentCredit)}`,
     `E-wallet ${formatAmount(amounts.eWallet)}`,
   ].join('\n');
+}
+
+export function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {
+  return ACS_PAYMENT_COLUMNS.map((c) => formatAmount(amounts[c.key]));
 }
 
 export function formatAcsShiftDateTime(value: string | Date | null | undefined): string {
@@ -76,7 +94,42 @@ export function formatAcsShiftMarksPlain(shifts: AllCashierShiftHandover[] | und
     .join('\n');
 }
 
-/** Summary: No. | User | Receipts | Payments | Shifts | Checked By */
+/** Same as print `.acs-amt` — fits ≥6 digits. */
+export const ACS_AMOUNT_COL_MM = 18;
+
+/**
+ * Summary wide (landscape): No | User | Receipts | 7 amounts | Shifts | Checked By
+ * Meta mm before/after amounts; amounts fixed at ACS_AMOUNT_COL_MM.
+ */
+export const ACS_SUMMARY_META_BEFORE_MM = [7, 36, 14] as const;
+export const ACS_SUMMARY_META_AFTER_MM = [48, 28] as const;
+
+/**
+ * Detail wide: No | User | Section | Receipts | 7 amounts | Shifts | Checked By
+ */
+export const ACS_DETAIL_META_BEFORE_MM = [7, 28, 28, 12] as const;
+export const ACS_DETAIL_META_AFTER_MM = [42, 22] as const;
+
+export const ACS_SUMMARY_WIDE_HEADERS = [
+  'No.',
+  'User',
+  'Receipts',
+  ...ACS_PAYMENT_COLUMNS.map((c) => c.label),
+  'Shifts',
+  'Checked By',
+] as const;
+
+export const ACS_DETAIL_WIDE_HEADERS = [
+  'No.',
+  'User',
+  'Section',
+  'Receipts',
+  ...ACS_PAYMENT_COLUMNS.map((c) => c.label),
+  'Shifts',
+  'Checked By',
+] as const;
+
+/** Summary compact (legacy Excel): No. | User | Receipts | Payments | Shifts | Checked By */
 export const ACS_SUMMARY_PDF_HEADERS = [
   'No.',
   'User',
@@ -88,7 +141,7 @@ export const ACS_SUMMARY_PDF_HEADERS = [
 
 export const ACS_SUMMARY_PDF_COL_PERCENTS = [5, 16, 8, 28, 28, 15] as const;
 
-/** Detail: No. | User | Section | Receipts | Payments | Shifts | Checked By */
+/** Detail compact (legacy Excel) */
 export const ACS_DETAIL_PDF_HEADERS = [
   'No.',
   'User',
@@ -120,6 +173,19 @@ export type AcsDetailCompactRow = {
   payments: string;
   handoverDate: string;
   checkedBy: string;
+  shiftMarks?: AcsShiftMarkLine[];
+  isUserTotal?: boolean;
+  isGrandTotal?: boolean;
+};
+
+export type AcsSummaryWideRow = {
+  cells: string[];
+  shiftMarks?: AcsShiftMarkLine[];
+  isTotal?: boolean;
+};
+
+export type AcsDetailWideRow = {
+  cells: string[];
   shiftMarks?: AcsShiftMarkLine[];
   isUserTotal?: boolean;
   isGrandTotal?: boolean;
@@ -171,6 +237,31 @@ export function acsSummaryPdfCompactRow(row: AcsSummaryCompactRow): string[] {
   ];
 }
 
+export function buildAcsSummaryWideRows(
+  rows: AllCashierUserSummaryRow[],
+  grandTotals: CashierSummaryPaymentAmounts | null,
+  totalReceipts: number
+): AcsSummaryWideRow[] {
+  const body: AcsSummaryWideRow[] = rows.map((row, index) => ({
+    cells: [
+      String(index + 1),
+      row.userName || '—',
+      String(row.receiptCount),
+      ...amountCells(row),
+      formatAcsShiftMarksPlain(row.shifts),
+      '',
+    ],
+    shiftMarks: buildAcsShiftMarkLines(row.shifts),
+  }));
+  if (grandTotals) {
+    body.push({
+      cells: ['', 'Total', String(totalReceipts), ...amountCells(grandTotals), '', ''],
+      isTotal: true,
+    });
+  }
+  return body;
+}
+
 export function buildAcsDetailCompactRows(
   detailRows: AllCashierUserDetailRow[],
   grandTotals: CashierSummaryPaymentAmounts | null,
@@ -220,17 +311,6 @@ export function buildAcsDetailCompactRows(
 }
 
 export function acsDetailPdfCompactRow(row: AcsDetailCompactRow): string[] {
-  if (row.isUserTotal || row.isGrandTotal) {
-    return [
-      row.no,
-      row.user,
-      row.section,
-      row.receipts,
-      row.payments,
-      row.handoverDate,
-      row.checkedBy,
-    ];
-  }
   return [
     row.no,
     row.user,
@@ -240,4 +320,60 @@ export function acsDetailPdfCompactRow(row: AcsDetailCompactRow): string[] {
     row.handoverDate,
     row.checkedBy,
   ];
+}
+
+export function buildAcsDetailWideRows(
+  detailRows: AllCashierUserDetailRow[],
+  grandTotals: CashierSummaryPaymentAmounts | null,
+  totalReceipts: number
+): AcsDetailWideRow[] {
+  const body: AcsDetailWideRow[] = [];
+
+  detailRows.forEach((u, idx) => {
+    body.push(...buildAcsDetailUserWideRows(u, idx));
+  });
+
+  if (grandTotals) {
+    body.push({
+      cells: [
+        '',
+        'Grand Total',
+        `Receipts ${totalReceipts}`,
+        String(totalReceipts),
+        ...amountCells(grandTotals),
+        '',
+        '',
+      ],
+      isGrandTotal: true,
+    });
+  }
+
+  return body;
+}
+
+/** One user block matching print: section rows + User Total (no grand total). */
+export function buildAcsDetailUserWideRows(
+  u: AllCashierUserDetailRow,
+  idx: number
+): AcsDetailWideRow[] {
+  const body: AcsDetailWideRow[] = [];
+  u.sections.forEach((s, i) => {
+    body.push({
+      cells: [
+        i === 0 ? String(idx + 1) : '',
+        i === 0 ? u.userName || '—' : '',
+        s.title || '—',
+        String(s.receiptCount),
+        ...amountCells(s.totals),
+        i === 0 ? formatAcsShiftMarksPlain(u.shifts) : '',
+        '',
+      ],
+      shiftMarks: i === 0 ? buildAcsShiftMarkLines(u.shifts) : undefined,
+    });
+  });
+  body.push({
+    cells: ['', 'User Total', '', String(u.receiptCount), ...amountCells(u.totals), '', ''],
+    isUserTotal: true,
+  });
+  return body;
 }
