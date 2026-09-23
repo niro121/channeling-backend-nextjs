@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * All Cashier Summary and Detail — Excel ONLY (A4 portrait, matches Print / PDF).
- * Summary & Detail: compact categorized columns (payments stacked).
+ * All Cashier Summary and Detail — Excel ONLY (A4 landscape, matches Print / PDF).
+ * Horizontal payment columns; Detail = one table block per user + Grand Total.
  */
 
 import ExcelJS from 'exceljs';
@@ -18,12 +18,12 @@ import type {
   CashierSummaryPaymentAmounts,
 } from '@/types/report';
 import {
-  ACS_DETAIL_PDF_HEADERS,
-  ACS_SUMMARY_PDF_HEADERS,
-  acsDetailPdfCompactRow,
-  acsSummaryPdfCompactRow,
-  buildAcsDetailCompactRows,
-  buildAcsSummaryCompactRows,
+  ACS_DETAIL_WIDE_HEADERS,
+  ACS_PAYMENT_COLUMNS,
+  ACS_SUMMARY_WIDE_HEADERS,
+  amountCells,
+  buildAcsDetailUserWideRows,
+  buildAcsSummaryWideRows,
   type AcsShiftMarkLine,
 } from './all-cashier-summary-detail-export-config';
 
@@ -70,17 +70,21 @@ const thinBorder: Partial<ExcelJS.Borders> = {
   bottom: { style: 'thin', color: { argb: 'FF000000' } },
 };
 
-/** ~ ACS_SUMMARY_PDF_COL_PERCENTS */
-const SUMMARY_COLUMN_WIDTHS = [6, 18, 10, 24, 32, 14];
-/** ~ ACS_DETAIL_PDF_COL_PERCENTS */
-const DETAIL_COLUMN_WIDTHS = [5, 16, 16, 10, 24, 32, 14];
+/** Landscape widths matching print: meta + 7 amounts (≥12 for 6 digits) + shifts + checked */
+const SUMMARY_COLUMN_WIDTHS = [5, 22, 10, 12, 12, 12, 12, 12, 12, 12, 28, 14];
+const DETAIL_COLUMN_WIDTHS = [5, 18, 18, 10, 12, 12, 12, 12, 12, 12, 12, 26, 12];
+
+const SUMMARY_AMOUNT_START = 3; // Cash
+const DETAIL_AMOUNT_START = 4;
+const SUMMARY_SHIFTS_COL = 10; // 0-based
+const DETAIL_SHIFTS_COL = 11;
 
 function shiftMarksRichText(lines: AcsShiftMarkLine[]): ExcelJS.CellRichTextValue {
   return {
     richText: lines.map((line, i) => ({
       text: i === 0 ? line.text : `\n${line.text}`,
       font: {
-        size: 8,
+        size: 7,
         name: 'Arial',
         bold: true,
         color: {
@@ -192,14 +196,42 @@ async function drawBrandedHeader(
 
   const summaryStartRow = row;
   const summaryCols = 3;
-  const summaryColSpan = Math.max(1, Math.floor(colCount / summaryCols));
+  const baseSpan = Math.floor(colCount / summaryCols);
+  const remSpan = colCount % summaryCols;
+  const slotSpans = Array.from(
+    { length: summaryCols },
+    (_, i) => Math.max(1, baseSpan + (i < remSpan ? 1 : 0))
+  );
   let itemCol = 0;
   let itemRow = 0;
+  let slotIndex = 0;
+
   for (const item of summaryItems) {
-    const span = item.fullWidth ? colCount : summaryColSpan;
+    if (item.fullWidth) {
+      if (itemCol > 0) {
+        itemCol = 0;
+        itemRow += 2;
+        slotIndex = 0;
+      }
+      const excelRow = summaryStartRow + itemRow;
+      sheet.mergeCells(excelRow, 1, excelRow, colCount);
+      sheet.mergeCells(excelRow + 1, 1, excelRow + 1, colCount);
+      sheet.getCell(excelRow, 1).value = item.label.toUpperCase();
+      sheet.getCell(excelRow, 1).font = { size: 7, name: 'Arial', color: { argb: 'FF666666' } };
+      sheet.getCell(excelRow + 1, 1).value = item.value || '—';
+      sheet.getCell(excelRow + 1, 1).font = { bold: true, size: 9, name: 'Arial' };
+      itemCol = 0;
+      itemRow += 2;
+      slotIndex = 0;
+      continue;
+    }
+
+    let span = slotSpans[slotIndex] ?? 1;
     if (itemCol + span > colCount) {
       itemCol = 0;
       itemRow += 2;
+      slotIndex = 0;
+      span = slotSpans[0] ?? 1;
     }
     const excelRow = summaryStartRow + itemRow;
     const excelCol = itemCol + 1;
@@ -217,9 +249,15 @@ async function drawBrandedHeader(
     sheet.getCell(excelRow + 1, excelCol).value = item.value || '—';
     sheet.getCell(excelRow + 1, excelCol).font = { bold: true, size: 9, name: 'Arial' };
     itemCol += span;
+    slotIndex += 1;
+    if (slotIndex >= summaryCols || itemCol >= colCount) {
+      itemCol = 0;
+      itemRow += 2;
+      slotIndex = 0;
+    }
   }
 
-  const summaryRowsUsed = Math.max(2, itemRow + 2);
+  const summaryRowsUsed = Math.max(2, itemRow + (itemCol > 0 || slotIndex > 0 ? 2 : 0));
   const summaryEndRow = summaryStartRow + summaryRowsUsed - 1;
   for (let r = summaryStartRow; r <= summaryEndRow; r++) {
     for (let c = 1; c <= colCount; c++) {
@@ -235,15 +273,90 @@ async function drawBrandedHeader(
   return summaryEndRow + 2;
 }
 
+function writeHeaderRow(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  headers: readonly string[],
+  amountStart: number
+): number {
+  for (let c = 0; c < headers.length; c++) {
+    const cell = sheet.getCell(row, c + 1);
+    cell.value = headers[c]!;
+    cell.font = { bold: true, size: 6, name: 'Arial' };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+    cell.border = thinBorder;
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal:
+        c === 0
+          ? 'center'
+          : c >= amountStart && c < amountStart + ACS_PAYMENT_COLUMNS.length
+            ? 'right'
+            : c === amountStart - 1
+              ? 'right'
+              : 'left',
+      wrapText: true,
+    };
+  }
+  sheet.getRow(row).height = 18;
+  return row + 1;
+}
+
+function writeDataCells(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  cells: string[],
+  opts: {
+    amountStart: number;
+    shiftsCol: number;
+    shiftMarks?: AcsShiftMarkLine[];
+    bold?: boolean;
+    fill?: string;
+  }
+): number {
+  const colCount = cells.length;
+  for (let c = 0; c < colCount; c++) {
+    const cell = sheet.getCell(row, c + 1);
+    const marks = opts.shiftMarks && c === opts.shiftsCol ? opts.shiftMarks : undefined;
+    if (marks?.length) {
+      cell.value = shiftMarksRichText(marks);
+    } else {
+      cell.value = cellValue(cells[c]);
+      cell.numFmt = '@';
+      cell.font = { size: 7, name: 'Arial', bold: Boolean(opts.bold) };
+    }
+    cell.border = thinBorder;
+    cell.alignment = {
+      vertical: 'top',
+      horizontal:
+        c === 0
+          ? 'center'
+          : c >= opts.amountStart && c < opts.amountStart + ACS_PAYMENT_COLUMNS.length
+            ? 'right'
+            : c === opts.amountStart - 1
+              ? 'right'
+              : 'left',
+      wrapText: true,
+    };
+    if (opts.fill) {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
+    }
+  }
+  const markLines = opts.shiftMarks?.length ?? 0;
+  sheet.getRow(row).height = Math.max(18, markLines * 12);
+  return row + 1;
+}
+
 export async function downloadAllCashierSummaryDetailReportExcel(
   opts: DownloadAllCashierSummaryDetailExcelOptions
 ): Promise<void> {
   const fileName = opts.fileName ?? 'all-cashier-summary-detail.xlsx';
   const isDetail = opts.mode === 'detail';
-  const colCount = isDetail
-    ? ACS_DETAIL_PDF_HEADERS.length
-    : ACS_SUMMARY_PDF_HEADERS.length;
+  const headers = isDetail ? ACS_DETAIL_WIDE_HEADERS : ACS_SUMMARY_WIDE_HEADERS;
+  const colCount = headers.length;
   const widths = isDetail ? DETAIL_COLUMN_WIDTHS : SUMMARY_COLUMN_WIDTHS;
+  const amountStart = isDetail ? DETAIL_AMOUNT_START : SUMMARY_AMOUNT_START;
+  const shiftsCol = isDetail ? DETAIL_SHIFTS_COL : SUMMARY_SHIFTS_COL;
   const lastCol = colLetter(colCount);
   const safeSheetName = (
     opts.sheetName || (isDetail ? 'All Cashier Detail' : 'All Cashier Summary')
@@ -259,18 +372,18 @@ export async function downloadAllCashierSummaryDetailReportExcel(
     views: [{ showGridLines: false }],
     pageSetup: {
       paperSize: 9,
-      orientation: 'portrait',
+      orientation: 'landscape',
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
-      horizontalCentered: true,
+      horizontalCentered: false,
       margins: {
-        left: 0.35,
-        right: 0.35,
-        top: 0.4,
-        bottom: 0.4,
-        header: 0.2,
-        footer: 0.2,
+        left: 0.39,
+        right: 0.39,
+        top: 0.24,
+        bottom: 0.55,
+        header: 0.15,
+        footer: 0.3,
       },
     },
   });
@@ -286,137 +399,137 @@ export async function downloadAllCashierSummaryDetailReportExcel(
   });
 
   if (opts.mode === 'summary') {
-    const headers = Array.from(ACS_SUMMARY_PDF_HEADERS);
-    for (let c = 0; c < headers.length; c++) {
-      const cell = sheet.getCell(row, c + 1);
-      cell.value = headers[c]!;
-      cell.font = { bold: true, size: 8, name: 'Arial' };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-      cell.border = thinBorder;
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: c === 0 ? 'center' : c === 2 ? 'right' : 'left',
-        wrapText: true,
-      };
-    }
-    sheet.getRow(row).height = 18;
-    row += 1;
-
-    const compactRows = buildAcsSummaryCompactRows(
+    row = writeHeaderRow(sheet, row, headers, amountStart);
+    const wideRows = buildAcsSummaryWideRows(
       opts.summaryRows,
       opts.grandTotals,
       opts.totalReceipts
     );
-    for (const compact of compactRows) {
-      const values = acsSummaryPdfCompactRow(compact);
-      const isTotal = Boolean(compact.isTotal);
-      for (let c = 0; c < colCount; c++) {
-        const cell = sheet.getCell(row, c + 1);
-        const marks = !isTotal && c === 4 ? compact.shiftMarks : undefined;
-        if (marks?.length) {
-          cell.value = shiftMarksRichText(marks);
-        } else {
-          cell.value = cellValue(values[c]);
-          cell.numFmt = '@';
-          cell.font = { size: 8, name: 'Arial', bold: isTotal };
-        }
-        cell.border = thinBorder;
-        cell.alignment = {
-          vertical: 'top',
-          horizontal: c === 0 ? 'center' : c === 2 ? 'right' : 'left',
-          wrapText: true,
-        };
-        if (isTotal) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
-        }
-      }
-      sheet.getRow(row).height = Math.max(72, (compact.shiftMarks?.length ?? 0) * 14);
-      row += 1;
+    for (const wide of wideRows) {
+      row = writeDataCells(sheet, row, wide.cells, {
+        amountStart,
+        shiftsCol,
+        shiftMarks: wide.shiftMarks,
+        bold: wide.isTotal,
+        fill: wide.isTotal ? 'FFF3F3F3' : undefined,
+      });
     }
   } else {
-    const headers = Array.from(ACS_DETAIL_PDF_HEADERS);
-    for (let c = 0; c < headers.length; c++) {
-      const cell = sheet.getCell(row, c + 1);
-      cell.value = headers[c]!;
-      cell.font = { bold: true, size: 8, name: 'Arial' };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-      cell.border = thinBorder;
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: c === 0 ? 'center' : c === 3 ? 'right' : 'left',
-        wrapText: true,
-      };
-    }
-    sheet.getRow(row).height = 18;
-    row += 1;
-
-    const compactRows = buildAcsDetailCompactRows(
-      opts.detailRows,
-      opts.grandTotals,
-      opts.totalReceipts
-    );
-    for (const compact of compactRows) {
-      const values = acsDetailPdfCompactRow(compact);
-      const isUserTotal = Boolean(compact.isUserTotal);
-      const isGrandTotal = Boolean(compact.isGrandTotal);
-      const isHighlight = isUserTotal || isGrandTotal;
-
-      if (isUserTotal || isGrandTotal) {
-        sheet.mergeCells(row, 2, row, 3);
+    // Match print: one header+body block per user, then Grand Total table
+    opts.detailRows.forEach((user, idx) => {
+      row = writeHeaderRow(sheet, row, headers, amountStart);
+      const wideRows = buildAcsDetailUserWideRows(user, idx);
+      for (const wide of wideRows) {
+        row = writeDataCells(sheet, row, wide.cells, {
+          amountStart,
+          shiftsCol,
+          shiftMarks: wide.shiftMarks,
+          bold: wide.isUserTotal,
+          fill: wide.isUserTotal ? 'FFF7F7F7' : undefined,
+        });
       }
+      row += 1; // gap between user tables
+    });
 
-      for (let c = 0; c < colCount; c++) {
-        const cell = sheet.getCell(row, c + 1);
-        const raw =
-          isUserTotal || isGrandTotal
-            ? c === 0
-              ? compact.no
-              : c === 1
-                ? compact.user
-                : c === 2
-                  ? null
-                  : c === 3
-                    ? compact.receipts
-                    : c === 4
-                      ? compact.payments
-                      : null
-            : values[c];
-        const marks = !isHighlight && c === 5 ? compact.shiftMarks : undefined;
-        if (marks?.length) {
-          cell.value = shiftMarksRichText(marks);
-        } else {
-          cell.value = cellValue(raw);
-          cell.numFmt = '@';
-          cell.font = { size: 8, name: 'Arial', bold: isHighlight };
-        }
-        cell.border = thinBorder;
-        cell.alignment = {
-          vertical: 'top',
-          horizontal: c === 0 ? 'center' : c === 3 ? 'right' : 'left',
-          wrapText: true,
+    if (opts.grandTotals) {
+      // Grand Total header: label spans first 4 cols, then payment labels
+      sheet.mergeCells(row, 1, row, 4);
+      const gtHead = sheet.getCell(row, 1);
+      gtHead.value = 'Grand Total';
+      gtHead.font = { bold: true, size: 6, name: 'Arial' };
+      gtHead.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+      for (let c = 1; c <= 4; c++) {
+        sheet.getCell(row, c).border = thinBorder;
+        sheet.getCell(row, c).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE8E8E8' },
         };
-        if (isGrandTotal) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
-        } else if (isUserTotal) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
-        }
       }
-      sheet.getRow(row).height = Math.max(72, (compact.shiftMarks?.length ?? 0) * 14);
+      ACS_PAYMENT_COLUMNS.forEach((p, i) => {
+        const cell = sheet.getCell(row, 5 + i);
+        cell.value = p.label;
+        cell.font = { bold: true, size: 6, name: 'Arial' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+        cell.border = thinBorder;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+      for (let c = 5 + ACS_PAYMENT_COLUMNS.length; c <= colCount; c++) {
+        const cell = sheet.getCell(row, c);
+        cell.border = thinBorder;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+      }
+      sheet.getRow(row).height = 18;
+      row += 1;
+
+      sheet.mergeCells(row, 1, row, 4);
+      sheet.getCell(row, 1).value = 'Total';
+      sheet.getCell(row, 1).font = { bold: true, size: 7, name: 'Arial' };
+      for (let c = 1; c <= 4; c++) {
+        sheet.getCell(row, c).border = thinBorder;
+        sheet.getCell(row, c).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF3F3F3' },
+        };
+        sheet.getCell(row, c).font = { bold: true, size: 7, name: 'Arial' };
+      }
+      amountCells(opts.grandTotals).forEach((v, i) => {
+        const cell = sheet.getCell(row, 5 + i);
+        cell.value = v;
+        cell.numFmt = '@';
+        cell.font = { bold: true, size: 7, name: 'Arial' };
+        cell.border = thinBorder;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
+      });
+      for (let c = 5 + ACS_PAYMENT_COLUMNS.length; c <= colCount; c++) {
+        const cell = sheet.getCell(row, c);
+        cell.border = thinBorder;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
+      }
+      sheet.getRow(row).height = 18;
       row += 1;
     }
+
+    // Match screen/print: Total receipts in report
+    row += 1;
+    sheet.mergeCells(`A${row}:${lastCol}${row}`);
+    for (let c = 1; c <= colCount; c++) {
+      const cell = sheet.getCell(row, c);
+      cell.border = thinBorder;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F7F7' } };
+    }
+    sheet.getCell(row, 1).value = `Total receipts in report: ${opts.totalReceipts}`;
+    sheet.getCell(row, 1).font = { bold: true, size: 8, name: 'Arial', color: { argb: 'FF000000' } };
+    sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'left' };
+    sheet.getRow(row).height = 18;
+    row += 1;
   }
 
   row += 1;
   sheet.mergeCells(`A${row}:${lastCol}${row}`);
   sheet.getCell(row, 1).value = `Generated: ${opts.generatedAt}`;
-  sheet.getCell(row, 1).font = { size: 8, name: 'Arial', color: { argb: 'FF555555' } };
+  sheet.getCell(row, 1).font = { bold: true, size: 9, name: 'Arial', color: { argb: 'FF000000' } };
+
+  sheet.headerFooter.oddFooter = `&LGenerated: ${opts.generatedAt}&RPage &P of &N`;
+  sheet.headerFooter.evenFooter = `&LGenerated: ${opts.generatedAt}&RPage &P of &N`;
 
   sheet.pageSetup.printArea = `A1:${lastCol}${row}`;
   sheet.pageSetup.paperSize = 9;
-  sheet.pageSetup.orientation = 'portrait';
+  sheet.pageSetup.orientation = 'landscape';
   sheet.pageSetup.fitToPage = true;
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
+  sheet.pageSetup.horizontalCentered = false;
+  sheet.pageSetup.margins = {
+    left: 0.39,
+    right: 0.39,
+    top: 0.24,
+    bottom: 0.55,
+    header: 0.15,
+    footer: 0.3,
+  };
 
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), fileName);

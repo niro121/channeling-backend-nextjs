@@ -2,23 +2,52 @@
 
 /**
  * Print styles for Userwise Cashier Summary / Detail.
- * Full-bleed A4 landscape tables (same layout as screen). PDF/Excel are separate modules.
+ * A4 landscape — same layout as screen. Clear physical-print footers.
  */
-export function CashierSummaryPrintLayout() {
+export function CashierSummaryPrintLayout({
+  generatedAt,
+}: {
+  generatedAt?: string;
+}) {
+  const footerGenerated = (generatedAt || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return (
     <div className="ucs-print-root">
       <style>{`
         @media print {
-          /* Landscape + slight left inset so first-column border is not clipped */
           @page {
             size: A4 landscape;
-            margin: 6mm 10mm 11mm 10mm;
+            /* Extra bottom margin so physical printers do not clip footer */
+            margin: 8mm 10mm 18mm 10mm;
+            @top-left { content: ""; }
+            @top-center { content: ""; }
+            @top-right { content: ""; }
+            @bottom-left {
+              content: "Generated: ${footerGenerated}";
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 10pt;
+              font-weight: 700;
+              color: #000;
+              vertical-align: top;
+              padding-top: 2mm;
+            }
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 10pt;
+              font-weight: 700;
+              color: #000;
+              vertical-align: top;
+              padding-top: 2mm;
+            }
           }
 
           html, body {
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           .cashier-summary-report-root {
@@ -26,7 +55,11 @@ export function CashierSummaryPrintLayout() {
             max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            padding-bottom: 4mm !important;
             box-sizing: border-box !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           /* Strip Card chrome/padding that shrinks content on print */
@@ -89,10 +122,20 @@ export function CashierSummaryPrintLayout() {
             height: auto !important;
             overflow: visible !important;
             box-sizing: border-box !important;
+            border: 0.5pt solid #000 !important;
+            border-radius: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .cashier-summary-report-root .rpt-print-summary-bar {
             padding: 0.9mm 2mm !important;
             font-size: 7pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            background: #e8e8e8 !important;
+            border-bottom: 0.4pt solid #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .cashier-summary-report-root .rpt-print-summary-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -103,14 +146,18 @@ export function CashierSummaryPrintLayout() {
           }
           .cashier-summary-report-root .rpt-print-label {
             margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
+            font-size: 6.5pt !important;
+            color: #000 !important;
+            font-weight: 700 !important;
           }
           .cashier-summary-report-root .rpt-print-value {
             height: auto !important;
             overflow: visible !important;
-            font-size: 8pt !important;
+            font-size: 8.5pt !important;
             line-height: 1.25 !important;
             white-space: pre-line !important;
+            color: #000 !important;
+            font-weight: 700 !important;
           }
           .cashier-summary-report-root .rpt-print-root .whitespace-pre-line {
             white-space: pre-line !important;
@@ -152,14 +199,14 @@ export function CashierSummaryPrintLayout() {
           */
           .cashier-summary-report-root .ucs-screen-summary table,
           .cashier-summary-report-root .ucs-screen-detail table {
-            width: 99.2% !important;
-            max-width: 99.2% !important;
-            margin-left: 0.5mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             box-sizing: border-box !important;
-            border-left: 0.5pt solid #000 !important;
-            border-right: 0.5pt solid #000 !important;
+            border: 0.5pt solid #000 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary th,
           .cashier-summary-report-root .ucs-screen-summary td,
@@ -168,7 +215,7 @@ export function CashierSummaryPrintLayout() {
             font-size: 6.5pt !important;
             padding: 0.8mm 0.9mm !important;
             line-height: 1.15 !important;
-            border: 0.35pt solid #000 !important;
+            border: 0.5pt solid #000 !important;
             color: #000 !important;
             vertical-align: top !important;
             box-sizing: border-box !important;
@@ -251,21 +298,22 @@ export function CashierSummaryPrintLayout() {
           .cashier-summary-report-root .ucs-screen-summary td:first-child,
           .cashier-summary-report-root .ucs-screen-detail th:first-child,
           .cashier-summary-report-root .ucs-screen-detail td:first-child {
-            border-left: 0.6pt solid #000 !important;
-            box-shadow: inset 0.6pt 0 0 #000 !important;
+            border-left: 0.7pt solid #000 !important;
+            box-shadow: inset 0.7pt 0 0 #000 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary th:last-child,
           .cashier-summary-report-root .ucs-screen-summary td:last-child,
           .cashier-summary-report-root .ucs-screen-detail th:last-child,
           .cashier-summary-report-root .ucs-screen-detail td:last-child {
-            border-right: 0.5pt solid #000 !important;
+            border-right: 0.7pt solid #000 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary thead th,
           .cashier-summary-report-root .ucs-screen-detail thead th,
           .cashier-summary-report-root .ucs-screen-summary th,
           .cashier-summary-report-root .ucs-screen-detail th {
-            font-size: 6pt !important;
+            font-size: 6.5pt !important;
             font-weight: 700 !important;
+            color: #000 !important;
             background: #e8e8e8 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary h3,
