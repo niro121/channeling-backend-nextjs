@@ -147,6 +147,80 @@ export const EMPTY_SALARY_PROCESSING_SUMMARY: SalaryProcessingSummary = {
   epfEtf: 0
 };
 
+/** Assign Paysheet Component — Phase 0 UI shell. */
+export type PaysheetAssignmentStatus = 'active' | 'expiring' | 'ended';
+
+export type PaysheetStaffOption = {
+  id: string;
+  name: string;
+  code?: string;
+};
+
+export type PaysheetAssignmentFilters = {
+  staffId?: string;
+  staffCode?: string;
+  epfNumber?: string;
+  componentId?: string;
+  fromDate?: string;
+  toDate?: string;
+  departmentId?: string;
+  institution?: string;
+  staffCategory?: string;
+  designationId?: string;
+  rosterId?: string;
+};
+
+export type PaysheetAssignmentRecord = {
+  id: string;
+  staffId: string;
+  institution: string;
+  department: string;
+  roster: string;
+  staffCode: string;
+  staffName: string;
+  componentId: string;
+  componentName: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  grade: string;
+  staffCategory: string;
+  designation: string;
+  status: PaysheetAssignmentStatus;
+  value: number;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type PaysheetAssignmentFormValues = {
+  staffId: string;
+  staffCode: string;
+  componentId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  value: string;
+};
+
+/** Placeholder paysheet component master until dynamic phase. */
+export const PAYSHEET_COMPONENT_OPTIONS = [
+  { id: 'basic_salary', name: 'Basic Salary' },
+  { id: 'transport_allowance', name: 'Transport Allowance' },
+  { id: 'meal_allowance', name: 'Meal Allowance' },
+  { id: 'night_allowance', name: 'Night Allowance' },
+  { id: 'loan_recovery', name: 'Loan Recovery' },
+  { id: 'other_deduction', name: 'Other Deduction' }
+] as const;
+
+export const EMPTY_PAYSHEET_ASSIGNMENT_FORM: PaysheetAssignmentFormValues = {
+  staffId: '',
+  staffCode: '',
+  componentId: '',
+  effectiveFrom: null,
+  effectiveTo: null,
+  value: '0'
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',
