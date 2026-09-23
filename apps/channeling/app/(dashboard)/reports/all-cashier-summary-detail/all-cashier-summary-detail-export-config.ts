@@ -5,6 +5,7 @@
 
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
+  AllCashierShiftHandover,
   AllCashierUserDetailRow,
   AllCashierUserSummaryRow,
   CashierSummaryPaymentAmounts,
@@ -28,30 +29,77 @@ export function formatPaymentsBlock(amounts: CashierSummaryPaymentAmounts): stri
   ].join('\n');
 }
 
-/** Summary: No. | User | Receipts | Payments | Handover Date | Checked By */
+export function formatAcsShiftDateTime(value: string | Date | null | undefined): string {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+export type AcsShiftMarkLine = {
+  text: string;
+  tone: 'neutral' | 'handed' | 'open';
+};
+
+/** One line per shift number, then a handed-over or open status line. */
+export function buildAcsShiftMarkLines(
+  shifts: AllCashierShiftHandover[] | undefined
+): AcsShiftMarkLine[] {
+  if (!shifts?.length) return [{ text: '—', tone: 'neutral' }];
+  const lines: AcsShiftMarkLine[] = [];
+  for (const shift of shifts) {
+    lines.push({
+      text: `#${shift.shiftNo}  ${formatAcsShiftDateTime(shift.startedAt)}`,
+      tone: 'neutral',
+    });
+    if (shift.handedOver) {
+      const no = shift.handoverNo ? `  ${shift.handoverNo}` : '';
+      lines.push({
+        text: `Handed over  ${formatAcsShiftDateTime(shift.handedOverAt)}${no}`,
+        tone: 'handed',
+      });
+    } else {
+      lines.push({ text: 'Not handed over', tone: 'open' });
+    }
+  }
+  return lines;
+}
+
+export function formatAcsShiftMarksPlain(shifts: AllCashierShiftHandover[] | undefined): string {
+  return buildAcsShiftMarkLines(shifts)
+    .map((line) => line.text)
+    .join('\n');
+}
+
+/** Summary: No. | User | Receipts | Payments | Shifts | Checked By */
 export const ACS_SUMMARY_PDF_HEADERS = [
   'No.',
   'User',
   'Receipts',
   'Payments',
-  'Handover Date',
+  'Shifts',
   'Checked By',
 ] as const;
 
-export const ACS_SUMMARY_PDF_COL_PERCENTS = [5, 22, 10, 33, 15, 15] as const;
+export const ACS_SUMMARY_PDF_COL_PERCENTS = [5, 16, 8, 28, 28, 15] as const;
 
-/** Detail: No. | User | Section | Receipts | Payments | Handover Date | Checked By */
+/** Detail: No. | User | Section | Receipts | Payments | Shifts | Checked By */
 export const ACS_DETAIL_PDF_HEADERS = [
   'No.',
   'User',
   'Section',
   'Receipts',
   'Payments',
-  'Handover Date',
+  'Shifts',
   'Checked By',
 ] as const;
 
-export const ACS_DETAIL_PDF_COL_PERCENTS = [4, 16, 18, 8, 28, 13, 13] as const;
+export const ACS_DETAIL_PDF_COL_PERCENTS = [4, 13, 15, 7, 24, 24, 13] as const;
 
 export type AcsSummaryCompactRow = {
   no: string;
@@ -60,6 +108,7 @@ export type AcsSummaryCompactRow = {
   payments: string;
   handoverDate: string;
   checkedBy: string;
+  shiftMarks?: AcsShiftMarkLine[];
   isTotal?: boolean;
 };
 
@@ -71,6 +120,7 @@ export type AcsDetailCompactRow = {
   payments: string;
   handoverDate: string;
   checkedBy: string;
+  shiftMarks?: AcsShiftMarkLine[];
   isUserTotal?: boolean;
   isGrandTotal?: boolean;
 };
@@ -84,8 +134,9 @@ export function mapAcsSummaryCompactRow(
     user: row.userName || '—',
     receipts: String(row.receiptCount),
     payments: formatPaymentsBlock(row),
-    handoverDate: '',
+    handoverDate: formatAcsShiftMarksPlain(row.shifts),
     checkedBy: '',
+    shiftMarks: buildAcsShiftMarkLines(row.shifts),
   };
 }
 
@@ -135,8 +186,9 @@ export function buildAcsDetailCompactRows(
         section: s.title || '—',
         receipts: String(s.receiptCount),
         payments: formatPaymentsBlock(s.totals),
-        handoverDate: i === 0 ? '' : '',
+        handoverDate: i === 0 ? formatAcsShiftMarksPlain(u.shifts) : '',
         checkedBy: i === 0 ? '' : '',
+        shiftMarks: i === 0 ? buildAcsShiftMarkLines(u.shifts) : undefined,
       });
     });
     body.push({

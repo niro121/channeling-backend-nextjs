@@ -46,7 +46,10 @@ export async function changeInitialPassword(
 
   const user = await authPrisma.user.findFirst({
     where: {
-      OR: [{ email: identifier }, { username: identifier }],
+      OR: [
+        { email: { equals: identifier, mode: 'insensitive' } },
+        { username: { equals: identifier, mode: 'insensitive' } },
+      ],
       status: 1,
     },
     include: { userGroup: true },

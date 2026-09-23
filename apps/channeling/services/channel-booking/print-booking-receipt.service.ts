@@ -199,10 +199,21 @@ export async function printBookingReceiptService(
     const refundAmount = refund && refund.refundAmount !== 0 ? money(Math.abs(refund.refundAmount)) : ""
     const refundReceiptNo = refund?.refundReceipts[0]?.receiptNoString?.trim() ?? ""
     const refundReason = refund?.refundReason?.trim() ?? ""
+    const approvals = refund?.approvals ?? []
+    const approvedBy =
+      approvals.length <= 1
+        ? (approvals[0]?.value ?? "")
+        : approvals
+            .map((approval) => {
+              const kind = approval.label.startsWith("Cancel") ? "Cancel" : "Refund"
+              return `${kind}: ${approval.value}`
+            })
+            .join("; ")
     const refundParts: string[] = []
     if (refundAmount) refundParts.push(`Refund Amount: ${refundAmount}`)
     if (refundReceiptNo) refundParts.push(`Refund Receipt: ${refundReceiptNo}`)
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
+    if (approvedBy) refundParts.push(approvedBy)
 
     const [cashierCode, printedBy] = await Promise.all([
       resolveCashierCodeForPrint({
@@ -254,6 +265,7 @@ export async function printBookingReceiptService(
       refundAmount,
       refundReceiptNo,
       refundReason,
+      approvedBy,
       generatedBy: printedBy,
       companyName: locationName,
       locationName,

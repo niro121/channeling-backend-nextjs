@@ -1,4 +1,5 @@
 import { Permissions } from "@/types/user-group"
+import { canAddLedgerTransactionType } from "@/lib/ledger-type-permissions"
 
 // Map routes to resources
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
@@ -97,7 +98,7 @@ export function canAccessRoute(
       hasPermission(permissions, resource, "approve-channel-refund") ||
       hasPermission(permissions, resource, "approve-bank-deposit") ||
       hasPermission(permissions, "channel-booking", "edit") ||
-      hasPermission(permissions, "ledger", "add")
+      canAddLedgerTransactionType(permissions, "BANK_DEPOSIT")
     )
   }
   return hasPermission(permissions, resource, action)

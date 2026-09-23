@@ -7,6 +7,7 @@ import { verifyTotp } from '@/lib/helpers/2fa/totp';
 import { isDashboardLoginUserType } from '@/lib/roles';
 import { bumpSessionVersion, getUserSessionVersion } from '@/lib/auth-session-version';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { loginIdentifierOr } from '@/lib/helpers/auth/parse-login-identifier';
 
 // Ensure NEXTAUTH_SECRET is set
 const getSecret = () => {
@@ -85,10 +86,7 @@ export const authOptions: NextAuthOptions = {
 
           const loginIdentifier = credentials.username.trim();
           const userWhere = {
-            OR: [
-              { email: loginIdentifier },
-              { username: loginIdentifier }
-            ],
+            OR: loginIdentifierOr(loginIdentifier),
             status: 1
           };
 

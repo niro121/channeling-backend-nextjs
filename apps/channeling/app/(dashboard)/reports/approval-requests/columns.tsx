@@ -35,13 +35,23 @@ export const ApprovalRequestsColumns: ColumnDef<ApprovalRequestsReportRow>[] = [
   },
   {
     accessorKey: 'requestedAt',
-    header: 'Requested at',
+    header: 'Requested Time',
     cell: ({ row }) => formatDt(row.getValue<Date | null>('requestedAt')),
   },
   {
     accessorKey: 'typeLabel',
     header: 'Type',
     cell: ({ row }) => row.getValue<string>('typeLabel') ?? '—',
+  },
+  {
+    accessorKey: 'channelType',
+    header: 'Channel Type',
+    cell: ({ row }) => dash(row.getValue<string>('channelType')),
+  },
+  {
+    accessorKey: 'paymentMode',
+    header: 'Payment mode',
+    cell: ({ row }) => dash(row.getValue<string>('paymentMode')),
   },
   {
     accessorKey: 'details',
@@ -99,6 +109,11 @@ export const ApprovalRequestsColumns: ColumnDef<ApprovalRequestsReportRow>[] = [
     accessorKey: 'rejectedAt',
     header: 'Rejected at',
     cell: ({ row }) => formatDt(row.getValue<Date | null>('rejectedAt')),
+  },
+  {
+    accessorKey: 'withdrawnAt',
+    header: 'Withdraw Time',
+    cell: ({ row }) => formatDt(row.getValue<Date | null>('withdrawnAt')),
   },
   {
     accessorKey: 'remarks',

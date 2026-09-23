@@ -3,7 +3,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import prisma from "@/lib/prisma"
-import { requirePermission } from "@/lib/server-permissions"
+import { assertCanAddLedgerTransactionType } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { createLedgerReceipt } from "@/services/ledger/create-ledger-receipt.service"
 import { requestBankDepositApproval } from "@/services/approval-request.service"
@@ -54,8 +54,6 @@ export async function addLedgerTransaction(
     return { success: false, message: "You must be signed in to add a ledger transaction.", errorCode: "UNAUTHORIZED" }
   }
 
-  await requirePermission("ledger", "add")
-
   const parsed = addLedgerTransactionSchema.safeParse(data)
   if (!parsed.success) {
     const flat = parsed.error.flatten()
@@ -65,6 +63,14 @@ export async function addLedgerTransaction(
   }
 
   const { transactionType, branchId: clientBranchId, agencyId, amount, remarks } = parsed.data
+  const allowed = await assertCanAddLedgerTransactionType(transactionType as LedgerTransactionType)
+  if (!allowed) {
+    return {
+      success: false,
+      message: "You don't have permission to record this transaction type.",
+      errorCode: "FORBIDDEN",
+    }
+  }
   const isAgencyType = (AGENCY_TYPES as readonly string[]).includes(transactionType)
   const isBankDeposit = transactionType === "BANK_DEPOSIT"
   const isBranchIncomeOrExpense =
@@ -180,6 +186,17 @@ export async function addLedgerTransaction(
   }
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
     return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
+  }
+  if (
+    transactionType === "BANK_DEPOSIT" &&
+    !parsed.data.slipImageKey?.trim() &&
+    !parsed.data.shiftBillAttachmentId?.trim()
+  ) {
+    return {
+      success: false,
+      message: "A deposit slip photo is required.",
+      errorCode: "VALIDATION",
+    }
   }
 
   try {

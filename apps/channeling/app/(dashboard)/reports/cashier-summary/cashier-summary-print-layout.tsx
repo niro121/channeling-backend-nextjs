@@ -2,7 +2,7 @@
 
 /**
  * Print styles for Userwise Cashier Summary / Detail.
- * Body prints the same horizontal table layout as on screen (A4 landscape).
+ * Body prints the same horizontal table layout as on screen (A4 portrait).
  * Branded ReportPrintLayout header is unchanged. PDF/Excel are separate modules.
  */
 export function CashierSummaryPrintLayout() {
@@ -11,7 +11,7 @@ export function CashierSummaryPrintLayout() {
       <style>{`
         @media print {
           @page {
-            size: A4 landscape;
+            size: A4 portrait;
             margin: 7mm 8mm 12mm;
           }
 

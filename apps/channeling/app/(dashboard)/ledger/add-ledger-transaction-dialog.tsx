@@ -11,6 +11,7 @@ import {
 import { LedgerTransactionForm } from "./ledger-transaction-form"
 import { printLedgerReceiptById } from "./print-ledger-receipt-button"
 import type { ReferenceSelectOption } from "@/types/reference"
+import type { LedgerTransactionType } from "@/services/ledger/create-ledger-receipt.service"
 
 type BankOption = { id: string; name: string }
 type BankAccountOption = {
@@ -34,6 +35,7 @@ type AddLedgerTransactionDialogProps = {
   bankAccounts: BankAccountOption[]
   userLocationId?: string | null
   userLocationName?: string | null
+  allowedTransactionTypes: LedgerTransactionType[]
 }
 
 export function AddLedgerTransactionDialog({
@@ -45,6 +47,7 @@ export function AddLedgerTransactionDialog({
   bankAccounts,
   userLocationId = null,
   userLocationName = null,
+  allowedTransactionTypes,
 }: AddLedgerTransactionDialogProps) {
   const router = useRouter()
 
@@ -71,6 +74,7 @@ export function AddLedgerTransactionDialog({
             bankAccounts={bankAccounts}
             userLocationId={userLocationId}
             userLocationName={userLocationName}
+            allowedTransactionTypes={allowedTransactionTypes}
             onSuccess={handleSuccess}
             onSuccessWithReceiptId={openPrintViewForReceipt}
           />

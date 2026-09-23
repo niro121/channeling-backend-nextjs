@@ -55,6 +55,12 @@ function actionError(result: { success?: boolean; message?: string } | undefined
   return result.message ?? "Something went wrong."
 }
 
+/** Request was already approved, rejected, or withdrawn by someone else. */
+function isStaleRequestError(result: { success?: boolean; errorCode?: string } | undefined | null): boolean {
+  if (!result || result.success) return false
+  return result.errorCode === "invalid_state" || result.errorCode === "not_found"
+}
+
 function formatRs(amount: number): string {
   return `Rs. ${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -285,7 +291,11 @@ export function ApprovalCenterContent({
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) await loadRows()
       }
+    } catch {
+      toast({ title: "Error", description: "Could not approve this request.", variant: "destructive" })
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -303,7 +313,17 @@ export function ApprovalCenterContent({
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) {
+          setRejectTarget(null)
+          setRejectReason("")
+          await loadRows()
+        }
       }
+    } catch {
+      toast({ title: "Error", description: "Could not reject this request.", variant: "destructive" })
+      setRejectTarget(null)
+      setRejectReason("")
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -318,7 +338,11 @@ export function ApprovalCenterContent({
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) await loadRows()
       }
+    } catch {
+      toast({ title: "Error", description: "Could not withdraw this request.", variant: "destructive" })
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -444,6 +468,8 @@ export function ApprovalCenterContent({
               <tr className="border-b bg-muted/40 text-left">
                 <th className="p-2 font-medium">Requested</th>
                 <th className="p-2 font-medium">Type</th>
+                <th className="p-2 font-medium">Payment type</th>
+                <th className="p-2 font-medium">Payment method</th>
                 <th className="p-2 font-medium">Doctor</th>
                 <th className="p-2 font-medium">Details</th>
                 <th className="p-2 font-medium">Amount</th>
@@ -480,6 +506,8 @@ export function ApprovalCenterContent({
                       </div>
                     </td>
                     <td className="p-2">{typeLabel(row.type)}</td>
+                    <td className="p-2 whitespace-nowrap">{row.paymentTypeName}</td>
+                    <td className="p-2 whitespace-nowrap">{row.paymentMethodName}</td>
                     <td className="p-2">
                       {isDeposit ? (
                         <span className="text-muted-foreground">—</span>

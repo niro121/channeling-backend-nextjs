@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { useToast } from "@/components/hooks/use-toast"
@@ -229,6 +229,8 @@ type LedgerTransactionFormProps = {
   onSuccess?: () => void
   /** If provided, called with receiptId when user submitted via "Add transaction and print" (after onSuccess). Use to open print view. */
   onSuccessWithReceiptId?: (receiptId: string) => void | Promise<void>
+  /** Types this user is allowed to record. Others are omitted from the list. */
+  allowedTransactionTypes: LedgerTransactionType[]
 }
 
 export function LedgerTransactionForm({
@@ -240,6 +242,7 @@ export function LedgerTransactionForm({
   userLocationName = null,
   onSuccess,
   onSuccessWithReceiptId,
+  allowedTransactionTypes,
 }: LedgerTransactionFormProps) {
   const { toast } = useToast()
   const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
@@ -254,6 +257,16 @@ export function LedgerTransactionForm({
   const [shiftBills, setShiftBills] = useState<ShiftBillAttachmentDto[]>([])
   const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
   const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
+  const [slipRequiredError, setSlipRequiredError] = useState<string | null>(null)
+  const formSchema = useMemo(
+    () =>
+      validationSchema.shape({
+        transactionType: Yup.string()
+          .oneOf([...allowedTransactionTypes])
+          .required("Transaction type is required"),
+      }),
+    [allowedTransactionTypes]
+  )
 
   useEffect(() => {
     return () => {
@@ -274,6 +287,7 @@ export function LedgerTransactionForm({
     setSlipPreviewUrl(null)
     setSelectedShiftBill(null)
     setShiftPickerOpen(false)
+    setSlipRequiredError(null)
     if (slipInputRef.current) slipInputRef.current.value = ""
     if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
   }
@@ -284,6 +298,7 @@ export function LedgerTransactionForm({
       toast({ title: "Please choose an image.", variant: "destructive" })
       return
     }
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     const url = URL.createObjectURL(file)
     setSlipPreviewObjectUrl(url)
@@ -294,6 +309,7 @@ export function LedgerTransactionForm({
   }
 
   function handleSelectShiftBill(item: ShiftBillAttachmentDto) {
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     setSlipFile(null)
     setSelectedShiftBill(item)
@@ -323,7 +339,7 @@ export function LedgerTransactionForm({
   }
 
   const initialValues: LedgerFormValues = {
-    transactionType: "BRANCH_INCOME",
+    transactionType: allowedTransactionTypes[0] ?? "BRANCH_INCOME",
     branchId: "",
     agencyId: "",
     bankAccountId: "",
@@ -341,6 +357,15 @@ export function LedgerTransactionForm({
     { setSubmitting, setValues, setErrors, setTouched }: FormikHelpers<LedgerFormValues>
   ) {
     const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
+    if (!allowedTransactionTypes.includes(values.transactionType)) {
+      toast({
+        title: "Not allowed",
+        description: "You don't have permission to record this transaction type.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
     const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(values.transactionType)
     const effectiveBranchId = usesAssignedUserLocation(values.transactionType)
@@ -361,6 +386,16 @@ export function LedgerTransactionForm({
     }
 
     const amountNum = parseFloat(values.amount)
+    if (isBankDeposit && !slipFile && !selectedShiftBill) {
+      setSlipRequiredError("A deposit slip photo is required.")
+      toast({
+        title: "Validation",
+        description: "Attach a deposit slip photo before requesting a bank deposit.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     try {
       let slipImageKey: string | undefined
       if (isBankDeposit && slipFile) {
@@ -536,7 +571,7 @@ export function LedgerTransactionForm({
   return (
     <Formik
       initialValues={initialValues}
-      validationSchema={validationSchema}
+      validationSchema={formSchema}
       onSubmit={handleSubmit}
       enableReinitialize
     >
@@ -570,7 +605,7 @@ export function LedgerTransactionForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEDGER_TRANSACTION_TYPES.map((t) => (
+                  {allowedTransactionTypes.map((t) => (
                     <SelectItem key={t} value={t}>
                       {TRANSACTION_TYPE_LABELS[t]}
                     </SelectItem>
@@ -853,7 +888,9 @@ export function LedgerTransactionForm({
 
             {isBankDeposit && (
               <div className="space-y-2">
-                <Label htmlFor="depositSlip">Deposit slip (optional)</Label>
+                <Label htmlFor="depositSlip">
+                  Deposit slip <span className="text-destructive">*</span>
+                </Label>
                 <input
                   ref={slipInputRef}
                   id="depositSlip"
@@ -992,8 +1029,11 @@ export function LedgerTransactionForm({
                     )}
                   </div>
                 )}
+                {slipRequiredError && (
+                  <p className="text-sm text-destructive">{slipRequiredError}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Upload a photo of the bank slip, or attach one already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
+                  A photo of the bank slip is required. Take one, choose a file, or attach a photo already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
                 </p>
               </div>
             )}

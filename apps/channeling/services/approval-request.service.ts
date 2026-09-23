@@ -5,6 +5,7 @@ import { createNotification } from "@/services/notification.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { hasPermission } from "@/lib/permissions"
+import { canAddLedgerTransactionType } from "@/lib/ledger-type-permissions"
 import { userTypes } from "@/lib/roles"
 import type { Permissions } from "@/types/user-group"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES } from "@/types/notification"
@@ -21,6 +22,8 @@ import {
   type BookingApprovalSummary,
 } from "@/types/approval-request"
 import type { RefundChannelInput } from "@/services/channel-booking/refund-channel.service"
+import { BOOKING_METHODS } from "@/types/channel-booking"
+import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import {
   createLedgerReceipt,
   validateBankDepositReady,
@@ -127,6 +130,44 @@ export async function findLatestClosedApprovalForBooking(bookingId: string) {
     },
     include: { requestedBy: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
+  })
+}
+
+export type CompletedChannelApproval = {
+  type: typeof APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL | typeof APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+  approvedByName: string
+  approvedAt: Date | null
+}
+
+/** Completed paid cancel/refund approvals, newest first. Unpaid cancels have none. */
+export async function getCompletedChannelApprovals(
+  bookingId: string
+): Promise<CompletedChannelApproval[]> {
+  const rows = await prisma.approvalRequest.findMany({
+    where: {
+      bookingId,
+      status: APPROVAL_REQUEST_STATUS.COMPLETED,
+      type: {
+        in: [APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL, APPROVAL_REQUEST_TYPE.CHANNEL_REFUND],
+      },
+    },
+    select: {
+      type: true,
+      approvedAt: true,
+      approvedBy: { select: { name: true } },
+    },
+    orderBy: { approvedAt: "desc" },
+  })
+  return rows.flatMap((row) => {
+    const name = row.approvedBy?.name?.trim()
+    if (!name) return []
+    if (
+      row.type !== APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL &&
+      row.type !== APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+    ) {
+      return []
+    }
+    return [{ type: row.type, approvedByName: name, approvedAt: row.approvedAt }]
   })
 }
 
@@ -791,7 +832,7 @@ export function getApprovalAccess(
   const canApproveBankDeposit = hasPermission(permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT)
   const canView = hasPermission(permissions, "approvals", APPROVAL_ACTION.VIEW)
   const canEditBooking = hasPermission(permissions, "channel-booking", "edit")
-  const canAddLedger = hasPermission(permissions, "ledger", "add")
+  const canAddLedger = canAddLedgerTransactionType(permissions, "BANK_DEPOSIT")
   const canSeeCancels = canView || canApproveCancel
   const canSeeRefunds = canView || canApproveRefund
   const canSeeDeposits = canView || canApproveBankDeposit
@@ -906,6 +947,8 @@ export async function listApprovalRequests(
           appointmentNo: true,
           receiptNoString: true,
           bookingid_string: true,
+          method: true,
+          receiptPaymentMethod: true,
           doctor: { select: { title: true, name: true } },
           session: {
             select: {
@@ -937,6 +980,14 @@ export async function listApprovalRequests(
       formatDoctorName(row.booking?.doctor) || formatDoctorName(sess?.doctor)
     const doctor = doctorName || "—"
     const patientName = `${row.booking?.title ?? ""} ${row.booking?.name ?? ""}`.trim() || "—"
+    const paymentMethodName = isDeposit
+      ? "—"
+      : BOOKING_METHODS.find((m) => m.id === row.booking?.method)?.name ?? "—"
+    const receiptPaymentMethod = row.booking?.receiptPaymentMethod
+    const paymentTypeName =
+      isDeposit || receiptPaymentMethod == null
+        ? "—"
+        : PAYMENT_METHOD_NAMES[receiptPaymentMethod] ?? "—"
     const bankLabel =
       row.bankAccount?.name ||
       snap.bank_name ||
@@ -957,6 +1008,8 @@ export async function listApprovalRequests(
       billNo: row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.receipt?.receiptNoString ?? row.id,
       sessionLabel: isDeposit ? bankSub : `${doctor} · ${sessionDate}`,
       detailTitle: isDeposit ? bankLabel : patientName,
+      paymentMethodName,
+      paymentTypeName,
       detailSub: isDeposit
         ? bankSub
         : `Appt ${String(row.booking?.appointmentNo ?? 0).padStart(2, "0")} · ${row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.booking?.id ?? "—"}`,

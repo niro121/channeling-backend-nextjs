@@ -26,6 +26,7 @@ import {
   acsSummaryPdfCompactRow,
   buildAcsDetailCompactRows,
   buildAcsSummaryCompactRows,
+  type AcsShiftMarkLine,
 } from './all-cashier-summary-detail-export-config';
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
@@ -141,6 +142,53 @@ async function drawHeader(
   return boxTop + boxH + 3;
 }
 
+type ShiftMarkRow = {
+  shiftMarks?: AcsShiftMarkLine[];
+  isTotal?: boolean;
+  isUserTotal?: boolean;
+  isGrandTotal?: boolean;
+};
+
+function isShiftMarkRow(row: ShiftMarkRow | undefined): row is ShiftMarkRow & { shiftMarks: AcsShiftMarkLine[] } {
+  return Boolean(row?.shiftMarks?.length) && !row?.isTotal && !row?.isUserTotal && !row?.isGrandTotal;
+}
+
+/** Keep the plain text so the row is tall enough, then paint status lines in color. */
+function hideShiftMarkText(
+  hookData: { section: string; column: { index: number }; cell: { styles: { textColor: unknown } } },
+  row: ShiftMarkRow | undefined,
+  shiftsCol: number
+) {
+  if (hookData.section !== 'body' || hookData.column.index !== shiftsCol || !isShiftMarkRow(row)) return;
+  hookData.cell.styles.textColor = [255, 255, 255];
+}
+
+function drawShiftMarkText(
+  doc: jsPDF,
+  hookData: {
+    section: string;
+    column: { index: number };
+    cell: { x: number; y: number; width: number };
+  },
+  row: ShiftMarkRow | undefined,
+  shiftsCol: number
+) {
+  if (hookData.section !== 'body' || hookData.column.index !== shiftsCol || !isShiftMarkRow(row)) return;
+  let y = hookData.cell.y + 3.1;
+  const x = hookData.cell.x + 0.9;
+  const maxW = Math.max(8, hookData.cell.width - 1.8);
+  doc.setFontSize(6);
+  for (const line of row.shiftMarks) {
+    if (line.tone === 'handed') doc.setTextColor(21, 128, 61);
+    else if (line.tone === 'open') doc.setTextColor(220, 38, 38);
+    else doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    const wrapped = doc.splitTextToSize(line.text, maxW) as string[];
+    doc.text(wrapped, x, y);
+    y += wrapped.length * 2.55;
+  }
+}
+
 function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i += 1) {
@@ -243,6 +291,10 @@ export async function downloadAllCashierSummaryDetailReportPdf(
           hookData.cell.styles.fontStyle = 'bold';
           hookData.cell.styles.fillColor = [243, 243, 243];
         }
+        hideShiftMarkText(hookData, row, 4);
+      },
+      didDrawCell: (hookData) => {
+        drawShiftMarkText(doc, hookData, compactRows[hookData.row.index], 4);
       },
     });
   } else {
@@ -299,6 +351,10 @@ export async function downloadAllCashierSummaryDetailReportPdf(
           hookData.cell.styles.fontStyle = 'bold';
           hookData.cell.styles.fillColor = [247, 247, 247];
         }
+        hideShiftMarkText(hookData, row, 5);
+      },
+      didDrawCell: (hookData) => {
+        drawShiftMarkText(doc, hookData, compactRows[hookData.row.index], 5);
       },
     });
   }

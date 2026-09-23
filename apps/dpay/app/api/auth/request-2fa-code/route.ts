@@ -17,7 +17,16 @@ export async function POST(request: Request) {
     const validMethods = [TWO_FACTOR_METHODS.AUTH_APP, TWO_FACTOR_METHODS.SMS, TWO_FACTOR_METHODS.EMAIL];
     if (!identifier || !password || !validMethods.includes(method)) return NextResponse.json({ error: 'Email/username, password, and method required' }, { status: 400 });
 
-    const user = await authPrisma.user.findFirst({ where: { OR: [{ email: identifier }, { username: identifier }], status: 1 }, include: { userGroup: true } });
+    const user = await authPrisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: identifier, mode: 'insensitive' } },
+          { username: { equals: identifier, mode: 'insensitive' } },
+        ],
+        status: 1,
+      },
+      include: { userGroup: true },
+    });
     if (!user || !user.password) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (!await argon2.verify(user.password, password)) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (user.twoFactorEnabled !== true) return NextResponse.json({ error: '2FA not enabled for this account' }, { status: 403 });
