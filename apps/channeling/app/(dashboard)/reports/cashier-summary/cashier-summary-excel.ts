@@ -44,8 +44,8 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Full-page A4 landscape; amount cols ≥12 (~6 digits, e.g. 999,999.00). */
-const ROW_WIDTHS = [6, 16, 12, 12, 14, 12, 12, 12, 12, 12, 12, 12, 12];
+/** A4 landscape matching print: Tx wide, Receipt narrower, Consultant wider; amounts ≥12. */
+const ROW_WIDTHS = [5, 36, 19, 19, 11, 12, 12, 12, 12, 12, 12, 12, 12];
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -309,7 +309,7 @@ function writeHeaderRow(
   for (let c = 0; c < headers.length; c++) {
     const cell = sheet.getCell(row, c + 1);
     cell.value = headers[c] ?? null;
-    cell.font = { bold: true, size: 8, name: 'Arial' };
+    cell.font = { bold: true, size: 6, name: 'Arial' };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
     cell.border = thinBorder;
     cell.alignment = {
@@ -333,7 +333,7 @@ function writeDataRow(
     const cell = sheet.getCell(row, c + 1);
     cell.value = cellValue(values[c]);
     cell.numFmt = '@';
-    cell.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
+    cell.font = { size: 7, name: 'Arial', bold: Boolean(opts?.bold) };
     cell.border = thinBorder;
     cell.alignment = {
       vertical: 'top',
@@ -472,10 +472,10 @@ export async function downloadCashierSummaryReportExcel(
       fitToHeight: 0,
       horizontalCentered: false,
       margins: {
-        left: 0.2,
-        right: 0.2,
-        top: 0.3,
-        bottom: 0.35,
+        left: 0.39,
+        right: 0.39,
+        top: 0.24,
+        bottom: 0.43,
         header: 0.15,
         footer: 0.15,
       },
@@ -597,10 +597,10 @@ export async function downloadCashierSummaryReportExcel(
   sheet.pageSetup.fitToHeight = 0;
   sheet.pageSetup.horizontalCentered = false;
   sheet.pageSetup.margins = {
-    left: 0.2,
-    right: 0.2,
-    top: 0.3,
-    bottom: 0.35,
+    left: 0.39,
+    right: 0.39,
+    top: 0.24,
+    bottom: 0.43,
     header: 0.15,
     footer: 0.15,
   };

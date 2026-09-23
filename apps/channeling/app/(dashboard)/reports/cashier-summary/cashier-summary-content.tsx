@@ -720,9 +720,9 @@ function SectionBlock({
             <TableHeader>
               <TableRow className="border-b">
                 <TableHead className="w-10 py-1 text-[11px] font-medium text-left">No.</TableHead>
-                <TableHead className="min-w-[190px] py-1 text-[11px] font-medium text-left">Tx Created / Shift</TableHead>
-                <TableHead className="min-w-[84px] py-1 text-[11px] font-medium text-left">Session Date/Time</TableHead>
-                <TableHead className="py-1 text-[11px] font-medium text-left">Receipt ID / Bill ID</TableHead>
+                <TableHead className="ucs-tx-shift min-w-[190px] py-1 text-[11px] font-medium text-left">Tx Created / Shift</TableHead>
+                <TableHead className="ucs-session min-w-[84px] py-1 text-[11px] font-medium text-left">Session Date/Time</TableHead>
+                <TableHead className="ucs-receipt-bill py-1 text-[11px] font-medium text-left">Receipt ID / Bill ID</TableHead>
                 {isIncomeExpense ? (
                   <>
                     <TableHead className="py-1 text-[11px] font-medium text-left">Name</TableHead>
@@ -733,7 +733,7 @@ function SectionBlock({
                     <TableHead className="py-1 text-[11px] font-medium text-left">
                       {isAgencyBillSection ? 'Agency' : 'Patient'}
                     </TableHead>
-                    <TableHead className="py-1 text-[11px] font-medium text-left">Consultant</TableHead>
+                    <TableHead className="ucs-consultant py-1 text-[11px] font-medium text-left">Consultant</TableHead>
                   </>
                 )}
                 {PAYMENT_COLUMNS.map((c) => (
@@ -747,20 +747,20 @@ function SectionBlock({
               {section.rows.map((row, idx) => (
                 <TableRow key={`${section.key}-${idx}`} className="border-b border-border/50">
                   <TableCell className="py-0.5 text-[11px] text-center tabular-nums">{idx + 1}</TableCell>
-                  <TableCell className="py-0.5 text-[11px] align-top text-left">
-                    <div className="whitespace-nowrap">
+                  <TableCell className="ucs-tx-shift py-0.5 text-[11px] align-top text-left">
+                    <div className="ucs-stack-line whitespace-nowrap">
                       {row.txCreated instanceof Date
                         ? row.txCreated.toLocaleString()
                         : String(row.txCreated ?? '')}
                     </div>
-                    <div className="text-[9px] text-muted-foreground leading-tight mt-0.5">
+                    <div className="ucs-stack-line text-[9px] text-muted-foreground leading-tight mt-0.5">
                       {row.shiftLabel ?? '—'}
                     </div>
                   </TableCell>
-                  <TableCell className="py-0.5 text-[11px] text-left">{row.sessionDateTime ?? '—'}</TableCell>
-                  <TableCell className="py-0.5 text-[11px] text-left">
-                    <div>{row.receiptId}</div>
-                    <div className="text-[9px] text-muted-foreground leading-tight">{row.billId ?? '—'}</div>
+                  <TableCell className="ucs-session py-0.5 text-[11px] text-left">{row.sessionDateTime ?? '—'}</TableCell>
+                  <TableCell className="ucs-receipt-bill py-0.5 text-[11px] text-left">
+                    <div className="ucs-stack-line">{row.receiptId}</div>
+                    <div className="ucs-stack-line text-[9px] text-muted-foreground leading-tight">{row.billId ?? '—'}</div>
                   </TableCell>
                   {isIncomeExpense ? (
                     <>
@@ -770,7 +770,7 @@ function SectionBlock({
                   ) : (
                     <>
                       <TableCell className="py-0.5 text-[11px] text-left">{row.patient ?? '—'}</TableCell>
-                      <TableCell className="py-0.5 text-[11px] text-left">{row.consultant ?? '—'}</TableCell>
+                      <TableCell className="ucs-consultant py-0.5 text-[11px] text-left">{row.consultant ?? '—'}</TableCell>
                     </>
                   )}
                   {PAYMENT_COLUMNS.map((col) => (
