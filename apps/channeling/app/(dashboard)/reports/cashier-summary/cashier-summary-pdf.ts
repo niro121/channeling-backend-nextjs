@@ -2,8 +2,7 @@
 
 /**
  * Userwise Cashier — PDF ONLY (A4 portrait).
- * Summary matches the existing print tables.
- * Detail matches the compact categorized print columns.
+ * Summary and Detail both match the print / on-screen horizontal payment-column tables.
  */
 
 import jsPDF from 'jspdf';
@@ -45,14 +44,11 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** Summary detail-row table: No | Tx/Shift | Session | Receipt/Bill | Party | Consultant | 7 amounts */
-const SUMMARY_ROW_PERCENTS = [4, 14, 10, 12, 12, 10, 5.4, 5.4, 5.4, 5.4, 5.4, 5.4, 5.2] as const;
+/** Same as print/view: No | Tx/Shift | Session | Receipt/Bill | Party | Consultant | 7 amounts */
+const ROW_PERCENTS = [4, 14, 10, 12, 12, 10, 5.4, 5.4, 5.4, 5.4, 5.4, 5.4, 5.2] as const;
 
-/** Summary totals-only: label + 7 amounts */
-const SUMMARY_TOTAL_PERCENTS = [30, 10, 10, 10, 10, 10, 10, 10] as const;
-
-/** Detail compact: No | Tx/Shift | Receipt/Session | Party | Payments */
-const DETAIL_PERCENTS = [4, 16, 18, 28, 34] as const;
+/** Totals-only: label + 7 amounts */
+const TOTAL_PERCENTS = [30, 10, 10, 10, 10, 10, 10, 10] as const;
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -71,20 +67,9 @@ function sectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
   return PAYMENT_COLUMNS.some((col) => section.totals[col.key] !== 0);
 }
 
-function showSummaryRows(sectionKey: string): boolean {
-  return sectionKey === 'channelRefund';
-}
-
-function paymentsText(amounts: CashierSummaryPaymentAmounts): string {
-  return [
-    `Cash ${formatAmount(amounts.cash)}`,
-    `Card ${formatAmount(amounts.creditCard)}`,
-    `Slip ${formatAmount(amounts.slip)}`,
-    `Cheque ${formatAmount(amounts.cheque)}`,
-    `Agent ${formatAmount(amounts.agent)}`,
-    `Credit ${formatAmount(amounts.agentCredit)}`,
-    `E-wallet ${formatAmount(amounts.eWallet)}`,
-  ].join('\n');
+/** Matches on-screen `cashierSectionShowDetailRows`. */
+function sectionShowRows(mode: 'summary' | 'detail', sectionKey: string): boolean {
+  return mode === 'detail' || sectionKey === 'channelRefund';
 }
 
 function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {
@@ -335,7 +320,8 @@ function drawCreditCashFooter(
   const agentTotal = Number(totals.agent);
   const grandCombined = creditSectionTotal + cashSectionTotal;
 
-  let y = ensureRoom(doc, startY, margin, 12);
+  // Keep whole footer together (same intent as print break-inside: avoid)
+  let y = ensureRoom(doc, startY, margin, 62);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(0, 0, 0);
@@ -405,19 +391,21 @@ export type DownloadCashierSummaryPdfOptions = CommonOpts & {
   mode: 'summary' | 'detail';
 };
 
-function drawSummaryTables(
+/** Portrait wide tables matching print / screen view (Summary + Detail). */
+function drawBodyTables(
   doc: jsPDF,
+  mode: 'summary' | 'detail',
   sections: CashierSummaryReportSection[],
   startY: number,
   margin: number,
   tableWidth: number
 ): number {
   let y = startY;
-  const rowStyles = columnStyles(tableWidth, SUMMARY_ROW_PERCENTS, 6);
-  const totalStyles = columnStyles(tableWidth, SUMMARY_TOTAL_PERCENTS, 1);
+  const rowStyles = columnStyles(tableWidth, ROW_PERCENTS, 6);
+  const totalStyles = columnStyles(tableWidth, TOTAL_PERCENTS, 1);
 
   for (const section of sections) {
-    const withRows = showSummaryRows(section.key) && section.rows.length > 0;
+    const withRows = sectionShowRows(mode, section.key) && section.rows.length > 0;
     const hasTotals = sectionHasAnyTotal(section);
     if (!withRows && !hasTotals) continue;
 
@@ -527,120 +515,6 @@ function drawSummaryTables(
   return y;
 }
 
-function drawDetailTables(
-  doc: jsPDF,
-  sections: CashierSummaryReportSection[],
-  startY: number,
-  margin: number,
-  tableWidth: number
-): number {
-  let y = startY;
-  const styles = columnStyles(tableWidth, DETAIL_PERCENTS, 99);
-
-  for (const section of sections) {
-    const withRows = section.rows.length > 0;
-    const hasTotals = sectionHasAnyTotal(section);
-    if (!withRows && !hasTotals) continue;
-
-    y = drawSectionTitle(doc, section.title, y, margin);
-    const isIncomeExpense = section.key === 'incomeExpense';
-    const isAgency = AGENCY_BILL_SECTION_KEYS.has(section.key);
-    const partyHead = isIncomeExpense
-      ? 'Name / Type'
-      : isAgency
-        ? 'Agency / Consultant'
-        : 'Patient / Consultant';
-
-    if (withRows) {
-      const body: RowInput[] = section.rows.map((row, idx) => [
-        String(idx + 1),
-        txLabel(row),
-        `${row.receiptId || '—'}\nBill ${row.billId ?? '—'}\n${row.sessionDateTime ?? '—'}`,
-        isIncomeExpense
-          ? `${row.name ?? '—'}\n${row.type ?? '—'}`
-          : `${row.patient ?? '—'}\n${row.consultant ?? '—'}`,
-        paymentsText(row),
-      ]);
-      body.push([
-        { content: '', styles: { fontStyle: 'bold', fillColor: [243, 243, 243] } },
-        {
-          content: 'Total',
-          colSpan: 3,
-          styles: { fontStyle: 'bold', fillColor: [243, 243, 243], halign: 'left' },
-        },
-        {
-          content: paymentsText(section.totals),
-          styles: { fontStyle: 'bold', fillColor: [243, 243, 243], halign: 'left' },
-        },
-      ]);
-
-      autoTable(doc, {
-        head: [['No.', 'Tx / Shift', 'Receipt / Session', partyHead, 'Payments']],
-        body,
-        startY: y,
-        margin: { left: margin, right: margin, bottom: 12 },
-        tableWidth,
-        showHead: 'everyPage',
-        styles: {
-          font: 'helvetica',
-          fontSize: 6.25,
-          cellPadding: { top: 1, right: 0.8, bottom: 1, left: 0.8 },
-          overflow: 'linebreak',
-          valign: 'top',
-          textColor: [0, 0, 0],
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2,
-        },
-        headStyles: {
-          fillColor: [232, 232, 232],
-          textColor: [0, 0, 0],
-          fontStyle: 'bold',
-          fontSize: 6,
-          valign: 'middle',
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2,
-        },
-        columnStyles: styles,
-      });
-    } else {
-      autoTable(doc, {
-        head: [['Total', 'Payments']],
-        body: [[{ content: 'Total', styles: { fontStyle: 'bold' } }, paymentsText(section.totals)]],
-        startY: y,
-        margin: { left: margin, right: margin, bottom: 12 },
-        tableWidth,
-        styles: {
-          font: 'helvetica',
-          fontSize: 6.25,
-          cellPadding: { top: 1, right: 0.8, bottom: 1, left: 0.8 },
-          overflow: 'linebreak',
-          valign: 'top',
-          textColor: [0, 0, 0],
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2,
-          fontStyle: 'bold',
-        },
-        headStyles: {
-          fillColor: [232, 232, 232],
-          textColor: [0, 0, 0],
-          fontStyle: 'bold',
-          fontSize: 6,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2,
-        },
-        columnStyles: {
-          0: { cellWidth: tableWidth * 0.2 },
-          1: { cellWidth: tableWidth * 0.8 },
-        },
-      });
-    }
-
-    y = lastTableY(doc, y) + 4;
-  }
-
-  return y;
-}
-
 export async function downloadCashierSummaryReportPdf(
   opts: DownloadCashierSummaryPdfOptions
 ): Promise<void> {
@@ -655,10 +529,7 @@ export async function downloadCashierSummaryReportPdf(
     margin,
   });
 
-  y =
-    opts.mode === 'detail'
-      ? drawDetailTables(doc, opts.sections, y, margin, tableWidth)
-      : drawSummaryTables(doc, opts.sections, y, margin, tableWidth);
+  y = drawBodyTables(doc, opts.mode, opts.sections, y, margin, tableWidth);
 
   if (opts.grandTotals) {
     drawCreditCashFooter(doc, opts.grandTotals, y, margin);
