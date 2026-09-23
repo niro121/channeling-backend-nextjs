@@ -265,9 +265,12 @@ function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
   for (let i = 1; i <= pageCount; i += 1) {
     doc.setPage(i);
     const { width, height } = pageSize(doc);
-    const y = height - 7;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    const y = height - 8;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y - 3.5, width - margin, y - 3.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text(`Generated: ${generatedAt}`, margin, y);
     doc.text(`Page ${i} of ${pageCount}`, width - margin, y, { align: 'right' });
@@ -388,7 +391,7 @@ function drawCreditCashFooter(
   autoTable(doc, {
     body,
     startY: y,
-    margin: { left: margin, right: margin, bottom: 12 },
+    margin: { left: margin, right: margin, bottom: 14 },
     tableWidth: footerWidth,
     styles: {
       font: 'helvetica',
@@ -477,7 +480,7 @@ function drawBodyTables(
         ]],
         body,
         startY: y,
-        margin: { left: margin, right: margin, bottom: 11 },
+        margin: { left: margin, right: margin, bottom: 14 },
         tableWidth,
         showHead: 'everyPage',
         styles: {
@@ -488,7 +491,7 @@ function drawBodyTables(
           valign: 'top',
           textColor: [0, 0, 0],
           lineColor: [0, 0, 0],
-          lineWidth: 0.25,
+          lineWidth: 0.3,
         },
         headStyles: {
           fillColor: [232, 232, 232],
@@ -498,7 +501,7 @@ function drawBodyTables(
           valign: 'middle',
           halign: 'left',
           lineColor: [0, 0, 0],
-          lineWidth: 0.25,
+          lineWidth: 0.3,
         },
         columnStyles: rowStyles,
         didParseCell: (hook) => {
@@ -517,7 +520,7 @@ function drawBodyTables(
         head: [['Total', ...PAYMENT_COLUMNS.map((c) => c.label)]],
         body: [['Total', ...amountCells(section.totals)]],
         startY: y,
-        margin: { left: margin, right: margin, bottom: 11 },
+        margin: { left: margin, right: margin, bottom: 14 },
         tableWidth,
         styles: {
           font: 'helvetica',
@@ -527,7 +530,7 @@ function drawBodyTables(
           valign: 'middle',
           textColor: [0, 0, 0],
           lineColor: [0, 0, 0],
-          lineWidth: 0.25,
+          lineWidth: 0.3,
           fontStyle: 'bold',
         },
         headStyles: {
@@ -537,7 +540,7 @@ function drawBodyTables(
           fontSize: 6,
           valign: 'middle',
           lineColor: [0, 0, 0],
-          lineWidth: 0.25,
+          lineWidth: 0.3,
         },
         columnStyles: totalStyles,
         didParseCell: (hook) => {
