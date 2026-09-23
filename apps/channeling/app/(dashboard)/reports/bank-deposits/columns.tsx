@@ -75,6 +75,27 @@ export const BankDepositsColumns: ColumnDef<BankDepositsReportRow>[] = [
     },
   },
   {
+    accessorKey: 'approvedBy',
+    header: 'Approved By',
+    cell: ({ row }) => (
+      <span className={rowTextClass(row.original.transactionType)}>
+        {row.getValue<string>('approvedBy') ?? '-'}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'approvedAt',
+    header: 'Approved At',
+    cell: ({ row }) => {
+      const d = row.getValue<Date | null>('approvedAt');
+      return (
+        <span className={rowTextClass(row.original.transactionType)}>
+          {d ? moment(d).format('YYYY-MM-DD HH:mm') : '-'}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: 'bankAccountName',
     header: 'Bank Account',
     cell: ({ row }) => (
