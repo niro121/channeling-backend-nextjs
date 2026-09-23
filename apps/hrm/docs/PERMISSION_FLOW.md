@@ -229,6 +229,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/attendance-summary` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-logs` | `attendance` | Staff Attendance (same grant) |
 | `/salary-generation` | `payroll` | Payroll |
+| `/salary-processing` | `payroll` | Payroll |
 | `/payroll` | `payroll` | Payroll *(hub reserved)* |
 | `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
 | `/reports` | `reports` | Reports |

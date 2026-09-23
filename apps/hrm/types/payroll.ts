@@ -93,6 +93,60 @@ export const EMPTY_DEDUCTIONS_BREAKDOWN: SalaryBreakdownChartPoint[] = [
   { category: 'Other', amount: 0 }
 ];
 
+/** Salary Processing — payroll wizard steps (Phase 0 UI shell). */
+export type SalaryProcessingStepStatus = 'completed' | 'current' | 'pending';
+
+export type SalaryProcessingWizardStep = {
+  id: number;
+  label: string;
+  status: SalaryProcessingStepStatus;
+};
+
+export type SalaryProcessingSummary = {
+  periodLabel: string | null;
+  staffCount: number;
+  initiatedBy: string | null;
+  grossSalary: number;
+  totalDeductions: number;
+  netPayable: number;
+  epfEtf: number;
+};
+
+export type SalaryProcessingBreakdownRow = {
+  id: string;
+  staffName: string;
+  staffCode: string;
+  basic: number;
+  ot: number;
+  allowances: number;
+  deductions: number;
+  epf12: number;
+  etf3: number;
+  paye: number;
+  netSalary: number;
+};
+
+export const SALARY_PROCESSING_WIZARD_STEPS: SalaryProcessingWizardStep[] = [
+  { id: 1, label: 'Select Month', status: 'completed' },
+  { id: 2, label: 'Load Attendance', status: 'completed' },
+  { id: 3, label: 'Calculate Salary', status: 'completed' },
+  { id: 4, label: 'Review Allowances', status: 'completed' },
+  { id: 5, label: 'Review Deductions', status: 'current' },
+  { id: 6, label: 'Generate Payslips', status: 'pending' },
+  { id: 7, label: 'Approve Payroll', status: 'pending' },
+  { id: 8, label: 'Export Bank File', status: 'pending' }
+];
+
+export const EMPTY_SALARY_PROCESSING_SUMMARY: SalaryProcessingSummary = {
+  periodLabel: null,
+  staffCount: 0,
+  initiatedBy: null,
+  grossSalary: 0,
+  totalDeductions: 0,
+  netPayable: 0,
+  epfEtf: 0
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',

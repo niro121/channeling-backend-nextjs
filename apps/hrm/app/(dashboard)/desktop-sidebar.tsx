@@ -41,6 +41,7 @@ import {
   Fingerprint,
   Wallet,
   PlayCircle,
+  Cog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -372,19 +373,28 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {hasAccess('/salary-generation') && (
+        {(hasAccess('/salary-generation') || hasAccess('/salary-processing')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
               icon={<Wallet className="h-5 w-5" />}
-              paths={['/salary-generation']}
+              paths={['/salary-generation', '/salary-processing']}
               defaultOpen
             >
-              <NavLink
-                href="/salary-generation"
-                label="Salary Generation"
-                icon={<PlayCircle className="h-5 w-5" />}
-              />
+              {hasAccess('/salary-generation') && (
+                <NavLink
+                  href="/salary-generation"
+                  label="Salary Generation"
+                  icon={<PlayCircle className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-processing') && (
+                <NavLink
+                  href="/salary-processing"
+                  label="Salary Processing"
+                  icon={<Cog className="h-5 w-5" />}
+                />
+              )}
             </SidebarCollapsible>
           </SidebarGroup>
         )}
