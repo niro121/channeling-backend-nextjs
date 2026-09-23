@@ -166,6 +166,7 @@ export async function getChannelTransferReportService(
 
         bookingId: log.entityId ?? (md?.bookingId as string | undefined) ?? '',
         bookingDisplayId: b?.bookingid_string ?? b?.receiptNoString ?? (log.entityId ?? null),
+        receiptNoString: b?.receiptNoString?.trim() ? b.receiptNoString : null,
 
         fromSessionId: fromId,
         fromDoctorId: b?.movedFromSession?.doctorId ?? null,

@@ -38,6 +38,7 @@ export async function exportChannelTransferReportData(
         transferredAt: moment(r.transferredAt).format('YYYY-MM-DD HH:mm:ss'),
         transferredBy: r.transferredByUserName ?? r.transferredByUserId ?? '-',
         bookingId: r.bookingDisplayId ?? r.bookingId ?? '-',
+        receiptId: r.receiptNoString?.trim() ? r.receiptNoString : '-',
         beforeActivity: r.beforeActivity ?? '-',
         afterActivity: r.afterActivity ?? '-',
         remarks: r.remarks ?? '-',

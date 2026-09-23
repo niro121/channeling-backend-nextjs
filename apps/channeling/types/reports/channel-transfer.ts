@@ -31,6 +31,7 @@ export type ChannelTransferReportRow = {
 
   bookingId: string;
   bookingDisplayId: string | null;
+  receiptNoString: string | null;
 
   fromSessionId: string | null;
   fromDoctorId: string | null;
@@ -51,6 +52,7 @@ export type ChannelTransferReportExportRow = {
   transferredAt: string;
   transferredBy: string;
   bookingId: string;
+  receiptId: string;
   beforeActivity: string;
   afterActivity: string;
   remarks: string;
